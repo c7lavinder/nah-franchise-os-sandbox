@@ -88,18 +88,18 @@ Your app must have this URL registered or the OAuth flow will fail.
 
 | Environment | Redirect URI |
 |-------------|-------------|
-| **Local development** | `http://localhost:3001/api/auth/ghl/callback` |
-| **Production** | `https://[your-backend-domain]/api/auth/ghl/callback` |
+| **Local development** | `http://localhost:3001/api/auth/crm/callback` |
+| **Production** | `https://[your-backend-domain]/api/auth/crm/callback` |
 
 **Important rules:**
 - The URI must match **exactly** — including `http` vs `https`, trailing slashes, and port numbers
 - For local development, use port `3001` (the backend port) not `3000` (the frontend port)
 - You can add multiple redirect URIs if needed (one for dev, one for production)
-- If you're running everything on Next.js (port 3000), use `http://localhost:3000/api/auth/ghl/callback`
+- If you're running everything on Next.js (port 3000), use `http://localhost:3000/api/auth/crm/callback`
 
 For this sandbox project (Next.js API routes on port 3000), use:
 ```
-http://localhost:3000/api/auth/ghl/callback
+http://localhost:3000/api/auth/crm/callback
 ```
 
 ---
@@ -114,7 +114,7 @@ instead of your app constantly polling GHL for updates.
 
 | Environment | Webhook URL |
 |-------------|-------------|
-| **Production** | `https://[your-backend-domain]/api/webhooks/ghl` |
+| **Production** | `https://[your-backend-domain]/api/webhooks/crm` |
 | **Local development** | Leave blank for now — or use a tunnel like ngrok |
 
 3. Under **"Webhook Events"**, enable at minimum:
@@ -182,7 +182,7 @@ If any of these are missing or wrong, the OAuth flow will fail silently or with 
 
 Once the OAuth callback route is built (Phase 1), test the full flow:
 
-1. **Start the flow:** Visit `http://localhost:3000/api/auth/ghl` in your browser
+1. **Start the flow:** Visit `http://localhost:3000/api/auth/crm` in your browser
    - This redirects you to GHL's consent screen
 2. **Authorize:** Select your sub-account and click "Authorize"
    - GHL redirects back to your callback URL with a `code` parameter
@@ -263,12 +263,12 @@ Once the OAuth callback route is built (Phase 1), test the full flow:
 ## Quick Reference — Full OAuth Flow
 
 ```
-1. User visits: /api/auth/ghl
+1. User visits: /api/auth/crm
 
 2. App redirects to:
    https://marketplace.gohighlevel.com/oauth/chooselocation
      ?response_type=code
-     &redirect_uri=http://localhost:3000/api/auth/ghl/callback
+     &redirect_uri=http://localhost:3000/api/auth/crm/callback
      &client_id={GHL_CLIENT_ID}
      &scope=contacts.readonly contacts.write opportunities.readonly opportunities.write
             calendars.readonly calendars.write calendars/events.readonly calendars/events.write
@@ -276,7 +276,7 @@ Once the OAuth callback route is built (Phase 1), test the full flow:
             conversations/message.write workflows.readonly locations.readonly users.readonly
 
 3. User authorizes → GHL redirects to:
-   http://localhost:3000/api/auth/ghl/callback?code=AUTHORIZATION_CODE
+   http://localhost:3000/api/auth/crm/callback?code=AUTHORIZATION_CODE
 
 4. App exchanges code for tokens:
    POST https://services.leadconnectorhq.com/oauth/token
@@ -297,8 +297,8 @@ Once the OAuth callback route is built (Phase 1), test the full flow:
 
 Once the Marketplace app is created and environment variables are set:
 
-1. **Build the OAuth callback route** — `app/api/auth/ghl/callback/route.ts`
-2. **Build the OAuth start route** — `app/api/auth/ghl/route.ts`
+1. **Build the OAuth callback route** — `app/api/auth/crm/callback/route.ts`
+2. **Build the OAuth start route** — `app/api/auth/crm/route.ts`
 3. **Add token refresh logic** to the GHL client — auto-refresh before expiry
 4. **Test with real data** — contacts, pipeline, tasks from your GHL sub-account
 5. **Start building the GHL MCP server** at `/services/ghl-mcp/`

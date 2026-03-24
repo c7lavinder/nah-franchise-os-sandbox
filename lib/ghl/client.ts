@@ -31,14 +31,120 @@ import type {
 
 const GHL_BASE_URL = "https://services.leadconnectorhq.com";
 
-/** Builds authorization headers for GHL API calls */
-function getHeaders(): HeadersInit {
+/**
+ * Gets the best available auth token.
+ * Priority: OAuth token from Supabase → static PIT key from env.
+ * If OAuth token is expired, refreshes it automatically.
+ */
+async function getAccessToken(): Promise<string> {
+  // Try OAuth token first
+  try {
+    const supabase = createServerClient();
+    const { data: tokenRow } = await supabase
+      .from("app_settings")
+      .select("setting_value")
+      .eq("setting_key", "ghl_access_token")
+      .single();
+
+    if (tokenRow?.setting_value) {
+      const token = JSON.parse(tokenRow.setting_value) as string;
+
+      // Check if expired
+      const { data: expiresRow } = await supabase
+        .from("app_settings")
+        .select("setting_value")
+        .eq("setting_key", "ghl_token_expires_at")
+        .single();
+
+      const expiresAt = expiresRow?.setting_value
+        ? new Date(JSON.parse(expiresRow.setting_value) as string)
+        : null;
+
+      // If token is still valid (with 5 min buffer), use it
+      if (expiresAt && expiresAt.getTime() > Date.now() + 5 * 60 * 1000) {
+        return token;
+      }
+
+      // Token expired — try to refresh
+      const refreshed = await refreshOAuthToken();
+      if (refreshed) return refreshed;
+    }
+  } catch {
+    // OAuth lookup failed — fall through to PIT key
+  }
+
+  // Fallback to static PIT key
   const apiKey = process.env.GHL_API_KEY;
   if (!apiKey) {
-    throw new Error("Missing GHL_API_KEY environment variable");
+    throw new Error("No GHL auth available — set GHL_API_KEY or connect OAuth at /api/auth/crm");
   }
+  return apiKey;
+}
+
+/** Refreshes the OAuth token using the stored refresh token */
+async function refreshOAuthToken(): Promise<string | null> {
+  try {
+    const supabase = createServerClient();
+    const { data: refreshRow } = await supabase
+      .from("app_settings")
+      .select("setting_value")
+      .eq("setting_key", "ghl_refresh_token")
+      .single();
+
+    if (!refreshRow?.setting_value) return null;
+
+    const refreshToken = JSON.parse(refreshRow.setting_value) as string;
+    const clientId = process.env.GHL_CLIENT_ID;
+    const clientSecret = process.env.GHL_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) return null;
+
+    const response = await fetch("https://services.leadconnectorhq.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+      }).toString(),
+    });
+
+    if (!response.ok) {
+      console.error("GHL token refresh failed:", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const expiresAt = new Date(Date.now() + (data.expires_in ?? 86400) * 1000).toISOString();
+
+    // Store new tokens — refresh token is single-use, must store the new one
+    await supabase.from("app_settings").upsert(
+      { setting_key: "ghl_access_token", setting_value: JSON.stringify(data.access_token) },
+      { onConflict: "setting_key" }
+    );
+    await supabase.from("app_settings").upsert(
+      { setting_key: "ghl_refresh_token", setting_value: JSON.stringify(data.refresh_token) },
+      { onConflict: "setting_key" }
+    );
+    await supabase.from("app_settings").upsert(
+      { setting_key: "ghl_token_expires_at", setting_value: JSON.stringify(expiresAt) },
+      { onConflict: "setting_key" }
+    );
+
+    console.log("GHL OAuth token refreshed, expires at:", expiresAt);
+    return data.access_token;
+  } catch (err) {
+    console.error("GHL token refresh error:", err);
+    return null;
+  }
+}
+
+/** Builds authorization headers for GHL API calls */
+async function getHeaders(): Promise<HeadersInit> {
+  const token = await getAccessToken();
   return {
-    Authorization: `Bearer ${apiKey}`,
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
     Version: "2021-07-28",
   };
@@ -83,11 +189,13 @@ async function ghlFetch<T>(
   const url = `${GHL_BASE_URL}${endpoint}`;
   let lastError: GHLError | null = null;
 
+  const authHeaders = await getHeaders() as Record<string, string>;
+
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const response = await fetch(url, {
       ...options,
       headers: {
-        ...getHeaders(),
+        ...authHeaders,
         ...(options.headers ?? {}),
       },
     });
@@ -103,11 +211,19 @@ async function ghlFetch<T>(
       continue;
     }
 
-    // 401 — token expired. When OAuth is wired, refresh here and retry once.
-    // For now with PIT key, 401 means wrong key — no point retrying.
-    if (response.status === 401) {
+    // 401 — token expired. Try refreshing OAuth token and retry once.
+    if (response.status === 401 && attempt === 0) {
+      const refreshed = await refreshOAuthToken();
+      if (refreshed) {
+        // Update headers with new token and retry
+        authHeaders.Authorization = `Bearer ${refreshed}`;
+        console.warn(`GHL 401 on ${endpoint} — token refreshed, retrying`);
+        continue;
+      }
       const errorBody = await response.text();
-      // Future: await refreshOAuthToken(); attempt = 0; continue;
+      throw new GHLError(401, errorBody, endpoint);
+    } else if (response.status === 401) {
+      const errorBody = await response.text();
       throw new GHLError(401, errorBody, endpoint);
     }
 

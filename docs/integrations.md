@@ -27,7 +27,7 @@ The Franchise OS reads from and writes to GHL — it does not duplicate or repla
 **Step 1 — Register a Marketplace App**
 1. Go to the GHL Marketplace Developer portal
 2. Create a new app — select "Agency" or "Sub-Account" level depending on your setup
-3. Set the redirect URI to: `{BACKEND_URL}/api/auth/ghl/callback`
+3. Set the redirect URI to: `{BACKEND_URL}/api/auth/crm/callback`
 4. Request the following scopes:
    - `contacts.readonly`
    - `contacts.write`
@@ -50,7 +50,7 @@ The Franchise OS reads from and writes to GHL — it does not duplicate or repla
    ```
    https://marketplace.gohighlevel.com/oauth/chooselocation
      ?response_type=code
-     &redirect_uri={BACKEND_URL}/api/auth/ghl/callback
+     &redirect_uri={BACKEND_URL}/api/auth/crm/callback
      &client_id={GHL_CLIENT_ID}
      &scope=contacts.readonly contacts.write opportunities.readonly ...
    ```
@@ -64,7 +64,7 @@ The Franchise OS reads from and writes to GHL — it does not duplicate or repla
    &client_secret={GHL_CLIENT_SECRET}
    &grant_type=authorization_code
    &code={authorization_code}
-   &redirect_uri={BACKEND_URL}/api/auth/ghl/callback
+   &redirect_uri={BACKEND_URL}/api/auth/crm/callback
    ```
 4. Store the access token and refresh token encrypted in the `app_settings` table
 5. Access tokens expire after ~24 hours — refresh automatically before expiry
@@ -141,7 +141,7 @@ client_id={GHL_CLIENT_ID}
 
 ### GHL Webhook Events (Optional)
 
-For real-time updates instead of polling, configure GHL webhooks to send events to `{BACKEND_URL}/api/webhooks/ghl`:
+For real-time updates instead of polling, configure GHL webhooks to send events to `{BACKEND_URL}/api/webhooks/crm`:
 
 | Event | Trigger | Use Case |
 |-------|---------|----------|
