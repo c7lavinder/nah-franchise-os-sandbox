@@ -118,6 +118,9 @@ services/
 - **2026-03-24** — GHL stage names mapped to our pipeline stage names (see docs/pipeline.md GHL Stage Name Mapping)
 - **2026-03-24** — Mark Call given dedicated pipeline stage — not buried in Validation, capital is #1 blocker
 - **2026-03-24** — Product goal: keep all team members OUT of GHL — Scout is the interface, GHL is the backend database
+- **2026-03-24** — Pipeline 3 "Closed" NOT needed — Won/Lost are opportunity statuses in GHL, not a separate pipeline
+- **2026-03-24** — GHL OAuth connected — tokens stored in app_settings, auto-refresh on expiry
+- **2026-03-24** — Two NAH pipelines live: Active (11 stages) + Long-Term (3 stages), synced to Supabase
 
 ---
 

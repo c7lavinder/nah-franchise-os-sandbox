@@ -67,7 +67,8 @@ Chad handles only:
 |---------|--------|---------|
 | Pipeline 1 — Active | Stages 1–11 | Prospects actively moving toward becoming franchisees |
 | Pipeline 2 — Long-term | Follow-up, Nurture, Re-engaged | Prospects not ready now but have future potential |
-| Pipeline 3 — Closed | Won, Lost | Final outcomes — no active work needed |
+
+**Note:** Won and Lost are handled as opportunity statuses in GHL, not a separate pipeline. There is no Pipeline 3.
 
 Moving between pipelines preserves full history.
 Re-engaged leads from Pipeline 2 return to Pipeline 1 at the appropriate stage.
@@ -521,17 +522,16 @@ Treat as urgent — they already know NAH and chose to return.
 
 ---
 
-## PIPELINE 3 — CLOSED STAGES
+## WON / LOST — Opportunity Statuses (Not a Pipeline)
 
----
+Won and Lost are handled as **opportunity statuses** in GHL, not a separate pipeline.
+When a deal closes, Chad sets the opportunity status to "won" or "lost" on the existing opportunity.
 
-### Stage: Lost
+### Marking as Lost
 
-**Definition:** Prospect has formally passed. Hard no. Do not re-engage without a major change.
+**Entry:** Chad sets opportunity status to "lost" — loss reason REQUIRED before status change
 
-**Entry:** Chad marks as lost — loss reason REQUIRED before stage move is allowed
-
-**Required loss reasons (Scout blocks move until one is selected):**
+**Required loss reasons (Scout blocks status change until one is selected):**
 - Not qualified financially
 - No available territory
 - Chose a competitor franchise
@@ -542,7 +542,7 @@ Treat as urgent — they already know NAH and chose to return.
 - Other — Chad must type specific reason
 
 **Scout actions:**
-- Block stage move until loss reason is selected
+- Block status change until loss reason is selected
 - Based on loss reason, suggest: Lost vs Nurture
 - Draft respectful "door is always open" closing message (Chad confirms)
 - Log loss data for pattern analysis

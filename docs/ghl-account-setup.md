@@ -52,14 +52,9 @@ Add these 3 stages in this exact order:
 2. Nurture
 3. Re-engaged
 
-### Pipeline 3: NAH Franchise Sales — Closed
+### Pipeline 3 — NOT NEEDED
 
-Name it exactly: **NAH Franchise Sales — Closed**
-
-Add these 2 stages in this exact order:
-
-1. Won
-2. Lost
+Won and Lost are handled as **opportunity statuses** in GHL, not a separate pipeline. Do not create a third pipeline.
 
 ---
 
@@ -244,7 +239,7 @@ After completing all the steps above, do a final check:
 
 **Pipelines:**
 - Go to GHL -> Opportunities
-- Confirm all 3 new pipelines appear: "NAH Franchise Sales — Active", "NAH Franchise Sales — Long-Term", "NAH Franchise Sales — Closed"
+- Confirm both new pipelines appear: "NAH Franchise Sales - Active", "NAH Franchise Sales - Long-Term"
 - Confirm the old pipelines are still there and untouched
 
 **Contact Custom Fields:**

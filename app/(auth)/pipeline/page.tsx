@@ -4,23 +4,21 @@ import { useState, useEffect } from "react";
 import { Kanban, RefreshCw } from "lucide-react";
 
 /** Fallback stages if GHL API call fails */
+/** Fallback stages if GHL API call fails — Won/Lost are opportunity statuses, not a pipeline */
 const FALLBACK_PIPELINES = [
   {
-    name: "NAH Franchise Sales — Active",
+    name: "NAH Franchise Sales - Active",
     stages: [
-      "New Lead", "Contacted", "Qualified", "Discovery Scheduled",
-      "Discovery Complete", "Validation", "Compliance Gate",
-      "Application + Approval", "FDD Issued", "Decision Call",
+      "New Lead", "Contacted", "Qualified",
+      "Matt Call (Discovery)", "Sam Call (Validation)",
+      "Compliance Gate", "Application + Approval",
+      "FDD Issued", "Mark Call (Capital/Lending)",
       "Award + Agreement", "Funds Received",
     ],
   },
   {
-    name: "NAH Franchise Sales — Long-Term",
+    name: "NAH Franchise Sales - Long-Term",
     stages: ["Follow-up", "Nurture", "Re-engaged"],
-  },
-  {
-    name: "NAH Franchise Sales — Closed",
-    stages: ["Won", "Lost"],
   },
 ];
 
