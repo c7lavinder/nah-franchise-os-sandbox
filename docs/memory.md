@@ -111,6 +111,12 @@ services/
 - **2026-03-23** — Every MCP write tool uses draft→confirm before execution
 - **2026-03-23** — MCP server location: /services/ghl-mcp/
 - **2026-03-23** — Phase 0 MCP tools: contact_get, contact_search, contact_history, pipeline_get_stages
+- **2026-03-24** — Chad is orchestrator throughout entire journey — never hands off, schedules all calls, logs all outcomes
+- **2026-03-24** — Matt runs Discovery (Matt Call) — prospect meets the franchisor, vision/culture/fit assessment
+- **2026-03-24** — Sam runs Validation (Sam Call) — prospect vets operations with VP, day-to-day reality check
+- **2026-03-24** — Mark runs capital conversation (Mark Call) — #1 objection handler, dedicated lending/funding call
+- **2026-03-24** — GHL stage names mapped to our pipeline stage names (see docs/pipeline.md GHL Stage Name Mapping)
+- **2026-03-24** — Mark Call given dedicated pipeline stage — not buried in Validation, capital is #1 blocker
 
 ---
 

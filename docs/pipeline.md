@@ -1,10 +1,10 @@
 # pipeline.md — NAH Franchise Sales Pipeline (v2)
 
-> Last updated: 2026-03-23
+> Last updated: 2026-03-24
 > This is the upgraded pipeline based on top franchisor best practices.
 > 11 active stages + 4 exit stages across 3 pipelines.
 > Scout knows every stage, every Trainual section, every automation trigger.
-> Chad's job: make calls and log notes. Scout handles everything else.
+> Chad is the orchestrator of the entire journey — he never fully hands off.
 
 ---
 
@@ -22,6 +22,15 @@ Three core principles:
 
 ---
 
+## Chad's Role — Orchestrator
+
+Chad is the orchestrator and relationship owner throughout the entire prospect journey. He never fully hands off. Other team members (Matt, Sam, Mark) run specific calls at specific stages, but Chad is always the one who:
+- Schedules the right call with the right person
+- Follows up to ensure calls are completed
+- Logs outcomes after each call
+- Moves the prospect to the next stage
+- Scout helps Chad know who needs what and when
+
 ## Automation Philosophy
 
 Chad splits time between coaching franchisees and guiding prospects.
@@ -33,11 +42,11 @@ Scout handles automatically:
 - Tracking Trainual section completion
 - Firing GHL automations on stage moves
 - Flagging stalled leads before they fall through cracks
-- Building pre-call briefs for Chad
+- Building pre-call briefs for Chad (and for Matt/Sam/Mark before their calls)
 - Logging all outcomes and updating lead scores
 
 Chad handles only:
-- Making and receiving calls
+- Scheduling and coordinating calls
 - Logging call notes (minimum one sentence)
 - Confirming Scout's drafted actions
 - Moving leads through stages after key milestones
@@ -151,101 +160,89 @@ Full Trainual progress and all contact history travels with the lead always.
 
 ---
 
-### Stage 4 — Discovery Scheduled
+### Stage 4/5 — Matt Call (Discovery)
 
-**Definition:** A formal discovery call is on the calendar.
+**GHL stage name:** "Matt Call"
+
+**Definition:** The Matt Call is the Discovery call. Prospect meets the franchisor.
+This is the most important call in the pipeline. Matt is the founder — this is where
+the prospect decides whether they believe in NAH and whether NAH believes in them.
 
 **Entry:** Appointment created in GHL with confirmed date and time
-**Exit:** Discovery call completed
+**Exit:** Call completed, notes logged, Chad confirms prospect is a fit → moves to Sam Call
 
-**Trainual:** Prospect continues working through Our Story section above
+**Trainual unlocked:** Our Model · FDD Overview · Foundational Systems · Flip Simulator · Lead Launchpad · MasterSuite · Support Hubs · Coaching
 
-**Chad's job:** Prepare for call using Scout pre-call brief.
+**Who runs the call:** Matt (Franchisor)
+**Who schedules:** Chad (Scout drafts the scheduling message, Chad confirms and sends)
+**Who follows up:** Chad (logs outcome, scores the lead, moves to next stage)
 
-**Scout actions (automatic day before call):**
-- Build pre-call brief for Chad: who is this person, what do we know, what Trainual they've completed, their lead score, key talking points
+**What Matt covers on the call:**
+- Why NAH exists — the vision and mission
+- What NAH culture looks like — who succeeds and why
+- What Matt looks for in franchisees
+- Whether this prospect has what it takes
+- Honest assessment of fit from the franchisor's perspective
+
+**Chad's job:** Schedule the Matt Call. Send Matt the pre-call brief. After the call, log Matt's outcome notes, update Scout, and move the prospect forward.
+
+**Scout actions:**
+- Build pre-call brief for Chad to send to Matt: who is this person, what do we know, Trainual progress, lead score, key talking points
 - Draft 24-hour reminder message to prospect (Chad confirms)
 - Draft 1-hour reminder message to prospect (Chad confirms)
-- Flag if prospect has not completed any Trainual — Chad should address this on call
+- After call: prompt Chad to log outcome and complete discovery scorecard
+- Based on notes, draft recap email to prospect with next steps (Chad confirms)
+- Update lead score based on call outcome
+- If fit confirmed → suggest Sam Call stage move
+- If weak fit → flag for leadership review before continuing
 
 **GHL automation:** Send automated reminder sequence (24hr + 1hr before call)
 
 **Accountability:**
 - No-show with no reschedule in 24hr → auto-task for Chad to reschedule
-
----
-
-### Stage 5 — Discovery Complete
-
-**Definition:** The discovery call has been completed and outcome logged.
-
-**Entry:** Call completed, notes logged by Chad (required before stage move)
-**Exit:** Chad confirms prospect is a fit → moves to Validation
-
-**Trainual unlocked:** Our Model · FDD Overview · Foundational Systems · Flip Simulator · Lead Launchpad · MasterSuite · Support Hubs · Coaching
-
-**Chad's job:** Run structured discovery, log notes, confirm fit decision.
-
-**Structured discovery framework (Chad follows on call):**
-- Pain identification: Why are they looking at franchising now?
-- Financial fit: Walk through investment range — is it realistic for them?
-- Business model alignment: Does house flipping fit their goals and lifestyle?
-- Partnership vetting: Is this someone NAH wants as a franchisee?
-- Commitment signal: What is their timeline and what would need to be true to move forward?
-
-**Scout actions:**
-- Prompt Chad to complete discovery scorecard immediately after call
-- Based on notes, draft recap email to prospect with next steps (Chad confirms)
-- Update lead score based on call outcome
-- If fit confirmed → suggest Validation stage move
-- If weak fit → flag for leadership review before continuing
-
-**Accountability:**
 - No notes logged within 2 hours of call → reminder to Chad
 
 ---
 
-### Stage 6 — Validation
+### Stage 6 — Sam Call (Validation)
 
-**Definition:** Prospect is seriously considering and doing their due diligence.
-Team members are introduced to build conviction BEFORE legal documents.
+**GHL stage name:** "Sam Call"
 
-**Entry:** Strong discovery scorecard + Chad confirms fit
-**Exit:** All three validation calls completed + compliance gate passed
+**Definition:** The Sam Call is the Validation call. Prospect vets the business
+operations with the VP. Sam gives honest, detailed answers about what running
+a NAH franchise actually looks like day-to-day.
+
+**Entry:** Strong discovery scorecard from Matt Call + Chad confirms fit
+**Exit:** Sam Call completed + Chad logs outcome → moves to Mark Call
 
 **Trainual unlocked:** New Again Ecosystem · New Again Ecosystem Visual · Lowe's · The Business You Will Build · Building Your Construction Capacity · Our Construction Onboarding Strategy · Building the Real Estate Agent Partnership
 
-**Chad's job:** Orchestrate three intro calls. Scout schedules all of them.
+**Who runs the call:** Sam (VP)
+**Who schedules:** Chad (Scout drafts the scheduling message and a briefing note for Sam)
+**Who follows up:** Chad (logs outcome, moves to Mark Call stage)
 
-**Three required validation calls (Scout tracks completion of each):**
+**What Sam covers on the call:**
+- Day-to-day operations — what running a NAH franchise actually looks like
+- Support systems — what NAH provides and how it works in practice
+- What success looks like — real examples and realistic expectations
+- Honest answers to hard questions — Sam does not sugarcoat
 
-1. Construction Coach call
-   - Purpose: Prospect understands the construction side of the business
-   - Who schedules: Scout drafts intro + scheduling message, Chad confirms
-   - Outcome logged by: Chad after call
-
-2. Lending Partner call (Guidant Financial / Alta Capital)
-   - Purpose: Prospect understands funding options, confirms financial viability
-   - Who schedules: Scout drafts intro + scheduling message, Chad confirms
-   - Outcome logged by: Chad after call
-
-3. Existing Franchisee validation call
-   - Purpose: Prospect hears from someone living the business
-   - Who selects franchisee: Chad picks from approved validator list
-   - Scout drafts intro + scheduling message, Chad confirms
-   - Outcome logged by: Chad after call
+**Chad's job:** Schedule the Sam Call. Send Sam the briefing note (Scout drafts it). After the call, log Sam's outcome notes and move the prospect to the Mark Call stage.
 
 **Scout actions:**
-- Track all three call completions — stage move BLOCKED until all three done
-- Draft all three scheduling messages for Chad to confirm
-- Build validation summary after all three calls complete
-- Flag any red flags surfaced during validation calls
+- Draft scheduling message to prospect for Chad to confirm and send
+- Draft briefing note to Sam with prospect context, Matt Call outcome, key concerns
+- After call: prompt Chad to log outcome
+- Build validation summary based on Sam's feedback
+- Flag any red flags surfaced during the call
+- If positive → suggest Mark Call stage move
+- If concerns → flag for leadership review
 
 **GHL automation:** Trigger "Validation" sequence — prospect receives ecosystem Trainual content
 
 **Accountability:**
-- Any validation call not scheduled within 5 days → task for Chad
-- All three calls must be logged before compliance gate opens
+- Sam Call not scheduled within 5 days → task for Chad
+- Outcome not logged within 2 hours of call → reminder to Chad
 
 ---
 
@@ -338,35 +335,52 @@ The 14-day legal clock starts the moment FDD is delivered.
 
 ---
 
-### Stage 9 — Decision Call
+### Stage 9 — Mark Call (Capital/Lending Conversation)
 
-**Definition:** 14-day FDD period has passed. Prospect makes their final decision.
-This is the commitment call — yes or no.
+**GHL stage name:** "Mark Call"
+
+**Definition:** The Mark Call is a dedicated lending and capital conversation.
+Capital is the #1 objection in franchise sales. Mark walks the prospect through
+every funding option so they know exactly how to pay for it before the final decision.
+Mark deserves dedicated pipeline visibility because removing the capital blocker
+is the single highest-leverage conversation in the process.
 
 **Entry:** 14 days since FDD delivery confirmed by Scout
-**Exit:** Prospect commits to moving forward (→ Stage 10) or declines (→ Lost/Nurture)
+**Exit:** Mark confirms financial viability → moves to Award + Agreement, or declines → Lost/Nurture
 
 **Trainual:** Traits of High Performing Owner · Contact Current Franchise Owners
 
-**Chad's job:** Run the commitment call. This is the most important call in the process.
+**Who runs the call:** Mark (Lending Partner)
+**Who schedules:** Chad (Scout drafts the scheduling message)
+**Who follows up:** Chad (logs outcome, confirms financial viability, moves to next stage)
 
-**Scout pre-call brief (auto-built for Chad):**
-- Full prospect history from Stage 1 to now
-- Every concern or hesitation logged in previous calls
-- Objection handling suggestions based on their specific situation
-- Talking points based on their validation call outcomes
-- Recommended commitment language
+**What Mark covers on the call:**
+- Cash funding — paying out of pocket
+- SBA loans — process, timeline, and qualification
+- ROBS (Rollover for Business Startups) — using retirement funds without early withdrawal penalties
+- Alta Capital and Guidant Financial — specific partner options
+- What financial qualification looks like — realistic picture
+- Whether this prospect can actually fund the franchise
+
+**Why this is its own stage:**
+Capital is the #1 objection. Getting Mark on a dedicated call builds confidence
+and removes the biggest blocker. Previously this was buried inside Validation —
+now it has its own pipeline stage so Chad and Scout can see exactly where
+prospects are in the capital conversation.
+
+**Chad's job:** Schedule the Mark Call. After the call, log Mark's financial assessment. If capital is confirmed viable, move to Award + Agreement. If not viable, move to Nurture or Lost.
 
 **Scout actions:**
-- Build full pre-call brief for Chad the day before
-- Draft post-call follow-up based on outcome (Chad confirms)
-- If yes → suggest Stage 10 move, notify leadership
-- If hesitating → suggest specific objection handling
-- If no → suggest Lost or Nurture with reason
+- Draft scheduling message for Chad to confirm
+- Build pre-call brief with full prospect history from Stage 1 to now
+- After call: prompt Chad to log outcome and financial viability confirmation
+- If financially viable → suggest Award + Agreement stage move, notify leadership
+- If hesitating on capital → suggest specific financing objection handling
+- If not viable → suggest Lost or Nurture with reason
 
 **Accountability:**
 - Chad must log outcome within 2 hours of call
-- No decision call scheduled within 5 days of FDD day 14 → alert leadership
+- No Mark Call scheduled within 5 days of FDD day 14 → alert leadership
 
 ---
 
@@ -573,18 +587,53 @@ Scout scores every lead 1–100. Updates automatically on every stage move, note
 
 ---
 
+## Team Members
+
+| Person | Title | When they touch prospect | What they do |
+|--------|-------|--------------------------|--------------|
+| Chad | Orchestrator | Every stage — always | Schedules calls, follows up, moves pipeline, owns relationship |
+| Matt | Franchisor | Matt Call stage — Discovery | Prospect meets the founder. Vision, culture, why NAH exists |
+| Sam | VP | Sam Call stage — Validation | Prospect vets operations, day-to-day, what running NAH looks like |
+| Mark | Lending Partner | Mark Call stage — Capital | Prospect understands funding options and financial viability |
+
 ## Team Member Involvement by Stage
 
-| Stage | Chad | Construction Coach | Lending Partner | Existing Franchisee | Leadership |
-|-------|------|-------------------|-----------------|---------------------|-----------|
-| 1–5 | Primary | — | — | — | Notified on flags |
-| 6 Validation | Orchestrates | Intro call | Intro call | Validation call | — |
+| Stage | Chad | Matt | Sam | Mark | Leadership |
+|-------|------|------|-----|------|-----------|
+| 1 New Lead | Primary — first outreach | — | — | — | Notified on flags |
+| 2 Contacted | Primary — keeps attempting | — | — | — | Notified on flags |
+| 3 Qualified | Runs qualification, books Matt Call | — | — | — | Notified on flags |
+| 4/5 Matt Call | Schedules, sends brief, logs outcome | **Runs the call** | — | — | — |
+| 6 Sam Call | Schedules, sends brief, logs outcome | — | **Runs the call** | — | — |
 | 6.5 Compliance | Completes checklist | — | — | — | Signs off |
-| 7 Application | Guides | — | — | — | Approves |
-| 8 FDD | Legal-safe check-ins | — | — | — | Issued FDD |
-| 9 Decision | Runs call | — | — | — | On standby |
-| 10 Award | Coordinates | Notified | Notified | — | Signs |
-| 11 Closed | Celebrates | Onboarding | Onboarding | — | Notified |
+| 7 Application | Guides prospect through application | — | — | — | Approves |
+| 8 FDD Issued | Legal-safe check-ins only | — | — | — | Issues FDD |
+| 9 Mark Call | Schedules, logs financial viability | — | — | **Runs the call** | On standby |
+| 10 Award | Coordinates agreement execution | Final sign-off | — | — | Signs |
+| 11 Closed Won | Logs win, celebrates | — | — | — | Notified |
+
+---
+
+## GHL Stage Name Mapping
+
+The actual GHL pipeline uses different stage names than our documentation names.
+This table maps between them so Scout and the code always use the right one.
+
+| Our Pipeline Name | GHL Stage Name | Owner |
+|-------------------|---------------|-------|
+| Stage 1 — New Lead | New Lead | Chad |
+| Stage 2 — Contacted | Contacted | Chad |
+| Stage 3 — Qualified | Guided Path to Ownership | Chad |
+| Stage 4/5 — Discovery | Matt Call | Matt (Chad schedules) |
+| Stage 6 — Validation | Sam Call | Sam (Chad schedules) |
+| Stage 6.5 — Compliance Gate | Compliance Check | Chad + Leadership |
+| Stage 7 — Application | Application | Chad + Leadership |
+| Stage 8 — FDD Issued | Signed FDD Receipt | Admin (Chad triggers) |
+| Stage 9 — Capital/Lending | Mark Call | Mark (Chad schedules) |
+| Stage 10 — Award + Agreement | Matt Final/Documents Submitted | Matt + Chad |
+| Stage 11 — Funds Received | Closed Won | Chad logs |
+
+**Note:** Mark Call currently appears between Sam Call and Matt Final in GHL. In our new pipeline, Mark Call maps to the capital/lending conversation which was previously part of Validation. We are giving it its own dedicated stage because capital is the #1 objection and Mark deserves dedicated pipeline visibility.
 
 ---
 
