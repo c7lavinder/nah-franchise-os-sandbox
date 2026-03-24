@@ -117,6 +117,29 @@ export interface ScoutConversationOutput {
   updatedMessages: Anthropic.Messages.MessageParam[];
 }
 
+/** Loads active knowledge docs from Supabase and formats them for the system prompt */
+async function loadKnowledgeBase(): Promise<string> {
+  try {
+    const supabase = createServerClient();
+    const { data: docs, error } = await supabase
+      .from("knowledge_documents")
+      .select("title, category, content")
+      .eq("is_active", true)
+      .order("priority", { ascending: false })
+      .limit(10);
+
+    if (error || !docs || docs.length === 0) return "";
+
+    const formatted = (docs as { title: string; category: string; content: string }[])
+      .map((doc) => `### ${doc.title} [${doc.category}]\n${doc.content}`)
+      .join("\n\n");
+
+    return `KNOWLEDGE BASE — Use this information to answer questions accurately:\n\n${formatted}`;
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Runs a full conversation turn with the tool-call loop.
  * This is the main entry point used by the /api/scout/chat route.
@@ -126,13 +149,17 @@ export async function runConversationTurn(
 ): Promise<ScoutConversationOutput> {
   const client = createAnthropicClient();
 
-  // Assemble system prompt
+  // Load knowledge base dynamically from Supabase
+  const knowledgeBase = await loadKnowledgeBase();
+
+  // Assemble system prompt with injected knowledge
   const systemPrompt = [
     SCOUT_IDENTITY,
     getRoleBehavior(input.userRole),
     `CURRENT USER: ${input.userName} (ID: ${input.userId}, Role: ${input.userRole})`,
+    knowledgeBase,
     SCOUT_RULES,
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
 
   let messages: Anthropic.Messages.MessageParam[] = [...input.messages];
   let draftedAction: DraftedAction | undefined;
