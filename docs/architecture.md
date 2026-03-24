@@ -867,3 +867,168 @@ These fields must be created on GHL contacts for workflow tracking:
 | Scout Analyzer | Daily at 6:00 AM | Analyze all live workflows, update health scores, generate insights |
 | Enrollment Checker | Every hour | Check for new prospects matching workflow triggers, auto-enroll |
 | Expiry Checker | Daily at midnight | Check for enrollments past their duration, handle exits |
+
+---
+
+## 12. GHL MCP Integration — Added 2026-03-23
+
+### Decision
+
+Build our own GHL MCP server — not using open source repos directly.
+Use these as reference only for faster build:
+- https://github.com/hridayshah7/gohighlevel-mcp (TypeScript, 269 tools)
+- https://github.com/basicmachines-co/open-ghl-mcp (Python, OAuth 2.0)
+
+Why build our own:
+- Full control over tool definitions and behavior
+- basicmachines-co uses AGPL-3.0 license — viral license would force
+  us to open source our entire codebase if we copied it directly
+- Scout-specific draft→confirm pattern must be baked into every
+  write tool — open source repos give unrestricted GHL access
+- NAH-specific business rules enforced at the tool level
+- Use existing repos as reference to avoid rebuilding API patterns
+
+### Scout + GHL via MCP Architecture
+
+Scout (Claude API) connects to GHL through our custom MCP server.
+Scout has direct native access to all GHL operations without needing
+custom tool implementations for each action.
+
+**System flow:**
+
+```
+Scout (Claude API with tool use)
+  → MCP protocol
+  → NAH Custom GHL MCP Server (/services/ghl-mcp/ — TypeScript)
+     Built from scratch using repos above as reference
+     Every tool has Scout-specific behavior:
+     - Draft→confirm on all write operations
+     - Action logging before and after execution
+     - Role-based access (rep can't see other rep's leads)
+     - NAH business rules enforced at tool level
+  → GHL Private Integrations API v2
+  → GoHighLevel (source of truth for contacts)
+```
+
+### MCP Server Tool Build Order
+
+**Phase 0 — needed for Scout MVP:**
+- `contact_get(contact_id)`
+- `contact_search(query, filters)`
+- `contact_update(contact_id, fields)` — requires confirm
+- `contact_history(contact_id)`
+- `pipeline_get_stages()`
+
+**Phase 1 — needed for full Scout page:**
+- `pipeline_move(contact_id, stage_id)` — requires confirm
+- `task_create(contact_id, task)` — requires confirm
+- `task_list(contact_id)`
+- `appointment_create(contact_id, details)` — requires confirm
+- `appointment_list(contact_id)`
+- `message_send(contact_id, type, content)` — requires confirm
+- `conversation_get(contact_id)`
+
+**Phase 2 — needed for workflow engine:**
+- `workflow_get_all()`
+- `workflow_enroll(contact_id, workflow_id)` — requires confirm
+- `workflow_remove(contact_id, workflow_id)` — requires confirm
+- `automation_start(contact_id, id)` — requires confirm
+- `automation_stop(contact_id, id)` — requires confirm
+
+**Phase 3 — needed for leadership dashboard:**
+- `pipeline_summary(filters)`
+- `contact_list(filters, pagination)`
+- `opportunity_list(filters)`
+- `tag_add(contact_id, tags)` — requires confirm
+- `tag_remove(contact_id, tags)` — requires confirm
+
+### MCP Tool Design Pattern — Draft→Confirm
+
+Every write tool returns a draft object, never executes immediately.
+
+**WRONG pattern — executes immediately:**
+
+```typescript
+async function pipeline_move(contact_id: string, stage_id: string) {
+  await ghl.updateOpportunity(contact_id, { stage_id });
+  return { success: true };
+}
+```
+
+**RIGHT pattern — returns draft for human confirmation:**
+
+```typescript
+async function pipeline_move(contact_id: string, stage_id: string) {
+  const contact = await ghl.getContact(contact_id);
+  const stage = await ghl.getStage(stage_id);
+  return {
+    type: "draft",
+    action: "pipeline_move",
+    preview: `Move ${contact.name} from ${contact.currentStage} to ${stage.name}`,
+    payload: { contact_id, stage_id },
+    requires_confirmation: true,
+  };
+}
+```
+
+After user confirms — execution runs and action is logged.
+
+### MCP Server Location in Project
+
+```
+/services/ghl-mcp/
+  src/
+    client/ghl-api-client.ts       — authenticated GHL HTTP client
+    tools/contact-tools.ts          — contact CRUD tools
+    tools/pipeline-tools.ts         — pipeline and opportunity tools
+    tools/task-tools.ts             — task management tools
+    tools/appointment-tools.ts      — calendar and appointment tools
+    tools/message-tools.ts          — SMS and email tools
+    tools/conversation-tools.ts     — conversation history tools
+    tools/workflow-tools.ts         — workflow enrollment tools
+    middleware/auth.ts              — request authentication
+    middleware/confirm.ts           — draft→confirm enforcement
+    middleware/logger.ts            — action logging
+    middleware/role-scope.ts        — role-based contact filtering
+    types/ghl-types.ts             — GHL API response types
+    server.ts                      — MCP server entry point
+  tests/
+  package.json
+```
+
+### GHL Private Integration Scopes Required
+
+| Scope | Access |
+|-------|--------|
+| `contacts.readonly` | Read contact data |
+| `contacts.write` | Update contacts (via draft→confirm) |
+| `conversations.readonly` | Read message history |
+| `conversations.write` | Send messages (via draft→confirm) |
+| `opportunities.readonly` | Read pipeline data |
+| `opportunities.write` | Move stages (via draft→confirm) |
+| `calendars.readonly` | Read appointments |
+| `calendars.write` | Create appointments (via draft→confirm) |
+| `workflows.readonly` | Read workflow data |
+| `campaigns.readonly` | Read campaign data |
+| `users.readonly` | Read user/team data |
+| `locations.readonly` | Read location config |
+
+### Wiring MCP Server into Scout
+
+Include in every Claude API call from the backend:
+
+```typescript
+const response = await anthropic.messages.create({
+  model: "claude-sonnet-4-5-20250514",
+  max_tokens: 4096,
+  system: scoutSystemPrompt,
+  messages: conversationMessages,
+  mcp_servers: [
+    {
+      type: "url",
+      url: process.env.GHL_MCP_SERVER_URL,
+      name: "ghl",
+    },
+  ],
+});
+```

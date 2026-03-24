@@ -463,3 +463,61 @@ to all external services:
 If any service is unreachable, the health check returns a `503` with details on which
 service is failing. This endpoint is used by Railway for deployment health checks and
 by the accountability engine to verify services before running jobs.
+
+---
+
+## NAH Custom GHL MCP Server — Added 2026-03-23
+
+### What It Is
+
+Custom Model Context Protocol server giving Scout direct GHL access.
+Built in TypeScript. Reference repos used for patterns only — not copied.
+
+Reference repos (patterns only — do not copy code directly):
+- https://github.com/hridayshah7/gohighlevel-mcp — tool structure patterns
+- https://github.com/basicmachines-co/open-ghl-mcp — OAuth 2.0 patterns
+
+### Why Not Use Open Source Directly
+
+- **basicmachines-co:** AGPL-3.0 license — copying code would force us
+  to open source our entire application — unacceptable
+- **hridayshah7:** No draft→confirm safety layer — Scout would have
+  unrestricted write access to GHL — violates our core safety model
+- **Neither** has NAH business rules or role-based contact scoping
+
+### What To Borrow From Reference Repos
+
+**From hridayshah7 (TypeScript):**
+- GHL API client base URL and header patterns
+- TypeScript type definitions for GHL response objects
+- Error handling and rate limiting approaches
+- Tool naming conventions
+
+**From basicmachines-co (Python — translate to TypeScript):**
+- OAuth 2.0 flow and token refresh logic
+- Multi-location support patterns
+
+### New Environment Variables Required
+
+| Variable | Purpose |
+|----------|---------|
+| `GHL_PRIVATE_API_KEY` | GHL Settings → Integrations → Private Integrations |
+| `GHL_LOCATION_ID` | GHL Settings → Company → Locations |
+| `GHL_BASE_URL` | `https://services.leadconnectorhq.com` |
+| `GHL_MCP_SERVER_URL` | URL of our deployed MCP server |
+
+### MCP Server URL
+
+| Environment | URL |
+|-------------|-----|
+| Production | `https://[backend-domain]/mcp/ghl` |
+| Development | `http://localhost:3001/mcp/ghl` |
+
+### Build Priority
+
+| Phase | Tools | Purpose |
+|-------|-------|---------|
+| Phase 0 | contact tools (get, search, update, history) + pipeline stages | Scout MVP |
+| Phase 1 | pipeline move, tasks, appointments, messaging, conversations | Full Scout page |
+| Phase 2 | workflow enrollment and automation controls | Workflow engine |
+| Phase 3 | bulk operations, tags, leadership reporting tools | Leadership dashboard |

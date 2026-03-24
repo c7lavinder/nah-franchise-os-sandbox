@@ -54,6 +54,8 @@ lib/
 types/                   — database.ts, ghl.ts, scout.ts
 supabase/migrations/     — 001_initial_schema.sql, 002_seed_data.sql
 docs/                    — Architecture, design, pipeline, features, integrations, build-plan, stack, PROGRESS.md
+services/
+  ghl-mcp/               — Custom GHL MCP server (Phase 0)
 ```
 
 ---
@@ -101,6 +103,14 @@ docs/                    — Architecture, design, pipeline, features, integrati
 - **2026-03-23** — Top loss reasons: capital, timing, competitors, territory, non-committal, bad fit
 - **2026-03-23** — 84% of prospects never opened Trainual when invite fired cold
 - **2026-03-23** — Fix: Chad framing call must be logged before Trainual invite fires
+- **2026-03-23** — Building custom GHL MCP server — not using open source directly
+- **2026-03-23** — basicmachines-co avoided: AGPL-3.0 viral license risk
+- **2026-03-23** — hridayshah7 avoided as direct copy: no draft→confirm safety layer
+- **2026-03-23** — Both repos used as reference only for API patterns and type definitions
+- **2026-03-23** — Scout wired to GHL via MCP — Scout calls GHL tools natively
+- **2026-03-23** — Every MCP write tool uses draft→confirm before execution
+- **2026-03-23** — MCP server location: /services/ghl-mcp/
+- **2026-03-23** — Phase 0 MCP tools: contact_get, contact_search, contact_history, pipeline_get_stages
 
 ---
 
