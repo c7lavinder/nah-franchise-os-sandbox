@@ -19,8 +19,8 @@
 ## Current Status
 - **Phase:** Phase 0 + 1a + 1b + 1c complete. Ready for env setup + live testing.
 - **Last updated:** 2026-03-23
-- **Last session:** Built entire project foundation, Scout AI chat with tool-call loop, Daily HQ dashboard, accountability engine, voice input, auth system, database migrations.
-- **Next action:** Dev team sets up Supabase + API keys, runs migrations, tests live.
+- **Last session:** Pipeline fully redesigned to v2 — 11 stages, compliance gate, Trainual mapped to stages
+- **Next action:** Build Daily HQ wireframe then start Phase 0 code
 
 ---
 
@@ -81,6 +81,12 @@ docs/                    — Architecture, design, pipeline, features, integrati
 - **2026-03-23** — Used `claude-sonnet-4-5-20250514` model ID — latest available Sonnet model at build time
 - **2026-03-23** — Auth tokens stored in localStorage (not HTTP-only cookies) — simpler for MVP, can upgrade to cookies later
 - **2026-03-23** — Tailwind v3 (not v4) — v4 incompatible with Next.js 14 config approach
+- **2026-03-23** — Pipeline upgraded from 9 stages to 11 active stages + 4 exit stages
+- **2026-03-23** — Added Stage 6.5 compliance gate — hard block enforced by Scout
+- **2026-03-23** — Stage 7 Application flagged as pending attorney review
+- **2026-03-23** — Three pipelines confirmed: Active, Long-term, Closed
+- **2026-03-23** — Pipeline philosophy: mutual vetting process, not traditional sales funnel
+- **2026-03-23** — Chad owns full journey, orchestrates team member involvement at each stage
 
 ---
 
@@ -139,6 +145,7 @@ docs/                    — Architecture, design, pipeline, features, integrati
 - **[med]** — Daily HQ scorecard returns 0s — needs real GHL activity counting implementation
 - **[med]** — No GHL OAuth token refresh — currently uses static API key, OAuth flow needed for production
 - **[low]** — Auth uses localStorage — consider HTTP-only cookies for production security
+- **[high]** — Stage 7 BLOCKED — pending franchise attorney review on application fee, deposit, background check, financial verification requirements
 
 ---
 
