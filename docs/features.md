@@ -309,3 +309,87 @@
 | **Phase 2 — Expansion** | ~60 features across 8 modules | Should have — ship second |
 | **Phase 3 — Future** | ~35 features across 6 modules | Nice to have — long-term roadmap |
 | **Total** | ~175 features | — |
+
+---
+
+## Workflows Engine
+
+> Full specification in docs/workflows.md. This section lists features by phase.
+
+### Phase 2 — Workflow Features
+
+#### 2.9 Workflow Dashboard (View 1)
+
+- [ ] Workflow list with name, status, health score (A–F), active enrollee count `[Lead]`
+- [ ] Primary metric displayed per workflow with current value `[Lead]`
+- [ ] Header stats: total active workflows, total prospects, workflows needing attention `[Lead]`
+- [ ] Quick actions: Pause / Clone / Archive per workflow `[Lead]`
+- [ ] Scout intelligence panel — surfaces top issue automatically with diagnosis `[Lead]`
+- [ ] Link from intelligence panel to full Scout Workflow Intelligence view `[Lead]`
+- [ ] Filter by workflow type (new lead, FDD nurture, re-engagement, etc.) `[Lead]`
+- [ ] Filter by health score (A–F) `[Lead]`
+- [ ] Sort by enrollee count, health score, or last updated `[Lead]`
+
+#### 2.10 Visual Workflow Builder (View 2)
+
+- [ ] Drag-and-drop canvas with days laid out vertically `[Lead]`
+- [ ] Step library on left panel — drag step types onto canvas `[Lead]`
+- [ ] Inline step editor on right panel — opens when step is clicked `[Lead]`
+- [ ] Performance color coding per step: green / yellow / red `[Lead]`
+- [ ] Scout assist button on every step: Write / Improve / Shorten `[Lead]`
+- [ ] Step types: SMS, Email, Chad Call Task, Team Notify, AI Agent Action, Condition Check, Stage Move Suggestion, Trainual Check `[Lead]`
+- [ ] Content editor for SMS and email steps with character count `[Lead]`
+- [ ] Timing controls — time of day, delay from previous step `[Lead]`
+- [ ] Condition builder — if/then branching logic (e.g., "if Trainual opened → path A, else → path B") `[Lead]`
+- [ ] New workflow creation flow: Name → Trigger → Goal → Build → Scout Review → Submit → Admin Approve → Live `[Lead]`
+- [ ] Clone entire workflow (creates draft copy) `[Lead]`
+- [ ] Clone individual steps between workflows `[Lead]`
+- [ ] Preview mode — see the prospect's experience day by day `[Lead]`
+- [ ] Drag to reorder steps within a day `[Lead]`
+
+#### 2.11 Scout Workflow Intelligence (View 3)
+
+- [ ] 24-hour analysis cycle — Scout analyzes all live workflows daily `[System]`
+- [ ] Drop-off identification — where prospects exit each sequence `[Lead]`
+- [ ] Correlation insights — which steps drive call bookings, Trainual opens `[Lead]`
+- [ ] Rewrite suggestions — 3 variants for every underperforming step `[Lead]`
+- [ ] D/F health score triggers immediate admin alert with diagnosis `[System]`
+- [ ] All insights in plain language — not raw metrics `[Lead]`
+- [ ] Scout diagnosis includes: what is broken, why, and specific steps to fix `[Lead]`
+- [ ] Link to A/B test creation from any rewrite suggestion `[Lead]`
+- [ ] Historical trend view — how workflow health has changed over time `[Lead]`
+
+#### 2.12 A/B Testing (View 4)
+
+- [ ] Create Variant B of any step in a live workflow `[Lead]`
+- [ ] Scout pre-fills Variant B with improved version (editable) `[Lead]`
+- [ ] 50/50 split on new enrollees automatically `[System]`
+- [ ] Minimum sample size enforcement (default 20 per variant) `[System]`
+- [ ] Scout declares winner after sample size reached with plain language explanation `[System]`
+- [ ] Admin confirms winner → losing variant archived (never deleted) `[Lead]`
+- [ ] Full workflow A/B test — test entire sequence vs another sequence `[Lead]`
+- [ ] Test status tracking: draft → pending approval → running → complete `[Lead]`
+- [ ] Admin approval required to start or conclude any test `[Lead]`
+
+#### 2.13 Workflow Update Controls
+
+- [ ] Role-based permissions: Rep (view only), Marketing (edit drafts, submit), Leadership (pause live), Admin (approve, archive) `[System]`
+- [ ] Two update modes: New enrollees only OR Full overwrite (admin chooses) `[Lead]`
+- [ ] Full overwrite skips steps already passed — only future steps updated `[System]`
+- [ ] Both modes require admin approval before going live `[System]`
+- [ ] Version control — every change creates a new version `[System]`
+- [ ] Rollback to any previous version (admin only) `[Lead]`
+- [ ] Change log: who changed what, when, approved by whom `[Lead]`
+- [ ] Nothing permanently deleted — archive only `[System]`
+
+### Phase 3 — Workflow Future Features
+
+#### 3.7 Advanced Workflow Intelligence
+
+- [ ] Workflow performance benchmarks auto-calibrated after 90 days of live data `[System]`
+- [ ] Cross-workflow insights — patterns that span multiple workflows `[Lead]`
+- [ ] Prospect journey visualization — see one prospect's full path across all workflows `[Lead]`
+- [ ] Workflow ROI tracking — cost of workflow execution vs revenue from closed deals `[Lead]`
+- [ ] Template library of pre-built workflows for common scenarios `[Lead]`
+- [ ] Seasonal adjustment — Scout adjusts benchmarks and content suggestions based on time of year `[System]`
+- [ ] Multi-channel optimization — Scout recommends best channel per step based on prospect behavior `[System]`

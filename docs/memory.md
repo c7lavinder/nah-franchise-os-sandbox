@@ -17,10 +17,10 @@
 ---
 
 ## Current Status
-- **Phase:** Phase 0 + 1a + 1b + 1c complete. Ready for env setup + live testing.
+- **Phase:** Phase 0 — Ready to build
 - **Last updated:** 2026-03-23
-- **Last session:** Pipeline fully redesigned to v2 — 11 stages, compliance gate, Trainual mapped to stages
-- **Next action:** Build Daily HQ wireframe then start Phase 0 code
+- **Last session:** Full discovery complete — all docs written and updated (workflows engine, 30-day sequence, objection handling, pipeline v2, architecture, features, command system)
+- **Next action:** Run Phase 0 master build prompt to initialize Next.js project
 
 ---
 
@@ -87,6 +87,20 @@ docs/                    — Architecture, design, pipeline, features, integrati
 - **2026-03-23** — Three pipelines confirmed: Active, Long-term, Closed
 - **2026-03-23** — Pipeline philosophy: mutual vetting process, not traditional sales funnel
 - **2026-03-23** — Chad owns full journey, orchestrates team member involvement at each stage
+- **2026-03-23** — Workflows live entirely in NAH OS database — GHL is execution layer only
+- **2026-03-23** — Admin-only approval required to push any workflow change live
+- **2026-03-23** — Two update modes per change: new enrollees only OR full overwrite
+- **2026-03-23** — A/B testing built into workflow engine from day one
+- **2026-03-23** — Scout grades workflows A–F and rewrites underperforming steps
+- **2026-03-23** — 30-day new lead sequence defined with day-by-day content plan
+- **2026-03-23** — Chad personal calls required at days 3, 10, 14, 20, 30
+- **2026-03-23** — AI scheduling agent books calls if no call booked by day 7
+- **2026-03-23** — Lead card must show: Trainual %, days in stage, last activity, pipeline stage, sequence day number
+- **2026-03-23** — One territory per franchisee confirmed
+- **2026-03-23** — Average deal length: several months
+- **2026-03-23** — Top loss reasons: capital, timing, competitors, territory, non-committal, bad fit
+- **2026-03-23** — 84% of prospects never opened Trainual when invite fired cold
+- **2026-03-23** — Fix: Chad framing call must be logged before Trainual invite fires
 
 ---
 
@@ -146,6 +160,8 @@ docs/                    — Architecture, design, pipeline, features, integrati
 - **[med]** — No GHL OAuth token refresh — currently uses static API key, OAuth flow needed for production
 - **[low]** — Auth uses localStorage — consider HTTP-only cookies for production security
 - **[high]** — Stage 7 BLOCKED — pending franchise attorney review on application fee, deposit, background check, financial verification requirements
+- **[med]** — Trainual framing call enforcement not yet in GHL automations — must configure GHL to wait for Chad call log before firing Trainual invite
+- **[med]** — Workflow engine database tables not yet created — required before Phase 2 workflow features can be built
 
 ---
 

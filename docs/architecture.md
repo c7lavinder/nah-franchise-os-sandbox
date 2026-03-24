@@ -754,3 +754,116 @@ Additionally, the backend sanitizes all GHL data before injecting it into the pr
 - `.env` files are listed in `.gitignore` and are never committed
 - API keys are rotated on a quarterly basis (minimum)
 - GHL OAuth tokens are refreshed automatically and the old tokens are invalidated
+
+---
+
+## 11. Workflow Engine Architecture
+
+> Full specification in docs/workflows.md. This section covers the technical architecture.
+
+### System Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                   WORKFLOW INTELLIGENCE ENGINE                        │
+│                                                                      │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────┐  │
+│  │  Workflow        │  │  Scout           │  │  A/B Test          │  │
+│  │  Builder UI      │  │  Analyzer        │  │  Engine            │  │
+│  │                  │  │                  │  │                    │  │
+│  │  - Visual canvas │  │  - 24hr analysis │  │  - Variant mgmt   │  │
+│  │  - Step editor   │  │  - Health score  │  │  - 50/50 split    │  │
+│  │  - Preview mode  │  │  - Rewrite gen   │  │  - Winner declare │  │
+│  │  - Condition UI  │  │  - Drop-off ID   │  │  - Sample tracking│  │
+│  └────────┬────────┘  └────────┬─────────┘  └────────┬───────────┘  │
+│           │                    │                      │              │
+│  ┌────────┴────────────────────┴──────────────────────┴───────────┐  │
+│  │                    WORKFLOW ENGINE BACKEND                      │  │
+│  │                                                                │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │  │
+│  │  │ Enrollment   │  │ Step         │  │ Condition            │ │  │
+│  │  │ Logic        │  │ Scheduler    │  │ Evaluator            │ │  │
+│  │  │              │  │              │  │                      │ │  │
+│  │  │ - Enroll     │  │ - Next step  │  │ - Trainual check     │ │  │
+│  │  │ - Pause      │  │ - Timing     │  │ - Call logged check  │ │  │
+│  │  │ - Resume     │  │ - Queue mgmt │  │ - Goal achieved      │ │  │
+│  │  │ - Exit       │  │ - Retry      │  │ - Branching          │ │  │
+│  │  └──────────────┘  └──────────────┘  └──────────────────────┘ │  │
+│  │                                                                │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │  │
+│  │  │ Version      │  │ Performance  │  │ Approval             │ │  │
+│  │  │ Controller   │  │ Tracker      │  │ Flow                 │ │  │
+│  │  │              │  │              │  │                      │ │  │
+│  │  │ - Versioning │  │ - Delivery   │  │ - Submit             │ │  │
+│  │  │ - Rollback   │  │ - Opens      │  │ - Review             │ │  │
+│  │  │ - Change log │  │ - Clicks     │  │ - Approve/Reject     │ │  │
+│  │  │ - Archive    │  │ - Responses  │  │ - Push live          │ │  │
+│  │  └──────────────┘  └──────────────┘  └──────────────────────┘ │  │
+│  └────────────────────────────────┬───────────────────────────────┘  │
+│                                   │                                  │
+└───────────────────────────────────┼──────────────────────────────────┘
+                                    │
+                    ┌───────────────┼───────────────┐
+                    │               │               │
+                    ▼               ▼               ▼
+┌──────────────────────┐  ┌────────────────┐  ┌──────────────────┐
+│   NAH OS DATABASE    │  │  GHL EXECUTION │  │  TRAINUAL API    │
+│   (Supabase)         │  │  LAYER         │  │  (if available)  │
+│                      │  │                │  │                  │
+│  - workflows         │  │  Receives:     │  │  - Completion %  │
+│  - workflow_versions │  │  contact_id    │  │  - Last activity │
+│  - workflow_steps    │  │  + content     │  │  - Sections done │
+│  - workflow_enroll.  │  │  + send_type   │  │                  │
+│  - workflow_step_logs│  │                │  │                  │
+│  - workflow_ab_tests │  │  Returns:      │  │                  │
+│  - workflow_approvals│  │  delivered     │  │                  │
+│                      │  │  opened        │  │                  │
+│                      │  │  clicked       │  │                  │
+│                      │  │  responded     │  │                  │
+└──────────────────────┘  └────────────────┘  └──────────────────┘
+```
+
+### Data Flow
+
+1. **Enrollment:** Prospect enters a pipeline stage → Workflow Engine checks trigger conditions → Enrolls prospect in the matching workflow
+2. **Step Execution:** Scheduler checks what steps are due → For SMS/Email steps, sends content to GHL API → GHL delivers the message
+3. **Result Tracking:** GHL returns delivery data (delivered, opened, clicked, responded) → Step log updated → Performance metrics recalculated
+4. **Condition Checks:** Before each step, Condition Evaluator checks prerequisites (e.g., "has Trainual been opened?") → If false, branch or skip
+5. **Analysis:** Daily cron triggers Scout Analyzer → Scout grades each workflow A–F → Flags underperformers → Generates rewrite suggestions
+6. **A/B Testing:** New enrollees split 50/50 → Both variants tracked independently → Scout declares winner after sample size reached
+
+### Workflow Engine Database Schema
+
+Seven new tables added to Supabase. Full SQL in docs/workflows.md.
+
+| Table | Purpose | Key Fields |
+|-------|---------|------------|
+| `workflows` | Master workflow record | name, type, trigger, health_score, status |
+| `workflow_versions` | Version history per workflow | version_number, change_description, update_mode, approved_by |
+| `workflow_steps` | Individual steps within a version | day_number, step_type, content, send_time, performance_status |
+| `workflow_enrollments` | Prospect enrollment tracking | contact_id, current_day, status, goal_achieved |
+| `workflow_step_logs` | Execution log per step per prospect | delivered, opened, clicked, responded, executed_at |
+| `workflow_ab_tests` | A/B test configuration and results | variant_a/b, sample sizes, winner, status |
+| `workflow_approvals` | Approval queue for changes | approval_type, submitted_by, approved_by, status |
+
+### GHL Custom Fields Required
+
+These fields must be created on GHL contacts for workflow tracking:
+
+| Custom Field | Type | Purpose |
+|-------------|------|---------|
+| `workflow_name` | Text | Name of the active workflow this contact is enrolled in |
+| `workflow_day` | Number | Current day number in the workflow |
+| `workflow_version` | Text | Version ID of the workflow the contact is on |
+| `last_workflow_touch` | Date | Timestamp of the last workflow step executed |
+| `workflow_goal_achieved` | Checkbox | Whether the workflow's exit goal was met |
+
+### Cron Jobs Required
+
+| Job | Frequency | Purpose |
+|-----|-----------|---------|
+| Step Scheduler | Every 15 minutes | Check for steps due to execute, queue them for delivery |
+| Delivery Tracker | Every 30 minutes | Poll GHL for delivery data on recently sent messages |
+| Scout Analyzer | Daily at 6:00 AM | Analyze all live workflows, update health scores, generate insights |
+| Enrollment Checker | Every hour | Check for new prospects matching workflow triggers, auto-enroll |
+| Expiry Checker | Daily at midnight | Check for enrollments past their duration, handle exits |

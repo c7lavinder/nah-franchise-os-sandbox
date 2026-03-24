@@ -600,3 +600,114 @@ The following must be resolved with NAH's franchise attorney before Stage 7 is b
 - [ ] Any state-specific compliance requirements for territories NAH operates in
 
 **These items are flagged in docs/stack.md as a blocker for Stage 7 development.**
+
+---
+
+## 30-Day New Lead Sequence
+
+> Full specification in docs/workflows.md. This section defines the day-by-day content plan.
+
+**GOAL:** Call booked + Trainual opened within 30 days.
+**AI AGENT:** Books calls automatically if no call scheduled by day 7.
+**CHAD personal calls required at days 3, 10, 14, 20, 30.**
+
+### Communication Rules
+
+**Daily SMS Rule:** One SMS per day. One goal only. Short.
+Either get them on the phone OR get them into Trainual. Never both in the same message.
+
+**Email Rule:** Content emails every 2–3 days. One theme each.
+Clear next step at the bottom of every email.
+
+**Appointment Reminder Rule:**
+- SMS reminder: Short, calendar confirm only.
+  Example: "Hey [Name] — confirming our call tomorrow at [time]. See you then."
+- Email reminder: Deeper — what the call covers, what to prepare, what happens after the call.
+
+---
+
+### Week 1 — Days 1–7 (Awareness and Call Booking)
+
+| Day | Channel | Content | Goal |
+|-----|---------|---------|------|
+| 1 | SMS | Welcome — "Hey [Name], this is Chad from New Again Houses. Excited to connect with you about the franchise opportunity. I'll be your guide through the process." | Introduction |
+| 1 | EMAIL | Intro — what to expect in the coming weeks, Trainual access link sent | Set expectations + Trainual access |
+| 2 | SMS | Trainual nudge — "Did you get a chance to check out the interactive guide I sent? It walks you through everything about NAH." | Trainual open |
+| 2 | EMAIL | Why a house flipping franchise beats going solo — failure rates, systems, support | Value building |
+| 3 | SMS | Question — "Quick question — what got you interested in business ownership?" | Engagement |
+| 3 | **CHAD CALL** | Frame Trainual importance, answer initial questions, book discovery call | Call booking |
+| 4 | SMS | Franchisee story link — "Check out how [Franchisee Name] built their business with NAH" | Social proof |
+| 4 | EMAIL | Franchisee success story — full case study with timeline and results | Conviction |
+| 5 | SMS | Capital question — "Have you started looking into financing options? We have great partners." | Capital awareness |
+| 5 | EMAIL | Investment breakdown + financing options — Guidant Financial, Alta Capital, ROBS | Financial clarity |
+| 6 | SMS | Trainual progress check — "How far did you get in the guide? Any questions so far?" + direct link | Trainual completion |
+| 7 | SMS | Calendar ask — "I'd love to get on a call this week to answer your questions. Here's my calendar:" | Call booking |
+| 7 | EMAIL | Personal message from Chad + booking link + "Most people who talk to us feel much more confident about the opportunity" | Call booking |
+| 7 | **AI AGENT** | If no call booked by day 7 — auto-schedule attempt using Chad's calendar availability | Call booking |
+
+---
+
+### Week 2 — Days 8–14 (Value Building and Objection Handling)
+
+| Day | Channel | Content | Goal |
+|-----|---------|---------|------|
+| 8 | SMS | Momentum nudge — "Just checking in — any questions about what you've seen so far?" | Engagement |
+| 9 | EMAIL | NAH vs competitors — what makes NAH different (Lowe's partnership, construction coaching, lead systems, MasterSuite) | Differentiation |
+| 10 | SMS | Check-in — "Hey [Name], wanted to catch up quick. Got a few minutes today?" | Call setup |
+| 10 | **CHAD CALL** | Check in, answer questions, push Trainual completion | Call + Trainual |
+| 11 | EMAIL | Territory availability — how territories work, exclusivity, market analysis process | Territory interest |
+| 12 | SMS | Trainual urgency — "People who finish the interactive guide make decisions faster — and more confidently." | Trainual completion |
+| 13 | EMAIL | Lowe's partnership and construction support — what NAH provides that solo flippers don't get | Value building |
+| 14 | SMS | Progress check — "Where are you at in your thinking? I'm here if you want to talk through anything." | Engagement |
+| 14 | **CHAD CALL** | Progress check, address capital objection, confirm Trainual completion timeline | Call + objection handling |
+
+---
+
+### Week 3 — Days 15–21 (Social Proof and Conviction Building)
+
+| Day | Channel | Content | Goal |
+|-----|---------|---------|------|
+| 15 | SMS | Social proof nudge — "Another NAH franchisee just closed their first flip — it's happening every week." | Conviction |
+| 16 | EMAIL | A day in the life of a NAH franchisee — what the business actually looks like day to day | Lifestyle alignment |
+| 17 | SMS | Financing nudge — "Did you know you can use retirement funds to start your franchise? No early withdrawal penalties." | Capital objection |
+| 18 | EMAIL | Guidant Financial and Alta Capital intro — how other franchisees funded their investment | Financial path |
+| 19 | SMS | Trainual check — if not complete, personal nudge: "You're close to finishing — let me know if you have questions on any section." | Trainual completion |
+| 20 | **CHAD CALL** | Validation readiness check, answer all remaining questions, set expectation for decision timeline | Decision framing |
+| 21 | EMAIL | The business you will build — revenue model overview, what the first year looks like | Vision casting |
+
+---
+
+### Week 4 — Days 22–30 (Re-engagement and Decision)
+
+| Day | Channel | Content | Goal |
+|-----|---------|---------|------|
+| 22 | SMS | Re-engagement — "Still thinking things through? Happy to answer any questions you've been sitting on." | Re-engage |
+| 23 | EMAIL | Final objection handling — addressing capital, timing, and territory concerns directly | Objection resolution |
+| 24 | SMS | Urgency — "Territories are filling up — wanted to make sure yours is still available." | Territory urgency |
+| 25 | EMAIL | Final Trainual push — "The guide is designed to help you make a confident decision. Finishing it is the best next step." | Trainual completion |
+| 26 | SMS | Social proof — "Most people who complete the full guide move forward. It answers the questions you didn't know to ask." | Conviction |
+| 27 | EMAIL | Final social proof — recent franchisee win story with territory and timeline details | Conviction |
+| 28 | SMS | Decision nudge — "Where are you at in your thinking? I'd love to hear what's on your mind." | Decision |
+| 29 | EMAIL | What happens after you say yes — full onboarding overview, training timeline, first flip timeline | Vision + reduce fear |
+| 30 | **CHAD CALL** | Personal decision call attempt — final outreach | Decision |
+
+**Day 30 outcomes:**
+- No answer → move to Follow-up pipeline
+- Positive → advance to Stage 3 Qualified
+- Not ready → move to Nurture pipeline
+
+---
+
+### Trainual Engagement Rules
+
+1. **No Trainual invite fires without prior Chad framing call logged.** The framing call is mandatory.
+2. Scout tracks Trainual open status for every prospect.
+3. 48hr no open → Scout sends automated nudge to prospect.
+4. 96hr no open → Scout alerts Chad with task to follow up personally.
+5. Trainual completion % visible on every lead card.
+6. 75%+ completion flagged as high engagement.
+7. 100% complete with no stage advance → flagged urgent, Scout alerts Chad.
+
+**Chad framing script (use on Day 3 call or first live conversation):**
+
+> "This is your interactive path to ownership. It shows you the full NAH business before any commitment. Most people who go through it seriously make a decision within 2 weeks. I'm sending you access now — set aside 90 minutes over the next few days. I'll check in after you finish."
