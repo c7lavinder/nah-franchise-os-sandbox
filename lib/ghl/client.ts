@@ -30,6 +30,9 @@ import type {
 
 const GHL_BASE_URL = "https://services.leadconnectorhq.com";
 
+// TODO: [ghl-connection-map] Auth uses static PIT key. Production needs OAuth
+// with auto-refresh on 401. See ghl-masterclass/knowledge/oauth-flow.md
+// Pattern: on 401 → refresh token via SDK, retry once. Current: just throw.
 /** Builds authorization headers for GHL API calls */
 function getHeaders(): HeadersInit {
   const apiKey = process.env.GHL_API_KEY;
@@ -93,6 +96,9 @@ async function ghlFetch<T>(
       continue;
     }
 
+    // TODO: [ghl-connection-map] Add 401 auto-refresh: on 401, refresh OAuth token
+    // and retry once before throwing. See ghl-masterclass/patterns/error-handling.md
+    // Also add 5xx retry (up to 3 times with backoff) per the connection map.
     if (!response.ok) {
       const errorBody = await response.text();
       throw new GHLError(response.status, errorBody, endpoint);
@@ -144,6 +150,10 @@ export async function searchContacts(
   return data.contacts;
 }
 
+// TODO: [ghl-connection-map] Connection map says conversation lookup is a 2-step process:
+// Step 1: GET /conversations/search to get conversationId for the contact
+// Step 2: GET /conversations/:conversationId/messages to get actual messages
+// Current impl tries to get messages from the search endpoint which returns conversations, not messages.
 /** Get the activity/message history for a contact */
 export async function getContactHistory(
   contactId: string
@@ -209,6 +219,10 @@ export async function searchOpportunities(
   return data.opportunities;
 }
 
+// TODO: [ghl-connection-map] Connection map uses { pipelineStageId } not { stageId }.
+// Verify which field name GHL actually accepts. Map says:
+// PUT /opportunities/:id { "pipelineStageId": "abc123stageId" }
+// Also: should listen for OpportunityStageUpdate webhook to confirm the move landed.
 /** Move a lead to a different pipeline stage */
 export async function movePipelineStage(
   opportunityId: string,
@@ -218,7 +232,7 @@ export async function movePipelineStage(
     `/opportunities/${opportunityId}`,
     {
       method: "PUT",
-      body: JSON.stringify({ stageId } satisfies GHLOpportunityUpdatePayload),
+      body: JSON.stringify({ pipelineStageId: stageId }),
     }
   );
   return data.opportunity;
@@ -271,6 +285,9 @@ export async function updateTask(
 // APPOINTMENTS
 // ========================================
 
+// TODO: [ghl-connection-map] Connection map says appointments need { appointmentStatus, assignedUserId }
+// and should check free slots first via GET /calendars/:calendarId/free-slots.
+// Current impl doesn't check availability or set status/assignee.
 /** Create an appointment / calendar event */
 export async function createAppointment(
   appointment: GHLAppointmentCreatePayload
@@ -305,6 +322,9 @@ export async function getAppointments(
 // MESSAGING
 // ========================================
 
+// TODO: [ghl-connection-map] For Email type, connection map requires { html, emailFrom, subject }
+// not just { message }. Current payload type uses "message" field for both SMS and Email.
+// Also: should wire OutboundMessage webhook to confirm delivery status.
 /** Send an SMS or email message through GHL */
 export async function sendMessage(
   payload: GHLSendMessagePayload

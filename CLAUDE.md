@@ -115,6 +115,32 @@ Prospect stops responding.
 
 ---
 
+## GHL Masterclass — Required Reading for GHL Code
+
+Before writing or modifying any GHL-related code, read the ghl-masterclass repo first.
+It is our shared GHL knowledge base — verified API patterns, webhook payloads, and error handling.
+
+**Clone it as a sibling directory:** `../ghl-masterclass/`
+**GitHub:** https://github.com/c7lavinder/ghl-masterclass
+
+### What to read before each task:
+
+| Task | Read first |
+|------|-----------|
+| Touching `lib/ghl/client.ts` | `../ghl-masterclass/knowledge/ghl-connection-map.md` |
+| Building a webhook handler | `../ghl-masterclass/webhooks/webhook-index.md` |
+| Adding a GHL API call | `../ghl-masterclass/api/[namespace]-api.md` |
+| Error handling | `../ghl-masterclass/patterns/error-handling.md` |
+| Real-time features | `../ghl-masterclass/patterns/real-time-sync.md` |
+| GHL account setup | `../ghl-masterclass/browser-playbook/new-client-checklist.md` |
+
+**Rules:**
+- The ghl-masterclass repo is read-only from this repo's perspective
+- Never add NAH-specific code or data into ghl-masterclass
+- NAH-specific GHL config lives in this repo only
+
+---
+
 ## Scout Tools — Workflow Intelligence
 
 In addition to the core tools (get_contact, search_contacts, get_pipeline, draft_message, draft_task, draft_stage_move, get_schedule, search_knowledge), Scout has workflow-specific tools:

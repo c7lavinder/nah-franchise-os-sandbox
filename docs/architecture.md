@@ -870,7 +870,28 @@ These fields must be created on GHL contacts for workflow tracking:
 
 ---
 
-## 12. GHL MCP Integration — Added 2026-03-23
+## 12. GHL Masterclass — Required Reading
+
+Before writing or modifying any GHL-related code, read the ghl-masterclass repo.
+It is our shared GHL knowledge base — verified API patterns, webhook payloads, and error handling.
+
+**Clone as sibling:** `../ghl-masterclass/`
+**GitHub:** https://github.com/c7lavinder/ghl-masterclass
+
+| Task | Read first |
+|------|-----------|
+| Touching `lib/ghl/client.ts` | `../ghl-masterclass/knowledge/ghl-connection-map.md` |
+| Building a webhook handler | `../ghl-masterclass/webhooks/webhook-index.md` |
+| Adding a GHL API call | `../ghl-masterclass/api/[namespace]-api.md` |
+| Error handling | `../ghl-masterclass/patterns/error-handling.md` |
+| Real-time features | `../ghl-masterclass/patterns/real-time-sync.md` |
+| GHL account setup | `../ghl-masterclass/browser-playbook/new-client-checklist.md` |
+
+The ghl-masterclass repo is read-only from this repo. Never add NAH-specific code into it.
+
+---
+
+## 13. GHL MCP Integration — Added 2026-03-23
 
 ### Decision
 
