@@ -131,21 +131,15 @@ export async function updateContact(
   return data.contact;
 }
 
-/** Search contacts by name, email, or phone */
+/** Search contacts by name, email, or phone — uses GET with query params per GHL v2 API */
 export async function searchContacts(
   params: GHLContactSearchParams
 ): Promise<GHLContact[]> {
   const locationId = getLocationId();
+  const limit = params.limit ?? 10;
+  const query = encodeURIComponent(params.query);
   const data = await ghlFetch<{ contacts: GHLContact[] }>(
-    `/contacts/search`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        locationId,
-        query: params.query,
-        limit: params.limit ?? 10,
-      }),
-    }
+    `/contacts/?locationId=${locationId}&query=${query}&limit=${limit}`
   );
   return data.contacts;
 }
@@ -197,20 +191,20 @@ export async function getStageIdByName(stageName: string): Promise<string> {
   return data.stage_id;
 }
 
-/** Search opportunities (leads in the pipeline) */
+/** Search opportunities (leads in the pipeline) — uses GET with query params per GHL v2 API */
 export async function searchOpportunities(
   params: GHLOpportunitySearchParams
 ): Promise<GHLOpportunity[]> {
   const locationId = getLocationId();
+  const queryParts = [`location_id=${locationId}`];
+  if (params.pipelineId) queryParts.push(`pipeline_id=${params.pipelineId}`);
+  if (params.stageId) queryParts.push(`pipeline_stage_id=${params.stageId}`);
+  if (params.status) queryParts.push(`status=${params.status}`);
+  if (params.assignedTo) queryParts.push(`assigned_to=${params.assignedTo}`);
+  if (params.limit) queryParts.push(`limit=${params.limit}`);
+
   const data = await ghlFetch<{ opportunities: GHLOpportunity[] }>(
-    `/opportunities/search`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        locationId,
-        ...params,
-      }),
-    }
+    `/opportunities/search?${queryParts.join("&")}`
   );
   return data.opportunities;
 }
