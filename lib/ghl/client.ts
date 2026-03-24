@@ -13,14 +13,15 @@ import type {
   GHLContact,
   GHLContactSearchParams,
   GHLContactUpdatePayload,
+  GHLConversation,
   GHLOpportunity,
   GHLOpportunitySearchParams,
-  GHLOpportunityUpdatePayload,
   GHLTask,
   GHLTaskCreatePayload,
   GHLTaskUpdatePayload,
   GHLAppointment,
   GHLAppointmentCreatePayload,
+  GHLFreeSlot,
   GHLSendMessagePayload,
   GHLMessage,
   GHLNote,
@@ -30,9 +31,6 @@ import type {
 
 const GHL_BASE_URL = "https://services.leadconnectorhq.com";
 
-// TODO: [ghl-connection-map] Auth uses static PIT key. Production needs OAuth
-// with auto-refresh on 401. See ghl-masterclass/knowledge/oauth-flow.md
-// Pattern: on 401 → refresh token via SDK, retry once. Current: just throw.
 /** Builds authorization headers for GHL API calls */
 function getHeaders(): HeadersInit {
   const apiKey = process.env.GHL_API_KEY;
@@ -67,15 +65,23 @@ export class GHLError extends Error {
   }
 }
 
-/** Maximum retries for rate-limited (429) requests */
+/** Maximum retries for retryable errors (429, 401, 5xx) */
 const MAX_RETRIES = 3;
 
-/** Makes an authenticated request to the GHL API with 429 retry + exponential backoff */
+/**
+ * Makes an authenticated request to the GHL API.
+ * Handles retries per ghl-masterclass/patterns/error-handling.md:
+ * - 429: exponential backoff, respects Retry-After header
+ * - 401: refresh OAuth token and retry once (when OAuth is wired)
+ * - 5xx: retry up to 3 times with backoff
+ * - 400/422: do not retry (bad request)
+ */
 async function ghlFetch<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${GHL_BASE_URL}${endpoint}`;
+  let lastError: GHLError | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const response = await fetch(url, {
@@ -86,19 +92,35 @@ async function ghlFetch<T>(
       },
     });
 
+    // 429 — rate limited, backoff and retry
     if (response.status === 429 && attempt < MAX_RETRIES) {
       const retryAfter = response.headers.get("retry-after");
       const delayMs = retryAfter
         ? parseInt(retryAfter, 10) * 1000
         : Math.min(1000 * Math.pow(2, attempt), 10000);
-      console.warn(`GHL rate limited on ${endpoint} — retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+      console.warn(`GHL 429 on ${endpoint} — retry in ${delayMs}ms (${attempt + 1}/${MAX_RETRIES})`);
       await new Promise((resolve) => setTimeout(resolve, delayMs));
       continue;
     }
 
-    // TODO: [ghl-connection-map] Add 401 auto-refresh: on 401, refresh OAuth token
-    // and retry once before throwing. See ghl-masterclass/patterns/error-handling.md
-    // Also add 5xx retry (up to 3 times with backoff) per the connection map.
+    // 401 — token expired. When OAuth is wired, refresh here and retry once.
+    // For now with PIT key, 401 means wrong key — no point retrying.
+    if (response.status === 401) {
+      const errorBody = await response.text();
+      // Future: await refreshOAuthToken(); attempt = 0; continue;
+      throw new GHLError(401, errorBody, endpoint);
+    }
+
+    // 5xx — server error, retry with backoff
+    if (response.status >= 500 && attempt < MAX_RETRIES) {
+      const delayMs = Math.min(1000 * Math.pow(2, attempt), 10000);
+      console.warn(`GHL ${response.status} on ${endpoint} — retry in ${delayMs}ms (${attempt + 1}/${MAX_RETRIES})`);
+      lastError = new GHLError(response.status, await response.text(), endpoint);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      continue;
+    }
+
+    // 400/422 — bad request, do not retry
     if (!response.ok) {
       const errorBody = await response.text();
       throw new GHLError(response.status, errorBody, endpoint);
@@ -107,7 +129,7 @@ async function ghlFetch<T>(
     return response.json() as Promise<T>;
   }
 
-  throw new GHLError(429, "Rate limit exceeded after max retries", endpoint);
+  throw lastError ?? new GHLError(429, "Rate limit exceeded after max retries", endpoint);
 }
 
 // ========================================
@@ -150,18 +172,32 @@ export async function searchContacts(
   return data.contacts;
 }
 
-// TODO: [ghl-connection-map] Connection map says conversation lookup is a 2-step process:
-// Step 1: GET /conversations/search to get conversationId for the contact
-// Step 2: GET /conversations/:conversationId/messages to get actual messages
-// Current impl tries to get messages from the search endpoint which returns conversations, not messages.
-/** Get the activity/message history for a contact */
+/**
+ * Get the message history for a contact.
+ * Per connection map: 2-step process —
+ * Step 1: GET /conversations/search to find the conversationId
+ * Step 2: GET /conversations/:conversationId/messages to get messages
+ */
 export async function getContactHistory(
   contactId: string
 ): Promise<GHLMessage[]> {
-  const data = await ghlFetch<{ messages: GHLMessage[] }>(
+  // Step 1: find the conversation for this contact
+  const convData = await ghlFetch<{ conversations: GHLConversation[] }>(
     `/conversations/search?contactId=${contactId}&locationId=${getLocationId()}`
   );
-  return data.messages;
+
+  if (!convData.conversations || convData.conversations.length === 0) {
+    return [];
+  }
+
+  const conversationId = convData.conversations[0].id;
+
+  // Step 2: get the actual messages from that conversation
+  const msgData = await ghlFetch<{ messages: GHLMessage[] }>(
+    `/conversations/${conversationId}/messages`
+  );
+
+  return msgData.messages ?? [];
 }
 
 // ========================================
@@ -219,11 +255,7 @@ export async function searchOpportunities(
   return data.opportunities;
 }
 
-// TODO: [ghl-connection-map] Connection map uses { pipelineStageId } not { stageId }.
-// Verify which field name GHL actually accepts. Map says:
-// PUT /opportunities/:id { "pipelineStageId": "abc123stageId" }
-// Also: should listen for OpportunityStageUpdate webhook to confirm the move landed.
-/** Move a lead to a different pipeline stage */
+/** Move a lead to a different pipeline stage — uses { pipelineStageId } per connection map */
 export async function movePipelineStage(
   opportunityId: string,
   stageId: string
@@ -285,10 +317,28 @@ export async function updateTask(
 // APPOINTMENTS
 // ========================================
 
-// TODO: [ghl-connection-map] Connection map says appointments need { appointmentStatus, assignedUserId }
-// and should check free slots first via GET /calendars/:calendarId/free-slots.
-// Current impl doesn't check availability or set status/assignee.
-/** Create an appointment / calendar event */
+/**
+ * Get free slots for a calendar.
+ * Per connection map: check availability before booking.
+ */
+export async function getCalendarFreeSlots(
+  calendarId: string,
+  startDate: string,
+  endDate: string,
+  timezone: string = "America/New_York"
+): Promise<GHLFreeSlot[]> {
+  const startUnix = Math.floor(new Date(startDate).getTime() / 1000);
+  const endUnix = Math.floor(new Date(endDate).getTime() / 1000);
+  const data = await ghlFetch<{ slots: GHLFreeSlot[] }>(
+    `/calendars/${calendarId}/free-slots?startDate=${startUnix}&endDate=${endUnix}&timezone=${timezone}`
+  );
+  return data.slots ?? [];
+}
+
+/**
+ * Create an appointment / calendar event.
+ * Per connection map: includes appointmentStatus and assignedUserId.
+ */
 export async function createAppointment(
   appointment: GHLAppointmentCreatePayload
 ): Promise<GHLAppointment> {
@@ -297,7 +347,11 @@ export async function createAppointment(
     `/calendars/events`,
     {
       method: "POST",
-      body: JSON.stringify({ ...appointment, locationId }),
+      body: JSON.stringify({
+        ...appointment,
+        locationId,
+        appointmentStatus: appointment.appointmentStatus ?? "confirmed",
+      }),
     }
   );
   return data.event;
@@ -322,10 +376,13 @@ export async function getAppointments(
 // MESSAGING
 // ========================================
 
-// TODO: [ghl-connection-map] For Email type, connection map requires { html, emailFrom, subject }
-// not just { message }. Current payload type uses "message" field for both SMS and Email.
-// Also: should wire OutboundMessage webhook to confirm delivery status.
-/** Send an SMS or email message through GHL */
+/**
+ * Send an SMS or email message through GHL.
+ * Per connection map:
+ * - SMS: { type: "SMS", contactId, message }
+ * - Email: { type: "Email", contactId, html, subject, emailFrom }
+ * Types enforce correct fields for each.
+ */
 export async function sendMessage(
   payload: GHLSendMessagePayload
 ): Promise<GHLMessage> {

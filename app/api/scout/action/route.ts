@@ -41,12 +41,19 @@ export async function POST(request: NextRequest) {
       switch (action.type) {
         case "message": {
           const payload = action.payload as DraftedMessagePayload;
-          const result = await ghl.sendMessage({
-            type: payload.channel,
-            contactId: action.contactId,
-            message: payload.content,
-            subject: payload.subject,
-          });
+          const result = payload.channel === "Email"
+            ? await ghl.sendMessage({
+                type: "Email",
+                contactId: action.contactId,
+                html: payload.content,
+                subject: payload.subject ?? "NAH Franchise",
+                emailFrom: process.env.GHL_SENDING_EMAIL ?? "chad@newagainhouses.com",
+              })
+            : await ghl.sendMessage({
+                type: "SMS",
+                contactId: action.contactId,
+                message: payload.content,
+              });
           ghlResponse = result as unknown as Record<string, unknown>;
           break;
         }

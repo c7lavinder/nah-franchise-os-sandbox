@@ -12,6 +12,7 @@ export {
   getTasks,
   createTask,
   updateTask,
+  getCalendarFreeSlots,
   createAppointment,
   getAppointments,
   sendMessage,

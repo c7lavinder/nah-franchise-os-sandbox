@@ -75,9 +75,9 @@ export interface GHLOpportunitySearchParams {
   limit?: number;
 }
 
-/** GHL Opportunity update payload */
+/** GHL Opportunity update payload — uses pipelineStageId per connection map */
 export interface GHLOpportunityUpdatePayload {
-  stageId?: string;
+  pipelineStageId?: string;
   status?: "open" | "won" | "lost" | "abandoned";
   monetaryValue?: number;
   name?: string;
@@ -122,13 +122,30 @@ export interface GHLAppointment {
   status: "confirmed" | "cancelled" | "no-show";
 }
 
-/** GHL Appointment creation payload */
+/** GHL Appointment creation payload — per connection map */
 export interface GHLAppointmentCreatePayload {
   calendarId: string;
   contactId: string;
   title: string;
   startTime: string;
   endTime: string;
+  appointmentStatus?: "confirmed" | "cancelled" | "no-show";
+  assignedUserId?: string;
+}
+
+/** GHL free slot response */
+export interface GHLFreeSlot {
+  startTime: string;
+  endTime: string;
+}
+
+/** GHL Conversation (returned by search, contains conversationId) */
+export interface GHLConversation {
+  id: string;
+  contactId: string;
+  locationId: string;
+  lastMessageDate: string;
+  type: string;
 }
 
 /** GHL Conversation Message */
@@ -142,13 +159,26 @@ export interface GHLMessage {
   dateAdded: string;
 }
 
-/** GHL Send Message payload */
-export interface GHLSendMessagePayload {
-  type: "SMS" | "Email";
+/** GHL Send SMS payload */
+export interface GHLSendSMSPayload {
+  type: "SMS";
   contactId: string;
   message: string;
-  subject?: string;
 }
+
+/** GHL Send Email payload — per connection map requires html + emailFrom */
+export interface GHLSendEmailPayload {
+  type: "Email";
+  contactId: string;
+  html: string;
+  subject: string;
+  emailFrom: string;
+  emailTo?: string;
+  emailCc?: string[];
+}
+
+/** GHL Send Message payload — union of SMS and Email */
+export type GHLSendMessagePayload = GHLSendSMSPayload | GHLSendEmailPayload;
 
 /** GHL Workflow */
 export interface GHLWorkflow {
