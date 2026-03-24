@@ -30,7 +30,7 @@ yarn-error.log*
 .vercel
 
 # non-project artifacts
-/commands/
+/commands/Commands Memory/
 
 # typescript
 *.tsbuildinfo
