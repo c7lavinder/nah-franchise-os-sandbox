@@ -22,6 +22,14 @@ Three core principles:
 
 ---
 
+## Product Goal
+
+The goal of NAH Franchise OS is to keep all team members OUT of GHL.
+Nobody should need to open GHL directly. Scout is the interface.
+Chad, Matt, Sam, and Mark interact with prospects through Scout and the OS —
+Scout reads from GHL, writes to GHL, and surfaces everything the team needs.
+GHL is the backend database. The OS is the frontend.
+
 ## Chad's Role — Orchestrator
 
 Chad is the orchestrator and relationship owner throughout the entire prospect journey. He never fully hands off. Other team members (Matt, Sam, Mark) run specific calls at specific stages, but Chad is always the one who:

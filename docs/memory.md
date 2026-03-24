@@ -117,6 +117,7 @@ services/
 - **2026-03-24** — Mark runs capital conversation (Mark Call) — #1 objection handler, dedicated lending/funding call
 - **2026-03-24** — GHL stage names mapped to our pipeline stage names (see docs/pipeline.md GHL Stage Name Mapping)
 - **2026-03-24** — Mark Call given dedicated pipeline stage — not buried in Validation, capital is #1 blocker
+- **2026-03-24** — Product goal: keep all team members OUT of GHL — Scout is the interface, GHL is the backend database
 
 ---
 
