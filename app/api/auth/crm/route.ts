@@ -25,16 +25,14 @@ const SCOPES = [
   "locations.readonly",
   "locations/tags.readonly",
   "locations/tags.write",
-  "locations/customFields.readonly",
-  "locations/customFields.write",
+  "locations/customValues.readonly",
+  "locations/customValues.write",
   "users.readonly",
   "forms.readonly",
   "surveys.readonly",
   "invoices.readonly",
   "invoices.write",
   "payments/orders.readonly",
-  "webhooks.readonly",
-  "webhooks.write",
 ].join(" ");
 
 export async function GET() {
