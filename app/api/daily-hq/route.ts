@@ -22,26 +22,27 @@ export async function GET(request: NextRequest) {
   }
 
   // Fetch all data in parallel for speed
-  const [alertsResult, pipelineResult, appointmentsResult] = await Promise.allSettled([
-    fetchAlerts(userId),
-    fetchPipelineSnapshot(),
-    fetchUpcoming(),
-  ]);
+  const [alertsResult, pipelineResult, appointmentsResult, scorecardResult, tasksResult] =
+    await Promise.allSettled([
+      fetchAlerts(userId),
+      fetchPipelineSnapshot(),
+      fetchUpcoming(),
+      fetchScorecard(userId),
+      fetchTasks(userId),
+    ]);
 
   const alerts = alertsResult.status === "fulfilled" ? alertsResult.value : [];
   const pipeline = pipelineResult.status === "fulfilled" ? pipelineResult.value : [];
   const upcoming = appointmentsResult.status === "fulfilled" ? appointmentsResult.value : [];
+  const scorecard = scorecardResult.status === "fulfilled"
+    ? scorecardResult.value
+    : { calls: 0, texts: 0, emails: 0, stageMoves: 0, newContacted: 0 };
+  const tasks = tasksResult.status === "fulfilled" ? tasksResult.value : [];
 
   return NextResponse.json({
-    scorecard: {
-      calls: 0,
-      texts: 0,
-      emails: 0,
-      stageMoves: 0,
-      newContacted: 0,
-    },
+    scorecard,
     alerts,
-    tasks: [],
+    tasks,
     pipeline,
     upcoming,
   });
@@ -118,6 +119,150 @@ async function fetchUpcoming(): Promise<{ title: string; time: string; contactId
     }));
   } catch (err) {
     console.error("Failed to fetch appointments:", err);
+    return [];
+  }
+}
+
+/** Fetch today's activity counts from GHL for the scorecard */
+async function fetchScorecard(userId: string): Promise<{
+  calls: number;
+  texts: number;
+  emails: number;
+  stageMoves: number;
+  newContacted: number;
+}> {
+  try {
+    // Get the user's GHL user ID for filtering
+    const supabase = createServerClient();
+    const { data: appUser } = await supabase
+      .from("users")
+      .select("ghl_user_id")
+      .eq("id", userId)
+      .single();
+
+    const ghlUserId = appUser?.ghl_user_id;
+
+    // Search all contacts to count today's activity
+    // GHL doesn't have a dedicated "activity" endpoint, so we count from
+    // opportunities updated today and scout_action_logs
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayISO = today.toISOString();
+
+    // Count actions from our own logs (most reliable source)
+    const { data: todayActions } = await supabase
+      .from("scout_action_logs")
+      .select("action_type")
+      .eq("user_id", userId)
+      .eq("action_status", "executed")
+      .gte("created_at", todayISO);
+
+    const actions = todayActions ?? [];
+
+    let texts = 0;
+    let emails = 0;
+    let stageMoves = 0;
+    let calls = 0;
+
+    for (const action of actions) {
+      switch (action.action_type) {
+        case "message":
+          texts++;
+          break;
+        case "email":
+          emails++;
+          break;
+        case "stage_move":
+          stageMoves++;
+          break;
+        case "task":
+          calls++;
+          break;
+      }
+    }
+
+    // Count contacts first contacted today
+    let newContacted = 0;
+    if (ghlUserId) {
+      const opportunities = await ghl.searchOpportunities({
+        assignedTo: ghlUserId,
+        status: "open",
+      });
+      newContacted = opportunities.filter((opp) => {
+        const created = new Date(opp.createdAt);
+        return created >= today;
+      }).length;
+    }
+
+    return { calls, texts, emails, stageMoves, newContacted };
+  } catch (err) {
+    console.error("Failed to fetch scorecard:", err);
+    return { calls: 0, texts: 0, emails: 0, stageMoves: 0, newContacted: 0 };
+  }
+}
+
+/** Fetch open tasks for this user from GHL contacts */
+async function fetchTasks(userId: string): Promise<{
+  id: string;
+  title: string;
+  dueDate: string;
+  contactId: string;
+  completed: boolean;
+}[]> {
+  try {
+    const supabase = createServerClient();
+    const { data: appUser } = await supabase
+      .from("users")
+      .select("ghl_user_id")
+      .eq("id", userId)
+      .single();
+
+    if (!appUser?.ghl_user_id) return [];
+
+    // Get contacts assigned to this user, then pull their tasks
+    const opportunities = await ghl.searchOpportunities({
+      assignedTo: appUser.ghl_user_id,
+      status: "open",
+      limit: 50,
+    });
+
+    const allTasks: {
+      id: string;
+      title: string;
+      dueDate: string;
+      contactId: string;
+      completed: boolean;
+    }[] = [];
+
+    // Pull tasks from the first 10 contacts to avoid rate limits
+    const contactIds = [...new Set(opportunities.map((o) => o.contactId))].slice(0, 10);
+
+    for (const contactId of contactIds) {
+      try {
+        const tasks = await ghl.getTasks(contactId);
+        for (const task of tasks) {
+          if (!task.completed) {
+            allTasks.push({
+              id: task.id,
+              title: task.title,
+              dueDate: task.dueDate,
+              contactId: task.contactId,
+              completed: task.completed,
+            });
+          }
+        }
+      } catch {
+        // Skip contacts where task fetch fails
+        continue;
+      }
+    }
+
+    // Sort by due date ascending
+    allTasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+    return allTasks.slice(0, 20);
+  } catch (err) {
+    console.error("Failed to fetch tasks:", err);
     return [];
   }
 }

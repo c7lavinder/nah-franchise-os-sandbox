@@ -3,8 +3,12 @@
  * All GHL calls must go through this client. Never call GHL directly from components.
  *
  * Handles: authentication headers, rate limit awareness, error normalization.
+ *
+ * Reference: ghl-masterclass/knowledge/ghl-connection-map.md
+ * Contains the full GHL API endpoint map, auth patterns, and webhook architecture.
  */
 
+import { createServerClient } from "@/lib/supabase/server";
 import type {
   GHLContact,
   GHLContactSearchParams,
@@ -60,27 +64,44 @@ export class GHLError extends Error {
   }
 }
 
-/** Makes an authenticated request to the GHL API and handles errors */
+/** Maximum retries for rate-limited (429) requests */
+const MAX_RETRIES = 3;
+
+/** Makes an authenticated request to the GHL API with 429 retry + exponential backoff */
 async function ghlFetch<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${GHL_BASE_URL}${endpoint}`;
 
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...getHeaders(),
-      ...(options.headers ?? {}),
-    },
-  });
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...getHeaders(),
+        ...(options.headers ?? {}),
+      },
+    });
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new GHLError(response.status, errorBody, endpoint);
+    if (response.status === 429 && attempt < MAX_RETRIES) {
+      const retryAfter = response.headers.get("retry-after");
+      const delayMs = retryAfter
+        ? parseInt(retryAfter, 10) * 1000
+        : Math.min(1000 * Math.pow(2, attempt), 10000);
+      console.warn(`GHL rate limited on ${endpoint} — retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      continue;
+    }
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new GHLError(response.status, errorBody, endpoint);
+    }
+
+    return response.json() as Promise<T>;
   }
 
-  return response.json() as Promise<T>;
+  throw new GHLError(429, "Rate limit exceeded after max retries", endpoint);
 }
 
 // ========================================
@@ -149,6 +170,31 @@ export async function getPipelines(): Promise<GHLPipeline[]> {
     `/opportunities/pipelines?locationId=${getLocationId()}`
   );
   return data.pipelines;
+}
+
+/**
+ * Look up a GHL stage ID by its human-readable name.
+ * Scout passes stage names (e.g., "Discovery Complete") not IDs.
+ * Queries the ghl_pipeline_stages cache table in Supabase.
+ */
+export async function getStageIdByName(stageName: string): Promise<string> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("ghl_pipeline_stages")
+    .select("stage_id")
+    .ilike("stage_name", stageName)
+    .limit(1)
+    .single();
+
+  if (error || !data) {
+    throw new GHLError(
+      404,
+      `Stage "${stageName}" not found in ghl_pipeline_stages table. Run a pipeline sync first.`,
+      "getStageIdByName"
+    );
+  }
+
+  return data.stage_id;
 }
 
 /** Search opportunities (leads in the pipeline) */
@@ -291,15 +337,43 @@ export async function getWorkflows(): Promise<GHLWorkflow[]> {
   return data.workflows;
 }
 
-/** Add a contact to a workflow (start automation) */
-export async function startAutomation(
+/**
+ * Trigger a workflow via inbound webhook.
+ * Looks up the webhook URL from the ghl_workflows table by name,
+ * then POSTs the contact data to that URL.
+ * This replaces the old startAutomation() which used the deprecated
+ * direct workflow enrollment endpoint.
+ */
+export async function triggerWorkflow(
   contactId: string,
-  workflowId: string
+  workflowName: string
 ): Promise<void> {
-  await ghlFetch<void>(
-    `/contacts/${contactId}/workflow/${workflowId}`,
-    { method: "POST" }
-  );
+  const supabase = createServerClient();
+  const { data: workflow, error } = await supabase
+    .from("ghl_workflows")
+    .select("webhook_url")
+    .eq("name", workflowName)
+    .eq("is_active", true)
+    .single();
+
+  if (error || !workflow) {
+    throw new GHLError(404, `Workflow "${workflowName}" not found in ghl_workflows table`, "triggerWorkflow");
+  }
+
+  const response = await fetch(workflow.webhook_url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contactId,
+      locationId: getLocationId(),
+      workflowName,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new GHLError(response.status, errorBody, `webhook:${workflowName}`);
+  }
 }
 
 // ========================================

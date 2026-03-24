@@ -198,12 +198,44 @@ nah-franchise-os/
 
 ### Short Term (Week 1)
 
-5. **Daily HQ scorecard** — implement real activity counting from GHL (currently returns 0s)
-6. **Daily HQ tasks** — pull actual tasks from GHL for the logged-in user
-7. **Accountability cron** — set up Railway Cron or a scheduled trigger to call `POST /api/accountability/run` on the intervals defined in `docs/pipeline.md`
-8. **Scout conversation history** — load previous session messages when continuing a conversation
+5. ~~**Daily HQ scorecard**~~ — DONE: wired to real GHL activity counts + scout_action_logs
+6. ~~**Daily HQ tasks**~~ — DONE: pulls open tasks from GHL contacts assigned to user
+7. **Accountability cron** — see Railway Cron Setup below
+8. ~~**Scout conversation history**~~ — DONE: loads most recent active session on page load
 9. **Scout knowledge base injection** — inject active knowledge docs into the system prompt dynamically
-10. **Error handling polish** — GHL token refresh (OAuth flow), rate limiting, retry logic
+10. ~~**Error handling polish**~~ — DONE: 429 retry + exponential backoff added to GHL client
+
+### Railway Cron Setup — Accountability Engine
+
+The accountability engine runs via `POST /api/accountability/run`. In production, set up
+Railway Cron jobs to call this endpoint on a schedule.
+
+**Option A — Railway Cron Service (recommended):**
+
+1. In Railway, create a new **Cron Service** in your project
+2. Set the schedule and command:
+
+| Job | Cron Expression | Command |
+|-----|----------------|---------|
+| Speed-to-lead + Stale check | `*/15 * * * *` (every 15 min) | `curl -X POST https://[your-domain]/api/accountability/run` |
+| Full accountability sweep | `0 */2 * * *` (every 2 hours) | `curl -X POST https://[your-domain]/api/accountability/run` |
+| Daily Scout workflow analysis | `0 6 * * *` (6 AM daily) | `curl -X POST https://[your-domain]/api/accountability/run?type=daily` |
+
+**Option B — node-cron inside the app (simpler for dev):**
+
+Add to a startup file or API route:
+```typescript
+import cron from "node-cron";
+// Every 15 minutes
+cron.schedule("*/15 * * * *", async () => {
+  await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/accountability/run`, { method: "POST" });
+});
+```
+
+**For local development:** Just call the endpoint manually:
+```bash
+curl -X POST http://localhost:3000/api/accountability/run
+```
 
 ### Medium Term (Week 2-3)
 

@@ -31,6 +31,29 @@ export default function ScoutPage() {
     scrollToBottom();
   }, [messages, isThinking, scrollToBottom]);
 
+  /** Load the most recent active session on page load */
+  useEffect(() => {
+    if (!user?.id) return;
+
+    async function loadLastSession() {
+      try {
+        const response = await fetch(`/api/scout/session?userId=${user?.id}`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (data.sessionId && data.history && data.messages) {
+          setSessionId(data.sessionId);
+          apiHistoryRef.current = data.history;
+          setMessages(data.messages);
+        }
+      } catch {
+        // Session loading is non-critical — start fresh if it fails
+      }
+    }
+
+    void loadLastSession();
+  }, [user?.id]);
+
   /** Send a message to Scout */
   async function handleSend() {
     const trimmed = inputValue.trim();
