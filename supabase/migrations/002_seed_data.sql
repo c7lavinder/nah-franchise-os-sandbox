@@ -14,7 +14,7 @@
 -- For development, you can update the id after creating the Auth user.
 
 INSERT INTO users (email, full_name, role) VALUES
-  ('admin@newagainhouses.com', 'Admin', 'leadership');
+  ('corey@newagainhouses.com', 'Corey Lavinder', 'leadership');
 
 -- ============================================================
 -- 2. DEFAULT APP SETTINGS

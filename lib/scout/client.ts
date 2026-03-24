@@ -12,11 +12,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { SCOUT_TOOLS } from "./tools";
 import { executeTool } from "./tool-executor";
+import { createServerClient } from "@/lib/supabase/server";
 import type { ScoutToolName, DraftedAction } from "@/types/scout";
 import type { UserRole } from "@/types/database";
 
 /** The Claude model used for standard Scout conversations */
-const SCOUT_MODEL = "claude-sonnet-4-5-20250514";
+const SCOUT_MODEL = "claude-sonnet-4-6";
 
 /** Maximum tokens for Scout's response */
 const MAX_TOKENS = 4096;
@@ -141,12 +142,56 @@ export async function runConversationTurn(
   while (iterations < MAX_TOOL_ITERATIONS) {
     iterations++;
 
-    const response = await client.messages.create({
+    const startTime = Date.now();
+    let response: Anthropic.Messages.Message;
+
+    try {
+      response = await client.messages.create({
+        model: SCOUT_MODEL,
+        max_tokens: MAX_TOKENS,
+        system: systemPrompt,
+        tools: formatToolsForAPI(),
+        messages,
+      });
+    } catch (err) {
+      // Log failed API calls
+      const errorMsg = err instanceof Error ? err.message : "Unknown API error";
+      await logLLMCall({
+        userId: input.userId,
+        model: SCOUT_MODEL,
+        inputMessages: messages,
+        outputContent: [],
+        toolCalls: [],
+        stopReason: "error",
+        inputTokens: 0,
+        outputTokens: 0,
+        latencyMs: Date.now() - startTime,
+        errorMessage: errorMsg,
+        iteration: iterations,
+      });
+      throw err;
+    }
+
+    const latencyMs = Date.now() - startTime;
+
+    // Extract tool calls from this response for logging
+    const toolCallsInResponse = response.content
+      .filter((block): block is Anthropic.Messages.ToolUseBlock => block.type === "tool_use")
+      .map((block) => ({ name: block.name, input: block.input }));
+
+    // Log every API call
+    await logLLMCall({
+      userId: input.userId,
       model: SCOUT_MODEL,
-      max_tokens: MAX_TOKENS,
-      system: systemPrompt,
-      tools: formatToolsForAPI(),
-      messages,
+      inputMessages: messages,
+      outputContent: response.content,
+      toolCalls: toolCallsInResponse,
+      stopReason: response.stop_reason ?? "unknown",
+      inputTokens: response.usage?.input_tokens ?? 0,
+      outputTokens: response.usage?.output_tokens ?? 0,
+      latencyMs,
+      errorMessage: null,
+      iteration: iterations,
     });
 
     // Check if Claude wants to use tools
@@ -203,4 +248,45 @@ export async function runConversationTurn(
     draftedAction,
     updatedMessages: messages,
   };
+}
+
+// ============================================================
+// LLM CALL LOGGING
+// ============================================================
+
+interface LLMCallLogEntry {
+  userId: string;
+  model: string;
+  inputMessages: Anthropic.Messages.MessageParam[];
+  outputContent: Anthropic.Messages.ContentBlock[];
+  toolCalls: { name: string; input: unknown }[];
+  stopReason: string;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+  errorMessage: string | null;
+  iteration: number;
+}
+
+/** Logs every Claude API call to Supabase for debugging and improvement */
+async function logLLMCall(entry: LLMCallLogEntry): Promise<void> {
+  try {
+    const supabase = createServerClient();
+    await supabase.from("llm_call_logs").insert({
+      user_id: entry.userId,
+      model: entry.model,
+      input_messages: entry.inputMessages as unknown as Record<string, unknown>,
+      output_content: entry.outputContent as unknown as Record<string, unknown>,
+      tool_calls: entry.toolCalls as unknown as Record<string, unknown>,
+      stop_reason: entry.stopReason,
+      input_tokens: entry.inputTokens,
+      output_tokens: entry.outputTokens,
+      latency_ms: entry.latencyMs,
+      error_message: entry.errorMessage,
+      iteration: entry.iteration,
+    });
+  } catch {
+    // Logging is non-critical — never break the chat because of a log failure
+    console.error("Failed to log LLM call — continuing");
+  }
 }
