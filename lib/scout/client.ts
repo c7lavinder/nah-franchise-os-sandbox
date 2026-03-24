@@ -16,8 +16,8 @@ import { createServerClient } from "@/lib/supabase/server";
 import type { ScoutToolName, DraftedAction } from "@/types/scout";
 import type { UserRole } from "@/types/database";
 
-/** The Claude model used for standard Scout conversations */
-const SCOUT_MODEL = "claude-sonnet-4-6";
+/** The Claude model used for standard Scout conversations — Haiku for cost efficiency */
+const SCOUT_MODEL = "claude-haiku-4-5-20251001";
 
 /** Maximum tokens for Scout's response */
 const MAX_TOKENS = 4096;
