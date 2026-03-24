@@ -27,6 +27,8 @@ const SCOPES = [
   "locations/tags.write",
   "locations/customValues.readonly",
   "locations/customValues.write",
+  "locations/tasks.readonly",
+  "locations/tasks.write",
   "users.readonly",
   "forms.readonly",
   "surveys.readonly",
