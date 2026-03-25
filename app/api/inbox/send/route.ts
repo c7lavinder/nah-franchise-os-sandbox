@@ -28,9 +28,24 @@ async function updateTouchFields(contactId: string, channel: "SMS" | "Email") {
       .from("ghl_custom_fields")
       .select("field_name, ghl_field_id")
       .eq("entity_type", "contact")
-      .in("field_name", ["Last Touch Date", "Last Touch Channel"]);
+      .in("field_name", ["Last Touch Date", "Last Touch Channel", "Contact Attempt Count"]);
 
     if (!mappings || mappings.length === 0) return;
+
+    // Get current attempt count to increment
+    let currentCount = 0;
+    const attemptFieldId = mappings.find((m) => m.field_name === "Contact Attempt Count")?.ghl_field_id;
+    if (attemptFieldId) {
+      try {
+        const contact = await ghl.getContact(contactId);
+        const attemptField = contact.customFields.find((f) => f.id === attemptFieldId);
+        if (attemptField?.value) {
+          currentCount = parseInt(attemptField.value) || 0;
+        }
+      } catch {
+        // Continue with 0
+      }
+    }
 
     const customFields: { id: string; value: string }[] = [];
     for (const m of mappings) {
@@ -39,6 +54,9 @@ async function updateTouchFields(contactId: string, channel: "SMS" | "Email") {
       }
       if (m.field_name === "Last Touch Channel") {
         customFields.push({ id: m.ghl_field_id, value: channel });
+      }
+      if (m.field_name === "Contact Attempt Count") {
+        customFields.push({ id: m.ghl_field_id, value: String(currentCount + 1) });
       }
     }
 
