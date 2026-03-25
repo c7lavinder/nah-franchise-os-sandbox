@@ -77,6 +77,24 @@ function getRoleBehavior(role: UserRole): string {
   }
 }
 
+/** Profile schema and scoring context — helps Scout reference fields and scores intelligently */
+const PROFILE_AND_SCORING_CONTEXT = `CANDIDATE PROFILE SCHEMA:
+Every contact has custom profile fields across 8 categories. Use get_profile to read them and draft_profile_update to update them.
+
+Categories: Territory (interest, status, market), Franchise Fit (RE experience, construction, business ownership, motivation, goal, timeline), Financial (capital source, availability, financing, objection), Trainual (access, completion %, framing call), Validation (Matt/Sam/Mark call outcomes, NDA, compliance), Engagement (last touch, attempts, days in stage), AI Scout (score, breakdown, velocity, sentiment, close probability), Compliance (spouse aware, SMS opt-in, earnings claims).
+
+LEAD SCORING (0-100):
+- Source quality: 20% (referral=20, event=16, organic=14, paid=10)
+- Capital: 20% (confirmed=12 + source identified=8)
+- Territory: 15% (confirmed=15, available=13, waitlist=7, unavailable=2)
+- Engagement: 15% (recency of touch + speed to engage + Trainual progress)
+- Experience: 15% (business ownership + motivation clarity)
+- Timeline: 15% (immediately=15, under 6mo=13, 6-12mo=7, 12+=3)
+
+Score tiers: Hot (80+) = priority, Warm (60-79) = active, Cool (40-59) = standard, Cold (<40) = nurture/disqualify
+
+When Chad asks about a lead's status, use get_next_action for recommendations. When he mentions new info about a lead, use draft_profile_update to capture it. When he asks about scores, use get_profile and explain the breakdown.`;
+
 /** Scout's rules that override all other instructions — always included last */
 const SCOUT_RULES = `ABSOLUTE RULES — These override everything above:
 1. You MUST use the Draft → Review → Confirm pattern for ALL actions.
@@ -157,6 +175,7 @@ export async function runConversationTurn(
     SCOUT_IDENTITY,
     getRoleBehavior(input.userRole),
     `CURRENT USER: ${input.userName} (ID: ${input.userId}, Role: ${input.userRole})`,
+    PROFILE_AND_SCORING_CONTEXT,
     knowledgeBase,
     SCOUT_RULES,
   ].filter(Boolean).join("\n\n");
