@@ -10,8 +10,7 @@ interface Alert {
   alert_type: string;
   severity: string;
   message: string;
-  contact_id: string | null;
-  opportunity_id: string | null;
+  ghl_contact_id: string | null;
   created_at: string;
 }
 
@@ -154,7 +153,13 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
                       className="flex items-start gap-2 px-3 py-2.5 border-b border-border-default hover:bg-bg-hover transition-colors"
                     >
                       <AlertTriangle size={14} className={`mt-0.5 flex-shrink-0 ${severityColor(alert.severity)}`} />
-                      <div className="flex-1 min-w-0">
+                      <a
+                        href={alert.ghl_contact_id
+                          ? `/leads/${alert.ghl_contact_id}`
+                          : "/activity"}
+                        className="flex-1 min-w-0"
+                        onClick={() => setBellOpen(false)}
+                      >
                         <p className="text-caption text-text-primary leading-tight">{alert.message}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <span className={`text-[10px] font-medium uppercase ${severityColor(alert.severity)}`}>
@@ -162,7 +167,7 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
                           </span>
                           <span className="text-[10px] text-text-tertiary">{timeAgo(alert.created_at)}</span>
                         </div>
-                      </div>
+                      </a>
                       <button
                         onClick={() => void dismissAlert(alert.id)}
                         className="p-0.5 text-text-tertiary hover:text-success flex-shrink-0"
