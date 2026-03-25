@@ -10,7 +10,6 @@ export default function ScoutFAB() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  // Don't show on the dedicated Scout page
   if (pathname === "/scout") return null;
 
   return (
@@ -27,41 +26,47 @@ export default function ScoutFAB() {
         </button>
       )}
 
-      {/* Scout drawer */}
+      {/* Scout drawer — matches sidebar glass style */}
       {open && (
         <div
-          className="fixed top-0 right-0 bottom-0 z-[499] w-[380px] flex flex-col"
+          className="fixed top-0 right-0 bottom-0 z-[499] w-[280px] flex flex-col"
           style={{
-            background: "rgba(255, 255, 255, 0.85)",
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
+            background: "rgba(255, 255, 255, 0.6)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
             borderLeft: "1px solid rgba(255, 255, 255, 0.6)",
-            boxShadow: "-4px 0 40px rgba(0, 0, 0, 0.08)",
           }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border-default">
+          <div className="flex items-center justify-between px-4 py-6">
             <div className="flex items-center gap-2">
-              <Bot size={18} className="text-nah-blue" />
-              <span className="font-headline font-semibold text-text-primary">Scout AI</span>
+              <Bot size={20} className="text-nah-blue" />
+              <span className="font-headline font-semibold text-text-primary text-base">Scout AI</span>
             </div>
             <button
               onClick={() => setOpen(false)}
-              className="p-1 rounded-lg hover:bg-bg-hover transition-colors"
+              className="p-1.5 rounded-xl hover:bg-[rgba(0,161,225,0.08)] transition-colors"
             >
               <X size={18} className="text-text-secondary" />
             </button>
           </div>
 
-          {/* Quick ask */}
-          <div className="flex-1 flex flex-col items-center justify-center px-5">
-            <Bot size={40} className="text-nah-blue mb-4 opacity-40" />
+          {/* Content */}
+          <div className="flex-1 flex flex-col items-center justify-center px-4">
+            <Bot size={36} className="text-nah-blue mb-4 opacity-30" />
             <p className="text-text-secondary text-sm text-center mb-6">
               Ask Scout anything about your leads, pipeline, or next steps.
             </p>
             <div className="w-full">
               <QuickAsk />
             </div>
+          </div>
+
+          {/* Footer — matches sidebar bottom spacing */}
+          <div className="px-4 py-6">
+            <p className="text-[11px] text-text-tertiary text-center">
+              AI may generate inaccurate info
+            </p>
           </div>
         </div>
       )}
