@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { Menu, X } from "lucide-react";
 import Sidebar from "./Sidebar";
-import TopBar from "./TopBar";
+import ScoutFAB from "./ScoutFAB";
 import type { UserRole } from "@/types/database";
 
 interface AppShellProps {
@@ -12,45 +13,57 @@ interface AppShellProps {
   userRole: UserRole;
 }
 
-/** Main app shell — wraps all authenticated pages with sidebar + top bar */
+/** Main app shell — sidebar rail + main content, no top bar */
 export default function AppShell({
   children,
-  pageTitle,
   userName,
   userRole,
 }: AppShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-bg-primary">
-      {/* Top navigation bar */}
-      <TopBar
-        pageTitle={pageTitle}
-        userName={userName}
-        onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
-      />
+    <div className="flex min-h-screen">
+      {/* Mobile hamburger */}
+      <button
+        onClick={() => setMobileMenuOpen(true)}
+        className="lg:hidden fixed top-4 left-4 z-[200] p-2 rounded-xl bg-surface-glass backdrop-blur-lg border border-border-glass"
+        aria-label="Open menu"
+      >
+        <Menu size={20} className="text-text-primary" />
+      </button>
 
-      {/* Mobile sidebar overlay */}
+      {/* Mobile overlay */}
       {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        />
+        <>
+          <div
+            className="fixed inset-0 bg-black/30 z-[150] lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="fixed top-4 right-4 z-[200] lg:hidden">
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="p-2 rounded-xl bg-surface-glass backdrop-blur-lg border border-border-glass"
+            >
+              <X size={20} className="text-text-primary" />
+            </button>
+          </div>
+        </>
       )}
 
-      {/* Sidebar — hidden on mobile unless toggled */}
-      <div
-        className={`lg:block ${mobileMenuOpen ? "block" : "hidden"}`}
-      >
+      {/* Sidebar — always visible on desktop, toggled on mobile */}
+      <div className={`${mobileMenuOpen ? "block" : "hidden"} lg:block`}>
         <Sidebar userRole={userRole} onNavClick={() => setMobileMenuOpen(false)} />
       </div>
 
-      {/* Main content area */}
-      <main className="pt-topbar lg:pl-sidebar transition-all duration-200">
-        <div className="max-w-content mx-auto p-6">
+      {/* Main content */}
+      <main className="flex-1 ml-0 lg:ml-[80px] min-h-screen">
+        <div className="max-w-content mx-auto px-4 md:px-8 py-6">
           {children}
         </div>
       </main>
+
+      {/* Scout AI FAB — hidden on /scout page (handled by ScoutFAB) */}
+      <ScoutFAB />
     </div>
   );
 }

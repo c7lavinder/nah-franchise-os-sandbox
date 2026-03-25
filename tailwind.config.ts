@@ -9,86 +9,108 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // NAH Brand
+        // NAH Brand — Primary Blue
         nah: {
-          orange: "#E8431A",
-          "orange-hover": "#D13A15",
-          "orange-active": "#BA3312",
+          blue: "#00a1e1",
+          "blue-hover": "#0090ca",
+          "blue-active": "#0080b5",
+          "blue-light": "#e6f7fd",
+          "blue-mid": "#b3e4f7",
         },
-        // Scout AI accent
+        // NAH Accent — Yellow/Orange
+        accent: {
+          yellow: "#f5a800",
+          "yellow-hover": "#e09700",
+          "yellow-light": "#fef3e2",
+        },
+        // Brand gray
+        brand: {
+          gray: "#898a8d",
+        },
+        // Scout AI — uses NAH blue for consistency
         scout: {
-          purple: "#7C3AED",
-          "purple-hover": "#6D28D9",
-          "purple-active": "#5B21B6",
-          "bubble-bg": "rgba(124, 58, 237, 0.10)",
-          "bubble-border": "rgba(124, 58, 237, 0.20)",
-          "action-bg": "rgba(124, 58, 237, 0.05)",
-          thinking: "#7C3AED",
+          purple: "#00a1e1",
+          "purple-hover": "#0090ca",
+          "purple-active": "#0080b5",
+          "bubble-bg": "rgba(0, 161, 225, 0.08)",
+          "bubble-border": "rgba(0, 161, 225, 0.20)",
+          "action-bg": "rgba(0, 161, 225, 0.05)",
+          thinking: "#00a1e1",
         },
         // Backgrounds
         bg: {
-          primary: "#0F0F0F",
-          secondary: "#1A1A1A",
-          tertiary: "#262626",
-          hover: "#333333",
-          active: "#404040",
+          primary: "#f4f7f8",
+          secondary: "rgba(255, 255, 255, 0.75)",
+          tertiary: "#f1f5f9",
+          hover: "rgba(0, 161, 225, 0.05)",
+          active: "rgba(0, 161, 225, 0.10)",
         },
         // Text
         text: {
-          primary: "#F5F5F5",
-          secondary: "#A3A3A3",
-          tertiary: "#737373",
-          inverse: "#0F0F0F",
+          primary: "#1e293b",
+          secondary: "#64748b",
+          tertiary: "#94a3b8",
+          inverse: "#ffffff",
         },
         // Semantic
-        success: "#22C55E",
-        warning: "#F59E0B",
-        danger: "#EF4444",
-        info: "#3B82F6",
+        success: "#059669",
+        warning: "#f5a800",
+        danger: "#ef4444",
+        info: "#00a1e1",
         // Borders
         border: {
-          default: "#2A2A2A",
-          hover: "#404040",
-          focus: "#E8431A",
+          default: "rgba(0, 0, 0, 0.06)",
+          hover: "rgba(0, 0, 0, 0.12)",
+          focus: "#00a1e1",
+          glass: "rgba(255, 255, 255, 0.6)",
         },
+        // Surface
+        surface: {
+          glass: "rgba(255, 255, 255, 0.75)",
+          solid: "#ffffff",
+        },
+        // Legacy aliases for backward compat — maps old dark tokens to new light ones
+        "nah-orange": "#00a1e1",
       },
       fontFamily: {
-        sans: [
-          "Inter",
-          "-apple-system",
-          "BlinkMacSystemFont",
-          "Segoe UI",
-          "Roboto",
-          "sans-serif",
-        ],
-        mono: [
-          "JetBrains Mono",
-          "Fira Code",
-          "Courier New",
-          "monospace",
-        ],
+        headline: ["Signika", "sans-serif"],
+        sans: ["Roboto", "sans-serif"],
+        mono: ["JetBrains Mono", "Fira Code", "Courier New", "monospace"],
       },
       fontSize: {
+        hero: ["3.5rem", { lineHeight: "1.2", fontWeight: "600", letterSpacing: "-1px" }],
+        "page-title": ["2rem", { lineHeight: "1.25", fontWeight: "600", letterSpacing: "-0.5px" }],
+        "section-title": ["1.5rem", { lineHeight: "1.3", fontWeight: "600" }],
+        "card-title": ["1.125rem", { lineHeight: "1.4", fontWeight: "600" }],
+        "label-caps": ["0.75rem", { lineHeight: "1.2", fontWeight: "700", letterSpacing: "1.2px" }],
+        metric: ["2rem", { lineHeight: "1.1", fontWeight: "700" }],
+        "metric-sm": ["1.25rem", { lineHeight: "1.2", fontWeight: "600" }],
+        nav: ["0.9375rem", { lineHeight: "1", fontWeight: "500" }],
+        subtitle: ["1.25rem", { lineHeight: "1.5", fontWeight: "400" }],
+        // Legacy aliases
         display: ["2rem", { lineHeight: "1.2", fontWeight: "700" }],
-        h1: ["1.5rem", { lineHeight: "1.3", fontWeight: "700" }],
-        h2: ["1.25rem", { lineHeight: "1.35", fontWeight: "600" }],
-        h3: ["1rem", { lineHeight: "1.4", fontWeight: "600" }],
+        h1: ["2rem", { lineHeight: "1.25", fontWeight: "600" }],
+        h2: ["1.5rem", { lineHeight: "1.3", fontWeight: "600" }],
+        h3: ["1.125rem", { lineHeight: "1.4", fontWeight: "600" }],
         "body-lg": ["1rem", { lineHeight: "1.5", fontWeight: "400" }],
         body: ["0.875rem", { lineHeight: "1.5", fontWeight: "400" }],
         "body-sm": ["0.8125rem", { lineHeight: "1.5", fontWeight: "400" }],
-        caption: ["0.75rem", { lineHeight: "1.4", fontWeight: "400" }],
-        overline: ["0.6875rem", { lineHeight: "1.4", fontWeight: "600", letterSpacing: "0.05em" }],
+        caption: ["0.8125rem", { lineHeight: "1.4", fontWeight: "400" }],
+        overline: ["0.75rem", { lineHeight: "1.2", fontWeight: "700", letterSpacing: "1.2px" }],
+        button: ["0.875rem", { lineHeight: "1", fontWeight: "500" }],
+        badge: ["0.75rem", { lineHeight: "1", fontWeight: "600", letterSpacing: "0.3px" }],
       },
       borderRadius: {
         sm: "4px",
         md: "8px",
         lg: "12px",
         xl: "16px",
+        pill: "40px",
       },
       spacing: {
-        "sidebar": "240px",
-        "sidebar-collapsed": "64px",
-        "topbar": "56px",
+        sidebar: "80px",
+        "sidebar-expanded": "280px",
+        topbar: "0px",
       },
       maxWidth: {
         content: "1280px",
@@ -98,9 +120,16 @@ const config: Config = {
           "0%, 80%, 100%": { opacity: "0" },
           "40%": { opacity: "1" },
         },
+        drift: {
+          "0%": { transform: "translate(0px, 0px) scale(1)" },
+          "33%": { transform: "translate(30px, -20px) scale(1.02)" },
+          "66%": { transform: "translate(-15px, 25px) scale(0.98)" },
+          "100%": { transform: "translate(20px, 10px) scale(1.03)" },
+        },
       },
       animation: {
         "pulse-dot": "pulse-dot 1.4s infinite ease-in-out both",
+        drift: "drift 30s ease-in-out infinite alternate",
       },
     },
   },
