@@ -21,15 +21,15 @@ interface ActivityItemProps {
 
 function typeIcon(type: string, status: string) {
   switch (type) {
-    case "stage_move": return <ArrowRight size={14} className="text-nah-orange" />;
-    case "message": return <MessageSquare size={14} className="text-success" />;
-    case "task": return <ClipboardList size={14} className="text-info" />;
-    case "note": return <FileText size={14} className="text-warning" />;
-    case "call_grading": return <Phone size={14} className="text-scout-purple" />;
+    case "stage_move": return <ArrowRight size={14} className="text-[#e65100]" />;
+    case "message": return <MessageSquare size={14} className="text-[#2e7d32]" />;
+    case "task": return <ClipboardList size={14} className="text-[#1565c0]" />;
+    case "note": return <FileText size={14} className="text-[#f5a800]" />;
+    case "call_grading": return <Phone size={14} className="text-[#6a1b9a]" />;
     case "alert": return status === "resolved"
-      ? <CheckCircle2 size={14} className="text-success" />
-      : <AlertTriangle size={14} className={status === "critical" ? "text-danger" : status === "high" ? "text-warning" : "text-info"} />;
-    default: return <FileText size={14} className="text-text-tertiary" />;
+      ? <CheckCircle2 size={14} className="text-[#2e7d32]" />
+      : <AlertTriangle size={14} className={status === "critical" ? "text-[#c62828]" : status === "high" ? "text-[#e65100]" : "text-[#1565c0]"} />;
+    default: return <FileText size={14} className="text-[#64748b]" />;
   }
 }
 
@@ -47,13 +47,13 @@ function typeLabel(type: string): string {
 
 function typeBadgeColor(type: string): string {
   switch (type) {
-    case "stage_move": return "bg-nah-orange/15 text-nah-orange";
-    case "message": return "bg-success/15 text-success";
-    case "task": return "bg-info/15 text-info";
-    case "note": return "bg-warning/15 text-warning";
-    case "call_grading": return "bg-scout-purple/15 text-scout-purple";
-    case "alert": return "bg-danger/15 text-danger";
-    default: return "bg-bg-tertiary text-text-tertiary";
+    case "stage_move": return "bg-[#fff3e0] text-[#e65100]";    // orange
+    case "message": return "bg-[#e8f5e9] text-[#2e7d32]";      // green
+    case "task": return "bg-[#e3f2fd] text-[#1565c0]";          // blue
+    case "note": return "bg-[#fef3e2] text-[#f5a800]";          // yellow
+    case "call_grading": return "bg-[#f3e5f5] text-[#6a1b9a]";  // purple
+    case "alert": return "bg-[#fce4ec] text-[#c62828]";         // red
+    default: return "bg-[#f1f5f9] text-[#64748b]";
   }
 }
 

@@ -26,11 +26,24 @@ const STATUS_OPTIONS = [
 
 function statusBadge(status: string | null): string {
   switch (status) {
-    case "open": return "bg-nah-orange/15 text-nah-orange";
-    case "won": return "bg-success/15 text-success";
-    case "lost": return "bg-danger/15 text-danger";
-    default: return "bg-bg-tertiary text-text-tertiary";
+    case "open": return "bg-[#e6f7fd] text-[#00a1e1]";
+    case "won": return "bg-[#e8f5e9] text-[#2e7d32]";
+    case "lost": return "bg-[#fce4ec] text-[#c62828]";
+    default: return "bg-[#f1f5f9] text-[#64748b]";
   }
+}
+
+function leadSourceColor(source: string): string {
+  const s = source.toLowerCase();
+  if (s.includes("google")) return "bg-[#e8f5e9] text-[#2e7d32]";
+  if (s.includes("facebook")) return "bg-[#e3f2fd] text-[#1565c0]";
+  if (s.includes("linkedin")) return "bg-[#e8eaf6] text-[#283593]";
+  if (s.includes("youtube")) return "bg-[#fce4ec] text-[#c62828]";
+  if (s.includes("referral")) return "bg-[#fff3e0] text-[#e65100]";
+  if (s.includes("organic") || s.includes("website")) return "bg-[#e0f2f1] text-[#00695c]";
+  if (s.includes("event") || s.includes("show")) return "bg-[#f3e5f5] text-[#6a1b9a]";
+  if (s.includes("paid") || s.includes("ad")) return "bg-[#fef3e2] text-[#f5a800]";
+  return "bg-[#f1f5f9] text-[#64748b]";
 }
 
 export default function LeadsPage() {
@@ -178,7 +191,7 @@ export default function LeadsPage() {
                       {lead.phone || "—"}
                     </td>
                     <td className="px-3 py-2.5">
-                      <span className="text-caption text-text-tertiary">{lead.source}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${leadSourceColor(lead.source)}`}>{lead.source}</span>
                     </td>
                     <td className="px-3 py-2.5">
                       <span className="text-caption text-text-secondary">

@@ -12,10 +12,10 @@ interface ConversationListProps {
 }
 
 function channelIcon(type: string) {
-  if (type.includes("PHONE") || type.includes("SMS")) return <MessageSquare size={14} className="text-success" />;
-  if (type.includes("EMAIL")) return <Mail size={14} className="text-scout-purple" />;
-  if (type.includes("CALL")) return <Phone size={14} className="text-info" />;
-  return <MessageSquare size={14} className="text-text-tertiary" />;
+  if (type.includes("PHONE") || type.includes("SMS")) return <MessageSquare size={14} className="text-[#2e7d32]" />;
+  if (type.includes("EMAIL")) return <Mail size={14} className="text-[#6a1b9a]" />;
+  if (type.includes("CALL")) return <Phone size={14} className="text-[#1565c0]" />;
+  return <MessageSquare size={14} className="text-[#64748b]" />;
 }
 
 function formatTime(timestamp: string | number): string {

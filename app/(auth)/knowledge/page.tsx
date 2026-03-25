@@ -19,13 +19,13 @@ interface KnowledgeDoc {
 }
 
 const CATEGORIES: { value: KnowledgeCategory; label: string; color: string }[] = [
-  { value: "brand", label: "Brand", color: "bg-nah-orange/15 text-nah-orange" },
-  { value: "pipeline", label: "Pipeline", color: "bg-info/15 text-info" },
-  { value: "objections", label: "Objections", color: "bg-warning/15 text-warning" },
-  { value: "competitors", label: "Competitors", color: "bg-danger/15 text-danger" },
-  { value: "industry", label: "Industry", color: "bg-success/15 text-success" },
-  { value: "fdd", label: "FDD", color: "bg-scout-purple/15 text-scout-purple" },
-  { value: "contact-notes", label: "Contact Notes", color: "bg-bg-tertiary text-text-tertiary" },
+  { value: "brand", label: "Brand", color: "bg-[#e6f7fd] text-[#00a1e1]" },
+  { value: "pipeline", label: "Pipeline", color: "bg-[#e3f2fd] text-[#1565c0]" },
+  { value: "objections", label: "Objections", color: "bg-[#fff3e0] text-[#e65100]" },
+  { value: "competitors", label: "Competitors", color: "bg-[#fce4ec] text-[#c62828]" },
+  { value: "industry", label: "Industry", color: "bg-[#e8f5e9] text-[#2e7d32]" },
+  { value: "fdd", label: "FDD", color: "bg-[#f3e5f5] text-[#6a1b9a]" },
+  { value: "contact-notes", label: "Contact Notes", color: "bg-[#f1f5f9] text-[#64748b]" },
 ];
 
 function categoryBadge(cat: KnowledgeCategory): string {

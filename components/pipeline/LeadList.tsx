@@ -30,6 +30,22 @@ interface LeadListProps {
 
 type SortField = "name" | "urgency" | "recent";
 
+// ─── Source color mapping ───
+
+function sourceColor(source: string): string {
+  const s = source.toLowerCase();
+  if (s.includes("google")) return "bg-[#e8f5e9] text-[#2e7d32]";       // green
+  if (s.includes("facebook")) return "bg-[#e3f2fd] text-[#1565c0]";     // blue
+  if (s.includes("linkedin")) return "bg-[#e8eaf6] text-[#283593]";     // indigo
+  if (s.includes("youtube")) return "bg-[#fce4ec] text-[#c62828]";      // red
+  if (s.includes("referral")) return "bg-[#fff3e0] text-[#e65100]";     // orange
+  if (s.includes("organic") || s.includes("website")) return "bg-[#e0f2f1] text-[#00695c]"; // teal
+  if (s.includes("event") || s.includes("show")) return "bg-[#f3e5f5] text-[#6a1b9a]";     // purple
+  if (s.includes("paid") || s.includes("ad")) return "bg-[#fef3e2] text-[#f5a800]";        // yellow
+  if (s.includes("fbr")) return "bg-[#e8eaf6] text-[#283593]";          // indigo
+  return "bg-[#f1f5f9] text-[#64748b]";                                  // gray default
+}
+
 // ─── Urgency calculation ───
 
 function daysInPipeline(createdAt: string): number {
@@ -52,22 +68,22 @@ function getUrgency(opp: GHLOpportunity): UrgencyInfo {
   const stageDays = daysInStage(opp.updatedAt);
 
   if (opp.status === "lost") {
-    return { label: "Lost", color: "text-danger", bgColor: "bg-danger/15", score: 0 };
+    return { label: "Lost", color: "text-[#c62828]", bgColor: "bg-[#fce4ec]", score: 0 };
   }
   if (opp.status === "won") {
-    return { label: "Won", color: "text-success", bgColor: "bg-success/15", score: -1 };
+    return { label: "Won", color: "text-[#2e7d32]", bgColor: "bg-[#e8f5e9]", score: -1 };
   }
 
   // Lost: 12+ days in stage
   if (stageDays >= 12) {
-    return { label: "Lost", color: "text-danger", bgColor: "bg-danger/15", score: 4 };
+    return { label: "Lost", color: "text-[#c62828]", bgColor: "bg-[#fce4ec]", score: 4 };
   }
   // At Risk: 6-11 days in stage
   if (stageDays >= 6) {
-    return { label: "At Risk", color: "text-warning", bgColor: "bg-warning/15", score: 3 };
+    return { label: "At Risk", color: "text-[#e65100]", bgColor: "bg-[#fff3e0]", score: 3 };
   }
   // Fresh: 0-5 days in stage
-  return { label: "Fresh", color: "text-success", bgColor: "bg-success/15", score: 1 };
+  return { label: "Fresh", color: "text-[#2e7d32]", bgColor: "bg-[#e8f5e9]", score: 1 };
 }
 
 // ─── Component ───
@@ -224,7 +240,7 @@ export default function LeadList({
 
               {/* Source */}
               {contact?.source ? (
-                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-scout-purple/10 text-[11px] text-scout-purple font-medium flex-shrink-0">
+                <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0 ${sourceColor(contact.source)}`}>
                   <Megaphone size={9} />
                   {contact.source}
                 </span>

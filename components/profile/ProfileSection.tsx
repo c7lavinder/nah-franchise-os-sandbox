@@ -42,11 +42,11 @@ function sourceLabel(source: string): string {
 
 function sourceBadgeColor(source: string): string {
   switch (source) {
-    case "manual": return "bg-nah-orange/10 text-nah-orange";
-    case "scout": return "bg-scout-purple/10 text-scout-purple";
-    case "system": return "bg-info/10 text-info";
-    case "api": return "bg-success/10 text-success";
-    default: return "bg-bg-tertiary text-text-tertiary";
+    case "manual": return "bg-[#fff3e0] text-[#e65100]";     // orange — Chad fills
+    case "scout": return "bg-[#e3f2fd] text-[#1565c0]";      // blue — Scout AI
+    case "system": return "bg-[#f3e5f5] text-[#6a1b9a]";     // purple — Auto
+    case "api": return "bg-[#e8f5e9] text-[#2e7d32]";        // green — API sync
+    default: return "bg-[#f1f5f9] text-[#64748b]";
   }
 }
 
