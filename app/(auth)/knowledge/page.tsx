@@ -160,8 +160,8 @@ export default function KnowledgePage() {
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
       <div className="flex items-center gap-2 px-1 py-3 flex-shrink-0">
-        <BookOpen size={20} className="text-nah-orange" />
-        <h1 className="text-h1 text-text-primary">Knowledge Base</h1>
+        <BookOpen size={20} className="text-nah-blue" />
+        <h1 className="font-headline text-page-title text-text-primary">Knowledge Base</h1>
         <span className="text-caption text-text-tertiary ml-1">
           {filtered.length} {filtered.length === 1 ? "document" : "documents"}
         </span>

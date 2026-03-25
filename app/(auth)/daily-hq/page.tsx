@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { LayoutDashboard } from "lucide-react";
+import { Bot } from "lucide-react";
 import type { GHLConversation, GHLAppointment, GHLTask } from "@/types/ghl";
 import { ConversationList, ConversationThread, InboxFilters } from "@/components/inbox";
 import { TodayCalendar, TaskPanel, PriorityLeads } from "@/components/daily-hq";
@@ -95,13 +95,12 @@ export default function DailyHQPage() {
     : conversations;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-[calc(100vh-48px)]">
       {/* Header */}
-      <div className="flex items-center gap-3 px-1 py-3 flex-shrink-0">
-        <LayoutDashboard size={20} className="text-nah-orange flex-shrink-0" />
-        <h1 className="text-h1 text-text-primary flex-shrink-0">Daily HQ</h1>
+      <div className="flex items-center gap-3 py-4 flex-shrink-0">
+        <h1 className="font-headline text-page-title text-text-primary flex-shrink-0">Daily HQ</h1>
         {unreadCount > 0 && (
-          <span className="px-2 py-0.5 rounded-full bg-nah-orange text-white text-caption font-bold flex-shrink-0">
+          <span className="badge badge-hot flex-shrink-0">
             {unreadCount} unread
           </span>
         )}
@@ -110,12 +109,12 @@ export default function DailyHQPage() {
         </div>
       </div>
 
-      {/* Main content: Inbox (2/3) + Calendar (1/3) */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-0 border border-border-default rounded-lg overflow-hidden min-h-0">
-        {/* INBOX — 2/3 width */}
-        <div className="lg:col-span-2 flex min-h-0 border-r border-border-default">
+      {/* Main content: Inbox (60%) + Right Panel (40%) */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-5 gap-4 min-h-0">
+        {/* INBOX — 3/5 width */}
+        <div className="lg:col-span-3 card-glass !p-0 flex min-h-0 overflow-hidden">
           {/* Conversation list */}
-          <div className="w-[280px] flex-shrink-0 border-r border-border-default flex flex-col min-h-0 bg-bg-secondary">
+          <div className="w-[280px] flex-shrink-0 flex flex-col min-h-0" style={{ borderRight: "1px solid rgba(0,0,0,0.06)" }}>
             <InboxFilters
               filter={inboxFilter}
               onFilterChange={setInboxFilter}
@@ -134,7 +133,7 @@ export default function DailyHQPage() {
           </div>
 
           {/* Thread */}
-          <div className="flex-1 flex flex-col min-h-0 bg-bg-primary">
+          <div className="flex-1 flex flex-col min-h-0">
             {selectedConv ? (
               <ConversationThread
                 conversation={selectedConv}
@@ -142,23 +141,26 @@ export default function DailyHQPage() {
               />
             ) : (
               <div className="flex-1 flex items-center justify-center">
-                <p className="text-body-sm text-text-tertiary">Select a conversation to view messages</p>
+                <div className="empty-state">
+                  <Bot size={48} className="empty-state-icon" />
+                  <p className="empty-state-title">No conversation selected</p>
+                  <p className="empty-state-text">Choose a conversation from the list</p>
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* RIGHT PANEL — Priority Leads + Calendar */}
-        <div className="bg-bg-secondary min-h-0 overflow-y-auto flex flex-col">
+        {/* RIGHT PANEL — Priority Leads + Calendar + Tasks */}
+        <div className="lg:col-span-2 flex flex-col gap-4 min-h-0 overflow-y-auto">
           <PriorityLeads />
-          <div className="flex-1">
-            <TodayCalendar appointments={appointments} />
-          </div>
+          <TodayCalendar appointments={appointments} />
+          <TaskPanel tasks={tasks} onTaskUpdated={fetchSidebar} />
         </div>
       </div>
 
-      {/* TASKS — bottom */}
-      <div className="mt-4 flex-shrink-0">
+      {/* Removed bottom tasks — moved to right panel */}
+      <div className="mt-4 flex-shrink-0 lg:hidden">
         <TaskPanel tasks={tasks} onTaskUpdated={fetchSidebar} />
       </div>
     </div>

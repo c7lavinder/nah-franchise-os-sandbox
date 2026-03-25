@@ -51,8 +51,8 @@ export default function CallsPage() {
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
       <div className="flex items-center gap-2 px-1 py-3 flex-shrink-0">
-        <Phone size={20} className="text-nah-orange" />
-        <h1 className="text-h1 text-text-primary">Call Center</h1>
+        <Phone size={20} className="text-nah-blue" />
+        <h1 className="font-headline text-page-title text-text-primary">Call Center</h1>
         <span className="text-caption text-text-tertiary ml-1">
           {calls.length} {calls.length === 1 ? "call" : "calls"}
         </span>

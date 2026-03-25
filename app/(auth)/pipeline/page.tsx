@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Kanban } from "lucide-react";
 import type { GHLOpportunity } from "@/types/ghl";
 import { OwnershipPath, PipelineFilters, LeadList, ContactDetail } from "@/components/pipeline";
 
@@ -127,8 +126,7 @@ export default function PipelinePage() {
     <div>
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
-        <Kanban size={20} className="text-nah-orange" />
-        <h1 className="text-h1 text-text-primary">Path to Ownership</h1>
+        <h1 className="font-headline text-page-title text-text-primary">Path to Ownership</h1>
         {!loading && (
           <span className="text-caption text-text-tertiary ml-2">
             {totalLeads} {totalLeads === 1 ? "lead" : "leads"}

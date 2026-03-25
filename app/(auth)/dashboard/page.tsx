@@ -66,8 +66,8 @@ export default function DashboardPage() {
     <div>
       {/* Header */}
       <div className="flex items-center gap-2 mb-6">
-        <BarChart3 size={20} className="text-nah-orange" />
-        <h1 className="text-h1 text-text-primary">Leadership Dashboard</h1>
+        <BarChart3 size={20} className="text-nah-blue" />
+        <h1 className="font-headline text-page-title text-text-primary">Leadership Dashboard</h1>
         <div className="ml-auto flex items-center gap-2">
           <TimePeriodSelector selected={timePeriod} onChange={setTimePeriod} />
           <button

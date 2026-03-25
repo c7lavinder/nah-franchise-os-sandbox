@@ -38,8 +38,8 @@ export default function SettingsPage() {
   return (
     <div>
       <div className="flex items-center gap-2 mb-6">
-        <Settings size={20} className="text-nah-orange" />
-        <h1 className="text-h1 text-text-primary">Settings</h1>
+        <Settings size={20} className="text-nah-blue" />
+        <h1 className="font-headline text-page-title text-text-primary">Settings</h1>
       </div>
 
       {/* OAuth callback messages */}
