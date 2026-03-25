@@ -158,6 +158,39 @@ async function loadKnowledgeBase(): Promise<string> {
   }
 }
 
+/** Loads a quick pipeline snapshot for Scout's context — avoids needing a tool call for basic questions */
+async function loadPipelineSnapshot(): Promise<string> {
+  try {
+    const supabase = createServerClient();
+
+    // Get alert counts by severity
+    const { count: criticalCount } = await supabase
+      .from("inactivity_alerts")
+      .select("id", { count: "exact", head: true })
+      .eq("is_resolved", false)
+      .eq("severity", "critical");
+
+    const { count: highCount } = await supabase
+      .from("inactivity_alerts")
+      .select("id", { count: "exact", head: true })
+      .eq("is_resolved", false)
+      .eq("severity", "high");
+
+    const { count: totalAlerts } = await supabase
+      .from("inactivity_alerts")
+      .select("id", { count: "exact", head: true })
+      .eq("is_resolved", false);
+
+    const alertLine = (totalAlerts ?? 0) > 0
+      ? `Open alerts: ${totalAlerts} (${criticalCount ?? 0} critical, ${highCount ?? 0} high)`
+      : "No open alerts.";
+
+    return `TODAY'S SNAPSHOT (${new Date().toLocaleDateString()}):\n${alertLine}\nUse get_pipeline, get_profile, or get_next_action tools for detailed data.`;
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Runs a full conversation turn with the tool-call loop.
  * This is the main entry point used by the /api/scout/chat route.
@@ -167,14 +200,18 @@ export async function runConversationTurn(
 ): Promise<ScoutConversationOutput> {
   const client = createAnthropicClient();
 
-  // Load knowledge base dynamically from Supabase
-  const knowledgeBase = await loadKnowledgeBase();
+  // Load dynamic context from Supabase
+  const [knowledgeBase, pipelineSnapshot] = await Promise.all([
+    loadKnowledgeBase(),
+    loadPipelineSnapshot(),
+  ]);
 
   // Assemble system prompt with injected knowledge
   const systemPrompt = [
     SCOUT_IDENTITY,
     getRoleBehavior(input.userRole),
     `CURRENT USER: ${input.userName} (ID: ${input.userId}, Role: ${input.userRole})`,
+    pipelineSnapshot,
     PROFILE_AND_SCORING_CONTEXT,
     knowledgeBase,
     SCOUT_RULES,
