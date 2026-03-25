@@ -113,6 +113,9 @@ export default function ConversationThread({ conversation, onMessageSent }: Conv
       {/* Reply input */}
       <ReplyInput
         contactId={conversation.contactId}
+        defaultChannel={
+          (conversation.lastMessageType as unknown as string) === "TYPE_EMAIL" ? "Email" : "SMS"
+        }
         onSent={() => {
           onMessageSent();
           // Refetch messages

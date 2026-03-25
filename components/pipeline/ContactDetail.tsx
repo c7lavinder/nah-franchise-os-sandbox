@@ -90,6 +90,15 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
     void fetchData();
   }, [fetchData]);
 
+  // Close on Escape key
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
   const tagGroups = contact ? categorizeTags(contact.tags) : null;
 
   return (
@@ -244,7 +253,7 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
         {/* Ask Scout — always visible at bottom */}
         <div className="bg-bg-primary border-t border-border-default px-5 py-3 flex-shrink-0">
           <a
-            href="/scout"
+            href={`/scout?ask=${encodeURIComponent(`Tell me about ${opportunity.name} — what's their current status, recent activity, and what should I do next?`)}`}
             className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-scout-purple/10 border border-scout-purple/30 rounded-lg hover:bg-scout-purple/20 transition-colors text-body-sm text-scout-purple font-medium"
           >
             <User size={16} />

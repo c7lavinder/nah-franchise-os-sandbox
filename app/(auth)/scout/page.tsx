@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { MessageSquare, Send } from "lucide-react";
 import { ScoutBubble, UserBubble, ThinkingIndicator, DraftedActionCard, VoiceRecorder } from "@/components/scout";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -10,8 +11,9 @@ import type Anthropic from "@anthropic-ai/sdk";
 /** Scout AI page — full chat interface with tool-call support */
 export default function ScoutPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState(searchParams.get("ask") ?? "");
   const [isThinking, setIsThinking] = useState(false);
   const [executingActionId, setExecutingActionId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);

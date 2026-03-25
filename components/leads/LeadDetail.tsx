@@ -68,6 +68,15 @@ export default function LeadDetail({ contactId, contactName, stageName, onClose 
     void fetchData();
   }, [fetchData]);
 
+  // Close on Escape key
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
   const displayName = contact
     ? `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || contactName || "Unknown"
     : contactName || "Loading...";
@@ -199,7 +208,7 @@ export default function LeadDetail({ contactId, contactName, stageName, onClose 
         {/* Ask Scout */}
         <div className="bg-bg-primary border-t border-border-default px-5 py-3 flex-shrink-0">
           <a
-            href="/scout"
+            href={`/scout?ask=${encodeURIComponent(`Tell me about ${displayName} — what's their current status, recent activity, and what should I do next?`)}`}
             className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-scout-purple/10 border border-scout-purple/30 rounded-lg hover:bg-scout-purple/20 transition-colors text-body-sm text-scout-purple font-medium"
           >
             <User size={16} />
