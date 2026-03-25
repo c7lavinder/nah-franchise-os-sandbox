@@ -1,4 +1,21 @@
-/** Database types matching the Supabase schema defined in architecture.md */
+/** Database types matching the Supabase schema defined in architecture.md + workflows.md */
+
+import type {
+  Workflow,
+  WorkflowInsert,
+  WorkflowVersion,
+  WorkflowVersionInsert,
+  WorkflowStep,
+  WorkflowStepInsert,
+  WorkflowEnrollment,
+  WorkflowEnrollmentInsert,
+  WorkflowStepLog,
+  WorkflowStepLogInsert,
+  WorkflowABTest,
+  WorkflowABTestInsert,
+  WorkflowApproval,
+  WorkflowApprovalInsert,
+} from "@/lib/workflows/types";
 
 /** User roles in the system */
 export type UserRole = "rep" | "marketing" | "leadership";
@@ -211,6 +228,41 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Omit<InactivityAlert, "id" | "created_at">>;
+      };
+      workflows: {
+        Row: Workflow;
+        Insert: WorkflowInsert;
+        Update: Partial<Omit<Workflow, "id" | "created_at">>;
+      };
+      workflow_versions: {
+        Row: WorkflowVersion;
+        Insert: WorkflowVersionInsert;
+        Update: Partial<Omit<WorkflowVersion, "id" | "created_at">>;
+      };
+      workflow_steps: {
+        Row: WorkflowStep;
+        Insert: WorkflowStepInsert;
+        Update: Partial<Omit<WorkflowStep, "id" | "created_at">>;
+      };
+      workflow_enrollments: {
+        Row: WorkflowEnrollment;
+        Insert: WorkflowEnrollmentInsert;
+        Update: Partial<Omit<WorkflowEnrollment, "id" | "enrolled_at">>;
+      };
+      workflow_step_logs: {
+        Row: WorkflowStepLog;
+        Insert: WorkflowStepLogInsert;
+        Update: Partial<Omit<WorkflowStepLog, "id" | "created_at">>;
+      };
+      workflow_ab_tests: {
+        Row: WorkflowABTest;
+        Insert: WorkflowABTestInsert;
+        Update: Partial<Omit<WorkflowABTest, "id" | "created_at">>;
+      };
+      workflow_approvals: {
+        Row: WorkflowApproval;
+        Insert: WorkflowApprovalInsert;
+        Update: Partial<Omit<WorkflowApproval, "id" | "submitted_at">>;
       };
     };
   };

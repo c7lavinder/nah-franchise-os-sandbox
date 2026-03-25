@@ -21,6 +21,7 @@ import { createServerClient } from "@/lib/supabase/server";
 interface GHLWebhookPayload {
   type?: string;
   event?: string;
+  webhookId?: string;
   contactId?: string;
   contact_id?: string;
   locationId?: string;
@@ -33,6 +34,7 @@ interface GHLWebhookPayload {
   source?: string;
   // Message events
   body?: string;
+  messageId?: string;
   messageType?: string;
   direction?: string;
   conversationId?: string;
@@ -42,6 +44,7 @@ interface GHLWebhookPayload {
   pipelineStageId?: string;
   previousStageId?: string;
   status?: string;
+  dateAdded?: string;
   // Catch-all for unknown fields
   [key: string]: unknown;
 }
@@ -69,6 +72,28 @@ export async function POST(request: NextRequest) {
     const contactId = getContactId(payload);
 
     const supabase = createServerClient();
+
+    // Dedup check — per ghl-masterclass, webhooks can fire multiple times
+    if (payload.webhookId) {
+      const { data: existing } = await supabase
+        .from("app_settings")
+        .select("setting_key")
+        .eq("setting_key", `webhook_dedup:${payload.webhookId}`)
+        .single();
+
+      if (existing) {
+        return NextResponse.json({ received: true, dedup: true });
+      }
+
+      // Mark as processed — ignore duplicate insert race
+      try {
+        await supabase.from("app_settings").insert({
+          setting_key: `webhook_dedup:${payload.webhookId}`,
+          setting_value: { processedAt: new Date().toISOString() },
+          description: "Webhook dedup marker",
+        });
+      } catch { /* ignore duplicate */ }
+    }
 
     switch (true) {
       // ─── New Contact Created ───
@@ -108,22 +133,59 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      // ─── Outbound Message Delivery ───
+      // Per ghl-masterclass: OutboundMessage webhook confirms SMS/Email delivery
+      case eventType.includes("outboundmessage"):
+      case eventType.includes("outbound"): {
+        if (!payload.messageId) break;
+
+        // Find matching workflow step log by ghl_message_id
+        const { data: stepLog } = await supabase
+          .from("workflow_step_logs")
+          .select("id")
+          .eq("ghl_message_id", payload.messageId)
+          .limit(1)
+          .single();
+
+        if (stepLog) {
+          await supabase
+            .from("workflow_step_logs")
+            .update({
+              delivered: payload.status === "delivered",
+              delivery_data: {
+                status: payload.status,
+                messageType: payload.messageType,
+                timestamp: payload.dateAdded ?? new Date().toISOString(),
+              },
+            })
+            .eq("id", stepLog.id);
+        }
+
+        break;
+      }
+
       // ─── Inbound Message Received ───
       case eventType.includes("message") && eventType.includes("inbound"):
       case eventType.includes("inboundmessage"): {
         if (!contactId) break;
 
-        // Update Last Touch Date and Channel on the contact
-        const { data: mappings } = await supabase
-          .from("ghl_custom_fields")
-          .select("field_name, ghl_field_id")
-          .eq("entity_type", "contact")
-          .in("field_name", ["Last Touch Date", "Last Touch Channel"]);
+        // Mark the most recent workflow step log as "responded"
+        // Per workflows.md: SMS response rate is a key health scoring metric
+        const { data: recentLog } = await supabase
+          .from("workflow_step_logs")
+          .select("id")
+          .eq("ghl_contact_id", contactId)
+          .eq("responded", false)
+          .eq("delivered", true)
+          .order("executed_at", { ascending: false })
+          .limit(1)
+          .single();
 
-        if (mappings && mappings.length > 0) {
-          // We don't call GHL updateContact here to avoid circular webhooks.
-          // Instead, log the touch for the next time the contact is read.
-          // The touch will be picked up by the scoring engine.
+        if (recentLog) {
+          await supabase
+            .from("workflow_step_logs")
+            .update({ responded: true })
+            .eq("id", recentLog.id);
         }
 
         // Log inbound message event
@@ -169,6 +231,42 @@ export async function POST(request: NextRequest) {
           },
           executed_at: new Date().toISOString(),
         });
+
+        // Auto-enroll in workflows triggered by this stage
+        if (oppContactId && payload.pipelineStageId) {
+          const { data: stage } = await supabase
+            .from("ghl_pipeline_stages")
+            .select("stage_name")
+            .eq("stage_id", payload.pipelineStageId)
+            .limit(1)
+            .single();
+
+          if (stage) {
+            const stageName = (stage.stage_name as string).toLowerCase().replace(/\s+/g, "_");
+            const triggerKey = `stage_entry:${stageName}`;
+
+            const { data: workflows } = await supabase
+              .from("workflows")
+              .select("id, current_version_id, name")
+              .eq("trigger_type", triggerKey)
+              .eq("status", "live");
+
+            if (workflows && workflows.length > 0) {
+              const { enrollContact } = await import("@/lib/workflows/enrollment");
+              for (const wf of workflows) {
+                if (!wf.current_version_id) continue;
+                const result = await enrollContact({
+                  workflowId: wf.id,
+                  workflowVersionId: wf.current_version_id,
+                  ghlContactId: oppContactId,
+                });
+                if (result.success) {
+                  console.log(`[ghl-webhook] Auto-enrolled ${oppContactId} in "${wf.name}"`);
+                }
+              }
+            }
+          }
+        }
 
         break;
       }

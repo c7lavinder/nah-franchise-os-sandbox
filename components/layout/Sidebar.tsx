@@ -9,6 +9,7 @@ import {
   GitBranch,
   Phone,
   BarChart2,
+  Workflow,
   Bell,
   BookOpen,
   Settings,
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Pipeline", href: "/pipeline", icon: GitBranch, roles: ["rep", "leadership"] },
   { label: "Calls", href: "/calls", icon: Phone, roles: ["rep", "leadership"] },
   { label: "Dashboard", href: "/dashboard", icon: BarChart2, roles: ["leadership"] },
+  { label: "Workflows", href: "/workflows", icon: Workflow, roles: ["leadership"] },
 ];
 
 interface SidebarProps {

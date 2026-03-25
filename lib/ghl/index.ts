@@ -1,4 +1,11 @@
-/** GHL module — re-exports all GHL client functions */
+/** GHL module — re-exports all GHL client functions + custom field resolver */
+
+export {
+  resolveFieldId,
+  resolveCustomFields,
+  refreshFieldCache,
+  ensureCustomField,
+} from "./custom-fields";
 
 export {
   getContact,

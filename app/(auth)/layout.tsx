@@ -15,8 +15,13 @@ function getPageTitle(pathname: string): string {
     "/dashboard": "Dashboard",
     "/knowledge": "Knowledge Base",
     "/settings": "Settings",
+    "/workflows": "Workflows",
   };
-  return titles[pathname] ?? "Franchise OS";
+  // Check exact match first, then prefix match for dynamic routes
+  if (titles[pathname]) return titles[pathname];
+  if (pathname.startsWith("/workflows/")) return "Workflow Builder";
+  if (pathname.startsWith("/leads/")) return "Lead Detail";
+  return "Franchise OS";
 }
 
 /**
