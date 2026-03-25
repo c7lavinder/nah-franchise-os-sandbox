@@ -24,9 +24,7 @@ export default function ScoutFAB() {
   const historyRef = useRef<Anthropic.Messages.MessageParam[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Don't show on the dedicated Scout page
-  if (pathname === "/scout") return null;
+  const isScoutPage = pathname === "/scout";
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -82,6 +80,9 @@ export default function ScoutFAB() {
       inputRef.current?.focus();
     }
   }
+
+  // Don't render on the dedicated Scout page
+  if (isScoutPage) return null;
 
   return (
     <>
