@@ -9,19 +9,25 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Workflow as WorkflowIcon, RefreshCw, Plus, AlertTriangle, Users, Zap } from "lucide-react";
+import { useAuth } from "@/lib/auth/AuthContext";
 import type { Workflow } from "@/lib/workflows/types";
 import WorkflowCard from "@/components/workflows/WorkflowCard";
 import WorkflowDetail from "@/components/workflows/WorkflowDetail";
+import CreateWorkflowModal from "@/components/workflows/CreateWorkflowModal";
 
 type StatusFilter = "all" | "live" | "draft" | "paused" | "archived";
 
 export default function WorkflowsPage() {
+  const { user } = useAuth();
+  const router = useRouter();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const fetchWorkflows = useCallback(async () => {
     try {
@@ -78,7 +84,10 @@ export default function WorkflowsPage() {
           >
             <RefreshCw size={16} className={loading ? "animate-spin text-nah-blue" : "text-text-secondary"} />
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-nah-blue text-white text-button hover:bg-nah-blue-hover transition-colors">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-nah-blue text-white text-button hover:bg-nah-blue-hover transition-colors"
+          >
             <Plus size={14} />
             <span>New Workflow</span>
           </button>
@@ -166,6 +175,18 @@ export default function WorkflowsPage() {
           )}
         </div>
       </div>
+
+      {/* Create Workflow Modal */}
+      {showCreateModal && user && (
+        <CreateWorkflowModal
+          userId={user.id ?? ""}
+          onClose={() => setShowCreateModal(false)}
+          onCreate={(wf) => {
+            setShowCreateModal(false);
+            router.push(`/workflows/${wf.id}`);
+          }}
+        />
+      )}
     </div>
   );
 }

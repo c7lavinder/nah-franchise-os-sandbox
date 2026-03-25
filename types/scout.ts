@@ -12,7 +12,11 @@ export type ScoutToolName =
   | "draft_stage_move"
   | "draft_profile_update"
   | "get_schedule"
-  | "search_knowledge";
+  | "search_knowledge"
+  | "workflow_analyze"
+  | "workflow_rewrite"
+  | "sequence_status"
+  | "trainual_status";
 
 /** Chat message role */
 export type ChatRole = "user" | "assistant";

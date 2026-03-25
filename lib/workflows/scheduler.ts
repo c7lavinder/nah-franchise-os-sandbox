@@ -23,6 +23,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import * as ghl from "@/lib/ghl";
 import { advanceDay, exitEnrollment } from "@/lib/workflows/enrollment";
+import { prepareEmailForTracking } from "@/lib/workflows/tracking";
 import type {
   WorkflowStep,
   WorkflowStepType,
@@ -241,10 +242,16 @@ async function executeStep(
       case "email":
         // Email steps that don't require confirmation (rare, but supported)
         if (step.content && step.subject) {
+          // Inject open/click tracking before sending
+          const logId = `pending_${step.id}_${Date.now()}`;
+          const trackedHtml = prepareEmailForTracking(
+            personalizeContent(step.content, enrollment.contact_name),
+            logId
+          );
           const msg = await ghl.sendMessage({
             type: "Email",
             contactId: enrollment.ghl_contact_id,
-            html: personalizeContent(step.content, enrollment.contact_name),
+            html: trackedHtml,
             subject: personalizeContent(step.subject, enrollment.contact_name),
             emailFrom: process.env.GHL_DEFAULT_EMAIL_FROM ?? "franchise@newagainhouses.com",
           });

@@ -217,4 +217,69 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
       required: ["query"],
     },
   },
+  {
+    name: "workflow_analyze",
+    description:
+      "Analyze a workflow's health and get Scout's assessment. Returns health score (A–F), key metrics, top issue, and count of underperforming steps.",
+    input_schema: {
+      type: "object",
+      properties: {
+        workflow_id: {
+          type: "string",
+          description: "The workflow ID to analyze",
+        },
+      },
+      required: ["workflow_id"],
+    },
+  },
+  {
+    name: "workflow_rewrite",
+    description:
+      "Draft 3 rewrite variants for an underperforming workflow step. Returns a diagnosis of why the step is underperforming plus 3 alternative versions with different approaches.",
+    input_schema: {
+      type: "object",
+      properties: {
+        step_id: {
+          type: "string",
+          description: "The workflow step ID to rewrite",
+        },
+        context: {
+          type: "string",
+          description:
+            "Optional additional context about why the step is underperforming or what to focus on",
+        },
+      },
+      required: ["step_id"],
+    },
+  },
+  {
+    name: "sequence_status",
+    description:
+      "Check what day of a workflow sequence a prospect is on and what's due next. Returns workflow name, current day, enrollment status, and next step details for each active enrollment.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: {
+          type: "string",
+          description: "The GHL contact ID to check enrollment status for",
+        },
+      },
+      required: ["contact_id"],
+    },
+  },
+  {
+    name: "trainual_status",
+    description:
+      "Check a prospect's Trainual completion percentage and last activity. Returns completion %, last activity date, and whether a nudge is needed.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: {
+          type: "string",
+          description: "The GHL contact ID to check Trainual status for",
+        },
+      },
+      required: ["contact_id"],
+    },
+  },
 ];

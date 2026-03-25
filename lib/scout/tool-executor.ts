@@ -9,6 +9,10 @@
 
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
+import { analyzeWorkflow } from "@/lib/workflows/health-scoring";
+import { generateRewrites } from "@/lib/workflows/rewrite-engine";
+import { getContactEnrollments } from "@/lib/workflows/enrollment";
+import type { WorkflowStep } from "@/lib/workflows/types";
 import type { ScoutToolName, DraftedAction } from "@/types/scout";
 
 /** The result of executing a tool — either data or a drafted action */
@@ -47,6 +51,14 @@ export async function executeTool(
       return executeDraftStageMove(input);
     case "draft_profile_update":
       return executeDraftProfileUpdate(input);
+    case "workflow_analyze":
+      return executeWorkflowAnalyze(input);
+    case "workflow_rewrite":
+      return executeWorkflowRewrite(input);
+    case "sequence_status":
+      return executeSequenceStatus(input);
+    case "trainual_status":
+      return executeTrainualStatus(input);
     default: {
       const _exhaustive: never = toolName;
       return { data: `Unknown tool: ${_exhaustive}` };
@@ -462,6 +474,277 @@ function getStageRecommendation(stage: string, profile: Record<string, string>):
     case 13: return "Nurture lead — monthly personal touch from Chad + automated content.";
     case 14: return "Re-engaged! Contact within 2 hours — they already know NAH and chose to come back.";
     default: return "Review this lead's profile and determine the appropriate next step.";
+  }
+}
+
+// ========================================
+// WORKFLOW INTELLIGENCE TOOLS — read-only
+// ========================================
+
+async function executeWorkflowAnalyze(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  try {
+    const workflowId = input.workflow_id as string;
+    const supabase = createServerClient();
+
+    // Fetch the workflow name
+    const { data: workflow } = await supabase
+      .from("workflows")
+      .select("name")
+      .eq("id", workflowId)
+      .single();
+
+    const workflowName = workflow?.name ?? "Unknown Workflow";
+    const analysis = await analyzeWorkflow(workflowId, workflowName);
+
+    const metricsLines = analysis.metrics.map(
+      (m) => `  - ${m.name}: ${m.value}% (benchmark: ${m.benchmark}%, status: ${m.status})`
+    );
+
+    const lines = [
+      `WORKFLOW HEALTH ANALYSIS — ${analysis.workflowName}`,
+      ``,
+      `Health Score: ${analysis.score}`,
+      ``,
+      metricsLines.length > 0
+        ? `Metrics:\n${metricsLines.join("\n")}`
+        : `Metrics: No data yet`,
+      ``,
+      `Top Issue: ${analysis.topIssue ?? "None — workflow is performing well"}`,
+      `Underperforming Steps: ${analysis.underperformingSteps.length}`,
+    ];
+
+    if (analysis.underperformingSteps.length > 0) {
+      lines.push(``);
+      for (const step of analysis.underperformingSteps) {
+        lines.push(
+          `  - Day ${step.dayNumber} ${step.stepType.toUpperCase()} (step ${step.stepNumber}): ${step.metric} at ${step.value}% vs ${step.benchmark}% benchmark`
+        );
+      }
+    }
+
+    return { data: lines.join("\n") };
+  } catch (err) {
+    return {
+      data: `Error analyzing workflow: ${err instanceof Error ? err.message : "Unknown error"}`,
+    };
+  }
+}
+
+async function executeWorkflowRewrite(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  try {
+    const stepId = input.step_id as string;
+    const context = input.context as string | undefined;
+
+    const result = await generateRewrites({ stepId, context });
+
+    const lines = [
+      `REWRITE SUGGESTIONS — Day ${result.dayNumber} ${result.stepType.toUpperCase()}`,
+      ``,
+      `Diagnosis: ${result.diagnosis}`,
+      ``,
+      `Original content:`,
+      result.originalContent,
+    ];
+
+    if (result.originalSubject) {
+      lines.push(`Original subject: ${result.originalSubject}`);
+    }
+
+    for (let i = 0; i < result.variants.length; i++) {
+      const v = result.variants[i];
+      lines.push(
+        ``,
+        `--- Variant ${i + 1}: ${v.approach} ---`,
+        `Rationale: ${v.rationale}`
+      );
+      if (v.subject) {
+        lines.push(`Subject: ${v.subject}`);
+      }
+      lines.push(`Content: ${v.content}`);
+    }
+
+    return { data: lines.join("\n") };
+  } catch (err) {
+    return {
+      data: `Error generating rewrites: ${err instanceof Error ? err.message : "Unknown error"}`,
+    };
+  }
+}
+
+async function executeSequenceStatus(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  try {
+    const contactId = input.contact_id as string;
+    const supabase = createServerClient();
+
+    // Get active/paused enrollments for this contact
+    const enrollments = await getContactEnrollments(contactId, [
+      "active",
+      "paused",
+    ]);
+
+    if (enrollments.length === 0) {
+      return {
+        data: "This contact is not currently enrolled in any workflow sequences.",
+      };
+    }
+
+    const lines: string[] = [
+      `SEQUENCE STATUS — ${enrollments.length} active enrollment(s)`,
+      ``,
+    ];
+
+    for (const enrollment of enrollments) {
+      // Fetch workflow name
+      const { data: workflow } = await supabase
+        .from("workflows")
+        .select("name, current_version_id")
+        .eq("id", enrollment.workflow_id)
+        .single();
+
+      const workflowName = workflow?.name ?? "Unknown Workflow";
+
+      // Fetch the next step — find the step for current_day or next day
+      let nextStepInfo = "No upcoming step found";
+      if (workflow?.current_version_id) {
+        const { data: nextStep } = await supabase
+          .from("workflow_steps")
+          .select("step_number, day_number, step_type, content, subject")
+          .eq("workflow_version_id", workflow.current_version_id)
+          .gte("day_number", enrollment.current_day)
+          .order("day_number", { ascending: true })
+          .order("step_number", { ascending: true })
+          .limit(1)
+          .single();
+
+        if (nextStep) {
+          const typedStep = nextStep as Pick<
+            WorkflowStep,
+            "step_number" | "day_number" | "step_type" | "content" | "subject"
+          >;
+          const preview = typedStep.content
+            ? typedStep.content.substring(0, 100) +
+              (typedStep.content.length > 100 ? "..." : "")
+            : "No content";
+          nextStepInfo = `Day ${typedStep.day_number}, Step ${typedStep.step_number} — ${typedStep.step_type.toUpperCase()}: ${preview}`;
+        }
+      }
+
+      lines.push(
+        `Workflow: ${workflowName}`,
+        `  Current Day: ${enrollment.current_day}`,
+        `  Status: ${enrollment.status}`,
+        `  Enrolled: ${enrollment.enrolled_at}`,
+        `  Last Step: ${enrollment.last_step_at ?? "None executed yet"}`,
+        `  Goal Achieved: ${enrollment.goal_achieved ? "Yes" : "Not yet"}`,
+        `  Next Step: ${nextStepInfo}`,
+        ``
+      );
+    }
+
+    return { data: lines.join("\n") };
+  } catch (err) {
+    return {
+      data: `Error fetching sequence status: ${err instanceof Error ? err.message : "Unknown error"}`,
+    };
+  }
+}
+
+async function executeTrainualStatus(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  try {
+    const contactId = input.contact_id as string;
+    const contact = await ghl.getContact(contactId);
+    const contactName =
+      `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() ||
+      "Unknown";
+
+    // Load field mapping to resolve custom field IDs to names
+    const supabase = createServerClient();
+    const { data: fieldMappings } = await supabase
+      .from("ghl_custom_fields")
+      .select("field_name, ghl_field_id")
+      .eq("entity_type", "contact");
+
+    const idToName = new Map<string, string>();
+    if (fieldMappings) {
+      for (const m of fieldMappings) {
+        idToName.set(m.ghl_field_id, m.field_name);
+      }
+    }
+
+    // Extract all custom field values
+    const fields: Record<string, string> = {};
+    for (const cf of contact.customFields) {
+      const name = idToName.get(cf.id);
+      if (name && cf.value) {
+        fields[name] = cf.value;
+      }
+    }
+
+    // Read Trainual-related fields
+    const completionPct = fields["Trainual Completion Percent"];
+    const lastActivity = fields["Trainual Last Activity"];
+    const trainualInviteSent = fields["Trainual Invite Sent"];
+    const framingCallLogged = fields["Framing Call Logged"];
+
+    // Determine if a nudge is needed
+    let nudgeNeeded = false;
+    let nudgeReason = "";
+
+    if (!trainualInviteSent || trainualInviteSent === "No") {
+      nudgeReason = "Trainual invite has not been sent yet.";
+      if (framingCallLogged !== "Yes") {
+        nudgeReason +=
+          " Framing call must be logged before sending the Trainual invite.";
+      } else {
+        nudgeNeeded = true;
+        nudgeReason += " Framing call is done — send the invite now.";
+      }
+    } else if (!completionPct || parseFloat(completionPct) === 0) {
+      nudgeNeeded = true;
+      nudgeReason =
+        "Trainual invite was sent but the prospect has not started it yet.";
+    } else if (parseFloat(completionPct) < 100) {
+      // Check if activity is stale (more than 7 days)
+      if (lastActivity) {
+        const daysSinceActivity = Math.floor(
+          (Date.now() - new Date(lastActivity).getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
+        if (daysSinceActivity > 7) {
+          nudgeNeeded = true;
+          nudgeReason = `Trainual is ${completionPct}% complete but no activity in ${daysSinceActivity} days.`;
+        }
+      }
+    }
+
+    const lines = [
+      `TRAINUAL STATUS — ${contactName}`,
+      ``,
+      `Completion: ${completionPct ? `${completionPct}%` : "Not tracked"}`,
+      `Last Activity: ${lastActivity ?? "No activity recorded"}`,
+      `Invite Sent: ${trainualInviteSent ?? "Unknown"}`,
+      `Framing Call Logged: ${framingCallLogged ?? "Unknown"}`,
+      ``,
+      nudgeNeeded
+        ? `Nudge Needed: YES — ${nudgeReason}`
+        : nudgeReason
+          ? `Nudge Needed: NO — ${nudgeReason}`
+          : `Nudge Needed: NO`,
+    ];
+
+    return { data: lines.join("\n") };
+  } catch (err) {
+    return {
+      data: `Error fetching Trainual status: ${err instanceof Error ? err.message : "Unknown error"}`,
+    };
   }
 }
 
