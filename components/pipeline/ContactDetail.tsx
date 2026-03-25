@@ -121,9 +121,18 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
                 <span className="text-text-tertiary">{daysInPipeline(opportunity.createdAt)}d total</span>
               </div>
             </div>
-            <button onClick={onClose} className="p-1 text-text-tertiary hover:text-text-primary">
-              <X size={20} />
-            </button>
+            <div className="flex items-center gap-1">
+              <a
+                href={`/leads/${opportunity.contactId}`}
+                className="p-1 text-text-tertiary hover:text-nah-orange transition-colors"
+                title="Open full profile"
+              >
+                <ExternalLink size={16} />
+              </a>
+              <button onClick={onClose} className="p-1 text-text-tertiary hover:text-text-primary">
+                <X size={20} />
+              </button>
+            </div>
           </div>
         </div>
 

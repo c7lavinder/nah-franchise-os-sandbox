@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Users, Search, RefreshCw, ChevronRight, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Users, Search, RefreshCw, ChevronRight, Loader2, ExternalLink } from "lucide-react";
 import { LeadDetail } from "@/components/leads";
 
 interface LeadRow {
@@ -31,6 +32,7 @@ function statusBadge(status: string | null): string {
 }
 
 export default function LeadsPage() {
+  const router = useRouter();
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -192,7 +194,16 @@ export default function LeadsPage() {
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-right">
-                      <ChevronRight size={14} className="text-text-tertiary inline" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/leads/${lead.contactId}`);
+                        }}
+                        className="p-1 text-text-tertiary hover:text-nah-orange transition-colors"
+                        title="Open full profile"
+                      >
+                        <ExternalLink size={14} />
+                      </button>
                     </td>
                   </tr>
                 ))}

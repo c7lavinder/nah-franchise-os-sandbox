@@ -215,6 +215,7 @@ interface FieldDef {
 }
 
 const CONTACT_FIELDS: FieldDef[] = [
+  // --- Existing fields ---
   { name: "Lead Source Detail", dataType: "TEXT", model: "contact" },
   { name: "Territory Interest", dataType: "TEXT", model: "contact" },
   { name: "Territory Status", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Available", "Waitlist", "Unavailable", "Confirmed"] },
@@ -228,6 +229,55 @@ const CONTACT_FIELDS: FieldDef[] = [
   { name: "Framing Call Logged", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Yes", "No"] },
   { name: "NDA Status", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Not Sent", "Sent", "Signed"] },
   { name: "OpenClaw Enriched", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Yes", "No"] },
+
+  // --- Territory (new) ---
+  { name: "Territory Confirmed Date", dataType: "DATE", model: "contact" },
+  { name: "Territory Market", dataType: "TEXT", model: "contact" },
+
+  // --- Franchise Fit (new) ---
+  { name: "RE Experience", dataType: "SINGLE_OPTIONS", model: "contact", options: ["None", "Some (1-3 flips)", "Experienced (4-10)", "Expert (10+)"] },
+  { name: "Construction Knowledge", dataType: "SINGLE_OPTIONS", model: "contact", options: ["None", "Basic", "Intermediate", "Advanced"] },
+  { name: "Why NAH", dataType: "TEXT", model: "contact" },
+  { name: "Primary Goal", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Full-time business", "Side income", "Portfolio diversification", "Career change", "Legacy building"] },
+  { name: "Timeline to Open", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Immediately", "1-3 months", "3-6 months", "6-12 months", "12+ months"] },
+
+  // --- Financial (new) ---
+  { name: "Capital Source", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Cash", "SBA Loan", "ROBS (Retirement Rollover)", "Home Equity", "Partner/Investor", "Combination", "Undecided"] },
+  { name: "Financing Pre-Qualified", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Yes", "No", "In Progress", "Not Started"] },
+  { name: "Financial Objection", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Investment size", "Uncertain ROI", "Wants to compare", "Needs spouse buy-in", "Needs more info", "None"] },
+
+  // --- Trainual (new) ---
+  { name: "Trainual Last Opened Date", dataType: "DATE", model: "contact" },
+  { name: "Trainual Current Section", dataType: "TEXT", model: "contact" },
+
+  // --- Engagement (new) ---
+  { name: "Sequence Day Number", dataType: "NUMERICAL", model: "contact" },
+  { name: "Sequence Status", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Active", "Paused", "Completed", "Exited Early"] },
+  { name: "Last Touch Date", dataType: "DATE", model: "contact" },
+  { name: "Last Touch Channel", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Call", "SMS", "Email", "Trainual", "In-Person"] },
+  { name: "Contact Attempt Count", dataType: "NUMERICAL", model: "contact" },
+
+  // --- AI Scout (new) ---
+  { name: "Score Breakdown", dataType: "TEXT", model: "contact" },
+  { name: "Engagement Velocity", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Accelerating", "Steady", "Slowing", "Stalled"] },
+  { name: "Sentiment Trend", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Very Positive", "Positive", "Neutral", "Cautious", "Negative"] },
+  { name: "Predicted Close Probability", dataType: "NUMERICAL", model: "contact" },
+  { name: "Recommended Next Action", dataType: "TEXT", model: "contact" },
+  { name: "Auto Summary", dataType: "TEXT", model: "contact" },
+  { name: "Lookalike Score", dataType: "NUMERICAL", model: "contact" },
+  { name: "Communication Style", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Direct/Fast", "Analytical/Detail", "Relationship/Trust", "Cautious/Slow"] },
+
+  // --- Compliance (new) ---
+  { name: "Spouse Aware", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Yes", "No", "N/A (Single)", "Unknown"] },
+  { name: "OK to SMS Confirmed Date", dataType: "DATE", model: "contact" },
+  { name: "Earnings Claims Made", dataType: "SINGLE_OPTIONS", model: "contact", options: ["No - Confirmed Clean", "Yes - Flagged"] },
+  { name: "Compliance Checklist Complete", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Yes", "No"] },
+
+  // --- Validation (new — contact-level) ---
+  { name: "Matt Call Done", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Yes - Fit Confirmed", "Yes - Concerns Flagged", "No - Not Scheduled", "No - No Show"] },
+  { name: "Sam Call Done", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Yes - Positive", "Yes - Concerns", "No - Not Scheduled", "No - No Show"] },
+  { name: "Mark Call Done", dataType: "SINGLE_OPTIONS", model: "contact", options: ["Yes - Financially Viable", "Yes - Needs More Info", "No - Not Scheduled", "No - No Show"] },
+  { name: "Franchisee Validator Name", dataType: "TEXT", model: "contact" },
 ];
 
 const OPPORTUNITY_FIELDS: FieldDef[] = [

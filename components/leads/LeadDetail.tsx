@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   X, Phone as PhoneIcon, Mail, Clock, Megaphone,
-  Loader2, User,
+  Loader2, User, ExternalLink,
 } from "lucide-react";
 import type { GHLContact, GHLNote, GHLTask, GHLMessage } from "@/types/ghl";
 import NotesSection from "./NotesSection";
@@ -101,9 +101,18 @@ export default function LeadDetail({ contactId, contactName, stageName, onClose 
                 )}
               </div>
             </div>
-            <button onClick={onClose} className="p-1 text-text-tertiary hover:text-text-primary">
-              <X size={20} />
-            </button>
+            <div className="flex items-center gap-1">
+              <a
+                href={`/leads/${contactId}`}
+                className="p-1 text-text-tertiary hover:text-nah-orange transition-colors"
+                title="Open full profile"
+              >
+                <ExternalLink size={16} />
+              </a>
+              <button onClick={onClose} className="p-1 text-text-tertiary hover:text-text-primary">
+                <X size={20} />
+              </button>
+            </div>
           </div>
         </div>
 
