@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -66,13 +67,17 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
     >
       <div className="w-[280px] h-full flex flex-col py-6 px-4">
         {/* Logo */}
-        <div className="flex items-center gap-2.5 pl-3 pb-6 min-h-[60px]">
-          <div className="w-9 h-9 rounded-lg bg-nah-blue flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold text-xs">NAH</span>
+        <div className="flex items-center gap-2.5 pl-1 pb-6 min-h-[60px]">
+          <div className="w-10 h-10 rounded-lg bg-nah-blue flex items-center justify-center flex-shrink-0">
+            <span className="text-white font-bold text-[10px]">NAH</span>
           </div>
-          <span className="text-text-primary font-headline font-semibold text-base opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap">
-            FranDev
-          </span>
+          <Image
+            src="/images/nah-logo.svg"
+            alt="New Again Houses"
+            width={140}
+            height={36}
+            className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100"
+          />
         </div>
 
         {/* Nav items */}

@@ -213,10 +213,10 @@ export default function LeadList({
               {/* Lead Score */}
               {contact?.leadScore !== null && contact?.leadScore !== undefined && (
                 <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold flex-shrink-0 ${
-                  contact.scoreTier === "Hot" ? "bg-nah-orange/15 text-nah-orange" :
-                  contact.scoreTier === "Warm" ? "bg-warning/15 text-warning" :
-                  contact.scoreTier === "Cool" ? "bg-info/15 text-info" :
-                  "bg-bg-tertiary text-text-tertiary"
+                  contact.scoreTier === "Hot" ? "bg-[#f5a800] text-white" :
+                  contact.scoreTier === "Warm" ? "bg-[#fef3e2] text-[#f5a800]" :
+                  contact.scoreTier === "Cool" ? "bg-[#e6f7fd] text-[#00a1e1]" :
+                  "bg-[#f1f5f9] text-[#898a8d]"
                 }`}>
                   {contact.leadScore}
                 </span>

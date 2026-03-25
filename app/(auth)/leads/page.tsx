@@ -189,10 +189,10 @@ export default function LeadsPage() {
                     <td className="px-3 py-2.5">
                       {lead.leadScore !== null ? (
                         <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${
-                          lead.scoreTier === "Hot" ? "bg-nah-orange/15 text-nah-orange" :
-                          lead.scoreTier === "Warm" ? "bg-warning/15 text-warning" :
-                          lead.scoreTier === "Cool" ? "bg-info/15 text-info" :
-                          "bg-bg-tertiary text-text-tertiary"
+                          lead.scoreTier === "Hot" ? "bg-[#f5a800] text-white" :
+                          lead.scoreTier === "Warm" ? "bg-[#fef3e2] text-[#f5a800]" :
+                          lead.scoreTier === "Cool" ? "bg-[#e6f7fd] text-[#00a1e1]" :
+                          "bg-[#f1f5f9] text-[#898a8d]"
                         }`}>
                           {lead.leadScore}
                         </span>

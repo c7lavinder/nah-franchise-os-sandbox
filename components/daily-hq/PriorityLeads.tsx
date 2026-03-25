@@ -16,10 +16,10 @@ interface PriorityLead {
 
 function tierColor(tier: string): string {
   switch (tier) {
-    case "Hot": return "bg-nah-orange/15 text-nah-orange";
-    case "Warm": return "bg-warning/15 text-warning";
-    case "Cool": return "bg-info/15 text-info";
-    default: return "bg-bg-tertiary text-text-tertiary";
+    case "Hot": return "bg-[#f5a800] text-white";
+    case "Warm": return "bg-[#fef3e2] text-[#f5a800]";
+    case "Cool": return "bg-[#e6f7fd] text-[#00a1e1]";
+    default: return "bg-[#f1f5f9] text-[#898a8d]";
   }
 }
 

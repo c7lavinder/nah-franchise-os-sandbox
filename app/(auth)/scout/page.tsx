@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { MessageSquare, Send } from "lucide-react";
+import { Bot, Send, Paperclip, Mic } from "lucide-react";
+import Image from "next/image";
 import { ScoutBubble, UserBubble, ThinkingIndicator, DraftedActionCard, VoiceRecorder } from "@/components/scout";
 import { useAuth } from "@/lib/auth/AuthContext";
 import type { ChatMessage, DraftedAction } from "@/types/scout";
@@ -207,91 +208,116 @@ export default function ScoutPage() {
   }
 
   const hasMessages = messages.length > 0;
+  const firstName = user?.fullName?.split(" ")[0] ?? "there";
+
+  const PROMPT_CHIPS = [
+    "Who should I call today?",
+    "Summarize my last call with a lead",
+    "Draft a follow-up for cold leads",
+    "Which leads haven't been contacted in 7+ days?",
+    "What's our pipeline close rate this month?",
+    "Help me prep for my next discovery call",
+  ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px-48px)]">
-      {/* Page header */}
-      <div className="flex items-center gap-2 mb-4">
-        <MessageSquare size={20} className="text-scout-purple" />
-        <h1 className="text-h1 text-text-primary">Scout AI</h1>
-        {sessionId && (
-          <button
-            onClick={() => {
-              setMessages([]);
-              setSessionId(null);
-              apiHistoryRef.current = [];
-              setError(null);
-            }}
-            className="btn-ghost text-caption ml-auto"
-          >
-            New Session
-          </button>
-        )}
-      </div>
+    <div className="flex flex-col h-[calc(100vh-48px)] max-w-3xl mx-auto">
+      {!hasMessages && !isThinking ? (
+        /* ─── HERO STATE ─── */
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+          {/* Logo */}
+          <Image
+            src="/images/nah-logo.svg"
+            alt="New Again Houses"
+            width={140}
+            height={50}
+            className="mb-8"
+            priority
+          />
 
-      {/* Chat area */}
-      <div className="flex-1 bg-bg-secondary border border-border-default rounded-lg flex flex-col overflow-hidden">
-        {/* Messages area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {!hasMessages && !isThinking ? (
-            /* Empty state */
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-16 h-16 rounded-full bg-scout-bubble-bg border border-scout-bubble-border flex items-center justify-center mb-4">
-                <MessageSquare size={28} className="text-scout-purple" />
-              </div>
-              <h2 className="text-h2 text-text-primary mb-2">
-                Welcome to Scout
-              </h2>
-              <p className="text-body text-text-secondary max-w-md">
-                Your AI franchise sales assistant. Ask me about your leads,
-                pipeline, tasks — or tell me to draft a message, create a task,
-                or move a lead to a new stage.
-              </p>
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg">
-                {[
-                  "What should I focus on today?",
-                  "Show me my pipeline",
-                  "Draft a follow-up text for my newest lead",
-                  "Which leads need attention?",
-                ].map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    onClick={() => {
-                      setInputValue(suggestion);
-                      // Small delay so user sees the text before sending
-                      setTimeout(() => {
-                        setInputValue(suggestion);
-                        const fakeEvent = {
-                          preventDefault: () => {},
-                        } as React.FormEvent;
-                        void fakeEvent;
-                      }, 0);
-                    }}
-                    className="text-left text-body-sm text-text-secondary bg-bg-tertiary border border-border-default
-                      rounded-lg px-3 py-2 hover:bg-bg-hover hover:text-text-primary transition-colors"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
+          {/* Greeting */}
+          <h1 className="font-headline text-hero text-text-primary mb-2">
+            Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}, {firstName}.
+          </h1>
+          <p className="text-subtitle text-text-secondary mb-10">
+            How can I help you today?
+          </p>
+
+          {/* Prompt chips */}
+          <div className="flex flex-wrap justify-center gap-3 mb-10 max-w-2xl">
+            {PROMPT_CHIPS.map((chip) => (
+              <button
+                key={chip}
+                onClick={() => setInputValue(chip)}
+                className="prompt-chip"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+
+          {/* Input pill */}
+          <div className="w-full max-w-[700px]">
+            <div className="input-pill">
+              <Paperclip size={18} className="text-text-tertiary flex-shrink-0 ml-2" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask Scout anything..."
+                className="bg-transparent border-none outline-none flex-1 px-4 text-body-lg text-text-primary placeholder:text-text-tertiary"
+                autoFocus
+              />
+              <VoiceRecorder
+                onTranscription={(text) => setInputValue(text)}
+                disabled={isThinking}
+              />
+              <button
+                onClick={handleSend}
+                disabled={!inputValue.trim() || isThinking}
+                className="p-2 rounded-full bg-nah-blue text-white disabled:opacity-30 transition-opacity"
+              >
+                <Send size={18} />
+              </button>
             </div>
-          ) : (
-            /* Message list */
-            <>
+            <p className="text-caption text-text-tertiary mt-3">
+              AI may generate inaccurate information. Verify important details.
+            </p>
+          </div>
+        </div>
+      ) : (
+        /* ─── CONVERSATION STATE ─── */
+        <>
+          {/* Header */}
+          <div className="flex items-center gap-2 py-3 flex-shrink-0">
+            <Bot size={20} className="text-nah-blue" />
+            <h1 className="font-headline text-section-title text-text-primary">Scout AI</h1>
+            {sessionId && (
+              <button
+                onClick={() => {
+                  setMessages([]);
+                  setSessionId(null);
+                  apiHistoryRef.current = [];
+                  setError(null);
+                }}
+                className="btn-ghost text-caption ml-auto"
+              >
+                New Session
+              </button>
+            )}
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 card-glass rounded-xl flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((msg) => (
                 <div key={msg.id}>
                   {msg.role === "user" ? (
-                    <UserBubble
-                      content={msg.content}
-                      timestamp={msg.timestamp}
-                    />
+                    <UserBubble content={msg.content} timestamp={msg.timestamp} />
                   ) : (
                     <>
-                      <ScoutBubble
-                        content={msg.content}
-                        timestamp={msg.timestamp}
-                      />
-                      {/* Drafted action card — rendered below Scout's message */}
+                      <ScoutBubble content={msg.content} timestamp={msg.timestamp} />
                       {msg.draftedAction && (
                         <div className="ml-11 mt-2">
                           <DraftedActionCard
@@ -308,48 +334,45 @@ export default function ScoutPage() {
               ))}
               {isThinking && <ThinkingIndicator />}
               <div ref={messagesEndRef} />
-            </>
-          )}
-        </div>
+            </div>
 
-        {/* Error banner */}
-        {error && (
-          <div className="px-4 py-2 bg-danger/10 border-t border-danger/20">
-            <p className="text-body-sm text-danger">{error}</p>
-          </div>
-        )}
+            {/* Error */}
+            {error && (
+              <div className="px-4 py-2 bg-[#fee2e2] border-t border-[rgba(239,68,68,0.2)]">
+                <p className="text-body-sm text-danger">{error}</p>
+              </div>
+            )}
 
-        {/* Input area — fixed to bottom */}
-        <div className="border-t border-border-default p-3">
-          <div className="flex items-center gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask Scout anything..."
-              className="input flex-1"
-              disabled={isThinking}
-              autoFocus
-            />
-            <VoiceRecorder
-              onTranscription={(text) => {
-                setInputValue(text);
-              }}
-              disabled={isThinking}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!inputValue.trim() || isThinking}
-              className="btn-scout p-2.5"
-              title="Send message"
-            >
-              <Send size={20} />
-            </button>
+            {/* Input */}
+            <div className="p-3" style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+              <div className="input-pill">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask Scout anything..."
+                  className="bg-transparent border-none outline-none flex-1 px-4 text-body text-text-primary placeholder:text-text-tertiary"
+                  disabled={isThinking}
+                  autoFocus
+                />
+                <VoiceRecorder
+                  onTranscription={(text) => setInputValue(text)}
+                  disabled={isThinking}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!inputValue.trim() || isThinking}
+                  className="p-2 rounded-full bg-nah-blue text-white disabled:opacity-30 transition-opacity"
+                >
+                  <Send size={18} />
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }
