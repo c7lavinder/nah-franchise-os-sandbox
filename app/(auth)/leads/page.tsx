@@ -13,6 +13,8 @@ interface LeadRow {
   source: string;
   stageName: string | null;
   status: string | null;
+  leadScore: number | null;
+  scoreTier: string | null;
 }
 
 const STATUS_OPTIONS = [
@@ -140,7 +142,7 @@ export default function LeadsPage() {
             <table className="w-full">
               <thead className="sticky top-0 bg-bg-secondary z-10">
                 <tr className="border-b border-border-default">
-                  {["Name", "Email", "Phone", "Source", "Stage", "Status", ""].map(
+                  {["Name", "Email", "Phone", "Source", "Stage", "Score", "Status", ""].map(
                     (h) => (
                       <th
                         key={h}
@@ -183,6 +185,20 @@ export default function LeadsPage() {
                       <span className="text-caption text-text-secondary">
                         {lead.stageName ?? "—"}
                       </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {lead.leadScore !== null ? (
+                        <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${
+                          lead.scoreTier === "Hot" ? "bg-nah-orange/15 text-nah-orange" :
+                          lead.scoreTier === "Warm" ? "bg-warning/15 text-warning" :
+                          lead.scoreTier === "Cool" ? "bg-info/15 text-info" :
+                          "bg-bg-tertiary text-text-tertiary"
+                        }`}>
+                          {lead.leadScore}
+                        </span>
+                      ) : (
+                        <span className="text-caption text-text-tertiary">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5">
                       {lead.status ? (

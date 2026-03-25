@@ -16,6 +16,8 @@ interface ContactSummary {
   tags: string[];
   territory: string | null;
   dateAdded: string;
+  leadScore: number | null;
+  scoreTier: string | null;
 }
 
 interface LeadListProps {
@@ -207,6 +209,18 @@ export default function LeadList({
               <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${urgency.bgColor} ${urgency.color} flex-shrink-0`}>
                 {urgency.label}
               </span>
+
+              {/* Lead Score */}
+              {contact?.leadScore !== null && contact?.leadScore !== undefined && (
+                <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold flex-shrink-0 ${
+                  contact.scoreTier === "Hot" ? "bg-nah-orange/15 text-nah-orange" :
+                  contact.scoreTier === "Warm" ? "bg-warning/15 text-warning" :
+                  contact.scoreTier === "Cool" ? "bg-info/15 text-info" :
+                  "bg-bg-tertiary text-text-tertiary"
+                }`}>
+                  {contact.leadScore}
+                </span>
+              )}
 
               {/* Source */}
               {contact?.source ? (

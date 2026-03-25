@@ -8,6 +8,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import * as ghl from "@/lib/ghl";
+import { createServerClient } from "@/lib/supabase/server";
+import { calculateLeadScore, buildScoringInput } from "@/lib/profile/lead-scoring";
 import type { GHLContact, GHLOpportunity } from "@/types/ghl";
 
 interface LeadRow {
@@ -18,6 +20,8 @@ interface LeadRow {
   source: string;
   stageName: string | null;
   status: string | null;
+  leadScore: number | null;
+  scoreTier: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -83,9 +87,40 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Build lead rows with opportunity enrichment
+    // Load field mapping for scoring
+    const supabase = createServerClient();
+    const { data: fieldMappings } = await supabase
+      .from("ghl_custom_fields")
+      .select("field_name, ghl_field_id")
+      .eq("entity_type", "contact");
+
+    const idToName = new Map<string, string>();
+    if (fieldMappings) {
+      for (const m of fieldMappings) {
+        idToName.set(m.ghl_field_id, m.field_name);
+      }
+    }
+
+    // Build lead rows with opportunity enrichment + scoring
     const leads: LeadRow[] = contacts.map((c) => {
       const opp = oppsByContact.get(c.id);
+
+      // Extract profile for scoring
+      const profile: Record<string, string | null> = {};
+      for (const cf of c.customFields) {
+        const name = idToName.get(cf.id);
+        if (name && cf.value) profile[name] = cf.value;
+      }
+
+      let leadScore: number | null = null;
+      let scoreTier: string | null = null;
+      if (idToName.size > 0) {
+        const input = buildScoringInput({ source: c.source, dateAdded: c.dateAdded }, profile);
+        const result = calculateLeadScore(input);
+        leadScore = result.total;
+        scoreTier = result.tier;
+      }
+
       return {
         contactId: c.id,
         name: `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim() || "Unknown",
@@ -94,6 +129,8 @@ export async function GET(request: NextRequest) {
         source: c.source ?? "Unknown",
         stageName: opp ? (stageMap.get(opp.pipelineStageId) ?? null) : null,
         status: opp?.status ?? null,
+        leadScore,
+        scoreTier,
       };
     });
 

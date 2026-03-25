@@ -2,12 +2,14 @@
  * POST /api/contacts/batch
  *
  * Fetches contact details for a batch of contact IDs.
- * Returns source, territory, tags, and basic info for each contact.
+ * Returns source, territory, tags, lead score, and basic info for each contact.
  * Used by the pipeline lead list to enrich opportunity data.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import * as ghl from "@/lib/ghl";
+import { createServerClient } from "@/lib/supabase/server";
+import { calculateLeadScore, buildScoringInput } from "@/lib/profile/lead-scoring";
 
 interface BatchRequestBody {
   contactIds: string[];
@@ -23,19 +25,25 @@ interface ContactSummary {
   tags: string[];
   territory: string | null;
   dateAdded: string;
+  leadScore: number | null;
+  scoreTier: string | null;
 }
 
-/** Extract territory from custom fields */
-function extractTerritory(customFields: { id: string; value: string }[]): string | null {
-  for (const field of customFields) {
-    if (field.value && typeof field.value === "string" && field.value.length > 0) {
-      // Territory Interest is the field we care about — match by checking known field patterns
-      // The field name isn't in the response, just the ID and value
-      // We'll check if the value looks like a territory (city, state pattern or state abbreviation)
-      // For now, return the first non-empty custom field that looks geographic
+/** Load field ID → name mapping from Supabase */
+async function loadFieldMapping(): Promise<Map<string, string>> {
+  const supabase = createServerClient();
+  const { data } = await supabase
+    .from("ghl_custom_fields")
+    .select("field_name, ghl_field_id")
+    .eq("entity_type", "contact");
+
+  const map = new Map<string, string>();
+  if (data) {
+    for (const m of data) {
+      map.set(m.ghl_field_id, m.field_name);
     }
   }
-  return null;
+  return map;
 }
 
 /** Extract source detail from tags */
@@ -55,14 +63,12 @@ function extractSource(tags: string[]): string | null {
     "unknown-source": "Unknown",
   };
 
-  // Check most specific tags first
   for (const tag of tags) {
     const mapped = sourceTagMap[tag];
     if (mapped && tag !== "paid-ad" && tag !== "organic" && tag !== "referral") {
       return mapped;
     }
   }
-  // Fall back to broad category
   for (const tag of tags) {
     const mapped = sourceTagMap[tag];
     if (mapped) return mapped;
@@ -78,18 +84,49 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ contacts: {} });
     }
 
-    // Cap at 30 to avoid rate limits
     const ids = body.contactIds.slice(0, 30);
+
+    // Load field mapping once for all contacts
+    const fieldMapping = await loadFieldMapping();
+    const hasFieldMapping = fieldMapping.size > 0;
 
     const results: Record<string, ContactSummary> = {};
 
-    // Fetch contacts in parallel (limited concurrency)
     const BATCH_SIZE = 10;
     for (let i = 0; i < ids.length; i += BATCH_SIZE) {
       const batch = ids.slice(i, i + BATCH_SIZE);
       const promises = batch.map(async (id) => {
         try {
           const contact = await ghl.getContact(id);
+
+          // Extract profile fields for scoring
+          const profile: Record<string, string | null> = {};
+          let territory: string | null = null;
+
+          if (hasFieldMapping) {
+            for (const cf of contact.customFields) {
+              const name = fieldMapping.get(cf.id);
+              if (name && cf.value) {
+                profile[name] = cf.value;
+                if (name === "Territory Interest") territory = cf.value;
+              }
+            }
+          }
+
+          // Calculate lead score if we have field mapping
+          let leadScore: number | null = null;
+          let scoreTier: string | null = null;
+
+          if (hasFieldMapping) {
+            const input = buildScoringInput(
+              { source: contact.source, dateAdded: contact.dateAdded },
+              profile
+            );
+            const result = calculateLeadScore(input);
+            leadScore = result.total;
+            scoreTier = result.tier;
+          }
+
           results[id] = {
             id: contact.id,
             firstName: contact.firstName,
@@ -98,8 +135,10 @@ export async function POST(request: NextRequest) {
             phone: contact.phone,
             source: contact.source ?? extractSource(contact.tags),
             tags: contact.tags,
-            territory: extractTerritory(contact.customFields),
+            territory,
             dateAdded: contact.dateAdded,
+            leadScore,
+            scoreTier,
           };
         } catch {
           // Skip contacts that fail to fetch
