@@ -5,6 +5,7 @@ import { LayoutDashboard } from "lucide-react";
 import type { GHLConversation, GHLAppointment, GHLTask } from "@/types/ghl";
 import { ConversationList, ConversationThread, InboxFilters } from "@/components/inbox";
 import { TodayCalendar, TaskPanel, PriorityLeads } from "@/components/daily-hq";
+import { QuickAsk } from "@/components/scout";
 
 /**
  * Daily HQ — Chad's Command Center
@@ -96,14 +97,17 @@ export default function DailyHQPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
-      <div className="flex items-center gap-2 px-1 py-3 flex-shrink-0">
-        <LayoutDashboard size={20} className="text-nah-orange" />
-        <h1 className="text-h1 text-text-primary">Daily HQ</h1>
+      <div className="flex items-center gap-3 px-1 py-3 flex-shrink-0">
+        <LayoutDashboard size={20} className="text-nah-orange flex-shrink-0" />
+        <h1 className="text-h1 text-text-primary flex-shrink-0">Daily HQ</h1>
         {unreadCount > 0 && (
-          <span className="px-2 py-0.5 rounded-full bg-nah-orange text-white text-caption font-bold">
+          <span className="px-2 py-0.5 rounded-full bg-nah-orange text-white text-caption font-bold flex-shrink-0">
             {unreadCount} unread
           </span>
         )}
+        <div className="flex-1 min-w-0">
+          <QuickAsk />
+        </div>
       </div>
 
       {/* Main content: Inbox (2/3) + Calendar (1/3) */}
