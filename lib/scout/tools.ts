@@ -71,6 +71,21 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     },
   },
   {
+    name: "get_next_action",
+    description:
+      "Analyze a contact's full context — stage, profile, last activity, missing fields, overdue calls — and return a specific recommended next action. Use this when Chad asks 'What should I do next?' or 'What's the status on this lead?' or 'Who needs attention?'. Returns: current stage, days since last touch, missing profile gaps, overdue milestones, and a clear recommended next step.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: {
+          type: "string",
+          description: "The GHL contact ID to analyze",
+        },
+      },
+      required: ["contact_id"],
+    },
+  },
+  {
     name: "draft_message",
     description:
       "Draft an SMS or email message for a contact. The message will be presented to the user for review before sending. NEVER send without user confirmation.",
