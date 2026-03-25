@@ -165,6 +165,25 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     },
   },
   {
+    name: "draft_profile_update",
+    description:
+      "Draft updates to a contact's candidate profile fields. Use this when Chad tells you new information about a prospect during chat, like 'Ryan is planning to use an SBA loan' or 'She has 5 years of flipping experience'. The update will be presented to the user for review before saving. NEVER save without user confirmation.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: {
+          type: "string",
+          description: "The GHL contact ID to update",
+        },
+        updates: {
+          type: "string",
+          description: "JSON array of field updates. Each item: {\"fieldName\": \"Capital Source\", \"value\": \"SBA Loan\", \"reason\": \"Chad mentioned Ryan is pursuing SBA\"}. Use exact field names from the profile schema.",
+        },
+      },
+      required: ["contact_id", "updates"],
+    },
+  },
+  {
     name: "get_schedule",
     description:
       "Get upcoming appointments and scheduled events within a date range.",

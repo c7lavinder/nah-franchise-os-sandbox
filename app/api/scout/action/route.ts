@@ -14,7 +14,25 @@ import type {
   DraftedMessagePayload,
   DraftedTaskPayload,
   DraftedStageMovePayload,
+  DraftedProfileUpdatePayload,
 } from "@/types/scout";
+
+/** Load GHL field name → field ID mapping from Supabase cache */
+async function loadFieldMapping(): Promise<Map<string, string>> {
+  const supabase = createServerClient();
+  const { data } = await supabase
+    .from("ghl_custom_fields")
+    .select("field_name, ghl_field_id")
+    .eq("entity_type", "contact");
+
+  const map = new Map<string, string>();
+  if (data) {
+    for (const row of data) {
+      map.set(row.field_name.toLowerCase(), row.ghl_field_id);
+    }
+  }
+  return map;
+}
 
 interface ActionRequestBody {
   action: DraftedAction;
@@ -101,6 +119,25 @@ export async function POST(request: NextRequest) {
             targetStage.id
           );
           ghlResponse = result as unknown as Record<string, unknown>;
+          break;
+        }
+        case "profile_update": {
+          const payload = action.payload as DraftedProfileUpdatePayload;
+          // Build the field updates and push via profile API
+          const fieldMapping = await loadFieldMapping();
+          const customFields: { id: string; value: string }[] = [];
+          for (const update of payload.fields) {
+            const mapping = fieldMapping.get(update.fieldName.toLowerCase());
+            if (mapping) {
+              customFields.push({ id: mapping, value: update.value });
+            }
+          }
+          if (customFields.length > 0) {
+            const result = await ghl.updateContact(action.contactId, { customFields });
+            ghlResponse = result as unknown as Record<string, unknown>;
+          } else {
+            throw new Error("No valid field mappings found — run setup script to populate ghl_custom_fields");
+          }
           break;
         }
         case "appointment": {

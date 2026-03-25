@@ -45,6 +45,8 @@ export async function executeTool(
       return executeDraftTask(input);
     case "draft_stage_move":
       return executeDraftStageMove(input);
+    case "draft_profile_update":
+      return executeDraftProfileUpdate(input);
     default: {
       const _exhaustive: never = toolName;
       return { data: `Unknown tool: ${_exhaustive}` };
@@ -571,6 +573,54 @@ async function executeDraftStageMove(
 
   return {
     data: `I've drafted a pipeline move for ${contactName} to "${newStage}". Please review it below and confirm, edit, or cancel.`,
+    draftedAction,
+  };
+}
+
+async function executeDraftProfileUpdate(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const contactId = input.contact_id as string;
+  const updatesRaw = input.updates as string;
+
+  let contactName = "Unknown Contact";
+  try {
+    const contact = await ghl.getContact(contactId);
+    contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown Contact";
+  } catch {
+    // Use fallback
+  }
+
+  // Parse the updates JSON string
+  let updates: { fieldName: string; value: string; reason: string }[];
+  try {
+    updates = JSON.parse(updatesRaw);
+  } catch {
+    return { data: "Error: Could not parse profile updates. Please provide valid JSON." };
+  }
+
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return { data: "Error: No profile updates provided." };
+  }
+
+  const fieldSummary = updates
+    .map((u) => `${u.fieldName} → "${u.value}"`)
+    .join(", ");
+
+  const draftedAction: DraftedAction = {
+    id: crypto.randomUUID(),
+    type: "profile_update",
+    status: "pending",
+    contactId,
+    contactName,
+    payload: {
+      actionType: "profile_update",
+      fields: updates,
+    },
+  };
+
+  return {
+    data: `I've drafted profile updates for ${contactName}: ${fieldSummary}. Please review below and confirm, edit, or cancel.`,
     draftedAction,
   };
 }

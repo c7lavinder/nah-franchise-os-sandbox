@@ -10,6 +10,7 @@ export type ScoutToolName =
   | "draft_message"
   | "draft_task"
   | "draft_stage_move"
+  | "draft_profile_update"
   | "get_schedule"
   | "search_knowledge";
 
@@ -27,7 +28,7 @@ export interface ChatMessage {
 }
 
 /** Types of actions Scout can draft for user confirmation */
-export type DraftedActionType = "message" | "task" | "stage_move" | "appointment";
+export type DraftedActionType = "message" | "task" | "stage_move" | "appointment" | "profile_update";
 
 /** Status of a drafted action in the UI */
 export type DraftedActionStatus = "pending" | "editing" | "confirmed" | "cancelled";
@@ -40,7 +41,7 @@ export interface DraftedAction {
   contactId: string;
   contactName: string;
   /** The specific payload depends on the action type */
-  payload: DraftedMessagePayload | DraftedTaskPayload | DraftedStageMovePayload | DraftedAppointmentPayload;
+  payload: DraftedMessagePayload | DraftedTaskPayload | DraftedStageMovePayload | DraftedAppointmentPayload | DraftedProfileUpdatePayload;
 }
 
 /** Payload for a drafted SMS or email message */
@@ -74,6 +75,12 @@ export interface DraftedAppointmentPayload {
   startTime: string;
   endTime: string;
   calendarId: string;
+}
+
+/** Payload for a drafted profile field update */
+export interface DraftedProfileUpdatePayload {
+  actionType: "profile_update";
+  fields: { fieldName: string; value: string; reason: string }[];
 }
 
 /** Request body sent to the Scout API */
