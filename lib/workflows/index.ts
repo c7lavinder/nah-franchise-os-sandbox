@@ -77,3 +77,8 @@ export {
   notifyUnhealthyWorkflows,
   notifyStaleEnrollments,
 } from "./notifications";
+
+export {
+  syncDeliveryData,
+  syncStageEnrollments,
+} from "./delivery-sync";

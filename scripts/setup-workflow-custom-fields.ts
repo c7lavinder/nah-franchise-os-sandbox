@@ -39,10 +39,10 @@ const headers = {
 /** Workflow tracking fields to create — per docs/workflows.md */
 const WORKFLOW_FIELDS = [
   { name: "workflow_name", dataType: "TEXT", description: "Name of the active workflow this contact is enrolled in" },
-  { name: "workflow_day", dataType: "NUMBER", description: "Current day number in the workflow (1-30, etc.)" },
+  { name: "workflow_day", dataType: "NUMERICAL", description: "Current day number in the workflow (1-30, etc.)" },
   { name: "workflow_version", dataType: "TEXT", description: "Version ID of the workflow the contact is on" },
   { name: "last_workflow_touch", dataType: "DATE", description: "Timestamp of the last workflow step executed" },
-  { name: "workflow_goal_achieved", dataType: "CHECKBOX", description: "Whether the workflow's exit goal was met" },
+  { name: "workflow_goal_achieved", dataType: "SINGLE_OPTIONS", description: "Whether the workflow's exit goal was met", options: ["true", "false"] },
 ];
 
 async function setupFields() {
@@ -79,14 +79,19 @@ async function setupFields() {
       continue;
     }
 
+    const createBody: Record<string, unknown> = {
+      name: field.name,
+      dataType: field.dataType,
+      model: "contact",
+    };
+    if ("options" in field && field.options) {
+      createBody.options = field.options;
+    }
+
     const createRes = await fetch(`${GHL_BASE}/locations/${LOCATION_ID}/customFields`, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        name: field.name,
-        dataType: field.dataType,
-        model: "contact",
-      }),
+      body: JSON.stringify(createBody),
     });
 
     if (!createRes.ok) {
