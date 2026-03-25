@@ -9,12 +9,14 @@ import {
   Check,
   X,
   Loader2,
+  User,
 } from "lucide-react";
 import type {
   DraftedAction,
   DraftedMessagePayload,
   DraftedTaskPayload,
   DraftedStageMovePayload,
+  DraftedProfileUpdatePayload,
 } from "@/types/scout";
 
 interface DraftedActionCardProps {
@@ -33,6 +35,8 @@ function ActionIcon({ type }: { type: DraftedAction["type"] }) {
       return <CheckSquare size={16} className="text-scout-purple" />;
     case "stage_move":
       return <ArrowRightLeft size={16} className="text-scout-purple" />;
+    case "profile_update":
+      return <User size={16} className="text-scout-purple" />;
     default:
       return <MessageSquare size={16} className="text-scout-purple" />;
   }
@@ -52,6 +56,10 @@ function actionLabel(action: DraftedAction): string {
     case "stage_move": {
       const p = action.payload as DraftedStageMovePayload;
       return `Move ${action.contactName} → ${p.newStage}`;
+    }
+    case "profile_update": {
+      const p = action.payload as DraftedProfileUpdatePayload;
+      return `Update ${p.fields.length} profile field${p.fields.length !== 1 ? "s" : ""} for ${action.contactName}`;
     }
     default:
       return `Action for ${action.contactName}`;
@@ -185,6 +193,10 @@ function getEditableContent(action: DraftedAction): string {
       return (action.payload as DraftedTaskPayload).title;
     case "stage_move":
       return (action.payload as DraftedStageMovePayload).reason ?? "";
+    case "profile_update":
+      return (action.payload as DraftedProfileUpdatePayload).fields
+        .map((f) => `${f.fieldName}: ${f.value}`)
+        .join("\n");
     default:
       return "";
   }
@@ -213,6 +225,12 @@ function getDisplayContent(action: DraftedAction): string {
       if (p.reason) lines.push(`Reason: ${p.reason}`);
       return lines.join("\n");
     }
+    case "profile_update": {
+      const p = action.payload as DraftedProfileUpdatePayload;
+      return p.fields
+        .map((f) => `${f.fieldName}: ${f.value}\n  (${f.reason})`)
+        .join("\n\n");
+    }
     default:
       return JSON.stringify(action.payload, null, 2);
   }
@@ -230,5 +248,20 @@ function applyEdit(action: DraftedAction, newContent: string): void {
     case "stage_move":
       (action.payload as DraftedStageMovePayload).reason = newContent;
       break;
+    case "profile_update": {
+      // Parse edited lines back into field updates
+      const lines = newContent.split("\n").filter((l) => l.includes(":"));
+      const p = action.payload as DraftedProfileUpdatePayload;
+      for (const line of lines) {
+        const colonIdx = line.indexOf(":");
+        const fieldName = line.slice(0, colonIdx).trim();
+        const value = line.slice(colonIdx + 1).trim();
+        const existing = p.fields.find((f) => f.fieldName === fieldName);
+        if (existing) {
+          existing.value = value;
+        }
+      }
+      break;
+    }
   }
 }
