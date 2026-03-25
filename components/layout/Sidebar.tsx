@@ -1,20 +1,19 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
-import { useState, useEffect, useCallback } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
-  Bot,
   GitBranch,
-  Users,
   Phone,
-  Activity,
   BarChart2,
+  Bell,
   BookOpen,
   Settings,
-  Bell,
+  LogOut,
+  ChevronUp,
 } from "lucide-react";
 import type { UserRole } from "@/types/database";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -27,16 +26,12 @@ interface NavItem {
   roles: UserRole[];
 }
 
+/** Main nav — only the core pages */
 const NAV_ITEMS: NavItem[] = [
   { label: "Daily HQ", href: "/daily-hq", icon: LayoutDashboard, roles: ["rep", "leadership"] },
-  { label: "Scout AI", href: "/scout", icon: Bot, roles: ["rep", "marketing", "leadership"] },
   { label: "Pipeline", href: "/pipeline", icon: GitBranch, roles: ["rep", "leadership"] },
-  { label: "Leads", href: "/leads", icon: Users, roles: ["rep", "leadership"] },
   { label: "Calls", href: "/calls", icon: Phone, roles: ["rep", "leadership"] },
-  { label: "Activity", href: "/activity", icon: Activity, roles: ["rep", "leadership"] },
   { label: "Dashboard", href: "/dashboard", icon: BarChart2, roles: ["leadership"] },
-  { label: "Knowledge", href: "/knowledge", icon: BookOpen, roles: ["leadership"] },
-  { label: "Settings", href: "/settings", icon: Settings, roles: ["rep", "marketing", "leadership"] },
 ];
 
 interface SidebarProps {
@@ -46,8 +41,10 @@ interface SidebarProps {
 
 export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const [alertCount, setAlertCount] = useState(0);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const fetchAlerts = useCallback(async () => {
     try {
@@ -73,6 +70,11 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
     .join("")
     .toUpperCase()
     .slice(0, 2);
+
+  function handleLogout() {
+    logout();
+    router.replace("/login");
+  }
 
   return (
     <aside
@@ -142,15 +144,64 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
           </span>
         </Link>
 
-        {/* User profile */}
-        <div className="flex items-center gap-3 pl-3 pt-4 rounded-xl">
-          <div className="w-9 h-9 rounded-full bg-nah-blue text-white flex items-center justify-center text-sm font-semibold flex-shrink-0">
-            {initials}
-          </div>
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap">
-            <p className="text-sm font-semibold text-text-primary">{user?.fullName ?? "User"}</p>
-            <p className="text-xs text-text-secondary capitalize">{user?.role ?? "rep"}</p>
-          </div>
+        {/* User profile + dropdown */}
+        <div className="relative pt-3">
+          <button
+            onClick={() => setProfileOpen(!profileOpen)}
+            className="w-full flex items-center gap-3 pl-3 py-2 rounded-xl hover:bg-[rgba(0,161,225,0.05)] transition-all duration-200"
+          >
+            <div className="w-9 h-9 rounded-full bg-nah-blue text-white flex items-center justify-center text-sm font-semibold flex-shrink-0">
+              {initials}
+            </div>
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap flex-1 text-left">
+              <p className="text-sm font-semibold text-text-primary">{user?.fullName ?? "User"}</p>
+              <p className="text-xs text-text-secondary capitalize">{user?.role ?? "rep"}</p>
+            </div>
+            <ChevronUp
+              size={14}
+              className={`text-text-tertiary opacity-0 group-hover:opacity-100 transition-all duration-200 delay-100 ${
+                profileOpen ? "" : "rotate-180"
+              }`}
+            />
+          </button>
+
+          {/* Dropdown menu */}
+          {profileOpen && (
+            <div
+              className="absolute bottom-full left-0 w-full mb-1 rounded-xl overflow-hidden"
+              style={{
+                background: "rgba(255, 255, 255, 0.9)",
+                backdropFilter: "blur(16px)",
+                border: "1px solid rgba(0, 0, 0, 0.06)",
+                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
+              }}
+            >
+              <Link
+                href="/knowledge"
+                onClick={() => { setProfileOpen(false); onNavClick?.(); }}
+                className="flex items-center gap-3 px-4 py-3 text-text-secondary hover:bg-[rgba(0,161,225,0.05)] hover:text-nah-blue transition-colors"
+              >
+                <BookOpen size={16} />
+                <span className="text-sm font-medium">Knowledge Base</span>
+              </Link>
+              <Link
+                href="/settings"
+                onClick={() => { setProfileOpen(false); onNavClick?.(); }}
+                className="flex items-center gap-3 px-4 py-3 text-text-secondary hover:bg-[rgba(0,161,225,0.05)] hover:text-nah-blue transition-colors"
+              >
+                <Settings size={16} />
+                <span className="text-sm font-medium">Settings</span>
+              </Link>
+              <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }} />
+              <button
+                onClick={() => { setProfileOpen(false); handleLogout(); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-danger hover:bg-[rgba(239,68,68,0.05)] transition-colors"
+              >
+                <LogOut size={16} />
+                <span className="text-sm font-medium">Log Out</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </aside>
