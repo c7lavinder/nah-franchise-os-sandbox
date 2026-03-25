@@ -23,6 +23,7 @@ export default function DailyHQPage() {
   const [selectedConv, setSelectedConv] = useState<GHLConversation | null>(null);
   const [inboxFilter, setInboxFilter] = useState<"all" | "unread">("all");
   const [inboxLoading, setInboxLoading] = useState(true);
+  const [inboxSearch, setInboxSearch] = useState("");
 
   // Calendar state
   const [appointments, setAppointments] = useState<GHLAppointment[]>([]);
@@ -81,6 +82,17 @@ export default function DailyHQPage() {
 
   const unreadCount = conversations.filter((c) => (c.unreadCount ?? 0) > 0).length;
 
+  // Client-side search filter
+  const filteredConversations = inboxSearch.trim()
+    ? conversations.filter((c) => {
+        const q = inboxSearch.toLowerCase();
+        const name = (c.contactName || c.fullName || "").toLowerCase();
+        const phone = (c.phone || "").toLowerCase();
+        const email = (c.email || "").toLowerCase();
+        return name.includes(q) || phone.includes(q) || email.includes(q);
+      })
+    : conversations;
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
@@ -106,9 +118,11 @@ export default function DailyHQPage() {
               onRefresh={fetchInbox}
               loading={inboxLoading}
               unreadCount={unreadCount}
+              searchQuery={inboxSearch}
+              onSearchChange={setInboxSearch}
             />
             <ConversationList
-              conversations={conversations}
+              conversations={filteredConversations}
               selectedId={selectedConv?.id ?? null}
               onSelect={(conv) => setSelectedConv(conv)}
               hasMore={conversations.length >= 50}

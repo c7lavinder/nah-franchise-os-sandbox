@@ -87,10 +87,11 @@ const NAV_ITEMS: NavItem[] = [
 
 interface SidebarProps {
   userRole: UserRole;
+  onNavClick?: () => void;
 }
 
 /** Main sidebar navigation — collapses to icons on desktop, drawer on mobile */
-export default function Sidebar({ userRole }: SidebarProps) {
+export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
 
@@ -116,6 +117,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={onNavClick}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors duration-150
                   ${
                     isActive

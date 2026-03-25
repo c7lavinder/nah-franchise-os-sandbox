@@ -42,7 +42,7 @@ export default function AppShell({
       <div
         className={`lg:block ${mobileMenuOpen ? "block" : "hidden"}`}
       >
-        <Sidebar userRole={userRole} />
+        <Sidebar userRole={userRole} onNavClick={() => setMobileMenuOpen(false)} />
       </div>
 
       {/* Main content area */}
