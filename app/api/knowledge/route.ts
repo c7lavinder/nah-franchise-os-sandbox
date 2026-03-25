@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/knowledge — list all knowledge documents
  * POST /api/knowledge — create a new knowledge document

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/dashboard?period=7d|30d|90d|all
  *

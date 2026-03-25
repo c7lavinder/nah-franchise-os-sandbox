@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 /**
  * POST /api/auth/reset-pw — admin password reset via service key
  * TEMPORARY — remove after first login works

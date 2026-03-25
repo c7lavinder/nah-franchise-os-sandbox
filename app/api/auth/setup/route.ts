@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/auth/setup — one-time setup: delete and recreate the auth user
  * TEMPORARY — remove after login works

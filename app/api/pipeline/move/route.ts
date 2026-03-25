@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 /**
  * PUT /api/pipeline/move
  *

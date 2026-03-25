@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/auth/debug — checks auth configuration (no secrets exposed)
  */

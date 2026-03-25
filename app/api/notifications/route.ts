@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/notifications — returns unresolved alerts for the notification bell
  * PUT /api/notifications — mark an alert as resolved

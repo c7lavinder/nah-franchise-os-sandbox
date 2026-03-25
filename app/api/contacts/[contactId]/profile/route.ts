@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/contacts/[contactId]/profile — read all custom fields for candidate profile
  * PUT /api/contacts/[contactId]/profile — update custom fields on a contact

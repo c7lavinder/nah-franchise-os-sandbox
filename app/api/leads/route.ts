@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/leads?q=search&status=open|won|lost|all
  *
