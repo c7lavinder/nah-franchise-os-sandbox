@@ -86,7 +86,8 @@ export type KnowledgeCategory =
   | "objections"
   | "competitors"
   | "industry"
-  | "fdd";
+  | "fdd"
+  | "contact-notes";
 
 /** Knowledge documents table — franchise knowledge injected into Scout's prompt */
 export interface KnowledgeDocument {

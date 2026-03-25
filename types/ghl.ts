@@ -73,6 +73,8 @@ export interface GHLOpportunitySearchParams {
   status?: "open" | "won" | "lost" | "abandoned";
   assignedTo?: string;
   limit?: number;
+  startAfter?: string;
+  startAfterId?: string;
 }
 
 /** GHL Opportunity update payload — uses pipelineStageId per connection map */
@@ -144,19 +146,52 @@ export interface GHLConversation {
   id: string;
   contactId: string;
   locationId: string;
-  lastMessageDate: string;
+  lastMessageDate: string | number;
   type: string;
+  unreadCount?: number;
+  starred?: boolean;
+  assignedTo?: string | null;
+  contactName?: string;
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  lastMessageType?: number;
+  tags?: string[];
+}
+
+/** GHL Conversation search parameters */
+export interface GHLConversationSearchParams {
+  assignedTo?: string;
+  unreadOnly?: boolean;
+  limit?: number;
+  lastId?: string;
+}
+
+/** GHL Conversation messages response */
+export interface GHLConversationMessagesResponse {
+  messages: GHLMessage[];
+  nextPage: boolean;
+  lastMessageId?: string;
 }
 
 /** GHL Conversation Message */
 export interface GHLMessage {
   id: string;
   contactId: string;
-  type: "SMS" | "Email";
+  type: "SMS" | "Email" | number;
   direction: "inbound" | "outbound";
   body: string;
   subject?: string;
   dateAdded: string;
+  messageType?: string;
+  status?: string;
+  attachments?: string[];
+  from?: string;
+  to?: string;
+  emailMessageId?: string;
+  threadId?: string;
+  conversationId?: string;
+  source?: string;
 }
 
 /** GHL Send SMS payload */
@@ -204,6 +239,35 @@ export interface GHLApiResponse<T> {
     currentPage: number;
     nextPage: number | null;
   };
+}
+
+/** GHL Contact upsert payload — creates or updates based on email/phone match */
+export interface GHLContactUpsertPayload {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  address1?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  source?: string;
+  tags?: string[];
+  customFields?: GHLCustomField[];
+  dnd?: boolean;
+}
+
+/** GHL Opportunity creation payload */
+export interface GHLOpportunityCreatePayload {
+  pipelineId: string;
+  name: string;
+  pipelineStageId: string;
+  status: "open" | "won" | "lost" | "abandoned";
+  contactId: string;
+  monetaryValue?: number;
+  assignedTo?: string;
+  source?: string;
+  customFields?: GHLCustomField[];
 }
 
 /** GHL API error */

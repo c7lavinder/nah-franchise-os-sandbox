@@ -13,9 +13,12 @@ import type {
   GHLContact,
   GHLContactSearchParams,
   GHLContactUpdatePayload,
+  GHLContactUpsertPayload,
   GHLConversation,
+  GHLConversationSearchParams,
   GHLOpportunity,
   GHLOpportunitySearchParams,
+  GHLOpportunityCreatePayload,
   GHLTask,
   GHLTaskCreatePayload,
   GHLTaskUpdatePayload,
@@ -289,6 +292,64 @@ export async function searchContacts(
 }
 
 /**
+ * Create or update a contact via upsert.
+ * GHL deduplicates by email or phone — if a match is found, updates; otherwise creates.
+ * Returns the contact and whether it was newly created.
+ */
+export async function upsertContact(
+  fields: GHLContactUpsertPayload
+): Promise<{ contact: GHLContact; new: boolean }> {
+  const locationId = getLocationId();
+  const data = await ghlFetch<{ contact: GHLContact; new: boolean }>(
+    `/contacts/upsert`,
+    {
+      method: "POST",
+      body: JSON.stringify({ ...fields, locationId }),
+    }
+  );
+  return { contact: data.contact, new: data.new };
+}
+
+/**
+ * Count contacts matching a filter using POST /contacts/search.
+ * Returns just the total count — uses pageLimit=1 to minimize data transfer.
+ */
+export async function countContactsByFilter(
+  filters: { field: string; operator: string; value: string }[]
+): Promise<number> {
+  const locationId = getLocationId();
+  const data = await ghlFetch<{ total?: number; meta?: { total?: number }; contacts?: unknown[] }>(
+    `/contacts/search`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        locationId,
+        pageLimit: 1,
+        filters,
+      }),
+    }
+  );
+  return data.total ?? data.meta?.total ?? data.contacts?.length ?? 0;
+}
+
+/**
+ * Count opportunities by status. Uses limit=1 and reads meta.total for efficiency.
+ */
+export async function countOpportunitiesByStatus(
+  status: "open" | "won" | "lost" | "abandoned",
+  pipelineId?: string
+): Promise<number> {
+  const locationId = getLocationId();
+  const queryParts = [`location_id=${locationId}`, `status=${status}`, `limit=1`];
+  if (pipelineId) queryParts.push(`pipeline_id=${pipelineId}`);
+
+  const data = await ghlFetch<{ meta?: { total?: number }; opportunities?: unknown[] }>(
+    `/opportunities/search?${queryParts.join("&")}`
+  );
+  return data.meta?.total ?? data.opportunities?.length ?? 0;
+}
+
+/**
  * Get the message history for a contact.
  * Per connection map: 2-step process —
  * Step 1: GET /conversations/search to find the conversationId
@@ -309,11 +370,16 @@ export async function getContactHistory(
   const conversationId = convData.conversations[0].id;
 
   // Step 2: get the actual messages from that conversation
-  const msgData = await ghlFetch<{ messages: GHLMessage[] }>(
+  // GHL nests messages: { messages: { messages: [...] } }
+  const msgData = await ghlFetch<{ messages: { messages?: GHLMessage[] } | GHLMessage[] }>(
     `/conversations/${conversationId}/messages`
   );
 
-  return msgData.messages ?? [];
+  // Handle both possible shapes
+  if (Array.isArray(msgData.messages)) {
+    return msgData.messages;
+  }
+  return msgData.messages?.messages ?? [];
 }
 
 // ========================================
@@ -371,6 +437,58 @@ export async function searchOpportunities(
   return data.opportunities;
 }
 
+/**
+ * Fetch ALL opportunities for a pipeline with cursor pagination.
+ * GHL limits to 100 per request — this follows the cursor until all results are fetched.
+ * Safety cap at 2,000 results.
+ */
+export async function searchOpportunitiesPaginated(
+  params: GHLOpportunitySearchParams
+): Promise<GHLOpportunity[]> {
+  const all: GHLOpportunity[] = [];
+  const MAX_RESULTS = 2000;
+  let hasMore = true;
+  let startAfterId: string | undefined;
+  let startAfter: string | undefined;
+
+  while (hasMore && all.length < MAX_RESULTS) {
+    const pageParams: GHLOpportunitySearchParams = {
+      ...params,
+      limit: 100,
+    };
+    if (startAfterId) {
+      pageParams.startAfterId = startAfterId;
+      pageParams.startAfter = startAfter;
+    }
+
+    const locationId = getLocationId();
+    const queryParts = [`location_id=${locationId}`, `limit=100`];
+    if (pageParams.pipelineId) queryParts.push(`pipeline_id=${pageParams.pipelineId}`);
+    if (pageParams.stageId) queryParts.push(`pipeline_stage_id=${pageParams.stageId}`);
+    if (pageParams.status) queryParts.push(`status=${pageParams.status}`);
+    if (pageParams.assignedTo) queryParts.push(`assigned_to=${pageParams.assignedTo}`);
+    if (pageParams.startAfterId) queryParts.push(`startAfterId=${pageParams.startAfterId}`);
+    if (pageParams.startAfter) queryParts.push(`startAfter=${pageParams.startAfter}`);
+
+    const data = await ghlFetch<{
+      opportunities: GHLOpportunity[];
+      meta?: { startAfterId?: string; startAfter?: string; total?: number };
+    }>(`/opportunities/search?${queryParts.join("&")}`);
+
+    const page = data.opportunities ?? [];
+    all.push(...page);
+
+    if (page.length < 100 || !data.meta?.startAfterId) {
+      hasMore = false;
+    } else {
+      startAfterId = data.meta.startAfterId;
+      startAfter = data.meta.startAfter;
+    }
+  }
+
+  return all;
+}
+
 /** Move a lead to a different pipeline stage — uses { pipelineStageId } per connection map */
 export async function movePipelineStage(
   opportunityId: string,
@@ -381,6 +499,21 @@ export async function movePipelineStage(
     {
       method: "PUT",
       body: JSON.stringify({ pipelineStageId: stageId }),
+    }
+  );
+  return data.opportunity;
+}
+
+/** Create a new opportunity in a pipeline */
+export async function createOpportunity(
+  fields: GHLOpportunityCreatePayload
+): Promise<GHLOpportunity> {
+  const locationId = getLocationId();
+  const data = await ghlFetch<{ opportunity: GHLOpportunity }>(
+    `/opportunities/`,
+    {
+      method: "POST",
+      body: JSON.stringify({ ...fields, locationId }),
     }
   );
   return data.opportunity;
@@ -486,6 +619,90 @@ export async function getAppointments(
   }
   const data = await ghlFetch<{ events: GHLAppointment[] }>(url);
   return data.events;
+}
+
+// ========================================
+// INBOX / CONVERSATIONS
+// ========================================
+
+/** Search conversations (inbox view). Returns conversations sorted by most recent. */
+export async function getConversations(
+  params?: GHLConversationSearchParams
+): Promise<GHLConversation[]> {
+  const locationId = getLocationId();
+  const queryParts = [`locationId=${locationId}`, `sortDirection=desc`];
+  if (params?.assignedTo) queryParts.push(`assignedTo=${params.assignedTo}`);
+  if (params?.unreadOnly) queryParts.push(`unreadOnly=true`);
+  if (params?.limit) queryParts.push(`limit=${params.limit}`);
+  if (params?.lastId) queryParts.push(`lastId=${params.lastId}`);
+
+  const data = await ghlFetch<{ conversations: GHLConversation[] }>(
+    `/conversations/search?${queryParts.join("&")}`
+  );
+  return data.conversations ?? [];
+}
+
+/** Get messages for a specific conversation with pagination. */
+export async function getConversationMessages(
+  conversationId: string,
+  options?: { limit?: number; lastMessageId?: string }
+): Promise<{ messages: GHLMessage[]; nextPage: boolean; lastMessageId?: string }> {
+  const queryParts: string[] = [];
+  if (options?.limit) queryParts.push(`limit=${options.limit}`);
+  if (options?.lastMessageId) queryParts.push(`lastMessageId=${options.lastMessageId}`);
+
+  const qs = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+  const data = await ghlFetch<{
+    messages: { messages?: GHLMessage[]; nextPage?: boolean; lastMessageId?: string } | GHLMessage[];
+  }>(`/conversations/${conversationId}/messages${qs}`);
+
+  // Handle nested or flat response shape
+  if (Array.isArray(data.messages)) {
+    return { messages: data.messages, nextPage: false };
+  }
+  return {
+    messages: data.messages?.messages ?? [],
+    nextPage: data.messages?.nextPage ?? false,
+    lastMessageId: data.messages?.lastMessageId,
+  };
+}
+
+/** Mark a conversation as read by setting unreadCount to 0. */
+export async function markConversationRead(
+  conversationId: string
+): Promise<GHLConversation> {
+  const data = await ghlFetch<{ conversation: GHLConversation }>(
+    `/conversations/${conversationId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ unreadCount: 0 }),
+    }
+  );
+  return data.conversation;
+}
+
+/** Get the recording URL for a call message. */
+export async function getCallRecording(messageId: string): Promise<string | null> {
+  try {
+    const data = await ghlFetch<{ url?: string; recording?: string }>(
+      `/conversations/messages/${messageId}/recording`
+    );
+    return data.url ?? data.recording ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Get the transcription for a call message. */
+export async function getCallTranscription(messageId: string): Promise<string | null> {
+  try {
+    const data = await ghlFetch<{ transcription?: string; text?: string }>(
+      `/conversations/messages/${messageId}/transcription`
+    );
+    return data.transcription ?? data.text ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ========================================

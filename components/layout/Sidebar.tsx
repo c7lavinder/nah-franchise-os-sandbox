@@ -13,6 +13,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Phone,
+  Activity,
 } from "lucide-react";
 import type { UserRole } from "@/types/database";
 
@@ -49,6 +51,18 @@ const NAV_ITEMS: NavItem[] = [
     label: "Leads",
     href: "/leads",
     icon: Users,
+    roles: ["rep", "leadership"],
+  },
+  {
+    label: "Calls",
+    href: "/calls",
+    icon: Phone,
+    roles: ["rep", "leadership"],
+  },
+  {
+    label: "Activity",
+    href: "/activity",
+    icon: Activity,
     roles: ["rep", "leadership"],
   },
   {

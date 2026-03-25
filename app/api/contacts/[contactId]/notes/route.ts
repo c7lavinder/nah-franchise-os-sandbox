@@ -1,0 +1,28 @@
+/**
+ * POST /api/contacts/[contactId]/notes
+ *
+ * Adds a note to a contact in GHL.
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import * as ghl from "@/lib/ghl";
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { contactId: string } }
+) {
+  try {
+    const { contactId } = params;
+    const body = await request.json();
+
+    if (!body.body?.trim()) {
+      return NextResponse.json({ error: "Note body is required" }, { status: 400 });
+    }
+
+    const note = await ghl.addNote(contactId, body.body.trim());
+    return NextResponse.json({ note });
+  } catch (err) {
+    console.error("Add note failed:", err);
+    return NextResponse.json({ error: "Failed to add note" }, { status: 500 });
+  }
+}
