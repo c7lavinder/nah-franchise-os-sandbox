@@ -14,6 +14,7 @@ interface StageCount {
   pipelineName: string;
   stageName: string;
   count: number;
+  avgDays?: number;
 }
 
 interface DashboardData {

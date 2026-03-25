@@ -64,17 +64,30 @@ export async function GET(request: NextRequest) {
       ghl.countContactsByFilter([{ field: "source", operator: "eq", value: "Unknown" }]),
     ]);
 
-    // Stage counts — use only open opportunities within the period
+    // Stage counts + average days in stage
     const openFiltered = filtered.filter((o) => o.status === "open");
-    const stageCounts: { pipelineName: string; stageName: string; count: number }[] = [];
+    const now = Date.now();
+    const stageCounts: { pipelineName: string; stageName: string; count: number; avgDays: number }[] = [];
     for (const pipeline of nahPipelines) {
       const pipelineOpps = openFiltered.filter((o) => o.pipelineId === pipeline.id);
       for (const stage of pipeline.stages) {
-        const count = pipelineOpps.filter((o) => o.pipelineStageId === stage.id).length;
+        const stageOpps = pipelineOpps.filter((o) => o.pipelineStageId === stage.id);
+        const count = stageOpps.length;
+
+        // Calculate average days in current stage from updatedAt
+        let avgDays = 0;
+        if (count > 0) {
+          const totalDays = stageOpps.reduce((sum, o) => {
+            return sum + Math.floor((now - new Date(o.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
+          }, 0);
+          avgDays = Math.round(totalDays / count);
+        }
+
         stageCounts.push({
           pipelineName: pipeline.name.replace("NAH Franchise Sales - ", ""),
           stageName: stage.name.trim(),
           count,
+          avgDays,
         });
       }
     }

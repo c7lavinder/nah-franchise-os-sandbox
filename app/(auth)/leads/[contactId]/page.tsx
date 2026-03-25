@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, Phone, Mail, User, Loader2, RefreshCw,
-  MapPin, Clock, Megaphone, Save,
+  MapPin, Clock, Megaphone, Save, MessageSquare,
 } from "lucide-react";
 import { ProfileSection } from "@/components/profile";
 import { PROFILE_FIELDS, CATEGORY_META } from "@/lib/profile/field-registry";
@@ -128,6 +128,27 @@ export default function LeadProfilePage() {
             )}
           </div>
         </div>
+        {/* Quick Actions */}
+        {contact && (
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {contact.phone && (
+              <a href={`tel:${contact.phone}`} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-success/10 text-success text-caption font-medium hover:bg-success/20 transition-colors">
+                <Phone size={12} /> Call
+              </a>
+            )}
+            {contact.phone && (
+              <a href={`sms:${contact.phone}`} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-info/10 text-info text-caption font-medium hover:bg-info/20 transition-colors">
+                <MessageSquare size={12} /> Text
+              </a>
+            )}
+            {contact.email && (
+              <a href={`mailto:${contact.email}`} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-scout-purple/10 text-scout-purple text-caption font-medium hover:bg-scout-purple/20 transition-colors">
+                <Mail size={12} /> Email
+              </a>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-2 flex-shrink-0">
           {hasPending && (
             <button
