@@ -87,15 +87,22 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
       }}
     >
       <div className="w-[280px] h-full flex flex-col py-6 px-4">
-        {/* Logo — always visible, grows on hover */}
+        {/* Logo — icon when collapsed, full logo on hover */}
         <div className="flex items-center justify-center pb-6 min-h-[60px]">
+          <Image
+            src="/images/nah-icon.svg"
+            alt="NAH"
+            width={36}
+            height={36}
+            className="block group-hover:hidden flex-shrink-0"
+          />
           <Image
             src="/images/nah-logo.svg"
             alt="New Again Houses"
-            width={180}
-            height={48}
-            className="w-[44px] group-hover:w-[180px] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
-            style={{ objectFit: "contain", height: "auto" }}
+            width={170}
+            height={44}
+            className="hidden group-hover:block"
+            style={{ objectFit: "contain" }}
           />
         </div>
 
