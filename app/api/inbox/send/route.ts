@@ -63,6 +63,14 @@ async function updateTouchFields(contactId: string, channel: "SMS" | "Email") {
     if (customFields.length > 0) {
       await ghl.updateContact(contactId, { customFields });
     }
+
+    // Auto-resolve stale lead alerts for this contact
+    await supabase
+      .from("inactivity_alerts")
+      .update({ is_resolved: true, resolved_at: new Date().toISOString() })
+      .eq("ghl_contact_id", contactId)
+      .eq("is_resolved", false)
+      .in("alert_type", ["stale_active", "stale_active_high", "stale_followup", "stale_reengaged", "speed_to_lead"]);
   } catch {
     // Non-critical — don't fail the send if touch tracking fails
     console.warn("Failed to update touch fields for", contactId);

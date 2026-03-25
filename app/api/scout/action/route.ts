@@ -182,10 +182,23 @@ export async function POST(request: NextRequest) {
       errorMessage = err instanceof Error ? err.message : "Unknown error executing action";
     }
 
-    // Update touch tracking for message actions
+    // Update touch tracking and auto-resolve alerts for message actions
     if (!errorMessage && action.type === "message") {
       const msgPayload = action.payload as DraftedMessagePayload;
       void updateTouchFields(action.contactId, msgPayload.channel);
+
+      // Auto-resolve stale alerts
+      try {
+        const resolveSupabase = createServerClient();
+        await resolveSupabase
+          .from("inactivity_alerts")
+          .update({ is_resolved: true, resolved_at: new Date().toISOString() })
+          .eq("ghl_contact_id", action.contactId)
+          .eq("is_resolved", false)
+          .in("alert_type", ["stale_active", "stale_active_high", "stale_followup", "stale_reengaged", "speed_to_lead"]);
+      } catch {
+        // Non-critical
+      }
     }
 
     // Log the execution result
