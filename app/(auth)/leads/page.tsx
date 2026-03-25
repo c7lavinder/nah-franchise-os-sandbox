@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Users, Search, RefreshCw, ChevronRight, Loader2 } from "lucide-react";
+import { LeadDetail } from "@/components/leads";
 
 interface LeadRow {
   contactId: string;
@@ -200,6 +201,16 @@ export default function LeadsPage() {
           )}
         </div>
       </div>
+
+      {/* Lead Detail Slide-out */}
+      {selectedId && (
+        <LeadDetail
+          contactId={selectedId}
+          contactName={leads.find((l) => l.contactId === selectedId)?.name}
+          stageName={leads.find((l) => l.contactId === selectedId)?.stageName}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
     </div>
   );
 }

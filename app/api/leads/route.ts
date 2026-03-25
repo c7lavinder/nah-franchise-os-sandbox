@@ -1,9 +1,9 @@
 /**
- * GET /api/leads?q=search&status=open|won|lost|all&source=Paid+Ad|Referral|...
+ * GET /api/leads?q=search&status=open|won|lost|all
  *
- * Searches contacts in GHL. When a query is provided, uses GHL search.
- * When no query, returns recent contacts from the pipeline.
- * Enriches results with opportunity data when available.
+ * Searches contacts in GHL. When a query is provided, uses GHL contact search.
+ * When no query, returns contacts from NAH pipeline opportunities.
+ * Enriches all results with opportunity stage/status data.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -18,9 +18,6 @@ interface LeadRow {
   source: string;
   stageName: string | null;
   status: string | null;
-  pipelineId: string | null;
-  opportunityId: string | null;
-  lastActivity: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -28,47 +25,11 @@ export async function GET(request: NextRequest) {
     const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
     const statusFilter = request.nextUrl.searchParams.get("status") ?? "all";
 
-    let contacts: GHLContact[] = [];
+    // Fetch NAH pipelines once (needed for stage lookup and opportunity data)
+    const allPipelines = await ghl.getPipelines();
+    const nahPipelines = allPipelines.filter((p) => p.name.startsWith("NAH Franchise Sales"));
 
-    if (q.length >= 2) {
-      // Search by name/email/phone
-      contacts = await ghl.searchContacts({ query: q, limit: 50 });
-    } else {
-      // No search query — pull contacts from NAH pipelines
-      const pipelines = await ghl.getPipelines();
-      const nahPipelines = pipelines.filter((p) => p.name.startsWith("NAH Franchise Sales"));
-
-      const allOpps: GHLOpportunity[] = [];
-      for (const pipeline of nahPipelines) {
-        try {
-          const opps = await ghl.searchOpportunitiesPaginated({
-            pipelineId: pipeline.id,
-            status: statusFilter !== "all" ? statusFilter as "open" | "won" | "lost" : undefined,
-          });
-          allOpps.push(...opps);
-        } catch {
-          // Continue
-        }
-      }
-
-      // Get unique contact IDs (limit to 50 for performance)
-      const contactIds = [...new Set(allOpps.map((o) => o.contactId))].slice(0, 50);
-
-      // Fetch contacts in parallel (batches of 10)
-      for (let i = 0; i < contactIds.length; i += 10) {
-        const batch = contactIds.slice(i, i + 10);
-        const results = await Promise.allSettled(
-          batch.map((id) => ghl.getContact(id))
-        );
-        for (const r of results) {
-          if (r.status === "fulfilled") contacts.push(r.value);
-        }
-      }
-    }
-
-    // Build stage lookup from NAH pipelines
-    const pipelines = await ghl.getPipelines();
-    const nahPipelines = pipelines.filter((p) => p.name.startsWith("NAH Franchise Sales"));
+    // Build stage name lookup
     const stageMap = new Map<string, string>();
     for (const p of nahPipelines) {
       for (const s of p.stages) {
@@ -76,44 +37,53 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Build opportunity lookup by contactId (quick search for each contact)
+    // Fetch all NAH opportunities once (for enrichment)
+    const allOpps: GHLOpportunity[] = [];
+    for (const pipeline of nahPipelines) {
+      try {
+        const opps = await ghl.searchOpportunitiesPaginated({ pipelineId: pipeline.id });
+        allOpps.push(...opps);
+      } catch {
+        // Continue with what we have
+      }
+    }
+
+    // Index opportunities by contactId
     const oppsByContact = new Map<string, GHLOpportunity>();
+    for (const opp of allOpps) {
+      // Keep the most relevant opp per contact (prefer open over closed)
+      const existing = oppsByContact.get(opp.contactId);
+      if (!existing || (opp.status === "open" && existing.status !== "open")) {
+        oppsByContact.set(opp.contactId, opp);
+      }
+    }
+
+    let contacts: GHLContact[] = [];
+
     if (q.length >= 2) {
-      // For search results, do a quick opp lookup per contact
-      for (const pipeline of nahPipelines) {
-        try {
-          const opps = await ghl.searchOpportunitiesPaginated({ pipelineId: pipeline.id });
-          for (const opp of opps) {
-            if (!oppsByContact.has(opp.contactId)) {
-              oppsByContact.set(opp.contactId, opp);
-            }
-          }
-        } catch {
-          // Continue
-        }
-      }
+      // Search by name/email/phone
+      contacts = await ghl.searchContacts({ query: q, limit: 50 });
     } else {
-      // Already have opps from the pipeline fetch
-      const allOpps: GHLOpportunity[] = [];
-      for (const pipeline of nahPipelines) {
-        try {
-          const opps = await ghl.searchOpportunitiesPaginated({
-            pipelineId: pipeline.id,
-            status: statusFilter !== "all" ? statusFilter as "open" | "won" | "lost" : undefined,
-          });
-          allOpps.push(...opps);
-        } catch {
-          // Continue
-        }
+      // No search — show contacts from pipeline, filtered by status
+      let relevantOpps = allOpps;
+      if (statusFilter !== "all") {
+        relevantOpps = allOpps.filter((o) => o.status === statusFilter);
       }
-      for (const opp of allOpps) {
-        if (!oppsByContact.has(opp.contactId)) {
-          oppsByContact.set(opp.contactId, opp);
+
+      // Get unique contact IDs (cap at 50)
+      const contactIds = [...new Set(relevantOpps.map((o) => o.contactId))].slice(0, 50);
+
+      // Batch-fetch contacts
+      for (let i = 0; i < contactIds.length; i += 10) {
+        const batch = contactIds.slice(i, i + 10);
+        const results = await Promise.allSettled(batch.map((id) => ghl.getContact(id)));
+        for (const r of results) {
+          if (r.status === "fulfilled") contacts.push(r.value);
         }
       }
     }
 
-    // Map to LeadRow
+    // Build lead rows with opportunity enrichment
     const leads: LeadRow[] = contacts.map((c) => {
       const opp = oppsByContact.get(c.id);
       return {
@@ -124,16 +94,13 @@ export async function GET(request: NextRequest) {
         source: c.source ?? "Unknown",
         stageName: opp ? (stageMap.get(opp.pipelineStageId) ?? null) : null,
         status: opp?.status ?? null,
-        pipelineId: opp?.pipelineId ?? null,
-        opportunityId: opp?.id ?? null,
-        lastActivity: c.dateAdded ?? null,
       };
     });
 
-    // Apply status filter for search results
-    const filtered = statusFilter === "all"
-      ? leads
-      : leads.filter((l) => l.status === statusFilter);
+    // Apply status filter for search results (pipeline results are already filtered)
+    const filtered = (q.length >= 2 && statusFilter !== "all")
+      ? leads.filter((l) => l.status === statusFilter)
+      : leads;
 
     return NextResponse.json({ leads: filtered, total: filtered.length });
   } catch (err) {
