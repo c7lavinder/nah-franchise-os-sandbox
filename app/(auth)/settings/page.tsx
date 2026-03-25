@@ -1,11 +1,31 @@
 "use client";
 
-import { Settings, User, Bell, Shield, Database, Zap } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { Settings, User, Bell, Shield, Database, Zap, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 
-/** Settings page — user profile and app configuration */
+interface IntegrationStatus {
+  ghl: { connected: boolean; method: string; connectedAt: string | null };
+  anthropic: { connected: boolean };
+  whisper: { connected: boolean };
+}
+
 export default function SettingsPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const [integrations, setIntegrations] = useState<IntegrationStatus | null>(null);
+
+  // Check for OAuth callback messages
+  const crmStatus = searchParams.get("crm");
+  const crmError = searchParams.get("error");
+
+  useEffect(() => {
+    fetch("/api/settings/integrations")
+      .then((res) => res.json())
+      .then((data: IntegrationStatus) => setIntegrations(data))
+      .catch(() => {});
+  }, []);
 
   return (
     <div>
@@ -13,6 +33,20 @@ export default function SettingsPage() {
         <Settings size={20} className="text-nah-orange" />
         <h1 className="text-h1 text-text-primary">Settings</h1>
       </div>
+
+      {/* OAuth callback messages */}
+      {crmStatus === "connected" && (
+        <div className="mb-4 px-3 py-2 bg-success/10 border border-success/20 rounded-lg">
+          <p className="text-body-sm text-success">GoHighLevel connected successfully.</p>
+        </div>
+      )}
+      {crmError === "crm_auth_failed" && (
+        <div className="mb-4 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg">
+          <p className="text-body-sm text-danger">
+            GHL connection failed. Check your GHL credentials and try again.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Profile */}
@@ -64,8 +98,7 @@ export default function SettingsPage() {
             Change Password
           </button>
           <p className="text-caption text-text-tertiary mt-2">
-            Password changes are handled through Supabase Auth. Full password
-            management coming in Phase 1.
+            Password changes are handled through Supabase Auth.
           </p>
         </div>
 
@@ -76,19 +109,102 @@ export default function SettingsPage() {
             <h2 className="text-h3 text-text-primary">Integrations</h2>
           </div>
           <div className="space-y-3">
-            <div className="flex items-center justify-between p-2 rounded-md bg-bg-primary/50 border border-border-default">
-              <div className="flex items-center gap-2">
-                <Database size={14} className="text-text-tertiary" />
-                <span className="text-body-sm text-text-primary">GoHighLevel</span>
+            {/* GoHighLevel */}
+            <div className="p-3 rounded-md bg-bg-primary/50 border border-border-default">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Database size={14} className="text-text-tertiary" />
+                  <span className="text-body-sm text-text-primary font-medium">GoHighLevel</span>
+                </div>
+                {integrations?.ghl.connected ? (
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 size={14} className="text-success" />
+                    <span className="text-caption text-success">
+                      {integrations.ghl.method === "oauth" ? "OAuth" : "API Key"}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <XCircle size={14} className="text-danger" />
+                    <span className="text-caption text-danger">Not Connected</span>
+                  </div>
+                )}
               </div>
-              <span className="badge-warning">Not Connected</span>
+              {integrations?.ghl.connectedAt && (
+                <p className="text-caption text-text-tertiary mt-1">
+                  Connected {new Date(integrations.ghl.connectedAt).toLocaleDateString()}
+                </p>
+              )}
+              {!integrations?.ghl.connected && (
+                <a
+                  href="/api/auth/crm"
+                  className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-md bg-nah-orange text-white text-caption font-medium hover:bg-nah-orange/90 transition-colors"
+                >
+                  Connect GHL
+                  <ExternalLink size={12} />
+                </a>
+              )}
+              {integrations?.ghl.connected && integrations.ghl.method === "api_key" && (
+                <a
+                  href="/api/auth/crm"
+                  className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-md bg-bg-tertiary text-text-secondary text-caption font-medium hover:bg-bg-hover transition-colors"
+                >
+                  Upgrade to OAuth
+                  <ExternalLink size={12} />
+                </a>
+              )}
             </div>
-            <div className="flex items-center justify-between p-2 rounded-md bg-bg-primary/50 border border-border-default">
-              <div className="flex items-center gap-2">
-                <Zap size={14} className="text-text-tertiary" />
-                <span className="text-body-sm text-text-primary">Anthropic (Scout AI)</span>
+
+            {/* Anthropic */}
+            <div className="p-3 rounded-md bg-bg-primary/50 border border-border-default">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Zap size={14} className="text-scout-purple" />
+                  <span className="text-body-sm text-text-primary font-medium">Anthropic (Scout AI)</span>
+                </div>
+                {integrations?.anthropic.connected ? (
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 size={14} className="text-success" />
+                    <span className="text-caption text-success">Connected</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <XCircle size={14} className="text-danger" />
+                    <span className="text-caption text-danger">No API Key</span>
+                  </div>
+                )}
               </div>
-              <span className="badge-warning">Not Connected</span>
+              {!integrations?.anthropic.connected && (
+                <p className="text-caption text-text-tertiary mt-1">
+                  Set ANTHROPIC_API_KEY in environment variables
+                </p>
+              )}
+            </div>
+
+            {/* Whisper */}
+            <div className="p-3 rounded-md bg-bg-primary/50 border border-border-default">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Zap size={14} className="text-info" />
+                  <span className="text-body-sm text-text-primary font-medium">Whisper (Voice Input)</span>
+                </div>
+                {integrations?.whisper.connected ? (
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 size={14} className="text-success" />
+                    <span className="text-caption text-success">Connected</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <XCircle size={14} className="text-danger" />
+                    <span className="text-caption text-danger">No API Key</span>
+                  </div>
+                )}
+              </div>
+              {!integrations?.whisper.connected && (
+                <p className="text-caption text-text-tertiary mt-1">
+                  Set OPENAI_API_KEY in environment variables
+                </p>
+              )}
             </div>
           </div>
         </div>

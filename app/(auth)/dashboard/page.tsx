@@ -34,11 +34,11 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [timePeriod, setTimePeriod] = useState("all");
 
-  const fetchDashboard = useCallback(async () => {
+  const fetchDashboard = useCallback(async (period: string) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/dashboard");
+      const res = await fetch(`/api/dashboard?period=${period}`);
       if (!res.ok) throw new Error("Failed to load dashboard");
       const json = await res.json();
       setData(json);
@@ -50,16 +50,16 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    void fetchDashboard();
-  }, [fetchDashboard]);
+    void fetchDashboard(timePeriod);
+  }, [fetchDashboard, timePeriod]);
 
   // Auto-refresh every 5 minutes
   useEffect(() => {
     const interval = setInterval(() => {
-      void fetchDashboard();
+      void fetchDashboard(timePeriod);
     }, 300000);
     return () => clearInterval(interval);
-  }, [fetchDashboard]);
+  }, [fetchDashboard, timePeriod]);
 
   return (
     <div>
@@ -70,7 +70,7 @@ export default function DashboardPage() {
         <div className="ml-auto flex items-center gap-2">
           <TimePeriodSelector selected={timePeriod} onChange={setTimePeriod} />
           <button
-            onClick={() => void fetchDashboard()}
+            onClick={() => void fetchDashboard(timePeriod)}
             className="btn-ghost p-1.5"
             title="Refresh dashboard"
             disabled={loading}
