@@ -56,6 +56,21 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     },
   },
   {
+    name: "get_profile",
+    description:
+      "Fetch the full candidate profile for a contact — returns all custom fields across 8 categories: territory, franchise fit, financial, trainual, validation, engagement, AI scout scores, and compliance. Use this to answer questions about a prospect's qualifications, status, financial readiness, or any specific profile detail.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: {
+          type: "string",
+          description: "The GHL contact ID to fetch the profile for",
+        },
+      },
+      required: ["contact_id"],
+    },
+  },
+  {
     name: "draft_message",
     description:
       "Draft an SMS or email message for a contact. The message will be presented to the user for review before sending. NEVER send without user confirmation.",

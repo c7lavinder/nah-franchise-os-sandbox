@@ -5,6 +5,7 @@ export type ScoutToolName =
   | "get_contact"
   | "search_contacts"
   | "get_pipeline"
+  | "get_profile"
   | "draft_message"
   | "draft_task"
   | "draft_stage_move"

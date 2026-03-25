@@ -31,6 +31,8 @@ export async function executeTool(
       return executeSearchContacts(input);
     case "get_pipeline":
       return executeGetPipeline(input);
+    case "get_profile":
+      return executeGetProfile(input);
     case "get_schedule":
       return executeGetSchedule(input);
     case "search_knowledge":
@@ -160,6 +162,63 @@ async function executeSearchKnowledge(
     return { data: JSON.stringify(results) };
   } catch (err) {
     return { data: `Error searching knowledge base: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+async function executeGetProfile(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  try {
+    const contactId = input.contact_id as string;
+    const contact = await ghl.getContact(contactId);
+    const contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown";
+
+    // Load field mapping from Supabase
+    const supabase = createServerClient();
+    const { data: fieldMappings } = await supabase
+      .from("ghl_custom_fields")
+      .select("field_name, ghl_field_id")
+      .eq("entity_type", "contact");
+
+    // Build reverse lookup: GHL field ID → field name
+    const idToName = new Map<string, string>();
+    if (fieldMappings) {
+      for (const m of fieldMappings) {
+        idToName.set(m.ghl_field_id, m.field_name);
+      }
+    }
+
+    // Extract custom field values by name
+    const profile: Record<string, string> = {};
+    for (const cf of contact.customFields) {
+      const name = idToName.get(cf.id);
+      if (name && cf.value) {
+        profile[name] = cf.value;
+      }
+    }
+
+    // Build a readable summary for Scout
+    const filledFields = Object.entries(profile)
+      .map(([name, value]) => `- ${name}: ${value}`)
+      .join("\n");
+
+    const summary = [
+      `Candidate Profile for ${contactName}`,
+      `Contact ID: ${contactId}`,
+      `Email: ${contact.email ?? "—"}`,
+      `Phone: ${contact.phone ?? "—"}`,
+      `Source: ${contact.source ?? "—"}`,
+      `Tags: ${contact.tags.length > 0 ? contact.tags.join(", ") : "None"}`,
+      `Date Added: ${contact.dateAdded}`,
+      "",
+      filledFields.length > 0
+        ? `Profile Fields (${Object.keys(profile).length} populated):\n${filledFields}`
+        : "No profile fields populated yet.",
+    ].join("\n");
+
+    return { data: summary };
+  } catch (err) {
+    return { data: `Error fetching profile: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
 }
 
