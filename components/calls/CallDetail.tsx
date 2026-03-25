@@ -23,6 +23,12 @@ interface CallDetailData {
   transcription: string | null;
 }
 
+interface ProfileUpdate {
+  fieldName: string;
+  suggestedValue: string;
+  reason: string;
+}
+
 interface GradeResult {
   score: string;
   scoreNumeric: number;
@@ -31,6 +37,7 @@ interface GradeResult {
   improvements: string[];
   coachingTips: string[];
   suggestedActions: SuggestedAction[];
+  profileUpdates: ProfileUpdate[];
 }
 
 interface SuggestedAction {
@@ -145,11 +152,14 @@ export default function CallDetail({ call }: CallDetailProps) {
             }`}
           >
             {tab.label}
-            {tab.key === "actions" && grade?.suggestedActions?.length ? (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-nah-orange text-white text-[10px] font-bold">
-                {grade.suggestedActions.length}
-              </span>
-            ) : null}
+            {tab.key === "actions" && grade ? (() => {
+              const count = (grade.suggestedActions?.length ?? 0) + (grade.profileUpdates?.length ?? 0);
+              return count > 0 ? (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-nah-orange text-white text-[10px] font-bold">
+                  {count}
+                </span>
+              ) : null;
+            })() : null}
           </button>
         ))}
       </div>
@@ -174,6 +184,7 @@ export default function CallDetail({ call }: CallDetailProps) {
             {activeTab === "actions" && (
               <ActionsTab
                 actions={grade?.suggestedActions ?? []}
+                profileUpdates={grade?.profileUpdates ?? []}
                 contactId={call.contactId}
                 callId={call.id}
               />
