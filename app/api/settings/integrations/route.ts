@@ -1,8 +1,11 @@
 /**
  * GET /api/settings/integrations
  *
- * Returns connection status for all integrations (GHL, Anthropic).
- * Used by the Settings page to show live status badges.
+ * Returns connection status for all integrations plus system health:
+ * - GHL connection (OAuth or API key)
+ * - Anthropic API key
+ * - Whisper API key
+ * - Data health: custom fields cached, pipelines synced, knowledge docs loaded
  */
 
 import { NextResponse } from "next/server";
@@ -36,14 +39,47 @@ export async function GET() {
     // Not connected
   }
 
-  // Check if PIT key fallback is available
   const ghlPitKey = !!process.env.GHL_API_KEY;
-
-  // Check Anthropic API key
   const anthropicConnected = !!process.env.ANTHROPIC_API_KEY;
-
-  // Check Whisper (OpenAI) API key
   const whisperConnected = !!process.env.OPENAI_API_KEY;
+
+  // Data health checks
+  let customFieldsCached = 0;
+  let pipelinesCached = 0;
+  let knowledgeDocs = 0;
+  let activeAlerts = 0;
+  let totalUsers = 0;
+
+  try {
+    const [fieldsRes, stagesRes, knowledgeRes, alertsRes, usersRes] = await Promise.all([
+      supabase.from("ghl_custom_fields").select("id", { count: "exact", head: true }),
+      supabase.from("ghl_pipeline_stages").select("id", { count: "exact", head: true }),
+      supabase.from("knowledge_documents").select("id", { count: "exact", head: true }).eq("is_active", true),
+      supabase.from("inactivity_alerts").select("id", { count: "exact", head: true }).eq("is_resolved", false),
+      supabase.from("users").select("id", { count: "exact", head: true }),
+    ]);
+
+    customFieldsCached = fieldsRes.count ?? 0;
+    pipelinesCached = stagesRes.count ?? 0;
+    knowledgeDocs = knowledgeRes.count ?? 0;
+    activeAlerts = alertsRes.count ?? 0;
+    totalUsers = usersRes.count ?? 0;
+  } catch {
+    // Continue with zeros
+  }
+
+  // Build setup checklist
+  const setupChecklist = [
+    { label: "GHL Connected", done: ghlConnected || ghlPitKey, detail: ghlConnected ? "OAuth" : ghlPitKey ? "API Key" : "Not connected" },
+    { label: "Anthropic API Key", done: anthropicConnected, detail: anthropicConnected ? "Configured" : "Missing — Scout won't work" },
+    { label: "Custom Fields Synced", done: customFieldsCached > 0, detail: customFieldsCached > 0 ? `${customFieldsCached} fields cached` : "Run setup script" },
+    { label: "Pipeline Stages Synced", done: pipelinesCached > 0, detail: pipelinesCached > 0 ? `${pipelinesCached} stages cached` : "Run setup script" },
+    { label: "Knowledge Base Loaded", done: knowledgeDocs > 0, detail: knowledgeDocs > 0 ? `${knowledgeDocs} documents` : "Add docs in Knowledge page" },
+    { label: "Users Created", done: totalUsers > 0, detail: totalUsers > 0 ? `${totalUsers} users` : "No users in database" },
+  ];
+
+  const setupComplete = setupChecklist.filter((c) => c.done).length;
+  const setupTotal = setupChecklist.length;
 
   return NextResponse.json({
     ghl: {
@@ -51,11 +87,20 @@ export async function GET() {
       method: ghlConnected ? "oauth" : ghlPitKey ? "api_key" : "none",
       connectedAt: ghlConnectedAt,
     },
-    anthropic: {
-      connected: anthropicConnected,
+    anthropic: { connected: anthropicConnected },
+    whisper: { connected: whisperConnected },
+    health: {
+      customFieldsCached,
+      pipelinesCached,
+      knowledgeDocs,
+      activeAlerts,
+      totalUsers,
     },
-    whisper: {
-      connected: whisperConnected,
+    setup: {
+      checklist: setupChecklist,
+      complete: setupComplete,
+      total: setupTotal,
+      ready: setupComplete === setupTotal,
     },
   });
 }

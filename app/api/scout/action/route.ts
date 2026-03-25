@@ -17,6 +17,36 @@ import type {
   DraftedProfileUpdatePayload,
 } from "@/types/scout";
 
+/** Update engagement tracking fields after an action touches a contact */
+async function updateTouchFields(contactId: string, channel: string) {
+  try {
+    const supabase = createServerClient();
+    const { data: mappings } = await supabase
+      .from("ghl_custom_fields")
+      .select("field_name, ghl_field_id")
+      .eq("entity_type", "contact")
+      .in("field_name", ["Last Touch Date", "Last Touch Channel"]);
+
+    if (!mappings || mappings.length === 0) return;
+
+    const customFields: { id: string; value: string }[] = [];
+    for (const m of mappings) {
+      if (m.field_name === "Last Touch Date") {
+        customFields.push({ id: m.ghl_field_id, value: new Date().toISOString() });
+      }
+      if (m.field_name === "Last Touch Channel") {
+        customFields.push({ id: m.ghl_field_id, value: channel });
+      }
+    }
+
+    if (customFields.length > 0) {
+      await ghl.updateContact(contactId, { customFields });
+    }
+  } catch {
+    console.warn("Failed to update touch fields for", contactId);
+  }
+}
+
 /** Load GHL field name → field ID mapping from Supabase cache */
 async function loadFieldMapping(): Promise<Map<string, string>> {
   const supabase = createServerClient();
@@ -150,6 +180,12 @@ export async function POST(request: NextRequest) {
       }
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : "Unknown error executing action";
+    }
+
+    // Update touch tracking for message actions
+    if (!errorMessage && action.type === "message") {
+      const msgPayload = action.payload as DraftedMessagePayload;
+      void updateTouchFields(action.contactId, msgPayload.channel);
     }
 
     // Log the execution result

@@ -2,10 +2,13 @@
  * POST /api/inbox/send
  *
  * Sends an SMS or email reply through GHL.
+ * Also updates the contact's Last Touch Date and Last Touch Channel
+ * custom fields for engagement tracking.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import * as ghl from "@/lib/ghl";
+import { createServerClient } from "@/lib/supabase/server";
 import type { GHLSendMessagePayload } from "@/types/ghl";
 
 interface SendRequest {
@@ -15,6 +18,37 @@ interface SendRequest {
   subject?: string;
   html?: string;
   emailFrom?: string;
+}
+
+/** Update engagement tracking fields after sending a message */
+async function updateTouchFields(contactId: string, channel: "SMS" | "Email") {
+  try {
+    const supabase = createServerClient();
+    const { data: mappings } = await supabase
+      .from("ghl_custom_fields")
+      .select("field_name, ghl_field_id")
+      .eq("entity_type", "contact")
+      .in("field_name", ["Last Touch Date", "Last Touch Channel"]);
+
+    if (!mappings || mappings.length === 0) return;
+
+    const customFields: { id: string; value: string }[] = [];
+    for (const m of mappings) {
+      if (m.field_name === "Last Touch Date") {
+        customFields.push({ id: m.ghl_field_id, value: new Date().toISOString() });
+      }
+      if (m.field_name === "Last Touch Channel") {
+        customFields.push({ id: m.ghl_field_id, value: channel });
+      }
+    }
+
+    if (customFields.length > 0) {
+      await ghl.updateContact(contactId, { customFields });
+    }
+  } catch {
+    // Non-critical — don't fail the send if touch tracking fails
+    console.warn("Failed to update touch fields for", contactId);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -50,6 +84,10 @@ export async function POST(request: NextRequest) {
     }
 
     const message = await ghl.sendMessage(payload);
+
+    // Update touch tracking in background (don't block the response)
+    void updateTouchFields(body.contactId, body.type);
+
     return NextResponse.json({ message });
   } catch (err) {
     console.error("Send message failed:", err);

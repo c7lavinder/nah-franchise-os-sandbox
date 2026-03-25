@@ -5,10 +5,18 @@ import { useSearchParams } from "next/navigation";
 import { Settings, User, Bell, Shield, Database, Zap, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 
+interface SetupItem {
+  label: string;
+  done: boolean;
+  detail: string;
+}
+
 interface IntegrationStatus {
   ghl: { connected: boolean; method: string; connectedAt: string | null };
   anthropic: { connected: boolean };
   whisper: { connected: boolean };
+  health?: { customFieldsCached: number; pipelinesCached: number; knowledgeDocs: number; activeAlerts: number; totalUsers: number };
+  setup?: { checklist: SetupItem[]; complete: number; total: number; ready: boolean };
 }
 
 export default function SettingsPage() {
@@ -45,6 +53,39 @@ export default function SettingsPage() {
           <p className="text-body-sm text-danger">
             GHL connection failed. Check your GHL credentials and try again.
           </p>
+        </div>
+      )}
+
+      {/* Setup Checklist */}
+      {integrations?.setup && !integrations.setup.ready && (
+        <div className="mb-6 p-4 bg-warning/5 border border-warning/20 rounded-lg">
+          <div className="flex items-center gap-2 mb-3">
+            <Settings size={16} className="text-warning" />
+            <h2 className="text-h3 text-text-primary">Setup Checklist</h2>
+            <span className="text-caption text-text-tertiary ml-auto">
+              {integrations.setup.complete}/{integrations.setup.total} complete
+            </span>
+          </div>
+          <div className="space-y-2">
+            {integrations.setup.checklist.map((item) => (
+              <div key={item.label} className="flex items-center gap-2">
+                {item.done ? (
+                  <CheckCircle2 size={14} className="text-success flex-shrink-0" />
+                ) : (
+                  <XCircle size={14} className="text-danger flex-shrink-0" />
+                )}
+                <span className={`text-body-sm ${item.done ? "text-text-secondary" : "text-text-primary font-medium"}`}>
+                  {item.label}
+                </span>
+                <span className="text-caption text-text-tertiary ml-auto">{item.detail}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {integrations?.setup?.ready && (
+        <div className="mb-6 px-3 py-2 bg-success/10 border border-success/20 rounded-lg">
+          <p className="text-body-sm text-success">All systems configured and ready.</p>
         </div>
       )}
 
