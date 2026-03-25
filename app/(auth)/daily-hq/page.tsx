@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { LayoutDashboard } from "lucide-react";
 import type { GHLConversation, GHLAppointment, GHLTask } from "@/types/ghl";
 import { ConversationList, ConversationThread, InboxFilters } from "@/components/inbox";
-import { TodayCalendar, TaskPanel } from "@/components/daily-hq";
+import { TodayCalendar, TaskPanel, PriorityLeads } from "@/components/daily-hq";
 
 /**
  * Daily HQ — Chad's Command Center
@@ -144,9 +144,12 @@ export default function DailyHQPage() {
           </div>
         </div>
 
-        {/* CALENDAR — 1/3 width */}
-        <div className="bg-bg-secondary min-h-0 overflow-hidden">
-          <TodayCalendar appointments={appointments} />
+        {/* RIGHT PANEL — Priority Leads + Calendar */}
+        <div className="bg-bg-secondary min-h-0 overflow-y-auto flex flex-col">
+          <PriorityLeads />
+          <div className="flex-1">
+            <TodayCalendar appointments={appointments} />
+          </div>
         </div>
       </div>
 
