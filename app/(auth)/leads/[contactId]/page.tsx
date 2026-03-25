@@ -104,7 +104,7 @@ export default function LeadProfilePage() {
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-h1 text-text-primary truncate">{displayName}</h1>
+          <h1 className="font-headline text-page-title text-text-primary truncate">{displayName}</h1>
           <div className="flex items-center gap-3 mt-0.5">
             {contact?.phone && (
               <a href={`tel:${contact.phone}`} className="flex items-center gap-1 text-caption text-info hover:underline">
