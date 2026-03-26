@@ -8,6 +8,7 @@ import {
 import type { GHLOpportunity, GHLContact, GHLNote, GHLTask, GHLMessage } from "@/types/ghl";
 import { NotesSection, TaskList, ActivityTimeline, ScoutActionHistory, StageHistory } from "@/components/leads";
 import IntelligenceTab from "@/components/intelligence/IntelligenceTab";
+import CallLogForm from "@/components/intelligence/CallLogForm";
 
 interface ContactDetailProps {
   opportunity: GHLOpportunity;
@@ -68,6 +69,7 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
   const [messages, setMessages] = useState<GHLMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"notes" | "tasks" | "activity" | "scout" | "history" | "intel">("notes");
+  const [showCallLog, setShowCallLog] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -257,8 +259,19 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
               {activeTab === "history" && (
                 <StageHistory contactId={opportunity.contactId} />
               )}
-              {activeTab === "intel" && (
-                <IntelligenceTab contactId={opportunity.contactId} />
+              {activeTab === "intel" && !showCallLog && (
+                <IntelligenceTab contactId={opportunity.contactId} onLogCall={() => setShowCallLog(true)} />
+              )}
+              {activeTab === "intel" && showCallLog && (
+                <div className="p-4">
+                  <CallLogForm
+                    callType="intro"
+                    contactId={opportunity.contactId}
+                    contactName={opportunity.name ?? ""}
+                    onSave={() => { setShowCallLog(false); void fetchData(); }}
+                    onCancel={() => setShowCallLog(false)}
+                  />
+                </div>
               )}
             </div>
           )}

@@ -11,6 +11,7 @@ import TaskList from "./TaskList";
 import ActivityTimeline from "./ActivityTimeline";
 import ScoutActionHistory from "./ScoutActionHistory";
 import IntelligenceTab from "@/components/intelligence/IntelligenceTab";
+import CallLogForm from "@/components/intelligence/CallLogForm";
 
 interface LeadDetailProps {
   contactId: string;
@@ -46,6 +47,7 @@ export default function LeadDetail({ contactId, contactName, stageName, onClose 
   const [messages, setMessages] = useState<GHLMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"notes" | "tasks" | "activity" | "scout" | "intel">("notes");
+  const [showCallLog, setShowCallLog] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -212,8 +214,19 @@ export default function LeadDetail({ contactId, contactName, stageName, onClose 
               {activeTab === "scout" && (
                 <ScoutActionHistory contactId={contactId} />
               )}
-              {activeTab === "intel" && (
-                <IntelligenceTab contactId={contactId} />
+              {activeTab === "intel" && !showCallLog && (
+                <IntelligenceTab contactId={contactId} onLogCall={() => setShowCallLog(true)} />
+              )}
+              {activeTab === "intel" && showCallLog && (
+                <div className="p-4">
+                  <CallLogForm
+                    callType="intro"
+                    contactId={contactId}
+                    contactName={contactName ?? contact?.firstName ?? ""}
+                    onSave={() => { setShowCallLog(false); void fetchData(); }}
+                    onCancel={() => setShowCallLog(false)}
+                  />
+                </div>
               )}
             </div>
           )}

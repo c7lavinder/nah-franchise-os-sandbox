@@ -16,8 +16,21 @@ import type { Workflow } from "@/lib/workflows/types";
 import WorkflowCard from "@/components/workflows/WorkflowCard";
 import WorkflowDetail from "@/components/workflows/WorkflowDetail";
 import CreateWorkflowModal from "@/components/workflows/CreateWorkflowModal";
+import ApprovalQueue from "@/components/workflows/ApprovalQueue";
 
 type StatusFilter = "all" | "live" | "draft" | "paused" | "archived";
+
+interface PendingApproval {
+  id: string;
+  workflow_id: string;
+  workflow_version_id: string | null;
+  ab_test_id: string | null;
+  approval_type: string;
+  submitted_by: string;
+  status: string;
+  notes: string | null;
+  submitted_at: string;
+}
 
 export default function WorkflowsPage() {
   const { user } = useAuth();
@@ -28,15 +41,23 @@ export default function WorkflowsPage() {
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
 
   const fetchWorkflows = useCallback(async () => {
     try {
       setError(null);
       const statusParam = statusFilter === "all" ? "" : `?status=${statusFilter}`;
-      const res = await fetch(`/api/workflows${statusParam}`);
-      if (!res.ok) throw new Error("Failed to load workflows");
-      const data = await res.json();
-      setWorkflows(data.workflows ?? []);
+      const [wfRes, appRes] = await Promise.all([
+        fetch(`/api/workflows${statusParam}`),
+        fetch("/api/workflows/approvals"),
+      ]);
+      if (!wfRes.ok) throw new Error("Failed to load workflows");
+      const wfData = await wfRes.json();
+      setWorkflows(wfData.workflows ?? []);
+      if (appRes.ok) {
+        const appData = await appRes.json();
+        setPendingApprovals(appData.approvals ?? []);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -62,10 +83,60 @@ export default function WorkflowsPage() {
     : workflows.filter((w) => w.status === statusFilter);
 
   async function handleAction(workflowId: string, action: "pause" | "resume" | "clone" | "archive") {
-    // For now, just log — full implementation comes with the approval flow
-    console.log(`Workflow action: ${action} on ${workflowId}`);
-    // TODO: Wire to approval API when built
-    void fetchWorkflows();
+    if (!user) return;
+
+    // Map UI action to approval type
+    const approvalTypeMap: Record<string, string> = {
+      pause: "pause",
+      resume: "publish",
+      archive: "archive",
+    };
+
+    if (action === "clone") {
+      // Clone doesn't need approval — creates a draft copy
+      try {
+        const wf = workflows.find((w) => w.id === workflowId);
+        if (!wf) return;
+        const res = await fetch("/api/workflows", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: `${wf.name} (Copy)`,
+            description: wf.description,
+            workflowType: wf.workflow_type,
+            triggerType: wf.trigger_type,
+            triggerConfig: wf.trigger_config,
+            exitConditions: wf.exit_conditions,
+            createdBy: user.id,
+          }),
+        });
+        if (res.ok) void fetchWorkflows();
+      } catch { /* silent */ }
+      return;
+    }
+
+    // Submit for approval
+    const approvalType = approvalTypeMap[action];
+    if (!approvalType) return;
+
+    try {
+      const res = await fetch(`/api/workflows/${workflowId}/approvals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          approvalType,
+          submittedBy: user.id,
+          notes: `${action} requested from dashboard`,
+        }),
+      });
+
+      if (res.ok) {
+        void fetchWorkflows();
+      } else {
+        const data = await res.json();
+        console.error("Approval submission failed:", data.error);
+      }
+    } catch { /* silent */ }
   }
 
   return (
@@ -119,6 +190,34 @@ export default function WorkflowsPage() {
           </button>
         ))}
       </div>
+
+      {/* Pending approvals */}
+      {pendingApprovals.length > 0 && (
+        <div className="mb-4 flex-shrink-0">
+          <p className="text-label-caps text-text-tertiary mb-2">PENDING APPROVALS ({pendingApprovals.length})</p>
+          <ApprovalQueue
+            approvals={pendingApprovals}
+            onApprove={async (id) => {
+              if (!user) return;
+              await fetch(`/api/workflows/${pendingApprovals.find((a) => a.id === id)?.workflow_id}/approvals/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "approve", approvedBy: user.id }),
+              });
+              void fetchWorkflows();
+            }}
+            onReject={async (id) => {
+              if (!user) return;
+              await fetch(`/api/workflows/${pendingApprovals.find((a) => a.id === id)?.workflow_id}/approvals/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "reject", approvedBy: user.id }),
+              });
+              void fetchWorkflows();
+            }}
+          />
+        </div>
+      )}
 
       {/* Error banner */}
       {error && (
