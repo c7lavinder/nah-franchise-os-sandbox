@@ -5,6 +5,7 @@ import { Loader2, PhoneIncoming, PhoneOutgoing } from "lucide-react";
 import CoachingTab from "./CoachingTab";
 import TranscriptTab from "./TranscriptTab";
 import ActionsTab from "./ActionsTab";
+import IntelTab from "./IntelTab";
 
 interface CallSummary {
   id: string;
@@ -53,7 +54,7 @@ interface CallDetailProps {
 }
 
 export default function CallDetail({ call }: CallDetailProps) {
-  const [activeTab, setActiveTab] = useState<"coaching" | "transcript" | "actions">("coaching");
+  const [activeTab, setActiveTab] = useState<"coaching" | "transcript" | "intel" | "actions">("coaching");
   const [detail, setDetail] = useState<CallDetailData | null>(null);
   const [grade, setGrade] = useState<GradeResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -140,7 +141,8 @@ export default function CallDetail({ call }: CallDetailProps) {
         {([
           { key: "coaching" as const, label: "Coaching" },
           { key: "transcript" as const, label: "Transcript" },
-          { key: "actions" as const, label: "AI Actions" },
+          { key: "intel" as const, label: "Intel" },
+          { key: "actions" as const, label: "Next Steps" },
         ]).map((tab) => (
           <button
             key={tab.key}
@@ -179,6 +181,14 @@ export default function CallDetail({ call }: CallDetailProps) {
               <TranscriptTab
                 transcription={detail?.transcription ?? null}
                 recordingUrl={detail?.recordingUrl ?? null}
+              />
+            )}
+            {activeTab === "intel" && (
+              <IntelTab
+                contactId={call.contactId}
+                contactName={call.contactName}
+                profileUpdates={grade?.profileUpdates ?? []}
+                hasAiData={!!grade}
               />
             )}
             {activeTab === "actions" && (
