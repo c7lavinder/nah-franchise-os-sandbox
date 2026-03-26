@@ -49,7 +49,6 @@ export default function LeadDetail({ contactId, contactName, stageName, onClose 
   const [activeTab, setActiveTab] = useState<"notes" | "tasks" | "activity" | "scout" | "intel">("notes");
   const [showCallLog, setShowCallLog] = useState(false);
   const [callType, setCallType] = useState<"intro" | "matt" | "sam" | "mark">("intro");
-  const [callType, setCallType] = useState<"intro" | "matt" | "sam" | "mark">("intro");
 
   const fetchData = useCallback(async () => {
     setLoading(true);

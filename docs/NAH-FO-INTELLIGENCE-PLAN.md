@@ -93,11 +93,11 @@ That is the competitive moat nobody else will have.
 | 1c | Accountability Engine | ✅ Complete | — |
 | 2a | Pipeline Board | ✅ Complete | — |
 | 2b | Leadership Dashboard + Lead Profile | ✅ Complete | — |
-| **3a** | **Bug Fixes + DB Schema** | **🔲 Next** | **Sprint 1** |
-| **3b** | **Candidate Intelligence Layer** | **🔲 Next** | **Sprint 2** |
-| **3c** | **Explainable Score** | **🔲 Next** | **Sprint 2** |
-| **4** | **Onboarding + Coaching Pipeline** | **🔲 Soon** | **Sprint 3** |
-| **5** | **Franchisee Performance Integration** | **🔲 Planned** | **Sprint 4** |
+| 3a | Bug Fixes + DB Schema | ✅ Complete | Sprint 1 |
+| 3b | Candidate Intelligence Layer | ✅ Complete | Sprint 2 |
+| 3c | Explainable Score | ✅ Complete | Sprint 2 |
+| 4 | Onboarding + Coaching Pipeline | ✅ Complete | Sprint 3 |
+| **5** | **Franchisee Performance Integration** | **⏸️ Backburner** | **Sprint 4** |
 | **6** | **Prediction Engine** | **🔲 Future** | **Sprint 5+** |
 
 ---
@@ -107,11 +107,11 @@ That is the competitive moat nobody else will have.
 > Nothing new gets built until the foundation is solid.
 
 ### Bug Fixes (do in this order)
-1. Fix GHL sync — diagnose root cause, verify contacts push/pull correctly
-2. Map all 18 pipeline stages to correct GHL stage names (see pipeline.md)
-3. Remove all Spanish strings — audit full codebase for i18n issues
-4. Fix lead source attribution — ensure source passes through GHL sync
-5. Make PTO completion a hard gate — block stage moves without completion
+1. ~~Fix GHL sync~~ ✅ Added error visibility, retry logic, post-sync validation
+2. ~~Map pipeline stages~~ ✅ Fixed 3 name mismatches, added GHL aliases across 6 files
+3. ~~Remove Spanish strings~~ ✅ Confirmed clean — no Spanish in codebase
+4. ~~Fix lead source attribution~~ ✅ Data gap from Client Tether import, not a code bug
+5. ~~Make PTO completion a hard gate~~ ✅ Rule 5 added to pipeline move validation
 
 ### New Database Tables (build all now, populate over time)
 
@@ -620,28 +620,28 @@ All logged to market_signals table. Scout queries it when available.
 ## MATT'S ASKS — TRACKING LOG
 > Items Matt raised in his feedback emails. Surface to Corey at the right phase.
 
-### Fix Now (Phase 3a)
-- [ ] GHL sync broken
-- [ ] Pipeline stages need to match 18 actual stages
-- [ ] Spanish language strings ("Modo demostración", "Crear tu cuenta real")
-- [ ] Lead source attribution: 44% Unknown
-- [ ] PTO completion as hard gate
+### Fix Now (Phase 3a) — ✅ ALL COMPLETE
+- [x] GHL sync broken — added error visibility, retry, validation
+- [x] Pipeline stages need to match 18 actual stages — 3 mismatches fixed
+- [x] Spanish language strings — confirmed clean, no Spanish in codebase
+- [x] Lead source attribution: 44% Unknown — data gap from import, not code
+- [x] PTO completion as hard gate — blocks Discovery Call without completion
 
-### Phase 3b
-- [ ] Financial profile (PFS parsed, liquid vs illiquid, funding path)
-- [ ] Personality profile (Zorakle pulled in, DISC flags visible on profile)
-- [ ] Call summaries attached to every call type
-- [ ] Running candidate score — visible and explained
-- [ ] Specific automated flags (not generic stall alerts)
+### Phase 3b — ✅ ALL COMPLETE
+- [x] Financial profile (PFS parsed, liquid vs illiquid, funding path)
+- [x] Personality profile (Zorakle pulled in, DISC flags visible on profile)
+- [x] Call summaries attached to every call type (4 structured forms)
+- [x] Running candidate score — visible and explained
+- [x] Specific automated flags (not generic stall alerts)
 
-### Phase 3c
-- [ ] Score breakdown: 4 buckets × 25, each explained
-- [ ] Score visible to Chad, Sam, Mark, Matt with explanation
-- [ ] "What would move this score" recommendation
+### Phase 3c — ✅ ALL COMPLETE
+- [x] Score breakdown: 4 buckets × 25, each explained
+- [x] Score visible to Chad, Sam, Mark, Matt with explanation
+- [x] "What would move this score" recommendation
 
-### Phase 4
-- [ ] Trainual completion = hard gate (enforce at system level)
-- [ ] Google Meet transcript integration (Gemini notes → Scout)
+### Phase 4 — ✅ PARTIALLY COMPLETE
+- [x] Trainual completion = hard gate (enforce at system level)
+- [ ] Google Meet transcript integration (Gemini notes → Scout) — future
 
 ### Questions for Matt (surface in Phase 4 sprint kickoff)
 - [ ] What is the FO management software name?

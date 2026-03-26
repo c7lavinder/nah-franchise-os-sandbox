@@ -6,6 +6,9 @@ export const dynamic = "force-dynamic";
  * Returns the top leads that need attention today, sorted by priority.
  * Priority = high score + stale contact = needs Chad's attention NOW.
  *
+ * Also enriches each lead with intelligence score and critical flag status
+ * from the candidate_intelligence table.
+ *
  * Used by the Daily HQ "Who Needs Attention" panel.
  */
 
@@ -14,6 +17,7 @@ import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { calculateLeadScore, buildScoringInput } from "@/lib/profile/lead-scoring";
 import type { GHLOpportunity } from "@/types/ghl";
+import type { IntelligenceFlag } from "@/lib/intelligence/flags";
 
 interface PriorityLead {
   contactId: string;
@@ -23,6 +27,10 @@ interface PriorityLead {
   tier: string;
   daysSinceTouch: number | null;
   reason: string;
+  /** Intelligence score from candidate_intelligence (0-100), null if not profiled */
+  intelligenceScore: number | null;
+  /** Whether the lead has any critical-severity flags */
+  hasCriticalFlags: boolean;
 }
 
 export async function GET() {
@@ -63,6 +71,23 @@ export async function GET() {
       for (const m of fieldMappings) {
         idToName.set(m.ghl_field_id, m.field_name);
       }
+    }
+
+    // Fetch intelligence scores for all contacts in bulk
+    const contactIds = [...new Set(openOpps.map((o) => o.contactId))];
+    const { data: intelRecords } = await supabase
+      .from("candidate_intelligence")
+      .select("contact_id, current_score, active_flags")
+      .in("contact_id", contactIds);
+
+    const intelMap = new Map<string, { score: number; hasCritical: boolean }>();
+    for (const rec of intelRecords ?? []) {
+      const flags = Array.isArray(rec.active_flags) ? (rec.active_flags as IntelligenceFlag[]) : [];
+      const hasCritical = flags.some((f) => f.severity === "critical");
+      intelMap.set(rec.contact_id, {
+        score: rec.current_score ?? 0,
+        hasCritical,
+      });
     }
 
     // Score and rank — only process top 30 by stage recency to limit API calls
@@ -120,6 +145,9 @@ export async function GET() {
           const stageName = stageMap.get(opp.pipelineStageId) ?? "Unknown";
           const contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || opp.name;
 
+          // Intelligence data from candidate_intelligence table
+          const intel = intelMap.get(opp.contactId);
+
           // Priority score: high lead score + stale = highest priority
           const stalePenalty = daysSinceTouch !== null ? daysSinceTouch * 3 : 0;
           const priorityScore = scoreResult.total + stalePenalty;
@@ -133,6 +161,8 @@ export async function GET() {
               tier: scoreResult.tier,
               daysSinceTouch,
               reason,
+              intelligenceScore: intel?.score ?? null,
+              hasCriticalFlags: intel?.hasCritical ?? false,
             },
             priorityScore,
           };

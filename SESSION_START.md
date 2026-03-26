@@ -26,16 +26,18 @@ NAH Franchise OS — an AI-first franchise sales platform built on top of GoHigh
 | Phase | Status |
 |-------|--------|
 | Phase 0 — Foundation | ✅ Complete |
-| Phase 1a — Scout AI | ✅ Complete |
+| Phase 1a — Scout AI (15 tools) | ✅ Complete |
 | Phase 1b — Daily HQ | ✅ Complete |
 | Phase 1c — Accountability Engine | ✅ Complete |
 | Phase 2a — Pipeline Board | ✅ Complete |
 | Phase 2b — Leadership Dashboard + Lead Profile | ✅ Complete |
 | Workflow Intelligence Engine | ✅ Complete |
-| **Phase 3a — Bug Fixes + DB Schema** | **🔲 Next** |
-| Phase 3b — Candidate Intelligence Layer | 🔲 Planned |
-| Phase 3c — Explainable Score | 🔲 Planned |
-| Phase 4 — Onboarding + Coaching Pipeline | 🔲 Future |
+| Phase 3a — Bug Fixes + DB Schema | ✅ Complete |
+| Phase 3b — Candidate Intelligence Layer | ✅ Complete |
+| Phase 3c — Explainable Score | ✅ Complete |
+| Phase 4 — Onboarding + Coaching Pipeline | ✅ Complete |
+| Phase 5 — Franchisee Performance Integration | ⏸️ Backburner (waiting on backfill data) |
+| Phase 6 — Prediction Engine | 🔲 Future (needs 30+ closed franchisees) |
 
 ---
 

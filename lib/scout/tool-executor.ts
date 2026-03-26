@@ -12,6 +12,9 @@ import { createServerClient } from "@/lib/supabase/server";
 import { analyzeWorkflow } from "@/lib/workflows/health-scoring";
 import { generateRewrites } from "@/lib/workflows/rewrite-engine";
 import { getContactEnrollments } from "@/lib/workflows/enrollment";
+import { generateFlags } from "@/lib/intelligence/flags";
+import { getScoreRecommendations } from "@/lib/intelligence/recommendations";
+import type { CandidateIntelligence, CallLog, ObjectionRegistry } from "@/lib/intelligence/types";
 import type { WorkflowStep } from "@/lib/workflows/types";
 import type { ScoutToolName, DraftedAction } from "@/types/scout";
 
@@ -74,8 +77,91 @@ async function executeGetContact(
   input: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
   try {
-    const contact = await ghl.getContact(input.contact_id as string);
-    return { data: JSON.stringify(contact) };
+    const contactId = input.contact_id as string;
+    const contact = await ghl.getContact(contactId);
+
+    // Fetch intelligence profile, recent call logs, and unresolved objections in parallel
+    const supabase = createServerClient();
+    const [intelligenceResult, callLogsResult, objectionsResult] = await Promise.all([
+      supabase
+        .from("candidate_intelligence")
+        .select("*")
+        .eq("contact_id", contactId)
+        .single(),
+      supabase
+        .from("call_logs")
+        .select("*")
+        .eq("contact_id", contactId)
+        .order("logged_at", { ascending: false })
+        .limit(3),
+      supabase
+        .from("objection_registry")
+        .select("*")
+        .eq("contact_id", contactId)
+        .eq("resolved", false)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    // Build the base response with GHL data
+    const responseData: Record<string, unknown> = { ...contact };
+
+    // Append intelligence profile if it exists
+    if (intelligenceResult.data) {
+      const profile = intelligenceResult.data as CandidateIntelligence;
+      const flags = generateFlags(profile);
+      const recommendations = getScoreRecommendations(profile);
+
+      responseData.intelligence = {
+        score: {
+          total: profile.current_score,
+          financial: profile.score_financial,
+          operational: profile.score_operational,
+          engagement: profile.score_engagement,
+          momentum: profile.score_momentum,
+        },
+        activeFlags: flags.map((f) => ({
+          text: f.text,
+          severity: f.severity,
+          category: f.category,
+        })),
+        discProfile: profile.disc_profile ?? "Unknown",
+        fundingPath: profile.funding_path ?? "Unknown",
+        urgency: profile.urgency ?? "Unknown",
+        liquidCapital: profile.liquid_capital,
+        trainualCompletion: profile.trainual_completion_pct,
+        topRecommendations: recommendations.slice(0, 3).map((r) => ({
+          action: r.action,
+          category: r.category,
+          potentialPoints: r.potentialPoints,
+          priority: r.priority,
+        })),
+      };
+    }
+
+    // Append recent call logs
+    if (callLogsResult.data && callLogsResult.data.length > 0) {
+      const typedLogs = callLogsResult.data as CallLog[];
+      responseData.recentCallLogs = typedLogs.map((log) => ({
+        callType: log.call_type,
+        calledAt: log.called_at,
+        repConfidence: log.rep_confidence,
+        redFlagsRaised: log.red_flags_raised,
+        notes: log.notes,
+      }));
+    }
+
+    // Append unresolved objections
+    if (objectionsResult.data && objectionsResult.data.length > 0) {
+      const typedObjections = objectionsResult.data as ObjectionRegistry[];
+      responseData.unresolvedObjections = typedObjections.map((obj) => ({
+        type: obj.objection_type,
+        detail: obj.objection_detail,
+        stage: obj.stage_at_time,
+        scoreImpact: obj.score_impact,
+      }));
+    }
+
+    return { data: JSON.stringify(responseData) };
   } catch (err) {
     return { data: `Error fetching contact: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
@@ -421,6 +507,60 @@ async function executeGetNextAction(
     }
 
     lines.push(``, `RECOMMENDED NEXT ACTION:`, `  → ${recommendation}`);
+
+    // ─── Intelligence Context ───
+    const [intelligenceResult, objectionsResult] = await Promise.all([
+      supabase
+        .from("candidate_intelligence")
+        .select("*")
+        .eq("contact_id", contactId)
+        .single(),
+      supabase
+        .from("objection_registry")
+        .select("*")
+        .eq("contact_id", contactId)
+        .eq("resolved", false)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (intelligenceResult.data) {
+      const intel = intelligenceResult.data as CandidateIntelligence;
+      const flags = generateFlags(intel);
+      const recommendations = getScoreRecommendations(intel);
+
+      lines.push(
+        ``,
+        `INTELLIGENCE SCORE: ${intel.current_score}/100 (Financial: ${intel.score_financial}, Operational: ${intel.score_operational}, Engagement: ${intel.score_engagement}, Momentum: ${intel.score_momentum})`
+      );
+
+      // Active flags — critical and warning only for actionability
+      const actionableFlags = flags.filter((f) => f.severity === "critical" || f.severity === "warning");
+      if (actionableFlags.length > 0) {
+        lines.push(``, `ACTIVE FLAGS (${actionableFlags.length}):`);
+        for (const f of actionableFlags) {
+          const icon = f.severity === "critical" ? "!!!" : "!!";
+          lines.push(`  ${icon} [${f.category}] ${f.text}`);
+        }
+      }
+
+      // Top recommendation from intelligence system
+      if (recommendations.length > 0) {
+        const topRec = recommendations[0];
+        lines.push(
+          ``,
+          `TOP SCORE OPPORTUNITY: ${topRec.action} (+${topRec.potentialPoints} pts, ${topRec.priority} priority)`
+        );
+      }
+    }
+
+    // Unresolved objections
+    if (objectionsResult.data && objectionsResult.data.length > 0) {
+      const typedObjections = objectionsResult.data as ObjectionRegistry[];
+      lines.push(``, `UNRESOLVED OBJECTIONS (${typedObjections.length}):`);
+      for (const obj of typedObjections) {
+        lines.push(`  - ${obj.objection_type}: ${obj.objection_detail ?? "No detail recorded"} (stage: ${obj.stage_at_time})`);
+      }
+    }
 
     return { data: lines.join("\n") };
   } catch (err) {

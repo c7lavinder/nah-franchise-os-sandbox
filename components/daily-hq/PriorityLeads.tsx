@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Target, Loader2, AlertTriangle, ChevronRight } from "lucide-react";
+import { Target, Loader2, AlertTriangle, ChevronRight, Brain } from "lucide-react";
 import Link from "next/link";
 
 interface PriorityLead {
@@ -12,6 +12,10 @@ interface PriorityLead {
   tier: string;
   daysSinceTouch: number | null;
   reason: string;
+  /** Intelligence score from candidate_intelligence (0-100), null if not profiled */
+  intelligenceScore: number | null;
+  /** Whether the lead has any critical-severity flags */
+  hasCriticalFlags: boolean;
 }
 
 function tierColor(tier: string): string {
@@ -21,6 +25,13 @@ function tierColor(tier: string): string {
     case "Cool": return "bg-[#e6f7fd] text-[#00a1e1]";
     default: return "bg-[#f1f5f9] text-[#898a8d]";
   }
+}
+
+/** Intelligence score badge color — green 70+, yellow 40-69, red <40 */
+function intelligenceScoreColor(score: number): string {
+  if (score >= 70) return "bg-success/15 text-success border-success/25";
+  if (score >= 40) return "bg-warning/15 text-[#d97706] border-warning/25";
+  return "bg-danger/15 text-danger border-danger/25";
 }
 
 export default function PriorityLeads() {
@@ -64,9 +75,26 @@ export default function PriorityLeads() {
                 {lead.score}
               </span>
 
-              {/* Name + stage */}
+              {/* Name + stage + intelligence badge */}
               <div className="flex-1 min-w-0">
-                <p className="text-body-sm font-medium text-text-primary truncate">{lead.name}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-body-sm font-medium text-text-primary truncate">{lead.name}</p>
+                  {lead.intelligenceScore !== null && (
+                    <span
+                      className={`px-1 py-0.5 rounded-sm text-[10px] font-bold border flex-shrink-0 ${intelligenceScoreColor(lead.intelligenceScore)}`}
+                      title={`Intelligence Score: ${lead.intelligenceScore}`}
+                    >
+                      <Brain size={8} className="inline mr-0.5 -mt-px" />
+                      {lead.intelligenceScore}
+                    </span>
+                  )}
+                  {lead.hasCriticalFlags && (
+                    <span
+                      className="w-2 h-2 rounded-full bg-danger flex-shrink-0 animate-pulse"
+                      title="Critical flag active"
+                    />
+                  )}
+                </div>
                 <p className="text-caption text-text-tertiary truncate">{lead.stage}</p>
               </div>
 

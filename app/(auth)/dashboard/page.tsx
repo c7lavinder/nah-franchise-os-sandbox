@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { BarChart3, RefreshCw } from "lucide-react";
-import { KPICards, PipelineFunnelChart, LeadSourceTable, StageVelocity, ConversionChart, TimePeriodSelector } from "@/components/dashboard";
+import { KPICards, PipelineFunnelChart, LeadSourceTable, StageVelocity, ConversionChart, TimePeriodSelector, ScoreDistribution } from "@/components/dashboard";
 
 interface SourceData {
   name: string;
@@ -127,13 +127,14 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <ConversionChart
               stageCounts={data.funnel}
               wonCount={data.kpis.won}
               lostCount={data.kpis.lost}
             />
             <StageVelocity stages={data.funnel} />
+            <ScoreDistribution />
           </div>
         </>
       )}
