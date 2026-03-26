@@ -10,6 +10,7 @@ import {
   Phone,
   BarChart2,
   Workflow,
+  GraduationCap,
   Bell,
   BookOpen,
   Settings,
@@ -34,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Calls", href: "/calls", icon: Phone, roles: ["rep", "leadership"] },
   { label: "Dashboard", href: "/dashboard", icon: BarChart2, roles: ["leadership"] },
   { label: "Workflows", href: "/workflows", icon: Workflow, roles: ["leadership"] },
+  { label: "Onboarding", href: "/onboarding", icon: GraduationCap, roles: ["leadership"] },
 ];
 
 interface SidebarProps {
