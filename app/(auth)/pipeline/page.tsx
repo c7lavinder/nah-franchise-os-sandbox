@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { GHLOpportunity } from "@/types/ghl";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { OwnershipPath, PipelineFilters, LeadList, ContactDetail } from "@/components/pipeline";
 
 interface StageData {
@@ -26,6 +27,7 @@ interface PipelineData {
  * Click a stage in the funnel to filter the list to just that stage.
  */
 export default function PipelinePage() {
+  const { user } = useAuth();
   const [pipelines, setPipelines] = useState<PipelineData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -172,6 +174,7 @@ export default function PipelinePage() {
           pipelines={pipelines}
           selectedStage={selectedStage}
           onStageClick={handleStageClick}
+          userRole={user?.role}
         />
       )}
 

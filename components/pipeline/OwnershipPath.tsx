@@ -1,7 +1,15 @@
 "use client";
 
-import { Users, Phone, Award, UserCheck, Video, Shield, FileText, FileCheck, DollarSign, Handshake, Trophy } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  Users, Phone, Award, UserCheck, Video, Shield, FileText, FileCheck,
+  DollarSign, Handshake, Trophy, GraduationCap, BookOpen, Target,
+  Lightbulb, Home, CheckCircle2, Star, AlertTriangle, Rocket,
+} from "lucide-react";
 import type { GHLOpportunity } from "@/types/ghl";
+import type { UserRole } from "@/types/database";
+import type { OnboardingEnrollment } from "@/lib/intelligence/onboarding";
+import { ONBOARDING_STAGES, COACHING_STAGES } from "@/lib/intelligence/onboarding";
 
 interface StageData {
   id: string;
@@ -20,6 +28,8 @@ interface OwnershipPathProps {
   pipelines: PipelineData[];
   selectedStage: string | null;
   onStageClick: (stageId: string, stageName: string) => void;
+  /** User role for visibility control */
+  userRole?: UserRole;
 }
 
 /** Stage metadata for the path visualization */
@@ -43,9 +53,33 @@ const LONGTERM_META: Record<string, { icon: React.ComponentType<{ size?: number;
   "Re-engaged":  { icon: Award,    color: "from-cyan-500 to-teal-500",  label: "Re-engaged" },
 };
 
-export default function OwnershipPath({ pipelines, selectedStage, onStageClick }: OwnershipPathProps) {
+/** Stage metadata for onboarding pipeline visualization */
+const ONBOARDING_META: Record<number, { icon: React.ComponentType<{ size?: number; className?: string }>; color: string }> = {
+  1: { icon: GraduationCap, color: "from-emerald-400 to-emerald-500" },
+  2: { icon: BookOpen, color: "from-emerald-500 to-teal-500" },
+  3: { icon: Target, color: "from-teal-500 to-cyan-500" },
+  4: { icon: Lightbulb, color: "from-cyan-500 to-blue-500" },
+  5: { icon: FileText, color: "from-blue-500 to-indigo-500" },
+  6: { icon: Home, color: "from-indigo-500 to-purple-500" },
+  7: { icon: CheckCircle2, color: "from-purple-500 to-green-500" },
+};
+
+/** Stage metadata for coaching pipeline visualization */
+const COACHING_META: Record<number, { icon: React.ComponentType<{ size?: number; className?: string }>; color: string }> = {
+  1: { icon: Star, color: "from-amber-400 to-amber-500" },
+  2: { icon: Users, color: "from-amber-500 to-orange-500" },
+  3: { icon: Target, color: "from-orange-500 to-red-500" },
+  4: { icon: Trophy, color: "from-red-500 to-pink-500" },
+  5: { icon: AlertTriangle, color: "from-pink-500 to-rose-500" },
+  6: { icon: Rocket, color: "from-rose-500 to-green-500" },
+};
+
+export default function OwnershipPath({ pipelines, selectedStage, onStageClick, userRole }: OwnershipPathProps) {
   const activePipeline = pipelines.find((p) => p.name.includes("Active"));
   const longTermPipeline = pipelines.find((p) => p.name.includes("Long-Term"));
+
+  // Leadership sees onboarding + coaching pipelines
+  const showPostClose = userRole === "leadership";
 
   return (
     <div className="mb-8">
@@ -169,6 +203,127 @@ export default function OwnershipPath({ pipelines, selectedStage, onStageClick }
           </div>
         </div>
       )}
+
+      {/* Post-Close Pipelines — Leadership only */}
+      {showPostClose && (
+        <PostClosePipelines />
+      )}
     </div>
+  );
+}
+
+/** Post-close pipelines: Onboarding + Coaching (fetches its own data) */
+function PostClosePipelines() {
+  const [enrollments, setEnrollments] = useState<OnboardingEnrollment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchEnrollments = useCallback(async () => {
+    try {
+      const res = await fetch("/api/intelligence/onboarding");
+      if (res.ok) {
+        const data = await res.json();
+        setEnrollments(data.enrollments ?? []);
+      }
+    } catch { /* silent */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void fetchEnrollments();
+  }, [fetchEnrollments]);
+
+  const onboardingEnrollments = enrollments.filter((e) => e.pipeline_type === "onboarding");
+  const coachingEnrollments = enrollments.filter((e) => e.pipeline_type === "coaching");
+
+  if (loading) {
+    return (
+      <div className="mt-8">
+        <div className="h-20 bg-bg-secondary border border-border-default rounded-lg animate-pulse" />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Onboarding Pipeline */}
+      <div className="mt-8">
+        <h2 className="text-overline text-text-tertiary tracking-wider mb-4">
+          ONBOARDING ({onboardingEnrollments.length})
+        </h2>
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 lg:gap-2">
+          {ONBOARDING_STAGES.map((stage) => {
+            const stageEnrollments = onboardingEnrollments.filter((e) => e.current_stage === stage.number);
+            const meta = ONBOARDING_META[stage.number] ?? ONBOARDING_META[1];
+            const Icon = meta.icon;
+            const count = stageEnrollments.length;
+
+            return (
+              <div key={stage.number} className="flex flex-col items-center text-center">
+                <div
+                  className={`w-12 h-12 rounded-full flex items-center justify-center mb-1.5 bg-gradient-to-br ${meta.color} ${count === 0 ? "opacity-30" : ""} shadow-md`}
+                >
+                  <Icon size={18} className="text-white" />
+                </div>
+                {count > 0 && (
+                  <span className="text-caption font-bold text-success mb-0.5">{count}</span>
+                )}
+                <span className="text-[10px] text-text-tertiary leading-tight">{stage.name}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Onboarding enrollee names */}
+        {onboardingEnrollments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {onboardingEnrollments.map((e) => (
+              <span key={e.id} className="px-2 py-0.5 rounded-full bg-success/10 text-success text-caption border border-success/20">
+                {e.franchisee_name} — Stage {e.current_stage}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Coaching Pipeline */}
+      <div className="mt-6">
+        <h2 className="text-overline text-text-tertiary tracking-wider mb-4">
+          COACHING ({coachingEnrollments.length})
+        </h2>
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 lg:gap-2">
+          {COACHING_STAGES.map((stage) => {
+            const stageEnrollments = coachingEnrollments.filter((e) => e.current_stage === stage.number);
+            const meta = COACHING_META[stage.number] ?? COACHING_META[1];
+            const Icon = meta.icon;
+            const count = stageEnrollments.length;
+
+            return (
+              <div key={stage.number} className="flex flex-col items-center text-center">
+                <div
+                  className={`w-12 h-12 rounded-full flex items-center justify-center mb-1.5 bg-gradient-to-br ${meta.color} ${count === 0 ? "opacity-30" : ""} shadow-md`}
+                >
+                  <Icon size={18} className="text-white" />
+                </div>
+                {count > 0 && (
+                  <span className="text-caption font-bold text-warning mb-0.5">{count}</span>
+                )}
+                <span className="text-[10px] text-text-tertiary leading-tight">{stage.name}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Coaching enrollee names */}
+        {coachingEnrollments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {coachingEnrollments.map((e) => (
+              <span key={e.id} className="px-2 py-0.5 rounded-full bg-warning/10 text-[#d97706] text-caption border border-warning/20">
+                {e.franchisee_name} — {e.stage_name}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 }
