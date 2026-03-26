@@ -48,6 +48,8 @@ export default function LeadDetail({ contactId, contactName, stageName, onClose 
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"notes" | "tasks" | "activity" | "scout" | "intel">("notes");
   const [showCallLog, setShowCallLog] = useState(false);
+  const [callType, setCallType] = useState<"intro" | "matt" | "sam" | "mark">("intro");
+  const [callType, setCallType] = useState<"intro" | "matt" | "sam" | "mark">("intro");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -219,8 +221,21 @@ export default function LeadDetail({ contactId, contactName, stageName, onClose 
               )}
               {activeTab === "intel" && showCallLog && (
                 <div className="p-4">
+                  <div className="flex gap-2 mb-3">
+                    {(["intro", "matt", "sam", "mark"] as const).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setCallType(t)}
+                        className={`px-3 py-1.5 rounded-md text-body-sm capitalize ${
+                          callType === t ? "bg-nah-blue text-white" : "text-text-secondary hover:bg-bg-hover"
+                        }`}
+                      >
+                        {t === "intro" ? "Chad (Intro)" : t === "matt" ? "Matt (Discovery)" : t === "sam" ? "Sam (Validation)" : "Mark (Lending)"}
+                      </button>
+                    ))}
+                  </div>
                   <CallLogForm
-                    callType="intro"
+                    callType={callType}
                     contactId={contactId}
                     contactName={contactName ?? contact?.firstName ?? ""}
                     onSave={() => { setShowCallLog(false); void fetchData(); }}

@@ -19,3 +19,23 @@ export {
 export type {
   IntelligenceFlag,
 } from "./flags";
+
+export {
+  getScoreRecommendations,
+} from "./recommendations";
+
+export type {
+  ScoreRecommendation,
+} from "./recommendations";
+
+export {
+  createOnboardingEnrollment,
+  advanceOnboardingStage,
+  getOnboardingEnrollments,
+  ONBOARDING_STAGES,
+  COACHING_STAGES,
+} from "./onboarding";
+
+export type {
+  OnboardingEnrollment,
+} from "./onboarding";

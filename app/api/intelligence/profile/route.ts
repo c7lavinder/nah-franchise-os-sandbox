@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { generateFlags } from "@/lib/intelligence/flags";
+import { getScoreRecommendations } from "@/lib/intelligence/recommendations";
 import type { CandidateIntelligence } from "@/lib/intelligence/types";
 
 export async function GET(request: NextRequest) {
@@ -54,6 +55,7 @@ export async function GET(request: NextRequest) {
 
     const profile = profileRes.data as CandidateIntelligence | null;
     const flags = profile ? generateFlags(profile) : [];
+    const recommendations = profile ? getScoreRecommendations(profile) : [];
 
     return NextResponse.json({
       profile: profile ?? null,
@@ -61,6 +63,7 @@ export async function GET(request: NextRequest) {
       scoreHistory: scoreHistoryRes.data ?? [],
       objections: objectionsRes.data ?? [],
       flags,
+      recommendations,
     });
   } catch (err) {
     console.error("GET intelligence profile error:", err);

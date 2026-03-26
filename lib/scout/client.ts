@@ -12,6 +12,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { SCOUT_TOOLS } from "./tools";
 import { executeTool } from "./tool-executor";
+import { logLLMCall } from "./llm-logger";
 import { createServerClient } from "@/lib/supabase/server";
 import type { ScoutToolName, DraftedAction } from "@/types/scout";
 import type { UserRole } from "@/types/database";
@@ -237,45 +238,49 @@ export async function runConversationTurn(
         messages,
       });
     } catch (err) {
-      // Log failed API calls
+      // Log failed API calls — fire-and-forget
       const errorMsg = err instanceof Error ? err.message : "Unknown API error";
-      await logLLMCall({
+      const toolNames = formatToolsForAPI().map((t) => t.name);
+      logLLMCall({
         userId: input.userId,
         model: SCOUT_MODEL,
         inputMessages: messages,
-        outputContent: [],
-        toolCalls: [],
-        stopReason: "error",
-        inputTokens: 0,
-        outputTokens: 0,
+        toolsProvided: toolNames,
+        responseContent: [],
+        toolCallsMade: [],
+        tokensInput: 0,
+        tokensOutput: 0,
         latencyMs: Date.now() - startTime,
-        errorMessage: errorMsg,
+        error: errorMsg,
         iteration: iterations,
-      });
+        caller: "scout_chat",
+      }).catch(() => { /* swallow — logging must never block */ });
       throw err;
     }
 
     const latencyMs = Date.now() - startTime;
 
-    // Extract tool calls from this response for logging
-    const toolCallsInResponse = response.content
+    // Extract tool call names from this response for logging
+    const toolCallNames = response.content
       .filter((block): block is Anthropic.Messages.ToolUseBlock => block.type === "tool_use")
-      .map((block) => ({ name: block.name, input: block.input }));
+      .map((block) => block.name);
 
-    // Log every API call
-    await logLLMCall({
+    const toolNames = formatToolsForAPI().map((t) => t.name);
+
+    // Log every API call — fire-and-forget
+    logLLMCall({
       userId: input.userId,
       model: SCOUT_MODEL,
       inputMessages: messages,
-      outputContent: response.content,
-      toolCalls: toolCallsInResponse,
-      stopReason: response.stop_reason ?? "unknown",
-      inputTokens: response.usage?.input_tokens ?? 0,
-      outputTokens: response.usage?.output_tokens ?? 0,
+      toolsProvided: toolNames,
+      responseContent: response.content as unknown[],
+      toolCallsMade: toolCallNames,
+      tokensInput: response.usage?.input_tokens ?? 0,
+      tokensOutput: response.usage?.output_tokens ?? 0,
       latencyMs,
-      errorMessage: null,
       iteration: iterations,
-    });
+      caller: "scout_chat",
+    }).catch(() => { /* swallow — logging must never block */ });
 
     // Check if Claude wants to use tools
     if (response.stop_reason === "tool_use") {
@@ -333,43 +338,3 @@ export async function runConversationTurn(
   };
 }
 
-// ============================================================
-// LLM CALL LOGGING
-// ============================================================
-
-interface LLMCallLogEntry {
-  userId: string;
-  model: string;
-  inputMessages: Anthropic.Messages.MessageParam[];
-  outputContent: Anthropic.Messages.ContentBlock[];
-  toolCalls: { name: string; input: unknown }[];
-  stopReason: string;
-  inputTokens: number;
-  outputTokens: number;
-  latencyMs: number;
-  errorMessage: string | null;
-  iteration: number;
-}
-
-/** Logs every Claude API call to Supabase for debugging and improvement */
-async function logLLMCall(entry: LLMCallLogEntry): Promise<void> {
-  try {
-    const supabase = createServerClient();
-    await supabase.from("llm_call_logs").insert({
-      user_id: entry.userId,
-      model: entry.model,
-      input_messages: entry.inputMessages as unknown as Record<string, unknown>,
-      output_content: entry.outputContent as unknown as Record<string, unknown>,
-      tool_calls: entry.toolCalls as unknown as Record<string, unknown>,
-      stop_reason: entry.stopReason,
-      input_tokens: entry.inputTokens,
-      output_tokens: entry.outputTokens,
-      latency_ms: entry.latencyMs,
-      error_message: entry.errorMessage,
-      iteration: entry.iteration,
-    });
-  } catch {
-    // Logging is non-critical — never break the chat because of a log failure
-    console.error("Failed to log LLM call — continuing");
-  }
-}

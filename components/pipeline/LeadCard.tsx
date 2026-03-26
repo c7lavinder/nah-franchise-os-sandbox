@@ -7,6 +7,8 @@ import type { GHLOpportunity } from "@/types/ghl";
 interface LeadCardProps {
   opportunity: GHLOpportunity;
   onMoveClick?: (opportunity: GHLOpportunity) => void;
+  /** Intelligence score (0-100) if available */
+  score?: number | null;
 }
 
 /** Calculate days since last update */
@@ -25,7 +27,14 @@ function statusColor(status: string): string {
   }
 }
 
-export default function LeadCard({ opportunity, onMoveClick }: LeadCardProps) {
+/** Score badge color based on tier */
+function scoreBadgeColor(score: number): string {
+  if (score >= 70) return "bg-success/15 text-success border-success/25";
+  if (score >= 40) return "bg-warning/15 text-[#d97706] border-warning/25";
+  return "bg-danger/15 text-danger border-danger/25";
+}
+
+export default function LeadCard({ opportunity, onMoveClick, score }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: opportunity.id,
     data: { opportunity },
@@ -69,6 +78,11 @@ export default function LeadCard({ opportunity, onMoveClick }: LeadCardProps) {
                 {(opportunity.monetaryValue / 1000).toFixed(0)}k
               </span>
             ) : null}
+            {score !== undefined && score !== null && (
+              <span className={`px-1.5 py-0.5 rounded-sm text-[10px] font-bold border ${scoreBadgeColor(score)}`}>
+                {score}
+              </span>
+            )}
           </div>
         </div>
         {/* Mobile move button — hidden on desktop where drag works */}

@@ -11,6 +11,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase/server";
+import { logLLMCall } from "@/lib/scout/llm-logger";
 import type { WorkflowStep } from "@/lib/workflows/types";
 
 /** The Claude model for rewrite generation — Haiku for speed/cost */
@@ -77,13 +78,51 @@ export async function generateRewrites(params: {
   });
 
   const anthropic = createAnthropicClient();
+  const inputMessages: Anthropic.Messages.MessageParam[] = [
+    { role: "user", content: prompt },
+  ];
 
-  const response = await anthropic.messages.create({
+  const startTime = Date.now();
+  let response: Anthropic.Messages.Message;
+
+  try {
+    response = await anthropic.messages.create({
+      model: REWRITE_MODEL,
+      max_tokens: 2048,
+      system: REWRITE_SYSTEM_PROMPT,
+      messages: inputMessages,
+    });
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : "Unknown API error";
+    logLLMCall({
+      model: REWRITE_MODEL,
+      inputMessages: inputMessages,
+      toolsProvided: [],
+      responseContent: [],
+      toolCallsMade: [],
+      tokensInput: 0,
+      tokensOutput: 0,
+      latencyMs: Date.now() - startTime,
+      error: errorMsg,
+      caller: "rewrite_engine",
+    }).catch(() => { /* swallow */ });
+    throw err;
+  }
+
+  const latencyMs = Date.now() - startTime;
+
+  // Log the successful rewrite call — fire-and-forget
+  logLLMCall({
     model: REWRITE_MODEL,
-    max_tokens: 2048,
-    system: REWRITE_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: prompt }],
-  });
+    inputMessages: inputMessages,
+    toolsProvided: [],
+    responseContent: response.content as unknown[],
+    toolCallsMade: [],
+    tokensInput: response.usage?.input_tokens ?? 0,
+    tokensOutput: response.usage?.output_tokens ?? 0,
+    latencyMs,
+    caller: "rewrite_engine",
+  }).catch(() => { /* swallow */ });
 
   // Parse the response
   const textContent = response.content.find((c) => c.type === "text");
