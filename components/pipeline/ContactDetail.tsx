@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { GHLOpportunity, GHLContact, GHLNote, GHLTask, GHLMessage } from "@/types/ghl";
 import { NotesSection, TaskList, ActivityTimeline, ScoutActionHistory, StageHistory } from "@/components/leads";
+import IntelligenceTab from "@/components/intelligence/IntelligenceTab";
 
 interface ContactDetailProps {
   opportunity: GHLOpportunity;
@@ -66,7 +67,7 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
   const [tasks, setTasks] = useState<GHLTask[]>([]);
   const [messages, setMessages] = useState<GHLMessage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"notes" | "tasks" | "activity" | "scout" | "history">("notes");
+  const [activeTab, setActiveTab] = useState<"notes" | "tasks" | "activity" | "scout" | "history" | "intel">("notes");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -216,6 +217,7 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
                   { key: "activity" as const, label: "Comms" },
                   { key: "scout" as const, label: "Scout" },
                   { key: "history" as const, label: "Stages" },
+                  { key: "intel" as const, label: "Intel" },
                 ]).map((tab) => (
                   <button
                     key={tab.key}
@@ -254,6 +256,9 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
               )}
               {activeTab === "history" && (
                 <StageHistory contactId={opportunity.contactId} />
+              )}
+              {activeTab === "intel" && (
+                <IntelligenceTab contactId={opportunity.contactId} />
               )}
             </div>
           )}

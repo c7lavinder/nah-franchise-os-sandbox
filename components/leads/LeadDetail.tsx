@@ -10,6 +10,7 @@ import NotesSection from "./NotesSection";
 import TaskList from "./TaskList";
 import ActivityTimeline from "./ActivityTimeline";
 import ScoutActionHistory from "./ScoutActionHistory";
+import IntelligenceTab from "@/components/intelligence/IntelligenceTab";
 
 interface LeadDetailProps {
   contactId: string;
@@ -44,7 +45,7 @@ export default function LeadDetail({ contactId, contactName, stageName, onClose 
   const [tasks, setTasks] = useState<GHLTask[]>([]);
   const [messages, setMessages] = useState<GHLMessage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"notes" | "tasks" | "activity" | "scout">("notes");
+  const [activeTab, setActiveTab] = useState<"notes" | "tasks" | "activity" | "scout" | "intel">("notes");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -183,6 +184,7 @@ export default function LeadDetail({ contactId, contactName, stageName, onClose 
                   { key: "tasks" as const, label: `Tasks (${tasks.length})` },
                   { key: "activity" as const, label: "Comms" },
                   { key: "scout" as const, label: "Scout" },
+                  { key: "intel" as const, label: "Intel" },
                 ]).map((tab) => (
                   <button
                     key={tab.key}
@@ -209,6 +211,9 @@ export default function LeadDetail({ contactId, contactName, stageName, onClose 
               )}
               {activeTab === "scout" && (
                 <ScoutActionHistory contactId={contactId} />
+              )}
+              {activeTab === "intel" && (
+                <IntelligenceTab contactId={contactId} />
               )}
             </div>
           )}
