@@ -11,6 +11,22 @@
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 
+/**
+ * Find a pipeline stage by matching against known name variants.
+ * Handles mismatch between internal names and actual GHL stage names.
+ * Per docs/pipeline.md GHL Stage Name Mapping table.
+ */
+function findStage(
+  stages: { id: string; name: string }[],
+  ...keywords: string[]
+): { id: string; name: string } | undefined {
+  const lower = keywords.map((k) => k.toLowerCase());
+  return stages.find((s) => {
+    const name = s.name.toLowerCase();
+    return lower.some((k) => name.includes(k));
+  });
+}
+
 /** Creates an alert in the database */
 async function createAlert(params: {
   alertType: string;
@@ -44,11 +60,9 @@ export async function checkSpeedToLead(): Promise<number> {
     const pipelines = await ghl.getPipelines();
     if (pipelines.length === 0) return 0;
 
-    // Find "New Lead" stage
+    // Find "New Lead" stage (matches both "New Lead" and any variant)
     const pipeline = pipelines[0];
-    const newLeadStage = pipeline.stages.find(
-      (s) => s.name.toLowerCase().includes("new lead")
-    );
+    const newLeadStage = findStage(pipeline.stages, "new lead");
     if (!newLeadStage) return 0;
 
     const opportunities = await ghl.searchOpportunities({
@@ -91,9 +105,7 @@ export async function checkStaleLeads(): Promise<number> {
     if (pipelines.length === 0) return 0;
 
     const pipeline = pipelines[0];
-    const newLeadStage = pipeline.stages.find(
-      (s) => s.name.toLowerCase().includes("new lead")
-    );
+    const newLeadStage = findStage(pipeline.stages, "new lead");
     if (!newLeadStage) return 0;
 
     const opportunities = await ghl.searchOpportunities({
@@ -134,9 +146,7 @@ export async function checkValidationStaleness(): Promise<number> {
     if (pipelines.length === 0) return 0;
 
     const pipeline = pipelines[0];
-    const validationStage = pipeline.stages.find(
-      (s) => s.name.toLowerCase().includes("validation")
-    );
+    const validationStage = findStage(pipeline.stages, "validation", "sam call");
     if (!validationStage) return 0;
 
     const opportunities = await ghl.searchOpportunities({
@@ -177,9 +187,7 @@ export async function checkClosingStall(): Promise<number> {
     if (pipelines.length === 0) return 0;
 
     const pipeline = pipelines[0];
-    const closingStage = pipeline.stages.find(
-      (s) => s.name.toLowerCase().includes("closing")
-    );
+    const closingStage = findStage(pipeline.stages, "closing", "award", "matt final", "documents submitted");
     if (!closingStage) return 0;
 
     const opportunities = await ghl.searchOpportunities({
@@ -220,9 +228,7 @@ export async function checkFDDWindow(): Promise<number> {
     if (pipelines.length === 0) return 0;
 
     const pipeline = pipelines[0];
-    const fddStage = pipeline.stages.find(
-      (s) => s.name.toLowerCase().includes("fdd")
-    );
+    const fddStage = findStage(pipeline.stages, "fdd", "signed fdd");
     if (!fddStage) return 0;
 
     const opportunities = await ghl.searchOpportunities({

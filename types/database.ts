@@ -17,6 +17,21 @@ import type {
   WorkflowApprovalInsert,
 } from "@/lib/workflows/types";
 
+import type {
+  CandidateIntelligence,
+  CandidateIntelligenceInsert,
+  CallLog,
+  CallLogInsert,
+  CandidateScoreHistory,
+  CandidateScoreHistoryInsert,
+  ObjectionRegistry,
+  ObjectionRegistryInsert,
+  FranchiseePerformance,
+  FranchiseePerformanceInsert,
+  MarketSignal,
+  MarketSignalInsert,
+} from "@/lib/intelligence/types";
+
 /** User roles in the system */
 export type UserRole = "rep" | "marketing" | "leadership";
 
@@ -263,6 +278,36 @@ export interface Database {
         Row: WorkflowApproval;
         Insert: WorkflowApprovalInsert;
         Update: Partial<Omit<WorkflowApproval, "id" | "submitted_at">>;
+      };
+      candidate_intelligence: {
+        Row: CandidateIntelligence;
+        Insert: CandidateIntelligenceInsert;
+        Update: Partial<Omit<CandidateIntelligence, "id" | "created_at">>;
+      };
+      call_logs: {
+        Row: CallLog;
+        Insert: CallLogInsert;
+        Update: Partial<Omit<CallLog, "id" | "created_at">>;
+      };
+      candidate_score_history: {
+        Row: CandidateScoreHistory;
+        Insert: CandidateScoreHistoryInsert;
+        Update: Partial<Omit<CandidateScoreHistory, "id" | "created_at">>;
+      };
+      objection_registry: {
+        Row: ObjectionRegistry;
+        Insert: ObjectionRegistryInsert;
+        Update: Partial<Omit<ObjectionRegistry, "id" | "created_at">>;
+      };
+      franchisee_performance: {
+        Row: FranchiseePerformance;
+        Insert: FranchiseePerformanceInsert;
+        Update: Partial<Omit<FranchiseePerformance, "id" | "created_at">>;
+      };
+      market_signals: {
+        Row: MarketSignal;
+        Insert: MarketSignalInsert;
+        Update: Partial<Omit<MarketSignal, "id" | "observed_at">>;
       };
     };
   };

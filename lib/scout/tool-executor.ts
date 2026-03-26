@@ -428,23 +428,41 @@ async function executeGetNextAction(
   }
 }
 
-/** Map stage name to a number for comparison */
+/**
+ * Map stage name to a number for comparison.
+ * Accepts both internal app names AND actual GHL stage names
+ * so it works regardless of which source provides the stage string.
+ * See docs/pipeline.md GHL Stage Name Mapping table for canonical names.
+ */
 function getStageNumber(stageName: string): number {
   const map: Record<string, number> = {
+    // Stage 1
     "New Lead": 1,
+    // Stage 2
     "Contacted": 2,
-    "Qualified": 3,
-    "Matt Call (Discovery)": 4, "Matt Call": 4,
-    "Sam Call (Validation)": 5, "Sam Call": 5,
+    // Stage 3 — GHL actual name is "Guided Path to Ownership"
+    "Qualified": 3, "Guided Path to Ownership": 3,
+    // Stage 4
+    "Matt Call (Discovery)": 4, "Matt Call": 4, "Discovery Call": 4,
+    // Stage 5
+    "Sam Call (Validation)": 5, "Sam Call": 5, "Validation Call": 5,
+    // Stage 6
     "Compliance Gate": 6, "Compliance Check": 6,
+    // Stage 7
     "Application + Approval": 7, "Application": 7,
+    // Stage 8 — GHL actual name is "Signed FDD Receipt"
     "FDD Issued": 8, "Signed FDD Receipt": 8,
-    "Mark Call (Capital/Lending)": 9, "Mark Call": 9,
-    "Award + Agreement": 10,
+    // Stage 9
+    "Mark Call (Capital/Lending)": 9, "Mark Call": 9, "Lending Call": 9,
+    // Stage 10 — GHL actual name is "Matt Final/Documents Submitted"
+    "Award + Agreement": 10, "Matt Final/Documents Submitted": 10, "Matt Final": 10,
+    // Stage 11
     "Funds Received": 11, "Closed Won": 11,
+    // Exit stages
     "Follow-up": 12,
     "Nurture": 13,
     "Re-engaged": 14,
+    "Lost": 15,
   };
   return map[stageName] ?? 0;
 }

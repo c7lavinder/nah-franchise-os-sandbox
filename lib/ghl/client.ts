@@ -781,6 +781,30 @@ export async function triggerWorkflow(
 }
 
 // ========================================
+// CUSTOM FIELD DEFINITIONS
+// ========================================
+
+/** Shape of a custom field definition returned by the GHL API */
+export interface GHLCustomFieldDefinition {
+  id: string;
+  name: string;
+  fieldKey?: string;
+  dataType?: string;
+  type?: string;
+  model?: string;
+  options?: string[];
+}
+
+/** Fetch all custom field definitions for the location (uses ghlFetch with retry) */
+export async function getCustomFieldDefinitions(): Promise<GHLCustomFieldDefinition[]> {
+  const locationId = getLocationId();
+  const data = await ghlFetch<{ customFields: GHLCustomFieldDefinition[] }>(
+    `/locations/${locationId}/customFields`
+  );
+  return data.customFields ?? [];
+}
+
+// ========================================
 // NOTES
 // ========================================
 

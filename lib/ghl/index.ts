@@ -37,5 +37,8 @@ export {
   triggerWorkflow,
   getNotes,
   addNote,
+  getCustomFieldDefinitions,
   GHLError,
 } from "./client";
+
+export type { GHLCustomFieldDefinition } from "./client";

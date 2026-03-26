@@ -45,7 +45,9 @@ async function validateMove(
   }
 
   // Rule 3: Can't move to Application without Compliance Gate passed
-  if (targetStageName === "Application + Approval" || targetStageName === "Application") {
+  // Match both internal names and actual GHL stage names
+  const targetLower = targetStageName.toLowerCase();
+  if (targetLower.includes("application")) {
     const supabase = createServerClient();
     const { data: fieldMappings } = await supabase
       .from("ghl_custom_fields")
@@ -70,7 +72,8 @@ async function validateMove(
   }
 
   // Rule 4: FDD 14-day window check
-  if (targetStageName === "Mark Call (Capital/Lending)" || targetStageName === "Mark Call") {
+  // Match "Mark Call", "Lending Call", or any variant with "lending" or "mark call"
+  if (targetLower.includes("mark call") || targetLower.includes("lending")) {
     const supabase = createServerClient();
     const { data: fieldMappings } = await supabase
       .from("ghl_custom_fields")
@@ -96,6 +99,38 @@ async function validateMove(
         }
       } catch {
         console.warn("Could not verify FDD window for", opportunity.contactId);
+      }
+    }
+  }
+
+  // Rule 5: PTO (Path to Ownership / Trainual) completion required before Matt Call
+  // Per intelligence plan: "84% of prospects never opened Trainual when invite fired cold"
+  // PTO must be complete before progressing past Qualified stage
+  if (targetLower.includes("matt call") || targetLower.includes("discovery")) {
+    const supabase = createServerClient();
+    const { data: ptoFields } = await supabase
+      .from("ghl_custom_fields")
+      .select("field_name, ghl_field_id")
+      .eq("entity_type", "contact")
+      .in("field_name", ["PTO Complete", "Trainual Completion", "trainual_completion_pct"]);
+
+    if (ptoFields && ptoFields.length > 0) {
+      try {
+        const contact = await ghl.getContact(opportunity.contactId);
+        const ptoField = ptoFields[0];
+        const ptoValue = contact.customFields.find(
+          (f) => f.id === ptoField.ghl_field_id
+        );
+
+        // Check if PTO is complete — accept "Yes", "Complete", "100", or 100%
+        const val = ptoValue?.value?.toLowerCase() ?? "";
+        const isComplete = val === "yes" || val === "complete" || val === "100" || val === "true";
+
+        if (!isComplete) {
+          return "Path to Ownership (Trainual) must be completed before scheduling the Discovery Call. 84% of prospects who skip this step never complete it.";
+        }
+      } catch {
+        console.warn("Could not verify PTO completion for", opportunity.contactId);
       }
     }
   }

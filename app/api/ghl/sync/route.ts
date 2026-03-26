@@ -12,20 +12,56 @@ export const dynamic = "force-dynamic";
  * - ghl_custom_fields (field name → field ID mapping)
  *
  * Scout uses these tables at runtime for stage moves and field writes.
+ *
+ * Improvements over original:
+ * - Logs and surfaces every upsert error
+ * - Returns errors array in response
+ * - Post-sync validation that tables are populated
+ * - Uses ghlFetch (via getPipelines / getCustomFieldDefinitions) for retry logic
+ * - Returns 500 if sync produced 0 stages AND 0 fields
+ * - 100ms delay between upserts to respect GHL rate limits
  */
 
 import { NextResponse } from "next/server";
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 
+/** Delay helper for rate limiting between upserts */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+interface SyncError {
+  table: string;
+  record: string;
+  message: string;
+}
+
+interface SectionResult {
+  status: "synced" | "failed";
+  pipelineCount?: number;
+  stageCount?: number;
+  failedStages?: number;
+  fieldCount?: number;
+  failedFields?: number;
+  error?: string;
+}
+
+interface ValidationWarning {
+  table: string;
+  message: string;
+}
+
 export async function POST() {
   const supabase = createServerClient();
-  const results: Record<string, unknown> = {};
+  const results: Record<string, SectionResult> = {};
+  const errors: SyncError[] = [];
 
-  // 1. Sync pipeline stages
+  // 1. Sync pipeline stages (getPipelines already uses ghlFetch with retry)
   try {
     const pipelines = await ghl.getPipelines();
     let stageCount = 0;
+    let failedStages = 0;
 
     for (const pipeline of pipelines) {
       for (const stage of pipeline.stages) {
@@ -41,49 +77,44 @@ export async function POST() {
             { onConflict: "pipeline_id,stage_id" }
           );
 
-        if (!error) stageCount++;
+        if (error) {
+          failedStages++;
+          const syncError: SyncError = {
+            table: "ghl_pipeline_stages",
+            record: `pipeline=${pipeline.id}, stage=${stage.id} (${stage.name})`,
+            message: error.message,
+          };
+          errors.push(syncError);
+          console.error("[GHL Sync] Stage upsert failed:", syncError);
+        } else {
+          stageCount++;
+        }
+
+        // Rate limit: 100ms between upserts
+        await delay(100);
       }
     }
 
     results.pipelines = {
-      status: "synced",
+      status: failedStages > 0 && stageCount === 0 ? "failed" : "synced",
       pipelineCount: pipelines.length,
       stageCount,
+      failedStages,
     };
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[GHL Sync] Pipeline fetch failed:", message);
     results.pipelines = {
       status: "failed",
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: message,
     };
   }
 
-  // 2. Sync custom fields
+  // 2. Sync custom fields (getCustomFieldDefinitions uses ghlFetch with retry)
   try {
-    const locationId = process.env.GHL_LOCATION_ID;
-    if (!locationId) throw new Error("Missing GHL_LOCATION_ID");
-
-    const apiKey = process.env.GHL_API_KEY;
-    if (!apiKey) throw new Error("Missing GHL_API_KEY");
-
-    // Fetch custom fields from GHL
-    const response = await fetch(
-      `https://services.leadconnectorhq.com/locations/${locationId}/customFields`,
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          Version: "2021-07-28",
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`GHL custom fields API returned ${response.status}`);
-    }
-
-    const data = await response.json();
-    const fields = data.customFields ?? [];
+    const fields = await ghl.getCustomFieldDefinitions();
     let fieldCount = 0;
+    let failedFields = 0;
 
     for (const field of fields) {
       const { error } = await supabase
@@ -100,22 +131,90 @@ export async function POST() {
           { onConflict: "entity_type,field_key" }
         );
 
-      if (!error) fieldCount++;
+      if (error) {
+        failedFields++;
+        const syncError: SyncError = {
+          table: "ghl_custom_fields",
+          record: `field=${field.id} (${field.name})`,
+          message: error.message,
+        };
+        errors.push(syncError);
+        console.error("[GHL Sync] Field upsert failed:", syncError);
+      } else {
+        fieldCount++;
+      }
+
+      // Rate limit: 100ms between upserts
+      await delay(100);
     }
 
     results.customFields = {
-      status: "synced",
+      status: failedFields > 0 && fieldCount === 0 ? "failed" : "synced",
       fieldCount,
+      failedFields,
     };
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[GHL Sync] Custom fields fetch failed:", message);
     results.customFields = {
       status: "failed",
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: message,
     };
   }
 
-  return NextResponse.json({
-    message: "GHL sync complete",
-    results,
-  });
+  // 3. Post-sync validation — verify tables actually have data
+  const warnings: ValidationWarning[] = [];
+
+  try {
+    const { count: stageRowCount, error: stageCountErr } = await supabase
+      .from("ghl_pipeline_stages")
+      .select("*", { count: "exact", head: true });
+
+    if (stageCountErr) {
+      console.error("[GHL Sync] Validation query failed for ghl_pipeline_stages:", stageCountErr.message);
+    } else if (!stageRowCount || stageRowCount === 0) {
+      warnings.push({
+        table: "ghl_pipeline_stages",
+        message: "Table is empty after sync — pipeline stage lookups will fail",
+      });
+    }
+  } catch (err) {
+    console.error("[GHL Sync] Stage validation error:", err);
+  }
+
+  try {
+    const { count: fieldRowCount, error: fieldCountErr } = await supabase
+      .from("ghl_custom_fields")
+      .select("*", { count: "exact", head: true });
+
+    if (fieldCountErr) {
+      console.error("[GHL Sync] Validation query failed for ghl_custom_fields:", fieldCountErr.message);
+    } else if (!fieldRowCount || fieldRowCount === 0) {
+      warnings.push({
+        table: "ghl_custom_fields",
+        message: "Table is empty after sync — custom field lookups will fail",
+      });
+    }
+  } catch (err) {
+    console.error("[GHL Sync] Field validation error:", err);
+  }
+
+  // 4. Determine status code
+  const totalStages = (results.pipelines as SectionResult | undefined)?.stageCount ?? 0;
+  const totalFields = (results.customFields as SectionResult | undefined)?.fieldCount ?? 0;
+  const syncedNothing = totalStages === 0 && totalFields === 0;
+
+  const status = syncedNothing ? 500 : 200;
+
+  return NextResponse.json(
+    {
+      message: syncedNothing
+        ? "GHL sync failed — 0 stages and 0 fields synced"
+        : "GHL sync complete",
+      results,
+      errors,
+      warnings,
+    },
+    { status }
+  );
 }
