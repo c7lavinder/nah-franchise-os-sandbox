@@ -1,108 +1,85 @@
-# Session Handoff — 2026-03-25 — Session 5
+# Session Handoff — 2026-03-25 — Session 6
 
 ## Status
-Phase: Workflow Intelligence Engine — COMPLETE / Health: Green / Duration: Full session
+Phase: Phase 4 complete, Phase 5 blocked on external input / Health: Green / Duration: Full session
 
 ## What Was Built This Session
-- 7 Supabase tables for workflow engine (workflows, versions, steps, enrollments, step_logs, ab_tests, approvals)
-- Enrollment service (enroll/pause/resume/exit/advance/expire with GHL custom field sync)
-- Step scheduler engine (cron, auto-execute vs confirmation queue, rate limited 150ms)
-- Health scoring algorithm (A–F grading with benchmarks and plain-language diagnosis)
-- Scout rewrite engine (3 AI variants for underperforming steps via Claude API)
-- A/B testing engine (create/start/record/declare winner, 50/50 balanced assignment)
-- Approval flow (submit/approve/reject with auto-execution of publish/pause/archive/rollback)
-- GHL custom field resolver (name→ID cache in Supabase, auto-refresh every 15 min)
-- 5 GHL custom fields created in live GHL account and cached
-- Delivery sync via GHL polling (no webhooks — matches inbox pattern)
-- Stage-based auto-enrollment via GHL pipeline polling
-- Email open tracking (1x1 pixel) + click tracking (redirect)
-- Workflow notifications (pending confirmation, unhealthy workflows, stale enrollments)
+- Complete Workflow Intelligence Engine (7 DB tables, 12 services, 16 API endpoints, 4 cron jobs, 2 UI pages, 9 seeded workflows with 68 steps)
 - 4 new Scout tools (workflow_analyze, workflow_rewrite, sequence_status, trainual_status)
-- Workflows Dashboard UI (View 1) — list/detail split, health badges, filter tabs
-- Visual Workflow Builder UI (View 2) — day timeline, step cards, inline editor, Scout assist buttons
-- Create Workflow modal (name, type, trigger, duration, primary metric)
-- A/B test card + approval queue UI components
-- 9 workflow templates seeded with 68 steps (all content from workflows.md spec)
-- Sidebar nav + layout title updated with Workflows route
-- Temp auth endpoints cleaned up (setup, debug, reset-pw, create-user removed)
-- Both user accounts verified working (corey + admin)
-- NEXT_PUBLIC_APP_URL set on Vercel via CLI
+- Email open/click tracking (pixel + redirect)
+- Workflow notifications (pending confirmation, unhealthy, stale enrollments)
+- GHL custom field resolver (name→ID cache) + 5 custom fields created in live GHL
+- GHL polling-based delivery sync (replaces webhooks)
+- Create Workflow modal + Visual Builder (View 2)
+- A/B testing engine + approval flow (backend + UI components)
+- Phase 3a bug fixes: GHL sync error visibility, pipeline stage mismatch (3 names fixed across 6 files), PTO hard gate
+- 6 intelligence database tables (candidate_intelligence, call_logs, score_history, objections, franchisee_performance, market_signals)
+- Explainable scoring engine (4 buckets × 25 points, every change logged with reason)
+- Automated flag generator (NAH-specific flags: financial, engagement, personality, process)
+- Call log system (4 call types: intro/matt/sam/mark) with structured fields + auto-objection extraction
+- Intelligence Tab wired into both LeadDetail and ContactDetail panels
+- Zorakle input form + API
+- Franchisee performance CRUD API
+- Onboarding pipeline page (7 onboarding + 6 coaching stages, Kanban columns)
+- Onboarding service (create enrollment, advance stage, track progress)
+- Sidebar nav updated with Workflows + Onboarding
 
 ## What Is Confirmed Working
-- Vercel deployment returning 200
+- Vercel deployment returning 200 on all endpoints
 - /api/workflows returning 9 seeded workflows
-- All 7 Supabase tables verified
-- Both login accounts tested (corey@newagainhouses.com, admin@newagainhouses.com)
-- TypeScript: 0 errors
+- All 7 workflow tables + 6 intelligence tables verified in Supabase
+- Both login accounts (corey + admin)
+- TypeScript: 0 errors across entire codebase
 - All 5 GHL custom fields created and cached
+- NEXT_PUBLIC_APP_URL set on Vercel via CLI
 
 ## What Is Broken or Incomplete
-- Workflow quick action buttons (pause/resume/archive on dashboard cards) — log to console, need UI wiring to approval flow — Low
-- Mack Wright duplicate opportunity in GHL — Low (data issue, not code)
-- 3 info-level console.logs in production workflow code — Low (acceptable for debugging)
+- Workflow quick action buttons (pause/resume/archive) log to console, need approval flow UI wiring — Low
+- Phase 5 blocked: need FO management software name + API from Matt — Blocking
+- Phase 6 blocked: need 30+ closed franchisees with performance data — Future
+- Mack Wright duplicate opportunity in GHL — Low
+- 3 info-level console.logs in production workflow code — Low
 
 ## Decisions Made
-- No GHL webhooks — all data via PIT/OAuth polling (Corey directive)
-- GHL custom field types: NUMERICAL not NUMBER, SINGLE_OPTIONS with ["true","false"] for boolean
-- Rate limiting: 150-200ms between GHL API calls in scheduler/sync
-- Polling-based delivery sync replaces webhook-based tracking
-- Auto-enrollment via pipeline stage polling, not webhooks
+- No GHL webhooks, all data via PIT/OAuth polling — Corey approved
+- GHL custom field types: NUMERICAL not NUMBER, SINGLE_OPTIONS for boolean — discovered via GHL API errors
+- Rate limiting: 150-200ms between GHL API calls — per ghl-masterclass
+- Intelligence plan (docs/NAH-FO-INTELLIGENCE-PLAN.md) drives all Phase 3+ work — Corey approved
+- Pipeline stage names: added all GHL actual names as aliases — fixes 3 mismatches
+- PTO completion is now a hard gate before Discovery Call — per intelligence plan
+- Lead source 44% Unknown is data gap from import, not code bug — no fix needed
 
 ## Files Created
-- lib/workflows/types.ts — TypeScript types for all 7 workflow tables
-- lib/workflows/schema.sql — Migration SQL for 7 tables + indexes + RLS
-- lib/workflows/enrollment.ts — Enrollment lifecycle service
-- lib/workflows/scheduler.ts — Step scheduler engine
-- lib/workflows/health-scoring.ts — A–F grading algorithm
-- lib/workflows/rewrite-engine.ts — Scout AI rewrite generator
-- lib/workflows/ab-testing.ts — A/B testing engine
-- lib/workflows/approvals.ts — Approval flow service
-- lib/workflows/tracking.ts — Email open/click tracking utilities
-- lib/workflows/notifications.ts — Workflow notification generators
-- lib/workflows/delivery-sync.ts — GHL polling-based delivery sync
-- lib/workflows/index.ts — Barrel export
-- lib/ghl/custom-fields.ts — GHL custom field name→ID resolver
-- components/workflows/WorkflowCard.tsx — Workflow list card
-- components/workflows/WorkflowDetail.tsx — Workflow detail panel
-- components/workflows/StepCard.tsx — Step card for builder canvas
-- components/workflows/StepEditor.tsx — Step inline editor
-- components/workflows/ABTestCard.tsx — A/B test display card
-- components/workflows/ApprovalQueue.tsx — Pending approvals list
-- components/workflows/CreateWorkflowModal.tsx — New workflow modal
-- app/(auth)/workflows/page.tsx — Workflows Dashboard (View 1)
-- app/(auth)/workflows/[workflowId]/page.tsx — Visual Builder (View 2)
-- app/api/workflows/route.ts — List + create workflows
-- app/api/workflows/[workflowId]/route.ts — Get + update workflow
-- app/api/workflows/[workflowId]/steps/route.ts — List + create steps
-- app/api/workflows/[workflowId]/steps/[stepId]/route.ts — Update + delete step
-- app/api/workflows/[workflowId]/rewrite/route.ts — Scout rewrite generation
-- app/api/workflows/[workflowId]/ab-tests/route.ts — List + create A/B tests
-- app/api/workflows/[workflowId]/ab-tests/[testId]/route.ts — A/B test operations
-- app/api/workflows/[workflowId]/approvals/route.ts — List + submit approvals
-- app/api/workflows/[workflowId]/approvals/[approvalId]/route.ts — Approve/reject
-- app/api/workflows/approvals/route.ts — All pending approvals
-- app/api/workflows/enrollments/route.ts — List + create enrollments
-- app/api/workflows/enrollments/[enrollmentId]/route.ts — Enrollment operations
-- app/api/cron/workflow-scheduler/route.ts — Step scheduler cron
-- app/api/cron/workflow-analysis/route.ts — Health analysis cron
-- app/api/cron/workflow-notifications/route.ts — Notification cron
-- app/api/cron/workflow-delivery-sync/route.ts — GHL polling sync cron
-- app/api/track/open/[logId]/route.ts — Email open tracking pixel
-- app/api/track/click/[logId]/route.ts — Email click tracking redirect
-- scripts/setup-workflow-tables.ts — Migration runner
-- scripts/seed-workflows.ts — Workflow template seeder
-- scripts/setup-workflow-custom-fields.ts — GHL custom field creator
+- lib/workflows/ (9 files): types, schema, enrollment, scheduler, health-scoring, rewrite-engine, ab-testing, approvals, delivery-sync, tracking, notifications, index
+- lib/intelligence/ (5 files): types, schema, scoring, flags, onboarding, index
+- lib/ghl/custom-fields.ts
+- components/workflows/ (7 files): WorkflowCard, WorkflowDetail, StepCard, StepEditor, ABTestCard, ApprovalQueue, CreateWorkflowModal
+- components/intelligence/ (4 files): CallLogForm, IntelligenceTab, ScoreBreakdown, FlagList, ZorakleForm
+- app/(auth)/workflows/ (2 pages): dashboard, [workflowId] builder
+- app/(auth)/onboarding/page.tsx
+- app/api/workflows/ (12 route files)
+- app/api/cron/ (4 route files): workflow-scheduler, workflow-analysis, workflow-notifications, workflow-delivery-sync
+- app/api/track/ (2 route files): open/[logId], click/[logId]
+- app/api/intelligence/ (5 route files): call-logs, profile, zorakle, franchisee, onboarding
+- scripts/ (3 files): setup-workflow-tables, seed-workflows, setup-workflow-custom-fields
+- SESSION_START.md, docs/NAH-FO-INTELLIGENCE-PLAN.md
 
 ## Files Modified
-- types/database.ts — Added 7 workflow table types to Database interface
-- types/scout.ts — Added 4 new tool names to ScoutToolName union
-- lib/scout/tools.ts — Added 4 workflow tool definitions
-- lib/scout/tool-executor.ts — Added 4 workflow tool handlers
-- lib/ghl/index.ts — Added custom field resolver exports
-- lib/workflows/index.ts — Added all new module exports
-- app/(auth)/layout.tsx — Added /workflows title + dynamic route matching
-- components/layout/Sidebar.tsx — Added Workflows nav item (leadership)
-- app/api/webhooks/ghl/route.ts — Added dedup, delivery tracking, auto-enrollment
+- types/database.ts — added workflow + intelligence table types
+- types/scout.ts — added 4 workflow tool names
+- lib/scout/tools.ts — added 4 workflow tool definitions
+- lib/scout/tool-executor.ts — added 4 tool handlers + fixed stage name mapping
+- lib/ghl/client.ts — added getCustomFieldDefinitions
+- lib/ghl/index.ts — added custom field + new function exports
+- lib/accountability/engine.ts — added findStage helper, replaced brittle .includes()
+- app/(auth)/layout.tsx — added workflows, onboarding titles + dynamic route matching
+- app/api/pipeline/move/route.ts — flexible stage matching + PTO hard gate (Rule 5)
+- app/api/ghl/sync/route.ts — error visibility, retry, validation, status codes
+- app/api/webhooks/ghl/route.ts — dedup, delivery tracking, auto-enrollment
+- components/layout/Sidebar.tsx — added Workflows + Onboarding nav items
+- components/leads/LeadDetail.tsx — added Intel tab
+- components/pipeline/ContactDetail.tsx — added Intel tab
+- .claude/commands/wrap-session.md — simplified format
 
 ## Files Deleted
 - app/api/auth/setup/route.ts
@@ -110,33 +87,17 @@ Phase: Workflow Intelligence Engine — COMPLETE / Health: Green / Duration: Ful
 - app/api/auth/reset-pw/route.ts
 - app/api/auth/create-user/route.ts
 
-## Bugs Found
-- GHL custom field type NUMBER doesn't exist — use NUMERICAL — Fixed
-- GHL CHECKBOX type requires options array — used SINGLE_OPTIONS instead — Fixed
-- Supabase client .catch() doesn't exist on PostgREST — use try/catch — Fixed
-- CREATE POLICY IF NOT EXISTS not valid PostgreSQL — use pg_policies check — Fixed
-- .next cache stale after deleting route files — cleaned manually — Fixed
-
 ## Open Issues Carried Forward
-- Wire workflow quick action buttons to approval flow in UI
-- Mack Wright duplicate opportunity in GHL (data issue)
+- Wire workflow quick action buttons to approval flow — Low
+- Phase 5 blocked on Matt's FO software info — Blocking
+- Mack Wright duplicate opportunity — Low
 
 ## Exact Next Step
-Wire the workflow dashboard quick action buttons (pause/resume/archive) to the approval flow API, or ask Corey what feature area to build next.
+Surface the Phase 5 questions to Corey (FO management software name, API availability, franchisee data sources), or wire workflow quick action buttons to the approval flow API.
 
-## Copy This To Start Next Session
+## Copy This To Start Next Session In Claude.ai
 ---
-Read memory.md first. Then CLAUDE.md.
-
-Last session (2026-03-25): Built complete Workflow Intelligence Engine —
-7 DB tables, 12 services, 16 API endpoints, 4 cron jobs, 2 UI pages,
-6 components, 9 seeded workflows, 4 Scout tools, GHL custom fields
-created, delivery sync via polling (no webhooks). All deployed to Vercel.
-
-IMMEDIATE TODO:
-1. Wire workflow quick actions to approval flow (dashboard cards)
-2. Get Corey's feedback on the Workflows page UI
-3. Decide next feature area to build
-
-Known issues: Mack Wright duplicate opp (data), quick actions console.log only.
+Read this file then tell me: current status, last session summary, open issues, what we build today.
+GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
+Then: Surface Phase 5 questions to Corey about FO management software, or wire workflow quick action buttons to approval flow.
 ---
