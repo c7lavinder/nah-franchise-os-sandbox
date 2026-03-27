@@ -9,6 +9,8 @@ interface LeadCardProps {
   onMoveClick?: (opportunity: GHLOpportunity) => void;
   /** Intelligence score (0-100) if available */
   score?: number | null;
+  /** Whether this contact has an intelligence profile (undefined = not checked) */
+  hasIntelProfile?: boolean;
 }
 
 /** Calculate days since last update */
@@ -34,7 +36,7 @@ function scoreBadgeColor(score: number): string {
   return "bg-danger/15 text-danger border-danger/25";
 }
 
-export default function LeadCard({ opportunity, onMoveClick, score }: LeadCardProps) {
+export default function LeadCard({ opportunity, onMoveClick, score, hasIntelProfile }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: opportunity.id,
     data: { opportunity },
@@ -78,11 +80,18 @@ export default function LeadCard({ opportunity, onMoveClick, score }: LeadCardPr
                 {(opportunity.monetaryValue / 1000).toFixed(0)}k
               </span>
             ) : null}
-            {score !== undefined && score !== null && (
+            {score !== undefined && score !== null ? (
               <span className={`px-1.5 py-0.5 rounded-sm text-[10px] font-bold border ${scoreBadgeColor(score)}`}>
                 {score}
               </span>
-            )}
+            ) : hasIntelProfile === false ? (
+              <span
+                className="w-4 h-4 rounded-full bg-bg-hover border border-border-default flex items-center justify-center text-[9px] text-text-tertiary"
+                title="No intelligence profile — run bootstrap"
+              >
+                ?
+              </span>
+            ) : null}
           </div>
         </div>
         {/* Mobile move button — hidden on desktop where drag works */}

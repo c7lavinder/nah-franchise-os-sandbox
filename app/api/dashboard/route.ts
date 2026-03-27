@@ -1,30 +1,42 @@
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/dashboard?period=7d|30d|90d|all
+ * GET /api/dashboard?period=week|month|quarter|year
  *
  * Aggregates pipeline and lead source metrics from GHL for the leadership dashboard.
  * Only counts opportunities in NAH Franchise Sales pipelines — excludes old/other pipelines.
- * When a period is specified, filters opportunities by createdAt date.
+ * Filters opportunities by createdAt date based on the selected time period.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import * as ghl from "@/lib/ghl";
 import type { GHLOpportunity } from "@/types/ghl";
 
+type DashboardPeriod = "week" | "month" | "quarter" | "year";
+
+const VALID_PERIODS: ReadonlySet<string> = new Set<DashboardPeriod>(["week", "month", "quarter", "year"]);
+
+/** Maps a period to the number of days to look back */
+const PERIOD_DAYS: Record<DashboardPeriod, number> = {
+  week: 7,
+  month: 30,
+  quarter: 90,
+  year: 365,
+};
+
 /** Returns an ISO date string for the start of the requested period */
-function getPeriodStart(period: string): string | null {
-  if (period === "all") return null;
+function getPeriodStart(period: DashboardPeriod): string {
   const now = new Date();
-  const days = period === "7d" ? 7 : period === "30d" ? 30 : period === "90d" ? 90 : 0;
-  if (days === 0) return null;
-  now.setDate(now.getDate() - days);
+  now.setDate(now.getDate() - PERIOD_DAYS[period]);
   return now.toISOString();
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const period = request.nextUrl.searchParams.get("period") ?? "all";
+    const rawPeriod = request.nextUrl.searchParams.get("period") ?? "month";
+    const period: DashboardPeriod = VALID_PERIODS.has(rawPeriod)
+      ? (rawPeriod as DashboardPeriod)
+      : "month";
     const periodStart = getPeriodStart(period);
 
     // Get NAH pipelines
@@ -44,10 +56,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Apply date filter if period is not "all"
-    const filtered = periodStart
-      ? allOpportunities.filter((o) => o.createdAt >= periodStart)
-      : allOpportunities;
+    // Filter opportunities to the selected time period
+    const filtered = allOpportunities.filter((o) => o.createdAt >= periodStart);
 
     // Count by status
     const statusCounts = { open: 0, won: 0, lost: 0 };

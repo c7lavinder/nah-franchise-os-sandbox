@@ -11,6 +11,7 @@
  */
 
 import { useState, useMemo } from "react";
+import { FileText, Loader2, Sparkles } from "lucide-react";
 import CallLogForm from "@/components/intelligence/CallLogForm";
 
 interface ProfileUpdate {
@@ -92,8 +93,43 @@ export default function IntelTab({ contactId, contactName, profileUpdates, hasAi
   const detectedType = useMemo(() => detectCallType(profileUpdates), [profileUpdates]);
   const [callType, setCallType] = useState<"intro" | "matt" | "sam" | "mark">(detectedType);
   const [saved, setSaved] = useState(false);
+  const [transcriptText, setTranscriptText] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [transcriptPrefill, setTranscriptPrefill] = useState<Record<string, unknown> | null>(null);
+  const [transcriptSummary, setTranscriptSummary] = useState<string | null>(null);
 
-  const prefillData = useMemo(() => buildPrefillData(profileUpdates), [profileUpdates]);
+  const prefillData = useMemo(() => {
+    // Merge AI grade pre-fill with transcript pre-fill (transcript takes priority)
+    const base = buildPrefillData(profileUpdates);
+    if (transcriptPrefill) {
+      return { ...base, ...transcriptPrefill };
+    }
+    return base;
+  }, [profileUpdates, transcriptPrefill]);
+
+  const hasAnyPrefill = hasAiData || transcriptPrefill !== null;
+
+  async function analyzeTranscriptText() {
+    if (transcriptText.trim().length < 50) return;
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/intelligence/transcript", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: transcriptText, contactName }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const analysis = data.analysis;
+        if (analysis.callType !== "unknown") {
+          setCallType(analysis.callType);
+        }
+        setTranscriptPrefill(analysis.extractedFields);
+        setTranscriptSummary(analysis.summary);
+      }
+    } catch { /* silent */ }
+    setAnalyzing(false);
+  }
 
   if (saved) {
     return (
@@ -117,11 +153,45 @@ export default function IntelTab({ contactId, contactName, profileUpdates, hasAi
 
   return (
     <div className="px-4 py-4">
+      {/* Transcript paste area — for AI-assisted pre-fill */}
+      {!hasAnyPrefill && (
+        <div className="mb-4 rounded-lg border border-border-default bg-bg-secondary p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <FileText size={16} className="text-nah-blue" />
+            <p className="text-body-sm font-medium text-text-primary">Have a transcript?</p>
+          </div>
+          <p className="text-caption text-text-tertiary mb-3">
+            Paste your call transcript or Gemini notes and Scout will auto-fill the form.
+          </p>
+          <textarea
+            value={transcriptText}
+            onChange={(e) => setTranscriptText(e.target.value)}
+            placeholder="Paste call transcript here..."
+            rows={4}
+            className="w-full px-3 py-2 rounded-md bg-bg-primary border border-border-default text-body-sm text-text-primary placeholder:text-text-tertiary focus:border-nah-blue focus:outline-none resize-none mb-2"
+          />
+          <button
+            onClick={analyzeTranscriptText}
+            disabled={analyzing || transcriptText.trim().length < 50}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-nah-blue text-white text-button hover:bg-nah-blue-hover transition-colors disabled:opacity-50"
+          >
+            {analyzing ? (
+              <><Loader2 size={14} className="animate-spin" /> Analyzing...</>
+            ) : (
+              <><Sparkles size={14} /> Analyze with Scout</>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* AI assist indicator */}
-      {hasAiData && profileUpdates.length > 0 && (
+      {hasAnyPrefill && (
         <div className="mb-4 px-3 py-2 rounded-lg bg-nah-blue/5 border border-nah-blue/15">
           <p className="text-body-sm text-nah-blue">
-            Scout pre-filled {profileUpdates.length} fields from the call. Review each field before saving.
+            {transcriptSummary
+              ? `Scout analyzed the transcript: ${transcriptSummary}`
+              : `Scout pre-filled ${profileUpdates.length} fields from the call. Review each field before saving.`
+            }
           </p>
         </div>
       )}
@@ -146,7 +216,7 @@ export default function IntelTab({ contactId, contactName, profileUpdates, hasAi
         callType={callType}
         contactId={contactId}
         contactName={contactName}
-        prefillData={hasAiData ? prefillData : undefined}
+        prefillData={hasAnyPrefill ? prefillData : undefined}
         onSave={() => setSaved(true)}
         onCancel={() => { /* stay on tab */ }}
       />

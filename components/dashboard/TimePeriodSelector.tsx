@@ -1,15 +1,17 @@
 "use client";
 
+export type TimePeriod = "week" | "month" | "quarter" | "year";
+
 interface TimePeriodSelectorProps {
-  selected: string;
-  onChange: (period: string) => void;
+  selected: TimePeriod;
+  onChange: (period: TimePeriod) => void;
 }
 
-const PERIODS = [
-  { value: "7d", label: "7 Days" },
-  { value: "30d", label: "30 Days" },
-  { value: "90d", label: "90 Days" },
-  { value: "all", label: "All Time" },
+const PERIODS: { value: TimePeriod; label: string }[] = [
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
+  { value: "quarter", label: "Quarter" },
+  { value: "year", label: "Year" },
 ];
 
 export default function TimePeriodSelector({ selected, onChange }: TimePeriodSelectorProps) {

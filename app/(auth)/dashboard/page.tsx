@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { BarChart3, RefreshCw } from "lucide-react";
 import { KPICards, PipelineFunnelChart, LeadSourceTable, StageVelocity, ConversionChart, TimePeriodSelector, ScoreDistribution } from "@/components/dashboard";
+import type { TimePeriod } from "@/components/dashboard";
 
 interface SourceData {
   name: string;
@@ -33,9 +34,9 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timePeriod, setTimePeriod] = useState("all");
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>("month");
 
-  const fetchDashboard = useCallback(async (period: string) => {
+  const fetchDashboard = useCallback(async (period: TimePeriod) => {
     setLoading(true);
     setError(null);
     try {
