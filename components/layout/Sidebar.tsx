@@ -27,13 +27,11 @@ interface NavItem {
   roles: UserRole[];
 }
 
-/** Main nav — only the core pages */
+/** Main nav — core pages only. Dashboard + Workflows moved to user pullout per §1.12 */
 const NAV_ITEMS: NavItem[] = [
   { label: "Daily HQ", href: "/daily-hq", icon: LayoutDashboard, roles: ["rep", "leadership"] },
   { label: "Pipeline", href: "/pipeline", icon: GitBranch, roles: ["rep", "leadership"] },
   { label: "Calls", href: "/calls", icon: Phone, roles: ["rep", "leadership"] },
-  { label: "Dashboard", href: "/dashboard", icon: BarChart2, roles: ["leadership"] },
-  { label: "Workflows", href: "/workflows", icon: Workflow, roles: ["leadership"] },
 ];
 
 interface SidebarProps {
@@ -183,6 +181,24 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
                 boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
               }}
             >
+              {/* Dashboard + Workflows — parked per §1.12, accessible here */}
+              <Link
+                href="/dashboard"
+                onClick={() => { setProfileOpen(false); onNavClick?.(); }}
+                className="flex items-center gap-3 px-4 py-3 text-text-secondary hover:bg-[rgba(0,161,225,0.05)] hover:text-nah-blue transition-colors"
+              >
+                <BarChart2 size={16} />
+                <span className="text-sm font-medium">Dashboard</span>
+              </Link>
+              <Link
+                href="/workflows"
+                onClick={() => { setProfileOpen(false); onNavClick?.(); }}
+                className="flex items-center gap-3 px-4 py-3 text-text-secondary hover:bg-[rgba(0,161,225,0.05)] hover:text-nah-blue transition-colors"
+              >
+                <Workflow size={16} />
+                <span className="text-sm font-medium">Workflows</span>
+              </Link>
+              <div style={{ borderTop: "1px solid rgba(0,0,0,0.04)" }} />
               <Link
                 href="/knowledge"
                 onClick={() => { setProfileOpen(false); onNavClick?.(); }}
