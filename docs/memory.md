@@ -377,6 +377,25 @@ No auth.users rows created. These are database-only placeholder records for FK r
 
 ---
 
+## Sprint 2 — GHL Sync Layer (2026-04-07)
+
+### Sprint 2 — Phase 2.1: GHL Custom Field IDs
+
+**Result: ✅ SUCCESS — all 4 fields found, 2 pipelines updated**
+
+GHL custom fields discovered:
+
+| Pipeline | GHL Field Key | GHL Field ID | Status |
+|---|---|---|---|
+| Sales | `contact.nah_sales_stage_id` | `WE90XmjQkxzPS7WW5Aop` | ✅ Seeded on `pipelines` table |
+| Follow-up | `contact.nah_follow_up_stage_id` | `NNIqrzmieFA2fyGS56TX` | ✅ Seeded on `pipelines` table |
+| Onboarding | `contact.nah_onboarding_stage_id` | `bOjnT44u1ugIUgV545Js` | 📝 Stored in memory (pipeline doesn't exist yet) |
+| Coaching | `contact.nah_coaching_stage_id` | `h84JYJl1JqXpRH5m8quj` | 📝 Stored in memory (pipeline doesn't exist yet) |
+
+Note: Follow-up field key in GHL is `nah_follow_up_stage_id` (with underscore between "follow" and "up"), not `nah_followup_stage_id`.
+
+---
+
 ## Tech Stack (Locked)
 - Frontend: Next.js 14, TypeScript strict, App Router
 - Styling: Tailwind CSS 3 with NAH design system
