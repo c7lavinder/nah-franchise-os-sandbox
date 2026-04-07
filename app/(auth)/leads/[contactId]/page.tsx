@@ -11,6 +11,7 @@ import { PROFILE_FIELDS, CATEGORY_META } from "@/lib/profile/field-registry";
 import type { FieldCategory } from "@/lib/profile/field-registry";
 import type { GHLContact, GHLNote, GHLTask, GHLMessage } from "@/types/ghl";
 import { NotesSection, TaskList, ActivityTimeline } from "@/components/leads";
+import PipelinesAccordion from "@/components/contact/PipelinesAccordion";
 
 const CATEGORIES: FieldCategory[] = [
   "territory", "franchise_fit", "financial", "trainual",
@@ -30,7 +31,7 @@ export default function LeadProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
-  const [activeTab, setActiveTab] = useState<"profile" | "notes" | "tasks" | "activity">("profile");
+  const [activeTab, setActiveTab] = useState<"stages" | "profile" | "notes" | "tasks" | "activity">("stages");
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -175,6 +176,7 @@ export default function LeadProfilePage() {
       {/* Tabs */}
       <div className="flex border-b border-border-default px-1 flex-shrink-0">
         {([
+          { key: "stages" as const, label: "Stages" },
           { key: "profile" as const, label: "Profile" },
           { key: "notes" as const, label: `Notes (${notes.length})` },
           { key: "tasks" as const, label: `Tasks (${tasks.length})` },
@@ -199,6 +201,10 @@ export default function LeadProfilePage() {
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 size={24} className="animate-spin text-text-tertiary" />
+          </div>
+        ) : activeTab === "stages" ? (
+          <div className="p-4">
+            <PipelinesAccordion contactId={contactId} />
           </div>
         ) : activeTab === "profile" ? (
           <div className="p-4 space-y-4">
