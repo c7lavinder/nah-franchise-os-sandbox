@@ -446,11 +446,34 @@ Script location: `scripts/backfill-ghl-contacts.ts`
 | 2.2: Webhook + sync | ✅ SUCCESS | Endpoint built, local test passed |
 | 2.3: Backfill dry-run | ✅ COMPLETE | 3,083 contacts, 2,838 to import, 245 skipped |
 
-**Awaiting human approval to run:**
-```bash
-npx tsx scripts/backfill-ghl-contacts.ts --live
+### Sprint 2 — Phase 2.3: Live Backfill COMPLETE
+
+**Result: ✅ SUCCESS — 2,949 contacts imported, 0 failures**
+
+Pre-backfill actions:
+- Created 7 missing active leads in GHL (not yet in the GHL location, only in CSV)
+- Re-ran dry-run: all 19 active leads now matched by email
+
+Live backfill results:
 ```
-This will insert 2,838 contacts + create pipeline state rows (2,012 Sales + 826 Nurture).
+Contacts inserted:      2,949
+Sales states created:   19  (at correct stages per CSV)
+Nurture states created: 2,930
+Skipped (lost/DNC):     141
+Failed:                 0
+```
+
+Production pipeline state breakdown:
+| Pipeline | Stage | Count |
+|---|---|---|
+| Sales | Engagement | 8 |
+| Sales | Qualification | 3 |
+| Sales | Discovery | 2 |
+| Sales | Compliance | 2 |
+| Sales | Awarding | 4 |
+| Follow-up | Nurture | 2,930 |
+
+**Pending:** Corey will provide a list of 60+ converted leads by end of week to move to correct stages.
 
 ---
 
