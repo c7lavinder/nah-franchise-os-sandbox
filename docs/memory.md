@@ -511,6 +511,56 @@ Everything works — the webhook endpoint is live and creates contacts + pipelin
 
 ---
 
+## Sprint 3 — Pipeline Page Rewire (2026-04-07)
+
+### Sprint 3 — File audit
+
+Pipeline page: `app/(auth)/pipeline/page.tsx`
+Pipeline components: `components/pipeline/` (OwnershipPath, LeadList, PipelineLeadList, etc.)
+Sidebar: `components/layout/Sidebar.tsx`
+New API endpoints: `app/api/pipeline/stages/route.ts`, `app/api/pipeline/contacts/route.ts`
+
+### Sprint 3 — Summary
+
+**Files modified:**
+- `components/pipeline/OwnershipPath.tsx` — complete rewrite: 6-stage Sales + 3-stage Follow-up from Supabase
+- `app/(auth)/pipeline/page.tsx` — rewired to use Supabase data, removed GHL dependency
+- `components/layout/Sidebar.tsx` — removed Dashboard + Workflows from main nav, added to user pullout
+
+**Files created:**
+- `app/api/pipeline/stages/route.ts` — pipeline stages + active contact counts from Supabase
+- `app/api/pipeline/contacts/route.ts` — all leads list with urgency coloring per §1.14
+- `components/pipeline/PipelineLeadList.tsx` — new lead list component using Supabase data
+
+**Phases completed:** 3.1, 3.2, 3.3, 3.4, 3.5, 3.6
+
+**Verified locally:**
+- `npm run build`: ✅ passes
+- `npm run dev`: ✅ starts cleanly
+- `/api/pipeline/stages`: returns correct counts (Engagement=8, Qualification=3, Discovery=2, Compliance=2, Awarding=4, Closed=0, Nurture=2930)
+- Count query fix: uses `{ count: "exact", head: true }` to avoid Supabase 1,000-row default limit
+
+### Sprint 3 — Visual review checklist
+
+- [ ] Pipeline page loads
+- [ ] Path to Ownership row shows 6 stage circles (not 11)
+- [ ] Stage names match: Engagement, Qualification, Discovery, Compliance, Awarding, Closed
+- [ ] Stage counts look right (Engagement=8, Qualification=3, etc.)
+- [ ] Long-Term row shows 3 stages: Follow-up, Nurture, Re-engaged
+- [ ] Nurture count is ~2,930
+- [ ] Onboarding row is gone
+- [ ] Coaching row is gone
+- [ ] All Leads list at bottom shows real contacts with stages
+- [ ] Color labels (Fresh / At Risk / Losing) appear on lead rows
+- [ ] Clicking a stage circle filters the lead list
+- [ ] Workflows is NOT in left nav
+- [ ] Dashboard is NOT in left nav
+- [ ] Workflows IS in user pullout menu
+- [ ] Dashboard IS in user pullout menu
+- [ ] No console errors in browser devtools
+
+---
+
 ## Tech Stack (Locked)
 - Frontend: Next.js 14, TypeScript strict, App Router
 - Styling: Tailwind CSS 3 with NAH design system
