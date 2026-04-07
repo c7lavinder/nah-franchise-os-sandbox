@@ -95,6 +95,35 @@ Root cause E+F: The `generateRewrites` function queries `workflow_steps` (joined
 - Missing ANTHROPIC_API_KEY → returns 503
 - ✅ CONFIRMED
 
+### Bug 3 — Raw markdown rendering in Scout chat bubbles
+
+**SEE:**
+- `components/scout/ScoutBubble.tsx:27-29` — renders `{content}` as plain text inside a `<div>` with `whitespace-pre-wrap`
+- No `react-markdown` or `remark-gfm` in `package.json`
+- No `@tailwindcss/typography` plugin installed
+
+**DIAGNOSE:**
+Root cause: Scout message content (returned from Claude API as markdown) is rendered as plain text via `{content}` JSX expression. Markdown syntax (`**bold**`, `# headers`, `- bullets`, `` `code` ``) appears literally in the chat bubble instead of being parsed into HTML elements.
+
+**FIX:**
+- Installed: `react-markdown`, `remark-gfm`, `@tailwindcss/typography`
+- File: `components/scout/ScoutBubble.tsx` — replaced `{content}` with `<ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>` wrapped in `prose prose-sm` classes
+- File: `tailwind.config.ts` — added `@tailwindcss/typography` plugin
+- Only assistant messages render markdown (ScoutBubble). UserBubble remains plain text (security: never render user input as HTML)
+
+**AUDIT:**
+1. Does the fix address the root cause? YES — markdown is now parsed and rendered as HTML
+2. Does the fix introduce new failure modes? NO — ReactMarkdown safely sanitizes output by default
+3. Does the fix touch files outside scope? YES — `tailwind.config.ts` (required for prose classes) and `package.json` (new deps) — both minimal and necessary
+4. Does `npm run build` pass? YES
+5. Does the fix break existing tests? NO
+6. Is there DB state that needs updating? NO
+
+**CONFIRM:**
+- `npm run build`: ✅ passes
+- Scout page bundle increased from 101kB to 144kB (expected: ReactMarkdown + remark-gfm added)
+- ✅ CONFIRMED
+
 ---
 
 ## Tech Stack (Locked)

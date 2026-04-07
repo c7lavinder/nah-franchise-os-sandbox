@@ -133,7 +133,8 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  // Sprint 0 fix: add typography plugin for Scout markdown rendering
+  plugins: [require("@tailwindcss/typography")],
 };
 
 export default config;

@@ -1,5 +1,8 @@
 "use client";
 
+// Sprint 0 fix: Scout chat was rendering markdown as literal text
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { MessageSquare } from "lucide-react";
 
 interface ScoutBubbleProps {
@@ -22,10 +25,12 @@ export default function ScoutBubble({ content, timestamp }: ScoutBubbleProps) {
           Scout
         </span>
 
-        {/* Message content */}
+        {/* Message content — rendered as markdown for assistant messages */}
         <div className="bg-scout-bubble-bg border border-scout-bubble-border rounded-xl rounded-tl-sm px-4 py-3">
-          <div className="text-body-lg text-text-primary whitespace-pre-wrap break-words">
-            {content}
+          <div className="prose prose-sm max-w-none text-text-primary prose-headings:text-text-primary prose-strong:text-text-primary prose-code:text-scout-purple prose-a:text-nah-blue">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {content}
+            </ReactMarkdown>
           </div>
         </div>
 
