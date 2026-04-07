@@ -421,18 +421,21 @@ Dry-run with `--limit 10`:
 - 10 would be inserted (new — contacts table is empty)
 - 0 updates, 0 unchanged
 
-Full GHL account scan (still running at time of commit):
-- 100,000+ contacts in the GHL location (pagination at page 1000+)
-- This is significantly more than the ~2,500 expected from §1.19 migration plan
-- The GHL account likely contains all historical contacts, not just franchise leads
+Full dry-run results (fixed pagination — uses both startAfterId + startAfter cursor):
+```
+Total GHL contacts:     3,083
+Categorized as sales:   2,012  → Sales Pipeline → Engagement
+Categorized as nurture:   826  → Follow-up Pipeline → Nurture
+Skipped (closed-lost):    245  → not imported
+New inserts:            2,838
+```
 
-**Decision needed from Corey:**
-- Do we backfill ALL 100k+ contacts, or only those in specific GHL pipelines (NAH Franchise Sales)?
-- Per §1.19: Active=25, Nurture=1,101, Old=1,336 (trash). The other ~97k are likely unrelated contacts.
-- Recommend: filter by GHL pipeline membership or tags, not bulk-import everything.
+- Categorization uses GHL tags: `nurture` → Follow-up/Nurture, `closed-lost` → skip, everything else → Sales/Engagement
+- Rate-limit handling with retry (429 → wait and retry up to 5x)
+- Deduplication by GHL contact ID (GHL API pagination can return duplicates)
 
 Script location: `scripts/backfill-ghl-contacts.ts`
-- Supports `--dry-run` (default), `--live`, `--limit N`
+- `--dry-run` (default), `--live`, `--limit N`
 - Logs failures per-contact and continues
 
 ### Sprint 2 — Summary
@@ -441,13 +444,13 @@ Script location: `scripts/backfill-ghl-contacts.ts`
 |---|---|---|
 | 2.1: GHL field IDs | ✅ SUCCESS | 4/4 fields found, 2 pipelines updated |
 | 2.2: Webhook + sync | ✅ SUCCESS | Endpoint built, local test passed |
-| 2.3: Backfill dry-run | ✅ DRY-RUN DONE | 100k+ contacts in GHL, needs filtering decision |
+| 2.3: Backfill dry-run | ✅ COMPLETE | 3,083 contacts, 2,838 to import, 245 skipped |
 
-**Recommended next steps:**
-1. Decide backfill scope: all contacts vs pipeline-filtered
-2. If filtered: add `--pipeline` flag to backfill script to only import contacts from specific GHL pipelines
-3. Run live backfill with appropriate filters
-4. Register the webhook URL in GHL Settings for ContactCreate events
+**Awaiting human approval to run:**
+```bash
+npx tsx scripts/backfill-ghl-contacts.ts --live
+```
+This will insert 2,838 contacts + create pipeline state rows (2,012 Sales + 826 Nurture).
 
 ---
 
