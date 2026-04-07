@@ -17,10 +17,83 @@
 ---
 
 ## Current Status
-- **Phase:** Phase 0 — Ready to build
-- **Last updated:** 2026-03-23
-- **Last session:** Full discovery complete — all docs written and updated (workflows engine, 30-day sequence, objection handling, pipeline v2, architecture, features, command system)
-- **Next action:** Run Phase 0 master build prompt to initialize Next.js project
+- **Phase:** Sprint 0 — Bug Fixes (Autonomous Overnight Run)
+- **Last updated:** 2026-04-07
+- **Last session:** Overnight autonomous execution — Sprint 0 + Sprint 1
+- **Next action:** Sprint 0 bug fixes, then Sprint 1 Supabase schema migration
+
+---
+
+## Sprint 0 — Bug Fixes
+**Started:** 2026-04-07
+**Branch:** sprint-0-bug-fixes
+
+### Pre-flight
+- Repo: c7lavinder/nah-franchise-os-sandbox ✅
+- Main branch clean: ✅
+- Supabase CLI: v2.84.2 ✅
+- npm install: ✅
+- npm run build on main: ✅ (no pre-existing TS errors)
+- Framework: Next.js 14, App Router, Supabase client in lib/supabase/
+- Codebase: 90+ TS/TSX files, 5 existing migrations
+
+### Bug 1 — All scored leads bucketed as "Low"
+
+**SEE:**
+- `components/dashboard/ScoreDistribution.tsx` — fetches `/api/intelligence/scores?tier=high|medium|low` and displays High/Medium/Low bar chart
+- `app/api/intelligence/scores/route.ts:18-22` — defines tiers: high (70-100), medium (40-69), low (0-39) — thresholds are correct
+- `lib/intelligence/scoring.ts` — calculates 100-point score from `candidate_intelligence` table fields (financial, operational, engagement, momentum)
+- `lib/profile/lead-scoring.ts` — separate scoring engine for lead cards, uses Hot/Warm/Cool/Cold tiers — this engine works correctly
+- `components/pipeline/LeadList.tsx:230-236` — displays Hot/Warm/Cool/Cold from `calculateLeadScore` — this is correct
+- `app/api/contacts/batch/route.ts:122-130` — dynamically calculates lead score from GHL fields, returns correct tiers
+
+**DIAGNOSE:**
+Root cause D: All `candidate_intelligence.current_score` values are 0 or null because the intelligence bootstrap (`lib/intelligence/bootstrap.ts`) has not been run with real profile data (liquid_capital, funding_path, trainual_completion, etc. are all null). The scoring code in `lib/intelligence/scoring.ts` is correct — with empty data, all scores default to 0, landing every record in the "Low" bucket (0-39). This is a data layer issue, not a logic bug.
+
+Two separate scoring systems exist:
+1. `lib/profile/lead-scoring.ts` → Hot/Warm/Cool/Cold (pipeline LeadList) — works dynamically from GHL fields
+2. `lib/intelligence/scoring.ts` → High/Medium/Low (ScoreDistribution dashboard) — requires populated `candidate_intelligence` table
+
+**FIX:** ⏭️ SKIPPED — per Sprint 0 instructions, data layer issues are deferred. Do not invent scores.
+
+**AUDIT:** N/A — skipped bug.
+
+**CONFIRM:** ⏭️ SKIPPED — data layer issue, deferred to Sprint 1/2 when intelligence bootstrap runs against real data.
+
+### Bug 2 — Workflow rewrite endpoint returns 500
+
+**SEE:**
+- `app/api/workflows/[workflowId]/rewrite/route.ts` — route handler
+- `lib/workflows/rewrite-engine.ts` — calls `supabase.from("workflow_steps").select(...)` at line 49
+- `supabase/migrations/` — no `workflow_steps` or `workflow_versions` table exists. Only `ghl_workflows` (a lookup table) in `004_ghl_lookup_tables.sql`
+- `lib/workflows/types.ts` — defines 7 workflow tables that don't exist in the DB yet
+
+**DIAGNOSE:**
+Root cause E+F: The `generateRewrites` function queries `workflow_steps` (joined to `workflow_versions` and `workflows`), but these tables don't exist in Supabase yet. Postgres returns a "relation does not exist" error. The route handler caught this as a generic 500 instead of returning a meaningful status code. Additionally, the handler did `await params` without destructuring `workflowId`, wasting the route parameter.
+
+**FIX:**
+- File: `app/api/workflows/[workflowId]/rewrite/route.ts`
+- Added: proper `workflowId` destructuring from params
+- Added: 400 for missing workflowId
+- Added: 503 for missing ANTHROPIC_API_KEY
+- Added: 404 for "not found" errors (step doesn't exist)
+- Added: 503 for "relation does not exist" errors (workflow tables not deployed)
+- Preserved: existing business logic untouched
+
+**AUDIT:**
+1. Does the fix address the root cause? YES — returns structured errors (400/404/503) instead of generic 500
+2. Does the fix introduce new failure modes? NO — error handling is additive; existing flow unchanged
+3. Does the fix touch files outside scope? NO — only the route handler
+4. Does `npm run build` pass? YES
+5. Does the fix break existing tests? NO — no tests in repo
+6. Is there DB state that needs updating? NO — code fix only, tables will be created in Sprint 1
+
+**CONFIRM:**
+- `npm run build`: ✅ passes
+- Missing workflow tables → now returns 503 with message "Workflow tables not yet deployed" instead of raw 500
+- Missing workflowId → returns 400
+- Missing ANTHROPIC_API_KEY → returns 503
+- ✅ CONFIRMED
 
 ---
 

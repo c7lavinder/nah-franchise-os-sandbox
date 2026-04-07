@@ -16,7 +16,17 @@ export async function POST(
   { params }: { params: Promise<{ workflowId: string }> }
 ) {
   try {
-    await params; // validate route param exists
+    // Sprint 0 fix: validate route params and return proper status codes instead of 500
+    const { workflowId } = await params;
+
+    if (!workflowId) {
+      return NextResponse.json({ error: "Missing workflow ID" }, { status: 400 });
+    }
+
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json({ error: "AI service not configured" }, { status: 503 });
+    }
+
     const body = await request.json();
     const { stepId, context } = body;
 
@@ -28,10 +38,22 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Rewrite generation failed";
+
+    // Sprint 0 fix: distinguish "not found" from server errors
+    if (message.includes("not found")) {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
+
+    // Table doesn't exist yet — workflow schema not deployed
+    if (message.includes("relation") && message.includes("does not exist")) {
+      return NextResponse.json(
+        { error: "Workflow tables not yet deployed. Run schema migration first." },
+        { status: 503 }
+      );
+    }
+
     console.error("Rewrite generation error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Rewrite generation failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
