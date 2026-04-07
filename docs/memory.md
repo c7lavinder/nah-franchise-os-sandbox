@@ -218,8 +218,31 @@ Not a logic bug — backlog cleanup. The old accountability engine fired alerts 
 **DESIGN:** Single row: id=1, yellow=5d, red=10d, sync_enabled=true, threshold=50
 **AUDIT:** Written ✅
 
-### Local Supabase Test
-**SKIPPED:** Docker daemon not running — cannot run `supabase db reset`. Migrations are SQL-only and follow standard Postgres syntax. Will need to be tested by Corey with Docker running or against a staging Supabase instance.
+### Sprint 1 Local Verification — 2026-04-07
+
+**`supabase db reset` result: ✅ SUCCESS**
+
+All 24 migrations applied cleanly (5 existing + 19 new Sprint 1). Only notice: `extension "uuid-ossp" already exists, skipping` (harmless). Warning: `no files matched pattern: supabase/seed.sql` (expected — we use migration-based seeding).
+
+**Verification queries:**
+
+| Query | Expected | Actual | Status |
+|---|---|---|---|
+| `SELECT COUNT(*) FROM pipelines` | 2 | 2 | ✅ |
+| `SELECT COUNT(*) FROM pipeline_stages` | 9 | 9 | ✅ |
+| `SELECT COUNT(*) FROM pipeline_sub_tasks` | 19 | 19 | ✅ |
+| `SELECT COUNT(*) FROM pipeline_app_settings` | 1 | 1 | ✅ |
+| Public tables count | 23 | 23 | ✅ |
+| RLS-enabled tables | 19 (all 7 original + 12 new) | 19 | ✅ |
+
+**Seed data verified:**
+- Sales: 6 stages (Engagement→Qualification→Discovery→Compliance→Awarding→Closed), 18 sub-tasks (3/3/4/4/4/0)
+- Follow-up: 3 stages (Follow-up→Nurture→Re-engaged), 1 sub-task (resume_sales)
+- Closed stage: is_terminal=true ✅
+- pipeline_app_settings: id=1, yellow=5d, red=10d, sync_enabled=true, threshold=50 ✅
+- All sub-task state_types, labels, sort_orders match §1.4 and §1.9 exactly ✅
+
+**No errors. No warnings requiring attention.**
 
 ---
 
