@@ -246,6 +246,72 @@ All 24 migrations applied cleanly (5 existing + 19 new Sprint 1). Only notice: `
 
 ---
 
+## Phase A — Pre-Sprint 2 Housekeeping (2026-04-07)
+
+### Phase A — Task 1: Apply Sprint 1 migrations to production
+
+**Result: ✅ SUCCESS**
+
+- Existing 5 migrations (001–005) were already applied manually in production. Repaired migration history via `supabase migration repair --status applied 001 002 003 004 005 --linked`.
+- Dry-run confirmed only 19 Sprint 1 migrations would be pushed (no destructive operations).
+- `supabase db push --linked` applied all 19 cleanly. No errors.
+
+**Production verification:**
+
+| Query | Expected | Actual | Status |
+|---|---|---|---|
+| `SELECT COUNT(*) FROM pipelines` | 2 | 2 | ✅ |
+| `SELECT COUNT(*) FROM pipeline_stages` | 9 | 9 | ✅ |
+| `SELECT COUNT(*) FROM pipeline_sub_tasks` | 19 | 19 | ✅ |
+| `SELECT COUNT(*) FROM pipeline_app_settings` | 1 | 1 | ✅ |
+| `SELECT COUNT(*) FROM contacts` | 0 | 0 | ✅ |
+| `SELECT COUNT(*) FROM contact_pipeline_state` | 0 | 0 | ✅ |
+
+### Phase A — Task 2: Update users table with role assignments
+
+**Result: ⚠️ PARTIAL — only 2 users exist, 4 missing**
+
+Users in production:
+
+| Name | Email | Current Role | Target Role | Status |
+|---|---|---|---|---|
+| Corey Lavinder | corey@newagainhouses.com | admin | admin | ✅ Already correct |
+| Demo Admin | admin@newagainhouses.com | admin | admin | ✅ Already correct |
+| Chad Arnold | — | — | operator | ❌ Not in users table |
+| Matt Lavinder | — | — | admin | ❌ Not in users table |
+| Sam | — | — | specialist | ❌ Not in users table |
+| Mark | — | — | specialist | ❌ Not in users table |
+
+**Action needed:** Create user accounts for Chad, Matt, Sam, and Mark (or invite them via Supabase Auth), then assign roles.
+
+### Phase A — Task 3: Backfill default_logger_user_id on pipeline_sub_tasks
+
+**Result: ❌ BLOCKED — dependent users don't exist**
+
+Per §1.8 of MASTER_PLAN.md, default logger assignments require user UUIDs for Chad, Matt, Sam, and Mark. None of these users exist in the production `users` table. All 19 sub-tasks retain `default_logger_user_id = NULL`.
+
+Mapping for when users are created:
+- **Chad** (operator): outreach, intro_call, pto, nda, pfs, background, fdd, fdd_review_call, territory_call, fa_info_gathering, franchise_award_letter, fa, ff, resume_sales (14 sub-tasks)
+- **Matt** (admin): matt_call, matt_final_call (2 sub-tasks)
+- **Sam** (specialist): sam_call (1 sub-task)
+- **Mark** (specialist): mark_call (1 sub-task)
+- **API** (no user): zorakle (1 sub-task) — stays NULL, default_logger_type='api'
+
+### Phase A — Summary
+
+| Task | Status | Details |
+|---|---|---|
+| 1. Production schema push | ✅ SUCCESS | 19 migrations applied, all counts verified |
+| 2. User role assignments | ⚠️ PARTIAL | 2/6 users exist and have correct roles. 4 missing (Chad, Matt, Sam, Mark) |
+| 3. Sub-task default loggers | ❌ BLOCKED | 0/18 user-assigned sub-tasks updated (dependent users don't exist) |
+
+**Recommended next steps before Sprint 2:**
+1. Create user accounts for Chad Arnold (operator), Matt Lavinder (admin), Sam (specialist), Mark (specialist)
+2. After creation, run backfill: `UPDATE pipeline_sub_tasks SET default_logger_user_id = '<chad_uuid>' WHERE slug IN ('outreach','intro_call','pto','nda','pfs','background','fdd','fdd_review_call','territory_call','fa_info_gathering','franchise_award_letter','fa','ff','resume_sales');` (and similarly for Matt/Sam/Mark)
+3. Verify the Vercel deployment picks up the new schema by checking that `/api/pipeline/board` still returns 200
+
+---
+
 ## Tech Stack (Locked)
 - Frontend: Next.js 14, TypeScript strict, App Router
 - Styling: Tailwind CSS 3 with NAH design system
