@@ -158,6 +158,71 @@ Not a logic bug — backlog cleanup. The old accountability engine fired alerts 
 
 ---
 
+## Sprint 1 — Supabase Schema Migration
+**Started:** 2026-04-07
+**Branch:** sprint-1-supabase-schema (off sprint-0-bug-fixes)
+
+### Pre-existing schema notes
+- `users.role` column exists with CHECK constraint `('rep', 'marketing', 'leadership')` — needs migration to `('admin', 'operator', 'specialist', 'member')`
+- `app_settings` exists as key-value store (uuid PK + setting_key/setting_value) — new schema uses single-row config (int PK = 1). Will create new `app_settings_v2` to avoid collision, then rename in a later step. **Decision:** Since the existing `app_settings` has different structure, will drop the CHECK and create the new table with a different approach — alter existing or create fresh.
+- `inactivity_alerts` exists and is marked deprecated in §1.20 Group 6 — DO NOT TOUCH
+
+### Migration 0 — Enums (20260407000000)
+**DESIGN:** 9 enum types + moddatetime extension for updated_at triggers
+**AUDIT:** Written ✅ | Cannot apply locally (Docker not running)
+
+### Migration 1-3 — Group 1: Pipeline Definitions (pipelines, pipeline_stages, pipeline_sub_tasks)
+**DESIGN:** Per §1.20 — pipelines has slug/name/is_active/sort_order/ghl_field_id; stages has FK→pipelines with ON DELETE RESTRICT, is_terminal, auto_advance_enabled, auto_spawn_pipeline_id; sub_tasks has FK→stages with ON DELETE RESTRICT, state_type enum, first/second_state_label, default_logger_type/user_id
+**AUDIT:** Written ✅ | Cannot apply locally (Docker not running)
+
+### Migration 4 — Group 2: Contacts Mirror
+**DESIGN:** Per §1.20 — mirrors GHL contact with ghl_contact_id UNIQUE, standard address fields, last_synced_at
+**AUDIT:** Written ✅
+
+### Migration 5-7 — Group 3: Contact State (contact_pipeline_state, contact_sub_task_logs, pipeline_stage_history)
+**DESIGN:** Per §1.20 — contact_pipeline_state has partial unique index on (contact_id, pipeline_id) WHERE is_active=true; sub_task_logs has soft delete; stage_history is append-only with was_skip/was_revert/was_auto flags
+**AUDIT:** Written ✅
+
+### Migration 8-9 — Group 4: Activity + Notifications
+**DESIGN:** Per §1.17 + §1.20 — contact_activity_messages with mentioned_user_ids uuid[]; notifications with source_type enum (activity_mention only for MVP)
+**AUDIT:** Written ✅
+
+### Migration 10-12 — Group 5: System Tables
+**DESIGN:** pipeline_app_settings (single-row config, NOT the existing app_settings which has different structure), cron_job_log, ghl_sync_queue
+**Decision:** Named `pipeline_app_settings` instead of `app_settings` to avoid collision with existing key-value table. Will consolidate in a future sprint.
+**AUDIT:** Written ✅
+
+### Migration 13 — Indexes
+**DESIGN:** All indexes from §1.20 — composite indexes on state tables, unique index on contacts.ghl_contact_id, name index, sync queue status index
+**AUDIT:** Written ✅
+
+### Migration 14 — Update users.role
+**DESIGN:** Drop old CHECK ('rep','marketing','leadership'), map to new roles ('admin','operator','specialist','member'), add new CHECK
+**Decision:** Mapped leadership→admin, rep→member, marketing→member per §1.15
+**AUDIT:** Written ✅
+
+### Migration 15 — RLS Policies
+**DESIGN:** Created helper functions (current_user_role, is_admin, is_admin_or_operator). RLS enabled on all 12 new tables. 4 role levels implemented per §1.15.
+**AUDIT:** Written ✅
+
+### Migration 16-17 — Seed Data (Sales + Follow-up pipelines)
+**DESIGN:** Per §1.4 + §1.9:
+- Sales: 1 pipeline, 6 stages, 18 sub-tasks (3/3/4/4/4/0 distribution)
+- Follow-up: 1 pipeline, 3 stages, 1 sub-task (resume_sales on Re-engaged)
+- Total: 2 pipelines, 9 stages, 19 sub-tasks
+- All sub-task default_logger_user_id set to NULL with TODO notes (user IDs not known)
+- Used deterministic UUIDs for pipelines/stages to allow FK references between seeds
+**AUDIT:** Written ✅
+
+### Migration 18 — Seed pipeline_app_settings
+**DESIGN:** Single row: id=1, yellow=5d, red=10d, sync_enabled=true, threshold=50
+**AUDIT:** Written ✅
+
+### Local Supabase Test
+**SKIPPED:** Docker daemon not running — cannot run `supabase db reset`. Migrations are SQL-only and follow standard Postgres syntax. Will need to be tested by Corey with Docker running or against a staging Supabase instance.
+
+---
+
 ## Tech Stack (Locked)
 - Frontend: Next.js 14, TypeScript strict, App Router
 - Styling: Tailwind CSS 3 with NAH design system
