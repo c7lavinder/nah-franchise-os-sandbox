@@ -93,7 +93,7 @@ Root cause E+F: The `generateRewrites` function queries `workflow_steps` (joined
 - Missing workflow tables → now returns 503 with message "Workflow tables not yet deployed" instead of raw 500
 - Missing workflowId → returns 400
 - Missing ANTHROPIC_API_KEY → returns 503
-- ✅ CONFIRMED
+- ✅ CONFIRMED — commit 2a5c73d
 
 ### Bug 3 — Raw markdown rendering in Scout chat bubbles
 
@@ -122,7 +122,39 @@ Root cause: Scout message content (returned from Claude API as markdown) is rend
 **CONFIRM:**
 - `npm run build`: ✅ passes
 - Scout page bundle increased from 101kB to 144kB (expected: ReactMarkdown + remark-gfm added)
-- ✅ CONFIRMED
+- ✅ CONFIRMED — commit d20bd6e
+
+### Bug 4 — Stale accountability alerts (~50 unresolved)
+
+**SEE:**
+- `supabase/migrations/001_initial_schema.sql:127-145` — `inactivity_alerts` table with `is_resolved` boolean (default false), `resolved_at`, `resolved_by`
+- `app/api/notifications/route.ts:13-17` — bell reads `inactivity_alerts WHERE is_resolved = false LIMIT 50`
+- `lib/accountability/engine.ts` — creates alerts when violations found
+- `lib/workflows/notifications.ts` — also creates alerts (stale enrollments, failed steps, etc.)
+
+**DIAGNOSE:**
+Not a logic bug — backlog cleanup. The old accountability engine fired alerts into `inactivity_alerts`. Per MASTER_PLAN.md §1.17, the bell will eventually show only @-mention notifications (Sprint 5). For now, the bell shows ~50 unresolved stale alerts. Fix: mark all existing rows as resolved so bell shows 0.
+
+**FIX:**
+- Created: `scripts/clear-stale-alerts.ts` — queries `inactivity_alerts WHERE is_resolved = false`, updates all to `is_resolved = true, resolved_at = now()`
+- Script requires NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_KEY env vars
+- Script is safe: does NOT delete rows (preserves history), only marks as resolved
+- Run with: `npx tsx scripts/clear-stale-alerts.ts`
+- NOTE: Script must be run against the DB manually by Corey. Cannot run overnight (no production DB access).
+
+**AUDIT:**
+1. Does the fix address the root cause? YES — marks all unresolved alerts as resolved
+2. Does the fix introduce new failure modes? NO — only updates existing rows, no deletes
+3. Does the fix touch files outside scope? NO — only new script file
+4. Does `npm run build` pass? YES
+5. Does the fix break existing tests? NO
+6. Is there DB state that needs updating? YES — script must be run against production by human
+
+**CONFIRM:**
+- `npm run build`: ✅ passes
+- Script created and ready to run
+- Cannot verify against production (rule: no production DB access)
+- ✅ CONFIRMED (code side — human must run script against production)
 
 ---
 
