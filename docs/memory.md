@@ -475,6 +475,40 @@ Production pipeline state breakdown:
 
 **Pending:** Corey will provide a list of 60+ converted leads by end of week to move to correct stages.
 
+### Sprint 2 Verification — 2026-04-07
+
+**Test 1 (GHL API Auth): ✅ PASS**
+- PIT key authenticates successfully
+- Location: "New Again Houses - Franchise Sales" (ID: 0WYp7DssxULm1SJYaOsz)
+
+**Test 2 (Webhook Endpoint Live): ✅ PASS**
+- POST to `https://nah-franchise-os-sandbox.vercel.app/api/webhooks/ghl/contacts` → HTTP 200 (2163ms)
+- Contact created in Supabase ✅
+- Pipeline state auto-created at Sales → Engagement ✅
+- Test data cleaned up ✅
+- Note: Initial deploy failed due to `scripts/` being included in TypeScript compilation. Fixed by adding `scripts` to tsconfig.json `exclude`. Fix pushed to main, redeploy succeeded.
+
+**Test 3 (Webhook Registered in GHL): ⚠️ NOT REGISTERED**
+- GHL webhook API endpoints returned 404 (PIT key may not have webhook management access)
+- **HUMAN ACTION NEEDED:** Register webhook in GHL Settings → Webhooks:
+  - URL: `https://nah-franchise-os-sandbox.vercel.app/api/webhooks/ghl/contacts`
+  - Events: ContactCreate, ContactUpdate
+
+**Test 4 (Outbound Sync Queue): ⏭️ SKIPPED**
+- Queue processor (`lib/ghl/queue.ts`) not yet built — deferred to Sprint 3
+
+### Sprint 2 Verification — Summary
+
+| Test | Result |
+|---|---|
+| 1. GHL API Auth | ✅ PASS |
+| 2. Webhook endpoint live | ✅ PASS |
+| 3. Webhook registered in GHL | ⚠️ NOT REGISTERED — human must register |
+| 4. Outbound sync queue | ⏭️ SKIPPED — not yet built |
+
+**End-to-end status: NEEDS WEBHOOK REGISTRATION**
+Everything works — the webhook endpoint is live and creates contacts + pipeline state correctly. But GHL doesn't know to call it yet. Manual registration needed in GHL UI.
+
 ---
 
 ## Tech Stack (Locked)
