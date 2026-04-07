@@ -1,0 +1,247 @@
+/**
+ * Sprint 4A — Pipeline state data fetching layer (read-only).
+ *
+ * Server-side functions for reading contact pipeline state, stages,
+ * sub-tasks, logs, and stage history from Supabase.
+ */
+
+import { createServerClient } from "@/lib/supabase/server";
+
+// ─── Types ───
+
+export interface ContactPipelineState {
+  id: string;
+  contact_id: string;
+  pipeline_id: string;
+  current_stage_id: string;
+  current_sub_task_id: string | null;
+  current_sub_task_started_at: string | null;
+  entered_pipeline_at: string;
+  entered_current_stage_at: string;
+  assigned_user_id: string | null;
+  is_active: boolean;
+  closed_reason: string | null;
+  closed_at: string | null;
+  pipeline_name: string;
+  pipeline_slug: string;
+}
+
+export interface PipelineStage {
+  id: string;
+  slug: string;
+  name: string;
+  sort_order: number;
+  is_terminal: boolean;
+  pipeline_id: string;
+}
+
+export interface PipelineSubTask {
+  id: string;
+  slug: string;
+  name: string;
+  sort_order: number;
+  state_type: "single" | "two_state";
+  first_state_label: string | null;
+  second_state_label: string | null;
+  is_required: boolean;
+  stage_id: string;
+}
+
+export interface SubTaskLog {
+  id: string;
+  contact_pipeline_state_id: string;
+  sub_task_id: string;
+  logger_user_id: string | null;
+  source: "manual" | "api" | "ai";
+  state_advance: "first" | "second" | null;
+  content_type: string;
+  content_text: string | null;
+  content_file_url: string | null;
+  content_link_url: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  deleted_at: string | null;
+  logger_name: string | null;
+}
+
+export interface StageHistoryEntry {
+  id: string;
+  contact_pipeline_state_id: string;
+  from_stage_id: string | null;
+  to_stage_id: string;
+  moved_by_user_id: string | null;
+  reason: string | null;
+  was_skip: boolean;
+  was_revert: boolean;
+  was_auto: boolean;
+  created_at: string;
+  from_stage_name: string | null;
+  to_stage_name: string;
+  moved_by_name: string | null;
+}
+
+// ─── Data fetching functions ───
+
+/** Get all active pipeline states for a contact (by local contact UUID) */
+export async function getContactPipelineStates(contactId: string): Promise<ContactPipelineState[]> {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("contact_pipeline_state")
+    .select(`
+      id, contact_id, pipeline_id, current_stage_id, current_sub_task_id,
+      current_sub_task_started_at, entered_pipeline_at, entered_current_stage_at,
+      assigned_user_id, is_active, closed_reason, closed_at,
+      pipelines (name, slug)
+    `)
+    .eq("contact_id", contactId)
+    .eq("is_active", true)
+    .order("entered_pipeline_at", { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((row) => {
+    const pipeline = (row.pipelines as unknown) as { name: string; slug: string } | null;
+    return {
+      id: row.id,
+      contact_id: row.contact_id,
+      pipeline_id: row.pipeline_id,
+      current_stage_id: row.current_stage_id,
+      current_sub_task_id: row.current_sub_task_id,
+      current_sub_task_started_at: row.current_sub_task_started_at,
+      entered_pipeline_at: row.entered_pipeline_at,
+      entered_current_stage_at: row.entered_current_stage_at,
+      assigned_user_id: row.assigned_user_id,
+      is_active: row.is_active,
+      closed_reason: row.closed_reason,
+      closed_at: row.closed_at,
+      pipeline_name: pipeline?.name ?? "Unknown",
+      pipeline_slug: pipeline?.slug ?? "",
+    };
+  });
+}
+
+/** Get all stages for a pipeline, ordered by sort_order */
+export async function getStagesForPipeline(pipelineId: string): Promise<PipelineStage[]> {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("pipeline_stages")
+    .select("id, slug, name, sort_order, is_terminal, pipeline_id")
+    .eq("pipeline_id", pipelineId)
+    .order("sort_order");
+
+  if (error || !data) return [];
+  return data;
+}
+
+/** Get all sub-tasks for a stage, ordered by sort_order */
+export async function getSubTasksForStage(stageId: string): Promise<PipelineSubTask[]> {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("pipeline_sub_tasks")
+    .select("id, slug, name, sort_order, state_type, first_state_label, second_state_label, is_required, stage_id")
+    .eq("stage_id", stageId)
+    .order("sort_order");
+
+  if (error || !data) return [];
+  return data as PipelineSubTask[];
+}
+
+/** Get sub-task logs for a contact_pipeline_state + sub_task, newest first */
+export async function getSubTaskLogs(
+  contactPipelineStateId: string,
+  subTaskId?: string
+): Promise<SubTaskLog[]> {
+  const supabase = createServerClient();
+
+  let query = supabase
+    .from("contact_sub_task_logs")
+    .select(`
+      id, contact_pipeline_state_id, sub_task_id, logger_user_id,
+      source, state_advance, content_type, content_text,
+      content_file_url, content_link_url, metadata, created_at, deleted_at,
+      users (full_name)
+    `)
+    .eq("contact_pipeline_state_id", contactPipelineStateId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+
+  if (subTaskId) {
+    query = query.eq("sub_task_id", subTaskId);
+  }
+
+  const { data, error } = await query;
+
+  if (error || !data) return [];
+
+  return data.map((row) => {
+    const user = (row.users as unknown) as { full_name: string } | null;
+    return {
+      ...row,
+      source: row.source as SubTaskLog["source"],
+      state_advance: row.state_advance as SubTaskLog["state_advance"],
+      logger_name: user?.full_name ?? null,
+    };
+  });
+}
+
+/** Get stage history for a contact_pipeline_state, newest first */
+export async function getStageHistory(contactPipelineStateId: string): Promise<StageHistoryEntry[]> {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("pipeline_stage_history")
+    .select(`
+      id, contact_pipeline_state_id, from_stage_id, to_stage_id,
+      moved_by_user_id, reason, was_skip, was_revert, was_auto, created_at
+    `)
+    .eq("contact_pipeline_state_id", contactPipelineStateId)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return [];
+
+  // Look up stage names + user names
+  const supabase2 = createServerClient();
+  const stageIds = [...new Set(data.flatMap((d) => [d.from_stage_id, d.to_stage_id].filter(Boolean)))];
+  const userIds = [...new Set(data.map((d) => d.moved_by_user_id).filter(Boolean))];
+
+  const [stageRes, userRes] = await Promise.all([
+    stageIds.length > 0
+      ? supabase2.from("pipeline_stages").select("id, name").in("id", stageIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    userIds.length > 0
+      ? supabase2.from("users").select("id, full_name").in("id", userIds as string[])
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+  ]);
+
+  const stageMap = new Map<string, string>();
+  for (const s of (stageRes as { data: { id: string; name: string }[] | null }).data ?? []) {
+    stageMap.set(s.id, s.name);
+  }
+  const userMap = new Map<string, string>();
+  for (const u of (userRes as { data: { id: string; full_name: string }[] | null }).data ?? []) {
+    userMap.set(u.id, u.full_name);
+  }
+
+  return data.map((row) => ({
+    ...row,
+    from_stage_name: row.from_stage_id ? (stageMap.get(row.from_stage_id) ?? null) : null,
+    to_stage_name: stageMap.get(row.to_stage_id) ?? "Unknown",
+    moved_by_name: row.moved_by_user_id ? (userMap.get(row.moved_by_user_id) ?? null) : null,
+  }));
+}
+
+/** Look up local contact ID by GHL contact ID */
+export async function getLocalContactId(ghlContactId: string): Promise<string | null> {
+  const supabase = createServerClient();
+
+  const { data } = await supabase
+    .from("contacts")
+    .select("id")
+    .eq("ghl_contact_id", ghlContactId)
+    .maybeSingle();
+
+  return data?.id ?? null;
+}
