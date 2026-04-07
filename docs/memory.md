@@ -305,10 +305,75 @@ Mapping for when users are created:
 | 2. User role assignments | ⚠️ PARTIAL | 2/6 users exist and have correct roles. 4 missing (Chad, Matt, Sam, Mark) |
 | 3. Sub-task default loggers | ❌ BLOCKED | 0/18 user-assigned sub-tasks updated (dependent users don't exist) |
 
-**Recommended next steps before Sprint 2:**
-1. Create user accounts for Chad Arnold (operator), Matt Lavinder (admin), Sam (specialist), Mark (specialist)
-2. After creation, run backfill: `UPDATE pipeline_sub_tasks SET default_logger_user_id = '<chad_uuid>' WHERE slug IN ('outreach','intro_call','pto','nda','pfs','background','fdd','fdd_review_call','territory_call','fa_info_gathering','franchise_award_letter','fa','ff','resume_sales');` (and similarly for Matt/Sam/Mark)
-3. Verify the Vercel deployment picks up the new schema by checking that `/api/pipeline/board` still returns 200
+### Phase A — Task 2 Retry — users table schema
+
+```
+id          uuid          NOT NULL  DEFAULT gen_random_uuid()
+email       varchar(255)  NOT NULL  (no default — REQUIRED)
+full_name   varchar(255)  NOT NULL  (no default — REQUIRED)
+role        varchar(50)   NOT NULL  (no default — REQUIRED, CHECK: admin/operator/specialist/member)
+ghl_user_id varchar(255)  YES       (nullable)
+is_active   boolean       YES       DEFAULT true
+created_at  timestamptz   YES       DEFAULT now()
+updated_at  timestamptz   YES       DEFAULT now()
+last_login_at timestamptz YES       (nullable)
+```
+
+No `auth_id` or `auth_user_id` column exists. Safe to insert placeholder rows.
+
+### Phase A — Task 2A — planned inserts
+
+```sql
+INSERT INTO users (email, full_name, role) VALUES
+  ('chad+placeholder@newagainhouses.com', 'Chad Arnold', 'operator'),
+  ('matt+placeholder@newagainhouses.com', 'Matt Lavinder', 'admin'),
+  ('sam+placeholder@newagainhouses.com', 'Sam', 'specialist'),
+  ('mark+placeholder@newagainhouses.com', 'Mark', 'specialist');
+```
+
+Column decisions:
+- `id`: auto-generated via gen_random_uuid()
+- `email`: using `+placeholder` convention so they're distinguishable from real auth-backed accounts
+- `is_active`, `created_at`, `updated_at`: all use defaults (true, now(), now())
+- `ghl_user_id`, `last_login_at`: left NULL (will be populated when real GHL accounts are linked)
+
+### Phase A — Task 2A — results
+
+**4 users created successfully:**
+
+| Name | UUID | Email | Role |
+|---|---|---|---|
+| Chad Arnold | `e63b6344-1b2d-4371-a93d-30bc4602eec0` | chad+placeholder@newagainhouses.com | operator |
+| Matt Lavinder | `7275e98e-a0cc-4c03-af74-d4400c9f0d24` | matt+placeholder@newagainhouses.com | admin |
+| Sam | `9e5ed10d-313b-4e1d-a1f7-9ee8c12ca60c` | sam+placeholder@newagainhouses.com | specialist |
+| Mark | `62e423e2-9179-4e88-9c01-90a4a2045b3e` | mark+placeholder@newagainhouses.com | specialist |
+
+No auth.users rows created. These are database-only placeholder records for FK references.
+
+### Phase A — Task 3 Retry — default_logger_user_id backfill
+
+**18/18 user-assigned sub-tasks updated. 1 (zorakle) correctly stays NULL.**
+
+| Sub-task | Logger | User |
+|---|---|---|
+| outreach, intro_call, pto, nda, pfs, background, fdd, fdd_review_call, territory_call, fa_info_gathering, franchise_award_letter, fa, ff, resume_sales | user | Chad Arnold |
+| matt_call, matt_final_call | user | Matt Lavinder |
+| sam_call | user | Sam |
+| mark_call | user | Mark |
+| zorakle | api | NULL (correct) |
+
+### Phase A — Final Summary
+
+| Task | Status | Details |
+|---|---|---|
+| 1. Production schema push | ✅ SUCCESS | 19 migrations applied, all counts verified |
+| 2A. Create placeholder users | ✅ SUCCESS | 4/4 users created (Chad, Matt, Sam, Mark) |
+| 2. User role assignments | ✅ COMPLETE | 6/6 users now have correct roles |
+| 3. Sub-task default loggers | ✅ COMPLETE | 18/18 user-assigned sub-tasks backfilled, 1 API sub-task correctly NULL |
+
+**No errors. No surprises.**
+
+**Note for future:** When real Supabase Auth accounts are created for Chad/Matt/Sam/Mark, update the placeholder emails to their real emails and link `ghl_user_id` to their GHL accounts.
 
 ---
 
