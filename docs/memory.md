@@ -394,6 +394,61 @@ GHL custom fields discovered:
 
 Note: Follow-up field key in GHL is `nah_follow_up_stage_id` (with underscore between "follow" and "up"), not `nah_followup_stage_id`.
 
+### Sprint 2 — Phase 2.2: Webhook + Sync + Auto-Create
+
+**Result: ✅ SUCCESS — all files built, local test passed**
+
+Files created:
+- `lib/ghl/sync.ts` — upserts GHL contact into `contacts` table by `ghl_contact_id`
+- `lib/ghl/auto-create-pipeline-state.ts` — creates Sales Pipeline state row at Engagement, idempotent
+- `app/api/webhooks/ghl/contacts/route.ts` — POST endpoint for GHL contact webhooks
+- `scripts/test-ghl-sync-locally.ts` — local test that creates, verifies, and cleans up
+
+Test results:
+- Contact upsert: ✅
+- Pipeline state creation at Engagement: ✅
+- Stage history written: ✅
+- Idempotency (duplicate skip): ✅
+- Cleanup: ✅
+- `npm run build`: ✅
+
+### Sprint 2 — Phase 2.3: Backfill Dry-Run
+
+**Result: ✅ DRY-RUN COMPLETE — awaiting human approval for live run**
+
+Dry-run with `--limit 10`:
+- 10 contacts fetched from GHL
+- 10 would be inserted (new — contacts table is empty)
+- 0 updates, 0 unchanged
+
+Full GHL account scan (still running at time of commit):
+- 100,000+ contacts in the GHL location (pagination at page 1000+)
+- This is significantly more than the ~2,500 expected from §1.19 migration plan
+- The GHL account likely contains all historical contacts, not just franchise leads
+
+**Decision needed from Corey:**
+- Do we backfill ALL 100k+ contacts, or only those in specific GHL pipelines (NAH Franchise Sales)?
+- Per §1.19: Active=25, Nurture=1,101, Old=1,336 (trash). The other ~97k are likely unrelated contacts.
+- Recommend: filter by GHL pipeline membership or tags, not bulk-import everything.
+
+Script location: `scripts/backfill-ghl-contacts.ts`
+- Supports `--dry-run` (default), `--live`, `--limit N`
+- Logs failures per-contact and continues
+
+### Sprint 2 — Summary
+
+| Phase | Status | Details |
+|---|---|---|
+| 2.1: GHL field IDs | ✅ SUCCESS | 4/4 fields found, 2 pipelines updated |
+| 2.2: Webhook + sync | ✅ SUCCESS | Endpoint built, local test passed |
+| 2.3: Backfill dry-run | ✅ DRY-RUN DONE | 100k+ contacts in GHL, needs filtering decision |
+
+**Recommended next steps:**
+1. Decide backfill scope: all contacts vs pipeline-filtered
+2. If filtered: add `--pipeline` flag to backfill script to only import contacts from specific GHL pipelines
+3. Run live backfill with appropriate filters
+4. Register the webhook URL in GHL Settings for ContactCreate events
+
 ---
 
 ## Tech Stack (Locked)
