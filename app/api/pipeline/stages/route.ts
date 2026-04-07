@@ -43,20 +43,23 @@ export async function GET() {
       return NextResponse.json({ error: stageError.message }, { status: 500 });
     }
 
-    // Fetch active contact counts per stage
-    const { data: stateCounts, error: countError } = await supabase
-      .from("contact_pipeline_state")
-      .select("current_stage_id")
-      .eq("is_active", true);
-
-    if (countError) {
-      return NextResponse.json({ error: countError.message }, { status: 500 });
-    }
-
-    // Build count map
+    // Fetch active contact counts per stage using individual count queries
+    // (avoids Supabase's 1,000-row default limit on select)
     const countMap = new Map<string, number>();
-    for (const row of stateCounts ?? []) {
-      countMap.set(row.current_stage_id, (countMap.get(row.current_stage_id) ?? 0) + 1);
+    const stageIds = (stages ?? []).map((s) => s.id);
+
+    const countPromises = stageIds.map(async (stageId) => {
+      const { count } = await supabase
+        .from("contact_pipeline_state")
+        .select("id", { count: "exact", head: true })
+        .eq("is_active", true)
+        .eq("current_stage_id", stageId);
+      return { stageId, count: count ?? 0 };
+    });
+
+    const countResults = await Promise.all(countPromises);
+    for (const { stageId, count } of countResults) {
+      countMap.set(stageId, count);
     }
 
     // Assemble response
