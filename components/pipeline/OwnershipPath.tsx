@@ -152,10 +152,7 @@ export default function OwnershipPath({ pipelines, selectedStage, onStageClick, 
         />
       )}
 
-      {/* Post-Close — Leadership only */}
-      {showPostClose && (
-        <PostClosePipelines totalColumns={MAX_COLS} />
-      )}
+      {/* Onboarding + Coaching rows hidden per master plan §1.12 — deferred sprint */}
     </div>
   );
 }
