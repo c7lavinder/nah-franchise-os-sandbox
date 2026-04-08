@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Settings, User, Bell, Shield, Database, Zap, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
+import { Settings, User, Bell, Shield, Database, Zap, CheckCircle2, XCircle, ExternalLink, GitBranch, Calendar, Sliders } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
+import PipelineEditor from "@/components/settings/PipelineEditor";
+import CronCalendar from "@/components/settings/CronCalendar";
+import AppSettingsPanel from "@/components/settings/AppSettingsPanel";
 
 interface SetupItem {
   label: string;
@@ -19,10 +22,13 @@ interface IntegrationStatus {
   setup?: { checklist: SetupItem[]; complete: number; total: number; ready: boolean };
 }
 
+type SettingsTab = "general" | "pipelines" | "cron" | "app-settings";
+
 export default function SettingsPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const [integrations, setIntegrations] = useState<IntegrationStatus | null>(null);
+  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 
   // Check for OAuth callback messages
   const crmStatus = searchParams.get("crm");
@@ -35,12 +41,49 @@ export default function SettingsPage() {
       .catch(() => {});
   }, []);
 
+  const TABS: { key: SettingsTab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+    { key: "general", label: "General", icon: Settings },
+    { key: "pipelines", label: "Pipeline Editor", icon: GitBranch },
+    { key: "cron", label: "Cron Calendar", icon: Calendar },
+    { key: "app-settings", label: "App Settings", icon: Sliders },
+  ];
+
   return (
     <div>
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-4">
         <Settings size={20} className="text-nah-blue" />
         <h1 className="font-headline text-page-title text-text-primary">Settings</h1>
       </div>
+
+      {/* Settings tabs */}
+      <div className="flex border-b border-border-default mb-6">
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-1.5 px-4 py-2 text-body-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.key
+                  ? "border-nah-orange text-nah-orange"
+                  : "border-transparent text-text-tertiary hover:text-text-primary"
+              }`}
+            >
+              <Icon size={14} />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === "pipelines" ? (
+        <PipelineEditor />
+      ) : activeTab === "cron" ? (
+        <CronCalendar />
+      ) : activeTab === "app-settings" ? (
+        <AppSettingsPanel />
+      ) : (
+      <div>
 
       {/* OAuth callback messages */}
       {crmStatus === "connected" && (
@@ -250,6 +293,8 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+      </div>
+      )}
     </div>
   );
 }
