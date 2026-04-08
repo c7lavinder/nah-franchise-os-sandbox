@@ -233,15 +233,57 @@ export async function getStageHistory(contactPipelineStateId: string): Promise<S
   }));
 }
 
-/** Look up local contact ID by GHL contact ID */
-export async function getLocalContactId(ghlContactId: string): Promise<string | null> {
+/**
+ * Resolve a contact identifier to a local contacts.id UUID.
+ * The identifier may be a GHL contact ID or a local UUID.
+ * Tries local UUID first (if it looks like a UUID), then GHL ID.
+ */
+export async function resolveContactId(identifier: string): Promise<string | null> {
   const supabase = createServerClient();
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
 
+  if (isUUID) {
+    // Sprint 4A bugfix: try local UUID first
+    const { data } = await supabase
+      .from("contacts")
+      .select("id")
+      .eq("id", identifier)
+      .maybeSingle();
+    if (data) return data.id;
+  }
+
+  // Fall back to GHL contact ID lookup
   const { data } = await supabase
     .from("contacts")
     .select("id")
-    .eq("ghl_contact_id", ghlContactId)
+    .eq("ghl_contact_id", identifier)
     .maybeSingle();
 
   return data?.id ?? null;
+}
+
+/** Get contact details by local UUID or GHL ID */
+export async function getContactByIdentifier(identifier: string): Promise<{
+  id: string;
+  ghl_contact_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  opportunity_source: string | null;
+  city: string | null;
+  state: string | null;
+} | null> {
+  const supabase = createServerClient();
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+  const fields = "id, ghl_contact_id, first_name, last_name, email, phone, opportunity_source, city, state";
+
+  if (isUUID) {
+    const { data } = await supabase.from("contacts").select(fields).eq("id", identifier).maybeSingle();
+    if (data) return data;
+  }
+
+  const { data } = await supabase.from("contacts").select(fields).eq("ghl_contact_id", identifier).maybeSingle();
+  return data ?? null;
 }

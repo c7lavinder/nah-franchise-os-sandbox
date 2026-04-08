@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getLocalContactId,
+  resolveContactId,
+  getContactByIdentifier,
   getContactPipelineStates,
   getStagesForPipeline,
   getSubTasksForStage,
@@ -25,10 +26,11 @@ export async function GET(
   try {
     const { contactId: ghlContactId } = await params;
 
-    // Look up local contact ID from GHL contact ID
-    const localContactId = await getLocalContactId(ghlContactId);
+    // Sprint 4A bugfix: resolve identifier (may be local UUID or GHL ID)
+    const localContactId = await resolveContactId(ghlContactId);
+    const contactInfo = await getContactByIdentifier(ghlContactId);
     if (!localContactId) {
-      return NextResponse.json({ pipelineStates: [], localContactId: null });
+      return NextResponse.json({ pipelineStates: [], localContactId: null, contact: contactInfo });
     }
 
     // Get all active pipeline states
@@ -73,6 +75,7 @@ export async function GET(
     return NextResponse.json({
       pipelineStates: enrichedStates,
       localContactId,
+      contact: contactInfo,
     });
   } catch (err) {
     console.error("Pipeline state fetch error:", err);

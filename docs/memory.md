@@ -600,6 +600,17 @@ Components: `components/contact/PipelinesAccordion.tsx`, `components/contact/Sta
 - No drop-to-followup / nurture actions
 - All sub-task logs will be empty until Sprint 4B adds write operations
 
+### Sprint 4A Bugfix — Pipeline lookup by local UUID
+
+**Root cause:** PipelineLeadList links to `/leads/${contact.contactId}` where `contactId` is the local Supabase UUID (from `contact_pipeline_state.contact_id`). But the contact page and pipeline-state API both expected a GHL contact ID. The `getLocalContactId()` function only searched `contacts.ghl_contact_id`, never `contacts.id`, so the local UUID didn't match anything.
+
+**Fix:**
+- `lib/contacts/pipeline-state.ts`: replaced `getLocalContactId()` with `resolveContactId()` that tries local UUID first (if input matches UUID format), then falls back to GHL ID lookup. Added `getContactByIdentifier()` for contact data resolution.
+- `app/api/contacts/[contactId]/pipeline-state/route.ts`: uses `resolveContactId()` + returns `contact` info in response
+- `app/(auth)/leads/[contactId]/page.tsx`: fetches pipeline-state in parallel with GHL contact fetch. If GHL fetch fails (expected for local UUIDs), falls back to local contact data from pipeline-state response.
+
+**Verified:** Both local UUID and GHL ID paths return correct pipeline state + contact name.
+
 ### Sprint 4A — Visual Review Checklist
 
 - [ ] Navigate from pipeline page to any active Sales lead

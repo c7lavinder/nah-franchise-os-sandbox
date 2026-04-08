@@ -36,12 +36,16 @@ export default function LeadProfilePage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [contactRes, profileRes] = await Promise.all([
-        fetch(`/api/contacts/${contactId}`),
-        fetch(`/api/contacts/${contactId}/profile`),
+      // Sprint 4A bugfix: fetch GHL contact + local pipeline-state in parallel.
+      // The contactId in the URL may be a local UUID or a GHL ID.
+      // The GHL fetch may fail if it's a local UUID — that's OK, we fall back to local data.
+      const [contactRes, profileRes, pipelineStateRes] = await Promise.all([
+        fetch(`/api/contacts/${contactId}`).catch(() => null),
+        fetch(`/api/contacts/${contactId}/profile`).catch(() => null),
+        fetch(`/api/contacts/${contactId}/pipeline-state`).catch(() => null),
       ]);
 
-      if (contactRes.ok) {
+      if (contactRes?.ok) {
         const data = await contactRes.json();
         setContact(data.contact ?? null);
         setNotes(data.notes ?? []);
@@ -49,7 +53,27 @@ export default function LeadProfilePage() {
         setMessages(data.messages ?? []);
       }
 
-      if (profileRes.ok) {
+      // If GHL contact fetch failed but pipeline-state has contact info, use that
+      if (!contactRes?.ok && pipelineStateRes?.ok) {
+        const psData = await pipelineStateRes.json();
+        if (psData.contact) {
+          setContact({
+            id: psData.contact.ghl_contact_id ?? contactId,
+            locationId: "",
+            firstName: psData.contact.first_name ?? "",
+            lastName: psData.contact.last_name ?? "",
+            email: psData.contact.email ?? null,
+            phone: psData.contact.phone ?? null,
+            tags: [],
+            source: psData.contact.opportunity_source ?? null,
+            dateAdded: "",
+            customFields: [],
+            assignedTo: null,
+          } as GHLContact);
+        }
+      }
+
+      if (profileRes?.ok) {
         const data = await profileRes.json();
         setProfileValues(data.raw ?? {});
       }
