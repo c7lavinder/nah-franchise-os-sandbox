@@ -639,6 +639,14 @@ Components: `components/contact/PipelinesAccordion.tsx`, `components/contact/Sta
 
 **Phases:** 4B.1 (log entry), 4B.2 (advance/revert/skip), 4B.3 (drop), 4B.4 (resume sales) — all complete
 
+### Sprint 4B Bugfix — Sub-task click opens log modal
+
+**Root cause:** SubTaskCircle's `onClick` was wired to toggle history expansion (from Sprint 4A), not to open the log modal. The log modal was only reachable via a tiny `+` button next to the circle — too subtle and easily missed. Since most contacts have no logs yet, clicking the circle toggled an empty history section (invisible).
+
+**Fix:** `components/contact/StageDrilldown.tsx` — SubTaskCircle `onClick` now opens the log modal directly. History toggle moved to a separate "View N logs" text link that only appears when logs > 0. Removed the redundant `+` button.
+
+**Verified:** npm run build PASS. API test: created + verified + deleted a test log via `/api/contacts/:id/sub-tasks/:subTaskId/logs` (POST returned `{"logId":"...","success":true}`, row confirmed in DB, cleaned up).
+
 ### Sprint 4B — Visual Review Checklist
 
 - [ ] Click + button on sub-task → log modal opens

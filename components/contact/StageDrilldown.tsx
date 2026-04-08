@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { AlertTriangle, RotateCcw, Bot, ArrowRight, Plus } from "lucide-react";
+import { AlertTriangle, RotateCcw, Bot, ArrowRight } from "lucide-react";
 import SubTaskCircle from "./SubTaskCircle";
 import SubTaskLogHistory from "./SubTaskLogHistory";
 import SubTaskLogModal from "./SubTaskLogModal";
@@ -64,28 +64,26 @@ export default function StageDrilldown({
 
                   return (
                     <div key={task.id}>
-                      <div className="flex items-center gap-1">
-                        <div className="flex-1">
-                          <SubTaskCircle
-                            name={task.name}
-                            state={state}
-                            stateType={task.state_type}
-                            firstStateLabel={task.first_state_label}
-                            secondStateLabel={task.second_state_label}
-                            logCount={logs.length}
-                            isExpanded={isHistoryExpanded}
-                            onClick={() => setExpandedSubTask(isHistoryExpanded ? null : task.id)}
-                          />
-                        </div>
-                        {/* Log button */}
+                      {/* Sprint 4B bugfix: clicking sub-task opens log modal directly */}
+                      <SubTaskCircle
+                        name={task.name}
+                        state={state}
+                        stateType={task.state_type}
+                        firstStateLabel={task.first_state_label}
+                        secondStateLabel={task.second_state_label}
+                        logCount={logs.length}
+                        isExpanded={isHistoryExpanded}
+                        onClick={() => setLogModalSubTask(task)}
+                      />
+                      {/* View history toggle — only when logs exist */}
+                      {logs.length > 0 && (
                         <button
-                          onClick={() => setLogModalSubTask(task)}
-                          className="p-1.5 rounded-md bg-nah-blue/10 text-nah-blue hover:bg-nah-blue/20 transition-colors flex-shrink-0"
-                          title={`Log ${task.name}`}
+                          onClick={() => setExpandedSubTask(isHistoryExpanded ? null : task.id)}
+                          className="ml-10 text-[11px] text-nah-blue hover:underline"
                         >
-                          <Plus size={14} />
+                          {isHistoryExpanded ? "Hide logs" : `View ${logs.length} log${logs.length !== 1 ? "s" : ""}`}
                         </button>
-                      </div>
+                      )}
                       {isHistoryExpanded && <SubTaskLogHistory logs={logs} />}
                     </div>
                   );
