@@ -95,14 +95,22 @@ async function main() {
     return;
   }
 
-  // 2. Fetch all local contacts for matching
-  const { data: contacts, error } = await supabase
-    .from("contacts")
-    .select("id, ghl_contact_id, first_name, last_name, email, phone, is_converted_franchisee");
-
-  if (error || !contacts) {
-    console.error("Failed to fetch contacts:", error?.message);
-    return;
+  // 2. Fetch ALL local contacts for matching (paginate past Supabase 1000-row default)
+  const contacts: { id: string; ghl_contact_id: string | null; first_name: string | null; last_name: string | null; email: string | null; phone: string | null; is_converted_franchisee: boolean }[] = [];
+  let offset = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data, error: fetchErr } = await supabase
+      .from("contacts")
+      .select("id, ghl_contact_id, first_name, last_name, email, phone, is_converted_franchisee")
+      .range(offset, offset + PAGE - 1);
+    if (fetchErr) {
+      console.error("Failed to fetch contacts:", fetchErr.message);
+      return;
+    }
+    contacts.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+    offset += PAGE;
   }
   console.log(`Local contacts in Supabase: ${contacts.length}`);
 
