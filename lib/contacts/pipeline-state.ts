@@ -163,8 +163,7 @@ export async function getSubTaskLogs(
     .select(`
       id, contact_pipeline_state_id, sub_task_id, logger_user_id,
       source, state_advance, content_type, content_text,
-      content_file_url, content_link_url, metadata, created_at, deleted_at,
-      users (full_name)
+      content_file_url, content_link_url, metadata, created_at, deleted_at
     `)
     .eq("contact_pipeline_state_id", contactPipelineStateId)
     .is("deleted_at", null)
@@ -176,17 +175,30 @@ export async function getSubTaskLogs(
 
   const { data, error } = await query;
 
-  if (error || !data) return [];
+  if (error || !data) {
+    console.error("getSubTaskLogs error:", error?.message, { contactPipelineStateId, subTaskId });
+    return [];
+  }
 
-  return data.map((row) => {
-    const user = (row.users as unknown) as { full_name: string } | null;
-    return {
-      ...row,
-      source: row.source as SubTaskLog["source"],
-      state_advance: row.state_advance as SubTaskLog["state_advance"],
-      logger_name: user?.full_name ?? null,
-    };
-  });
+  // Look up user names separately (PostgREST FK join on users can fail silently)
+  const userIds = [...new Set(data.map((d) => d.logger_user_id).filter(Boolean))];
+  const userMap = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data: userData } = await supabase
+      .from("users")
+      .select("id, full_name")
+      .in("id", userIds as string[]);
+    for (const u of userData ?? []) {
+      userMap.set(u.id, u.full_name);
+    }
+  }
+
+  return data.map((row) => ({
+    ...row,
+    source: row.source as SubTaskLog["source"],
+    state_advance: row.state_advance as SubTaskLog["state_advance"],
+    logger_name: row.logger_user_id ? (userMap.get(row.logger_user_id) ?? null) : null,
+  }));
 }
 
 /** Get stage history for a contact_pipeline_state, newest first */
