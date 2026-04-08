@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
     const pipelineSlug = searchParams.get("pipeline") ?? "all";
     const sort = searchParams.get("sort") ?? "recent";
     const query = searchParams.get("q")?.trim().toLowerCase() ?? "";
-    const limit = Math.min(parseInt(searchParams.get("limit") ?? "50", 10), 200);
+    const limit = Math.min(parseInt(searchParams.get("limit") ?? "100", 10), 5000);
+    const offset = parseInt(searchParams.get("offset") ?? "0", 10);
 
     const supabase = createServerClient();
 
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
       dbQuery = dbQuery.order("current_sub_task_started_at", { ascending: true, nullsFirst: false });
     }
 
-    dbQuery = dbQuery.limit(limit);
+    dbQuery = dbQuery.range(offset, offset + limit - 1);
 
     const { data: rows, error } = await dbQuery;
 

@@ -58,23 +58,40 @@ export default function PipelineLeadList({
   const [sortAsc, setSortAsc] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  const fetchContacts = useCallback(async () => {
-    setLoading(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const BATCH_SIZE = 500;
+
+  const fetchContacts = useCallback(async (append = false, currentOffset = 0) => {
+    if (!append) setLoading(true);
+    else setLoadingMore(true);
     try {
       const params = new URLSearchParams();
       params.set("sort", sortField);
-      params.set("limit", "200");
+      params.set("limit", String(BATCH_SIZE));
+      params.set("offset", String(currentOffset));
       if (selectedStageId) params.set("stage_id", selectedStageId);
       if (searchQuery) params.set("q", searchQuery);
 
       const res = await fetch(`/api/pipeline/contacts?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        setContacts(data.contacts ?? []);
+        const batch: PipelineContact[] = data.contacts ?? [];
+        if (append) {
+          setContacts((prev) => [...prev, ...batch]);
+        } else {
+          setContacts(batch);
+        }
+        setHasMore(batch.length === BATCH_SIZE);
       }
     } catch { /* silent */ }
     setLoading(false);
+    setLoadingMore(false);
   }, [sortField, selectedStageId, searchQuery]);
+
+  async function handleLoadMore() {
+    await fetchContacts(true, contacts.length);
+  }
 
   useEffect(() => {
     void fetchContacts();
@@ -99,7 +116,7 @@ export default function PipelineLeadList({
   });
 
   const visible = sorted.slice(0, visibleCount);
-  const hasMore = sorted.length > visibleCount;
+  const hasMoreLocal = sorted.length > visibleCount;
 
   function toggleSort(field: SortField) {
     if (sortField === field) setSortAsc(!sortAsc);
@@ -188,14 +205,26 @@ export default function PipelineLeadList({
         })}
       </div>
 
-      {/* Load more */}
-      {hasMore && (
+      {/* Load more (local pagination) */}
+      {hasMoreLocal && (
         <button
           onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
           className="w-full py-2 mt-2 text-caption text-text-tertiary hover:text-text-primary flex items-center justify-center gap-1"
         >
           <ChevronDown size={12} />
           Show {Math.min(PAGE_SIZE, sorted.length - visibleCount)} more of {sorted.length}
+        </button>
+      )}
+
+      {/* Load more from server */}
+      {!hasMoreLocal && hasMore && (
+        <button
+          onClick={() => void handleLoadMore()}
+          disabled={loadingMore}
+          className="w-full py-2 mt-2 text-caption text-nah-blue hover:underline flex items-center justify-center gap-1"
+        >
+          {loadingMore ? <Loader2 size={12} className="animate-spin" /> : <ChevronDown size={12} />}
+          Load more contacts
         </button>
       )}
     </div>
