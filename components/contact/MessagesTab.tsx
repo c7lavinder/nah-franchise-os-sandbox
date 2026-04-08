@@ -43,6 +43,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
   const [showMention, setShowMention] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const listEndRef = useRef<HTMLDivElement>(null);
 
@@ -54,13 +55,18 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   const fetchMessages = useCallback(async () => {
+    setLoadError(null);
     try {
       const res = await fetch(`/api/contacts/${contactId}/messages`);
       if (res.ok) {
         const data = await res.json();
         setMessages(data.messages ?? []);
+      } else {
+        setLoadError("Failed to load messages");
       }
-    } catch { /* silent */ }
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Failed to load messages");
+    }
     setLoading(false);
   }, [contactId]);
 
@@ -223,6 +229,13 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
 
   return (
     <div className="flex flex-col h-full">
+      {/* Load error display */}
+      {loadError && (
+        <div className="flex-shrink-0 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg mb-3 text-caption text-danger">
+          {loadError}
+        </div>
+      )}
+
       {/* Message list */}
       <div className="flex-1 overflow-y-auto space-y-3 pb-3 min-h-0">
         {messages.length === 0 && (

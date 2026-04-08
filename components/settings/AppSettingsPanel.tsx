@@ -32,9 +32,11 @@ export default function AppSettingsPanel() {
 
   useEffect(() => {
     fetch("/api/settings/app-settings")
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => (r.ok ? r.json() : (() => { throw new Error("Failed to load settings"); })()))
       .then((d) => { if (d?.settings) setSettings(d.settings); })
-      .catch(() => {})
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load app settings");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -160,6 +162,13 @@ export default function AppSettingsPanel() {
           </div>
         </div>
       </div>
+
+      {/* Error display on load */}
+      {!loading && error && (
+        <div className="mb-4 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg text-body-sm text-danger">
+          {error}
+        </div>
+      )}
 
       {/* Save */}
       {isAdmin && (

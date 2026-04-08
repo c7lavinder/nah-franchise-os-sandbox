@@ -28,10 +28,12 @@ export default function CallsPage() {
   const [calls, setCalls] = useState<CallSummary[]>([]);
   const [selectedCall, setSelectedCall] = useState<CallSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [dbCalls, setDbCalls] = useState<{ id: string; contactName: string | null; callTypeName: string | null; hostName: string | null; scheduled_at: string | null; status: string; grade: string | null; hasTranscript: boolean }[]>([]);
 
   const fetchCalls = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [ghlRes, dbRes] = await Promise.all([
         fetch("/api/calls").catch(() => null),
@@ -40,13 +42,15 @@ export default function CallsPage() {
       if (ghlRes?.ok) {
         const data = await ghlRes.json();
         setCalls(data.calls ?? []);
+      } else if (ghlRes) {
+        setError("Failed to load calls");
       }
       if (dbRes?.ok) {
         const data = await dbRes.json();
         setDbCalls(data.calls ?? []);
       }
-    } catch {
-      // Continue with empty
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load calls");
     } finally {
       setLoading(false);
     }
@@ -99,6 +103,13 @@ export default function CallsPage() {
               </Link>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Error display */}
+      {error && (
+        <div className="mb-3 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg text-caption text-danger">
+          {error}
         </div>
       )}
 

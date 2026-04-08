@@ -61,6 +61,7 @@ export default function PipelineEditor() {
   const bodyUserId = { userId: user?.id };
 
   const fetchPipelines = useCallback(async () => {
+    setError(null);
     try {
       const res = await fetch("/api/settings/pipelines");
       if (res.ok) {
@@ -69,8 +70,12 @@ export default function PipelineEditor() {
         if (!selectedPipelineId && data.pipelines?.length > 0) {
           setSelectedPipelineId(data.pipelines[0].id);
         }
+      } else {
+        setError("Failed to load pipelines");
       }
-    } catch { /* silent */ }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load pipelines");
+    }
     setLoading(false);
   }, [selectedPipelineId]);
 

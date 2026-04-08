@@ -61,11 +61,13 @@ export default function PipelineLeadList({
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const BATCH_SIZE = 500;
 
   const fetchContacts = useCallback(async (append = false, currentOffset = 0) => {
     if (!append) setLoading(true);
     else setLoadingMore(true);
+    setError(null);
     try {
       const params = new URLSearchParams();
       params.set("sort", sortField);
@@ -85,8 +87,12 @@ export default function PipelineLeadList({
           setTotalCount(data.totalCount ?? batch.length);
         }
         setHasMore(batch.length === BATCH_SIZE);
+      } else {
+        setError("Failed to load contacts");
       }
-    } catch { /* silent */ }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load contacts");
+    }
     setLoading(false);
     setLoadingMore(false);
   }, [sortField, selectedStageId, searchQuery]);
@@ -127,6 +133,13 @@ export default function PipelineLeadList({
 
   return (
     <div>
+      {/* Error display */}
+      {error && (
+        <div className="mb-3 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg text-caption text-danger">
+          {error}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-h2 text-text-primary">

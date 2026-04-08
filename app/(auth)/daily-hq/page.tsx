@@ -25,16 +25,19 @@ export default function DailyHQPage() {
   const [inboxFilter, setInboxFilter] = useState<"all" | "unread">("all");
   const [inboxLoading, setInboxLoading] = useState(true);
   const [inboxSearch, setInboxSearch] = useState("");
+  const [inboxError, setInboxError] = useState<string | null>(null);
 
   // Calendar state
   const [appointments, setAppointments] = useState<GHLAppointment[]>([]);
 
   // Task state
   const [tasks, setTasks] = useState<GHLTask[]>([]);
+  const [sidebarError, setSidebarError] = useState<string | null>(null);
 
   // Fetch inbox
   const fetchInbox = useCallback(async () => {
     setInboxLoading(true);
+    setInboxError(null);
     try {
       const params = new URLSearchParams({ limit: "50" });
       if (inboxFilter === "unread") params.set("unread", "true");
@@ -42,9 +45,11 @@ export default function DailyHQPage() {
       if (res.ok) {
         const data = await res.json();
         setConversations(data.conversations ?? []);
+      } else {
+        setInboxError("Failed to load inbox");
       }
-    } catch {
-      // Continue with empty
+    } catch (err) {
+      setInboxError(err instanceof Error ? err.message : "Failed to load inbox");
     } finally {
       setInboxLoading(false);
     }
@@ -52,15 +57,18 @@ export default function DailyHQPage() {
 
   // Fetch calendar + tasks
   const fetchSidebar = useCallback(async () => {
+    setSidebarError(null);
     try {
       const res = await fetch("/api/daily-hq");
       if (res.ok) {
         const data = await res.json();
         setAppointments(data.upcoming ?? []);
         setTasks(data.tasks ?? []);
+      } else {
+        setSidebarError("Failed to load calendar and tasks");
       }
-    } catch {
-      // Continue with empty
+    } catch (err) {
+      setSidebarError(err instanceof Error ? err.message : "Failed to load calendar and tasks");
     }
   }, []);
 
@@ -153,6 +161,7 @@ export default function DailyHQPage() {
 
         {/* RIGHT PANEL — Priority Leads + Calendar + Tasks */}
         <div className="lg:col-span-2 flex flex-col gap-4 min-h-0 overflow-y-auto">
+          {sidebarError && <p className="text-caption text-danger">{sidebarError}</p>}
           <TodayCalendar appointments={appointments} />
           <TaskPanel tasks={tasks} onTaskUpdated={fetchSidebar} />
         </div>
