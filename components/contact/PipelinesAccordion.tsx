@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ChevronDown, ChevronRight, Loader2, GitBranch } from "lucide-react";
 import StageCircle from "./StageCircle";
 import StageDrilldown from "./StageDrilldown";
+import StageActionButtons from "./StageActionButtons";
 import type { SubTaskLog, StageHistoryEntry } from "@/lib/contacts/pipeline-state";
 import {
   computeStageVisualState,
@@ -162,6 +163,7 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
                 {/* Stage circles row */}
                 <StagesRow
                   contactId={contactId}
+                  pipelineId={pState.pipeline_id}
                   stages={pState.stages}
                   currentStageId={pState.current_stage_id}
                   currentSubTaskStartedAt={pState.current_sub_task_started_at}
@@ -181,6 +183,7 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
 
 function StagesRow({
   contactId,
+  pipelineId,
   stages,
   currentStageId,
   currentSubTaskStartedAt,
@@ -190,6 +193,7 @@ function StagesRow({
   onRefresh,
 }: {
   contactId: string;
+  pipelineId: string;
   stages: StageAPI[];
   currentStageId: string;
   currentSubTaskStartedAt: string | null;
@@ -247,6 +251,40 @@ function StagesRow({
             logsBySubTask={logsMap}
             stageHistory={stageHistory}
             stageId={expandedStage}
+            onRefresh={onRefresh}
+          />
+        );
+      })()}
+
+      {/* Stage action buttons */}
+      {(() => {
+        const currentIdx = stages.findIndex((s) => s.id === currentStageId);
+        const currentStage = stages[currentIdx];
+        const nextStage = currentIdx < stages.length - 1 ? stages[currentIdx + 1] : null;
+        const prevStage = currentIdx > 0 ? stages[currentIdx - 1] : null;
+
+        // Check if all required sub-tasks in current stage are complete
+        const currentStageTasks = currentStage?.subTasks ?? [];
+        const currentLogsMap = new Map(Object.entries(currentStage?.logsBySubTask ?? {}));
+        const allComplete = currentStageTasks
+          .filter((t) => t.is_required)
+          .every((t) => {
+            const logs = (currentLogsMap.get(t.id) ?? []).filter((l) => !l.deleted_at);
+            if (logs.length === 0) return false;
+            if (t.state_type === "single") return true;
+            return logs[0]?.state_advance === "second";
+          });
+
+        return (
+          <StageActionButtons
+            contactId={contactId}
+            pipelineId={pipelineId}
+            currentStageName={currentStage?.name ?? ""}
+            nextStageName={nextStage?.name ?? null}
+            prevStageName={prevStage?.name ?? null}
+            allSubTasksComplete={allComplete}
+            isFirstStage={currentIdx === 0}
+            isLastStage={currentIdx === stages.length - 1}
             onRefresh={onRefresh}
           />
         );
