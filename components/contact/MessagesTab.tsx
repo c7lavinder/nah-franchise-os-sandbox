@@ -12,6 +12,7 @@ import {
 import MentionAutocomplete from "./MentionAutocomplete";
 import type { MentionUser } from "./MentionAutocomplete";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useToast } from "@/components/ui/Toast";
 
 interface Message {
   id: string;
@@ -32,6 +33,7 @@ interface MessagesTabProps {
 
 export default function MessagesTab({ contactId, highlightMessageId }: MessagesTabProps) {
   const { user, token } = useAuth();
+  const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<MentionUser[]>([]);
@@ -163,6 +165,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
       if (res.ok) {
         setDraft("");
         setMentionedIds(new Set());
+        toast("Message sent");
         await fetchMessages();
       } else {
         const data = await res.json().catch(() => ({}));
@@ -180,7 +183,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ userId: user?.id }),
     });
-    if (res.ok) await fetchMessages();
+    if (res.ok) { toast("Message deleted"); await fetchMessages(); }
   }
 
   async function handleEditSave(messageId: string) {
@@ -194,6 +197,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
     if (res.ok) {
       setEditingId(null);
       setEditBody("");
+      toast("Message updated");
       await fetchMessages();
     }
     setEditSaving(false);

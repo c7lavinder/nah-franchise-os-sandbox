@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { ArrowRight, SkipForward, RotateCcw, Loader2, ArrowDownRight } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 
 interface StageActionButtonsProps {
   contactId: string;
@@ -31,6 +32,7 @@ export default function StageActionButtons({
   isLastStage,
   onRefresh,
 }: StageActionButtonsProps) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<"skip" | "revert" | "drop_followup" | "drop_nurture" | null>(null);
@@ -51,6 +53,7 @@ export default function StageActionButtons({
       }
       setConfirmAction(null);
       setReason("");
+      toast(force ? "Stage skipped" : "Stage advanced");
       onRefresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
@@ -75,6 +78,7 @@ export default function StageActionButtons({
       }
       setConfirmAction(null);
       setReason("");
+      toast("Stage reverted");
       onRefresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
@@ -102,6 +106,7 @@ export default function StageActionButtons({
       }
       setConfirmAction(null);
       setReason("");
+      toast(`Dropped to ${destination === "followup" ? "Follow-up" : "Nurture"}`);
       onRefresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");

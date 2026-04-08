@@ -10,6 +10,7 @@ import {
   ArrowLeft, Phone, Loader2, FileText, Award, BookOpen,
   RefreshCw, ExternalLink, Sparkles,
 } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 
 interface CallDetail {
   id: string;
@@ -64,6 +65,7 @@ export default function CallDetailPage() {
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [grade, setGrade] = useState<Grade | null>(null);
   const [coaching, setCoaching] = useState<Coaching | null>(null);
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
@@ -104,6 +106,7 @@ export default function CallDetailPage() {
       });
       if (res.ok) {
         setPasteText("");
+        toast("Transcript saved");
         await fetchDetail();
       } else {
         const d = await res.json().catch(() => ({}));
@@ -118,7 +121,7 @@ export default function CallDetailPage() {
     setError(null);
     try {
       const res = await fetch(`/api/calls/${callId}/grade-rubric`, { method: "POST" });
-      if (res.ok) await fetchDetail();
+      if (res.ok) { toast("Call graded"); await fetchDetail(); }
       else {
         const d = await res.json().catch(() => ({}));
         setError(d.error ?? "Grading failed");
@@ -132,7 +135,7 @@ export default function CallDetailPage() {
     setError(null);
     try {
       const res = await fetch(`/api/calls/${callId}/coach`, { method: "POST" });
-      if (res.ok) await fetchDetail();
+      if (res.ok) { toast("Coaching generated"); await fetchDetail(); }
       else {
         const d = await res.json().catch(() => ({}));
         setError(d.error ?? "Coaching failed");

@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 
 interface SubTaskLogModalProps {
   contactId: string;
@@ -46,6 +47,7 @@ export default function SubTaskLogModal({
   onClose,
   onSuccess,
 }: SubTaskLogModalProps) {
+  const { toast } = useToast();
   const [stateAdvance, setStateAdvance] = useState<"first" | "second" | null>(
     stateType === "two_state" ? "first" : null
   );
@@ -80,6 +82,7 @@ export default function SubTaskLogModal({
         throw new Error(data.error ?? "Failed to create log");
       }
 
+      toast("Log saved");
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create log");

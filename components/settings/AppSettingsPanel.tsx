@@ -8,6 +8,7 @@
 import { useState, useEffect } from "react";
 import { Loader2, Save, AlertTriangle, Sliders } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useToast } from "@/components/ui/Toast";
 
 interface AppSettings {
   time_in_stage_yellow_days: number;
@@ -18,6 +19,7 @@ interface AppSettings {
 
 export default function AppSettingsPanel() {
   const { user, token } = useAuth();
+  const { toast } = useToast();
   const isAdmin = user?.role === "leadership";
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,6 +55,7 @@ export default function AppSettingsPanel() {
         body: JSON.stringify({ ...settings, userId: user?.id }),
       });
       if (res.ok) {
+        toast("Settings saved");
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
       } else {
