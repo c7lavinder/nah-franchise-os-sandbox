@@ -12,6 +12,7 @@ import { ChevronDown, ChevronRight, Loader2, GitBranch } from "lucide-react";
 import StageCircle from "./StageCircle";
 import StageDrilldown from "./StageDrilldown";
 import StageActionButtons from "./StageActionButtons";
+import ResumeSalesPrompt from "./ResumeSalesPrompt";
 import type { SubTaskLog, StageHistoryEntry } from "@/lib/contacts/pipeline-state";
 import {
   computeStageVisualState,
@@ -172,6 +173,12 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
                   stageHistory={pState.stageHistory}
                   onRefresh={fetchData}
                 />
+
+                {/* §1.13: Re-engaged → Resume Sales prompt */}
+                {pState.pipeline_slug === "followup" &&
+                  currentStage?.slug === "reengaged" && (
+                    <ResumeSalesPrompt contactId={contactId} onRefresh={fetchData} />
+                  )}
               </div>
             )}
           </div>
