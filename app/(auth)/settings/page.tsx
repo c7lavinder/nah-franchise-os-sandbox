@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Settings, User, Bell, Shield, Database, Zap, CheckCircle2, XCircle, ExternalLink, GitBranch, Calendar, Sliders } from "lucide-react";
+import { Settings, User, Bell, Shield, Database, Zap, CheckCircle2, XCircle, ExternalLink, GitBranch, Calendar, Sliders, Phone } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import PipelineEditor from "@/components/settings/PipelineEditor";
 import CronCalendar from "@/components/settings/CronCalendar";
 import AppSettingsPanel from "@/components/settings/AppSettingsPanel";
+import CallTypesRubricEditor from "@/components/settings/CallTypesRubricEditor";
 
 interface SetupItem {
   label: string;
@@ -22,7 +23,7 @@ interface IntegrationStatus {
   setup?: { checklist: SetupItem[]; complete: number; total: number; ready: boolean };
 }
 
-type SettingsTab = "general" | "pipelines" | "cron" | "app-settings";
+type SettingsTab = "general" | "pipelines" | "call-types" | "cron" | "app-settings";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -44,6 +45,7 @@ export default function SettingsPage() {
   const TABS: { key: SettingsTab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
     { key: "general", label: "General", icon: Settings },
     { key: "pipelines", label: "Pipeline Editor", icon: GitBranch },
+    { key: "call-types", label: "Call Types & Rubrics", icon: Phone },
     { key: "cron", label: "Cron Calendar", icon: Calendar },
     { key: "app-settings", label: "App Settings", icon: Sliders },
   ];
@@ -78,6 +80,8 @@ export default function SettingsPage() {
 
       {activeTab === "pipelines" ? (
         <PipelineEditor />
+      ) : activeTab === "call-types" ? (
+        <CallTypesRubricEditor />
       ) : activeTab === "cron" ? (
         <CronCalendar />
       ) : activeTab === "app-settings" ? (
