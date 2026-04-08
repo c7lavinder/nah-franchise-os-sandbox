@@ -1030,6 +1030,51 @@ Matched to local contact: 1
 Unmatched: 0
 ```
 
-### Status: AWAITING HUMAN APPROVAL for live run
-- Run: `source .env.local && npx tsx scripts/tag-converted-franchisees.ts --live`
-- Branch: `sprint-8-converted-tagging` (NOT merged)
+### Status: COMPLETED — Chris Loye tagged, merged to main
+
+---
+
+## Sprint 9 — Calls + Rubric Grading + KB Coaching (2026-04-08)
+
+### What was built
+- **Schema**: call_types, rubrics, rubric_criteria, calls, call_transcripts, call_grades, call_coaching tables + seed data (5 call types with blank rubrics)
+- **Call Types & Rubrics editor** in Settings (new tab) — admin CRUD for call types and rubric criteria with drag reorder
+- **GHL calendar sync** (`/api/cron/sync-ghl-calendar`) — polls GHL events, upserts calls with type guessing + contact matching
+- **Transcript intake** (`/api/calls/:id/transcript`) — manual paste, upload, Whisper transcription. Auto-logs sub-task entry with state_advance=second
+- **Scout call grading** (`lib/calls/grader.ts`) — rubric-driven, reads criteria from DB, Claude grades each criterion + overall
+- **Scout call coaching** (`lib/calls/coach.ts`) — KB-driven, fetches knowledge_documents, Claude produces coaching notes + plan
+- **Pre-call brief** (`/api/contacts/:id/pre-call-brief`) — Scout generates brief from contact context + pipeline + KB
+- **Call detail page** (`/calls/[callId]`) — 5 tabs: Overview, Transcript, Grade, Coaching, Pre-call Brief
+- **Calls page** — added DB calls cards above existing GHL call list
+- **Contact page** — added Calls tab showing calls for that contact
+
+### Branch
+`sprint-9-calls-rubrics-coaching` (NOT merged)
+
+### Key decisions
+- Extended existing knowledge_documents table for coaching KB (no new tables)
+- Kept existing GHL-based calls page intact, added DB calls on top
+- Rubric criteria are DATA from DB, never hardcoded
+- Whisper: rejects >25MB files, retries once on failure
+- Claude model configurable via SCOUT_MODEL env var (defaults to claude-sonnet-4-6)
+- GHL calendar sync is idempotent (keyed on ghl_event_id)
+- Auto-log: transcript → sub-task log with state_advance=second (marks sub-task complete)
+
+### Sprint 9 — Visual Review Checklist
+- [ ] Settings → Call Types & Rubrics tab loads with 5 seeded types
+- [ ] Add a criterion to Matt Call rubric → saves → persists on refresh
+- [ ] Calls list page loads, shows DB calls + GHL calls
+- [ ] Click a DB call → detail page loads with 5 tabs
+- [ ] Transcript tab: paste sample transcript → saves → auto-logs sub-task entry
+- [ ] Grade tab: click Grade → Scout returns rubric-based grade (requires ANTHROPIC_API_KEY)
+- [ ] Coaching tab: click Generate → Scout returns coaching notes (requires ANTHROPIC_API_KEY)
+- [ ] Contact page → Calls tab shows calls for that contact
+- [ ] Pre-call brief button generates a brief (requires ANTHROPIC_API_KEY)
+- [ ] GHL calendar sync creates calls from upcoming meeting events
+- [ ] No console errors
+
+### Requires for full functionality
+- ANTHROPIC_API_KEY in env (present on Vercel, not in local .env.local)
+- OPENAI_API_KEY in env for Whisper transcription (present on Vercel)
+- GHL calendar events with meeting links for sync to populate calls
+- Admin must add rubric criteria in Settings before grading works
