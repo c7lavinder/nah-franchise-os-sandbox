@@ -60,6 +60,7 @@ export default function PipelineLeadList({
 
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
   const BATCH_SIZE = 500;
 
   const fetchContacts = useCallback(async (append = false, currentOffset = 0) => {
@@ -81,6 +82,7 @@ export default function PipelineLeadList({
           setContacts((prev) => [...prev, ...batch]);
         } else {
           setContacts(batch);
+          setTotalCount(data.totalCount ?? batch.length);
         }
         setHasMore(batch.length === BATCH_SIZE);
       }
@@ -130,7 +132,7 @@ export default function PipelineLeadList({
         <h2 className="text-h2 text-text-primary">
           {selectedStageName ?? "All Leads"}
           <span className="text-caption text-text-tertiary ml-2 font-normal">
-            {contacts.length} {contacts.length === 1 ? "lead" : "leads"}
+            {totalCount > contacts.length ? `${contacts.length} of ${totalCount}` : contacts.length} {totalCount === 1 ? "lead" : "leads"}
           </span>
         </h2>
         {loading && <Loader2 size={14} className="animate-spin text-text-tertiary" />}

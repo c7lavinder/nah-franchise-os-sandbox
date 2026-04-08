@@ -85,6 +85,16 @@ export async function GET(request: NextRequest) {
       dbQuery = dbQuery.order("current_sub_task_started_at", { ascending: true, nullsFirst: false });
     }
 
+    // Get total count for the filtered query (before pagination)
+    let totalCountQuery = supabase
+      .from("contact_pipeline_state")
+      .select("*", { count: "exact", head: true })
+      .eq("is_active", true);
+    if (stageId) totalCountQuery = totalCountQuery.eq("current_stage_id", stageId);
+    if (pipelineSlug === "sales") totalCountQuery = totalCountQuery.eq("pipeline_id", "a0000000-0000-0000-0000-000000000001");
+    else if (pipelineSlug === "followup") totalCountQuery = totalCountQuery.eq("pipeline_id", "a0000000-0000-0000-0000-000000000002");
+    const { count: totalCount } = await totalCountQuery;
+
     dbQuery = dbQuery.range(offset, offset + limit - 1);
 
     const { data: rows, error } = await dbQuery;
@@ -165,7 +175,7 @@ export async function GET(request: NextRequest) {
       contacts.sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    return NextResponse.json({ contacts, total: contacts.length });
+    return NextResponse.json({ contacts, total: contacts.length, totalCount: totalCount ?? contacts.length });
   } catch (err) {
     console.error("Pipeline contacts error:", err);
     return NextResponse.json({ error: "Failed to load contacts" }, { status: 500 });
