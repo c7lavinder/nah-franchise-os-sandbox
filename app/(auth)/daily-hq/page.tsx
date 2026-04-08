@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Bot } from "lucide-react";
 import type { GHLConversation, GHLAppointment, GHLTask } from "@/types/ghl";
 import { ConversationList, ConversationThread, InboxFilters } from "@/components/inbox";
-import { TodayCalendar, TaskPanel, PriorityLeads } from "@/components/daily-hq";
+import { TodayCalendar, TaskPanel } from "@/components/daily-hq";
 import { QuickAsk } from "@/components/scout";
 
 /**
@@ -153,7 +153,6 @@ export default function DailyHQPage() {
 
         {/* RIGHT PANEL — Priority Leads + Calendar + Tasks */}
         <div className="lg:col-span-2 flex flex-col gap-4 min-h-0 overflow-y-auto">
-          <PriorityLeads />
           <TodayCalendar appointments={appointments} />
           <TaskPanel tasks={tasks} onTaskUpdated={fetchSidebar} />
         </div>
