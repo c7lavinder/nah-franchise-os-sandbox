@@ -43,6 +43,8 @@ export interface PipelineSubTask {
   state_type: "single" | "two_state";
   first_state_label: string | null;
   second_state_label: string | null;
+  default_logger_type: string;
+  default_logger_user_id: string | null;
   is_required: boolean;
   stage_id: string;
 }
@@ -141,7 +143,7 @@ export async function getSubTasksForStage(stageId: string): Promise<PipelineSubT
 
   const { data, error } = await supabase
     .from("pipeline_sub_tasks")
-    .select("id, slug, name, sort_order, state_type, first_state_label, second_state_label, is_required, stage_id")
+    .select("id, slug, name, sort_order, state_type, first_state_label, second_state_label, default_logger_type, default_logger_user_id, is_required, stage_id")
     .eq("stage_id", stageId)
     .order("sort_order");
 

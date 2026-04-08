@@ -29,6 +29,8 @@ interface SubTaskAPI {
   state_type: "single" | "two_state";
   first_state_label: string | null;
   second_state_label: string | null;
+  default_logger_type: string;
+  default_logger_user_id: string | null;
   is_required: boolean;
   stage_id: string;
 }
@@ -159,12 +161,14 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
 
                 {/* Stage circles row */}
                 <StagesRow
+                  contactId={contactId}
                   stages={pState.stages}
                   currentStageId={pState.current_stage_id}
                   currentSubTaskStartedAt={pState.current_sub_task_started_at}
                   expandedStage={expandedStage}
                   onStageClick={(stageId) => setExpandedStage(expandedStage === stageId ? null : stageId)}
                   stageHistory={pState.stageHistory}
+                  onRefresh={fetchData}
                 />
               </div>
             )}
@@ -176,19 +180,23 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
 }
 
 function StagesRow({
+  contactId,
   stages,
   currentStageId,
   currentSubTaskStartedAt,
   expandedStage,
   onStageClick,
   stageHistory,
+  onRefresh,
 }: {
+  contactId: string;
   stages: StageAPI[];
   currentStageId: string;
   currentSubTaskStartedAt: string | null;
   expandedStage: string | null;
   onStageClick: (stageId: string) => void;
   stageHistory: StageHistoryEntry[];
+  onRefresh: () => void;
 }) {
   const currentSortOrder = getCurrentStageSortOrder(stages, currentStageId);
   const colorLabel = computeColorLabel(currentSubTaskStartedAt);
@@ -234,10 +242,12 @@ function StagesRow({
 
         return (
           <StageDrilldown
+            contactId={contactId}
             subTasks={stage.subTasks}
             logsBySubTask={logsMap}
             stageHistory={stageHistory}
             stageId={expandedStage}
+            onRefresh={onRefresh}
           />
         );
       })()}
