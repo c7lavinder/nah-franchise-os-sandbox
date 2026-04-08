@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Phone, Mail, User, Loader2, RefreshCw,
   MapPin, Clock, Megaphone, Save, MessageSquare,
@@ -12,6 +12,7 @@ import type { FieldCategory } from "@/lib/profile/field-registry";
 import type { GHLContact, GHLNote, GHLTask, GHLMessage } from "@/types/ghl";
 import { NotesSection, TaskList, ActivityTimeline } from "@/components/leads";
 import PipelinesAccordion from "@/components/contact/PipelinesAccordion";
+import MessagesTab from "@/components/contact/MessagesTab";
 
 const CATEGORIES: FieldCategory[] = [
   "territory", "franchise_fit", "financial", "trainual",
@@ -21,7 +22,9 @@ const CATEGORIES: FieldCategory[] = [
 export default function LeadProfilePage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const contactId = params.contactId as string;
+  const highlightMessageId = searchParams.get("message");
 
   const [contact, setContact] = useState<GHLContact | null>(null);
   const [notes, setNotes] = useState<GHLNote[]>([]);
@@ -31,7 +34,9 @@ export default function LeadProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
-  const [activeTab, setActiveTab] = useState<"stages" | "profile" | "notes" | "tasks" | "activity">("stages");
+  const [activeTab, setActiveTab] = useState<"stages" | "profile" | "messages" | "notes" | "tasks" | "activity">(
+    highlightMessageId ? "messages" : "stages"
+  );
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -202,6 +207,7 @@ export default function LeadProfilePage() {
         {([
           { key: "stages" as const, label: "Stages" },
           { key: "profile" as const, label: "Profile" },
+          { key: "messages" as const, label: "Messages" },
           { key: "notes" as const, label: `Notes (${notes.length})` },
           { key: "tasks" as const, label: `Tasks (${tasks.length})` },
           { key: "activity" as const, label: "Comms" },
@@ -302,6 +308,10 @@ export default function LeadProfilePage() {
                 />
               );
             })}
+          </div>
+        ) : activeTab === "messages" ? (
+          <div className="p-4 h-full flex flex-col">
+            <MessagesTab contactId={contactId} highlightMessageId={highlightMessageId} />
           </div>
         ) : activeTab === "notes" ? (
           <div className="p-4">

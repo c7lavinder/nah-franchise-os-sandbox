@@ -1,0 +1,364 @@
+"use client";
+
+/**
+ * MessagesTab — chat-style activity messages with @-mention support.
+ * Replaces the Notes tab per §1.21.
+ */
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  Loader2, Send, Pencil, Trash2, MessageSquare,
+} from "lucide-react";
+import MentionAutocomplete from "./MentionAutocomplete";
+import type { MentionUser } from "./MentionAutocomplete";
+import { useAuth } from "@/lib/auth/AuthContext";
+
+interface Message {
+  id: string;
+  contactId: string;
+  authorUserId: string;
+  authorName: string;
+  body: string;
+  mentionedUserIds: string[];
+  mentionedNames: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MessagesTabProps {
+  contactId: string;
+  highlightMessageId?: string | null;
+}
+
+export default function MessagesTab({ contactId, highlightMessageId }: MessagesTabProps) {
+  const { user, token } = useAuth();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<MentionUser[]>([]);
+
+  // Composer state
+  const [draft, setDraft] = useState("");
+  const [mentionedIds, setMentionedIds] = useState<Set<string>>(new Set());
+  const [sending, setSending] = useState(false);
+  const [showMention, setShowMention] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const listEndRef = useRef<HTMLDivElement>(null);
+
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+  const fetchMessages = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/contacts/${contactId}/messages`);
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(data.messages ?? []);
+      }
+    } catch { /* silent */ }
+    setLoading(false);
+  }, [contactId]);
+
+  // Fetch users for @-mention
+  useEffect(() => {
+    fetch("/api/pipeline/users")
+      .then((r) => (r.ok ? r.json() : { users: [] }))
+      .then((d) => setUsers(d.users ?? []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    void fetchMessages();
+  }, [fetchMessages]);
+
+  // Scroll to bottom on load and after new messages
+  useEffect(() => {
+    listEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Scroll to highlighted message
+  useEffect(() => {
+    if (highlightMessageId && !loading) {
+      const el = document.getElementById(`msg-${highlightMessageId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("bg-warning/10");
+        setTimeout(() => el.classList.remove("bg-warning/10"), 3000);
+      }
+    }
+  }, [highlightMessageId, loading]);
+
+  // Handle textarea input for @-mention detection
+  function handleInput(value: string) {
+    setDraft(value);
+
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const cursorPos = textarea.selectionStart;
+    const textBefore = value.slice(0, cursorPos);
+    const atMatch = textBefore.match(/@(\w*)$/);
+
+    if (atMatch) {
+      setShowMention(true);
+      setMentionQuery(atMatch[1]);
+    } else {
+      setShowMention(false);
+      setMentionQuery("");
+    }
+  }
+
+  function handleMentionSelect(mentionUser: MentionUser) {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const cursorPos = textarea.selectionStart;
+    const textBefore = draft.slice(0, cursorPos);
+    const textAfter = draft.slice(cursorPos);
+    const atIndex = textBefore.lastIndexOf("@");
+
+    const newDraft = textBefore.slice(0, atIndex) + `@${mentionUser.name} ` + textAfter;
+    setDraft(newDraft);
+    setMentionedIds((prev) => new Set([...prev, mentionUser.id]));
+    setShowMention(false);
+
+    // Refocus textarea
+    setTimeout(() => {
+      textarea.focus();
+      const newPos = atIndex + mentionUser.name.length + 2;
+      textarea.setSelectionRange(newPos, newPos);
+    }, 0);
+  }
+
+  async function handleSend() {
+    if (!draft.trim() || sending) return;
+    setSending(true);
+
+    try {
+      const res = await fetch(`/api/contacts/${contactId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({
+          body: draft.trim(),
+          mentionedUserIds: [...mentionedIds],
+        }),
+      });
+
+      if (res.ok) {
+        setDraft("");
+        setMentionedIds(new Set());
+        await fetchMessages();
+      }
+    } catch { /* silent */ }
+    setSending(false);
+  }
+
+  async function handleDelete(messageId: string) {
+    const res = await fetch(`/api/contacts/${contactId}/messages/${messageId}`, {
+      method: "DELETE",
+      headers: authHeaders,
+    });
+    if (res.ok) await fetchMessages();
+  }
+
+  async function handleEditSave(messageId: string) {
+    if (!editBody.trim()) return;
+    setEditSaving(true);
+    const res = await fetch(`/api/contacts/${contactId}/messages/${messageId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify({ body: editBody.trim() }),
+    });
+    if (res.ok) {
+      setEditingId(null);
+      setEditBody("");
+      await fetchMessages();
+    }
+    setEditSaving(false);
+  }
+
+  function renderBody(msg: Message) {
+    const parts = msg.body.split(/(@\w[\w\s]*?)(?=\s|$|@)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("@")) {
+        const name = part.slice(1).trim();
+        const isMention = Object.values(msg.mentionedNames).some(
+          (n) => n.toLowerCase() === name.toLowerCase()
+        );
+        if (isMention) {
+          return (
+            <span key={i} className="text-nah-blue font-medium">
+              {part}
+            </span>
+          );
+        }
+      }
+      return <span key={i}>{part}</span>;
+    });
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 size={24} className="animate-spin text-text-tertiary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Message list */}
+      <div className="flex-1 overflow-y-auto space-y-3 pb-3 min-h-0">
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <MessageSquare size={32} className="text-text-tertiary mb-3" />
+            <p className="text-body-sm text-text-tertiary">No messages yet</p>
+            <p className="text-caption text-text-tertiary mt-1">
+              Start a conversation about this contact.
+            </p>
+          </div>
+        )}
+
+        {messages.map((msg) => {
+          const isOwn = msg.authorUserId === user?.id;
+          const initials = msg.authorName
+            .split(" ")
+            .map((n) => n[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2);
+          const isEditing = editingId === msg.id;
+
+          return (
+            <div
+              key={msg.id}
+              id={`msg-${msg.id}`}
+              className="flex gap-3 group transition-colors duration-1000 rounded-lg px-2 py-1.5"
+            >
+              {/* Avatar */}
+              <div className="w-8 h-8 rounded-full bg-nah-blue/10 text-nah-blue flex items-center justify-center text-xs font-semibold flex-shrink-0 mt-0.5">
+                {initials}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                {/* Header */}
+                <div className="flex items-baseline gap-2">
+                  <span className="text-body-sm font-medium text-text-primary">
+                    {msg.authorName}
+                  </span>
+                  <span className="text-[11px] text-text-tertiary">
+                    {new Date(msg.createdAt).toLocaleString([], {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  {msg.updatedAt !== msg.createdAt && (
+                    <span className="text-[10px] text-text-tertiary italic">(edited)</span>
+                  )}
+
+                  {/* Actions — own messages only */}
+                  {isOwn && !isEditing && (
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 ml-auto">
+                      <button
+                        onClick={() => { setEditingId(msg.id); setEditBody(msg.body); }}
+                        className="p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      <button
+                        onClick={() => void handleDelete(msg.id)}
+                        className="p-1 rounded hover:bg-danger/10 text-text-tertiary hover:text-danger"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Body or edit form */}
+                {isEditing ? (
+                  <div className="mt-1">
+                    <textarea
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary resize-none"
+                      rows={2}
+                    />
+                    <div className="flex gap-2 mt-1">
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="btn-ghost px-2 py-1 text-caption"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => void handleEditSave(msg.id)}
+                        disabled={editSaving || !editBody.trim()}
+                        className="btn-primary px-2 py-1 text-caption flex items-center gap-1"
+                      >
+                        {editSaving && <Loader2 size={11} className="animate-spin" />}
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-body-sm text-text-primary whitespace-pre-wrap break-words mt-0.5">
+                    {renderBody(msg)}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        <div ref={listEndRef} />
+      </div>
+
+      {/* Composer */}
+      <div className="flex-shrink-0 border-t border-border-default pt-3 relative">
+        {showMention && (
+          <MentionAutocomplete
+            query={mentionQuery}
+            users={users}
+            onSelect={handleMentionSelect}
+            onClose={() => setShowMention(false)}
+            anchorRect={{ top: 0, left: 0 }}
+          />
+        )}
+        <div className="flex gap-2">
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={(e) => handleInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !showMention) {
+                e.preventDefault();
+                void handleSend();
+              }
+            }}
+            placeholder="Type a message... Use @ to mention someone"
+            className="flex-1 bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary resize-none focus:border-nah-blue focus:outline-none"
+            rows={2}
+            disabled={sending}
+          />
+          <button
+            onClick={() => void handleSend()}
+            disabled={sending || !draft.trim()}
+            className="self-end px-3 py-2 rounded-md bg-nah-blue text-white text-body-sm font-medium hover:bg-nah-blue/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+          >
+            {sending ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Send size={14} />
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
