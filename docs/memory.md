@@ -928,3 +928,46 @@ Then proceed with: [describe what you want to build this session]
 Remember: follow the 4-step self-audit protocol on every piece of
 code before finalizing it. Update memory.md when the session ends.
 ```
+
+---
+
+## Sprint 5 — Messages Tab + Notifications (2026-04-08)
+
+### What was built
+- **Messages API** (`app/api/contacts/[contactId]/messages/`) — CRUD for contact activity messages with @-mention notification creation
+- **MessagesTab** (`components/contact/MessagesTab.tsx`) — chat-style message list with composer, edit/delete, @-mention support
+- **MentionAutocomplete** (`components/contact/MentionAutocomplete.tsx`) — dropdown overlay for user selection when typing @
+- **Notifications API** (`app/api/notifications/route.ts`) — rewrote to read from `notifications` table (not `inactivity_alerts`), GET with enrichment + PATCH for mark-read
+- **NotificationBell** (`components/layout/NotificationBell.tsx`) — polls every 60s, dropdown panel, click → deep-link to contact message
+- **Contact page** — added Messages tab, auto-switches when `?message=` param present for deep-link from notifications
+- **Sidebar** — replaced old alert Link with NotificationBell component
+
+### Branch
+`sprint-5-messages-notifications` (NOT merged — do not push)
+
+### Key decisions
+- Messages ordered ascending (newest at bottom, chat-style) — composer at bottom
+- Auth via `getAuthUser(Bearer token)` on all write operations
+- Old Notes tab preserved (not deleted), Messages tab added alongside it
+- Notifications only for @-mentions per §1.14 (source_type='activity_mention')
+- Bell polls every 60s (same interval as old alert system)
+
+### Database tables used (already existed from Sprint 1 migrations)
+- `contact_activity_messages` — messages with `mentioned_user_ids uuid[]`
+- `notifications` — recipient_user_id, source_type, source_id, contact_id, read_at
+
+### Sprint 5 — Visual Review Checklist
+- [ ] Open any contact, click Messages tab (formerly Notes)
+- [ ] Type a message and send → appears in list
+- [ ] Type @ → autocomplete dropdown appears with users
+- [ ] Select a user → @name inserted
+- [ ] Send mention → bell on that user's session shows +1
+- [ ] Click bell → dropdown shows the mention
+- [ ] Click notification → navigates to contact, scrolls to message
+- [ ] Mark as read → badge decrements
+- [ ] Edit own message → updates
+- [ ] Delete own message → removed (soft)
+- [ ] No console errors
+
+### Known issues / blockers
+- None — build passes, all phases complete
