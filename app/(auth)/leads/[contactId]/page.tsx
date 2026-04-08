@@ -34,9 +34,10 @@ export default function LeadProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
-  const [activeTab, setActiveTab] = useState<"stages" | "profile" | "messages" | "notes" | "tasks" | "activity">(
+  const [activeTab, setActiveTab] = useState<"stages" | "profile" | "messages" | "calls" | "notes" | "tasks" | "activity">(
     highlightMessageId ? "messages" : "stages"
   );
+  const [contactCalls, setContactCalls] = useState<{ id: string; callTypeName: string | null; hostName: string | null; scheduled_at: string | null; status: string; grade: string | null }[]>([]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -44,11 +45,17 @@ export default function LeadProfilePage() {
       // Sprint 4A bugfix: fetch GHL contact + local pipeline-state in parallel.
       // The contactId in the URL may be a local UUID or a GHL ID.
       // The GHL fetch may fail if it's a local UUID — that's OK, we fall back to local data.
-      const [contactRes, profileRes, pipelineStateRes] = await Promise.all([
+      const [contactRes, profileRes, pipelineStateRes, callsRes] = await Promise.all([
         fetch(`/api/contacts/${contactId}`).catch(() => null),
         fetch(`/api/contacts/${contactId}/profile`).catch(() => null),
         fetch(`/api/contacts/${contactId}/pipeline-state`).catch(() => null),
+        fetch(`/api/calls/list?contact_id=${contactId}&limit=20`).catch(() => null),
       ]);
+
+      if (callsRes?.ok) {
+        const data = await callsRes.json();
+        setContactCalls(data.calls ?? []);
+      }
 
       if (contactRes?.ok) {
         const data = await contactRes.json();
@@ -208,6 +215,7 @@ export default function LeadProfilePage() {
           { key: "stages" as const, label: "Stages" },
           { key: "profile" as const, label: "Profile" },
           { key: "messages" as const, label: "Messages" },
+          { key: "calls" as const, label: `Calls (${contactCalls.length})` },
           { key: "notes" as const, label: `Notes (${notes.length})` },
           { key: "tasks" as const, label: `Tasks (${tasks.length})` },
           { key: "activity" as const, label: "Comms" },
@@ -312,6 +320,29 @@ export default function LeadProfilePage() {
         ) : activeTab === "messages" ? (
           <div className="p-4 h-full flex flex-col">
             <MessagesTab contactId={contactId} highlightMessageId={highlightMessageId} />
+          </div>
+        ) : activeTab === "calls" ? (
+          <div className="p-4">
+            {contactCalls.length === 0 ? (
+              <p className="text-caption text-text-tertiary py-4">No calls recorded for this contact</p>
+            ) : (
+              <div className="space-y-2">
+                {contactCalls.map((c) => (
+                  <a key={c.id} href={`/calls/${c.id}`}
+                    className="flex items-center gap-3 px-3 py-2.5 bg-bg-secondary border border-border-default rounded-lg hover:border-nah-blue/30 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-body-sm font-medium text-text-primary">{c.callTypeName ?? "Call"}</span>
+                      {c.hostName && <span className="text-caption text-text-tertiary ml-2">{c.hostName}</span>}
+                    </div>
+                    {c.grade && <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                      c.grade === "A" ? "bg-success/10 text-success" : c.grade === "F" ? "bg-danger/10 text-danger" : "bg-nah-blue/10 text-nah-blue"
+                    }`}>{c.grade}</span>}
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${c.status === "completed" ? "bg-success/10 text-success" : "bg-info/10 text-info"}`}>{c.status}</span>
+                    <span className="text-caption text-text-tertiary">{c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString() : ""}</span>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         ) : activeTab === "notes" ? (
           <div className="p-4">

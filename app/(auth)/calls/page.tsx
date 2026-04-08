@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Phone, RefreshCw } from "lucide-react";
+import { Phone, RefreshCw, Calendar, Award, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { CallList, CallDetail } from "@/components/calls";
 
 interface CallSummary {
@@ -27,14 +28,22 @@ export default function CallsPage() {
   const [calls, setCalls] = useState<CallSummary[]>([]);
   const [selectedCall, setSelectedCall] = useState<CallSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dbCalls, setDbCalls] = useState<{ id: string; contactName: string | null; callTypeName: string | null; hostName: string | null; scheduled_at: string | null; status: string; grade: string | null; hasTranscript: boolean }[]>([]);
 
   const fetchCalls = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/calls");
-      if (res.ok) {
-        const data = await res.json();
+      const [ghlRes, dbRes] = await Promise.all([
+        fetch("/api/calls").catch(() => null),
+        fetch("/api/calls/list?limit=20").catch(() => null),
+      ]);
+      if (ghlRes?.ok) {
+        const data = await ghlRes.json();
         setCalls(data.calls ?? []);
+      }
+      if (dbRes?.ok) {
+        const data = await dbRes.json();
+        setDbCalls(data.calls ?? []);
       }
     } catch {
       // Continue with empty
@@ -64,6 +73,34 @@ export default function CallsPage() {
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
+
+      {/* Scheduled calls from DB */}
+      {dbCalls.length > 0 && (
+        <div className="flex-shrink-0 mb-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Calendar size={14} className="text-nah-blue" />
+            <span className="text-overline text-text-tertiary tracking-wider">SCHEDULED & RECENT CALLS</span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {dbCalls.slice(0, 10).map((c) => (
+              <Link key={c.id} href={`/calls/${c.id}`}
+                className="flex-shrink-0 w-[200px] p-2.5 bg-bg-secondary border border-border-default rounded-lg hover:border-nah-blue/30 transition-colors">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-caption font-medium text-text-primary truncate">{c.contactName ?? "Unknown"}</span>
+                  {c.grade && <span className={`text-[10px] font-bold px-1 rounded ${
+                    c.grade === "A" ? "bg-success/10 text-success" : c.grade === "F" ? "bg-danger/10 text-danger" : "bg-nah-blue/10 text-nah-blue"
+                  }`}>{c.grade}</span>}
+                </div>
+                <p className="text-[10px] text-text-tertiary">{c.callTypeName ?? "Call"} {c.hostName ? `• ${c.hostName}` : ""}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-[10px] text-text-tertiary">{c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString() : "—"}</span>
+                  <span className={`text-[10px] px-1 rounded ${c.status === "completed" ? "bg-success/10 text-success" : c.status === "scheduled" ? "bg-info/10 text-info" : "bg-text-tertiary/10 text-text-tertiary"}`}>{c.status}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-0 border border-border-default rounded-lg overflow-hidden min-h-0">
