@@ -1007,3 +1007,29 @@ code before finalizing it. Update memory.md when the session ends.
 - [ ] Change threshold → save → persists
 - [ ] Non-admin user sees read-only editor with banner
 - [ ] No console errors
+
+---
+
+## Sprint 8 — Converted Franchisee Tagging (2026-04-08)
+
+### Migration applied
+- `contacts.is_converted_franchisee` boolean (default false) + `contacts.converted_at` timestamptz
+- Partial index on converted contacts
+- Applied to production via `supabase db push`
+
+### Dry-run results (2026-04-08)
+```
+CSV: FT Updated 4.7 - Sheet1.csv (1,397 rows)
+Converted (closed_deal=1 OR completed_deal=1): 1
+  - Chris Loye (cloye6001@gmail.com) — matched via email
+
+Local contacts in Supabase: 1,000 (default row limit — more exist)
+Matched to local contact: 1
+  Would be newly tagged: 1
+  Already tagged: 0
+Unmatched: 0
+```
+
+### Status: AWAITING HUMAN APPROVAL for live run
+- Run: `source .env.local && npx tsx scripts/tag-converted-franchisees.ts --live`
+- Branch: `sprint-8-converted-tagging` (NOT merged)
