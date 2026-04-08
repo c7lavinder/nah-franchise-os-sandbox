@@ -64,13 +64,16 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
     setLoading(false);
   }, [contactId]);
 
-  // Fetch users for @-mention
+  // Fetch users for @-mention (exclude self — can't notify yourself)
   useEffect(() => {
     fetch("/api/pipeline/users")
       .then((r) => (r.ok ? r.json() : { users: [] }))
-      .then((d) => setUsers(d.users ?? []))
+      .then((d) => {
+        const all: MentionUser[] = d.users ?? [];
+        setUsers(user?.id ? all.filter((u) => u.id !== user.id) : all);
+      })
       .catch(() => {});
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     void fetchMessages();
