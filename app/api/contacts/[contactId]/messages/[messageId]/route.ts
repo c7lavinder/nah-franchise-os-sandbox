@@ -16,9 +16,13 @@ export async function PATCH(
   const { messageId } = await params;
   const supabase = createServerClient();
 
+  // Try Bearer auth, fall back to userId in body
   const authUser = await getAuthUser(request.headers.get("Authorization"));
-  if (!authUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await request.json() as { body?: string; userId?: string };
+  const userId = authUser?.id ?? body.userId;
+  if (!userId) {
+    return NextResponse.json({ error: "User identification required" }, { status: 401 });
   }
 
   // Verify author
@@ -32,11 +36,10 @@ export async function PATCH(
   if (!existing) {
     return NextResponse.json({ error: "Message not found" }, { status: 404 });
   }
-  if (existing.author_user_id !== authUser.id) {
+  if (existing.author_user_id !== userId) {
     return NextResponse.json({ error: "Only the author can edit this message" }, { status: 403 });
   }
 
-  const body = await request.json() as { body?: string };
   if (!body.body?.trim()) {
     return NextResponse.json({ error: "Message body is required" }, { status: 400 });
   }
@@ -60,9 +63,13 @@ export async function DELETE(
   const { messageId } = await params;
   const supabase = createServerClient();
 
+  // Try Bearer auth, fall back to userId in body
   const authUser = await getAuthUser(request.headers.get("Authorization"));
-  if (!authUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await request.json().catch(() => ({})) as { userId?: string };
+  const userId = authUser?.id ?? body.userId;
+  if (!userId) {
+    return NextResponse.json({ error: "User identification required" }, { status: 401 });
   }
 
   // Verify author
@@ -76,7 +83,7 @@ export async function DELETE(
   if (!existing) {
     return NextResponse.json({ error: "Message not found" }, { status: 404 });
   }
-  if (existing.author_user_id !== authUser.id) {
+  if (existing.author_user_id !== userId) {
     return NextResponse.json({ error: "Only the author can delete this message" }, { status: 403 });
   }
 

@@ -42,6 +42,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
   const [sending, setSending] = useState(false);
   const [showMention, setShowMention] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
+  const [sendError, setSendError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const listEndRef = useRef<HTMLDivElement>(null);
 
@@ -137,6 +138,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
   async function handleSend() {
     if (!draft.trim() || sending) return;
     setSending(true);
+    setSendError(null);
 
     try {
       const res = await fetch(`/api/contacts/${contactId}/messages`, {
@@ -145,6 +147,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
         body: JSON.stringify({
           body: draft.trim(),
           mentionedUserIds: [...mentionedIds],
+          authorUserId: user?.id,
         }),
       });
 
@@ -152,15 +155,21 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
         setDraft("");
         setMentionedIds(new Set());
         await fetchMessages();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setSendError(data.error ?? `Failed (${res.status})`);
       }
-    } catch { /* silent */ }
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "Network error");
+    }
     setSending(false);
   }
 
   async function handleDelete(messageId: string) {
     const res = await fetch(`/api/contacts/${contactId}/messages/${messageId}`, {
       method: "DELETE",
-      headers: authHeaders,
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify({ userId: user?.id }),
     });
     if (res.ok) await fetchMessages();
   }
@@ -171,7 +180,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
     const res = await fetch(`/api/contacts/${contactId}/messages/${messageId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...authHeaders },
-      body: JSON.stringify({ body: editBody.trim() }),
+      body: JSON.stringify({ body: editBody.trim(), userId: user?.id }),
     });
     if (res.ok) {
       setEditingId(null);
@@ -358,6 +367,9 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
             )}
           </button>
         </div>
+        {sendError && (
+          <p className="text-caption text-danger mt-1">{sendError}</p>
+        )}
       </div>
     </div>
   );

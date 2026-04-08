@@ -83,21 +83,23 @@ export async function POST(
   const { contactId: rawId } = await params;
   const supabase = createServerClient();
 
-  // Auth check
+  // Try Bearer auth first, fall back to authorUserId in body (matches Sprint 4B pattern)
   const authHeader = request.headers.get("Authorization");
   const authUser = await getAuthUser(authHeader);
-  if (!authUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const localId = await resolveContactId(rawId);
   if (!localId) {
     return NextResponse.json({ error: "Contact not found" }, { status: 404 });
   }
 
-  const body = await request.json() as { body?: string; mentionedUserIds?: string[] };
+  const body = await request.json() as { body?: string; mentionedUserIds?: string[]; authorUserId?: string };
   if (!body.body?.trim()) {
     return NextResponse.json({ error: "Message body is required" }, { status: 400 });
+  }
+
+  const authorId = authUser?.id ?? body.authorUserId;
+  if (!authorId) {
+    return NextResponse.json({ error: "Author identification required" }, { status: 401 });
   }
 
   const mentionedUserIds = body.mentionedUserIds ?? [];
@@ -107,7 +109,7 @@ export async function POST(
     .from("contact_activity_messages")
     .insert({
       contact_id: localId,
-      author_user_id: authUser.id,
+      author_user_id: authorId,
       body: body.body.trim(),
       mentioned_user_ids: mentionedUserIds.length > 0 ? mentionedUserIds : null,
     })
@@ -121,7 +123,7 @@ export async function POST(
   // Create notifications for each mentioned user
   if (mentionedUserIds.length > 0) {
     const notifications = mentionedUserIds
-      .filter((uid) => uid !== authUser.id) // Don't notify yourself
+      .filter((uid) => uid !== authorId) // Don't notify yourself
       .map((uid) => ({
         recipient_user_id: uid,
         source_type: "activity_mention" as const,
