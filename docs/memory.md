@@ -971,3 +971,39 @@ code before finalizing it. Update memory.md when the session ends.
 
 ### Known issues / blockers
 - None — build passes, all phases complete
+
+---
+
+## Sprint 7 — Settings Pipeline Editor + Cron Calendar (2026-04-08)
+
+### What was built
+- **Pipeline template editor API** (11 routes) — full CRUD for pipelines, stages, sub-tasks with admin-only access, reorder, auto-advance toggle, delete-protection for in-use stages/sub-tasks
+- **PipelineEditor** (`components/settings/PipelineEditor.tsx`) — sidebar pipeline list, expandable stages with sub-tasks, inline name editing (double-click), HTML5 drag-and-drop reorder, add/delete, auto-advance toggle
+- **CronCalendar** (`components/settings/CronCalendar.tsx`) — Mon-Sun weekly grid with 3-hour blocks, color-coded by status, click for job details
+- **AppSettingsPanel** (`components/settings/AppSettingsPanel.tsx`) — yellow/red threshold days, GHL sync toggle + alert threshold
+- **Settings page restructured** — 4 tabs: General, Pipeline Editor, Cron Calendar, App Settings
+- **requireAdmin helper** (`lib/auth/admin-check.ts`) — shared admin role check for all settings routes
+
+### Branch
+`sprint-7-settings-editor` (NOT merged — do not push)
+
+### Key decisions
+- Admin check uses DB role lookup (not just TypeScript type) to support both old roles ("leadership") and new ("admin")
+- Frontend uses `user?.role === "leadership"` for admin check (matches UserRole type which hasn't been updated yet)
+- Delete operations return 409 with "In use by N contacts" when stages/sub-tasks are referenced
+- Cron calendar reads from existing cron_job_log table — shows empty state if no jobs logged yet
+- No new npm dependencies — drag-and-drop uses native HTML5 API
+
+### Sprint 7 — Visual Review Checklist
+- [ ] Settings page loads with 4 tabs (General, Pipeline Editor, Cron Calendar, App Settings)
+- [ ] Pipeline Editor shows Sales pipeline with 6 stages and 18 sub-tasks
+- [ ] Click a stage → sub-tasks expand
+- [ ] Edit stage name inline (double-click) → save → refresh → change persists
+- [ ] Toggle auto-advance on a stage → persists
+- [ ] Add a test stage → appears → delete → gone (only if no contacts reference it)
+- [ ] Try to delete "Engagement" stage → blocked with "in use" message
+- [ ] Cron Calendar shows weekly grid (may be empty if no jobs logged)
+- [ ] App Settings shows current thresholds (5/10)
+- [ ] Change threshold → save → persists
+- [ ] Non-admin user sees read-only editor with banner
+- [ ] No console errors
