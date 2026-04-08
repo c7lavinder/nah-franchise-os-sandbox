@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -10,7 +10,6 @@ import {
   Phone,
   BarChart2,
   Workflow,
-  Bell,
   BookOpen,
   Settings,
   LogOut,
@@ -18,6 +17,7 @@ import {
 } from "lucide-react";
 import type { UserRole } from "@/types/database";
 import { useAuth } from "@/lib/auth/AuthContext";
+import NotificationBell from "./NotificationBell";
 
 /** Navigation item definition */
 interface NavItem {
@@ -43,24 +43,7 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
-  const [alertCount, setAlertCount] = useState(0);
   const [profileOpen, setProfileOpen] = useState(false);
-
-  const fetchAlerts = useCallback(async () => {
-    try {
-      const res = await fetch("/api/notifications");
-      if (res.ok) {
-        const data = await res.json();
-        setAlertCount(data.count ?? 0);
-      }
-    } catch { /* silent */ }
-  }, []);
-
-  useEffect(() => {
-    void fetchAlerts();
-    const interval = setInterval(() => void fetchAlerts(), 60000);
-    return () => clearInterval(interval);
-  }, [fetchAlerts]);
 
   const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(userRole));
 
@@ -133,21 +116,9 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
         </nav>
 
         {/* Notification bell */}
-        <Link
-          href="/activity"
-          onClick={onNavClick}
-          className="relative flex items-center gap-3 h-12 pl-3 rounded-xl text-text-secondary hover:bg-[rgba(0,161,225,0.08)] hover:text-nah-blue transition-all duration-200 mt-auto"
-        >
-          <Bell size={20} className="flex-shrink-0" />
-          {alertCount > 0 && (
-            <span className="absolute top-2 left-8 min-w-[16px] h-4 px-1 rounded-full bg-[#f5a800] text-white text-[10px] font-bold flex items-center justify-center">
-              {alertCount > 99 ? "99+" : alertCount}
-            </span>
-          )}
-          <span className="text-nav opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap">
-            Alerts {alertCount > 0 ? `(${alertCount})` : ""}
-          </span>
-        </Link>
+        <div className="mt-auto">
+          <NotificationBell onNavClick={onNavClick} />
+        </div>
 
         {/* User profile + dropdown */}
         <div className="relative pt-3">
