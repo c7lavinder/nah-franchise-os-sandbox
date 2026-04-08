@@ -72,9 +72,12 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
   const [loading, setLoading] = useState(true);
   const [expandedPipeline, setExpandedPipeline] = useState<string | null>(null);
   const [expandedStage, setExpandedStage] = useState<string | null>(null);
+  const [successFlash, setSuccessFlash] = useState(false);
+  const isInitialLoad = pipelineStates.length === 0;
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (showSuccess?: boolean) => {
+    // Only show full spinner on initial load, not on refresh
+    if (isInitialLoad) setLoading(true);
     try {
       const res = await fetch(`/api/contacts/${contactId}/pipeline-state`);
       if (res.ok) {
@@ -82,18 +85,21 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
         const states = data.pipelineStates ?? [];
         setPipelineStates(states);
 
-        // Auto-expand pipeline + current stage so sub-tasks are immediately visible
-        if (states.length === 1) {
+        // Auto-expand pipeline + current stage on first load only
+        if (isInitialLoad && states.length > 0) {
           setExpandedPipeline(states[0].id);
           setExpandedStage(states[0].current_stage_id);
-        } else if (states.length > 0) {
-          setExpandedPipeline(states[0].id);
-          setExpandedStage(states[0].current_stage_id);
+        }
+
+        // Show brief success flash after write operations
+        if (showSuccess) {
+          setSuccessFlash(true);
+          setTimeout(() => setSuccessFlash(false), 2000);
         }
       }
     } catch { /* silent */ }
     setLoading(false);
-  }, [contactId]);
+  }, [contactId, isInitialLoad]);
 
   useEffect(() => {
     void fetchData();
@@ -123,6 +129,12 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
 
   return (
     <div className="space-y-3">
+      {/* Success flash after write operations */}
+      {successFlash && (
+        <div className="px-3 py-2 bg-success/10 border border-success/20 rounded-lg text-body-sm text-success font-medium animate-pulse">
+          Saved successfully
+        </div>
+      )}
       {pipelineStates.map((pState) => {
         const isExpanded = expandedPipeline === pState.id;
         const currentStage = pState.stages.find((s) => s.id === pState.current_stage_id);
@@ -173,13 +185,13 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
                   expandedStage={expandedStage}
                   onStageClick={(stageId) => setExpandedStage(expandedStage === stageId ? null : stageId)}
                   stageHistory={pState.stageHistory}
-                  onRefresh={fetchData}
+                  onRefresh={() => fetchData(true)}
                 />
 
                 {/* §1.13: Re-engaged → Resume Sales prompt */}
                 {pState.pipeline_slug === "followup" &&
                   currentStage?.slug === "reengaged" && (
-                    <ResumeSalesPrompt contactId={contactId} onRefresh={fetchData} />
+                    <ResumeSalesPrompt contactId={contactId} onRefresh={() => fetchData(true)} />
                   )}
               </div>
             )}
