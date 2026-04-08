@@ -6,7 +6,7 @@
  */
 
 import { useState } from "react";
-import { ArrowRight, SkipForward, RotateCcw, Loader2 } from "lucide-react";
+import { ArrowRight, SkipForward, RotateCcw, Loader2, ArrowDownRight } from "lucide-react";
 
 interface StageActionButtonsProps {
   contactId: string;
@@ -33,7 +33,7 @@ export default function StageActionButtons({
 }: StageActionButtonsProps) {
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [confirmAction, setConfirmAction] = useState<"skip" | "revert" | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"skip" | "revert" | "drop_followup" | "drop_nurture" | null>(null);
   const [reason, setReason] = useState("");
 
   async function handleAdvance(force: boolean) {
@@ -83,11 +83,43 @@ export default function StageActionButtons({
     }
   }
 
-  // Confirm dialog for skip / revert
+  async function handleDrop(destination: "followup" | "nurture") {
+    if (destination === "followup" && !reason.trim()) {
+      setError("Reason is required for Follow-up");
+      return;
+    }
+    setLoading(`drop_${destination}`);
+    setError(null);
+    try {
+      const res = await fetch(`/api/contacts/${contactId}/pipelines/${pipelineId}/drop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ destination, reason: reason || undefined }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Failed to drop");
+      }
+      setConfirmAction(null);
+      setReason("");
+      onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  // Confirm dialog for skip / revert / drop
   if (confirmAction) {
     const isRevert = confirmAction === "revert";
-    const title = isRevert ? `Revert to ${prevStageName}` : `Skip to ${nextStageName}`;
-    const actionLabel = isRevert ? "Revert" : "Skip Forward";
+    const isDrop = confirmAction === "drop_followup" || confirmAction === "drop_nurture";
+    const title = isRevert
+      ? `Revert to ${prevStageName}`
+      : isDrop
+        ? `Drop to ${confirmAction === "drop_followup" ? "Follow-up" : "Nurture"}`
+        : `Skip to ${nextStageName}`;
+    const actionLabel = isRevert ? "Revert" : isDrop ? "Drop" : "Skip Forward";
 
     return (
       <div className="mt-3 p-3 bg-bg-secondary border border-border-default rounded-lg">
@@ -103,10 +135,15 @@ export default function StageActionButtons({
         <div className="flex gap-2">
           <button onClick={() => { setConfirmAction(null); setReason(""); setError(null); }} className="btn-ghost px-3 py-1.5 text-caption">Cancel</button>
           <button
-            onClick={() => isRevert ? handleRevert() : handleAdvance(true)}
+            onClick={() =>
+              isRevert ? handleRevert() :
+              confirmAction === "drop_followup" ? handleDrop("followup") :
+              confirmAction === "drop_nurture" ? handleDrop("nurture") :
+              handleAdvance(true)
+            }
             disabled={!!loading}
             className={`px-3 py-1.5 text-caption font-medium rounded-md ml-auto flex items-center gap-1 ${
-              isRevert ? "bg-danger/10 text-danger hover:bg-danger/20" : "bg-warning/10 text-warning hover:bg-warning/20"
+              isRevert || isDrop ? "bg-danger/10 text-danger hover:bg-danger/20" : "bg-warning/10 text-warning hover:bg-warning/20"
             }`}
           >
             {loading && <Loader2 size={12} className="animate-spin" />}
@@ -156,6 +193,24 @@ export default function StageActionButtons({
           <RotateCcw size={12} /> Revert
         </button>
       )}
+
+      {/* Drop actions */}
+      <div className="ml-auto flex items-center gap-1.5">
+        <button
+          onClick={() => setConfirmAction("drop_followup")}
+          disabled={!!loading}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-caption text-text-tertiary bg-bg-tertiary hover:bg-bg-hover border border-border-default transition-colors"
+        >
+          <ArrowDownRight size={12} /> Follow-up
+        </button>
+        <button
+          onClick={() => setConfirmAction("drop_nurture")}
+          disabled={!!loading}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-caption text-text-tertiary bg-bg-tertiary hover:bg-bg-hover border border-border-default transition-colors"
+        >
+          <ArrowDownRight size={12} /> Nurture
+        </button>
+      </div>
 
       {error && !confirmAction && <span className="text-caption text-danger">{error}</span>}
     </div>
