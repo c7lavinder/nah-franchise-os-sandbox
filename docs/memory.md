@@ -611,6 +611,48 @@ Components: `components/contact/PipelinesAccordion.tsx`, `components/contact/Sta
 
 **Verified:** Both local UUID and GHL ID paths return correct pipeline state + contact name.
 
+---
+
+## Sprint 4B — Contact Page Stages Tab Write Operations (2026-04-07)
+
+### Sprint 4B — Summary
+
+**API routes created (5):**
+- `POST /api/contacts/:id/sub-tasks/:subTaskId/logs` — create sub-task log entry
+- `POST /api/contacts/:id/pipelines/:pipelineId/advance` — advance stage (normal or skip)
+- `POST /api/contacts/:id/pipelines/:pipelineId/revert` — revert to previous stage
+- `POST /api/contacts/:id/pipelines/:pipelineId/drop` — drop to Follow-up or Nurture
+- `POST /api/contacts/:id/pipelines/resume-sales` — re-engaged → spawn new Sales entry
+- `GET /api/pipeline/users` — list users for logger selection
+
+**Components created (3):**
+- `components/contact/SubTaskLogModal.tsx` — log entry form with state advance, content type, logger pre-fill per §1.8
+- `components/contact/StageActionButtons.tsx` — advance (pulses when ready per §1.7), skip, revert, drop buttons
+- `components/contact/ResumeSalesPrompt.tsx` — re-engaged → spawn Sales (fresh or resume)
+
+**Components modified (2):**
+- `components/contact/StageDrilldown.tsx` — added + button per sub-task to open log modal, passes contactId + onRefresh
+- `components/contact/PipelinesAccordion.tsx` — passes write props through, renders StageActionButtons + ResumeSalesPrompt
+
+**Data layer modified:**
+- `lib/contacts/pipeline-state.ts` — added default_logger_type/user_id to PipelineSubTask type + query
+
+**Phases:** 4B.1 (log entry), 4B.2 (advance/revert/skip), 4B.3 (drop), 4B.4 (resume sales) — all complete
+
+### Sprint 4B — Visual Review Checklist
+
+- [ ] Click + button on sub-task → log modal opens
+- [ ] Submit "first state" log on two-state sub-task → circle: empty → half
+- [ ] Submit "second state" log → half → full
+- [ ] Log count badge increments
+- [ ] Advance button pulses when all required sub-tasks complete
+- [ ] Click Advance → moves to next stage, history records move
+- [ ] Click Revert → confirm with reason → moves back, logs persist
+- [ ] Click Skip → confirm → advances with was_skip=true
+- [ ] Click Drop → Follow-up (requires reason) or Nurture (confirm only)
+- [ ] Re-engaged stage shows "Resume Sales" prompt with fresh/resume options
+- [ ] No console errors
+
 ### Sprint 4A — Visual Review Checklist
 
 - [ ] Navigate from pipeline page to any active Sales lead
