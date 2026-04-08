@@ -647,6 +647,14 @@ Components: `components/contact/PipelinesAccordion.tsx`, `components/contact/Sta
 
 **Verified:** npm run build PASS. API test: created + verified + deleted a test log via `/api/contacts/:id/sub-tasks/:subTaskId/logs` (POST returned `{"logId":"...","success":true}`, row confirmed in DB, cleaned up).
 
+### Sprint 4B Bugfix 2 — Sub-task click still not visible
+
+**Root cause:** Two layered issues:
+1. (Fixed in bugfix 1) SubTaskCircle onClick toggled history instead of opening modal
+2. (Fixed now) The StageDrilldown (which contains sub-tasks) only renders when a stage circle is clicked to expand it. But `expandedStage` started as `null` — the user saw stage circles but had to know to click one first to see sub-tasks. Most users expected sub-tasks to be visible immediately.
+
+**Fix:** `PipelinesAccordion.tsx` — auto-expand the current stage on load (`setExpandedStage(states[0].current_stage_id)`). Now when the Stages tab loads, the current stage's sub-tasks are immediately visible and clickable.
+
 ### Sprint 4B — Visual Review Checklist
 
 - [ ] Click + button on sub-task → log modal opens

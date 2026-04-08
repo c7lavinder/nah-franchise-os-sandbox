@@ -82,11 +82,13 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
         const states = data.pipelineStates ?? [];
         setPipelineStates(states);
 
-        // Auto-expand if only one pipeline, or expand the most recently active
+        // Auto-expand pipeline + current stage so sub-tasks are immediately visible
         if (states.length === 1) {
           setExpandedPipeline(states[0].id);
+          setExpandedStage(states[0].current_stage_id);
         } else if (states.length > 0) {
-          setExpandedPipeline(states[0].id); // First = most recent activity
+          setExpandedPipeline(states[0].id);
+          setExpandedStage(states[0].current_stage_id);
         }
       }
     } catch { /* silent */ }
