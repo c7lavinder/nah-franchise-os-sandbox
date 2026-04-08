@@ -561,6 +561,63 @@ New API endpoints: `app/api/pipeline/stages/route.ts`, `app/api/pipeline/contact
 
 ---
 
+## Sprint 4A — Contact Page Stages Tab (Read-Only) (2026-04-07)
+
+### Sprint 4A — File audit
+
+Contact page: `app/(auth)/leads/[contactId]/page.tsx` — 5 tabs: Stages (NEW), Profile, Notes, Tasks, Comms
+Pipeline state API: `app/api/contacts/[contactId]/pipeline-state/route.ts`
+Data layer: `lib/contacts/pipeline-state.ts`, `lib/contacts/stage-visual-state.ts`
+Components: `components/contact/PipelinesAccordion.tsx`, `components/contact/StageCircle.tsx`, `components/contact/SubTaskCircle.tsx`, `components/contact/StageDrilldown.tsx`, `components/contact/SubTaskLogHistory.tsx`
+
+### Sprint 4A — Summary
+
+**Files created:**
+- `lib/contacts/pipeline-state.ts` — 6 data fetching functions (read-only)
+- `lib/contacts/stage-visual-state.ts` — circle state derivation + color labels
+- `components/contact/StageCircle.tsx` — 3-state stage circle (empty/half/full) per §1.11
+- `components/contact/SubTaskCircle.tsx` — smaller sub-task circle with state labels
+- `components/contact/SubTaskLogHistory.tsx` — expandable log history per §1.15
+- `components/contact/StageDrilldown.tsx` — stage drill-down with sub-tasks + history
+- `components/contact/PipelinesAccordion.tsx` — multi-pipeline accordion
+- `app/api/contacts/[contactId]/pipeline-state/route.ts` — API endpoint for Stages tab data
+
+**Files modified:**
+- `app/(auth)/leads/[contactId]/page.tsx` — added Stages tab (default tab)
+
+**Phases completed:** 4A.1 through 4A.6
+
+**Verified locally:**
+- `npm run build`: ✅ passes
+- `npm run dev`: ✅ starts cleanly
+- API endpoint returns correct pipeline state for Sales contacts (6 stages, sub-tasks) and Nurture contacts (3 stages)
+- Stage circles compute empty/half/full based on sort_order relative to current stage
+- Color labels compute fresh/at_risk/losing based on time since sub-task started
+
+**Limitations (Sprint 4B):**
+- No log entry form / modal (read-only)
+- No stage advance / revert / skip buttons
+- No drop-to-followup / nurture actions
+- All sub-task logs will be empty until Sprint 4B adds write operations
+
+### Sprint 4A — Visual Review Checklist
+
+- [ ] Navigate from pipeline page to any active Sales lead
+- [ ] Contact page loads without errors
+- [ ] Stages tab is the default tab and shows pipelines accordion
+- [ ] Sales pipeline shows 6 stage circles
+- [ ] Stage circles show correct state (empty for future, half for current, full for past)
+- [ ] Color label dot visible on current stage
+- [ ] Clicking a stage circle expands sub-tasks below
+- [ ] Sub-task circles render with names and state labels
+- [ ] Clicking a sub-task toggles log history (empty for now)
+- [ ] Stage history section appears inline
+- [ ] If contact only has 1 pipeline, accordion is auto-expanded
+- [ ] Navigate to a Nurture contact — shows Follow-up pipeline only
+- [ ] No console errors in devtools
+
+---
+
 ## Tech Stack (Locked)
 - Frontend: Next.js 14, TypeScript strict, App Router
 - Styling: Tailwind CSS 3 with NAH design system
