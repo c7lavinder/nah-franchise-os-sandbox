@@ -1094,3 +1094,45 @@ Full details: docs/POLISH_SPRINT_LOG.md
 - Contact backfill dry-run: 3,090 GHL contacts, ~0 net new
 - Scout tools audit: no broken references
 - Build: PASS
+
+---
+
+## UX Restructure (2026-04-08)
+
+### What changed
+- **Name/phone formatting**: `capitalizeName()` + `formatPhone()` in lib/format/contact.ts, applied to pipeline leads list, contact page header, notification bell
+- **Pipeline page**: pill badges centered above circles, Follow-up row reordered (Nurture → Follow-up → Re-engaged), removed Won/Lost/All dropdown, clean "Showing N of M" labels
+- **Contact page**: 7 tabs → 3 (Overview, Messages, Profile). Persistent PipelineBar above tabs shows stage circles + action buttons. Click stage → inline drilldown below bar.
+- **Overview tab**: Territory Details (stubs), Deal Details (stubs + Lead Source from DB), Contact Notes, Call History, Tasks, Comms — all in card layout
+- **Profile tab**: Scout AI summary, scores, category-based editable fields (unchanged internally)
+- **Messages tab**: unchanged from Sprint 5
+
+### Stubs (fields that need future columns or linked tables)
+- Territory: territory, territory_slug, legal_entity, website — all show "—"
+- Deal: franchise_fee, royalty, term — all show "—"
+- Lead Source pulls from contacts.opportunity_source (real field)
+
+### Branch
+`ux-restructure-contact-pipeline` (NOT merged)
+
+### UX Restructure — Visual Review Checklist
+- [ ] Pipeline page: pill badges above circles, evenly spaced
+- [ ] Pipeline page: Long-Term row Nurture → Follow-up → Re-engaged
+- [ ] Pipeline page: no Won/Lost/All dropdown
+- [ ] Pipeline page: clean "Showing N of M" label
+- [ ] Contact name title cased everywhere
+- [ ] Phone formatted everywhere
+- [ ] Click a Sales contact → persistent pipeline bar visible above tabs
+- [ ] 3 tabs: Overview (default) | Messages | Profile
+- [ ] Old Stages/Calls/Notes/Tasks/Comms tabs all GONE
+- [ ] Click a stage circle → sub-tasks drop down inline below pipeline bar
+- [ ] Log a sub-task → still works, toast appears
+- [ ] Advance/Skip/Revert/Drop all still work
+- [ ] Overview tab: Territory + Deal cards visible (empty states OK)
+- [ ] Overview tab: Contact Notes section
+- [ ] Overview tab: Call history, Tasks, Comms sections
+- [ ] Messages tab unchanged from Sprint 5
+- [ ] Profile tab shows editable contact fields
+- [ ] Click a Nurture contact → persistent pipeline bar shows 3-stage Follow-up pipeline
+- [ ] If contact in 2+ pipelines → pipeline selector dropdown appears
+- [ ] No console errors on any page
