@@ -40,6 +40,19 @@ const ONBOARDING_STAGE_META: Record<string, { icon: React.ComponentType<{ size?:
   onboarded:   { icon: CheckCircle2,  gradient: "from-lime-500 to-yellow-400" },
 };
 
+const RUNWAY_STAGE_META: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; gradient: string }> = {
+  "first-offer":        { icon: Search,       gradient: "from-orange-500 to-orange-600" },
+  "first-purchase":     { icon: Award,        gradient: "from-orange-600 to-amber-500" },
+  "inventory-building": { icon: Rocket,       gradient: "from-amber-500 to-yellow-500" },
+  running:              { icon: Trophy,        gradient: "from-yellow-500 to-green-500" },
+};
+
+const TERRITORIES_STAGE_META: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; gradient: string }> = {
+  active:    { icon: CheckCircle2, gradient: "from-green-500 to-green-600" },
+  inactive:  { icon: UserMinus,    gradient: "from-gray-400 to-gray-500" },
+  available: { icon: UserPlus,     gradient: "from-blue-500 to-blue-600" },
+};
+
 interface StageAPI {
   id: string;
   slug: string;
@@ -82,6 +95,8 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
 
   const salesPipeline = pipelines.find((p) => p.slug === "sales");
   const onboardingPipeline = pipelines.find((p) => p.slug === "onboarding");
+  const runwayPipeline = pipelines.find((p) => p.slug === "runway");
+  const territoriesPipeline = pipelines.find((p) => p.slug === "territories");
   const followupPipeline = pipelines.find((p) => p.slug === "followup");
 
   if (loading) {
@@ -125,6 +140,28 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
         />
       )}
 
+      {/* Runway Pipeline — 4 stages */}
+      {runwayPipeline && (
+        <PipelineRow
+          title="RUNWAY"
+          stages={runwayPipeline.stages}
+          metaMap={RUNWAY_STAGE_META}
+          selectedStage={selectedStage}
+          onStageClick={onStageClick}
+        />
+      )}
+
+      {/* Territories Pipeline — 3 stages */}
+      {territoriesPipeline && (
+        <PipelineRow
+          title="TERRITORIES"
+          stages={territoriesPipeline.stages}
+          metaMap={TERRITORIES_STAGE_META}
+          selectedStage={selectedStage}
+          onStageClick={onStageClick}
+        />
+      )}
+
       {/* Follow-up Pipeline — 3 stages, display: Nurture → Follow-up → Re-engaged */}
       {followupPipeline && (
         <PipelineRow
@@ -135,8 +172,6 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
           onStageClick={onStageClick}
         />
       )}
-
-      {/* Onboarding + Coaching rows hidden per master plan §1.12 — deferred sprint */}
     </div>
   );
 }

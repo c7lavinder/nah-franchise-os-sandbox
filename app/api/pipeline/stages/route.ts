@@ -44,12 +44,44 @@ export async function GET() {
       return NextResponse.json({ error: stageError.message }, { status: 500 });
     }
 
-    // Fetch active contact counts per stage using individual count queries
-    // (avoids Supabase's 1,000-row default limit on select)
+    // Fetch active counts per stage
+    // Contact pipelines: count from contact_pipeline_state
+    // Territories pipeline: count from territories table by status
     const countMap = new Map<string, number>();
-    const stageIds = (stages ?? []).map((s) => s.id);
 
-    const countPromises = stageIds.map(async (stageId) => {
+    // Build pipeline entity_type lookup
+    const { data: pipelineMeta } = await supabase
+      .from("pipelines")
+      .select("id, slug, entity_type")
+      .eq("is_active", true);
+    const entityTypeMap = new Map<string, string>();
+    for (const p of pipelineMeta ?? []) entityTypeMap.set(p.id, p.entity_type ?? "contact");
+
+    // Territories pipeline: count by territory status matching stage slug
+    const territoriesPipeline = (pipelineMeta ?? []).find((p) => p.slug === "territories");
+    if (territoriesPipeline) {
+      const statusMap: Record<string, string> = { active: "active", inactive: "inactive", available: "available" };
+      for (const stage of (stages ?? []).filter((s) => s.pipeline_id === territoriesPipeline.id)) {
+        const status = statusMap[stage.slug];
+        if (status) {
+          const { count } = await supabase
+            .from("territories")
+            .select("ms_slug", { count: "exact", head: true })
+            .eq("status", status);
+          countMap.set(stage.id, count ?? 0);
+        }
+      }
+    }
+
+    // Contact pipeline stages: count from contact_pipeline_state
+    const contactStageIds = (stages ?? [])
+      .filter((s) => {
+        const et = entityTypeMap.get(s.pipeline_id);
+        return et === "contact" || (!et && !countMap.has(s.id));
+      })
+      .map((s) => s.id);
+
+    const countPromises = contactStageIds.map(async (stageId) => {
       const { count } = await supabase
         .from("contact_pipeline_state")
         .select("id", { count: "exact", head: true })

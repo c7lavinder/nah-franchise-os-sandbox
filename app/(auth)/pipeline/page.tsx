@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { OwnershipPath, PipelineFilters } from "@/components/pipeline";
 import PipelineLeadList from "@/components/pipeline/PipelineLeadList";
+import TerritoryCardList from "@/components/pipeline/TerritoryCardList";
 
 /**
  * Pipeline Page — Sprint 3 Rewire
@@ -59,6 +60,12 @@ export default function PipelinePage() {
         selectedStageName={selectedStageName}
         searchQuery={searchQuery}
       />
+
+      {/* Territory Cards — Territories pipeline */}
+      <div className="mt-8">
+        <h2 className="text-overline text-text-tertiary tracking-wider mb-4">TERRITORY NETWORK</h2>
+        <TerritoryCardList />
+      </div>
     </div>
   );
 }

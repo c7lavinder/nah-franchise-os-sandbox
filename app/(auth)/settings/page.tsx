@@ -8,6 +8,8 @@ import PipelineEditor from "@/components/settings/PipelineEditor";
 import CronCalendar from "@/components/settings/CronCalendar";
 import AppSettingsPanel from "@/components/settings/AppSettingsPanel";
 import CallTypesRubricEditor from "@/components/settings/CallTypesRubricEditor";
+import IntegrationsPanel from "@/components/settings/IntegrationsPanel";
+import AgentsPanel from "@/components/settings/AgentsPanel";
 
 interface SetupItem {
   label: string;
@@ -23,7 +25,7 @@ interface IntegrationStatus {
   setup?: { checklist: SetupItem[]; complete: number; total: number; ready: boolean };
 }
 
-type SettingsTab = "general" | "pipelines" | "call-types" | "cron" | "app-settings";
+type SettingsTab = "general" | "pipelines" | "call-types" | "cron" | "app-settings" | "integrations" | "agents";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -48,6 +50,8 @@ export default function SettingsPage() {
     { key: "call-types", label: "Call Types & Rubrics", icon: Phone },
     { key: "cron", label: "Cron Calendar", icon: Calendar },
     { key: "app-settings", label: "App Settings", icon: Sliders },
+    { key: "integrations", label: "Integrations", icon: Zap },
+    { key: "agents", label: "Agents", icon: Database },
   ];
 
   return (
@@ -86,6 +90,10 @@ export default function SettingsPage() {
         <CronCalendar />
       ) : activeTab === "app-settings" ? (
         <AppSettingsPanel />
+      ) : activeTab === "integrations" ? (
+        <IntegrationsPanel />
+      ) : activeTab === "agents" ? (
+        <AgentsPanel />
       ) : (
       <div>
 

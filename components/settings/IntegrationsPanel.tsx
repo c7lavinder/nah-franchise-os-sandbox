@@ -1,0 +1,115 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import {
+  CheckCircle2, XCircle, Clock, Loader2,
+  ChevronDown, ChevronRight, Zap,
+} from "lucide-react";
+
+interface IntegrationLog {
+  id: string;
+  event_type: string;
+  status: string;
+  payload_summary: string | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+interface Integration {
+  name: string;
+  label: string;
+  status: "connected" | "error" | "pending" | "future";
+  lastLog: IntegrationLog | null;
+  logs: IntegrationLog[];
+}
+
+const INTEGRATIONS = [
+  { name: "ghl-sync", label: "GoHighLevel (GHL)" },
+  { name: "docusign", label: "DocuSign" },
+  { name: "zorakle", label: "Zorakle" },
+  { name: "google-meet", label: "Google Meet" },
+  { name: "ghl-calendar", label: "GHL Calendar" },
+  { name: "form-submission", label: "JotForm / PFS" },
+  { name: "payment", label: "Payment Processor" },
+  { name: "mastersuite", label: "MasterSuite", future: true },
+  { name: "background-check", label: "Background Check", future: true },
+];
+
+function StatusBadge({ status }: { status: string }) {
+  switch (status) {
+    case "connected":
+      return <span className="flex items-center gap-1 text-[11px] font-medium text-green-700"><CheckCircle2 size={12} /> Connected</span>;
+    case "error":
+      return <span className="flex items-center gap-1 text-[11px] font-medium text-red-700"><XCircle size={12} /> Error</span>;
+    case "pending":
+      return <span className="flex items-center gap-1 text-[11px] font-medium text-yellow-700"><Clock size={12} /> Pending</span>;
+    default:
+      return <span className="flex items-center gap-1 text-[11px] font-medium text-gray-400"><Zap size={12} /> Future</span>;
+  }
+}
+
+export default function IntegrationsPanel() {
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/settings/integrations")
+      .then((r) => r.json())
+      .then((d) => setIntegrations(d.integrations ?? []))
+      .catch(() => {
+        // Fallback: show static list
+        setIntegrations(INTEGRATIONS.map((i) => ({
+          ...i,
+          status: ("future" in i && i.future) ? "future" as const : "pending" as const,
+          lastLog: null,
+          logs: [],
+        })));
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-12"><Loader2 size={20} className="animate-spin" /></div>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-caption text-text-tertiary mb-4">
+        Integration status is computed from activity logs. Connected = successful event in last 24 hours.
+      </p>
+      {integrations.map((intg) => (
+        <div key={intg.name} className="border border-border-default rounded-lg overflow-hidden">
+          <button
+            onClick={() => setExpanded(expanded === intg.name ? null : intg.name)}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-bg-hover transition-colors"
+          >
+            {expanded === intg.name ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <span className="text-body-sm font-medium text-text-primary flex-1 text-left">{intg.label}</span>
+            <StatusBadge status={intg.status} />
+          </button>
+          {expanded === intg.name && (
+            <div className="px-4 pb-3 border-t border-border-default">
+              {intg.logs.length === 0 ? (
+                <div className="text-caption text-text-tertiary py-2">No activity logs yet.</div>
+              ) : (
+                <div className="space-y-1 mt-2">
+                  {intg.logs.slice(0, 10).map((log) => (
+                    <div key={log.id} className="flex items-center gap-2 text-caption">
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        log.status === "success" ? "bg-green-400" : log.status === "failed" ? "bg-red-400" : "bg-yellow-400"
+                      }`} />
+                      <span className="text-text-tertiary">{new Date(log.created_at).toLocaleString()}</span>
+                      <span className="text-text-secondary">{log.event_type}</span>
+                      {log.error_message && <span className="text-red-600 truncate max-w-[200px]">{log.error_message}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
