@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   GitBranch,
   Phone,
-  BarChart2,
   Workflow,
   BookOpen,
   Settings,
@@ -152,23 +151,12 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
                 boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
               }}
             >
-              {/* Dashboard + Workflows — parked per §1.12, accessible here */}
-              <Link
-                href="/dashboard"
-                onClick={() => { setProfileOpen(false); onNavClick?.(); }}
-                className="flex items-center gap-3 px-4 py-3 text-text-secondary hover:bg-[rgba(0,161,225,0.05)] hover:text-nah-blue transition-colors"
-              >
-                <BarChart2 size={16} />
-                <span className="text-sm font-medium">Dashboard</span>
-              </Link>
-              <Link
-                href="/workflows"
-                onClick={() => { setProfileOpen(false); onNavClick?.(); }}
-                className="flex items-center gap-3 px-4 py-3 text-text-secondary hover:bg-[rgba(0,161,225,0.05)] hover:text-nah-blue transition-colors"
-              >
+              {/* Workflows — Coming Soon placeholder */}
+              <div className="flex items-center gap-3 px-4 py-3 text-text-tertiary cursor-not-allowed">
                 <Workflow size={16} />
                 <span className="text-sm font-medium">Workflows</span>
-              </Link>
+                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-text-tertiary/10 text-text-tertiary">Soon</span>
+              </div>
               <div style={{ borderTop: "1px solid rgba(0,0,0,0.04)" }} />
               <Link
                 href="/knowledge"
