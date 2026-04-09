@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import * as ghl from "@/lib/ghl";
+import { createServerClient } from "@/lib/supabase/server";
+import { resolveContactId } from "@/lib/contacts/pipeline-state";
 
 export async function GET(
   _request: NextRequest,
@@ -46,4 +48,36 @@ export async function GET(
       { status: 502 }
     );
   }
+}
+
+/**
+ * PATCH /api/contacts/[contactId]
+ * Updates contact fields in Supabase (territory, deal details, basic info).
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ contactId: string }> }
+) {
+  const { contactId: rawId } = await params;
+  const supabase = createServerClient();
+  const localId = await resolveContactId(rawId);
+  if (!localId) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
+
+  const body = await request.json() as Record<string, unknown>;
+  const allowed = [
+    "first_name", "last_name", "email", "phone",
+    "city", "state",
+    "territory", "territory_slug", "legal_entity", "website",
+    "franchise_fee", "royalty_pct", "term_months",
+  ];
+
+  const updates: Record<string, unknown> = {};
+  for (const key of allowed) {
+    if (body[key] !== undefined) updates[key] = body[key];
+  }
+  if (Object.keys(updates).length === 0) return NextResponse.json({ error: "No fields" }, { status: 400 });
+
+  const { error } = await supabase.from("contacts").update(updates).eq("id", localId);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
 }
