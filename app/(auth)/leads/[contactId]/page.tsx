@@ -7,7 +7,7 @@ import {
   MessageSquare, Save, Award, ClipboardList,
 } from "lucide-react";
 import { ProfileSection } from "@/components/profile";
-import { PROFILE_FIELDS } from "@/lib/profile/field-registry";
+import { PROFILE_FIELDS, getSortedCategories } from "@/lib/profile/field-registry";
 import type { FieldCategory } from "@/lib/profile/field-registry";
 import type { GHLContact, GHLNote, GHLTask, GHLMessage } from "@/types/ghl";
 import { NotesSection, TaskList } from "@/components/leads";
@@ -21,10 +21,7 @@ import { capitalizeName, formatPhone } from "@/lib/format/contact";
 import { useToast } from "@/components/ui/Toast";
 import type { SubTaskLog, StageHistoryEntry } from "@/lib/contacts/pipeline-state";
 
-const CATEGORIES: FieldCategory[] = [
-  "territory", "franchise_fit", "financial", "trainual",
-  "validation", "engagement", "ai_scout", "compliance",
-];
+const CATEGORIES: FieldCategory[] = getSortedCategories();
 
 interface PipelineStateAPI {
   id: string; contact_id: string; pipeline_id: string; current_stage_id: string;

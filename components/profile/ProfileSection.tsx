@@ -4,12 +4,16 @@ import { useState } from "react";
 import {
   MapPin, Target, DollarSign, BookOpen, CheckCircle2,
   Activity, Zap, Shield, ChevronDown, ChevronRight, Pencil,
+  User, Briefcase, Brain, TrendingUp, Search, Bot,
+  BarChart3, Database, AlertTriangle, Puzzle,
 } from "lucide-react";
 import type { FieldCategory, ProfileField } from "@/lib/profile/field-registry";
 import { CATEGORY_META } from "@/lib/profile/field-registry";
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   MapPin, Target, DollarSign, BookOpen, CheckCircle2, Activity, Zap, Shield,
+  User, Briefcase, Brain, TrendingUp, Search, Bot, BarChart3, Database,
+  AlertTriangle, Puzzle,
 };
 
 interface ProfileSectionProps {
