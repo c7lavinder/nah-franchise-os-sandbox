@@ -1136,3 +1136,34 @@ Full details: docs/POLISH_SPRINT_LOG.md
 - [ ] Click a Nurture contact → persistent pipeline bar shows 3-stage Follow-up pipeline
 - [ ] If contact in 2+ pipelines → pipeline selector dropdown appears
 - [ ] No console errors on any page
+
+---
+
+## Mega Polish Sprint (2026-04-08)
+
+Full log: docs/MEGA_SPRINT_LOG.md
+
+### What was done
+- **Phase A**: Dashboard killed, Workflows "Coming Soon", Daily HQ fixed (userId param), @mention highlight fixed, "Calls" branding, "Admin" role label
+- **Phase B**: Scout pipeline refs updated (11-stage → 6-stage), ScoutFAB markdown rendering
+- **Phase C**: Onboarding (4 stages, 12 sub-tasks) + Runway (4 stages, 9 sub-tasks, hidden) pipelines seeded, Sales→Onboarding auto-spawn wired, pipeline page shows Onboarding row
+- **Phase D**: Rubric v2 (examples, phrases, KB doc refs), 22 criteria seeded, browser popups replaced with in-app modals, grader uses v2 fields
+
+### Production state
+- 4 pipelines, 17 stages, 40 sub-tasks, 22 rubric criteria
+- Build: PASS
+
+### Mega Sprint — Visual Review Checklist
+- [ ] Dashboard route dead / not in pullout
+- [ ] Workflows shows "Coming Soon" in pullout
+- [ ] Daily HQ shows clean empty state, no red error banner
+- [ ] Messages tab shows @mentions in blue on sent messages
+- [ ] Calls page header says "Calls" not "Call Center"
+- [ ] Settings shows user role as "Admin" not "Leadership"
+- [ ] Scout chat (global popover) renders markdown
+- [ ] Pipeline page shows 3 rows: Sales, Onboarding, Long-Term
+- [ ] Onboarding row shows 4 stages with 0 counts
+- [ ] Runway is NOT visible on pipeline page
+- [ ] Settings → Call Types & Rubrics shows populated criteria
+- [ ] No browser prompt() popups anywhere (in-app modals instead)
+- [ ] No console errors on any page
