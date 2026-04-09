@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { capitalizeName, formatPhone } from "@/lib/format/contact";
 
 interface PipelineContact {
   stateId: string;
@@ -186,7 +187,7 @@ export default function PipelineLeadList({
             >
               {/* Name */}
               <p className="text-body-sm text-text-primary font-medium truncate min-w-0 flex-shrink w-[180px]">
-                {contact.name}
+                {capitalizeName(contact.name)}
               </p>
 
               {/* Urgency badge */}

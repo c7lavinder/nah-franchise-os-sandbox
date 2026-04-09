@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { capitalizeName } from "@/lib/format/contact";
 
 interface Notification {
   id: string;
@@ -151,9 +152,9 @@ export default function NotificationBell({ onNavClick }: NotificationBellProps) 
                     )}
                     <div className={`flex-1 min-w-0 ${n.readAt ? "ml-4" : ""}`}>
                       <p className="text-caption text-text-primary">
-                        <span className="font-medium">{n.authorName}</span>
+                        <span className="font-medium">{capitalizeName(n.authorName)}</span>
                         {" mentioned you on "}
-                        <span className="font-medium">{n.contactName}</span>
+                        <span className="font-medium">{capitalizeName(n.contactName)}</span>
                       </p>
                       <p className="text-[11px] text-text-tertiary mt-0.5 truncate">
                         {n.preview}

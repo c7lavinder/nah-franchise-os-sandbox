@@ -13,6 +13,7 @@ import type { GHLContact, GHLNote, GHLTask, GHLMessage } from "@/types/ghl";
 import { NotesSection, TaskList, ActivityTimeline } from "@/components/leads";
 import PipelinesAccordion from "@/components/contact/PipelinesAccordion";
 import MessagesTab from "@/components/contact/MessagesTab";
+import { capitalizeName, formatPhone } from "@/lib/format/contact";
 
 const CATEGORIES: FieldCategory[] = [
   "territory", "franchise_fit", "financial", "trainual",
@@ -125,7 +126,7 @@ export default function LeadProfilePage() {
   }
 
   const displayName = contact
-    ? `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown"
+    ? capitalizeName(`${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim()) || "Unknown"
     : "Loading...";
 
   const hasPending = Object.keys(pendingChanges).length > 0;
@@ -145,7 +146,7 @@ export default function LeadProfilePage() {
           <div className="flex items-center gap-3 mt-0.5">
             {contact?.phone && (
               <a href={`tel:${contact.phone}`} className="flex items-center gap-1 text-caption text-info hover:underline">
-                <Phone size={11} /> {contact.phone}
+                <Phone size={11} /> {formatPhone(contact.phone)}
               </a>
             )}
             {contact?.email && (
