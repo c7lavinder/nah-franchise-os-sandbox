@@ -11,6 +11,8 @@ import {
   GitBranch, Zap, Check, X, AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import PromptModal from "@/components/ui/PromptModal";
 
 interface SubTask {
   id: string;
@@ -49,6 +51,10 @@ export default function PipelineEditor() {
   const [editingName, setEditingName] = useState<{ type: string; id: string; value: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Modal state
+  const [promptModal, setPromptModal] = useState<{ title: string; placeholder: string; onSubmit: (v: string) => void } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ title: string; body: string; onConfirm: () => void } | null>(null);
 
   // Drag state
   const [dragType, setDragType] = useState<"stage" | "subtask" | null>(null);
@@ -108,20 +114,32 @@ export default function PipelineEditor() {
 
   // ─── Stage actions ───
 
-  async function handleAddStage() {
+  function handleAddStage() {
     if (!selectedPipeline) return;
-    const name = prompt("New stage name:");
-    if (!name?.trim()) return;
-    if (await apiCall(`/api/settings/pipelines/${selectedPipeline.id}/stages`, "POST", { name: name.trim() })) {
-      await fetchPipelines();
-    }
+    setPromptModal({
+      title: "New stage name",
+      placeholder: "e.g., Discovery",
+      onSubmit: async (name) => {
+        setPromptModal(null);
+        if (await apiCall(`/api/settings/pipelines/${selectedPipeline.id}/stages`, "POST", { name })) {
+          await fetchPipelines();
+        }
+      },
+    });
   }
 
-  async function handleDeleteStage(stageId: string) {
-    if (!selectedPipeline || !confirm("Delete this stage? This cannot be undone.")) return;
-    if (await apiCall(`/api/settings/pipelines/${selectedPipeline.id}/stages/${stageId}`, "DELETE")) {
-      await fetchPipelines();
-    }
+  function handleDeleteStage(stageId: string) {
+    if (!selectedPipeline) return;
+    setConfirmModal({
+      title: "Delete stage",
+      body: "Delete this stage? This cannot be undone.",
+      onConfirm: async () => {
+        setConfirmModal(null);
+        if (await apiCall(`/api/settings/pipelines/${selectedPipeline.id}/stages/${stageId}`, "DELETE")) {
+          await fetchPipelines();
+        }
+      },
+    });
   }
 
   async function handleToggleAutoAdvance(stageId: string, current: boolean) {
@@ -148,19 +166,30 @@ export default function PipelineEditor() {
 
   // ─── Sub-task actions ───
 
-  async function handleAddSubTask(stageId: string) {
-    const name = prompt("New sub-task name:");
-    if (!name?.trim()) return;
-    if (await apiCall(`/api/settings/stages/${stageId}/sub-tasks`, "POST", { name: name.trim() })) {
-      await fetchPipelines();
-    }
+  function handleAddSubTask(stageId: string) {
+    setPromptModal({
+      title: "New sub-task name",
+      placeholder: "e.g., NDA Signed",
+      onSubmit: async (name) => {
+        setPromptModal(null);
+        if (await apiCall(`/api/settings/stages/${stageId}/sub-tasks`, "POST", { name })) {
+          await fetchPipelines();
+        }
+      },
+    });
   }
 
-  async function handleDeleteSubTask(subTaskId: string) {
-    if (!confirm("Delete this sub-task?")) return;
-    if (await apiCall(`/api/settings/sub-tasks/${subTaskId}`, "DELETE")) {
-      await fetchPipelines();
-    }
+  function handleDeleteSubTask(subTaskId: string) {
+    setConfirmModal({
+      title: "Delete sub-task",
+      body: "Delete this sub-task?",
+      onConfirm: async () => {
+        setConfirmModal(null);
+        if (await apiCall(`/api/settings/sub-tasks/${subTaskId}`, "DELETE")) {
+          await fetchPipelines();
+        }
+      },
+    });
   }
 
   async function handleSubTaskDrop(e: React.DragEvent, stageId: string, targetIdx: number) {
@@ -431,6 +460,27 @@ export default function PipelineEditor() {
         <div className="fixed bottom-4 right-4 flex items-center gap-2 px-3 py-2 bg-bg-tertiary border border-border-default rounded-lg shadow-lg text-caption text-text-secondary">
           <Loader2 size={12} className="animate-spin" /> Saving...
         </div>
+      )}
+
+      {promptModal && (
+        <PromptModal
+          title={promptModal.title}
+          placeholder={promptModal.placeholder}
+          submitLabel="Add"
+          onSubmit={promptModal.onSubmit}
+          onCancel={() => setPromptModal(null)}
+        />
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          body={confirmModal.body}
+          destructive
+          confirmLabel="Delete"
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
       )}
     </div>
   );

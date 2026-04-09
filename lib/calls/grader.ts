@@ -49,7 +49,7 @@ export async function gradeCall(callId: string): Promise<GradeResult> {
 
   const { data: criteria } = await supabase
     .from("rubric_criteria")
-    .select("id, name, description, weight")
+    .select("id, name, description, weight, positive_examples, negative_examples, example_phrases_positive, example_phrases_negative")
     .eq("rubric_id", rubric.id)
     .order("sort_order");
 
@@ -82,9 +82,19 @@ export async function gradeCall(callId: string): Promise<GradeResult> {
   }
 
   // Build prompt
-  const criteriaBlock = criteria.map((c, i) =>
-    `${i + 1}. **${c.name}** (weight: ${c.weight})${c.description ? ` — ${c.description}` : ""}`
-  ).join("\n");
+  const criteriaBlock = criteria.map((c, i) => {
+    let block = `${i + 1}. **${c.name}** (weight: ${c.weight})`;
+    if (c.description) block += `\n   Description: ${c.description}`;
+    const pos = (c.positive_examples as string[] | null) ?? [];
+    const neg = (c.negative_examples as string[] | null) ?? [];
+    const phPos = (c.example_phrases_positive as string[] | null) ?? [];
+    const phNeg = (c.example_phrases_negative as string[] | null) ?? [];
+    if (pos.length > 0) block += `\n   Excellent looks like: ${pos.join("; ")}`;
+    if (neg.length > 0) block += `\n   Poor looks like: ${neg.join("; ")}`;
+    if (phPos.length > 0) block += `\n   Positive phrases: "${phPos.join('", "')}"`;
+    if (phNeg.length > 0) block += `\n   Negative phrases: "${phNeg.join('", "')}"`;
+    return block;
+  }).join("\n\n");
 
   const prompt = `You are Scout, an expert franchise sales coach for New Again Houses. Grade this call using the rubric below.
 
