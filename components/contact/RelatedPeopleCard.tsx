@@ -29,11 +29,19 @@ const ROLE_LABELS: Record<string, string> = {
   business_partner: "Business Partner", other: "Other",
 };
 
-interface RelatedPeopleCardProps {
-  contactId: string;
+interface MainContact {
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
 }
 
-export default function RelatedPeopleCard({ contactId }: RelatedPeopleCardProps) {
+interface RelatedPeopleCardProps {
+  contactId: string;
+  mainContact?: MainContact | null;
+}
+
+export default function RelatedPeopleCard({ contactId, mainContact }: RelatedPeopleCardProps) {
   const { toast } = useToast();
   const [people, setPeople] = useState<RelatedPerson[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +96,7 @@ export default function RelatedPeopleCard({ contactId }: RelatedPeopleCardProps)
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <Users size={14} className="text-text-tertiary" />
-          <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">CONTACTS ({people.length})</h3>
+          <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">CONTACTS ({people.length + (mainContact ? 1 : 0)})</h3>
         </div>
         <button onClick={() => setShowForm(!showForm)} className="text-caption text-nah-blue hover:underline flex items-center gap-0.5">
           <Plus size={11} /> Add
@@ -124,8 +132,29 @@ export default function RelatedPeopleCard({ contactId }: RelatedPeopleCardProps)
         </div>
       )}
 
-      {/* People list */}
-      {people.length === 0 && !showForm && (
+      {/* Main contact — always first, pinned as primary */}
+      {mainContact && (() => {
+        const mcName = capitalizeName(`${mainContact.first_name ?? ""} ${mainContact.last_name ?? ""}`.trim()) || "Unknown";
+        const mcInitials = mcName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+        return (
+          <div className="flex items-center gap-2.5 py-1.5 mb-1 border-b border-border-default/50 pb-2">
+            <div className="w-7 h-7 rounded-full bg-nah-orange/15 text-nah-orange flex items-center justify-center text-[10px] font-semibold flex-shrink-0">{mcInitials}</div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-caption font-medium text-text-primary truncate">{mcName}</span>
+                <span className="text-[9px] px-1 py-0.5 rounded bg-nah-orange/10 text-nah-orange">Primary</span>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-text-tertiary">
+                {mainContact.email && <span className="truncate">{mainContact.email}</span>}
+                {mainContact.phone && <span>{formatPhone(mainContact.phone)}</span>}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Related people list */}
+      {people.length === 0 && !mainContact && !showForm && (
         <p className="text-caption text-text-tertiary py-2">No related contacts</p>
       )}
       <div className="space-y-1.5">

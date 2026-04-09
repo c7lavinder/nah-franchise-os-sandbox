@@ -10,12 +10,13 @@ import { ProfileSection } from "@/components/profile";
 import { PROFILE_FIELDS } from "@/lib/profile/field-registry";
 import type { FieldCategory } from "@/lib/profile/field-registry";
 import type { GHLContact, GHLNote, GHLTask, GHLMessage } from "@/types/ghl";
-import { NotesSection, TaskList, ActivityTimeline } from "@/components/leads";
+import { NotesSection, TaskList } from "@/components/leads";
 import MessagesTab from "@/components/contact/MessagesTab";
 import PipelineBar from "@/components/contact/PipelineBar";
 import StageDrilldownInline from "@/components/contact/StageDrilldownInline";
 import { TerritoryDetailsCard, DealDetailsCard } from "@/components/contact/TerritoryDealCards";
 import RelatedPeopleCard from "@/components/contact/RelatedPeopleCard";
+import TeamCard from "@/components/contact/TeamCard";
 import { capitalizeName, formatPhone } from "@/lib/format/contact";
 import { useToast } from "@/components/ui/Toast";
 import type { SubTaskLog, StageHistoryEntry } from "@/lib/contacts/pipeline-state";
@@ -224,10 +225,13 @@ export default function LeadProfilePage() {
         ) : activeTab === "overview" ? (
           <div className="p-4">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* LEFT — Contacts */}
-              <div className="lg:col-span-1">
+              {/* LEFT — Contacts + Team */}
+              <div className="lg:col-span-1 space-y-4">
                 <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                  <RelatedPeopleCard contactId={contactId} />
+                  <RelatedPeopleCard contactId={contactId} mainContact={localContact} />
+                </div>
+                <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+                  <TeamCard contactId={contactId} />
                 </div>
               </div>
               {/* RIGHT — Graded Calls, Tasks, Notes, Comms */}
@@ -258,17 +262,13 @@ export default function LeadProfilePage() {
                 <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
                   <NotesSection contactId={contactId} notes={notes} onNoteAdded={fetchAll} />
                 </div>
-                <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                  <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-2">COMMUNICATIONS</h3>
-                  <ActivityTimeline messages={messages} />
-                </div>
               </div>
             </div>
           </div>
         ) : activeTab === "messages" ? (
           <div className="p-4 h-full">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
-              <div className="lg:col-span-1"><div className="bg-bg-secondary border border-border-default rounded-lg p-4"><RelatedPeopleCard contactId={contactId} /></div></div>
+              <div className="lg:col-span-1"><div className="bg-bg-secondary border border-border-default rounded-lg p-4"><RelatedPeopleCard contactId={contactId} mainContact={localContact} /></div></div>
               <div className="lg:col-span-2 flex flex-col h-full min-h-0"><MessagesTab contactId={contactId} highlightMessageId={highlightMessageId} /></div>
             </div>
           </div>
