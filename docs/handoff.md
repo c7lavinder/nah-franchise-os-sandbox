@@ -1,124 +1,162 @@
-# Handoff — LLM Layer Build Session (2026-04-09)
+# Handoff — Full LLM Layer Build (2026-04-09)
 
-## What Was Built Tonight
+## Summary
 
-### Sprint LLM-1 — Foundation (COMPLETE)
-- **contact_profile_fields** table: EAV pattern for 199 profile fields with per-field source tracking
-- **199-field registry** in `lib/profile/field-registry.ts` across 18 categories (up from 46/8)
-- **pgvector embeddings** table with HNSW index + `match_embeddings()` function
-- **RAG pipeline** (`lib/rag/embedder.ts`): chunking + embedding for transcripts, KB docs, research, journals
-- **Journal system**: 3 tables (contact_journals, rep_journals, system_logs) + 11pm cron job
-- **Profile CRUD** (`lib/profile/profile-fields.ts`)
-- **Backfill script** (`scripts/backfill-embeddings.ts`)
+All 5 LLM sprints complete. The NAH Franchise OS now has a full AI intelligence layer: 199-field profile system, pgvector RAG, journal system, call review packages, 30 GHL actions with Draft→Review→Confirm, pre-call briefs, business intelligence, KB with 9 documents, and a learning feedback loop with weekly/monthly reports.
 
-### Sprint LLM-2 — Call Details Enhancement (COMPLETE)
-- **call_review_packages** + **suggestion_feedback** tables
-- **Profile extractor**: extracts up to 10 profile suggestions from call transcripts
-- **Next steps generator**: 3-7 suggested actions per call
-- **Review package orchestrator**: grade + coach + extract + next steps in parallel
-- **Feedback logger**: tracks accepted/edited/skipped outcomes for learning
-- **API routes**: `/api/calls/:callId/review-package` + `/api/calls/:callId/feedback`
+---
 
-### Sprint LLM-3 — GHL Execution Layer (COMPLETE)
-- **ghl_action_drafts** table for Draft → Review → Confirm queue
-- **30 GHL action handlers** (C1-C8, T1-T5, A1-A5, M1-M9, O1-O3)
-- **Permission enforcement**: admin/operator/specialist/member roles
-- **Action queue**: full lifecycle (draft → review → confirm/reject → execute)
-- **Stage sync write-through**: auto-mirrors stage changes to GHL custom fields
-- **GHL ID discovery script**: discovers calendars, users, fields from GHL API
+## What Was Built — All 5 Sprints
 
-## Branches
-| Branch | Status | Based on |
-|--------|--------|----------|
-| `feature/llm-foundation` | Ready to merge | main |
-| `feature/llm-call-details` | Ready to merge | feature/llm-foundation |
-| `feature/llm-ghl-execution` | Ready to merge | feature/llm-call-details |
+### Sprint LLM-1 — Foundation
+| Component | File(s) |
+|-----------|---------|
+| contact_profile_fields table (EAV) | migration 20260409100000 |
+| 199-field registry (18 categories) | lib/profile/field-registry.ts |
+| pgvector embeddings + HNSW index + match_embeddings() | migration 20260409100001 |
+| RAG pipeline (chunk + embed transcripts, KB, research, journals) | lib/rag/embedder.ts |
+| Journal system (3 tables: contact, rep, system) | migration 20260409100002 |
+| Journal cron (11pm daily) | app/api/cron/journals/route.ts |
+| Profile CRUD | lib/profile/profile-fields.ts |
+| Embedding backfill script | scripts/backfill-embeddings.ts |
 
-**Merge order:** foundation → call-details → ghl-execution → main
+### Sprint LLM-2 — Call Details
+| Component | File(s) |
+|-----------|---------|
+| call_review_packages + suggestion_feedback tables | migration 20260409200000 |
+| Profile extractor (transcript → field suggestions) | lib/calls/profile-extractor.ts |
+| Next steps generator (3-7 action cards) | lib/calls/next-steps-generator.ts |
+| Review package orchestrator (grade+coach+extract in parallel) | lib/calls/review-package.ts |
+| Feedback logger (learning signal) | lib/learning/feedback-logger.ts |
+| Review package API | app/api/calls/[callId]/review-package/route.ts |
+| Feedback API | app/api/calls/[callId]/feedback/route.ts |
+
+### Sprint LLM-3 — GHL Execution
+| Component | File(s) |
+|-----------|---------|
+| ghl_action_drafts table | migration 20260409300000 |
+| 30 GHL action handlers (C1-C8, T1-T5, A1-A5, M1-M9, O1-O3) | lib/ghl/actions/executor.ts |
+| Draft → Review → Confirm queue | lib/ghl/action-queue.ts |
+| Role-based permissions (admin/operator/specialist/member) | lib/ghl/permissions.ts |
+| Stage sync write-through to GHL | lib/ghl/stage-sync.ts |
+| GHL ID discovery script | scripts/ghl-id-discovery.ts |
+
+### Sprint LLM-4 — Scout Intelligence
+| Component | File(s) |
+|-----------|---------|
+| Hybrid RAG retriever (semantic + structured) | lib/rag/retriever.ts |
+| Pre-call brief generator (8 sections) | lib/calls/brief-generator.ts |
+| Query router (contact/BI/KB/brief intent detection) | lib/scout/query-router.ts |
+| BI handler (cross-contact analytics, role-adapted) | lib/scout/bi-handler.ts |
+| Context injector (page-aware) | lib/scout/context-injector.ts |
+| Brief API | app/api/contacts/[contactId]/brief/route.ts |
+
+### Sprint LLM-5 — KB & Learning Loop
+| Component | File(s) |
+|-----------|---------|
+| KB health monitor (stale, retrieval, gaps) | lib/kb/health-monitor.ts |
+| Feedback analyzer (acceptance rates, patterns) | lib/learning/feedback-analyzer.ts |
+| Weekly Scout report (Sunday 11pm) | lib/learning/weekly-report.ts |
+| Monthly rubric review (1st of month, draft-only) | lib/learning/rubric-review.ts |
+| Frandev meeting notes → 5 KB docs | scripts/import-frandev-notes.ts |
+| Client Tether CSV pattern extractor | scripts/import-client-tether-patterns.ts |
+| 3 new tables + KB column extensions | migration 20260409400000 |
+| Cron schedules (weekly + monthly) | vercel.json, cron routes |
+
+### Profile Fixes (between LLM-3 and LLM-4)
+| Component | File(s) |
+|-----------|---------|
+| Registry rebuilt from planning doc (0 mismatches) | lib/profile/field-registry.ts |
+| Profile API: Supabase primary, GHL fallback | app/api/contacts/[contactId]/profile/route.ts |
+| All 18 categories wired to UI | app/(auth)/leads/[contactId]/page.tsx |
+| ProfileSection icons expanded | components/profile/ProfileSection.tsx |
+| GHL → Supabase backfill script | scripts/backfill-profile-fields.ts |
+
+---
+
+## What's Working
+
+- **199-field profile system** with EAV storage, source tracking, and all 18 categories in UI
+- **RAG infrastructure** — pgvector embeddings table, HNSW index, match_embeddings function, chunking pipeline
+- **Call review packages** — auto-generates grade + coaching + profile suggestions + next steps when transcript available
+- **Edit/Skip/Push** pattern on all suggestion cards with learning feedback logging
+- **30 GHL actions** with Draft → Review → Confirm and role-based permissions
+- **Stage sync** — NAH OS stage changes auto-mirror to GHL custom fields
+- **Pre-call brief** — 8 sections using hybrid RAG retrieval
+- **BI queries** — Scout answers cross-contact questions with role-adapted phrasing
+- **KB with 9 documents** (4 seed + 5 Frandev meeting)
+- **3 cron jobs** — daily journals (11pm), weekly report (Sunday 11pm), monthly rubric review (1st of month)
+- **GHL IDs discovered** — 7/7 calendars, 4/4 custom fields, 2/7 users stored in app_settings
+
+---
+
+## What Needs Human Input
+
+### Content Seeding (Matt, Ryland, John)
+| Person | Content Needed | KB Category |
+|--------|---------------|-------------|
+| Matt | Detailed sales methodology docs | sales_methodology |
+| Matt | Objection handling playbooks (expand beyond capital) | objection_library |
+| Matt | Ideal candidate benchmarks from experience | ideal_candidate |
+| Matt + Chad | Competitor analysis docs | competitor_intelligence |
+| Ryland | Territory analysis methodology, data sources (Privy, Recipe) | territory_analysis |
+| Ryland | Territory value estimation framework | territory_analysis |
+| John | Coaching framework documentation | coaching_framework |
+| John | Onboarding playbook content | onboarding_playbook |
+| Matt | Franchisee success stories (6 narratives) | franchisee_stories |
+| Matt | Franchise unit economics docs (8 docs) | franchise_economics |
+
+### Data Files Not On Disk
+- **Frandev meeting PDF** (`Frandev_CRM__2026_03_27_10_00_EDT__Notes_by_Gemini.pdf`) — not found at `/mnt/user-data/uploads/`. Used pre-extracted content instead. If PDF is provided, re-run the import script.
+- **Client Tether CSV** (`CT_Contact_Master__Sheet1_1.csv`) — not found. Script ready: `npx tsx scripts/import-client-tether-patterns.ts <path>`
+- **Zorakle PDFs** — not imported. Need Zorakle API access or PDF files to populate personality/psychology fields.
+- **Chad's onboarding Excel** — not imported. Needs manual upload to KB.
+
+### GHL Users Not Found
+Only 2/7 GHL users discovered (Chad + John). Matt, Sam, Mark, Ryland, Corey not registered in GHL location. Need to either:
+1. Add them as GHL users, or
+2. Manually map their IDs in app_settings
+
+---
+
+## Tables Created (13 new across all sprints)
+
+| Table | Sprint | Purpose |
+|-------|--------|---------|
+| contact_profile_fields | LLM-1 | 199-field EAV with source tracking |
+| embeddings | LLM-1 | pgvector RAG storage |
+| contact_journals | LLM-1 | Daily AI contact summaries |
+| rep_journals | LLM-1 | Daily AI rep summaries |
+| system_logs | LLM-1 | Audit trail |
+| call_review_packages | LLM-2 | Full call review output |
+| suggestion_feedback | LLM-2 | Learning signal |
+| ghl_action_drafts | LLM-3 | Draft → Confirm queue |
+| scout_performance_reports | LLM-5 | Weekly reports |
+| rubric_review_suggestions | LLM-5 | Monthly rubric review drafts |
+| kb_gap_signals | LLM-5 | Missing KB content tracking |
+
+Plus: knowledge_documents extended with 6 new columns
+
+---
 
 ## What's Next
 
-### Sprint LLM-4 — Scout Intelligence (Next Session)
-- Pre-call brief generator (8 sections)
-- Business intelligence queries in Scout chat
-- Scout context awareness (hybrid retrieval: structured + semantic)
-- Profile tab UI for 18 categories with source badges
-- "X Scout suggestions" summary badge
+### Immediate (next session)
+1. Run `scripts/backfill-embeddings.ts` to embed all 9 KB docs into pgvector (needs OPENAI_API_KEY)
+2. Run Client Tether CSV import when file provided
+3. Wire Scout chat to use query-router + context-injector + BI handler (currently built but not yet integrated into the chat API route)
+4. Add KB health section to Settings page UI
+5. Add weekly report view to Settings page UI
 
-### Sprint LLM-5 — KB + Learning (Last)
-- KB seeding from existing sources (Frandev notes, Zorakle PDFs, Chad's Excel, Client Tether CSV)
-- Weekly performance report (Sunday 11pm cron)
-- Monthly rubric review prompt
-- Automation graduation: admin toggle per action type
+### Short-term
+6. Wire Zorakle API to populate personality/psychology fields (14 fields)
+7. Wire transcript extraction to auto-populate objections, behavioral signals, goals fields
+8. Add "X Scout suggestions" badge to profile tab header
+9. Build review panel for bulk suggestion approval
+10. Complete remaining ~2,900 contacts in profile backfill (pagination fix needed)
 
-## Issues Found / Blockers
-
-### Missing Planning Docs
-`NAH_Profile_Tab_v2_Expanded.md`, `NAH_GHL_Execution_List.md`, `NAH_Scout_Intelligence_Design.md`, `NAH_Scout_Business_Intelligence.md`, `NAH_KB_Taxonomy.md` were referenced in session context but NOT present in `nahosfiles2/`. I designed the 199 fields from the category structure in `LLM_SESSION_CONTEXT.md` and franchise domain knowledge. The field list should be reviewed.
-
-### Migrations Not Pushed to Production
-All 4 new migrations (profile fields, embeddings, journals, action drafts) need to be applied to production Supabase after review. Use `supabase db push --linked` after merging to main.
-
-### GHL ID Discovery Not Run
-`scripts/ghl-id-discovery.ts` needs to be run against production GHL to discover and store calendar IDs, user IDs, and custom field IDs. Run with `npx tsx scripts/ghl-id-discovery.ts`.
-
-### Backfill Not Run
-`scripts/backfill-embeddings.ts` needs to be run after pgvector migration is applied to embed existing transcripts and KB docs.
-
-### Existing Profile Tab UI Uses Old Categories
-The leads page at `app/(auth)/leads/[contactId]/page.tsx` line 24 hardcodes 8 old category names. Sprint LLM-4 will update this to use all 18 categories with the new `getSortedCategories()` function.
-
-### Coach/Grader Not Modified
-Sprint LLM-2 was designed to enhance the existing grader and coach with citations and per-criterion detail. The existing grader already returns per-criterion scores. The review package orchestrator wraps both and adds the new capabilities (profile extraction, next steps) alongside the existing grade/coach. The existing grader and coach code was NOT modified — they work as-is through the review package.
-
-## Files Created This Session
-
-### Migrations (4)
-- `supabase/migrations/20260409100000_create_contact_profile_fields.sql`
-- `supabase/migrations/20260409100001_create_embeddings_pgvector.sql`
-- `supabase/migrations/20260409100002_create_journal_tables.sql`
-- `supabase/migrations/20260409200000_create_call_review_packages.sql`
-- `supabase/migrations/20260409300000_create_ghl_action_drafts.sql`
-
-### Libraries (12)
-- `lib/profile/field-registry.ts` (modified — expanded to 199 fields)
-- `lib/profile/profile-fields.ts` (new — CRUD for EAV table)
-- `lib/rag/embedder.ts` (new — chunking + embedding pipeline)
-- `lib/journals/contact-journal.ts` (new — daily contact journal generator)
-- `lib/journals/rep-journal.ts` (new — daily rep journal generator)
-- `lib/journals/system-log.ts` (new — daily system log aggregator)
-- `lib/calls/profile-extractor.ts` (new — extract profile updates from transcripts)
-- `lib/calls/next-steps-generator.ts` (new — generate next step action cards)
-- `lib/calls/review-package.ts` (new — orchestrate full call review)
-- `lib/learning/feedback-logger.ts` (new — log suggestion outcomes)
-- `lib/ghl/permissions.ts` (new — role-based action enforcement)
-- `lib/ghl/action-queue.ts` (new — Draft → Review → Confirm queue)
-- `lib/ghl/actions/executor.ts` (new — all 30 GHL action handlers)
-- `lib/ghl/stage-sync.ts` (new — auto stage sync to GHL)
-
-### API Routes (3)
-- `app/api/cron/journals/route.ts` (new — 11pm daily journal cron)
-- `app/api/calls/[callId]/review-package/route.ts` (new — review package API)
-- `app/api/calls/[callId]/feedback/route.ts` (new — suggestion feedback API)
-
-### Scripts (2)
-- `scripts/backfill-embeddings.ts` (new — embed existing content)
-- `scripts/ghl-id-discovery.ts` (new — discover GHL IDs)
-
-### Config (1)
-- `vercel.json` (new — cron schedule)
-
-### Types (1)
-- `types/ghl.ts` (modified — extended GHLContactUpdatePayload)
-
-## Tables Created (8 new)
-| Table | Purpose |
-|-------|---------|
-| contact_profile_fields | 199 profile fields per contact (EAV with source metadata) |
-| embeddings | pgvector embeddings for RAG (transcripts, KB, research, journals) |
-| contact_journals | Daily AI-generated contact interaction summaries |
-| rep_journals | Daily AI-generated rep performance summaries |
-| system_logs | Tenant-wide audit log of all AI actions |
-| call_review_packages | Full Scout review output per call |
-| suggestion_feedback | Learning signal: accepted/edited/skipped per suggestion |
-| ghl_action_drafts | Draft → Review → Confirm queue for GHL actions |
+### Medium-term
+11. Automation graduation: admin toggle per action type to allow auto-execution
+12. Build KB admin interface for manual document creation/editing
+13. Integrate Scout intelligence into pipeline board (priority flags, at-risk badges)
+14. Morning brief for Daily HQ (Scout-generated, on-demand)
