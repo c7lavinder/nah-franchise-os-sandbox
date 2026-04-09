@@ -4,21 +4,44 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Phone, Mail, User, Loader2, RefreshCw,
-  MapPin, Clock, Megaphone, Save, MessageSquare,
+  Clock, Megaphone, Save, MessageSquare,
 } from "lucide-react";
 import { ProfileSection } from "@/components/profile";
 import { PROFILE_FIELDS, CATEGORY_META } from "@/lib/profile/field-registry";
 import type { FieldCategory } from "@/lib/profile/field-registry";
 import type { GHLContact, GHLNote, GHLTask, GHLMessage } from "@/types/ghl";
 import { NotesSection, TaskList, ActivityTimeline } from "@/components/leads";
-import PipelinesAccordion from "@/components/contact/PipelinesAccordion";
 import MessagesTab from "@/components/contact/MessagesTab";
+import PipelineBar from "@/components/contact/PipelineBar";
+import StageDrilldownInline from "@/components/contact/StageDrilldownInline";
 import { capitalizeName, formatPhone } from "@/lib/format/contact";
+import type { SubTaskLog, StageHistoryEntry } from "@/lib/contacts/pipeline-state";
 
 const CATEGORIES: FieldCategory[] = [
   "territory", "franchise_fit", "financial", "trainual",
   "validation", "engagement", "ai_scout", "compliance",
 ];
+
+// Pipeline state type from API
+interface PipelineStateAPI {
+  id: string;
+  contact_id: string;
+  pipeline_id: string;
+  current_stage_id: string;
+  current_sub_task_id: string | null;
+  current_sub_task_started_at: string | null;
+  entered_current_stage_at: string;
+  pipeline_name: string;
+  pipeline_slug: string;
+  stages: {
+    id: string; slug: string; name: string; sort_order: number;
+    is_terminal: boolean; pipeline_id: string;
+    subTasks: { id: string; slug: string; name: string; sort_order: number; state_type: "single" | "two_state"; first_state_label: string | null; second_state_label: string | null; default_logger_type: string; default_logger_user_id: string | null; is_required: boolean; stage_id: string }[];
+    logsBySubTask: Record<string, SubTaskLog[]>;
+    totalLogs: number;
+  }[];
+  stageHistory: StageHistoryEntry[];
+}
 
 export default function LeadProfilePage() {
   const params = useParams();
@@ -35,17 +58,19 @@ export default function LeadProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
-  const [activeTab, setActiveTab] = useState<"stages" | "profile" | "messages" | "calls" | "notes" | "tasks" | "activity">(
-    highlightMessageId ? "messages" : "stages"
+  const [activeTab, setActiveTab] = useState<"overview" | "messages" | "profile">(
+    highlightMessageId ? "messages" : "overview"
   );
-  const [contactCalls, setContactCalls] = useState<{ id: string; callTypeName: string | null; hostName: string | null; scheduled_at: string | null; status: string; grade: string | null }[]>([]);
+  const [contactCalls, setContactCalls] = useState<{ id: string; callTypeName: string | null; hostName: string | null; scheduled_at: string | null; status: string; grade: string | null; duration_seconds: number | null }[]>([]);
+
+  // Pipeline bar state
+  const [pipelineStates, setPipelineStates] = useState<PipelineStateAPI[]>([]);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
+  const [drilldownStageId, setDrilldownStageId] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      // Sprint 4A bugfix: fetch GHL contact + local pipeline-state in parallel.
-      // The contactId in the URL may be a local UUID or a GHL ID.
-      // The GHL fetch may fail if it's a local UUID — that's OK, we fall back to local data.
       const [contactRes, profileRes, pipelineStateRes, callsRes] = await Promise.all([
         fetch(`/api/contacts/${contactId}`).catch(() => null),
         fetch(`/api/contacts/${contactId}/profile`).catch(() => null),
@@ -66,10 +91,16 @@ export default function LeadProfilePage() {
         setMessages(data.messages ?? []);
       }
 
-      // If GHL contact fetch failed but pipeline-state has contact info, use that
-      if (!contactRes?.ok && pipelineStateRes?.ok) {
+      if (pipelineStateRes?.ok) {
         const psData = await pipelineStateRes.json();
-        if (psData.contact) {
+        const states = psData.pipelineStates ?? [];
+        setPipelineStates(states);
+        if (states.length > 0 && !selectedPipelineId) {
+          setSelectedPipelineId(states[0].id);
+        }
+
+        // Fallback contact data from pipeline state
+        if (!contactRes?.ok && psData.contact) {
           setContact({
             id: psData.contact.ghl_contact_id ?? contactId,
             locationId: "",
@@ -95,7 +126,7 @@ export default function LeadProfilePage() {
     } finally {
       setLoading(false);
     }
-  }, [contactId]);
+  }, [contactId, selectedPipelineId]);
 
   useEffect(() => {
     void fetchAll();
@@ -115,30 +146,25 @@ export default function LeadProfilePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: pendingChanges }),
       });
-      if (res.ok) {
-        setPendingChanges({});
-      }
-    } catch {
-      // Keep pending changes on failure
-    } finally {
-      setSaving(false);
-    }
+      if (res.ok) setPendingChanges({});
+    } catch { /* keep pending */ }
+    setSaving(false);
   }
 
   const displayName = contact
     ? capitalizeName(`${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim()) || "Unknown"
     : "Loading...";
-
   const hasPending = Object.keys(pendingChanges).length > 0;
+
+  // Drilldown data
+  const selectedPipeline = pipelineStates.find((p) => p.id === selectedPipelineId);
+  const drilldownStage = selectedPipeline?.stages.find((s) => s.id === drilldownStageId);
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
       <div className="flex items-center gap-3 px-1 py-3 flex-shrink-0">
-        <button
-          onClick={() => router.back()}
-          className="btn-ghost p-1.5"
-        >
+        <button onClick={() => router.back()} className="btn-ghost p-1.5">
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1 min-w-0">
@@ -166,7 +192,6 @@ export default function LeadProfilePage() {
             )}
           </div>
         </div>
-        {/* Quick Actions */}
         {contact && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {contact.phone && (
@@ -186,14 +211,10 @@ export default function LeadProfilePage() {
             )}
           </div>
         )}
-
         <div className="flex items-center gap-2 flex-shrink-0">
           {hasPending && (
-            <button
-              onClick={() => void handleSave()}
-              disabled={saving}
-              className="btn-primary text-caption px-3 py-1.5 flex items-center gap-1"
-            >
+            <button onClick={() => void handleSave()} disabled={saving}
+              className="btn-primary text-caption px-3 py-1.5 flex items-center gap-1">
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
               Save ({Object.keys(pendingChanges).length})
             </button>
@@ -201,25 +222,48 @@ export default function LeadProfilePage() {
           <button onClick={() => void fetchAll()} className="btn-ghost p-1.5" disabled={loading}>
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </button>
-          <a
-            href={`/scout?ask=${encodeURIComponent(`Tell me about ${displayName} — what's their current status, recent activity, and what should I do next?`)}`}
-            className="btn-ghost text-caption px-3 py-1.5 flex items-center gap-1 text-scout-purple border-scout-purple/30 hover:bg-scout-purple/10"
-          >
+          <a href={`/scout?ask=${encodeURIComponent(`Tell me about ${displayName} — what's their current status, recent activity, and what should I do next?`)}`}
+            className="btn-ghost text-caption px-3 py-1.5 flex items-center gap-1 text-scout-purple border-scout-purple/30 hover:bg-scout-purple/10">
             <User size={13} /> Ask Scout
           </a>
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Persistent Pipeline Bar */}
+      {!loading && (
+        <div className="px-1 flex-shrink-0">
+          <PipelineBar
+            contactId={contactId}
+            pipelineStates={pipelineStates}
+            selectedPipelineId={selectedPipelineId}
+            onPipelineChange={setSelectedPipelineId}
+            expandedStageId={drilldownStageId}
+            onStageClick={(stageId) => setDrilldownStageId(drilldownStageId === stageId ? null : stageId)}
+            onRefresh={() => void fetchAll()}
+          />
+
+          {/* Inline drilldown */}
+          {drilldownStage && selectedPipeline && (
+            <StageDrilldownInline
+              contactId={contactId}
+              stageName={drilldownStage.name}
+              subTasks={drilldownStage.subTasks}
+              logsBySubTask={new Map(Object.entries(drilldownStage.logsBySubTask))}
+              stageHistory={selectedPipeline.stageHistory}
+              stageId={drilldownStage.id}
+              onRefresh={() => void fetchAll()}
+              onClose={() => setDrilldownStageId(null)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Tabs: Overview | Messages | Profile */}
       <div className="flex border-b border-border-default px-1 flex-shrink-0">
         {([
-          { key: "stages" as const, label: "Stages" },
-          { key: "profile" as const, label: "Profile" },
+          { key: "overview" as const, label: "Overview" },
           { key: "messages" as const, label: "Messages" },
-          { key: "calls" as const, label: `Calls (${contactCalls.length})` },
-          { key: "notes" as const, label: `Notes (${notes.length})` },
-          { key: "tasks" as const, label: `Tasks (${tasks.length})` },
-          { key: "activity" as const, label: "Comms" },
+          { key: "profile" as const, label: "Profile" },
         ]).map((tab) => (
           <button
             key={tab.key}
@@ -241,17 +285,82 @@ export default function LeadProfilePage() {
           <div className="flex items-center justify-center py-16">
             <Loader2 size={24} className="animate-spin text-text-tertiary" />
           </div>
-        ) : activeTab === "stages" ? (
-          <div className="p-4">
-            <PipelinesAccordion contactId={contactId} />
+        ) : activeTab === "overview" ? (
+          <div className="p-4 space-y-4">
+            {/* Territory + Deal Details cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+                <h3 className="text-overline text-text-tertiary tracking-wider mb-3">TERRITORY DETAILS</h3>
+                <div className="grid grid-cols-2 gap-2 text-body-sm">
+                  <div><span className="text-text-tertiary">Territory</span><p className="text-text-primary">—</p></div>
+                  <div><span className="text-text-tertiary">Territory Slug</span><p className="text-text-primary">—</p></div>
+                  <div><span className="text-text-tertiary">Legal Entity</span><p className="text-text-primary">—</p></div>
+                  <div><span className="text-text-tertiary">Website</span><p className="text-text-primary">—</p></div>
+                </div>
+              </div>
+
+              <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+                <h3 className="text-overline text-text-tertiary tracking-wider mb-3">DEAL DETAILS</h3>
+                <div className="grid grid-cols-2 gap-2 text-body-sm">
+                  <div><span className="text-text-tertiary">Franchise Fee</span><p className="text-text-primary">—</p></div>
+                  <div><span className="text-text-tertiary">Royalty</span><p className="text-text-primary">—</p></div>
+                  <div><span className="text-text-tertiary">Term</span><p className="text-text-primary">—</p></div>
+                  <div><span className="text-text-tertiary">Lead Source</span><p className="text-text-primary">{contact?.source ?? "—"}</p></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Contact Notes */}
+            <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+              <NotesSection contactId={contactId} notes={notes} onNoteAdded={fetchAll} />
+            </div>
+
+            {/* Call History */}
+            <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+              <h3 className="text-overline text-text-tertiary tracking-wider mb-3">CALL HISTORY ({contactCalls.length})</h3>
+              {contactCalls.length === 0 ? (
+                <p className="text-caption text-text-tertiary">No calls recorded</p>
+              ) : (
+                <div className="space-y-2">
+                  {contactCalls.map((c) => (
+                    <a key={c.id} href={`/calls/${c.id}`}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-bg-hover transition-colors">
+                      <span className="text-body-sm font-medium text-text-primary">{c.callTypeName ?? "Call"}</span>
+                      {c.hostName && <span className="text-caption text-text-tertiary">{c.hostName}</span>}
+                      {c.duration_seconds && <span className="text-caption text-text-tertiary">{Math.round(c.duration_seconds / 60)}m</span>}
+                      {c.grade && <span className={`text-[10px] font-bold px-1 rounded ${
+                        c.grade === "A" ? "bg-success/10 text-success" : c.grade === "F" ? "bg-danger/10 text-danger" : "bg-nah-blue/10 text-nah-blue"
+                      }`}>{c.grade}</span>}
+                      <span className="text-caption text-text-tertiary ml-auto">{c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString() : ""}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Tasks */}
+            <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+              <TaskList contactId={contactId} tasks={tasks} onTaskUpdated={fetchAll} />
+            </div>
+
+            {/* Comms History */}
+            <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+              <h3 className="text-overline text-text-tertiary tracking-wider mb-3">COMMUNICATIONS</h3>
+              <ActivityTimeline messages={messages} />
+            </div>
           </div>
+
+        ) : activeTab === "messages" ? (
+          <div className="p-4 h-full flex flex-col">
+            <MessagesTab contactId={contactId} highlightMessageId={highlightMessageId} />
+          </div>
+
         ) : activeTab === "profile" ? (
           <div className="p-4 space-y-4">
-            {/* AI Scout summary card (if available) */}
+            {/* AI Scout summary card */}
             {profileValues["Auto Summary"] && (
               <div className="bg-scout-purple/5 border border-scout-purple/20 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <MapPin size={14} className="text-scout-purple" />
                   <span className="text-caption font-medium text-scout-purple">Scout AI Summary</span>
                 </div>
                 <p className="text-body-sm text-text-primary">{profileValues["Auto Summary"]}</p>
@@ -263,7 +372,7 @@ export default function LeadProfilePage() {
               </div>
             )}
 
-            {/* Score bar (if available) */}
+            {/* Score bar */}
             {profileValues["Scout Lead Score"] && (
               <div className="flex items-center gap-4 bg-bg-secondary border border-border-default rounded-lg p-4">
                 <div className="text-center">
@@ -274,30 +383,6 @@ export default function LeadProfilePage() {
                   <div className="text-center">
                     <div className="text-h1 text-success">{profileValues["Predicted Close Probability"]}%</div>
                     <div className="text-caption text-text-tertiary">Close Prob.</div>
-                  </div>
-                )}
-                {profileValues["Lookalike Score"] && (
-                  <div className="text-center">
-                    <div className="text-h1 text-info">{profileValues["Lookalike Score"]}</div>
-                    <div className="text-caption text-text-tertiary">Lookalike</div>
-                  </div>
-                )}
-                {profileValues["Engagement Velocity"] && (
-                  <div className="text-center">
-                    <div className={`text-h3 ${
-                      profileValues["Engagement Velocity"] === "Accelerating" ? "text-success" :
-                      profileValues["Engagement Velocity"] === "Stalled" ? "text-danger" : "text-text-primary"
-                    }`}>{profileValues["Engagement Velocity"]}</div>
-                    <div className="text-caption text-text-tertiary">Velocity</div>
-                  </div>
-                )}
-                {profileValues["Sentiment Trend"] && (
-                  <div className="text-center">
-                    <div className={`text-h3 ${
-                      profileValues["Sentiment Trend"]?.includes("Positive") ? "text-success" :
-                      profileValues["Sentiment Trend"] === "Negative" ? "text-danger" : "text-text-primary"
-                    }`}>{profileValues["Sentiment Trend"]}</div>
-                    <div className="text-caption text-text-tertiary">Sentiment</div>
                   </div>
                 )}
               </div>
@@ -317,45 +402,6 @@ export default function LeadProfilePage() {
                 />
               );
             })}
-          </div>
-        ) : activeTab === "messages" ? (
-          <div className="p-4 h-full flex flex-col">
-            <MessagesTab contactId={contactId} highlightMessageId={highlightMessageId} />
-          </div>
-        ) : activeTab === "calls" ? (
-          <div className="p-4">
-            {contactCalls.length === 0 ? (
-              <p className="text-caption text-text-tertiary py-4">No calls recorded for this contact</p>
-            ) : (
-              <div className="space-y-2">
-                {contactCalls.map((c) => (
-                  <a key={c.id} href={`/calls/${c.id}`}
-                    className="flex items-center gap-3 px-3 py-2.5 bg-bg-secondary border border-border-default rounded-lg hover:border-nah-blue/30 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <span className="text-body-sm font-medium text-text-primary">{c.callTypeName ?? "Call"}</span>
-                      {c.hostName && <span className="text-caption text-text-tertiary ml-2">{c.hostName}</span>}
-                    </div>
-                    {c.grade && <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                      c.grade === "A" ? "bg-success/10 text-success" : c.grade === "F" ? "bg-danger/10 text-danger" : "bg-nah-blue/10 text-nah-blue"
-                    }`}>{c.grade}</span>}
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${c.status === "completed" ? "bg-success/10 text-success" : "bg-info/10 text-info"}`}>{c.status}</span>
-                    <span className="text-caption text-text-tertiary">{c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString() : ""}</span>
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : activeTab === "notes" ? (
-          <div className="p-4">
-            <NotesSection contactId={contactId} notes={notes} onNoteAdded={fetchAll} />
-          </div>
-        ) : activeTab === "tasks" ? (
-          <div className="p-4">
-            <TaskList contactId={contactId} tasks={tasks} onTaskUpdated={fetchAll} />
-          </div>
-        ) : activeTab === "activity" ? (
-          <div className="p-4">
-            <ActivityTimeline messages={messages} />
           </div>
         ) : null}
       </div>
