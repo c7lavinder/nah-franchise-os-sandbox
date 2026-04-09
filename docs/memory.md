@@ -1167,3 +1167,30 @@ Full log: docs/MEGA_SPRINT_LOG.md
 - [ ] Settings → Call Types & Rubrics shows populated criteria
 - [ ] No browser prompt() popups anywhere (in-app modals instead)
 - [ ] No console errors on any page
+
+---
+
+## Bug + Contact Design Sprint (2026-04-09)
+
+Full log: docs/BUG_DESIGN_SPRINT_LOG.md
+
+### What changed
+- Phone format: (XXX) XXX-XXXX (no +1 prefix)
+- "Call History" → "Graded Calls" everywhere
+- Names title-cased in Messages tab
+- contact_related_people table + CRUD API
+- contacts table: +7 columns (territory, territory_slug, legal_entity, website, franchise_fee, royalty_pct, term_months)
+- Contact PATCH endpoint for new fields
+- Contact page redesigned: simplified header, persistent Territory/Deal cards, two-column Overview (Related People left, Calls/Tasks/Notes/Comms right), Messages has contacts panel, Profile has contact info
+
+### Visual Review Checklist
+- [ ] Phone shows (XXX) XXX-XXXX (no +1)
+- [ ] Names title-cased everywhere
+- [ ] "Graded Calls" not "Call History"
+- [ ] Contact header: name + action buttons only (no phone/email)
+- [ ] Territory + Deal cards persistent above tabs, inline editable
+- [ ] Overview: Related People left, Graded Calls + Tasks + Notes + Comms right
+- [ ] Can add/remove related contacts via UI
+- [ ] Related People visible in Messages tab too
+- [ ] Profile tab: contact info, Scout summary, scores
+- [ ] No console errors
