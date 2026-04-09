@@ -130,7 +130,7 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
             </div>
             <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap flex-1 text-left">
               <p className="text-sm font-semibold text-text-primary">{user?.fullName ?? "User"}</p>
-              <p className="text-xs text-text-secondary capitalize">{user?.role ?? "rep"}</p>
+              <p className="text-xs text-text-secondary">{user?.role === "leadership" ? "Admin" : (user?.role ?? "rep")}</p>
             </div>
             <ChevronUp
               size={14}

@@ -154,7 +154,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <label className="text-caption text-text-tertiary">Role</label>
-              <p className="text-body text-text-primary capitalize">{user?.role ?? "—"}</p>
+              <p className="text-body text-text-primary">{user?.role === "leadership" ? "Admin" : (user?.role ?? "—")}</p>
             </div>
             <div>
               <label className="text-caption text-text-tertiary">GHL User ID</label>

@@ -204,20 +204,21 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
   }
 
   function renderBody(msg: Message) {
-    const parts = msg.body.split(/(@\w[\w\s]*?)(?=\s|$|@)/g);
+    // Build regex from actual mentioned names for accurate matching
+    const mentionNames = Object.values(msg.mentionedNames).filter(Boolean);
+    if (mentionNames.length === 0) return msg.body;
+
+    const escaped = mentionNames.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const mentionRegex = new RegExp(`(@(?:${escaped.join("|")}))`, "gi");
+    const parts = msg.body.split(mentionRegex);
+
     return parts.map((part, i) => {
-      if (part.startsWith("@")) {
-        const name = part.slice(1).trim();
-        const isMention = Object.values(msg.mentionedNames).some(
-          (n) => n.toLowerCase() === name.toLowerCase()
+      if (part.startsWith("@") && mentionNames.some((n) => part.slice(1).toLowerCase() === n.toLowerCase())) {
+        return (
+          <span key={i} className="text-nah-blue font-medium">
+            {part}
+          </span>
         );
-        if (isMention) {
-          return (
-            <span key={i} className="text-nah-blue font-medium">
-              {part}
-            </span>
-          );
-        }
       }
       return <span key={i}>{part}</span>;
     });

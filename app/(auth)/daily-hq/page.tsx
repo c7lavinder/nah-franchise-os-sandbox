@@ -6,6 +6,7 @@ import type { GHLConversation, GHLAppointment, GHLTask } from "@/types/ghl";
 import { ConversationList, ConversationThread, InboxFilters } from "@/components/inbox";
 import { TodayCalendar, TaskPanel } from "@/components/daily-hq";
 import { QuickAsk } from "@/components/scout";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 /**
  * Daily HQ — Chad's Command Center
@@ -19,6 +20,7 @@ import { QuickAsk } from "@/components/scout";
  * └─────────────────────────────────────────┘
  */
 export default function DailyHQPage() {
+  const { user } = useAuth();
   // Inbox state
   const [conversations, setConversations] = useState<GHLConversation[]>([]);
   const [selectedConv, setSelectedConv] = useState<GHLConversation | null>(null);
@@ -59,7 +61,8 @@ export default function DailyHQPage() {
   const fetchSidebar = useCallback(async () => {
     setSidebarError(null);
     try {
-      const res = await fetch("/api/daily-hq");
+      const params = user?.id ? `?userId=${user.id}` : "";
+      const res = await fetch(`/api/daily-hq${params}`);
       if (res.ok) {
         const data = await res.json();
         setAppointments(data.upcoming ?? []);
@@ -70,7 +73,7 @@ export default function DailyHQPage() {
     } catch (err) {
       setSidebarError(err instanceof Error ? err.message : "Failed to load calendar and tasks");
     }
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     void fetchInbox();
