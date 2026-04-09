@@ -85,15 +85,23 @@ export async function checkActionPermission(
 ): Promise<PermissionCheckResult> {
   const supabase = createServerClient();
 
-  // Fetch user role
+  // Fetch user role + real user flag
   const { data: user, error } = await supabase
     .from("users")
-    .select("id, role, full_name")
+    .select("id, role, full_name, is_real_user")
     .eq("id", userId)
     .single();
 
   if (error || !user) {
     return { allowed: false, reason: "User not found" };
+  }
+
+  // Block placeholder users from all GHL actions
+  if (!user.is_real_user) {
+    return {
+      allowed: false,
+      reason: `${user.full_name} is a placeholder account. GHL actions are disabled until this account is activated.`,
+    };
   }
 
   // Admin: all 30 actions on any contact

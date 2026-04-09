@@ -20,7 +20,15 @@
 - **Phase:** LLM Layer COMPLETE — All 5 sprints done
 - **Last updated:** 2026-04-09
 - **Last session:** LLM layer build — all 5 sprints + profile fixes
-- **Next action:** Content seeding (Matt/Ryland/John), Zorakle API wiring, production testing
+- **Next action:** Testing week with 3 real users, then content seeding + Zorakle API
+
+---
+
+## Testing Week Configuration (2026-04-09)
+- **Real users (is_real_user=true):** Corey Lavinder (admin), Chad Arnold (operator), Matt Lavinder (admin)
+- **Placeholder users (is_real_user=false):** Sam, Mark, Ryland, John — blocked from GHL actions until post-testing
+- **GHL IDs found:** Chad (`LmwQtpaD5SSIIHe6r4Pk`), Matt (`JR7Z8HSBm16enwFDlheU`). Corey not in GHL user list — may need to be added.
+- **Permissions:** Placeholder users get "account not activated" error if they attempt any GHL action
 
 ---
 
