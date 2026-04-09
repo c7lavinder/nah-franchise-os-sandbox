@@ -14,6 +14,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase/server";
 import { retrieveContext, formatContextForPrompt } from "@/lib/rag/retriever";
 import { getContactProfileFields } from "@/lib/profile/profile-fields";
+import { getSuggestionContext } from "@/lib/scout-learning";
 
 export interface PreCallBrief {
   contactId: string;
@@ -48,8 +49,8 @@ export async function generatePreCallBrief(
     ? `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim()
     : "Unknown";
 
-  // Retrieve rich context
-  const [context, profileFields] = await Promise.all([
+  // Retrieve rich context + learning context
+  const [context, profileFields, learningContext] = await Promise.all([
     retrieveContext(`Pre-call brief for ${callType} with ${contactName}`, {
       contactId,
       contentTypes: ["transcript", "journal", "kb_doc"],
@@ -57,6 +58,7 @@ export async function generatePreCallBrief(
       includeStructured: true,
     }),
     getContactProfileFields(contactId),
+    getSuggestionContext(callType),
   ]);
 
   // Extract key profile values
@@ -74,7 +76,7 @@ export async function generatePreCallBrief(
 
   const prompt = `You are Scout, the AI brain of the New Again Houses franchise sales platform.
 Generate a pre-call brief for an upcoming ${callType} with ${contactName}.
-
+${learningContext ? `\n${learningContext}\n` : ""}
 CONTEXT DATA:
 ${contextStr}
 
