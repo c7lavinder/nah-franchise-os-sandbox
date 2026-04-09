@@ -315,9 +315,9 @@ export default function LeadProfilePage() {
               <NotesSection contactId={contactId} notes={notes} onNoteAdded={fetchAll} />
             </div>
 
-            {/* Call History */}
+            {/* Graded Calls */}
             <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-              <h3 className="text-overline text-text-tertiary tracking-wider mb-3">CALL HISTORY ({contactCalls.length})</h3>
+              <h3 className="text-overline text-text-tertiary tracking-wider mb-3">GRADED CALLS ({contactCalls.length})</h3>
               {contactCalls.length === 0 ? (
                 <p className="text-caption text-text-tertiary">No calls recorded</p>
               ) : (

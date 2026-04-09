@@ -13,6 +13,7 @@ import MentionAutocomplete from "./MentionAutocomplete";
 import type { MentionUser } from "./MentionAutocomplete";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/ui/Toast";
+import { capitalizeName } from "@/lib/format/contact";
 
 interface Message {
   id: string;
@@ -278,7 +279,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
                 {/* Header */}
                 <div className="flex items-baseline gap-2">
                   <span className="text-body-sm font-medium text-text-primary">
-                    {msg.authorName}
+                    {capitalizeName(msg.authorName)}
                   </span>
                   <span className="text-[11px] text-text-tertiary">
                     {new Date(msg.createdAt).toLocaleString([], {
