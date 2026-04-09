@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/journals",
       "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-report",
+      "schedule": "0 23 * * 0"
+    },
+    {
+      "path": "/api/cron/rubric-review",
+      "schedule": "0 23 1 * *"
     }
   ]
 }
