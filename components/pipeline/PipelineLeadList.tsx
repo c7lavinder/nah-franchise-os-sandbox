@@ -146,7 +146,7 @@ export default function PipelineLeadList({
         <h2 className="text-h2 text-text-primary">
           {selectedStageName ?? "All Leads"}
           <span className="text-caption text-text-tertiary ml-2 font-normal">
-            {totalCount > contacts.length ? `${contacts.length} of ${totalCount}` : contacts.length} {totalCount === 1 ? "lead" : "leads"}
+            {totalCount > contacts.length ? `Showing ${contacts.length} of ${totalCount} leads` : `${contacts.length} ${contacts.length === 1 ? "lead" : "leads"}`}
           </span>
         </h2>
         {loading && <Loader2 size={14} className="animate-spin text-text-tertiary" />}

@@ -84,6 +84,14 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
     );
   }
 
+  // Reorder Follow-up stages: Nurture → Follow-up → Re-engaged (display only)
+  const followupDisplayOrder = ["nurture", "followup", "reengaged"];
+  const reorderedFollowup = followupPipeline
+    ? [...followupPipeline.stages].sort(
+        (a, b) => followupDisplayOrder.indexOf(a.slug) - followupDisplayOrder.indexOf(b.slug)
+      )
+    : [];
+
   return (
     <div className="mb-8 space-y-6">
       {/* Sales Pipeline — 6 stages per §1.4 */}
@@ -97,11 +105,11 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
         />
       )}
 
-      {/* Follow-up Pipeline — 3 stages per §1.9 */}
+      {/* Follow-up Pipeline — 3 stages, display: Nurture → Follow-up → Re-engaged */}
       {followupPipeline && (
         <PipelineRow
           title="LONG-TERM"
-          stages={followupPipeline.stages}
+          stages={reorderedFollowup}
           metaMap={FOLLOWUP_STAGE_META}
           selectedStage={selectedStage}
           onStageClick={onStageClick}
@@ -173,14 +181,14 @@ function PipelineRow({
                   <meta.icon size={20} className="text-white" />
                 </div>
 
-                {/* Count badge */}
+                {/* Count pill badge — centered above circle */}
                 {stage.active_count > 0 && (
                   <span className={`
-                    absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 rounded-full
-                    text-caption font-bold flex items-center justify-center
+                    absolute -top-2 left-1/2 -translate-x-1/2 min-w-[20px] h-5 px-1.5 rounded-full
+                    text-[10px] font-bold flex items-center justify-center
                     ${isSelected
                       ? "bg-nah-blue text-white"
-                      : "bg-bg-tertiary text-text-primary border border-border-default"
+                      : "bg-text-primary/90 text-white"
                     }
                   `}>
                     {stage.active_count}

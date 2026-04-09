@@ -42,10 +42,8 @@ export default function PipelinePage() {
       {/* Filters */}
       <PipelineFilters
         onSearchChange={setSearchQuery}
-        onStatusChange={() => {}}
         onRefresh={handleRefresh}
         loading={false}
-        currentStatus="open"
       />
 
       {/* Path to Ownership + Long-Term visual */}

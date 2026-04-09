@@ -5,18 +5,16 @@ import { Search, RefreshCw } from "lucide-react";
 
 interface PipelineFiltersProps {
   onSearchChange: (query: string) => void;
-  onStatusChange: (status: string) => void;
+  onStatusChange?: (status: string) => void;
   onRefresh: () => void;
   loading: boolean;
-  currentStatus: string;
+  currentStatus?: string;
 }
 
 export default function PipelineFilters({
   onSearchChange,
-  onStatusChange,
   onRefresh,
   loading,
-  currentStatus,
 }: PipelineFiltersProps) {
   const [searchInput, setSearchInput] = useState("");
 
@@ -41,18 +39,6 @@ export default function PipelineFilters({
           className="w-full bg-bg-secondary border border-border-default rounded-md pl-9 pr-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary focus:border-nah-orange focus:outline-none"
         />
       </div>
-
-      {/* Status filter */}
-      <select
-        value={currentStatus}
-        onChange={(e) => onStatusChange(e.target.value)}
-        className="bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary focus:border-nah-orange focus:outline-none"
-      >
-        <option value="open">Open</option>
-        <option value="won">Won</option>
-        <option value="lost">Lost</option>
-        <option value="all">All</option>
-      </select>
 
       {/* Refresh */}
       <button
