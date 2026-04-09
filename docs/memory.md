@@ -17,10 +17,75 @@
 ---
 
 ## Current Status
-- **Phase:** Sprint 0 — Bug Fixes (Autonomous Overnight Run)
-- **Last updated:** 2026-04-07
-- **Last session:** Overnight autonomous execution — Sprint 0 + Sprint 1
-- **Next action:** Sprint 0 bug fixes, then Sprint 1 Supabase schema migration
+- **Phase:** LLM Layer Build — Sprints LLM-1 through LLM-3 complete
+- **Last updated:** 2026-04-09
+- **Last session:** LLM layer build session — 3 sprints completed
+- **Next action:** Sprint LLM-4 (Scout Intelligence) + Sprint LLM-5 (KB + Learning)
+
+---
+
+## LLM Sprint LLM-1 — Foundation (2026-04-09)
+**Branch:** `feature/llm-foundation`
+
+### What was built:
+1. **contact_profile_fields table** (EAV) — stores all 199 profile fields per contact with per-field source metadata (last_updated_by, last_updated_at, source_history JSONB). Trigger auto-maintains source_history (last 3 changes).
+2. **Field registry expanded** — `lib/profile/field-registry.ts` now has 199 fields across 18 categories (was 46 fields / 8 categories). All 46 existing fields preserved. New FieldCategory type covers all 18.
+3. **pgvector embeddings** — `embeddings` table with vector(1536), HNSW index (cosine), `match_embeddings()` RPC function for similarity search with type/contact filters.
+4. **RAG pipeline** — `lib/rag/embedder.ts`: chunking + embedding for transcripts (400-tok), KB docs (by section), external research (300-tok), journals (single). OpenAI text-embedding-3-small.
+5. **Journal system** — 3 tables: contact_journals (per contact per day), rep_journals (per rep per day), system_logs (audit). All with proper indexes and RLS.
+6. **Journal cron** — `app/api/cron/journals` route fires at 11pm daily via vercel.json. Runs contact journal, rep journal, system log aggregation sequentially. Logs to cron_job_log.
+7. **Profile CRUD** — `lib/profile/profile-fields.ts`: read/write/batch operations on contact_profile_fields table.
+8. **Backfill script** — `scripts/backfill-embeddings.ts`: idempotent embed of all existing transcripts + KB docs.
+
+### Tables created:
+- contact_profile_fields, embeddings, contact_journals, rep_journals, system_logs
+
+### Migrations:
+- 20260409100000_create_contact_profile_fields.sql
+- 20260409100001_create_embeddings_pgvector.sql
+- 20260409100002_create_journal_tables.sql
+
+---
+
+## LLM Sprint LLM-2 — Call Details Enhancement (2026-04-09)
+**Branch:** `feature/llm-call-details`
+
+### What was built:
+1. **call_review_packages table** — stores full Scout review output per call (grade, coaching, profile suggestions, next step cards, status).
+2. **suggestion_feedback table** — logs every card outcome (accepted/edited/skipped) for learning.
+3. **Profile extractor** — `lib/calls/profile-extractor.ts`: Claude-powered extraction of up to 10 profile field suggestions from transcript text.
+4. **Next steps generator** — `lib/calls/next-steps-generator.ts`: generates 3-7 suggested actions (NAH OS or GHL) with pre-filled payloads.
+5. **Review package orchestrator** — `lib/calls/review-package.ts`: runs grade + coach + profile extract + next steps in parallel, stores in call_review_packages.
+6. **Feedback logger** — `lib/learning/feedback-logger.ts`: logs feedback entries, computes acceptance stats.
+7. **API routes** — POST/GET `/api/calls/:callId/review-package` (auto-trigger + fetch), POST `/api/calls/:callId/feedback` (log card outcomes + push profile updates).
+
+### Tables created:
+- call_review_packages, suggestion_feedback
+
+### Migration:
+- 20260409200000_create_call_review_packages.sql
+
+---
+
+## LLM Sprint LLM-3 — GHL Execution Layer (2026-04-09)
+**Branch:** `feature/llm-ghl-execution`
+
+### What was built:
+1. **ghl_action_drafts table** — Draft → Review → Confirm queue for all GHL actions.
+2. **Permissions** — `lib/ghl/permissions.ts`: role-based enforcement (admin=all, operator=all, specialist=C+T+A only, member=none). 30 action codes mapped.
+3. **Action queue** — `lib/ghl/action-queue.ts`: draftAction, reviewAction, confirmAction, rejectAction, getPendingDrafts. Full lifecycle management.
+4. **Action executor** — `lib/ghl/actions/executor.ts`: all 30 GHL action handlers (C1-C8, T1-T5, A1-A5, M1-M9, O1-O3) routed through the existing GHL client.
+5. **Stage sync** — `lib/ghl/stage-sync.ts`: auto write-through of NAH OS stage changes to GHL custom fields. 3x retry, logs to system_logs.
+6. **GHL ID discovery** — `scripts/ghl-id-discovery.ts`: discovers and stores calendar IDs, custom field IDs, user IDs, sub-task→calendar mappings in app_settings.
+
+### Tables created:
+- ghl_action_drafts
+
+### Migration:
+- 20260409300000_create_ghl_action_drafts.sql
+
+### GHL types extended:
+- GHLContactUpdatePayload: added assignedTo, dnd, source, address fields
 
 ---
 

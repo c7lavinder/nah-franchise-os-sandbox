@@ -35,6 +35,13 @@ export interface GHLContactUpdatePayload {
   phone?: string;
   tags?: string[];
   customFields?: GHLCustomField[];
+  assignedTo?: string;
+  dnd?: boolean;
+  source?: string;
+  address1?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
 }
 
 /** GHL Pipeline */
