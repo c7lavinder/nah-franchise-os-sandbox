@@ -1078,3 +1078,19 @@ Unmatched: 0
 - OPENAI_API_KEY in env for Whisper transcription (present on Vercel)
 - GHL calendar events with meeting links for sync to populate calls
 - Admin must add rubric criteria in Settings before grading works
+
+---
+
+## Polish Sprint — Pre-launch (2026-04-08)
+
+Full details: docs/POLISH_SPRINT_LOG.md
+
+### What was done
+- Fixed 6 silent error catches in client components (errors now shown to user)
+- Created toast notification system (components/ui/Toast.tsx) — 11 write actions wired
+- Fixed CronCalendar missing React key prop
+- Verified: all loading states, empty states, stuck loading paths already correct
+- GHL calendar sync: works but 0 events (no GHL calendar data yet)
+- Contact backfill dry-run: 3,090 GHL contacts, ~0 net new
+- Scout tools audit: no broken references
+- Build: PASS
