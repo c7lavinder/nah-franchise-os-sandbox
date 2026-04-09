@@ -85,8 +85,8 @@ export default function CronCalendar() {
 
           {/* Hour rows (show every 3 hours for compactness) */}
           {HOURS.filter((h) => h % 3 === 0).map((hour) => (
-            <>
-              <div key={`h-${hour}`} className="bg-bg-primary p-2 text-[10px] text-text-tertiary text-right">
+            <div key={`row-${hour}`} className="contents">
+              <div className="bg-bg-primary p-2 text-[10px] text-text-tertiary text-right">
                 {hour.toString().padStart(2, "0")}:00
               </div>
               {Array.from({ length: 7 }, (_, dayIdx) => {
@@ -109,7 +109,7 @@ export default function CronCalendar() {
                   </div>
                 );
               })}
-            </>
+            </div>
           ))}
         </div>
       </div>
