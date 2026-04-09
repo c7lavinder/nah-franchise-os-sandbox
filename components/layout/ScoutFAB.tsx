@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { Bot, X, Send, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type Anthropic from "@anthropic-ai/sdk";
 
 interface ChatMsg {
@@ -165,7 +167,9 @@ export default function ScoutFAB() {
                 }`}
                   style={msg.role === "assistant" ? { background: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.6)" } : undefined}
                 >
-                  <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                  <div className="prose prose-sm max-w-none break-words [&>p]:m-0 [&>ul]:my-1 [&>ol]:my-1 [&>h1]:text-base [&>h2]:text-sm [&>h3]:text-sm">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  </div>
                 </div>
               </div>
             ))}

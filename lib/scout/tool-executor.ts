@@ -569,68 +569,52 @@ async function executeGetNextAction(
 }
 
 /**
- * Map stage name to a number for comparison.
- * Accepts both internal app names AND actual GHL stage names
- * so it works regardless of which source provides the stage string.
- * See docs/pipeline.md GHL Stage Name Mapping table for canonical names.
+ * Map stage name to a sort_order number for comparison.
+ * Now supports both the new 6-stage Sales pipeline AND legacy GHL stage names.
+ * The new pipeline stages are the canonical ones; legacy names map to closest match.
  */
 function getStageNumber(stageName: string): number {
   const map: Record<string, number> = {
-    // Stage 1
-    "New Lead": 1,
-    // Stage 2
-    "Contacted": 2,
-    // Stage 3 — GHL actual name is "Guided Path to Ownership"
-    "Qualified": 3, "Guided Path to Ownership": 3,
-    // Stage 4
-    "Matt Call (Discovery)": 4, "Matt Call": 4, "Discovery Call": 4,
-    // Stage 5
-    "Sam Call (Validation)": 5, "Sam Call": 5, "Validation Call": 5,
-    // Stage 6
-    "Compliance Gate": 6, "Compliance Check": 6,
-    // Stage 7
-    "Application + Approval": 7, "Application": 7,
-    // Stage 8 — GHL actual name is "Signed FDD Receipt"
-    "FDD Issued": 8, "Signed FDD Receipt": 8,
-    // Stage 9
-    "Mark Call (Capital/Lending)": 9, "Mark Call": 9, "Lending Call": 9,
-    // Stage 10 — GHL actual name is "Matt Final/Documents Submitted"
-    "Award + Agreement": 10, "Matt Final/Documents Submitted": 10, "Matt Final": 10,
-    // Stage 11
-    "Funds Received": 11, "Closed Won": 11,
-    // Exit stages
-    "Follow-up": 12,
-    "Nurture": 13,
-    "Re-engaged": 14,
-    "Lost": 15,
+    // New 6-stage Sales pipeline (canonical)
+    "Engagement": 1,
+    "Qualification": 2,
+    "Discovery": 3,
+    "Compliance": 4,
+    "Awarding": 5,
+    "Closed": 6,
+    // Follow-up pipeline
+    "Follow-up": 7,
+    "Nurture": 8,
+    "Re-engaged": 9,
+    // Legacy GHL names → closest new stage
+    "New Lead": 1, "Contacted": 1,
+    "Qualified": 2, "Guided Path to Ownership": 2,
+    "Matt Call": 3, "Matt Call (Discovery)": 3, "Discovery Call": 3,
+    "Sam Call": 3, "Sam Call (Validation)": 3, "Validation Call": 3,
+    "Compliance Gate": 4, "Compliance Check": 4,
+    "Application": 5, "Application + Approval": 5,
+    "FDD Issued": 4, "Signed FDD Receipt": 4,
+    "Mark Call": 4, "Mark Call (Capital/Lending)": 4,
+    "Award + Agreement": 5, "Matt Final": 5, "Matt Final/Documents Submitted": 5,
+    "Funds Received": 6, "Closed Won": 6,
+    "Lost": 10,
   };
   return map[stageName] ?? 0;
 }
 
-/** Stage-specific recommendation when nothing is overdue or missing */
+/** Stage-specific recommendation based on new 6-stage pipeline */
 function getStageRecommendation(stage: string, profile: Record<string, string>): string {
   const num = getStageNumber(stage);
   switch (num) {
-    case 1: return "New lead — make first contact within 5 minutes. Call first, then text.";
-    case 2: return "Keep attempting contact across channels. If 5+ attempts with no response, consider moving to Follow-up.";
-    case 3: return "Qualified — schedule the Matt Call (Discovery) within 48 hours.";
-    case 4: return profile["Matt Call Done"]?.startsWith("Yes")
-      ? "Matt Call complete — schedule Sam Call (Validation)."
-      : "Matt Call upcoming — send pre-call brief to Matt and confirm with prospect.";
-    case 5: return profile["Sam Call Done"]?.startsWith("Yes")
-      ? "Sam Call complete — move to Compliance Gate."
-      : "Sam Call upcoming — send briefing note to Sam.";
-    case 6: return "Complete the compliance checklist — all items must be checked before FDD.";
-    case 7: return "Guide prospect through the application. Follow up if not submitted within 5 days.";
-    case 8: return "FDD issued — legal-safe check-ins only. No pressure. Wait for 14-day window.";
-    case 9: return profile["Mark Call Done"]?.startsWith("Yes")
-      ? "Mark Call complete — if financially viable, move to Award + Agreement."
-      : "Schedule the Mark Call — capital is the #1 deal blocker.";
-    case 10: return "Coordinate agreement execution. Target: signed within 10 business days.";
-    case 11: return "Closed Won! Generate onboarding tasks and welcome the new franchisee.";
-    case 12: return "Follow-up lead — touch every 7-14 days. Draft a personal check-in.";
-    case 13: return "Nurture lead — monthly personal touch from Chad + automated content.";
-    case 14: return "Re-engaged! Contact within 2 hours — they already know NAH and chose to come back.";
+    case 1: return "Engagement stage — make outreach, schedule intro call, send PTO materials.";
+    case 2: return "Qualification stage — complete NDA, schedule Matt Call, run Zorakle assessment.";
+    case 3: return "Discovery stage — complete Sam Call, PFS, background check, Mark Call.";
+    case 4: return "Compliance stage — issue FDD, schedule FDD review call, territory call, FA info gathering.";
+    case 5: return "Awarding stage — Matt Final Call, send Franchise Award Letter, complete FA and FF.";
+    case 6: return "Closed — franchisee awarded! Trigger onboarding pipeline.";
+    case 7: return "Follow-up — touch every 7-14 days. Draft a personal check-in.";
+    case 8: return "Nurture — monthly personal touch from Chad + automated content.";
+    case 9: return "Re-engaged! Contact within 2 hours — they already know NAH and chose to come back.";
     default: return "Review this lead's profile and determine the appropriate next step.";
   }
 }
