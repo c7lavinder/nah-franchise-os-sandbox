@@ -25,8 +25,9 @@ export async function GET() {
     // Fetch all active pipelines with their stages
     const { data: pipelines, error: pipeError } = await supabase
       .from("pipelines")
-      .select("id, slug, name, sort_order")
+      .select("id, slug, name, sort_order, is_visible_in_nav")
       .eq("is_active", true)
+      .eq("is_visible_in_nav", true)
       .order("sort_order");
 
     if (pipeError) {

@@ -14,6 +14,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Users, Phone, Search, Shield, Award, Trophy,
   PhoneForwarded, UserMinus, UserPlus,
+  Settings, BookOpen, Rocket, CheckCircle2,
 } from "lucide-react";
 
 /** Stage metadata: slug → icon + gradient */
@@ -30,6 +31,13 @@ const FOLLOWUP_STAGE_META: Record<string, { icon: React.ComponentType<{ size?: n
   followup:  { icon: PhoneForwarded, gradient: "from-sky-500 to-sky-600" },
   nurture:   { icon: UserMinus,      gradient: "from-sky-600 to-cyan-600" },
   reengaged: { icon: UserPlus,       gradient: "from-cyan-500 to-teal-500" },
+};
+
+const ONBOARDING_STAGE_META: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; gradient: string }> = {
+  setup:       { icon: Settings,      gradient: "from-emerald-500 to-emerald-600" },
+  training:    { icon: BookOpen,      gradient: "from-emerald-600 to-green-500" },
+  "launch-prep": { icon: Rocket,     gradient: "from-green-500 to-lime-500" },
+  onboarded:   { icon: CheckCircle2,  gradient: "from-lime-500 to-yellow-400" },
 };
 
 interface StageAPI {
@@ -73,6 +81,7 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
   }, [fetchStages]);
 
   const salesPipeline = pipelines.find((p) => p.slug === "sales");
+  const onboardingPipeline = pipelines.find((p) => p.slug === "onboarding");
   const followupPipeline = pipelines.find((p) => p.slug === "followup");
 
   if (loading) {
@@ -100,6 +109,17 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
           title="PATH TO OWNERSHIP"
           stages={salesPipeline.stages}
           metaMap={SALES_STAGE_META}
+          selectedStage={selectedStage}
+          onStageClick={onStageClick}
+        />
+      )}
+
+      {/* Onboarding Pipeline — 4 stages */}
+      {onboardingPipeline && (
+        <PipelineRow
+          title="ONBOARDING"
+          stages={onboardingPipeline.stages}
+          metaMap={ONBOARDING_STAGE_META}
           selectedStage={selectedStage}
           onStageClick={onStageClick}
         />
