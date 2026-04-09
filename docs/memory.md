@@ -17,10 +17,45 @@
 ---
 
 ## Current Status
-- **Phase:** LLM Layer Build — Sprints LLM-1 through LLM-3 complete
+- **Phase:** LLM Layer COMPLETE — All 5 sprints done
 - **Last updated:** 2026-04-09
-- **Last session:** LLM layer build session — 3 sprints completed
-- **Next action:** Sprint LLM-4 (Scout Intelligence) + Sprint LLM-5 (KB + Learning)
+- **Last session:** LLM layer build — all 5 sprints + profile fixes
+- **Next action:** Content seeding (Matt/Ryland/John), Zorakle API wiring, production testing
+
+---
+
+## LLM Sprint LLM-4 — Scout Intelligence (2026-04-09)
+**Branch:** `feature/llm-scout-intelligence`
+
+### What was built:
+1. **Hybrid RAG retriever** (`lib/rag/retriever.ts`) — combines pgvector semantic search + direct Supabase queries (profile, journals, pipeline state)
+2. **Pre-call brief generator** (`lib/calls/brief-generator.ts`) — 8 sections: who/where/last/concerns/goals/compare/predict/opener
+3. **Query router** (`lib/scout/query-router.ts`) — intent detection for contact, BI, KB, and brief queries
+4. **BI handler** (`lib/scout/bi-handler.ts`) — cross-contact business intelligence with role-adapted phrasing
+5. **Context injector** (`lib/scout/context-injector.ts`) — page-aware context injection
+
+---
+
+## LLM Sprint LLM-5 — KB & Learning Loop (2026-04-09)
+**Branch:** `feature/llm-kb-learning`
+
+### What was built:
+1. **KB health monitoring** (`lib/kb/health-monitor.ts`) — retrieval tracking, staleness detection, gap signals
+2. **Feedback analyzer** (`lib/learning/feedback-analyzer.ts`) — acceptance rates, rejection patterns, edit analysis
+3. **Weekly report** (`lib/learning/weekly-report.ts`) — Sunday 11pm cron, stores in scout_performance_reports
+4. **Monthly rubric review** (`lib/learning/rubric-review.ts`) — 1st of month, draft-only suggestions
+5. **Frandev KB import** — 5 docs: sales methodology, objection playbook, red flags, product knowledge, competitor intel
+6. **Client Tether pattern extraction script** — ready to run when CSV provided
+
+### Tables created:
+- scout_performance_reports, rubric_review_suggestions, kb_gap_signals
+- knowledge_documents extended: last_retrieved_at, retrieval_count, retrieval_quality_score, flagged_as_stale, gap_signal, seeded_from
+
+### Profile fixes (between LLM-3 and LLM-4):
+- Rebuilt 199-field registry from NAH_Profile_Tab_v2_Expanded.md (was 148 mismatches, now 0)
+- Profile API reads from contact_profile_fields first, GHL fallback
+- All 18 categories wired to UI (was 8)
+- Backfill script created, 43 rows written to production
 
 ---
 
