@@ -8,6 +8,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase/server";
 import { PROFILE_FIELDS } from "@/lib/profile/field-registry";
+import { getSuggestionContext } from "@/lib/scout-learning";
 import { getContactProfileFields } from "@/lib/profile/profile-fields";
 
 export interface ProfileSuggestion {
@@ -65,9 +66,12 @@ export async function extractProfileUpdates(
     .map(([k, v]) => `  ${k}: ${JSON.stringify(v.field_value)}`)
     .join("\n") || "  (no profile data yet)";
 
+  // Inject learning context before generating suggestions
+  const learningCtx = await getSuggestionContext("general");
   const prompt = EXTRACT_PROMPT
     .replace("FIELD_LIST", fieldList)
-    .replace("CURRENT_PROFILE", currentProfile);
+    .replace("CURRENT_PROFILE", currentProfile)
+    + (learningCtx ? `\n\n${learningCtx}` : "");
 
   const model = process.env.SCOUT_MODEL ?? "claude-sonnet-4-5-20250514";
   const anthropic = new Anthropic();
