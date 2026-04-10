@@ -86,6 +86,22 @@ export function isNAHTeamEmail(email: string | null | undefined): boolean {
   return !!email && NAH_TEAM_EMAILS.includes(email.toLowerCase());
 }
 
+/** Build a standardized call title: "{Call Type} w/ {External Contact Names}" */
+export function standardizeTitle(
+  callTypeName: string | null,
+  externalNames: string[],
+  originalTitle: string | null,
+): string {
+  const type = callTypeName ?? "Call";
+  if (externalNames.length > 0) {
+    const names = externalNames.length <= 3
+      ? externalNames.join(" & ")
+      : `${externalNames.slice(0, 2).join(", ")} +${externalNames.length - 2}`;
+    return `${type} w/ ${names}`;
+  }
+  return originalTitle ?? type;
+}
+
 export async function classifyCall(
   payload: ReadAIWebhookPayload
 ): Promise<ClassifiedCall> {
@@ -117,8 +133,8 @@ export async function classifyCall(
     };
   }
 
-  // GROUP — 3+ total participants with at least one external
-  if (participants.length >= 3) {
+  // GROUP — 3+ external participants (not just 3+ total — NAH team on a prospect call doesn't make it a group call)
+  if (externalParticipants.length >= 3) {
     return {
       call_type: "group",
       nah_participant_email: nahParticipants[0] ?? null,
@@ -128,12 +144,12 @@ export async function classifyCall(
       territory_ms_slug: null,
       coach_user_id: null,
       confidence: "high",
-      classification_reason: `${participants.length} participants — group call`,
+      classification_reason: `${externalParticipants.length} external participants — group call`,
     };
   }
 
-  // ONE-ON-ONE with external participant
-  if (externalParticipants.length === 1) {
+  // 1-2 external participants — prospect or coaching call
+  if (externalParticipants.length >= 1) {
     const externalEmail = externalParticipants[0];
     const externalParticipant = participants.find(
       (p) => p.email?.toLowerCase() === externalEmail

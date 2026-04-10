@@ -4,7 +4,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
-import { formatTranscript } from "../classifier";
+import { formatTranscript, standardizeTitle } from "../classifier";
 
 /** Map NAH participant email to call type slug for rubric selection */
 function determineProspectCallType(
@@ -52,10 +52,10 @@ export async function processProspectCall(
     payload.title ?? null
   );
 
-  // 3. Look up call_type_id
+  // 3. Look up call_type_id + name
   const { data: callType } = await supabase
     .from("call_types")
-    .select("id")
+    .select("id, name")
     .eq("slug", callTypeSlug)
     .maybeSingle();
 
@@ -88,7 +88,11 @@ export async function processProspectCall(
       contact_id: contactUuid,
       call_type_id: callType?.id ?? null,
       read_ai_session_id: payload.session_id,
-      title: payload.title ?? "Prospect Call",
+      title: standardizeTitle(
+        callType?.name ?? null,
+        classified.external_participant_name ? [classified.external_participant_name] : [],
+        payload.title ?? null,
+      ),
       started_at: payload.start_time ?? null,
       ended_at: payload.end_time ?? null,
       duration_seconds: payload.start_time && payload.end_time

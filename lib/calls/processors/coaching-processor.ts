@@ -4,7 +4,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
-import { formatTranscript } from "../classifier";
+import { formatTranscript, standardizeTitle } from "../classifier";
 
 export async function processCoachingCall(
   payload: ReadAIWebhookPayload,
@@ -41,7 +41,11 @@ export async function processCoachingCall(
       coach_user_id: classified.coach_user_id,
       call_type_id: callType?.id ?? null,
       read_ai_session_id: payload.session_id,
-      title: payload.title ?? "Coaching Call",
+      title: standardizeTitle(
+        "Coaching Call",
+        classified.external_participant_name ? [classified.external_participant_name] : [],
+        payload.title ?? null,
+      ),
       started_at: payload.start_time ?? null,
       ended_at: payload.end_time ?? null,
       duration_seconds: payload.start_time && payload.end_time

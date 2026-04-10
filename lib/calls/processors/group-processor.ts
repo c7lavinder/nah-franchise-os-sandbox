@@ -4,7 +4,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
-import { formatTranscript } from "../classifier";
+import { formatTranscript, standardizeTitle, isNAHTeamEmail } from "../classifier";
 
 export async function processGroupCall(
   payload: ReadAIWebhookPayload,
@@ -12,13 +12,18 @@ export async function processGroupCall(
 ): Promise<void> {
   const supabase = createServerClient();
 
-  // 1. Create call record (no contact, no territory)
+  // 1. Build standardized title from external participant names
+  const externalNames = (payload.participants ?? [])
+    .filter((p) => !isNAHTeamEmail(p.email))
+    .map((p) => p.name)
+    .filter(Boolean) as string[];
+
   const { data: callRecord } = await supabase
     .from("calls")
     .insert({
       call_type_id: null,
       read_ai_session_id: payload.session_id,
-      title: payload.title ?? "Group Call",
+      title: standardizeTitle("Group Call", externalNames, payload.title ?? null),
       started_at: payload.start_time ?? null,
       ended_at: payload.end_time ?? null,
       duration_seconds: payload.start_time && payload.end_time
