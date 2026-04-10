@@ -191,9 +191,9 @@ export default function CallDetailPage() {
   ];
 
   return (
-    <div className="flex flex-col min-h-0">
+    <div>
       {/* Header — adapts to call context */}
-      <div className="flex items-center gap-3 px-1 py-3 flex-shrink-0">
+      <div className="flex items-center gap-3 mb-4">
         <button onClick={() => router.back()} className="btn-ghost p-1.5"><ArrowLeft size={18} /></button>
         <div className="flex-1 min-w-0">
           {ctx === "coaching" ? (
@@ -252,7 +252,7 @@ export default function CallDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-border-default px-1 flex-shrink-0">
+      <div className="flex border-b border-border-default mb-6">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -266,12 +266,12 @@ export default function CallDetailPage() {
         })}
       </div>
 
-      {error && <div className="mx-4 mt-3 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg text-body-sm text-danger">{error}</div>}
+      {error && <div className="mb-4 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg text-body-sm text-danger">{error}</div>}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div>
         {activeTab === "overview" && (
-          <div className="space-y-4 max-w-2xl">
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-body-sm">
               {ctx === "coaching" ? (
                 <>
@@ -339,7 +339,7 @@ export default function CallDetailPage() {
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-caption text-text-tertiary">Source: {transcript.source} | {transcript.word_count ?? 0} words</span>
                 </div>
-                <div className="bg-bg-secondary border border-border-default rounded-lg p-4 max-h-[60vh] overflow-y-auto">
+                <div className="bg-bg-secondary border border-border-default rounded-lg p-4 overflow-y-auto">
                   <p className="text-body-sm text-text-primary whitespace-pre-wrap">{transcript.full_text}</p>
                 </div>
               </div>
@@ -348,7 +348,7 @@ export default function CallDetailPage() {
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-caption text-text-tertiary">From Read.ai</span>
                 </div>
-                <div className="bg-bg-secondary border border-border-default rounded-lg p-4 max-h-[60vh] overflow-y-auto">
+                <div className="bg-bg-secondary border border-border-default rounded-lg p-4 overflow-y-auto">
                   <p className="text-body-sm text-text-primary whitespace-pre-wrap">{call.raw_transcript}</p>
                 </div>
               </div>
@@ -389,7 +389,7 @@ export default function CallDetailPage() {
           <div>
             {ctx === "group" ? (
               /* Group calls: no grade, show Read.ai engagement metrics */
-              <div className="space-y-4 max-w-lg">
+              <div className="space-y-4">
                 <h3 className="text-overline text-text-tertiary tracking-wider">ENGAGEMENT METRICS</h3>
                 <p className="text-caption text-text-tertiary">Metrics from Read.ai for this group call.</p>
                 <div className="grid grid-cols-3 gap-4">

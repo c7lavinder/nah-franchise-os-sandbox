@@ -23,6 +23,8 @@ function getPageTitle(pathname: string): string {
   if (titles[pathname]) return titles[pathname];
   if (pathname.startsWith("/workflows/")) return "Workflow Builder";
   if (pathname.startsWith("/leads/")) return "Prospect Detail";
+  if (pathname.startsWith("/calls/")) return "Call Detail";
+  if (pathname === "/calls") return "Calls";
   return "Franchise OS";
 }
 
