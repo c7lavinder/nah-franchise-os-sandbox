@@ -22,8 +22,13 @@ const CATEGORIES: { value: KnowledgeCategory; label: string; color: string }[] =
   { value: "brand", label: "Brand", color: "bg-[#e6f7fd] text-[#00a1e1]" },
   { value: "pipeline", label: "Pipeline", color: "bg-[#e3f2fd] text-[#1565c0]" },
   { value: "objections", label: "Objections", color: "bg-[#fff3e0] text-[#e65100]" },
+  { value: "coaching", label: "Coaching", color: "bg-[#ede7f6] text-[#4527a0]" },
+  { value: "ideal_candidate", label: "Ideal Candidate", color: "bg-[#e0f2f1] text-[#00695c]" },
   { value: "competitors", label: "Competitors", color: "bg-[#fce4ec] text-[#c62828]" },
   { value: "industry", label: "Industry", color: "bg-[#e8f5e9] text-[#2e7d32]" },
+  { value: "territory", label: "Territory", color: "bg-[#fff8e1] text-[#f57f17]" },
+  { value: "operations", label: "Operations", color: "bg-[#efebe9] text-[#4e342e]" },
+  { value: "training", label: "Training", color: "bg-[#e1f5fe] text-[#0277bd]" },
   { value: "fdd", label: "FDD", color: "bg-[#f3e5f5] text-[#6a1b9a]" },
   { value: "contact-notes", label: "Contact Notes", color: "bg-[#f1f5f9] text-[#64748b]" },
 ];
@@ -192,7 +197,7 @@ export default function KnowledgePage() {
         >
           All
         </button>
-        {CATEGORIES.filter((c) => c.value !== "contact-notes").map((cat) => (
+        {CATEGORIES.map((cat) => (
           <button
             key={cat.value}
             onClick={() => setFilterCat(cat.value)}
@@ -236,7 +241,7 @@ export default function KnowledgePage() {
                 value={formCategory}
                 onChange={(e) => setFormCategory(e.target.value as KnowledgeCategory)}
               >
-                {CATEGORIES.filter((c) => c.value !== "contact-notes").map((c) => (
+                {CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>{c.label}</option>
                 ))}
               </select>

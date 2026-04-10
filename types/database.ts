@@ -119,6 +119,11 @@ export type KnowledgeCategory =
   | "competitors"
   | "industry"
   | "fdd"
+  | "coaching"
+  | "ideal_candidate"
+  | "operations"
+  | "territory"
+  | "training"
   | "contact-notes";
 
 /** Knowledge documents table — franchise knowledge injected into Scout's prompt */
