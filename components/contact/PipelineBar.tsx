@@ -169,6 +169,7 @@ export default function PipelineBar({
       <StageActionButtons
         contactId={contactId}
         pipelineId={selected.pipeline_id}
+        pipelineSlug={selected.pipeline_slug}
         currentStageName={currentStageDef?.name ?? ""}
         nextStageName={nextStage?.name ?? null}
         prevStageName={prevStage?.name ?? null}

@@ -26,28 +26,12 @@ export async function getDailyHQScorecard() {
   const supabase = createServerClient();
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  // New Prospects: first-time Sales pipeline entries in last 30 days
-  const { data: recentEntries } = await supabase
-    .from("pipeline_stage_history")
-    .select("contact_id, created_at")
-    .gte("created_at", thirtyDaysAgo)
-    .order("created_at", { ascending: true });
-
-  // Filter to first-time only (no prior history before 30 days ago)
-  const firstTimers = new Set<string>();
-  const seenBefore = new Set<string>();
-  for (const entry of recentEntries ?? []) {
-    if (!seenBefore.has(entry.contact_id)) {
-      // Check if this contact had any history before 30 days ago
-      const { count } = await supabase
-        .from("pipeline_stage_history")
-        .select("id", { count: "exact", head: true })
-        .eq("contact_id", entry.contact_id)
-        .lt("created_at", thirtyDaysAgo);
-      if ((count ?? 0) === 0) firstTimers.add(entry.contact_id);
-      seenBefore.add(entry.contact_id);
-    }
-  }
+  // New Prospects: contacts that entered the Sales pipeline in last 30 days
+  const { count: newProspectCount } = await supabase
+    .from("contact_pipeline_state")
+    .select("id", { count: "exact", head: true })
+    .eq("pipeline_id", "a0000000-0000-0000-0000-000000000001") // Sales pipeline
+    .gte("entered_pipeline_at", thirtyDaysAgo);
 
   // Active Franchisees
   const { count: activeFranchisees } = await supabase
@@ -73,7 +57,7 @@ export async function getDailyHQScorecard() {
   const highPerformers = Object.values(housesByTerritory).filter((h) => h >= 10).length;
 
   return {
-    newProspects: { value: firstTimers.size, label: "New Prospects", sub: "last 30 days" },
+    newProspects: { value: newProspectCount ?? 0, label: "New Prospects", sub: "last 30 days" },
     activeFranchisees: { value: activeFranchisees ?? 0, goal: 250, label: "Active Franchisees", sub: "of 250 goal" },
     highPerformers: { value: highPerformers, goal: 100, label: "High Performers", sub: "10+ houses last 12 months" },
   };

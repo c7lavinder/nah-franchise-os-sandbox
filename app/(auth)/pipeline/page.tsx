@@ -18,15 +18,24 @@ export default function PipelinePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
   const [selectedStageName, setSelectedStageName] = useState<string | null>(null);
+  const [selectedTerritoryStatus, setSelectedTerritoryStatus] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   function handleStageClick(stageId: string, stageName: string) {
     if (selectedStage === stageId) {
       setSelectedStage(null);
       setSelectedStageName(null);
+      setSelectedTerritoryStatus(null);
     } else {
       setSelectedStage(stageId);
       setSelectedStageName(stageName);
+      // Check if this is a territory status stage
+      const lowerName = stageName.toLowerCase();
+      if (lowerName === "active" || lowerName === "inactive" || lowerName === "available") {
+        setSelectedTerritoryStatus(lowerName);
+      } else {
+        setSelectedTerritoryStatus(null);
+      }
     }
   }
 
@@ -52,18 +61,22 @@ export default function PipelinePage() {
         onStageClick={handleStageClick}
       />
 
-      {/* All Leads list — from Supabase */}
-      <PipelineLeadList
-        key={refreshKey}
-        selectedStageId={selectedStage}
-        selectedStageName={selectedStageName}
-        searchQuery={searchQuery}
-      />
+      {/* All Leads list — from Supabase (hide when territory stage selected) */}
+      {!selectedTerritoryStatus && (
+        <PipelineLeadList
+          key={refreshKey}
+          selectedStageId={selectedStage}
+          selectedStageName={selectedStageName}
+          searchQuery={searchQuery}
+        />
+      )}
 
       {/* Territory Cards — Territories pipeline */}
-      <div className="mt-8">
-        <h2 className="text-overline text-text-tertiary tracking-wider mb-4">TERRITORY NETWORK</h2>
-        <TerritoryCardList />
+      <div className={selectedTerritoryStatus ? "" : "mt-8"}>
+        {!selectedTerritoryStatus && (
+          <h2 className="text-overline text-text-tertiary tracking-wider mb-4">TERRITORY NETWORK</h2>
+        )}
+        <TerritoryCardList statusFilter={selectedTerritoryStatus} />
       </div>
     </div>
   );

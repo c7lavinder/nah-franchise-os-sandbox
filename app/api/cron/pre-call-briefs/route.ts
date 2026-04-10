@@ -1,9 +1,17 @@
 /**
- * Cron: Generate pre-call briefs for today's calls (daily 7am)
+ * Cron: Pre-call brief enrichment + generation for today's calls (daily 7am)
+ *
+ * 1. Runs the pre-call brief agent (web search enrichment) for each call
+ * 2. Then generates the full Scout pre-call brief
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { generatePreCallBrief } from "@/lib/calls/brief-generator";
+import { runPreCallBriefAgent } from "@/lib/agents/pre-call-brief";
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -23,9 +31,22 @@ export async function GET(request: NextRequest) {
     .lte("scheduled_at", `${today}T23:59:59Z`)
     .eq("status", "scheduled");
 
+  let enriched = 0;
   let generated = 0;
+
   for (const call of calls ?? []) {
     if (!call.contact_id) continue;
+
+    // Step 1: Run the enrichment agent (web search for fresh context)
+    try {
+      await runPreCallBriefAgent(call.id);
+      enriched++;
+    } catch { /* logged internally */ }
+
+    // Rate limit between calls
+    await sleep(2000);
+
+    // Step 2: Generate the full Scout pre-call brief
     const callType = (call.call_types as unknown as { name: string } | null)?.name ?? "general";
     try {
       await generatePreCallBrief(call.contact_id, callType);
@@ -33,5 +54,9 @@ export async function GET(request: NextRequest) {
     } catch { /* logged internally */ }
   }
 
-  return NextResponse.json({ generated, total: calls?.length ?? 0 });
+  return NextResponse.json({
+    enriched,
+    generated,
+    total: calls?.length ?? 0,
+  });
 }

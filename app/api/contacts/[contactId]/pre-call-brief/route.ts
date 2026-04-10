@@ -90,6 +90,22 @@ export async function GET(
     ).join("\n");
     const kbBlock = (kbDocs ?? []).map((d) => `[${d.title}] ${d.content.slice(0, 200)}`).join("\n");
 
+    // Check for fresh agent-generated context on today's call
+    const today = new Date().toISOString().split("T")[0];
+    const { data: todayCall } = await supabase
+      .from("calls")
+      .select("brief_context")
+      .eq("contact_id", localId)
+      .gte("scheduled_at", `${today}T00:00:00Z`)
+      .lte("scheduled_at", `${today}T23:59:59Z`)
+      .not("brief_context", "is", null)
+      .limit(1)
+      .maybeSingle();
+
+    const freshContext = todayCall?.brief_context
+      ? `\nFRESH CONTEXT (from this morning's research):\n${todayCall.brief_context}\n`
+      : "";
+
     const prompt = `You are Scout, generating a pre-call brief for a New Again Houses franchise sales rep.
 
 CONTACT: ${contactName}
@@ -97,6 +113,7 @@ Location: ${contact?.city ?? ""}${contact?.state ? `, ${contact.state}` : ""}
 Source: ${contact?.opportunity_source ?? "Unknown"}
 Current stage: ${stageName}
 Call type: ${callTypeName || "General"}
+${freshContext}
 
 RECENT ACTIVITY (last 10 logs):
 ${logsBlock || "No recent logs."}

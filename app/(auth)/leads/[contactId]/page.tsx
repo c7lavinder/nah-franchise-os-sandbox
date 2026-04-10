@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
-  ArrowLeft, Phone, Mail, User, Loader2, RefreshCw,
+  ArrowLeft, Phone, Mail, Loader2, RefreshCw,
   MessageSquare, Save, Award, ClipboardList,
 } from "lucide-react";
 import { ProfileSection } from "@/components/profile";
@@ -61,7 +61,7 @@ export default function LeadProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
-  const [activeTab, setActiveTab] = useState<"overview" | "messages" | "profile">(
+  const [activeTab, setActiveTab] = useState<"overview" | "messages" | "profile" | "territories">(
     highlightMessageId ? "messages" : "overview"
   );
   const [contactCalls, setContactCalls] = useState<{ id: string; callTypeName: string | null; hostName: string | null; scheduled_at: string | null; status: string; grade: string | null; duration_seconds: number | null }[]>([]);
@@ -176,7 +176,6 @@ export default function LeadProfilePage() {
             </button>
           )}
           <button onClick={() => void fetchAll()} className="btn-ghost p-1.5" disabled={loading}><RefreshCw size={16} className={loading ? "animate-spin" : ""} /></button>
-          <a href={`/scout?ask=${encodeURIComponent(`Tell me about ${displayName}`)}`} className="btn-ghost text-caption px-3 py-1.5 flex items-center gap-1 text-scout-purple border-scout-purple/30 hover:bg-scout-purple/10"><User size={13} /> Ask Scout</a>
         </div>
       </div>
 
@@ -208,7 +207,12 @@ export default function LeadProfilePage() {
 
       {/* Tabs */}
       <div className="flex border-b border-border-default px-1 flex-shrink-0">
-        {([{ key: "overview" as const, label: "Overview" }, { key: "messages" as const, label: "Messages" }, { key: "profile" as const, label: "Profile" }]).map((tab) => (
+        {([
+          { key: "overview" as const, label: "Overview" },
+          { key: "messages" as const, label: "Messages" },
+          { key: "profile" as const, label: "Profile" },
+          { key: "territories" as const, label: "Territories" },
+        ]).map((tab) => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             className={`px-4 py-2 text-body-sm font-medium border-b-2 transition-colors ${activeTab === tab.key ? "border-nah-orange text-nah-orange" : "border-transparent text-text-tertiary hover:text-text-primary"}`}>
             {tab.label}
@@ -216,14 +220,14 @@ export default function LeadProfilePage() {
         ))}
       </div>
 
-      {/* Content */}
+      {/* Content — persistent left sidebar + tab-specific right content */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {loading ? (
           <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-text-tertiary" /></div>
-        ) : activeTab === "overview" ? (
+        ) : (
           <div className="p-4">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* LEFT — Contacts + Team */}
+              {/* LEFT — Persistent: Team + Territory (visible on all tabs) */}
               <div className="lg:col-span-1 space-y-4">
                 <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
                   <RelatedPeopleCard contactId={contactId} mainContact={localContact} />
@@ -233,77 +237,82 @@ export default function LeadProfilePage() {
                 </div>
                 <TerritoryOwnershipSection contactId={contactId} ghlContactId={contact?.id} />
               </div>
-              {/* RIGHT — Graded Calls, Tasks, Notes, Comms */}
+
+              {/* RIGHT — Tab content */}
               <div className="lg:col-span-2 space-y-4">
-                <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Award size={14} className="text-text-tertiary" />
-                    <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">GRADED CALLS ({contactCalls.length})</h3>
-                  </div>
-                  {contactCalls.length === 0 ? <p className="text-caption text-text-tertiary">No graded calls yet</p> : (
-                    <div className="space-y-1.5">
-                      {contactCalls.map((c) => (
-                        <a key={c.id} href={`/calls/${c.id}`} className="flex items-center gap-2.5 py-1.5 rounded hover:bg-bg-hover transition-colors">
-                          <span className="text-caption font-medium text-text-primary">{c.callTypeName ?? "Call"}</span>
-                          {c.hostName && <span className="text-[10px] text-text-tertiary">{c.hostName}</span>}
-                          {c.duration_seconds && <span className="text-[10px] text-text-tertiary">{Math.round(c.duration_seconds / 60)}m</span>}
-                          {c.grade && <span className={`text-[10px] font-bold px-1 rounded ${c.grade === "A" ? "bg-success/10 text-success" : c.grade === "F" ? "bg-danger/10 text-danger" : "bg-nah-blue/10 text-nah-blue"}`}>{c.grade}</span>}
-                          <span className="text-[10px] text-text-tertiary ml-auto">{c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString() : ""}</span>
-                        </a>
-                      ))}
+                {activeTab === "overview" ? (
+                  <>
+                    <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Award size={14} className="text-text-tertiary" />
+                        <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">GRADED CALLS ({contactCalls.length})</h3>
+                      </div>
+                      {contactCalls.length === 0 ? <p className="text-caption text-text-tertiary">No graded calls yet</p> : (
+                        <div className="space-y-1.5">
+                          {contactCalls.map((c) => (
+                            <a key={c.id} href={`/calls/${c.id}`} className="flex items-center gap-2.5 py-1.5 rounded hover:bg-bg-hover transition-colors">
+                              <span className="text-caption font-medium text-text-primary">{c.callTypeName ?? "Call"}</span>
+                              {c.hostName && <span className="text-[10px] text-text-tertiary">{c.hostName}</span>}
+                              {c.duration_seconds && <span className="text-[10px] text-text-tertiary">{Math.round(c.duration_seconds / 60)}m</span>}
+                              {c.grade && <span className={`text-[10px] font-bold px-1 rounded ${c.grade === "A" ? "bg-success/10 text-success" : c.grade === "F" ? "bg-danger/10 text-danger" : "bg-nah-blue/10 text-nah-blue"}`}>{c.grade}</span>}
+                              <span className="text-[10px] text-text-tertiary ml-auto">{c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString() : ""}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                  <div className="flex items-center gap-1.5 mb-2"><ClipboardList size={14} className="text-text-tertiary" /><h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">TASKS</h3></div>
-                  <TaskList contactId={contactId} tasks={tasks} onTaskUpdated={fetchAll} />
-                </div>
-                <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                  <NotesSection contactId={contactId} notes={notes} onNoteAdded={fetchAll} />
-                </div>
+                    <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+                      <div className="flex items-center gap-1.5 mb-2"><ClipboardList size={14} className="text-text-tertiary" /><h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">TASKS</h3></div>
+                      <TaskList contactId={contactId} tasks={tasks} onTaskUpdated={fetchAll} />
+                    </div>
+                    <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+                      <NotesSection contactId={contactId} notes={notes} onNoteAdded={fetchAll} />
+                    </div>
+                  </>
+                ) : activeTab === "messages" ? (
+                  <div className="flex flex-col h-full min-h-0"><MessagesTab contactId={contactId} highlightMessageId={highlightMessageId} /></div>
+                ) : activeTab === "profile" ? (
+                  <div className="space-y-4 max-w-2xl">
+                    <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+                      <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-3">CONTACT INFORMATION</h3>
+                      <div className="grid grid-cols-2 gap-3 text-body-sm">
+                        <div><span className="text-text-tertiary block text-[10px]">First Name</span><p className="text-text-primary">{capitalizeName(localContact?.first_name) || "—"}</p></div>
+                        <div><span className="text-text-tertiary block text-[10px]">Last Name</span><p className="text-text-primary">{capitalizeName(localContact?.last_name) || "—"}</p></div>
+                        <div><span className="text-text-tertiary block text-[10px]">Phone</span><p className="text-text-primary">{formatPhone(localContact?.phone) || "—"}</p></div>
+                        <div><span className="text-text-tertiary block text-[10px]">Email</span><p className="text-text-primary">{localContact?.email || "—"}</p></div>
+                        <div><span className="text-text-tertiary block text-[10px]">City</span><p className="text-text-primary">{capitalizeName(localContact?.city) || "—"}</p></div>
+                        <div><span className="text-text-tertiary block text-[10px]">State</span><p className="text-text-primary">{localContact?.state?.toUpperCase() || "—"}</p></div>
+                        <div><span className="text-text-tertiary block text-[10px]">Lead Source</span><p className="text-text-primary">{localContact?.opportunity_source || "—"}</p></div>
+                      </div>
+                    </div>
+                    {profileValues["Auto Summary"] && (
+                      <div className="bg-scout-purple/5 border border-scout-purple/20 rounded-lg p-4">
+                        <span className="text-caption font-medium text-scout-purple">Scout AI Summary</span>
+                        <p className="text-body-sm text-text-primary mt-1">{profileValues["Auto Summary"]}</p>
+                        {profileValues["Recommended Next Action"] && <p className="text-body-sm text-nah-orange font-medium mt-2">Next: {profileValues["Recommended Next Action"]}</p>}
+                      </div>
+                    )}
+                    {profileValues["Scout Lead Score"] && (
+                      <div className="flex items-center gap-4 bg-bg-secondary border border-border-default rounded-lg p-4">
+                        <div className="text-center"><div className="text-h1 text-nah-orange">{profileValues["Scout Lead Score"]}</div><div className="text-caption text-text-tertiary">Lead Score</div></div>
+                        {profileValues["Predicted Close Probability"] && <div className="text-center"><div className="text-h1 text-success">{profileValues["Predicted Close Probability"]}%</div><div className="text-caption text-text-tertiary">Close Prob.</div></div>}
+                      </div>
+                    )}
+                    {CATEGORIES.map((cat) => {
+                      const fields = PROFILE_FIELDS.filter((f) => f.category === cat);
+                      return <ProfileSection key={cat} category={cat} fields={fields} values={profileValues} onFieldChange={handleFieldChange} saving={saving} />;
+                    })}
+                  </div>
+                ) : activeTab === "territories" ? (
+                  <div className="space-y-4">
+                    <TerritoryOwnershipSection contactId={contactId} ghlContactId={contact?.id} />
+                    <p className="text-caption text-text-tertiary">Territory profiles owned by this contact are accessible via the territory links above.</p>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
-        ) : activeTab === "messages" ? (
-          <div className="p-4 h-full">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
-              <div className="lg:col-span-1"><div className="bg-bg-secondary border border-border-default rounded-lg p-4"><RelatedPeopleCard contactId={contactId} mainContact={localContact} /></div></div>
-              <div className="lg:col-span-2 flex flex-col h-full min-h-0"><MessagesTab contactId={contactId} highlightMessageId={highlightMessageId} /></div>
-            </div>
-          </div>
-        ) : activeTab === "profile" ? (
-          <div className="p-4 space-y-4 max-w-2xl">
-            <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-              <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-3">CONTACT INFORMATION</h3>
-              <div className="grid grid-cols-2 gap-3 text-body-sm">
-                <div><span className="text-text-tertiary block text-[10px]">First Name</span><p className="text-text-primary">{capitalizeName(localContact?.first_name) || "—"}</p></div>
-                <div><span className="text-text-tertiary block text-[10px]">Last Name</span><p className="text-text-primary">{capitalizeName(localContact?.last_name) || "—"}</p></div>
-                <div><span className="text-text-tertiary block text-[10px]">Phone</span><p className="text-text-primary">{formatPhone(localContact?.phone) || "—"}</p></div>
-                <div><span className="text-text-tertiary block text-[10px]">Email</span><p className="text-text-primary">{localContact?.email || "—"}</p></div>
-                <div><span className="text-text-tertiary block text-[10px]">City</span><p className="text-text-primary">{capitalizeName(localContact?.city) || "—"}</p></div>
-                <div><span className="text-text-tertiary block text-[10px]">State</span><p className="text-text-primary">{localContact?.state?.toUpperCase() || "—"}</p></div>
-                <div><span className="text-text-tertiary block text-[10px]">Lead Source</span><p className="text-text-primary">{localContact?.opportunity_source || "—"}</p></div>
-              </div>
-            </div>
-            {profileValues["Auto Summary"] && (
-              <div className="bg-scout-purple/5 border border-scout-purple/20 rounded-lg p-4">
-                <span className="text-caption font-medium text-scout-purple">Scout AI Summary</span>
-                <p className="text-body-sm text-text-primary mt-1">{profileValues["Auto Summary"]}</p>
-                {profileValues["Recommended Next Action"] && <p className="text-body-sm text-nah-orange font-medium mt-2">Next: {profileValues["Recommended Next Action"]}</p>}
-              </div>
-            )}
-            {profileValues["Scout Lead Score"] && (
-              <div className="flex items-center gap-4 bg-bg-secondary border border-border-default rounded-lg p-4">
-                <div className="text-center"><div className="text-h1 text-nah-orange">{profileValues["Scout Lead Score"]}</div><div className="text-caption text-text-tertiary">Lead Score</div></div>
-                {profileValues["Predicted Close Probability"] && <div className="text-center"><div className="text-h1 text-success">{profileValues["Predicted Close Probability"]}%</div><div className="text-caption text-text-tertiary">Close Prob.</div></div>}
-              </div>
-            )}
-            {CATEGORIES.map((cat) => {
-              const fields = PROFILE_FIELDS.filter((f) => f.category === cat);
-              return <ProfileSection key={cat} category={cat} fields={fields} values={profileValues} onFieldChange={handleFieldChange} saving={saving} />;
-            })}
-          </div>
-        ) : null}
+        )}
       </div>
     </div>
   );

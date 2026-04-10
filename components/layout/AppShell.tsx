@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import Sidebar from "./Sidebar";
 import ScoutFAB from "./ScoutFAB";
+import { QuickAsk } from "@/components/scout";
 import type { UserRole } from "@/types/database";
 
 interface AppShellProps {
@@ -58,6 +59,10 @@ export default function AppShell({
       {/* Main content */}
       <main className="flex-1 ml-0 lg:ml-[80px] min-h-screen">
         <div className="max-w-content mx-auto px-4 md:px-8 py-6">
+          {/* Persistent Scout Ask bar */}
+          <div className="mb-4">
+            <QuickAsk />
+          </div>
           {children}
         </div>
       </main>

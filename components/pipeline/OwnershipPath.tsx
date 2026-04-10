@@ -108,13 +108,7 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
     );
   }
 
-  // Reorder Follow-up stages: Nurture → Follow-up → Re-engaged (display only)
-  const followupDisplayOrder = ["nurture", "followup", "reengaged"];
-  const reorderedFollowup = followupPipeline
-    ? [...followupPipeline.stages].sort(
-        (a, b) => followupDisplayOrder.indexOf(a.slug) - followupDisplayOrder.indexOf(b.slug)
-      )
-    : [];
+  // Follow-up stages now sorted by DB sort_order: Nurture → Follow-up → Re-engaged
 
   return (
     <div className="mb-8 space-y-6">
@@ -166,7 +160,7 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
       {followupPipeline && (
         <PipelineRow
           title="LONG-TERM"
-          stages={reorderedFollowup}
+          stages={followupPipeline.stages}
           metaMap={FOLLOWUP_STAGE_META}
           selectedStage={selectedStage}
           onStageClick={onStageClick}

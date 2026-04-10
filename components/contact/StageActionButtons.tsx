@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/Toast";
 interface StageActionButtonsProps {
   contactId: string;
   pipelineId: string;
+  pipelineSlug?: string;
   currentStageName: string;
   nextStageName: string | null;
   prevStageName: string | null;
@@ -24,6 +25,7 @@ interface StageActionButtonsProps {
 export default function StageActionButtons({
   contactId,
   pipelineId,
+  pipelineSlug,
   currentStageName,
   nextStageName,
   prevStageName,
@@ -32,6 +34,7 @@ export default function StageActionButtons({
   isLastStage,
   onRefresh,
 }: StageActionButtonsProps) {
+  const isFollowupPipeline = pipelineSlug === "followup";
   const { toast } = useToast();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -199,22 +202,34 @@ export default function StageActionButtons({
         </button>
       )}
 
-      {/* Drop actions */}
+      {/* Actions — "Move to Sales" for follow-up pipeline, drop buttons for sales pipeline */}
       <div className="ml-auto flex items-center gap-1.5">
-        <button
-          onClick={() => setConfirmAction("drop_followup")}
-          disabled={!!loading}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-caption text-text-tertiary bg-bg-tertiary hover:bg-bg-hover border border-border-default transition-colors"
-        >
-          <ArrowDownRight size={12} /> Follow-up
-        </button>
-        <button
-          onClick={() => setConfirmAction("drop_nurture")}
-          disabled={!!loading}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-caption text-text-tertiary bg-bg-tertiary hover:bg-bg-hover border border-border-default transition-colors"
-        >
-          <ArrowDownRight size={12} /> Nurture
-        </button>
+        {isFollowupPipeline ? (
+          <button
+            onClick={() => setConfirmAction("drop_followup")}
+            disabled={!!loading}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-md text-caption font-medium text-nah-blue bg-nah-blue/10 hover:bg-nah-blue/20 border border-nah-blue/20 transition-colors"
+          >
+            <ArrowRight size={12} /> Move to Sales
+          </button>
+        ) : (
+          <>
+            <button
+              onClick={() => setConfirmAction("drop_followup")}
+              disabled={!!loading}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-caption text-text-tertiary bg-bg-tertiary hover:bg-bg-hover border border-border-default transition-colors"
+            >
+              <ArrowDownRight size={12} /> Follow-up
+            </button>
+            <button
+              onClick={() => setConfirmAction("drop_nurture")}
+              disabled={!!loading}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-caption text-text-tertiary bg-bg-tertiary hover:bg-bg-hover border border-border-default transition-colors"
+            >
+              <ArrowDownRight size={12} /> Nurture
+            </button>
+          </>
+        )}
       </div>
 
       {error && !confirmAction && <span className="text-caption text-danger">{error}</span>}

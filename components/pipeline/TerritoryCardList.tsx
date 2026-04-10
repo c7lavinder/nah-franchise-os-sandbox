@@ -15,23 +15,26 @@ interface TerritoryCard {
 
 interface Props {
   status?: string;
+  statusFilter?: string | null;
 }
 
-export default function TerritoryCardList({ status }: Props) {
+export default function TerritoryCardList({ status, statusFilter }: Props) {
+  const effectiveStatus = statusFilter ?? status;
   const router = useRouter();
   const [cards, setCards] = useState<TerritoryCard[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const url = status
-      ? `/api/pipeline/territory-cards?status=${status}`
+    setLoading(true);
+    const url = effectiveStatus
+      ? `/api/pipeline/territory-cards?status=${effectiveStatus}`
       : "/api/pipeline/territory-cards";
     fetch(url)
       .then((r) => r.json())
       .then((d) => setCards(d.cards ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [status]);
+  }, [effectiveStatus]);
 
   if (loading) {
     return (

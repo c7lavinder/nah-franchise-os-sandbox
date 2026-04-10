@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const pipelineSlug = searchParams.get("pipeline") ?? "all";
     const sort = searchParams.get("sort") ?? "recent";
     const query = searchParams.get("q")?.trim().toLowerCase() ?? "";
-    const limit = Math.min(parseInt(searchParams.get("limit") ?? "100", 10), 5000);
+    const limit = Math.min(parseInt(searchParams.get("limit") ?? "500", 10), 5000);
     const offset = parseInt(searchParams.get("offset") ?? "0", 10);
 
     const supabase = createServerClient();

@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   GitBranch,
   Phone,
+  Bot,
   Workflow,
   FileSignature,
   BookOpen,
@@ -29,6 +30,7 @@ interface NavItem {
 
 /** Main nav — core pages only. Dashboard + Workflows moved to user pullout per §1.12 */
 const NAV_ITEMS: NavItem[] = [
+  { label: "Scout AI", href: "/scout", icon: Bot, roles: ["rep", "leadership"] },
   { label: "Daily HQ", href: "/daily-hq", icon: LayoutDashboard, roles: ["rep", "leadership"] },
   { label: "Pipeline", href: "/pipeline", icon: GitBranch, roles: ["rep", "leadership"] },
   { label: "Calls", href: "/calls", icon: Phone, roles: ["rep", "leadership"] },
