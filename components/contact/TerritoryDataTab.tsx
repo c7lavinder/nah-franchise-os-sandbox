@@ -1,58 +1,88 @@
 "use client";
 
 /**
- * TerritoryDataTab — shows full territory data for all territories owned by a contact.
- * Displays overview + profile data points for each territory.
+ * TerritoryDataTab — shows territory data inline on the contact page territories tab.
+ * When expanded: Operations, Quarterly Grades, and read-only Ecosystem view.
  */
 
 import { useState, useEffect } from "react";
-import { Loader2, MapPin, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Loader2, MapPin, ChevronDown, ChevronRight, Activity, Award,
+  Briefcase, Wrench, Heart, Scale, HandshakeIcon, Home, Users,
+} from "lucide-react";
 
-interface TerritoryData {
+interface TerritoryListItem {
   ms_slug: string;
   territory_name: string;
   status: string;
-  region: string | null;
-  awarded_date: string | null;
-  profile: {
-    population: number | null;
-    median_home_value: number | null;
-    median_household_income: number | null;
-    territory_value_est: string | null;
-    market_type: string | null;
-    flip_activity_score: string | null;
-    competitor_presence: string | null;
-    local_market_notes: string | null;
-  } | null;
-  grades: Array<{
-    year: number;
-    quarter: number;
-    houses_purchased: number | null;
-    revenue: number | null;
-    grade: string | null;
-  }>;
+}
+
+interface TerritoryFull {
+  territory: { ms_slug: string; territory_name: string; status: string; region: string | null; awarded_date: string | null };
+  profile: Record<string, number | string | null> | null;
+  currentOwner: { ownerName: string | null; ghlContactId: string | null } | null;
+  grades: Array<{ year: number; quarter: number; self_grade: number | null; john_grade: number | null; houses_purchased: number | null }>;
+}
+
+interface Stakeholder {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  company: string | null;
+  role: string;
 }
 
 interface Props {
   ghlContactId: string | null;
 }
 
+const ROLE_STYLES: Record<string, { label: string; icon: typeof Briefcase; color: string }> = {
+  agent: { label: "Agent", icon: Briefcase, color: "bg-blue-100 text-blue-700 border-blue-200" },
+  contractor: { label: "Contractor", icon: Wrench, color: "bg-amber-100 text-amber-700 border-amber-200" },
+  family: { label: "Family", icon: Heart, color: "bg-pink-100 text-pink-700 border-pink-200" },
+  lawyer: { label: "Lawyer", icon: Scale, color: "bg-purple-100 text-purple-700 border-purple-200" },
+  partner: { label: "Partner", icon: HandshakeIcon, color: "bg-green-100 text-green-700 border-green-200" },
+  lender: { label: "Lender", icon: Home, color: "bg-teal-100 text-teal-700 border-teal-200" },
+  other: { label: "Other", icon: Users, color: "bg-gray-100 text-gray-600 border-gray-200" },
+};
+
 export default function TerritoryDataTab({ ghlContactId }: Props) {
-  const [territories, setTerritories] = useState<TerritoryData[]>([]);
+  const [territories, setTerritories] = useState<TerritoryListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [fullData, setFullData] = useState<TerritoryFull | null>(null);
+  const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   useEffect(() => {
     if (!ghlContactId) { setLoading(false); return; }
     fetch(`/api/contacts/${ghlContactId}/territory-data`)
       .then((r) => r.ok ? r.json() : { territories: [] })
       .then((d) => {
-        setTerritories(d.territories ?? []);
-        if (d.territories?.length === 1) setExpanded(d.territories[0].ms_slug);
+        const list = (d.territories ?? []).map((t: TerritoryListItem) => ({
+          ms_slug: t.ms_slug, territory_name: t.territory_name, status: t.status,
+        }));
+        setTerritories(list);
+        if (list.length === 1) handleExpand(list[0].ms_slug);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [ghlContactId]);
+  }, [ghlContactId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleExpand(slug: string) {
+    if (expanded === slug) { setExpanded(null); return; }
+    setExpanded(slug);
+    setLoadingDetail(true);
+    setFullData(null);
+    setStakeholders([]);
+    const [tRes, sRes] = await Promise.all([
+      fetch(`/api/territories/${slug}`).catch(() => null),
+      fetch(`/api/territories/${slug}/stakeholders`).catch(() => null),
+    ]);
+    if (tRes?.ok) setFullData(await tRes.json());
+    if (sRes?.ok) { const d = await sRes.json(); setStakeholders(d.stakeholders ?? []); }
+    setLoadingDetail(false);
+  }
 
   if (loading) return <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-text-tertiary" /></div>;
   if (territories.length === 0) return <p className="text-caption text-text-tertiary py-4">No territories owned by this contact.</p>;
@@ -64,18 +94,13 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
         return (
           <div key={t.ms_slug} className="border border-border-default rounded-lg overflow-hidden">
             <button
-              onClick={() => setExpanded(isExpanded ? null : t.ms_slug)}
+              onClick={() => void handleExpand(t.ms_slug)}
               className="w-full flex items-center gap-2 px-4 py-3 bg-bg-secondary hover:bg-bg-hover transition-colors"
             >
               {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               <MapPin size={14} className="text-info" />
-              <a
-                href={`/territories/${t.ms_slug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="text-body-sm font-medium text-nah-blue hover:underline"
-              >
+              <a href={`/territories/${t.ms_slug}`} target="_blank" rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()} className="text-body-sm font-medium text-nah-blue hover:underline">
                 {t.territory_name}
               </a>
               <span className="text-[10px] text-text-tertiary font-mono ml-1">{t.ms_slug}</span>
@@ -85,52 +110,14 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
             </button>
 
             {isExpanded && (
-              <div className="p-4 space-y-4">
-                {/* Overview */}
-                <div>
-                  <h4 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-2">OVERVIEW</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <DataPoint label="Region" value={t.region} />
-                    <DataPoint label="Status" value={t.status} />
-                    <DataPoint label="Awarded" value={t.awarded_date ? new Date(t.awarded_date).toLocaleDateString() : null} />
-                    <DataPoint label="Market Type" value={t.profile?.market_type} />
-                  </div>
-                </div>
-
-                {/* Market Profile */}
-                {t.profile && (
-                  <div>
-                    <h4 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-2">MARKET PROFILE</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <DataPoint label="Population" value={t.profile.population?.toLocaleString()} />
-                      <DataPoint label="Median Home Value" value={t.profile.median_home_value ? `$${t.profile.median_home_value.toLocaleString()}` : null} />
-                      <DataPoint label="Median Income" value={t.profile.median_household_income ? `$${t.profile.median_household_income.toLocaleString()}` : null} />
-                      <DataPoint label="Territory Value" value={t.profile.territory_value_est} />
-                      <DataPoint label="Flip Activity" value={t.profile.flip_activity_score} />
-                      <DataPoint label="Competitor Presence" value={t.profile.competitor_presence} />
-                      <DataPoint label="Local Notes" value={t.profile.local_market_notes} span={2} />
-                    </div>
-                  </div>
+              <div className="p-4 space-y-5">
+                {loadingDetail ? (
+                  <div className="flex justify-center py-6"><Loader2 size={18} className="animate-spin text-text-tertiary" /></div>
+                ) : fullData ? (
+                  <ExpandedTerritory data={fullData} stakeholders={stakeholders} />
+                ) : (
+                  <p className="text-caption text-text-tertiary">Failed to load territory data.</p>
                 )}
-
-                {/* Performance Grades */}
-                {t.grades.length > 0 && (
-                  <div>
-                    <h4 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-2">PERFORMANCE</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {t.grades.map((g) => (
-                        <div key={`${g.year}-${g.quarter}`} className="bg-bg-primary border border-border-default rounded p-2">
-                          <span className="text-[10px] text-text-tertiary">Q{g.quarter} {g.year}</span>
-                          <div className="flex items-baseline gap-2 mt-0.5">
-                            {g.grade && <span className="text-body-sm font-bold text-text-primary">{g.grade}</span>}
-                            {g.houses_purchased != null && <span className="text-caption text-text-secondary">{g.houses_purchased} houses</span>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
               </div>
             )}
           </div>
@@ -140,11 +127,161 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
   );
 }
 
-function DataPoint({ label, value, span }: { label: string; value: string | null | undefined; span?: number }) {
+/** Full expanded view: Operations + Grades + Ecosystem (read-only) */
+function ExpandedTerritory({ data, stakeholders }: { data: TerritoryFull; stakeholders: Stakeholder[] }) {
+  const p = data.profile;
+  const housesYTD = (p?.houses_purchased_ytd as number) ?? 0;
+  const grades = data.grades;
+
+  // Group grades by year
+  const gradesByYear: Record<number, typeof grades> = {};
+  for (const g of grades) {
+    if (!gradesByYear[g.year]) gradesByYear[g.year] = [];
+    gradesByYear[g.year].push(g);
+  }
+
+  // Group stakeholders by role
+  const grouped = new Map<string, Stakeholder[]>();
+  for (const s of stakeholders) {
+    const arr = grouped.get(s.role) ?? [];
+    arr.push(s);
+    grouped.set(s.role, arr);
+  }
+
   return (
-    <div className={span ? `sm:col-span-${span}` : ""}>
-      <span className="text-[10px] text-text-tertiary block">{label}</span>
-      <p className="text-body-sm text-text-primary">{value || "—"}</p>
+    <>
+      {/* Operations */}
+      <div className="bg-bg-primary border border-border-default rounded-lg p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Activity size={18} className="text-info" />
+          <h3 className="text-body-sm font-semibold">Operations</h3>
+        </div>
+        <div className="text-center mb-4">
+          <div className="text-4xl font-bold text-text-primary">{housesYTD}</div>
+          <div className="text-caption text-text-tertiary">Houses Purchased YTD</div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatCard label="Sold YTD" value={p?.houses_sold_ytd ?? "—"} />
+          <StatCard label="Active Deals" value={p?.active_deals ?? "—"} />
+          <StatCard label="Lead Conv. Rate" value={p?.lead_conversion_rate ? `${p.lead_conversion_rate}%` : "—"} />
+          <StatCard label="Avg Profit/Flip" value={p?.avg_profit_per_flip ? `$${Number(p.avg_profit_per_flip).toLocaleString()}` : "—"} />
+        </div>
+      </div>
+
+      {/* Quarterly Grades */}
+      <div className="bg-bg-primary border border-border-default rounded-lg p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Award size={18} className="text-warning" />
+          <h3 className="text-body-sm font-semibold">Quarterly Grades</h3>
+        </div>
+        {grades.length === 0 ? (
+          <div className="text-caption text-text-tertiary py-4 text-center">No grades recorded yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-body-sm">
+              <thead>
+                <tr className="text-left text-caption text-text-tertiary border-b border-border-default">
+                  <th className="py-2 pr-4">Year</th>
+                  <th className="py-2 px-2">Q1 Self</th><th className="py-2 px-2">Q1 John</th>
+                  <th className="py-2 px-2">Q2 Self</th><th className="py-2 px-2">Q2 John</th>
+                  <th className="py-2 px-2">Q3 Self</th><th className="py-2 px-2">Q3 John</th>
+                  <th className="py-2 px-2">Q4 Self</th><th className="py-2 px-2">Q4 John</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(gradesByYear)
+                  .sort(([a], [b]) => Number(b) - Number(a))
+                  .map(([year, yearGrades]) => (
+                    <tr key={year} className="border-b border-border-default">
+                      <td className="py-2 pr-4 font-medium">{year}</td>
+                      {[1, 2, 3, 4].map((q) => {
+                        const g = yearGrades.find((x) => x.quarter === q);
+                        return [
+                          <td key={`${q}s`} className="py-2 px-2 text-center">{g?.self_grade ?? "—"}</td>,
+                          <td key={`${q}j`} className="py-2 px-2 text-center">{g?.john_grade ?? "—"}</td>,
+                        ];
+                      })}
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Ecosystem — read-only */}
+      {(stakeholders.length > 0 || data.currentOwner?.ownerName) && (
+        <div className="bg-bg-primary border border-border-default rounded-lg p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Users size={18} className="text-scout-purple" />
+            <h3 className="text-body-sm font-semibold">Ecosystem</h3>
+          </div>
+          <div className="flex flex-col items-center">
+            {/* Owner center node */}
+            {data.currentOwner?.ownerName && (
+              <div className="flex flex-col items-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-nah-orange/10 border-2 border-nah-orange flex items-center justify-center">
+                  <span className="text-lg font-bold text-nah-orange">
+                    {data.currentOwner.ownerName.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+                  </span>
+                </div>
+                <p className="text-body-sm font-semibold text-text-primary mt-1.5">{data.currentOwner.ownerName}</p>
+                <span className="text-[10px] font-medium text-nah-orange tracking-wider">OWNER</span>
+              </div>
+            )}
+
+            {/* Stakeholders by role */}
+            {stakeholders.length > 0 && (
+              <>
+                {data.currentOwner?.ownerName && <div className="w-0.5 h-4 bg-border-default -mt-1 mb-2" />}
+                <div className="flex flex-wrap justify-center gap-3">
+                  {Object.entries(ROLE_STYLES).map(([roleKey, roleDef]) => {
+                    const members = grouped.get(roleKey);
+                    if (!members || members.length === 0) return null;
+                    const Icon = roleDef.icon;
+                    return (
+                      <div key={roleKey} className="flex flex-col items-center">
+                        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border mb-2 ${roleDef.color}`}>
+                          <Icon size={10} />
+                          {roleDef.label}
+                        </div>
+                        <div className="flex flex-wrap justify-center gap-2">
+                          {members.map((s) => {
+                            const name = [s.first_name, s.last_name].filter(Boolean).join(" ") || "—";
+                            const initials = name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+                            return (
+                              <div key={s.id} className="flex flex-col items-center">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-bold border ${roleDef.color}`}>
+                                  {initials}
+                                </div>
+                                <p className="text-[10px] text-text-primary font-medium mt-1 max-w-[70px] truncate text-center">{name}</p>
+                                {s.company && <p className="text-[9px] text-text-tertiary max-w-[70px] truncate text-center">{s.company}</p>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {stakeholders.length === 0 && !data.currentOwner?.ownerName && (
+              <p className="text-caption text-text-tertiary">No ecosystem data.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string | number | null }) {
+  return (
+    <div className="bg-bg-secondary rounded-lg p-3">
+      <div className="text-caption text-text-tertiary">{label}</div>
+      <div className="text-xl font-bold text-text-primary">{value ?? "—"}</div>
     </div>
   );
 }

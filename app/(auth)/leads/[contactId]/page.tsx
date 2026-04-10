@@ -366,10 +366,7 @@ export default function LeadProfilePage() {
                     })}
                   </div>
                 ) : activeTab === "territories" ? (
-                  <div className="space-y-4">
-                    <TerritoryOwnershipSection contactId={contactId} ghlContactId={contact?.id} />
-                    <TerritoryDataTab ghlContactId={contact?.id ?? null} />
-                  </div>
+                  <TerritoryDataTab ghlContactId={contact?.id ?? null} />
                 ) : null}
               </div>
             </div>
