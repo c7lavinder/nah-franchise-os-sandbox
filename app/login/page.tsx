@@ -16,7 +16,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace("/daily-hq");
+      router.replace("/scout");
     }
   }, [user, authLoading, router]);
 
@@ -28,7 +28,7 @@ export default function LoginPage() {
     const result = await login(email, password);
 
     if (result.success) {
-      router.replace("/daily-hq");
+      router.replace("/scout");
     } else {
       setError(result.error ?? "Login failed");
     }
