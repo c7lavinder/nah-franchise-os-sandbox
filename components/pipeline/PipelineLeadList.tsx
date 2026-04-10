@@ -63,10 +63,10 @@ export default function PipelineLeadList({
   const [loadingMore, setLoadingMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const BATCH_SIZE = 500;
+  const BATCH_SIZE = 5000;
 
   const fetchContacts = useCallback(async (append = false, currentOffset = 0) => {
-    if (!append) setLoading(true);
+    if (!append) { setLoading(true); setVisibleCount(PAGE_SIZE); }
     else setLoadingMore(true);
     setError(null);
     try {
@@ -87,7 +87,7 @@ export default function PipelineLeadList({
           setContacts(batch);
           setTotalCount(data.totalCount ?? batch.length);
         }
-        setHasMore(batch.length === BATCH_SIZE);
+        setHasMore((data.totalCount ?? batch.length) > currentOffset + batch.length);
       } else {
         setError("Failed to load contacts");
       }
@@ -240,7 +240,7 @@ export default function PipelineLeadList({
           className="w-full py-2 mt-2 text-caption text-nah-blue hover:underline flex items-center justify-center gap-1"
         >
           {loadingMore ? <Loader2 size={12} className="animate-spin" /> : <ChevronDown size={12} />}
-          Load more contacts
+          Load more ({totalCount - contacts.length} remaining)
         </button>
       )}
     </div>
