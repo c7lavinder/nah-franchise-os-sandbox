@@ -78,6 +78,23 @@ function extractSource(tags: string[]): string | null {
   return null;
 }
 
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const needsReview = searchParams.get("needs_review");
+  const countOnly = searchParams.get("count_only");
+
+  if (needsReview === "true" && countOnly === "true") {
+    const supabase = createServerClient();
+    const { count } = await supabase
+      .from("contacts")
+      .select("id", { count: "exact", head: true })
+      .eq("needs_review", true);
+    return NextResponse.json({ count: count ?? 0 });
+  }
+
+  return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as BatchRequestBody;

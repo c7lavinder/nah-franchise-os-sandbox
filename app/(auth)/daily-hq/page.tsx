@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Bot } from "lucide-react";
+import { Bot, AlertTriangle } from "lucide-react";
 import type { GHLConversation, GHLAppointment, GHLTask } from "@/types/ghl";
 import { ConversationList, ConversationThread, InboxFilters } from "@/components/inbox";
 import { TodayCalendar, TaskPanel } from "@/components/daily-hq";
@@ -94,6 +94,15 @@ export default function DailyHQPage() {
 
   const unreadCount = conversations.filter((c) => (c.unreadCount ?? 0) > 0).length;
 
+  // Unmatched contacts from Read.ai calls
+  const [needsReviewCount, setNeedsReviewCount] = useState(0);
+  useEffect(() => {
+    fetch("/api/contacts/batch?needs_review=true&count_only=true")
+      .then((r) => r.ok ? r.json() : { count: 0 })
+      .then((d) => setNeedsReviewCount(d.count ?? 0))
+      .catch(() => {});
+  }, []);
+
   // Client-side search filter
   const filteredConversations = inboxSearch.trim()
     ? conversations.filter((c) => {
@@ -115,6 +124,15 @@ export default function DailyHQPage() {
           </span>
         )}
         <ScoreCardRow page="daily-hq" />
+        {needsReviewCount > 0 && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+            <AlertTriangle size={14} className="text-amber-600 flex-shrink-0" />
+            <span className="text-body-sm text-amber-800">
+              <strong>{needsReviewCount}</strong> contact{needsReviewCount !== 1 ? "s" : ""} from calls need to be reviewed
+            </span>
+            <a href="/leads?needs_review=true" className="text-caption text-amber-700 hover:underline ml-auto">Review &rarr;</a>
+          </div>
+        )}
       </div>
 
       {/* Main content: Inbox (60%) + Right Panel (40%) */}

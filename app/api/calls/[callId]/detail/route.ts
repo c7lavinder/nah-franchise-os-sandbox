@@ -40,6 +40,18 @@ export async function GET(
     if (ct) callTypeName = ct.name;
   }
 
+  let territoryName = null;
+  if (call.territory_ms_slug) {
+    const { data: t } = await supabase.from("territories").select("territory_name").eq("ms_slug", call.territory_ms_slug).single();
+    if (t) territoryName = t.territory_name;
+  }
+
+  let coachName = null;
+  if (call.coach_user_id) {
+    const { data: cu } = await supabase.from("users").select("full_name").eq("id", call.coach_user_id).single();
+    if (cu) coachName = cu.full_name;
+  }
+
   const { data: transcript } = await supabase
     .from("call_transcripts")
     .select("id, source, full_text, word_count, created_at")
@@ -65,7 +77,7 @@ export async function GET(
     .maybeSingle();
 
   return NextResponse.json({
-    call: { ...call, contactName, hostName, callTypeName },
+    call: { ...call, contactName, hostName, callTypeName, territoryName, coachName },
     transcript,
     grade,
     coaching,
