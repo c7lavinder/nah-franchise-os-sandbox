@@ -197,7 +197,7 @@ export default function LeadProfilePage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className="flex flex-col min-h-0">
       {/* Header — name + action buttons only */}
       <div className="flex items-center gap-3 px-1 py-3 flex-shrink-0">
         <button onClick={() => router.back()} className="btn-ghost p-1.5"><ArrowLeft size={18} /></button>
@@ -267,7 +267,7 @@ export default function LeadProfilePage() {
       </div>
 
       {/* Content — persistent left sidebar + tab-specific right content */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="flex-1">
         {loading ? (
           <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-text-tertiary" /></div>
         ) : (

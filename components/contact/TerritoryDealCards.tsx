@@ -174,7 +174,7 @@ export function DealDetailsCard({ contactId, fields, onUpdate }: Props) {
           onSave={(v) => void saveNum("franchise_fee", v)}
           type="number"
         />
-        <InlineField label="Royalty %" value={fields.royalty_pct?.toString() ?? ""} onSave={(v) => void saveNum("royalty_pct", v)} type="number" />
+        <InlineField label="Royalty" value={fields.royalty_pct?.toString() ?? ""} displayValue={fields.royalty_pct != null ? `${fields.royalty_pct}%` : "—"} onSave={(v) => void saveNum("royalty_pct", v)} type="number" />
         <InlineField
           label="Start Date"
           value={fields.term_months?.toString() ?? ""}
