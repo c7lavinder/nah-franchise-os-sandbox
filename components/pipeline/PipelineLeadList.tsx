@@ -46,6 +46,41 @@ const URGENCY_STYLES = {
   fresh:   { label: "Fresh",   color: "text-[#2e7d32]", bgColor: "bg-[#e8f5e9]" },
 };
 
+/** Stage slug → color that matches the pipeline circles */
+const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
+  engagement:    { bg: "bg-blue-100", text: "text-blue-700" },
+  qualification: { bg: "bg-indigo-100", text: "text-indigo-700" },
+  discovery:     { bg: "bg-purple-100", text: "text-purple-700" },
+  compliance:    { bg: "bg-violet-100", text: "text-violet-700" },
+  awarding:      { bg: "bg-amber-100", text: "text-amber-700" },
+  closed:        { bg: "bg-green-100", text: "text-green-700" },
+  nurture:       { bg: "bg-cyan-100", text: "text-cyan-700" },
+  followup:      { bg: "bg-sky-100", text: "text-sky-700" },
+  reengaged:     { bg: "bg-teal-100", text: "text-teal-700" },
+  setup:         { bg: "bg-emerald-100", text: "text-emerald-700" },
+  training:      { bg: "bg-green-100", text: "text-green-700" },
+  "launch-prep": { bg: "bg-lime-100", text: "text-lime-700" },
+  onboarded:     { bg: "bg-yellow-100", text: "text-yellow-700" },
+};
+
+const SOURCE_COLORS: Record<string, { bg: string; text: string }> = {
+  "google ads":     { bg: "bg-blue-50", text: "text-blue-600" },
+  "facebook":       { bg: "bg-indigo-50", text: "text-indigo-600" },
+  "referral":       { bg: "bg-green-50", text: "text-green-600" },
+  "organic":        { bg: "bg-emerald-50", text: "text-emerald-600" },
+  "website":        { bg: "bg-cyan-50", text: "text-cyan-600" },
+  "franchise expo": { bg: "bg-orange-50", text: "text-orange-600" },
+  "linkedin":       { bg: "bg-sky-50", text: "text-sky-600" },
+};
+
+function getSourceStyle(source: string): { bg: string; text: string } {
+  const lower = source.toLowerCase();
+  for (const [key, style] of Object.entries(SOURCE_COLORS)) {
+    if (lower.includes(key)) return style;
+  }
+  return { bg: "bg-gray-50", text: "text-gray-600" };
+}
+
 const PAGE_SIZE = 50;
 
 export default function PipelineLeadList({
@@ -195,19 +230,19 @@ export default function PipelineLeadList({
                 {urg.label}
               </span>
 
-              {/* Stage */}
-              <span className="text-caption text-text-tertiary flex-shrink-0 w-[100px] truncate">
-                {contact.stageName}
-              </span>
+              {/* Stage — colored label matching pipeline circles */}
+              {(() => {
+                const sc = STAGE_COLORS[contact.stageSlug] ?? { bg: "bg-gray-100", text: "text-gray-600" };
+                return (
+                  <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0 ${sc.bg} ${sc.text}`}>
+                    {contact.stageName}
+                  </span>
+                );
+              })()}
 
-              {/* Days */}
-              <span className="text-caption text-text-tertiary flex-shrink-0 w-[40px] text-right">
-                {contact.daysSinceSubTask}d
-              </span>
-
-              {/* Source */}
+              {/* Source — colored label */}
               {contact.source && (
-                <span className="text-caption text-text-tertiary flex-shrink-0 truncate max-w-[100px] hidden lg:block">
+                <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0 truncate max-w-[120px] hidden lg:block ${getSourceStyle(contact.source).bg} ${getSourceStyle(contact.source).text}`}>
                   {contact.source}
                 </span>
               )}

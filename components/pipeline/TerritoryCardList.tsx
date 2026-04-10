@@ -135,10 +135,19 @@ export default function TerritoryCardList({ status, statusFilter }: Props) {
                 {card.ms_slug}
               </span>
 
-              {/* Owner */}
-              <span className="text-caption text-text-secondary flex-shrink-0 truncate w-[160px]">
-                {card.owner_name ?? <span className="text-text-tertiary italic">No owner</span>}
-              </span>
+              {/* Owner — clickable to contact page */}
+              {card.owner_name && card.owner_ghl_contact_id ? (
+                <span
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/leads/${card.owner_ghl_contact_id}`; }}
+                  className="text-caption text-nah-blue font-medium flex-shrink-0 truncate w-[160px] hover:underline cursor-pointer"
+                >
+                  {card.owner_name}
+                </span>
+              ) : (
+                <span className="text-caption text-text-tertiary italic flex-shrink-0 truncate w-[160px]">
+                  {card.owner_name ?? "No owner"}
+                </span>
+              )}
 
               {/* Spacer */}
               <div className="flex-1" />
