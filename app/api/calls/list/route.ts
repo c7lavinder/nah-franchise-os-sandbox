@@ -56,10 +56,10 @@ export async function GET(request: NextRequest) {
       ? supabase.from("users").select("id, full_name, email").in("id", userIds as string[])
       : Promise.resolve({ data: [] }),
     callTypeIds.length > 0
-      ? supabase.from("call_types").select("id, name").in("id", callTypeIds as string[])
+      ? supabase.from("call_types").select("id, name, slug").in("id", callTypeIds as string[])
       : Promise.resolve({ data: [] }),
     sessionIds.length > 0
-      ? supabase.from("read_ai_sessions").select("session_id, participant_emails, owner_email").in("session_id", sessionIds)
+      ? supabase.from("read_ai_sessions").select("session_id, participant_emails, owner_email, call_type").in("session_id", sessionIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -73,9 +73,9 @@ export async function GET(request: NextRequest) {
     userMap.set(u.id, { name: u.full_name, email: u.email });
   }
 
-  const callTypeMap = new Map<string, string>();
+  const callTypeMap = new Map<string, { name: string; slug: string }>();
   for (const ct of callTypeRes.data ?? []) {
-    callTypeMap.set(ct.id, ct.name);
+    callTypeMap.set(ct.id, { name: ct.name, slug: ct.slug });
   }
 
   // Build email→name map for all known users (for participant resolution)
@@ -89,9 +89,9 @@ export async function GET(request: NextRequest) {
     if (u.email) emailToName.set(u.email.toLowerCase(), u.full_name);
   }
 
-  const sessionMap = new Map<string, { participant_emails: string[]; owner_email: string | null }>();
+  const sessionMap = new Map<string, { participant_emails: string[]; owner_email: string | null; call_type: string | null }>();
   for (const s of sessionRes.data ?? []) {
-    sessionMap.set(s.session_id, { participant_emails: s.participant_emails ?? [], owner_email: s.owner_email });
+    sessionMap.set(s.session_id, { participant_emails: s.participant_emails ?? [], owner_email: s.owner_email, call_type: s.call_type ?? null });
   }
 
   const NAH_DOMAIN = "newagainhouses.com";
@@ -115,6 +115,8 @@ export async function GET(request: NextRequest) {
 
     const hostInfo = c.hosted_by_user_id ? userMap.get(c.hosted_by_user_id) : null;
 
+    const ctInfo = c.call_type_id ? callTypeMap.get(c.call_type_id) : null;
+
     return {
       id: c.id,
       title: c.title,
@@ -122,7 +124,9 @@ export async function GET(request: NextRequest) {
       status: c.status,
       hostName: hostInfo?.name ?? null,
       contactName: c.contact_id ? (contactMap.get(c.contact_id) ?? null) : null,
-      callTypeName: c.call_type_id ? (callTypeMap.get(c.call_type_id) ?? null) : null,
+      callTypeName: ctInfo?.name ?? null,
+      callTypeSlug: ctInfo?.slug ?? null,
+      classifiedType: session?.call_type ?? null,
       teamMembers,
       externalContacts,
       date: c.scheduled_at ?? c.started_at ?? c.created_at,

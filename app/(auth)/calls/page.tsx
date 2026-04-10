@@ -14,6 +14,8 @@ interface Call {
   hostName: string | null;
   contactName: string | null;
   callTypeName: string | null;
+  callTypeSlug: string | null;
+  classifiedType: string | null;
   teamMembers: string[];
   externalContacts: string[];
   date: string | null;
@@ -23,6 +25,81 @@ interface Call {
 interface CallType { id: string; name: string }
 interface UserOption { id: string; full_name: string }
 interface ContactOption { id: string; first_name: string | null; last_name: string | null }
+
+type TimeFilter = "week" | "month" | "all";
+
+// Panel definitions — each maps to call type slugs or classified types
+const PANELS = [
+  {
+    key: "pto",
+    label: "Path to Ownership",
+    slugs: ["intro_call", "matt_call", "sam_call", "mark_call", "matt_final_call", "fdd_review_call"],
+    classified: ["prospect"],
+  },
+  {
+    key: "onboarding",
+    label: "Onboarding",
+    slugs: ["onboarding_call"],
+    classified: [] as string[],
+  },
+  {
+    key: "coaching",
+    label: "Coaching",
+    slugs: ["coaching_call"],
+    classified: ["coaching"],
+  },
+  {
+    key: "admin",
+    label: "Admin / Check-in",
+    slugs: [] as string[],
+    classified: ["internal"],
+  },
+  {
+    key: "group",
+    label: "Group Calls",
+    slugs: [] as string[],
+    classified: ["group"],
+  },
+  {
+    key: "other",
+    label: "Other",
+    slugs: [] as string[],
+    classified: [] as string[],
+  },
+];
+
+function categorizeCall(c: Call): string {
+  for (const panel of PANELS) {
+    if (panel.key === "other") continue;
+    if (c.callTypeSlug && panel.slugs.includes(c.callTypeSlug)) return panel.key;
+    if (c.classifiedType && panel.classified.includes(c.classifiedType)) return panel.key;
+  }
+  return "other";
+}
+
+function getMonday(): Date {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const mon = new Date(d);
+  mon.setDate(diff);
+  mon.setHours(0, 0, 0, 0);
+  return mon;
+}
+
+function getFirstOfMonth(): Date {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function filterByTime(calls: Call[], filter: TimeFilter): Call[] {
+  if (filter === "all") return calls;
+  const cutoff = filter === "week" ? getMonday() : getFirstOfMonth();
+  return calls.filter((c) => {
+    if (!c.date) return false;
+    return new Date(c.date) >= cutoff;
+  });
+}
 
 function formatDuration(seconds: number | null): string {
   if (!seconds) return "";
@@ -38,17 +115,75 @@ function formatDate(date: string | null): string {
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   const isYesterday = d.toDateString() === yesterday.toDateString();
-
   const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   if (isToday) return `Today ${time}`;
   if (isYesterday) return `Yesterday ${time}`;
   return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
 }
 
+function CallRow({ c }: { c: Call }) {
+  return (
+    <Link href={`/calls/${c.id}`}
+      className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-bg-hover transition-colors">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-body-sm font-medium text-text-primary truncate">{c.title ?? "Untitled"}</span>
+          {c.callTypeName && (
+            <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-bg-tertiary text-text-tertiary">{c.callTypeName}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-text-tertiary">
+          {c.hostName && (
+            <span className="flex items-center gap-1"><User size={9} className="text-nah-orange" />{c.hostName}</span>
+          )}
+          {c.contactName && (
+            <span className="flex items-center gap-1"><User size={9} className="text-nah-blue" />{c.contactName}</span>
+          )}
+          {!c.contactName && c.externalContacts.length > 0 && (
+            <span className="flex items-center gap-1">
+              <User size={9} className="text-nah-blue" />
+              {c.externalContacts.slice(0, 2).join(", ")}
+              {c.externalContacts.length > 2 && ` +${c.externalContacts.length - 2}`}
+            </span>
+          )}
+          {c.teamMembers.length > 1 && (
+            <span className="flex items-center gap-1"><Users size={9} />{c.teamMembers.length} team</span>
+          )}
+        </div>
+      </div>
+      {c.duration_seconds ? (
+        <span className="flex-shrink-0 flex items-center gap-1 text-[11px] text-text-tertiary">
+          <Clock size={9} />{formatDuration(c.duration_seconds)}
+        </span>
+      ) : null}
+      <span className="flex-shrink-0 text-[11px] text-text-tertiary w-[100px] text-right">{formatDate(c.date)}</span>
+    </Link>
+  );
+}
+
+function CallPanel({ label, calls }: { label: string; calls: Call[] }) {
+  return (
+    <div className="card p-0 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border-default">
+        <h3 className="text-body-sm font-medium text-text-primary">{label}</h3>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-tertiary">{calls.length}</span>
+      </div>
+      {calls.length === 0 ? (
+        <div className="px-4 py-6 text-center text-caption text-text-tertiary">No calls</div>
+      ) : (
+        <div className="divide-y divide-border-default">
+          {calls.map((c) => <CallRow key={c.id} c={c} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CallsPage() {
   const router = useRouter();
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
 
   // Manual entry
   const [showManualEntry, setShowManualEntry] = useState(false);
@@ -64,7 +199,7 @@ export default function CallsPage() {
   const fetchCalls = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/calls/list?limit=50");
+      const res = await fetch("/api/calls/list?limit=200");
       if (res.ok) {
         const data = await res.json();
         setCalls(data.calls ?? []);
@@ -75,7 +210,6 @@ export default function CallsPage() {
 
   useEffect(() => { void fetchCalls(); }, [fetchCalls]);
 
-  // Load call types + users when manual entry opens
   useEffect(() => {
     if (!showManualEntry) return;
     Promise.all([
@@ -87,7 +221,6 @@ export default function CallsPage() {
     }).catch(() => {});
   }, [showManualEntry]);
 
-  // Contact search with debounce
   useEffect(() => {
     if (contactSearch.length < 2) { setContactResults([]); return; }
     const timer = setTimeout(async () => {
@@ -133,20 +266,37 @@ export default function CallsPage() {
     setManualSaving(false);
   }
 
+  // Filter + categorize
+  const filtered = filterByTime(calls, timeFilter);
+  const panelData = PANELS.map((p) => ({
+    ...p,
+    calls: filtered.filter((c) => categorizeCall(c) === p.key),
+  }));
+  // Only show panels that have calls or are key categories
+  const visiblePanels = panelData.filter((p) => p.calls.length > 0 || ["pto", "coaching"].includes(p.key));
+
   return (
     <div>
-      {/* Scorecards */}
       <div className="mb-4">
         <ScoreCardRow page="calls" />
       </div>
 
       {/* Controls */}
       <div className="flex items-center gap-2 mb-4">
+        {/* Time filter */}
+        <div className="flex items-center bg-bg-secondary border border-border-default rounded-md overflow-hidden">
+          {([["week", "This Week"], ["month", "This Month"], ["all", "All"]] as [TimeFilter, string][]).map(([key, label]) => (
+            <button key={key} onClick={() => setTimeFilter(key)}
+              className={`px-3 py-1.5 text-caption font-medium transition-colors ${
+                timeFilter === key ? "bg-nah-blue text-white" : "text-text-tertiary hover:text-text-primary"
+              }`}>{label}</button>
+          ))}
+        </div>
+        <span className="text-caption text-text-tertiary">{filtered.length} calls</span>
+
         <div className="flex items-center gap-2 ml-auto">
-          <button
-            onClick={() => setShowManualEntry((v) => !v)}
-            className="btn-secondary px-3 py-1.5 text-caption flex items-center gap-1"
-          >
+          <button onClick={() => setShowManualEntry((v) => !v)}
+            className="btn-secondary px-3 py-1.5 text-caption flex items-center gap-1">
             <Plus size={14} /> Log Call
           </button>
           <button onClick={fetchCalls} className="btn-ghost p-1.5" disabled={loading}>
@@ -247,7 +397,7 @@ export default function CallsPage() {
         </div>
       )}
 
-      {/* Call List */}
+      {/* Empty */}
       {!loading && calls.length === 0 && (
         <div className="text-center py-16">
           <Phone size={32} className="text-text-tertiary mx-auto mb-3" />
@@ -256,75 +406,14 @@ export default function CallsPage() {
         </div>
       )}
 
-      <div className="space-y-1">
-        {calls.map((c) => (
-          <Link key={c.id} href={`/calls/${c.id}`}
-            className="flex items-center gap-4 px-4 py-3 rounded-lg border border-transparent hover:border-border-default hover:bg-bg-secondary transition-colors group">
-
-            {/* Title + call type */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-body-sm font-medium text-text-primary truncate">{c.title ?? "Untitled Call"}</span>
-                {c.callTypeName && (
-                  <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-bg-tertiary text-text-tertiary">{c.callTypeName}</span>
-                )}
-                {c.source === "read_ai" && (
-                  <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-600">Read.ai</span>
-                )}
-                {c.source === "manual" && (
-                  <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-nah-blue/10 text-nah-blue">Manual</span>
-                )}
-              </div>
-
-              {/* People row */}
-              <div className="flex items-center gap-3 mt-1 text-caption text-text-tertiary">
-                {/* Host / lead */}
-                {c.hostName && (
-                  <span className="flex items-center gap-1">
-                    <User size={10} className="text-nah-orange" />
-                    {c.hostName}
-                  </span>
-                )}
-                {/* Contact */}
-                {c.contactName && (
-                  <span className="flex items-center gap-1">
-                    <User size={10} className="text-nah-blue" />
-                    {c.contactName}
-                  </span>
-                )}
-                {/* External contacts from Read.ai */}
-                {!c.contactName && c.externalContacts.length > 0 && (
-                  <span className="flex items-center gap-1">
-                    <User size={10} className="text-nah-blue" />
-                    {c.externalContacts.slice(0, 2).join(", ")}
-                    {c.externalContacts.length > 2 && ` +${c.externalContacts.length - 2}`}
-                  </span>
-                )}
-                {/* Team members */}
-                {c.teamMembers.length > 1 && (
-                  <span className="flex items-center gap-1">
-                    <Users size={10} />
-                    {c.teamMembers.length} team
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Duration */}
-            {c.duration_seconds ? (
-              <span className="flex-shrink-0 flex items-center gap-1 text-caption text-text-tertiary">
-                <Clock size={10} />
-                {formatDuration(c.duration_seconds)}
-              </span>
-            ) : null}
-
-            {/* Date + time */}
-            <span className="flex-shrink-0 text-caption text-text-tertiary w-[120px] text-right">
-              {formatDate(c.date)}
-            </span>
-          </Link>
-        ))}
-      </div>
+      {/* Panels — two columns */}
+      {calls.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {visiblePanels.map((p) => (
+            <CallPanel key={p.key} label={p.label} calls={p.calls} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
