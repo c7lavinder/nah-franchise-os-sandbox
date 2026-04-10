@@ -30,7 +30,7 @@ export default function CallsPage() {
   const [selectedCall, setSelectedCall] = useState<CallSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dbCalls, setDbCalls] = useState<{ id: string; contactName: string | null; callTypeName: string | null; hostName: string | null; scheduled_at: string | null; status: string; grade: string | null; hasTranscript: boolean }[]>([]);
+  const [dbCalls, setDbCalls] = useState<{ id: string; contactName: string | null; callTypeName: string | null; hostName: string | null; scheduled_at: string | null; started_at: string | null; created_at: string | null; status: string; grade: string | null; hasTranscript: boolean; title: string | null; source: string | null }[]>([]);
 
   const fetchCalls = useCallback(async () => {
     setLoading(true);
@@ -93,14 +93,17 @@ export default function CallsPage() {
               <Link key={c.id} href={`/calls/${c.id}`}
                 className="flex-shrink-0 w-[200px] p-2.5 bg-bg-secondary border border-border-default rounded-lg hover:border-nah-blue/30 transition-colors">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-caption font-medium text-text-primary truncate">{c.contactName ?? "Unknown"}</span>
+                  <span className="text-caption font-medium text-text-primary truncate">{c.title ?? c.contactName ?? "Unknown"}</span>
                   {c.grade && <span className={`text-[10px] font-bold px-1 rounded ${
                     c.grade === "A" ? "bg-success/10 text-success" : c.grade === "F" ? "bg-danger/10 text-danger" : "bg-nah-blue/10 text-nah-blue"
                   }`}>{c.grade}</span>}
                 </div>
-                <p className="text-[10px] text-text-tertiary">{c.callTypeName ?? "Call"} {c.hostName ? `• ${c.hostName}` : ""}</p>
+                <p className="text-[10px] text-text-tertiary">
+                  {c.callTypeName ?? "Call"} {c.hostName ? `• ${c.hostName}` : ""}
+                  {c.source === "read_ai" && <span className="ml-1 text-green-600">• Read.ai</span>}
+                </p>
                 <div className="flex items-center justify-between mt-1">
-                  <span className="text-[10px] text-text-tertiary">{c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString() : "—"}</span>
+                  <span className="text-[10px] text-text-tertiary">{(() => { const d = c.scheduled_at ?? c.started_at ?? c.created_at; return d ? new Date(d).toLocaleDateString() : "—"; })()}</span>
                   <span className={`text-[10px] px-1 rounded ${c.status === "completed" ? "bg-success/10 text-success" : c.status === "scheduled" ? "bg-info/10 text-info" : "bg-text-tertiary/10 text-text-tertiary"}`}>{c.status}</span>
                 </div>
               </Link>

@@ -24,10 +24,11 @@ export async function GET(request: NextRequest) {
     .select(`
       id, ghl_event_id, contact_id, call_type_id, sub_task_id,
       scheduled_at, started_at, ended_at, duration_seconds,
-      meeting_link, hosted_by_user_id, status, created_at
+      meeting_link, hosted_by_user_id, status, created_at,
+      title, source, summary, read_ai_session_id, participant_count
     `)
     .is("deleted_at", null)
-    .order("scheduled_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
   if (status) query = query.eq("status", status);
