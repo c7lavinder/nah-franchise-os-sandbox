@@ -14,7 +14,8 @@ import { createServerClient } from "@/lib/supabase/server";
 import type { KnowledgeCategory } from "@/types/database";
 
 const VALID_CATEGORIES: KnowledgeCategory[] = [
-  "brand", "pipeline", "objections", "competitors", "industry", "fdd", "contact-notes",
+  "brand", "pipeline", "objections", "competitors", "industry", "fdd",
+  "coaching", "ideal_candidate", "operations", "territory", "training", "contact-notes",
 ];
 
 export async function GET() {

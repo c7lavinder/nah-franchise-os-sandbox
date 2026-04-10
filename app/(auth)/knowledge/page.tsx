@@ -324,11 +324,11 @@ export default function KnowledgePage() {
                   <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${categoryBadge(doc.category)}`}>
                     {categoryLabel(doc.category)}
                   </span>
-                  <span className="text-caption text-text-tertiary w-16 text-right">
-                    P{doc.priority}
+                  <span className="text-caption text-text-tertiary w-16 text-right" title="Priority (1-10)">
+                    Pri {doc.priority}
                   </span>
-                  <span className="text-caption text-text-tertiary w-20 text-right">
-                    {doc.token_count ? `${doc.token_count}t` : "—"}
+                  <span className="text-caption text-text-tertiary w-20 text-right" title="Token count (document size)">
+                    {doc.token_count ? `${doc.token_count} tok` : "—"}
                   </span>
                   <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
                     <button
