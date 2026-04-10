@@ -73,12 +73,51 @@ export async function GET() {
       }
     }
 
-    // Contact pipeline stages: count from contact_pipeline_state
+    // Onboarding + Runway: count territories (not contacts) per stage
+    // A contact may own multiple territories, so count territories via territory_owners
+    const onboardingPipeline = (pipelineMeta ?? []).find((p) => p.slug === "onboarding");
+    const runwayPipeline = (pipelineMeta ?? []).find((p) => p.slug === "runway");
+    const territoryCountPipelineIds = new Set<string>();
+    if (onboardingPipeline) territoryCountPipelineIds.add(onboardingPipeline.id);
+    if (runwayPipeline) territoryCountPipelineIds.add(runwayPipeline.id);
+
+    for (const pipelineId of territoryCountPipelineIds) {
+      const pipelineStages = (stages ?? []).filter((s) => s.pipeline_id === pipelineId);
+      for (const stage of pipelineStages) {
+        // Get contacts in this stage
+        const { data: stateRows } = await supabase
+          .from("contact_pipeline_state")
+          .select("contact_id")
+          .eq("current_stage_id", stage.id)
+          .eq("is_active", true);
+
+        if (!stateRows || stateRows.length === 0) {
+          countMap.set(stage.id, 0);
+          continue;
+        }
+
+        // Get ghl_contact_ids for these contacts
+        const { data: contactRows } = await supabase
+          .from("contacts")
+          .select("ghl_contact_id")
+          .in("id", stateRows.map((r) => r.contact_id));
+
+        const ghlIds = (contactRows ?? []).map((c) => c.ghl_contact_id).filter(Boolean) as string[];
+
+        // Count territories owned by these contacts
+        const { count: territoryCount } = await supabase
+          .from("territory_owners")
+          .select("id", { count: "exact", head: true })
+          .in("ghl_contact_id", ghlIds.length > 0 ? ghlIds : ["__none__"])
+          .is("end_date", null);
+
+        countMap.set(stage.id, territoryCount ?? 0);
+      }
+    }
+
+    // Contact pipeline stages: count from contact_pipeline_state (skip already counted)
     const contactStageIds = (stages ?? [])
-      .filter((s) => {
-        const et = entityTypeMap.get(s.pipeline_id);
-        return et === "contact" || (!et && !countMap.has(s.id));
-      })
+      .filter((s) => !countMap.has(s.id))
       .map((s) => s.id);
 
     const countPromises = contactStageIds.map(async (stageId) => {

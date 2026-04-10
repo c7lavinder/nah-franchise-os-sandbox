@@ -12,6 +12,7 @@ import { createServerClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   const status = request.nextUrl.searchParams.get("status");
+  const stageId = request.nextUrl.searchParams.get("stage_id");
   const supabase = createServerClient();
 
   let query = supabase
@@ -21,6 +22,44 @@ export async function GET(request: NextRequest) {
 
   if (status) {
     query = query.eq("status", status);
+  }
+
+  // If filtering by pipeline stage, find which territories have owners in that stage
+  let stageFilterSlugs: string[] | null = null;
+  if (stageId) {
+    // Get contacts in this stage
+    const { data: stateRows } = await supabase
+      .from("contact_pipeline_state")
+      .select("contact_id")
+      .eq("current_stage_id", stageId)
+      .eq("is_active", true);
+
+    const contactIds = (stateRows ?? []).map((r) => r.contact_id);
+    if (contactIds.length === 0) {
+      return NextResponse.json({ cards: [] });
+    }
+
+    // Get ghl_contact_ids for these contacts
+    const { data: contactRows } = await supabase
+      .from("contacts")
+      .select("ghl_contact_id")
+      .in("id", contactIds);
+
+    const ghlIds = (contactRows ?? []).map((c) => c.ghl_contact_id).filter(Boolean);
+
+    // Get territory slugs owned by these contacts
+    const { data: ownerRows } = await supabase
+      .from("territory_owners")
+      .select("ms_slug")
+      .in("ghl_contact_id", ghlIds.length > 0 ? ghlIds : ["__none__"])
+      .is("end_date", null);
+
+    stageFilterSlugs = (ownerRows ?? []).map((o) => o.ms_slug);
+    if (stageFilterSlugs.length === 0) {
+      return NextResponse.json({ cards: [] });
+    }
+
+    query = query.in("ms_slug", stageFilterSlugs);
   }
 
   const { data: territories, error } = await query;

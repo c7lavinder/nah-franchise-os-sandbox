@@ -64,7 +64,7 @@ interface PipelineAPI {
 
 interface OwnershipPathProps {
   selectedStage: string | null;
-  onStageClick: (stageId: string, stageName: string) => void;
+  onStageClick: (stageId: string, stageName: string, pipelineSlug: string) => void;
 }
 
 const STORAGE_KEY = "nah-pipeline-expanded";
@@ -186,7 +186,7 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
                       return (
                         <button
                           key={stage.id}
-                          onClick={(e) => { e.stopPropagation(); onStageClick(stage.id, stage.name); }}
+                          onClick={(e) => { e.stopPropagation(); onStageClick(stage.id, stage.name, pipeline.slug); }}
                           className={`
                             relative flex flex-col items-center text-center group transition-all duration-200
                             ${isSelected ? "scale-110" : "hover:scale-105"}

@@ -18,22 +18,33 @@ export default function PipelinePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
   const [selectedStageName, setSelectedStageName] = useState<string | null>(null);
+  const [showTerritories, setShowTerritories] = useState(false);
   const [selectedTerritoryStatus, setSelectedTerritoryStatus] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  function handleStageClick(stageId: string, stageName: string) {
+  // Pipelines where clicking a stage should show territories, not prospects
+  const TERRITORY_PIPELINES = new Set(["onboarding", "runway", "territories"]);
+
+  function handleStageClick(stageId: string, stageName: string, pipelineSlug: string) {
     if (selectedStage === stageId) {
       setSelectedStage(null);
       setSelectedStageName(null);
+      setShowTerritories(false);
       setSelectedTerritoryStatus(null);
     } else {
       setSelectedStage(stageId);
       setSelectedStageName(stageName);
-      // Check if this is a territory status stage
-      const lowerName = stageName.toLowerCase();
-      if (lowerName === "active" || lowerName === "inactive" || lowerName === "available") {
-        setSelectedTerritoryStatus(lowerName);
+
+      if (TERRITORY_PIPELINES.has(pipelineSlug)) {
+        setShowTerritories(true);
+        const lowerName = stageName.toLowerCase();
+        if (lowerName === "active" || lowerName === "inactive" || lowerName === "available") {
+          setSelectedTerritoryStatus(lowerName);
+        } else {
+          setSelectedTerritoryStatus(null);
+        }
       } else {
+        setShowTerritories(false);
         setSelectedTerritoryStatus(null);
       }
     }
@@ -61,8 +72,8 @@ export default function PipelinePage() {
         onStageClick={handleStageClick}
       />
 
-      {/* All Leads list — from Supabase (hide when territory stage selected) */}
-      {!selectedTerritoryStatus && (
+      {/* Prospects list (hide when territory pipeline stage selected) */}
+      {!showTerritories && (
         <PipelineLeadList
           key={refreshKey}
           selectedStageId={selectedStage}
@@ -72,8 +83,8 @@ export default function PipelinePage() {
       )}
 
       {/* Territory Cards — Territories pipeline */}
-      <div className={selectedTerritoryStatus ? "" : "mt-8"}>
-        <TerritoryCardList statusFilter={selectedTerritoryStatus} searchQuery={searchQuery} />
+      <div className={showTerritories ? "" : "mt-8"}>
+        <TerritoryCardList statusFilter={selectedTerritoryStatus} pipelineStageId={showTerritories && !selectedTerritoryStatus ? selectedStage : null} searchQuery={searchQuery} />
       </div>
     </div>
   );
