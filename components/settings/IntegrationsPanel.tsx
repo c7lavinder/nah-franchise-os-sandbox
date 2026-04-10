@@ -35,6 +35,7 @@ const INTEGRATIONS = [
   { name: "payment", label: "Payment Processor", desc: "Franchise fee payments" },
   { name: "openai", label: "OpenAI (Whisper)", desc: "Audio transcription" },
   { name: "anthropic", label: "Anthropic (Claude)", desc: "Scout AI + agent intelligence" },
+  { name: "pdl", label: "People Data Labs", desc: "Contact enrichment — job, education, LinkedIn" },
   { name: "mastersuite", label: "MasterSuite", desc: "Deal management platform", future: true },
   { name: "background-check", label: "Background Check", desc: "Prospect verification", future: true },
   { name: "signing-software", label: "Signing Software", desc: "Document signing (evaluating)", future: true },

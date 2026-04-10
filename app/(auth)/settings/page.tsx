@@ -25,6 +25,7 @@ interface IntegrationStatus {
   ghl: { connected: boolean; method: string; connectedAt: string | null };
   anthropic: { connected: boolean };
   whisper: { connected: boolean };
+  pdl: { connected: boolean };
   setup?: { checklist: SetupItem[]; complete: number; total: number; ready: boolean };
 }
 
@@ -212,6 +213,12 @@ export default function SettingsPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2"><Zap size={14} className="text-info" /><span className="text-body-sm text-text-primary">Whisper</span></div>
                     {integrations.whisper.connected
+                      ? <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> Connected</span>
+                      : <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> No API Key</span>}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2"><Database size={14} className="text-nah-blue" /><span className="text-body-sm text-text-primary">People Data Labs</span></div>
+                    {integrations.pdl?.connected
                       ? <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> Connected</span>
                       : <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> No API Key</span>}
                   </div>

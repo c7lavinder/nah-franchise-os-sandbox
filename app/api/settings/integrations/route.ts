@@ -45,6 +45,17 @@ export async function GET() {
   const anthropicConnected = !!process.env.ANTHROPIC_API_KEY;
   const whisperConnected = !!process.env.OPENAI_API_KEY;
 
+  // Check PDL connection
+  let pdlConnected = false;
+  try {
+    const { data: pdlRow } = await supabase
+      .from("app_settings")
+      .select("setting_value")
+      .eq("setting_key", "pdl_api_key")
+      .single();
+    pdlConnected = !!pdlRow?.setting_value;
+  } catch { /* not connected */ }
+
   // Data health checks
   let customFieldsCached = 0;
   let pipelinesCached = 0;
@@ -91,6 +102,7 @@ export async function GET() {
     },
     anthropic: { connected: anthropicConnected },
     whisper: { connected: whisperConnected },
+    pdl: { connected: pdlConnected },
     health: {
       customFieldsCached,
       pipelinesCached,
