@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  ArrowLeft, MapPin, User, Activity, DollarSign,
-  BarChart3, Award, AlertTriangle, Loader2, ExternalLink,
+  ArrowLeft, MapPin, Activity, DollarSign,
+  BarChart3, Award, AlertTriangle, Loader2,
 } from "lucide-react";
+import EcosystemPanel from "@/components/territory/EcosystemPanel";
 
 interface TerritoryData {
   territory: { ms_slug: string; territory_name: string; status: string; region: string | null; awarded_date: string | null };
@@ -45,7 +46,7 @@ export default function TerritoryProfilePage() {
 
   const [data, setData] = useState<TerritoryData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "profile">("overview");
+  const [activeTab, setActiveTab] = useState<"ecosystem" | "market">("ecosystem");
 
   useEffect(() => {
     fetch(`/api/territories/${msSlug}`)
@@ -58,7 +59,7 @@ export default function TerritoryProfilePage() {
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin" size={24} /></div>;
   if (!data) return <div className="p-6 text-text-secondary">Territory not found.</div>;
 
-  const { territory, profile, currentOwner, grades, franchiseOwner } = data;
+  const { territory, profile, currentOwner, grades } = data;
   const p = profile as Record<string, number | string | null> | null;
   const housesYTD = (p?.houses_purchased_ytd as number) ?? 0;
   const isUnderTarget = housesYTD < 10 && territory.status === "active";
@@ -71,7 +72,7 @@ export default function TerritoryProfilePage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="max-w-5xl mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-start gap-4">
         <button onClick={() => router.back()} className="mt-1 text-text-tertiary hover:text-text-primary">
@@ -83,27 +84,80 @@ export default function TerritoryProfilePage() {
             <StatusBadge status={territory.status} />
             {isUnderTarget && (
               <span className="flex items-center gap-1 text-xs text-danger">
-                <AlertTriangle size={14} /> Below 10 houses/year target
+                <AlertTriangle size={14} /> Below target
               </span>
             )}
           </div>
-          <div className="text-body-sm text-text-secondary mt-1">
-            <span className="font-mono text-text-tertiary">{territory.ms_slug}</span>
-            {territory.region && <span className="ml-3">{territory.region}</span>}
-            {territory.awarded_date && <span className="ml-3">Awarded: {new Date(territory.awarded_date).toLocaleDateString()}</span>}
+          <div className="text-body-sm text-text-tertiary mt-1 flex items-center gap-3">
+            <span className="font-mono">{territory.ms_slug}</span>
+            {territory.awarded_date && <span>Awarded {new Date(territory.awarded_date).toLocaleDateString()}</span>}
           </div>
-          {currentOwner?.ownerName && (
-            <div className="text-body-sm text-text-secondary mt-1">
-              Owner: {currentOwner.ghlContactId ? (
-                <button
-                  onClick={() => router.push(`/leads/${currentOwner.ghlContactId}`)}
-                  className="text-info hover:underline inline-flex items-center gap-1"
-                >
-                  {currentOwner.ownerName} <ExternalLink size={12} />
-                </button>
-              ) : (
-                <span>{currentOwner.ownerName}</span>
-              )}
+        </div>
+      </div>
+
+      {/* Persistent: Operations + Grades — always visible */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Operations */}
+        <div className="bg-bg-primary border border-border-default rounded-lg p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity size={16} className="text-info" />
+            <h2 className="text-body-sm font-semibold text-text-primary">Operations</h2>
+          </div>
+          <div className="text-center mb-4">
+            <div className="text-4xl font-bold text-text-primary">{housesYTD}</div>
+            <div className="text-caption text-text-tertiary">Houses Purchased YTD</div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <StatCard label="Sold YTD" value={p?.houses_sold_ytd ?? "—"} />
+            <StatCard label="Active Deals" value={p?.active_deals ?? "—"} />
+            <StatCard label="Lead Conv." value={p?.lead_conversion_rate ? `${p.lead_conversion_rate}%` : "—"} />
+            <StatCard label="Avg Profit" value={p?.avg_profit_per_flip ? `$${Number(p.avg_profit_per_flip).toLocaleString()}` : "—"} />
+          </div>
+        </div>
+
+        {/* Quarterly Grades */}
+        <div className="bg-bg-primary border border-border-default rounded-lg p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Award size={16} className="text-warning" />
+            <h2 className="text-body-sm font-semibold text-text-primary">Quarterly Grades</h2>
+          </div>
+          {grades.length === 0 ? (
+            <div className="text-caption text-text-tertiary py-4 text-center">No grades recorded yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-body-sm">
+                <thead>
+                  <tr className="text-left text-caption text-text-tertiary border-b border-border-default">
+                    <th className="py-2 pr-3">Year</th>
+                    <th className="py-2 px-1">Q1</th><th className="py-2 px-1">Q2</th>
+                    <th className="py-2 px-1">Q3</th><th className="py-2 px-1">Q4</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(gradesByYear)
+                    .sort(([a], [b]) => Number(b) - Number(a))
+                    .map(([year, yearGrades]) => (
+                      <tr key={year} className="border-b border-border-default">
+                        <td className="py-2 pr-3 font-medium">{year}</td>
+                        {[1, 2, 3, 4].map((q) => {
+                          const g = yearGrades.find((x) => x.quarter === q);
+                          return (
+                            <td key={q} className="py-2 px-1 text-center">
+                              {g ? (
+                                <div>
+                                  <span className="font-medium">{g.self_grade ?? "—"}</span>
+                                  {g.john_grade != null && (
+                                    <span className="text-text-tertiary text-[10px] ml-0.5">/{g.john_grade}</span>
+                                  )}
+                                </div>
+                              ) : "—"}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -111,109 +165,52 @@ export default function TerritoryProfilePage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border-default">
-        {(["overview", "profile"] as const).map((tab) => (
+        {([
+          { key: "ecosystem" as const, label: "Ecosystem" },
+          { key: "market" as const, label: "Market & Financial" },
+        ]).map((tab) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
             className={`px-4 py-2 text-body-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab
+              activeTab === tab.key
                 ? "border-nah-orange text-nah-orange"
                 : "border-transparent text-text-tertiary hover:text-text-primary"
             }`}
           >
-            {tab === "overview" ? "Overview" : "Profile"}
+            {tab.label}
           </button>
         ))}
       </div>
 
-      {activeTab === "overview" && (
-        <div className="space-y-6">
-          {/* Operations — THE number */}
-          <div className="bg-bg-primary border border-border-default rounded-lg p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Activity size={18} className="text-info" />
-              <h2 className="text-body-sm font-semibold">Operations</h2>
-            </div>
-            <div className="text-center mb-4">
-              <div className="text-4xl font-bold text-text-primary">{housesYTD}</div>
-              <div className="text-caption text-text-tertiary">Houses Purchased YTD</div>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="Sold YTD" value={p?.houses_sold_ytd ?? "—"} />
-              <StatCard label="Active Deals" value={p?.active_deals ?? "—"} />
-              <StatCard label="Lead Conv. Rate" value={p?.lead_conversion_rate ? `${p.lead_conversion_rate}%` : "—"} />
-              <StatCard label="Avg Profit/Flip" value={p?.avg_profit_per_flip ? `$${Number(p.avg_profit_per_flip).toLocaleString()}` : "—"} />
-            </div>
-          </div>
-
-          {/* Coaching — Grade History */}
-          <div className="bg-bg-primary border border-border-default rounded-lg p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Award size={18} className="text-warning" />
-              <h2 className="text-body-sm font-semibold">Quarterly Grades</h2>
-            </div>
-            {grades.length === 0 ? (
-              <div className="text-caption text-text-tertiary py-4 text-center">No grades recorded yet.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-body-sm">
-                  <thead>
-                    <tr className="text-left text-caption text-text-tertiary border-b border-border-default">
-                      <th className="py-2 pr-4">Year</th>
-                      <th className="py-2 px-2">Q1 Self</th><th className="py-2 px-2">Q1 John</th>
-                      <th className="py-2 px-2">Q2 Self</th><th className="py-2 px-2">Q2 John</th>
-                      <th className="py-2 px-2">Q3 Self</th><th className="py-2 px-2">Q3 John</th>
-                      <th className="py-2 px-2">Q4 Self</th><th className="py-2 px-2">Q4 John</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(gradesByYear)
-                      .sort(([a], [b]) => Number(b) - Number(a))
-                      .map(([year, yearGrades]) => (
-                        <tr key={year} className="border-b border-border-default">
-                          <td className="py-2 pr-4 font-medium">{year}</td>
-                          {[1, 2, 3, 4].map((q) => {
-                            const g = yearGrades.find((x) => x.quarter === q);
-                            return (
-                              <>
-                                <td key={`${q}s`} className="py-2 px-2 text-center">{g?.self_grade ?? "—"}</td>
-                                <td key={`${q}j`} className="py-2 px-2 text-center">{g?.john_grade ?? "—"}</td>
-                              </>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
+      {/* Tab Content */}
+      {activeTab === "ecosystem" && (
+        <EcosystemPanel msSlug={msSlug} owner={currentOwner} />
       )}
 
-      {activeTab === "profile" && (
-        <div className="space-y-6">
+      {activeTab === "market" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Market */}
           <div className="bg-bg-primary border border-border-default rounded-lg p-5">
             <div className="flex items-center gap-2 mb-4">
-              <MapPin size={18} className="text-info" />
-              <h2 className="text-body-sm font-semibold">Market</h2>
+              <MapPin size={16} className="text-info" />
+              <h2 className="text-body-sm font-semibold text-text-primary">Market</h2>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <StatCard label="Territory Value" value={p?.territory_value_est ? `$${Number(p.territory_value_est).toLocaleString()}` : "—"} />
+              <StatCard label="Region" value={(territory.region as string) ?? "—"} />
               <StatCard label="Market Type" value={(p?.market_type as string) ?? "—"} />
-              <StatCard label="Stage 3 Mix" value={p?.stage3_pct ? `${p.stage3_pct}%` : "—"} />
-              <StatCard label="Stage 5 Mix" value={p?.stage5_pct ? `${p.stage5_pct}%` : "—"} />
+              <StatCard label="Territory Value" value={p?.territory_value_est ? `$${Number(p.territory_value_est).toLocaleString()}` : "—"} />
               <StatCard label="Flip Activity" value={(p?.flip_activity_score as number) ?? "—"} />
               <StatCard label="Competitors" value={(p?.competitor_presence as string) ?? "—"} />
+              <StatCard label="Stage 3 Mix" value={p?.stage3_pct ? `${p.stage3_pct}%` : "—"} />
             </div>
           </div>
 
           {/* Financial */}
           <div className="bg-bg-primary border border-border-default rounded-lg p-5">
             <div className="flex items-center gap-2 mb-4">
-              <DollarSign size={18} className="text-success" />
-              <h2 className="text-body-sm font-semibold">Financial</h2>
+              <DollarSign size={16} className="text-success" />
+              <h2 className="text-body-sm font-semibold text-text-primary">Financial</h2>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <StatCard label="Total Invested" value={p?.total_invested ? `$${Number(p.total_invested).toLocaleString()}` : "—"} />
