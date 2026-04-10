@@ -151,12 +151,12 @@ export default function TerritoryCardList({ status, statusFilter, searchQuery }:
               {card.owner_name ? (
                 <span
                   onClick={card.owner_ghl_contact_id ? (e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/leads/${card.owner_ghl_contact_id}`; } : undefined}
-                  className={`px-1.5 py-0.5 rounded text-[11px] truncate bg-blue-50 text-blue-600 ${card.owner_ghl_contact_id ? "hover:bg-blue-100 cursor-pointer" : ""}`}
+                  className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate bg-blue-50 text-blue-600 ${card.owner_ghl_contact_id ? "hover:bg-blue-100 cursor-pointer" : ""}`}
                 >
                   {card.owner_name}
                 </span>
               ) : (
-                <span className="px-1.5 py-0.5 rounded text-[11px] truncate bg-gray-50 text-gray-400">
+                <span className="px-1.5 py-0.5 rounded text-[11px] font-medium truncate bg-gray-50 text-gray-400">
                   No owner
                 </span>
               )}
