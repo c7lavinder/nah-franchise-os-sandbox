@@ -211,46 +211,45 @@ export default function PipelineLeadList({
         {visible.map((contact, i) => {
           const urg = URGENCY_STYLES[contact.urgency];
 
+          const sc = STAGE_COLORS[contact.stageSlug] ?? { bg: "bg-gray-100", text: "text-gray-600" };
+          const srcStyle = contact.source ? getSourceStyle(contact.source) : null;
+
           return (
             <Link
               key={contact.stateId}
               href={`/leads/${contact.contactId}`}
               className={`
-                flex items-center gap-3 px-3 py-2.5 hover:bg-bg-hover transition-colors
+                grid items-center gap-2 px-3 py-2.5 hover:bg-bg-hover transition-colors
+                grid-cols-[1fr_70px_110px_120px_16px]
+                lg:grid-cols-[1fr_70px_110px_140px_16px]
                 ${i < visible.length - 1 ? "border-b border-border-default" : ""}
               `}
             >
               {/* Name */}
-              <p className="text-body-sm text-text-primary font-medium truncate min-w-0 flex-shrink w-[180px]">
+              <p className="text-body-sm text-text-primary font-medium truncate min-w-0">
                 {capitalizeName(contact.name)}
               </p>
 
               {/* Urgency badge */}
-              <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${urg.bgColor} ${urg.color} flex-shrink-0`}>
+              <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold text-center ${urg.bgColor} ${urg.color}`}>
                 {urg.label}
               </span>
 
-              {/* Stage — colored label matching pipeline circles */}
-              {(() => {
-                const sc = STAGE_COLORS[contact.stageSlug] ?? { bg: "bg-gray-100", text: "text-gray-600" };
-                return (
-                  <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0 ${sc.bg} ${sc.text}`}>
-                    {contact.stageName}
-                  </span>
-                );
-              })()}
+              {/* Stage — colored label */}
+              <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate ${sc.bg} ${sc.text}`}>
+                {contact.stageName}
+              </span>
 
               {/* Source — colored label */}
-              {contact.source && (
-                <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0 truncate max-w-[120px] hidden lg:block ${getSourceStyle(contact.source).bg} ${getSourceStyle(contact.source).text}`}>
+              {srcStyle ? (
+                <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate hidden lg:block ${srcStyle.bg} ${srcStyle.text}`}>
                   {contact.source}
                 </span>
+              ) : (
+                <span className="hidden lg:block" />
               )}
 
-              {/* Spacer */}
-              <div className="flex-1" />
-
-              <ChevronRight size={12} className="text-text-tertiary flex-shrink-0" />
+              <ChevronRight size={12} className="text-text-tertiary" />
             </Link>
           );
         })}

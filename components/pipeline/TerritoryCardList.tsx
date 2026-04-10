@@ -130,22 +130,23 @@ export default function TerritoryCardList({ status, statusFilter, searchQuery }:
               key={card.ms_slug}
               href={`/territories/${card.ms_slug}`}
               className={`
-                flex items-center gap-3 px-3 py-2.5 hover:bg-bg-hover transition-colors
+                grid items-center gap-2 px-3 py-2.5 hover:bg-bg-hover transition-colors
+                grid-cols-[1fr_80px_80px_160px_16px]
                 ${i < visible.length - 1 ? "border-b border-border-default" : ""}
               `}
             >
               {/* Name */}
-              <p className="text-body-sm text-text-primary font-medium truncate min-w-0 flex-shrink w-[200px]">
+              <p className="text-body-sm text-text-primary font-medium truncate min-w-0">
                 {card.territory_name}
               </p>
 
               {/* Status badge */}
-              <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${st.bgColor} ${st.color} flex-shrink-0`}>
+              <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold text-center ${st.bgColor} ${st.color}`}>
                 {st.label}
               </span>
 
               {/* Slug */}
-              <span className="text-caption text-text-tertiary flex-shrink-0 w-[80px] truncate font-mono">
+              <span className="text-caption text-text-tertiary truncate font-mono">
                 {card.ms_slug}
               </span>
 
@@ -153,20 +154,17 @@ export default function TerritoryCardList({ status, statusFilter, searchQuery }:
               {card.owner_name && card.owner_ghl_contact_id ? (
                 <span
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/leads/${card.owner_ghl_contact_id}`; }}
-                  className="text-caption text-nah-blue font-medium flex-shrink-0 truncate w-[160px] hover:underline cursor-pointer"
+                  className="text-caption text-nah-blue font-medium truncate hover:underline cursor-pointer"
                 >
                   {card.owner_name}
                 </span>
               ) : (
-                <span className="text-caption text-text-tertiary italic flex-shrink-0 truncate w-[160px]">
+                <span className="text-caption text-text-tertiary italic truncate">
                   {card.owner_name ?? "No owner"}
                 </span>
               )}
 
-              {/* Spacer */}
-              <div className="flex-1" />
-
-              <ChevronRight size={12} className="text-text-tertiary flex-shrink-0" />
+              <ChevronRight size={12} className="text-text-tertiary" />
             </Link>
           );
         })}
