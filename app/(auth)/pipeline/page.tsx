@@ -73,9 +73,6 @@ export default function PipelinePage() {
 
       {/* Territory Cards — Territories pipeline */}
       <div className={selectedTerritoryStatus ? "" : "mt-8"}>
-        {!selectedTerritoryStatus && (
-          <h2 className="text-overline text-text-tertiary tracking-wider mb-4">TERRITORY NETWORK</h2>
-        )}
         <TerritoryCardList statusFilter={selectedTerritoryStatus} searchQuery={searchQuery} />
       </div>
     </div>

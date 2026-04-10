@@ -89,13 +89,16 @@ export default function TerritoryCardList({ status, statusFilter, searchQuery }:
 
   return (
     <div>
-      {/* Count */}
-      <div className="flex items-center mb-3">
-        <span className="text-caption text-text-tertiary">
-          {searchQuery && filtered.length !== cards.length
-            ? `${filtered.length} of ${cards.length} territories`
-            : `${cards.length} ${cards.length === 1 ? "territory" : "territories"}`}
-        </span>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-h2 text-text-primary">
+          {effectiveStatus ? `${effectiveStatus.charAt(0).toUpperCase() + effectiveStatus.slice(1)} Territories` : "Territory Network"}
+          <span className="text-caption text-text-tertiary ml-2 font-normal">
+            {searchQuery && filtered.length !== cards.length
+              ? `${filtered.length} of ${cards.length} territories`
+              : `${cards.length} ${cards.length === 1 ? "territory" : "territories"}`}
+          </span>
+        </h2>
       </div>
 
       {/* Sort controls */}
