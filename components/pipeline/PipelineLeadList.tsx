@@ -235,13 +235,13 @@ export default function PipelineLeadList({
               </span>
 
               {/* Stage — colored label */}
-              <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate ${sc.bg} ${sc.text}`}>
+              <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center ${sc.bg} ${sc.text}`}>
                 {contact.stageName}
               </span>
 
               {/* Source — colored label */}
               {srcStyle ? (
-                <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate hidden lg:block ${srcStyle.bg} ${srcStyle.text}`}>
+                <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center hidden lg:block ${srcStyle.bg} ${srcStyle.text}`}>
                   {contact.source}
                 </span>
               ) : (
