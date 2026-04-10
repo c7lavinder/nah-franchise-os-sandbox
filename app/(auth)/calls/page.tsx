@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, Plus, X, Search, Loader2, Clock, Users, User, Phone } from "lucide-react";
+import { RefreshCw, Plus, X, Search, Loader2, Clock, Users, User, Phone, Monitor } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
@@ -20,6 +20,7 @@ interface Call {
   externalContacts: string[];
   date: string | null;
   duration_seconds: number | null;
+  platform: string | null;
 }
 
 interface CallType { id: string; name: string }
@@ -121,10 +122,17 @@ function formatDate(date: string | null): string {
   return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
 }
 
+function PlatformIcon({ platform }: { platform: string | null }) {
+  const isVideo = platform && ["google_meet", "zoom", "teams", "webex"].includes(platform.toLowerCase());
+  if (isVideo) return <Monitor size={16} className="text-nah-blue flex-shrink-0" />;
+  return <Phone size={16} className="text-text-tertiary flex-shrink-0" />;
+}
+
 function CallRow({ c }: { c: Call }) {
   return (
     <Link href={`/calls/${c.id}`}
       className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-bg-hover transition-colors">
+      <PlatformIcon platform={c.platform} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-body-sm font-medium text-text-primary truncate">{c.title ?? "Untitled"}</span>

@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
       ? supabase.from("call_types").select("id, name, slug").in("id", callTypeIds as string[])
       : Promise.resolve({ data: [] }),
     sessionIds.length > 0
-      ? supabase.from("read_ai_sessions").select("session_id, participant_emails, owner_email, call_type").in("session_id", sessionIds)
+      ? supabase.from("read_ai_sessions").select("session_id, participant_emails, owner_email, call_type, platform").in("session_id", sessionIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -89,9 +89,9 @@ export async function GET(request: NextRequest) {
     if (u.email) emailToName.set(u.email.toLowerCase(), u.full_name);
   }
 
-  const sessionMap = new Map<string, { participant_emails: string[]; owner_email: string | null; call_type: string | null }>();
+  const sessionMap = new Map<string, { participant_emails: string[]; owner_email: string | null; call_type: string | null; platform: string | null }>();
   for (const s of sessionRes.data ?? []) {
-    sessionMap.set(s.session_id, { participant_emails: s.participant_emails ?? [], owner_email: s.owner_email, call_type: s.call_type ?? null });
+    sessionMap.set(s.session_id, { participant_emails: s.participant_emails ?? [], owner_email: s.owner_email, call_type: s.call_type ?? null, platform: s.platform ?? null });
   }
 
   const NAH_DOMAIN = "newagainhouses.com";
@@ -127,6 +127,7 @@ export async function GET(request: NextRequest) {
       callTypeName: ctInfo?.name ?? null,
       callTypeSlug: ctInfo?.slug ?? null,
       classifiedType: session?.call_type ?? null,
+      platform: session?.platform ?? null,
       teamMembers,
       externalContacts,
       date: c.scheduled_at ?? c.started_at ?? c.created_at,
