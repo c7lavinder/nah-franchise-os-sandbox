@@ -123,48 +123,68 @@ function formatDate(date: string | null): string {
   return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
 }
 
-function PlatformIcon({ platform }: { platform: string | null }) {
-  const isVideo = platform && ["google_meet", "zoom", "teams", "webex"].includes(platform.toLowerCase());
+function PlatformIcon({ platform, source }: { platform: string | null; source: string | null }) {
+  if (source === "read_ai") return <Monitor size={16} className="text-nah-blue flex-shrink-0" />;
+  const isVideo = platform && ["meet", "google_meet", "zoom", "teams", "webex"].includes(platform.toLowerCase());
   if (isVideo) return <Monitor size={16} className="text-nah-blue flex-shrink-0" />;
   return <Phone size={16} className="text-text-tertiary flex-shrink-0" />;
+}
+
+// Rotating colors for team member pills
+const TEAM_COLORS = [
+  "bg-nah-orange/10 text-nah-orange",
+  "bg-nah-blue/10 text-nah-blue",
+  "bg-scout-purple/10 text-scout-purple",
+  "bg-success/10 text-success",
+  "bg-info/10 text-info",
+  "bg-warning/10 text-warning",
+];
+
+function getTeamColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return TEAM_COLORS[Math.abs(hash) % TEAM_COLORS.length];
 }
 
 function CallRow({ c }: { c: Call }) {
   return (
     <Link href={`/calls/${c.id}`}
       className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-bg-hover transition-colors">
-      <PlatformIcon platform={c.platform} />
+      <PlatformIcon platform={c.platform} source={c.source} />
 
-      {/* Labels */}
-      <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5">
-        {/* Call type — blue */}
-        {c.callTypeName && (
-          <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-nah-blue/10 text-nah-blue">{c.callTypeName}</span>
-        )}
-        {/* Territory — purple */}
-        {c.territoryName && (
-          <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-scout-purple/10 text-scout-purple">{c.territoryName}</span>
-        )}
-        {/* Prospects / external contacts — green */}
-        {c.contactName && (
-          <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-success/10 text-success">{c.contactName}</span>
-        )}
-        {!c.contactName && c.externalContacts.map((name, i) => (
-          <span key={i} className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-success/10 text-success">{name}</span>
-        ))}
-        {/* Team members — orange */}
-        {c.teamMembers.map((name, i) => (
-          <span key={i} className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-nah-orange/10 text-nah-orange">{name}</span>
-        ))}
+      {/* Title + labels */}
+      <div className="flex-1 min-w-0">
+        <p className="text-body-sm font-semibold text-text-primary truncate">{c.title ?? "Untitled"}</p>
+        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+          {/* Call type — blue */}
+          {c.callTypeName && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-nah-blue/10 text-nah-blue">{c.callTypeName}</span>
+          )}
+          {/* Territory — purple */}
+          {c.territoryName && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-scout-purple/10 text-scout-purple">{c.territoryName}</span>
+          )}
+          {/* Prospects / external contacts — green */}
+          {c.contactName && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-emerald-500/10 text-emerald-600">{c.contactName}</span>
+          )}
+          {!c.contactName && c.externalContacts.map((name, i) => (
+            <span key={i} className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-emerald-500/10 text-emerald-600">{name}</span>
+          ))}
+          {/* Team members — each gets a consistent color */}
+          {c.teamMembers.map((name, i) => (
+            <span key={i} className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${getTeamColor(name)}`}>{name}</span>
+          ))}
+        </div>
       </div>
 
-      {/* Duration */}
-      {c.duration_seconds ? (
-        <span className="flex-shrink-0 text-[11px] text-text-tertiary">{formatDuration(c.duration_seconds)}</span>
-      ) : null}
-
-      {/* Date + time */}
-      <span className="flex-shrink-0 text-[11px] text-text-tertiary w-[110px] text-right">{formatDate(c.date)}</span>
+      {/* Duration + date stacked */}
+      <div className="flex-shrink-0 text-right w-[110px]">
+        <p className="text-[11px] text-text-tertiary">{formatDate(c.date)}</p>
+        {c.duration_seconds ? (
+          <p className="text-[10px] text-text-tertiary mt-0.5">{formatDuration(c.duration_seconds)}</p>
+        ) : null}
+      </div>
     </Link>
   );
 }
