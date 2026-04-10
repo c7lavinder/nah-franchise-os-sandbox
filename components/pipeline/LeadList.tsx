@@ -173,9 +173,9 @@ export default function LeadList({
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-h2 text-text-primary">
-          {stageName ?? "All Leads"}
+          {stageName ?? "All Prospects"}
           <span className="text-caption text-text-tertiary ml-2 font-normal">
-            {filtered.length} {filtered.length === 1 ? "lead" : "leads"}
+            {filtered.length} {filtered.length === 1 ? "prospect" : "prospects"}
           </span>
         </h2>
         {enriching && <Loader2 size={14} className="animate-spin text-text-tertiary" />}

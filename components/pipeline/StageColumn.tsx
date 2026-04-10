@@ -37,7 +37,7 @@ export default function StageColumn({ stageId, stageName, opportunities, onMoveC
           {stageName}
         </h3>
         <span className="text-caption text-text-tertiary">
-          {opportunities.length} {opportunities.length === 1 ? "lead" : "leads"}
+          {opportunities.length} {opportunities.length === 1 ? "prospect" : "prospects"}
         </span>
       </div>
 

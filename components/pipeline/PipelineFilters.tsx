@@ -35,7 +35,7 @@ export default function PipelineFilters({
           type="text"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="Search leads..."
+          placeholder="Search prospects..."
           className="w-full bg-bg-secondary border border-border-default rounded-md pl-9 pr-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary focus:border-nah-orange focus:outline-none"
         />
       </div>

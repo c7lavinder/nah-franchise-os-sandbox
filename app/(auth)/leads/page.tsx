@@ -91,9 +91,9 @@ export default function LeadsPage() {
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
       <div className="flex items-center gap-2 px-1 py-3 flex-shrink-0">
-        <h1 className="font-headline text-page-title text-text-primary">Leads</h1>
+        <h1 className="font-headline text-page-title text-text-primary">Prospects</h1>
         <span className="text-caption text-text-tertiary ml-1">
-          {leads.length} {leads.length === 1 ? "lead" : "leads"}
+          {leads.length} {leads.length === 1 ? "prospect" : "prospects"}
         </span>
         <button
           onClick={() => void fetchLeads(query, status)}

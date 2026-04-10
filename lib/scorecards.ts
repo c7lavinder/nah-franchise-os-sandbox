@@ -189,7 +189,7 @@ export async function getPipelineScorecard() {
     .in("current_stage_id", runwayStageIds.length > 0 ? runwayStageIds : ["__none__"]);
 
   return {
-    inSales: { value: inSales ?? 0, label: "In Sales", sub: "active leads" },
+    inSales: { value: inSales ?? 0, label: "In Sales", sub: "active prospects" },
     inOnboarding: { value: inOnboarding ?? 0, label: "In Onboarding", sub: "territories" },
     inRunway: { value: inRunway ?? 0, label: "In Runway", sub: "territories" },
   };

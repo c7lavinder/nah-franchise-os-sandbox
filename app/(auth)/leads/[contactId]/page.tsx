@@ -274,7 +274,7 @@ export default function LeadProfilePage() {
                 ) : activeTab === "profile" ? (
                   <div className="space-y-4 max-w-2xl">
                     <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                      <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-3">CONTACT INFORMATION</h3>
+                      <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-3">PROSPECT INFORMATION</h3>
                       <div className="grid grid-cols-2 gap-3 text-body-sm">
                         <div><span className="text-text-tertiary block text-[10px]">First Name</span><p className="text-text-primary">{capitalizeName(localContact?.first_name) || "—"}</p></div>
                         <div><span className="text-text-tertiary block text-[10px]">Last Name</span><p className="text-text-primary">{capitalizeName(localContact?.last_name) || "—"}</p></div>
@@ -292,9 +292,9 @@ export default function LeadProfilePage() {
                         {profileValues["Recommended Next Action"] && <p className="text-body-sm text-nah-orange font-medium mt-2">Next: {profileValues["Recommended Next Action"]}</p>}
                       </div>
                     )}
-                    {profileValues["Scout Lead Score"] && (
+                    {profileValues["Scout Prospect Score"] && (
                       <div className="flex items-center gap-4 bg-bg-secondary border border-border-default rounded-lg p-4">
-                        <div className="text-center"><div className="text-h1 text-nah-orange">{profileValues["Scout Lead Score"]}</div><div className="text-caption text-text-tertiary">Lead Score</div></div>
+                        <div className="text-center"><div className="text-h1 text-nah-orange">{profileValues["Scout Prospect Score"]}</div><div className="text-caption text-text-tertiary">Prospect Score</div></div>
                         {profileValues["Predicted Close Probability"] && <div className="text-center"><div className="text-h1 text-success">{profileValues["Predicted Close Probability"]}%</div><div className="text-caption text-text-tertiary">Close Prob.</div></div>}
                       </div>
                     )}

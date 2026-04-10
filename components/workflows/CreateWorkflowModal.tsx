@@ -22,8 +22,8 @@ const WORKFLOW_TYPES = [
 ];
 
 const TRIGGER_TYPES = [
-  { value: "stage_entry:new_lead", label: "New Lead enters pipeline" },
-  { value: "stage_entry:qualified", label: "Lead qualified" },
+  { value: "stage_entry:new_lead", label: "New Prospect enters pipeline" },
+  { value: "stage_entry:qualified", label: "Prospect qualified" },
   { value: "stage_entry:fdd_delivered", label: "FDD delivered" },
   { value: "stage_entry:funds_received", label: "Funds received (closed won)" },
   { value: "appointment_created", label: "Appointment created" },

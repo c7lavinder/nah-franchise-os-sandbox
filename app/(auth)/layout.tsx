@@ -12,7 +12,7 @@ function getPageTitle(pathname: string): string {
     "/scout": "Scout AI",
     "/daily-hq": "Daily HQ",
     "/pipeline": "Pipeline",
-    "/leads": "Leads",
+    "/leads": "Prospects",
     "/dashboard": "Dashboard",
     "/knowledge": "Knowledge Base",
     "/settings": "Settings",
@@ -22,7 +22,7 @@ function getPageTitle(pathname: string): string {
   // Check exact match first, then prefix match for dynamic routes
   if (titles[pathname]) return titles[pathname];
   if (pathname.startsWith("/workflows/")) return "Workflow Builder";
-  if (pathname.startsWith("/leads/")) return "Lead Detail";
+  if (pathname.startsWith("/leads/")) return "Prospect Detail";
   return "Franchise OS";
 }
 

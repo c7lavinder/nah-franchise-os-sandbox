@@ -20,7 +20,7 @@ interface CardConfig {
 
 export default function KPICards({ activeLeads, won, lost, conversionRate, totalContacts }: KPICardsProps) {
   const cards: CardConfig[] = [
-    { label: "Active Leads", value: activeLeads.toLocaleString(), icon: Users, color: "text-info", bgColor: "bg-info/10" },
+    { label: "Active Prospects", value: activeLeads.toLocaleString(), icon: Users, color: "text-info", bgColor: "bg-info/10" },
     { label: "Won", value: won.toLocaleString(), icon: Trophy, color: "text-success", bgColor: "bg-success/10" },
     { label: "Lost", value: lost.toLocaleString(), icon: XCircle, color: "text-danger", bgColor: "bg-danger/10" },
     { label: "Conversion", value: `${conversionRate}%`, icon: TrendingUp, color: "text-nah-orange", bgColor: "bg-nah-orange/10" },

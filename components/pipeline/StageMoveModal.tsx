@@ -28,7 +28,7 @@ export default function StageMoveModal({
     try {
       await onConfirm(reason || undefined);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to move lead");
+      setError(err instanceof Error ? err.message : "Failed to move prospect");
       setLoading(false);
     }
   }

@@ -198,9 +198,9 @@ export default function ScoutPage() {
 
   const PROMPT_CHIPS = [
     "Who should I call today?",
-    "Summarize my last call with a lead",
-    "Draft a follow-up for cold leads",
-    "Which leads haven't been contacted in 7+ days?",
+    "Summarize my last call with a prospect",
+    "Draft a follow-up for cold prospects",
+    "Which prospects haven't been contacted in 7+ days?",
     "What's our pipeline close rate this month?",
     "Help me prep for my next discovery call",
   ];

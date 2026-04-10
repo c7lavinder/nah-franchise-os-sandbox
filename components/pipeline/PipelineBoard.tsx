@@ -114,7 +114,7 @@ export default function PipelineBoard({ pipelines, searchQuery, onDataChange }: 
 
     if (!response.ok) {
       const data = await response.json();
-      throw new Error(data.error ?? "Failed to move lead");
+      throw new Error(data.error ?? "Failed to move prospect");
     }
 
     setMoveModal(null);
