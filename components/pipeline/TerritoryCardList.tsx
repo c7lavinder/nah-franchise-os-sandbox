@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { MapPin, ExternalLink, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import Link from "next/link";
 
 interface TerritoryCard {
   ms_slug: string;
@@ -18,11 +18,22 @@ interface Props {
   statusFilter?: string | null;
 }
 
+const STATUS_STYLES: Record<string, { label: string; bgColor: string; color: string }> = {
+  active:    { label: "Active",    bgColor: "bg-[#e8f5e9]", color: "text-[#2e7d32]" },
+  inactive:  { label: "Inactive",  bgColor: "bg-[#f5f5f5]", color: "text-[#757575]" },
+  available: { label: "Available", bgColor: "bg-[#e3f2fd]", color: "text-[#1565c0]" },
+};
+
+type SortField = "name" | "status" | "owner";
+const PAGE_SIZE = 50;
+
 export default function TerritoryCardList({ status, statusFilter }: Props) {
   const effectiveStatus = statusFilter ?? status;
-  const router = useRouter();
   const [cards, setCards] = useState<TerritoryCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortField, setSortField] = useState<SortField>("name");
+  const [sortAsc, setSortAsc] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
     setLoading(true);
@@ -36,62 +47,118 @@ export default function TerritoryCardList({ status, statusFilter }: Props) {
       .finally(() => setLoading(false));
   }, [effectiveStatus]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 size={20} className="animate-spin text-text-tertiary" />
-      </div>
-    );
+  const sorted = [...cards].sort((a, b) => {
+    let cmp = 0;
+    switch (sortField) {
+      case "name":
+        cmp = a.territory_name.localeCompare(b.territory_name);
+        break;
+      case "status":
+        cmp = a.status.localeCompare(b.status);
+        break;
+      case "owner":
+        cmp = (a.owner_name ?? "zzz").localeCompare(b.owner_name ?? "zzz");
+        break;
+    }
+    return sortAsc ? cmp : -cmp;
+  });
+
+  const visible = sorted.slice(0, visibleCount);
+  const hasMore = sorted.length > visibleCount;
+
+  function toggleSort(field: SortField) {
+    if (sortField === field) setSortAsc(!sortAsc);
+    else { setSortField(field); setSortAsc(true); }
   }
 
-  if (cards.length === 0) {
-    return (
-      <div className="text-center py-6 text-caption text-text-tertiary">
-        No territories in this stage.
-      </div>
-    );
+  if (loading) {
+    return <div className="flex items-center justify-center py-8"><Loader2 size={20} className="animate-spin text-text-tertiary" /></div>;
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      {cards.map((card) => (
-        <button
-          key={card.ms_slug}
-          onClick={() => router.push(`/territories/${card.ms_slug}`)}
-          className="text-left bg-bg-primary border border-border-default rounded-lg p-4 hover:border-nah-blue/50 hover:shadow-sm transition-all"
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <MapPin size={14} className="text-info flex-shrink-0" />
-              <span className="text-body-sm font-medium text-text-primary">
-                {card.territory_name}
-              </span>
-            </div>
-            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${
-              card.status === "active"
-                ? "bg-green-100 text-green-800"
-                : card.status === "available"
-                  ? "bg-blue-100 text-blue-800"
-                  : "bg-gray-100 text-gray-600"
-            }`}>
-              {card.status}
-            </span>
-          </div>
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-h2 text-text-primary">
+          {effectiveStatus ? `${effectiveStatus.charAt(0).toUpperCase() + effectiveStatus.slice(1)} Territories` : "Territory Network"}
+          <span className="text-caption text-text-tertiary ml-2 font-normal">
+            {cards.length} {cards.length === 1 ? "territory" : "territories"}
+          </span>
+        </h2>
+      </div>
 
-          <div className="mt-2 text-caption text-text-secondary">
-            {card.owner_name ? (
-              <span className="flex items-center gap-1">
-                Owner: {card.owner_name}
-                {card.owner_ghl_contact_id && (
-                  <ExternalLink size={10} className="text-info" />
-                )}
-              </span>
-            ) : (
-              <span className="text-text-tertiary italic">No current owner</span>
-            )}
+      {/* Sort controls */}
+      <div className="flex gap-4 mb-2 px-3 py-2 bg-bg-secondary rounded-t-lg border border-border-default border-b-0">
+        {(["name", "status", "owner"] as SortField[]).map((field) => (
+          <button
+            key={field}
+            onClick={() => toggleSort(field)}
+            className={`text-caption font-medium ${sortField === field ? "text-nah-orange" : "text-text-tertiary"} hover:text-text-primary`}
+          >
+            {field === "name" ? "Name" : field === "status" ? "Status" : "Owner"}
+            {sortField === field && (sortAsc ? " ↑" : " ↓")}
+          </button>
+        ))}
+      </div>
+
+      {/* Territory rows */}
+      <div className="border border-border-default rounded-b-lg overflow-hidden">
+        {visible.length === 0 && (
+          <div className="px-4 py-8 text-center text-body-sm text-text-tertiary">
+            No territories found
           </div>
+        )}
+        {visible.map((card, i) => {
+          const st = STATUS_STYLES[card.status] ?? { label: card.status, bgColor: "bg-[#f5f5f5]", color: "text-[#757575]" };
+
+          return (
+            <Link
+              key={card.ms_slug}
+              href={`/territories/${card.ms_slug}`}
+              className={`
+                flex items-center gap-3 px-3 py-2.5 hover:bg-bg-hover transition-colors
+                ${i < visible.length - 1 ? "border-b border-border-default" : ""}
+              `}
+            >
+              {/* Name */}
+              <p className="text-body-sm text-text-primary font-medium truncate min-w-0 flex-shrink w-[200px]">
+                {card.territory_name}
+              </p>
+
+              {/* Status badge */}
+              <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${st.bgColor} ${st.color} flex-shrink-0`}>
+                {st.label}
+              </span>
+
+              {/* Slug */}
+              <span className="text-caption text-text-tertiary flex-shrink-0 w-[80px] truncate font-mono">
+                {card.ms_slug}
+              </span>
+
+              {/* Owner */}
+              <span className="text-caption text-text-secondary flex-shrink-0 truncate w-[160px]">
+                {card.owner_name ?? <span className="text-text-tertiary italic">No owner</span>}
+              </span>
+
+              {/* Spacer */}
+              <div className="flex-1" />
+
+              <ChevronRight size={12} className="text-text-tertiary flex-shrink-0" />
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Load more */}
+      {hasMore && (
+        <button
+          onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+          className="w-full py-2 mt-2 text-caption text-text-tertiary hover:text-text-primary flex items-center justify-center gap-1"
+        >
+          <ChevronDown size={12} />
+          Show {Math.min(PAGE_SIZE, sorted.length - visibleCount)} more of {sorted.length}
         </button>
-      ))}
+      )}
     </div>
   );
 }
