@@ -156,22 +156,6 @@ function CallRow({ c }: { c: Call }) {
       <div className="flex-1 min-w-0">
         <p className="text-body-sm font-semibold text-text-primary truncate">{c.title ?? "Untitled"}</p>
         <div className="flex flex-wrap items-center gap-1.5 mt-1">
-          {/* Call type — blue */}
-          {c.callTypeName && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-nah-blue/10 text-nah-blue">{c.callTypeName}</span>
-          )}
-          {/* Territory — purple */}
-          {c.territoryName && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-scout-purple/10 text-scout-purple">{c.territoryName}</span>
-          )}
-          {/* Prospects / external contacts — green */}
-          {c.contactName && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-emerald-500/10 text-emerald-600">{c.contactName}</span>
-          )}
-          {!c.contactName && c.externalContacts.map((name, i) => (
-            <span key={i} className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-emerald-500/10 text-emerald-600">{name}</span>
-          ))}
-          {/* Team members — each gets a consistent color */}
           {c.teamMembers.map((name, i) => (
             <span key={i} className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${getTeamColor(name)}`}>{name}</span>
           ))}
