@@ -55,6 +55,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
   { name: "timezone", label: "Timezone", category: "identity_contact", dataType: "text", source: "api", relevantStage: "New Lead" },
   { name: "preferred_contact_method", label: "Preferred Contact Method", category: "identity_contact", dataType: "dropdown", options: ["Call", "Text", "Email"], source: "scout", relevantStage: "New Lead" },
   { name: "referral_lead_source", label: "Referral / Lead Source", category: "identity_contact", dataType: "text", source: "api", relevantStage: "New Lead" },
+  { name: "lead_source_detail", label: "Lead Source Detail", category: "identity_contact", dataType: "text", source: "api", relevantStage: "New Lead" },
 
   // ═══════════════════════════════════════
   // 2. BACKGROUND & DEMOGRAPHICS (14)
@@ -83,6 +84,8 @@ export const PROFILE_FIELDS: ProfileField[] = [
   { name: "s_score", label: "S Score", category: "personality_psychology", dataType: "number", source: "api", relevantStage: "Qualified" },
   { name: "c_score", label: "C Score", category: "personality_psychology", dataType: "number", source: "api", relevantStage: "Qualified" },
   { name: "zorakle_fit_score", label: "Zorakle Fit Score", category: "personality_psychology", dataType: "number", source: "api", relevantStage: "Qualified" },
+  { name: "zorakle_values_type", label: "Zorakle Values Type", category: "personality_psychology", dataType: "dropdown", options: ["Achiever", "Societal", "Emulator", "Belonger", "Unknown"], source: "api", relevantStage: "Qualified" },
+  { name: "zorakle_work_style", label: "Zorakle Work Style", category: "personality_psychology", dataType: "dropdown", options: ["Director", "Connector", "Thinker", "Promoter", "Unknown"], source: "api", relevantStage: "Qualified" },
   { name: "risk_tolerance", label: "Risk Tolerance", category: "personality_psychology", dataType: "dropdown", options: ["Low", "Medium", "High"], source: "api", relevantStage: "Qualified" },
   { name: "decision_making_style", label: "Decision-Making Style", category: "personality_psychology", dataType: "dropdown", options: ["Analytical", "Gut", "Consensus"], source: "scout", relevantStage: "Qualified" },
   { name: "coachability_signal", label: "Coachability Signal", category: "personality_psychology", dataType: "text", source: "scout", relevantStage: "Qualified" },
@@ -267,6 +270,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
   // 16. AI SCOUT INTELLIGENCE (16) — expanded from 9
   // ═══════════════════════════════════════
   { name: "Scout Lead Score", label: "Lead Score", category: "ai_scout", dataType: "number", source: "scout", relevantStage: "New Lead" },
+  { name: "Scout Prospect Score", label: "Eclipse Score", category: "ai_scout", dataType: "number", source: "api", relevantStage: "Qualified" },
   { name: "Score Breakdown", label: "Score Detail", category: "ai_scout", dataType: "text", source: "scout", relevantStage: "New Lead" },
   { name: "Engagement Velocity", label: "Velocity", category: "ai_scout", dataType: "dropdown", options: ["Accelerating", "Steady", "Slowing", "Stalled"], source: "scout", relevantStage: "All" },
   { name: "Sentiment Trend", label: "Sentiment", category: "ai_scout", dataType: "dropdown", options: ["Very Positive", "Positive", "Neutral", "Cautious", "Negative"], source: "scout", relevantStage: "All" },
