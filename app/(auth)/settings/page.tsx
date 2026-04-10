@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  Settings, Users, GitBranch, Phone, Zap, Sliders, Bot,
-  CheckCircle2, XCircle, ExternalLink, Database, Shield, Bell, User,
+  Settings, Users, Zap, Sliders, Bot, Database,
+  CheckCircle2, XCircle, ExternalLink, Shield, Bell, User,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import PipelineEditor from "@/components/settings/PipelineEditor";
@@ -28,7 +28,7 @@ interface IntegrationStatus {
   setup?: { checklist: SetupItem[]; complete: number; total: number; ready: boolean };
 }
 
-type SettingsTab = "general" | "users" | "pipelines" | "call-types" | "lead-sources" | "automation" | "app-settings" | "integrations";
+type SettingsTab = "general" | "users" | "data" | "automation" | "app-settings" | "integrations";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -49,9 +49,7 @@ export default function SettingsPage() {
   const TABS: { key: SettingsTab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
     { key: "general", label: "General", icon: Settings },
     { key: "users", label: "Users", icon: Users },
-    { key: "pipelines", label: "Pipelines", icon: GitBranch },
-    { key: "call-types", label: "Call Types", icon: Phone },
-    { key: "lead-sources", label: "Lead Sources", icon: Database },
+    { key: "data", label: "Data Management", icon: Database },
     { key: "automation", label: "Automation", icon: Bot },
     { key: "app-settings", label: "App Settings", icon: Sliders },
     { key: "integrations", label: "Integrations", icon: Zap },
@@ -88,12 +86,14 @@ export default function SettingsPage() {
       {/* Tab content */}
       {activeTab === "users" ? (
         <UsersPanel />
-      ) : activeTab === "pipelines" ? (
-        <PipelineEditor />
-      ) : activeTab === "call-types" ? (
-        <CallTypesRubricEditor />
-      ) : activeTab === "lead-sources" ? (
-        <LeadSourcesPanel />
+      ) : activeTab === "data" ? (
+        <div className="space-y-8">
+          <PipelineEditor />
+          <hr className="border-border-default" />
+          <CallTypesRubricEditor />
+          <hr className="border-border-default" />
+          <LeadSourcesPanel />
+        </div>
       ) : activeTab === "automation" ? (
         <AutomationPanel />
       ) : activeTab === "app-settings" ? (
