@@ -150,17 +150,17 @@ export default function TerritoryCardList({ status, statusFilter, searchQuery }:
                 {card.ms_slug}
               </span>
 
-              {/* Owner — clickable to contact page */}
-              {card.owner_name && card.owner_ghl_contact_id ? (
+              {/* Owner — pill label, clickable to contact page */}
+              {card.owner_name ? (
                 <span
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/leads/${card.owner_ghl_contact_id}`; }}
-                  className="text-caption text-nah-blue font-medium truncate hover:underline cursor-pointer"
+                  onClick={card.owner_ghl_contact_id ? (e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/leads/${card.owner_ghl_contact_id}`; } : undefined}
+                  className={`px-1.5 py-0.5 rounded text-[11px] truncate bg-blue-50 text-blue-600 ${card.owner_ghl_contact_id ? "hover:bg-blue-100 cursor-pointer" : ""}`}
                 >
                   {card.owner_name}
                 </span>
               ) : (
-                <span className="text-caption text-text-tertiary italic truncate">
-                  {card.owner_name ?? "No owner"}
+                <span className="px-1.5 py-0.5 rounded text-[11px] truncate bg-gray-50 text-gray-400">
+                  No owner
                 </span>
               )}
 
