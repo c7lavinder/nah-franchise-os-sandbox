@@ -5,6 +5,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { loadRubricForCallType, determineCallType } from "@/lib/calls/rubric-loader";
 
 export interface GradeResult {
   overallGrade: string;
@@ -81,6 +82,10 @@ export async function gradeCall(callId: string): Promise<GradeResult> {
     }
   }
 
+  // Load KB rubric context for this call type
+  const callTypeSlug = await determineCallType(callId);
+  const rubricContext = await loadRubricForCallType(callTypeSlug);
+
   // Build prompt
   const criteriaBlock = criteria.map((c, i) => {
     let block = `${i + 1}. **${c.name}** (weight: ${c.weight})`;
@@ -105,7 +110,7 @@ CALL CONTEXT:
 
 RUBRIC CRITERIA:
 ${criteriaBlock}
-
+${rubricContext ? `\nKNOWLEDGE BASE RUBRIC GUIDANCE:\n${rubricContext}\n` : ""}
 TRANSCRIPT:
 ${transcript.full_text}
 
