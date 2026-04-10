@@ -67,10 +67,11 @@ interface OwnershipPathProps {
   onStageClick: (stageId: string, stageName: string) => void;
 }
 
-const STORAGE_KEY = "nah-pipeline-collapsed";
+const STORAGE_KEY = "nah-pipeline-expanded";
 const MAX_COLS = 6; // Sales has 6 — all rows align to this grid
 
-function getCollapsedState(): Record<string, boolean> {
+/** Stores which pipelines are EXPANDED. Default (no entry) = collapsed. */
+function getExpandedState(): Record<string, boolean> {
   if (typeof window === "undefined") return {};
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
@@ -79,7 +80,7 @@ function getCollapsedState(): Record<string, boolean> {
   }
 }
 
-function saveCollapsedState(state: Record<string, boolean>) {
+function saveExpandedState(state: Record<string, boolean>) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch { /* silent */ }
@@ -97,7 +98,7 @@ const PIPELINE_TITLES: Record<string, string> = {
 export default function OwnershipPath({ selectedStage, onStageClick }: OwnershipPathProps) {
   const [pipelines, setPipelines] = useState<PipelineAPI[]>([]);
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(getCollapsedState);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(getExpandedState);
 
   const fetchStages = useCallback(async () => {
     try {
@@ -114,10 +115,10 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
     void fetchStages();
   }, [fetchStages]);
 
-  function toggleCollapse(slug: string) {
-    const next = { ...collapsed, [slug]: !collapsed[slug] };
-    setCollapsed(next);
-    saveCollapsedState(next);
+  function toggleExpanded(slug: string) {
+    const next = { ...expanded, [slug]: !expanded[slug] };
+    setExpanded(next);
+    saveExpandedState(next);
   }
 
   if (loading) {
@@ -140,26 +141,26 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
       {ordered.map((pipeline) => {
         const title = PIPELINE_TITLES[pipeline.slug] ?? pipeline.name.toUpperCase();
         const totalCount = pipeline.stages.reduce((sum, s) => sum + s.active_count, 0);
-        const isCollapsed = collapsed[pipeline.slug] ?? false;
+        const isExpanded = expanded[pipeline.slug] ?? false;
 
         return (
           <div key={pipeline.id} className="border border-border-default rounded-lg overflow-hidden">
-            {/* Header — click to collapse */}
+            {/* Header — click to expand/collapse */}
             <button
-              onClick={() => toggleCollapse(pipeline.slug)}
+              onClick={() => toggleExpanded(pipeline.slug)}
               className="w-full flex items-center gap-2 px-3 py-2 bg-bg-secondary hover:bg-bg-hover transition-colors"
             >
-              {isCollapsed ? (
-                <ChevronRight size={12} className="text-text-tertiary flex-shrink-0" />
-              ) : (
+              {isExpanded ? (
                 <ChevronDown size={12} className="text-text-tertiary flex-shrink-0" />
+              ) : (
+                <ChevronRight size={12} className="text-text-tertiary flex-shrink-0" />
               )}
               <span className="text-[10px] font-semibold text-text-tertiary tracking-wider">{title}</span>
               <span className="text-[10px] text-text-tertiary">({totalCount})</span>
             </button>
 
             {/* Stage circles */}
-            {!isCollapsed && (
+            {isExpanded && (
               <div className="px-3 py-3">
                 <div className="relative">
                   {/* Connection line */}
