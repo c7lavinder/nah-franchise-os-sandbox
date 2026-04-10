@@ -28,12 +28,12 @@ interface NavItem {
   roles: UserRole[];
 }
 
-/** Main nav — core pages only. Dashboard + Workflows moved to user pullout per §1.12 */
+/** Main nav — core pages, visible to all authenticated roles */
 const NAV_ITEMS: NavItem[] = [
-  { label: "Scout AI", href: "/scout", icon: Bot, roles: ["rep", "leadership"] },
-  { label: "Daily HQ", href: "/daily-hq", icon: LayoutDashboard, roles: ["rep", "leadership"] },
-  { label: "Pipeline", href: "/pipeline", icon: GitBranch, roles: ["rep", "leadership"] },
-  { label: "Calls", href: "/calls", icon: Phone, roles: ["rep", "leadership"] },
+  { label: "Scout AI", href: "/scout", icon: Bot, roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"] },
+  { label: "Daily HQ", href: "/daily-hq", icon: LayoutDashboard, roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"] },
+  { label: "Pipeline", href: "/pipeline", icon: GitBranch, roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"] },
+  { label: "Calls", href: "/calls", icon: Phone, roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"] },
 ];
 
 interface SidebarProps {
@@ -140,7 +140,7 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
             </div>
             <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap flex-1 text-left">
               <p className="text-sm font-semibold text-text-primary">{user?.fullName ?? "User"}</p>
-              <p className="text-xs text-text-secondary">{user?.role === "leadership" ? "Admin" : (user?.role ?? "rep")}</p>
+              <p className="text-xs text-text-secondary capitalize">{user?.role === "leadership" || user?.role === "admin" ? "Admin" : (user?.role ?? "rep")}</p>
             </div>
             <ChevronUp
               size={14}

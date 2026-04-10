@@ -43,7 +43,7 @@ interface Pipeline {
 
 export default function PipelineEditor() {
   const { user, token } = useAuth();
-  const isAdmin = user?.role === "leadership";
+  const isAdmin = user?.role === "leadership" || user?.role === "admin";
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);

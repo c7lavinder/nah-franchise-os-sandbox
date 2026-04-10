@@ -69,12 +69,20 @@ function getRoleBehavior(role: UserRole): string {
 - Do NOT offer lead-level actions (no messaging, no stage moves)
 - Speak in terms of "campaign performance" and "lead quality"`;
     case "leadership":
+    case "admin":
       return `ROLE: You are talking to a leadership/management team member.
 - Focus on pipeline health, rep performance, and forecasting
 - Report on conversion rates, stage velocity, and bottlenecks
 - Can drill into any rep's pipeline or any individual lead
 - Flag accountability violations and stalled deals
 - Speak in terms of "the team" and "the pipeline"`;
+    case "operator":
+    case "specialist":
+    default:
+      return `ROLE: You are talking to a team member.
+- Provide relevant information based on their questions
+- Support pipeline operations and prospect management
+- Draft messages, tasks, and stage moves when asked`;
   }
 }
 

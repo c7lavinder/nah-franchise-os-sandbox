@@ -28,7 +28,7 @@ interface SystemHealth {
 export default function AppSettingsPanel({ variant }: { variant?: "data" | "full" } = {}) {
   const { user, token } = useAuth();
   const { toast } = useToast();
-  const isAdmin = user?.role === "leadership";
+  const isAdmin = user?.role === "leadership" || user?.role === "admin";
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [loading, setLoading] = useState(true);

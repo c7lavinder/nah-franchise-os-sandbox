@@ -27,7 +27,7 @@ interface CallType {
 
 export default function CallTypesRubricEditor() {
   const { user, token } = useAuth();
-  const isAdmin = user?.role === "leadership";
+  const isAdmin = user?.role === "leadership" || user?.role === "admin";
   const [callTypes, setCallTypes] = useState<CallType[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
