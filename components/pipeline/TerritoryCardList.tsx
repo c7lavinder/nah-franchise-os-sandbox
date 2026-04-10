@@ -16,18 +16,18 @@ interface TerritoryCard {
   pipeline_slug: string | null;
 }
 
-/** Label colors matching pipeline circle gradients: red → orange → yellow → green */
+/** Label colors matching pipeline circle gradients */
 const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
   // Onboarding
-  setup:              { bg: "bg-red-100", text: "text-red-700" },
-  training:           { bg: "bg-orange-100", text: "text-orange-700" },
-  "launch-prep":      { bg: "bg-yellow-100", text: "text-yellow-700" },
-  onboarded:          { bg: "bg-green-100", text: "text-green-700" },
+  setup:              { bg: "bg-rose-50", text: "text-rose-600" },
+  training:           { bg: "bg-orange-50", text: "text-orange-600" },
+  "launch-prep":      { bg: "bg-yellow-50", text: "text-yellow-600" },
+  onboarded:          { bg: "bg-green-50", text: "text-green-600" },
   // Runway
-  "first-offer":      { bg: "bg-red-100", text: "text-red-700" },
-  "first-purchase":   { bg: "bg-orange-100", text: "text-orange-700" },
-  "inventory-building": { bg: "bg-yellow-100", text: "text-yellow-700" },
-  running:            { bg: "bg-green-100", text: "text-green-700" },
+  "first-offer":      { bg: "bg-rose-50", text: "text-rose-600" },
+  "first-purchase":   { bg: "bg-orange-50", text: "text-orange-600" },
+  "inventory-building": { bg: "bg-yellow-50", text: "text-yellow-600" },
+  running:            { bg: "bg-green-50", text: "text-green-600" },
 };
 
 interface Props {

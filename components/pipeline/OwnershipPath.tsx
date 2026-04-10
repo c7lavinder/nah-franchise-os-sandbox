@@ -18,35 +18,35 @@ import {
 } from "lucide-react";
 
 /** Stage metadata: slug → icon + gradient
- *  Color scheme: red (left/early) → orange → yellow → green (right/complete)
- *  Applied consistently across all pipelines.
+ *  Wave-style flow: warm coral → peach-orange → golden → yellow-green → fresh green
+ *  Each circle blends into the next for a smooth gradient wave across the row.
  */
 const STAGE_META: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; gradient: string }> = {
-  // Sales (6 stages: red → orange → amber → yellow → lime → green)
-  engagement:    { icon: Users,          gradient: "from-red-500 to-red-600" },
-  qualification: { icon: Search,         gradient: "from-orange-500 to-orange-600" },
-  discovery:     { icon: Phone,          gradient: "from-amber-500 to-amber-600" },
-  compliance:    { icon: Shield,         gradient: "from-yellow-500 to-yellow-600" },
-  awarding:      { icon: Award,          gradient: "from-lime-500 to-lime-600" },
-  closed:        { icon: Trophy,         gradient: "from-green-500 to-green-600" },
-  // Onboarding (4 stages: red → orange → yellow → green)
-  setup:         { icon: Settings,       gradient: "from-red-500 to-red-600" },
-  training:      { icon: BookOpen,       gradient: "from-orange-500 to-orange-600" },
-  "launch-prep": { icon: Rocket,         gradient: "from-yellow-500 to-yellow-600" },
-  onboarded:     { icon: CheckCircle2,   gradient: "from-green-500 to-green-600" },
-  // Runway (4 stages: red → orange → yellow → green)
-  "first-offer":        { icon: Search,  gradient: "from-red-500 to-red-600" },
-  "first-purchase":     { icon: Award,   gradient: "from-orange-500 to-orange-600" },
-  "inventory-building": { icon: Rocket,  gradient: "from-yellow-500 to-yellow-600" },
-  running:              { icon: Trophy,  gradient: "from-green-500 to-green-600" },
-  // Territories (3 stages: red → yellow → green)  Order: Inactive → Available → Active
-  inactive:  { icon: UserMinus,    gradient: "from-red-500 to-red-600" },
-  available: { icon: UserPlus,     gradient: "from-yellow-500 to-yellow-600" },
-  active:    { icon: CheckCircle2, gradient: "from-green-500 to-green-600" },
-  // Follow-up (3 stages: red → yellow → green)  Order: Nurture → Follow-up → Re-engaged
-  nurture:   { icon: UserMinus,      gradient: "from-red-500 to-red-600" },
-  followup:  { icon: PhoneForwarded, gradient: "from-yellow-500 to-yellow-600" },
-  reengaged: { icon: UserPlus,       gradient: "from-green-500 to-green-600" },
+  // Sales (6 stages — tight wave)
+  engagement:    { icon: Users,          gradient: "from-[#e87461] to-[#e8956a]" },
+  qualification: { icon: Search,         gradient: "from-[#e8956a] to-[#e8b468]" },
+  discovery:     { icon: Phone,          gradient: "from-[#e8b468] to-[#d4c456]" },
+  compliance:    { icon: Shield,         gradient: "from-[#d4c456] to-[#a8c94a]" },
+  awarding:      { icon: Award,          gradient: "from-[#a8c94a] to-[#6dba5e]" },
+  closed:        { icon: Trophy,         gradient: "from-[#6dba5e] to-[#4aad6b]" },
+  // Onboarding (4 stages — wider wave steps)
+  setup:         { icon: Settings,       gradient: "from-[#e87461] to-[#e8956a]" },
+  training:      { icon: BookOpen,       gradient: "from-[#e8a065] to-[#d4b855]" },
+  "launch-prep": { icon: Rocket,         gradient: "from-[#c4c44e] to-[#8ec758]" },
+  onboarded:     { icon: CheckCircle2,   gradient: "from-[#6dba5e] to-[#4aad6b]" },
+  // Runway (4 stages)
+  "first-offer":        { icon: Search,  gradient: "from-[#e87461] to-[#e8956a]" },
+  "first-purchase":     { icon: Award,   gradient: "from-[#e8a065] to-[#d4b855]" },
+  "inventory-building": { icon: Rocket,  gradient: "from-[#c4c44e] to-[#8ec758]" },
+  running:              { icon: Trophy,  gradient: "from-[#6dba5e] to-[#4aad6b]" },
+  // Territories (3 stages: Inactive → Available → Active)
+  inactive:  { icon: UserMinus,    gradient: "from-[#e87461] to-[#e8956a]" },
+  available: { icon: UserPlus,     gradient: "from-[#d4b855] to-[#b8c84e]" },
+  active:    { icon: CheckCircle2, gradient: "from-[#6dba5e] to-[#4aad6b]" },
+  // Follow-up (3 stages: Nurture → Follow-up → Re-engaged)
+  nurture:   { icon: UserMinus,      gradient: "from-[#e87461] to-[#e8956a]" },
+  followup:  { icon: PhoneForwarded, gradient: "from-[#d4b855] to-[#b8c84e]" },
+  reengaged: { icon: UserPlus,       gradient: "from-[#6dba5e] to-[#4aad6b]" },
 };
 
 interface StageAPI {
