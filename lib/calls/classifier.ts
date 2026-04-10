@@ -46,7 +46,8 @@ export interface ReadAIActionItem {
 
 export interface ReadAITranscriptTurn {
   speaker?: { name?: string; email?: string };
-  text: string;
+  text?: string;
+  words?: string;
   start_time?: number;
   end_time?: number;
 }
@@ -59,7 +60,7 @@ export interface ReadAIWebhookPayload {
   platform?: string;
   owner?: { email?: string; name?: string };
   participants?: ReadAIParticipant[];
-  transcript?: { turns?: ReadAITranscriptTurn[] };
+  transcript?: { turns?: ReadAITranscriptTurn[]; speaker_blocks?: ReadAITranscriptTurn[] };
   summary?: string;
   action_items?: ReadAIActionItem[];
   metrics?: {
@@ -229,8 +230,10 @@ export async function classifyCall(
 export function formatTranscript(
   transcript: ReadAIWebhookPayload["transcript"]
 ): string {
-  if (!transcript?.turns) return "";
-  return transcript.turns
-    .map((t) => `[${t.speaker?.name ?? "Unknown"}]: ${t.text}`)
+  // Read.ai sends speaker_blocks; our test payloads used turns
+  const blocks = transcript?.speaker_blocks ?? transcript?.turns;
+  if (!blocks?.length) return "";
+  return blocks
+    .map((t) => `[${t.speaker?.name ?? "Unknown"}]: ${t.words ?? t.text ?? ""}`)
     .join("\n");
 }

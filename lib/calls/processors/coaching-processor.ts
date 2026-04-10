@@ -4,8 +4,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
-import { formatTranscript, isNAHTeamEmail } from "../classifier";
-import { handleDuplicateFieldSuggestion } from "@/lib/scout-learning";
+import { formatTranscript } from "../classifier";
 
 export async function processCoachingCall(
   payload: ReadAIWebhookPayload,
@@ -49,8 +48,6 @@ export async function processCoachingCall(
         ? Math.round((new Date(payload.end_time).getTime() - new Date(payload.start_time).getTime()) / 1000)
         : null,
       raw_transcript: formatTranscript(payload.transcript),
-      summary: payload.summary ?? null,
-      action_items: payload.action_items ?? null,
       source: "read_ai",
       status: "completed",
       hosted_by_user_id: classified.coach_user_id,
@@ -67,7 +64,8 @@ export async function processCoachingCall(
     .eq("session_id", payload.session_id);
 
   // 5. Store transcript
-  if (payload.transcript?.turns?.length) {
+  const hasTranscript = (payload.transcript?.speaker_blocks?.length ?? 0) > 0 || (payload.transcript?.turns?.length ?? 0) > 0;
+  if (hasTranscript) {
     await supabase.from("call_transcripts").insert({
       call_id: callRecord.id,
       source: "read_ai",
@@ -87,24 +85,4 @@ export async function processCoachingCall(
     // Non-critical
   }
 
-  // 7. Extract franchisee action items as territory suggestions
-  if (payload.action_items?.length) {
-    const franchiseeItems = payload.action_items
-      .filter((item) => !isNAHTeamEmail(item.assignee_email))
-      .map((item) => item.text)
-      .join(" · ");
-
-    if (franchiseeItems) {
-      await handleDuplicateFieldSuggestion({
-        territory_ms_slug: classified.territory_ms_slug,
-        field_name: "coaching_action_items",
-        field_table: "territory_profile",
-        suggested_value: franchiseeItems,
-        source: "call",
-        source_id: `call-${callRecord.id}`,
-        evidence: "From Read.ai coaching call action items",
-        confidence: "high",
-      });
-    }
-  }
 }

@@ -25,8 +25,6 @@ export async function processGroupCall(
         ? Math.round((new Date(payload.end_time).getTime() - new Date(payload.start_time).getTime()) / 1000)
         : null,
       raw_transcript: formatTranscript(payload.transcript),
-      summary: payload.summary ?? null,
-      action_items: payload.action_items ?? null,
       source: "read_ai",
       status: "completed",
       participant_count: payload.participants?.length ?? 0,
@@ -44,7 +42,8 @@ export async function processGroupCall(
     .eq("session_id", payload.session_id);
 
   // 3. Store transcript
-  if (payload.transcript?.turns?.length) {
+  const hasTranscript = (payload.transcript?.speaker_blocks?.length ?? 0) > 0 || (payload.transcript?.turns?.length ?? 0) > 0;
+  if (hasTranscript) {
     await supabase.from("call_transcripts").insert({
       call_id: callRecord.id,
       source: "read_ai",
@@ -53,21 +52,7 @@ export async function processGroupCall(
     });
   }
 
-  // 4. Create pending_review KB document from summary
-  if (payload.summary) {
-    const tokenCount = Math.ceil(payload.summary.length / 4);
-    await supabase.from("knowledge_documents").insert({
-      title: `Group Call: ${payload.title ?? "Untitled"} — ${new Date(payload.start_time ?? Date.now()).toLocaleDateString()}`,
-      category: "coaching",
-      content: payload.summary,
-      is_active: true,
-      priority: 3,
-      token_count: tokenCount,
-      status: "pending_review",
-    });
-  }
-
-  // 5. Trigger review pipeline (for coaching tab content)
+  // 4. Trigger review pipeline (Scout will analyze transcript)
   try {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     await fetch(`${appUrl}/api/calls/${callRecord.id}/review-package`, {
