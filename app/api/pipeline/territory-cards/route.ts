@@ -57,8 +57,47 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Get pipeline stages for territory owners (onboarding + runway)
+  const ownerGhlIds = [...ownerMap.values()].map((o) => o.ghlContactId).filter(Boolean) as string[];
+  const stageMap = new Map<string, { stageName: string; stageSlug: string; pipelineSlug: string }>();
+
+  if (ownerGhlIds.length > 0) {
+    // Get contact IDs from ghl_contact_ids
+    const { data: contactRows } = await supabase
+      .from("contacts")
+      .select("id, ghl_contact_id")
+      .in("ghl_contact_id", ownerGhlIds);
+
+    const ghlToId = new Map<string, string>();
+    for (const c of contactRows ?? []) ghlToId.set(c.ghl_contact_id, c.id);
+
+    const contactIds = [...ghlToId.values()];
+    if (contactIds.length > 0) {
+      const { data: pipelineStates } = await supabase
+        .from("contact_pipeline_state")
+        .select("contact_id, pipeline_stages (slug, name), pipelines (slug)")
+        .eq("is_active", true)
+        .in("contact_id", contactIds);
+
+      for (const ps of pipelineStates ?? []) {
+        const pSlug = (ps.pipelines as unknown as { slug: string } | null)?.slug;
+        const stage = ps.pipeline_stages as unknown as { slug: string; name: string } | null;
+        if ((pSlug === "onboarding" || pSlug === "runway") && stage) {
+          // Find the ghl_contact_id for this contact_id
+          for (const [ghl, cid] of ghlToId.entries()) {
+            if (cid === ps.contact_id) {
+              stageMap.set(ghl, { stageName: stage.name, stageSlug: stage.slug, pipelineSlug: pSlug });
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
   const cards = (territories ?? []).map((t) => {
     const owner = ownerMap.get(t.ms_slug);
+    const pipelineStage = owner?.ghlContactId ? stageMap.get(owner.ghlContactId) : null;
     return {
       ms_slug: t.ms_slug,
       territory_name: t.territory_name,
@@ -66,6 +105,9 @@ export async function GET(request: NextRequest) {
       owner_name: owner?.name ?? null,
       owner_ghl_contact_id: owner?.ghlContactId ?? null,
       awarded_date: t.awarded_date,
+      stage_name: pipelineStage?.stageName ?? null,
+      stage_slug: pipelineStage?.stageSlug ?? null,
+      pipeline_slug: pipelineStage?.pipelineSlug ?? null,
     };
   });
 

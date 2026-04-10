@@ -11,7 +11,22 @@ interface TerritoryCard {
   owner_name: string | null;
   owner_ghl_contact_id: string | null;
   awarded_date: string | null;
+  stage_name: string | null;
+  stage_slug: string | null;
+  pipeline_slug: string | null;
 }
+
+/** Stage slug → color matching pipeline circle icons */
+const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
+  setup:              { bg: "bg-emerald-100", text: "text-emerald-700" },
+  training:           { bg: "bg-green-100", text: "text-green-700" },
+  "launch-prep":      { bg: "bg-lime-100", text: "text-lime-700" },
+  onboarded:          { bg: "bg-yellow-100", text: "text-yellow-700" },
+  "first-offer":      { bg: "bg-orange-100", text: "text-orange-700" },
+  "first-purchase":   { bg: "bg-amber-100", text: "text-amber-700" },
+  "inventory-building": { bg: "bg-yellow-100", text: "text-yellow-700" },
+  running:            { bg: "bg-green-100", text: "text-green-700" },
+};
 
 interface Props {
   status?: string;
@@ -125,6 +140,8 @@ export default function TerritoryCardList({ status, statusFilter, searchQuery }:
         {visible.map((card, i) => {
           const st = STATUS_STYLES[card.status] ?? { label: card.status, bgColor: "bg-[#f5f5f5]", color: "text-[#757575]" };
 
+          const sc = card.stage_slug ? (STAGE_COLORS[card.stage_slug] ?? { bg: "bg-gray-100", text: "text-gray-600" }) : null;
+
           return (
             <Link
               key={card.ms_slug}
@@ -135,9 +152,10 @@ export default function TerritoryCardList({ status, statusFilter, searchQuery }:
                 ${i < visible.length - 1 ? "border-b border-border-default" : ""}
               `}
             >
-              {/* Name */}
+              {/* Name + slug */}
               <p className="text-body-sm text-text-primary font-medium truncate min-w-0">
                 {card.territory_name}
+                <span className="text-[10px] text-text-tertiary font-mono font-normal ml-1.5">{card.ms_slug}</span>
               </p>
 
               {/* Status badge */}
@@ -145,10 +163,16 @@ export default function TerritoryCardList({ status, statusFilter, searchQuery }:
                 {st.label}
               </span>
 
-              {/* Slug */}
-              <span className="text-caption text-text-tertiary truncate font-mono">
-                {card.ms_slug}
-              </span>
+              {/* Pipeline stage — colored label */}
+              {sc && card.stage_name ? (
+                <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate ${sc.bg} ${sc.text}`}>
+                  {card.stage_name}
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded text-[11px] font-medium truncate bg-gray-50 text-gray-400">
+                  —
+                </span>
+              )}
 
               {/* Owner — pill label, clickable to contact page */}
               {card.owner_name ? (
