@@ -5,7 +5,6 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase/server";
-import { handleDuplicateFieldSuggestion } from "@/lib/scout-learning";
 
 const AGENT_MODEL = "claude-haiku-4-5-20251001";
 
@@ -54,18 +53,19 @@ Respond with ONLY valid JSON:
 
     const parsed = JSON.parse(jsonMatch[0]) as { signal: ReengagementSignal; reason: string };
 
-    if (parsed.signal === "re-engage-now") {
-      await handleDuplicateFieldSuggestion({
-        contact_id: ghlContactId,
-        field_name: "reengagement_signal",
-        field_table: "contact_profile_fields",
-        suggested_value: `Re-engage: ${parsed.reason}`,
-        source: "agent_research",
-        source_id: `reengagement-${ghlContactId}`,
-        evidence: parsed.reason,
-        confidence: "medium",
-      });
-    }
+    // Write to contact_scores (upsert on unique type)
+    await supabase.from("contact_scores").upsert(
+      {
+        ghl_contact_id: ghlContactId,
+        score_type: "reengagement",
+        score_value: parsed.signal,
+        reason: parsed.reason,
+        confidence: parsed.signal === "re-engage-now" ? "high" : "medium",
+        source: "agent",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "ghl_contact_id,score_type" }
+    );
 
     await supabase.from("integration_logs").insert({
       integration_name: "reengagement-signal",

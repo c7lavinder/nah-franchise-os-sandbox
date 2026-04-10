@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
+import { syncStageToGHL } from "@/lib/ghl/stage-sync";
 
 export async function POST(
   request: NextRequest,
@@ -103,6 +104,23 @@ export async function POST(
       was_revert: false,
       was_auto: false,
     });
+
+    // GHL write-back: sync stage to GHL custom field (fire-and-forget)
+    const { data: pipeline } = await supabase
+      .from("pipelines")
+      .select("slug")
+      .eq("id", pipelineId)
+      .single();
+
+    const { data: nextStageDef } = await supabase
+      .from("pipeline_stages")
+      .select("slug")
+      .eq("id", nextStage.id)
+      .single();
+
+    if (pipeline?.slug && nextStageDef?.slug) {
+      void syncStageToGHL(localContactId, pipeline.slug, nextStageDef.slug);
+    }
 
     // §1.13: if terminal stage with auto_spawn, create new pipeline entry
     if (nextStage.is_terminal && nextStage.auto_spawn_pipeline_id) {

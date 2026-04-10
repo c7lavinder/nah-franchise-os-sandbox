@@ -17,6 +17,7 @@ import StageDrilldownInline from "@/components/contact/StageDrilldownInline";
 import { TerritoryDetailsCard, DealDetailsCard } from "@/components/contact/TerritoryDealCards";
 import RelatedPeopleCard from "@/components/contact/RelatedPeopleCard";
 import TeamCard from "@/components/contact/TeamCard";
+import TerritoryOwnershipSection from "@/components/contact/TerritoryOwnershipSection";
 import { capitalizeName, formatPhone } from "@/lib/format/contact";
 import { useToast } from "@/components/ui/Toast";
 import type { SubTaskLog, StageHistoryEntry } from "@/lib/contacts/pipeline-state";
@@ -230,6 +231,7 @@ export default function LeadProfilePage() {
                 <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
                   <TeamCard contactId={contactId} />
                 </div>
+                <TerritoryOwnershipSection contactId={contactId} ghlContactId={contact?.id} />
               </div>
               {/* RIGHT — Graded Calls, Tasks, Notes, Comms */}
               <div className="lg:col-span-2 space-y-4">

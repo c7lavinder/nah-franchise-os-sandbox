@@ -38,6 +38,17 @@ const BI_PATTERNS = [
   /what.*pattern/i,
   /stalled?\s+(deals|leads)/i,
   /closing\s+rate/i,
+  // Marketing intelligence patterns
+  /lead\s+source/i,
+  /marketing\s+(performance|spend|roi|cost)/i,
+  /campaign\s+(performance|results|roi)/i,
+  /cost\s+per\s+(lead|acquisition)/i,
+  /where\s+are\s+(leads|prospects)\s+coming\s+from/i,
+  /which\s+(channel|campaign|ad|source)/i,
+  /acquisition\s+(cost|channel)/i,
+  /referral\s+(source|rate|performance)/i,
+  /organic\s+vs/i,
+  /paid\s+vs/i,
 ];
 
 const BRIEF_PATTERNS = [

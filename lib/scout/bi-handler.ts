@@ -15,6 +15,9 @@ interface BIContext {
   recentStageChanges: number;
   avgDaysInStage: number | null;
   topObjections: Array<{ field: string; count: number }>;
+  leadSourceCounts: Record<string, number>;
+  activeTerritories: number;
+  newLeadsThisMonth: number;
 }
 
 /**
@@ -65,12 +68,40 @@ async function gatherBIContext(): Promise<BIContext> {
     avgDays = Math.round(totalDays / stateRows.length);
   }
 
+  // Lead source distribution
+  const { data: sourceRows } = await supabase
+    .from("contacts")
+    .select("opportunity_source")
+    .not("opportunity_source", "is", null);
+
+  const leadSourceCounts: Record<string, number> = {};
+  for (const row of sourceRows ?? []) {
+    const src = row.opportunity_source ?? "Unknown";
+    leadSourceCounts[src] = (leadSourceCounts[src] ?? 0) + 1;
+  }
+
+  // Active territories
+  const { count: activeTerritories } = await supabase
+    .from("territories")
+    .select("ms_slug", { count: "exact", head: true })
+    .eq("status", "active");
+
+  // New leads this month
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const { count: newLeadsThisMonth } = await supabase
+    .from("contacts")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", monthStart);
+
   return {
     totalContacts: totalContacts ?? 0,
     salesPipelineCounts,
     recentStageChanges: recentChanges ?? 0,
     avgDaysInStage: avgDays,
     topObjections: [],
+    leadSourceCounts,
+    activeTerritories: activeTerritories ?? 0,
+    newLeadsThisMonth: newLeadsThisMonth ?? 0,
   };
 }
 
@@ -109,6 +140,9 @@ AVAILABLE DATA:
 - Pipeline stage distribution: ${JSON.stringify(biContext.salesPipelineCounts)}
 - Stage changes (last 7 days): ${biContext.recentStageChanges}
 - Average days in current stage: ${biContext.avgDaysInStage ?? "Unknown"}
+- Lead source distribution: ${JSON.stringify(biContext.leadSourceCounts)}
+- Active territories: ${biContext.activeTerritories}
+- New leads this month: ${biContext.newLeadsThisMonth}
 
 RULES:
 - Answer with specific numbers from the data

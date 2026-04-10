@@ -6,6 +6,7 @@ import type { GHLConversation, GHLAppointment, GHLTask } from "@/types/ghl";
 import { ConversationList, ConversationThread, InboxFilters } from "@/components/inbox";
 import { TodayCalendar, TaskPanel } from "@/components/daily-hq";
 import { QuickAsk } from "@/components/scout";
+import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 /**
@@ -107,17 +108,19 @@ export default function DailyHQPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-48px)]">
-      {/* Header */}
-      <div className="flex items-center gap-3 py-4 flex-shrink-0">
-        <h1 className="font-headline text-page-title text-text-primary flex-shrink-0">Daily HQ</h1>
-        {unreadCount > 0 && (
-          <span className="badge badge-hot flex-shrink-0">
-            {unreadCount} unread
-          </span>
-        )}
-        <div className="flex-1 min-w-0">
-          <QuickAsk />
+      {/* Scout bar + Scorecards */}
+      <div className="py-4 flex-shrink-0 space-y-3">
+        <div className="flex items-center gap-3">
+          {unreadCount > 0 && (
+            <span className="badge badge-hot flex-shrink-0">
+              {unreadCount} unread
+            </span>
+          )}
+          <div className="flex-1 min-w-0">
+            <QuickAsk />
+          </div>
         </div>
+        <ScoreCardRow page="daily-hq" />
       </div>
 
       {/* Main content: Inbox (60%) + Right Panel (40%) */}

@@ -9,6 +9,7 @@ import {
   GitBranch,
   Phone,
   Workflow,
+  FileSignature,
   BookOpen,
   Settings,
   LogOut,
@@ -78,14 +79,16 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
             height={36}
             className="block group-hover:hidden flex-shrink-0"
           />
-          <Image
-            src="/images/nah-logo.svg"
-            alt="New Again Houses"
-            width={170}
-            height={44}
-            className="hidden group-hover:block"
-            style={{ objectFit: "contain" }}
-          />
+          <div className="hidden group-hover:flex items-center gap-2">
+            <Image
+              src="/images/nah-logo.svg"
+              alt="New Again Houses"
+              width={170}
+              height={44}
+              style={{ objectFit: "contain" }}
+            />
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-nah-orange/15 text-nah-orange tracking-wider">BETA</span>
+          </div>
         </div>
 
         {/* Nav items */}
@@ -155,6 +158,12 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
               <div className="flex items-center gap-3 px-4 py-3 text-text-tertiary cursor-not-allowed">
                 <Workflow size={16} />
                 <span className="text-sm font-medium">Workflows</span>
+                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-text-tertiary/10 text-text-tertiary">Soon</span>
+              </div>
+              {/* Signing Software — Coming Soon placeholder */}
+              <div className="flex items-center gap-3 px-4 py-3 text-text-tertiary cursor-not-allowed">
+                <FileSignature size={16} />
+                <span className="text-sm font-medium">Signing</span>
                 <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-text-tertiary/10 text-text-tertiary">Soon</span>
               </div>
               <div style={{ borderTop: "1px solid rgba(0,0,0,0.04)" }} />

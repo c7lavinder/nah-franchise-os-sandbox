@@ -4,6 +4,7 @@ import { useState } from "react";
 import { OwnershipPath, PipelineFilters } from "@/components/pipeline";
 import PipelineLeadList from "@/components/pipeline/PipelineLeadList";
 import TerritoryCardList from "@/components/pipeline/TerritoryCardList";
+import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
 
 /**
  * Pipeline Page — Sprint 3 Rewire
@@ -35,10 +36,8 @@ export default function PipelinePage() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <h1 className="font-headline text-page-title text-text-primary">Pipeline</h1>
-      </div>
+      {/* Scorecards */}
+      <ScoreCardRow page="pipeline" />
 
       {/* Filters */}
       <PipelineFilters

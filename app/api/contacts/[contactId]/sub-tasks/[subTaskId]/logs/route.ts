@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
+import { checkAutoAdvance } from "@/lib/contacts/auto-advance";
 
 interface LogBody {
   contentType: string;
@@ -160,6 +161,19 @@ export async function POST(
           current_sub_task_started_at: new Date().toISOString(),
         })
         .eq("id", pipelineState.id);
+
+      // If no more required sub-tasks remain, check auto-advance
+      if (!nextSubTaskId) {
+        const autoResult = await checkAutoAdvance(pipelineState.id, pipelineState.current_stage_id);
+        if (autoResult.advanced) {
+          return NextResponse.json({
+            logId: newLog.id,
+            success: true,
+            autoAdvanced: true,
+            newStageId: autoResult.newStageId,
+          });
+        }
+      }
     }
 
     return NextResponse.json({ logId: newLog.id, success: true });

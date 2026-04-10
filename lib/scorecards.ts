@@ -1,0 +1,212 @@
+/**
+ * Scorecard data fetchers for Daily HQ, Calls, and Pipeline pages.
+ *
+ * Week = Monday 00:00 through Sunday 23:59 of CURRENT calendar week.
+ */
+
+import { createServerClient } from "@/lib/supabase/server";
+
+export function getWeekBounds(): { start: Date; end: Date } {
+  const now = new Date();
+  const day = now.getDay();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((day + 6) % 7));
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return { start: monday, end: sunday };
+}
+
+// ─────────────────────────────────────────────
+// DAILY HQ SCORECARDS
+// ─────────────────────────────────────────────
+
+export async function getDailyHQScorecard() {
+  const supabase = createServerClient();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  // New Prospects: first-time Sales pipeline entries in last 30 days
+  const { data: recentEntries } = await supabase
+    .from("pipeline_stage_history")
+    .select("contact_id, created_at")
+    .gte("created_at", thirtyDaysAgo)
+    .order("created_at", { ascending: true });
+
+  // Filter to first-time only (no prior history before 30 days ago)
+  const firstTimers = new Set<string>();
+  const seenBefore = new Set<string>();
+  for (const entry of recentEntries ?? []) {
+    if (!seenBefore.has(entry.contact_id)) {
+      // Check if this contact had any history before 30 days ago
+      const { count } = await supabase
+        .from("pipeline_stage_history")
+        .select("id", { count: "exact", head: true })
+        .eq("contact_id", entry.contact_id)
+        .lt("created_at", thirtyDaysAgo);
+      if ((count ?? 0) === 0) firstTimers.add(entry.contact_id);
+      seenBefore.add(entry.contact_id);
+    }
+  }
+
+  // Active Franchisees
+  const { count: activeFranchisees } = await supabase
+    .from("territories")
+    .select("ms_slug", { count: "exact", head: true })
+    .eq("status", "active");
+
+  // High Performers: territories with 10+ houses in trailing 12 months
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+  const currentYear = new Date().getFullYear();
+  const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3);
+
+  const { data: grades } = await supabase
+    .from("territory_grades")
+    .select("ms_slug, houses_purchased")
+    .gte("year", currentYear - 1);
+
+  const housesByTerritory: Record<string, number> = {};
+  for (const g of grades ?? []) {
+    housesByTerritory[g.ms_slug] = (housesByTerritory[g.ms_slug] ?? 0) + (g.houses_purchased ?? 0);
+  }
+  const highPerformers = Object.values(housesByTerritory).filter((h) => h >= 10).length;
+
+  return {
+    newProspects: { value: firstTimers.size, label: "New Prospects", sub: "last 30 days" },
+    activeFranchisees: { value: activeFranchisees ?? 0, goal: 250, label: "Active Franchisees", sub: "of 250 goal" },
+    highPerformers: { value: highPerformers, goal: 100, label: "High Performers", sub: "10+ houses last 12 months" },
+  };
+}
+
+// ─────────────────────────────────────────────
+// CALLS PAGE SCORECARDS
+// ─────────────────────────────────────────────
+
+const CALL_SUB_TASK_SLUGS = [
+  "intro_call", "intro-call",
+  "matt_call", "matt-call",
+  "sam_call", "sam-call",
+  "mark_call", "mark-call",
+  "fdd_review_call", "fdd-review-call",
+  "territory_call", "territory-call",
+  "matt_final_call", "matt-final-call",
+];
+
+export async function getCallsScorecard() {
+  const supabase = createServerClient();
+  const { start, end } = getWeekBounds();
+
+  // Get call-type sub-task IDs
+  const { data: callSubTasks } = await supabase
+    .from("pipeline_sub_tasks")
+    .select("id, slug")
+    .in("slug", CALL_SUB_TASK_SLUGS);
+
+  const callSubTaskIds = (callSubTasks ?? []).map((s) => s.id);
+
+  // Calls completed this week (second state = completed)
+  const { count: callsCompleted } = await supabase
+    .from("contact_sub_task_logs")
+    .select("id", { count: "exact", head: true })
+    .in("sub_task_id", callSubTaskIds.length > 0 ? callSubTaskIds : ["__none__"])
+    .eq("content_type", "second_state")
+    .gte("created_at", start.toISOString())
+    .lte("created_at", end.toISOString())
+    .is("deleted_at", null);
+
+  // Calls scheduled this week (first state = scheduled)
+  const { count: callsScheduled } = await supabase
+    .from("contact_sub_task_logs")
+    .select("id", { count: "exact", head: true })
+    .in("sub_task_id", callSubTaskIds.length > 0 ? callSubTaskIds : ["__none__"])
+    .eq("content_type", "first_state")
+    .gte("created_at", start.toISOString())
+    .lte("created_at", end.toISOString())
+    .is("deleted_at", null);
+
+  // Avg call score this week
+  const { data: grades } = await supabase
+    .from("call_review_packages")
+    .select("grade")
+    .gte("created_at", start.toISOString())
+    .lte("created_at", end.toISOString())
+    .not("grade", "is", null);
+
+  let avgScore: string | null = null;
+  if (grades && grades.length > 0) {
+    const gradeMap: Record<string, number> = { A: 95, B: 85, C: 75, D: 65, F: 50 };
+    const total = grades.reduce((s, g) => s + (gradeMap[g.grade] ?? 0), 0);
+    const avg = Math.round(total / grades.length);
+    // Convert back to letter
+    if (avg >= 90) avgScore = "A";
+    else if (avg >= 80) avgScore = "B";
+    else if (avg >= 70) avgScore = "C";
+    else if (avg >= 60) avgScore = "D";
+    else avgScore = "F";
+  }
+
+  return {
+    callsCompleted: { value: callsCompleted ?? 0, label: "Calls This Week", sub: "completed" },
+    callsScheduled: { value: callsScheduled ?? 0, label: "Calls Scheduled", sub: "this week" },
+    avgCallScore: { value: avgScore ?? "—", label: "Avg Call Score", sub: "this week" },
+  };
+}
+
+// ─────────────────────────────────────────────
+// PIPELINE PAGE SCORECARDS
+// ─────────────────────────────────────────────
+
+export async function getPipelineScorecard() {
+  const supabase = createServerClient();
+
+  // In Sales: distinct contacts in Engagement through Awarding (exclude Closed)
+  const { data: salesStages } = await supabase
+    .from("pipeline_stages")
+    .select("id, slug, pipeline_id, pipelines (slug)")
+    .not("slug", "eq", "closed");
+
+  const salesStageIds = (salesStages ?? [])
+    .filter((s) => (s.pipelines as unknown as { slug: string })?.slug === "sales" && s.slug !== "closed")
+    .map((s) => s.id);
+
+  const { count: inSales } = await supabase
+    .from("contact_pipeline_state")
+    .select("id", { count: "exact", head: true })
+    .eq("is_active", true)
+    .in("current_stage_id", salesStageIds.length > 0 ? salesStageIds : ["__none__"]);
+
+  // In Onboarding: territories in Setup, Training, Launch Prep (exclude Onboarded)
+  const onboardingStageIds = (salesStages ?? [])
+    .filter((s) => {
+      const pSlug = (s.pipelines as unknown as { slug: string })?.slug;
+      return pSlug === "onboarding" && s.slug !== "onboarded";
+    })
+    .map((s) => s.id);
+
+  const { count: inOnboarding } = await supabase
+    .from("contact_pipeline_state")
+    .select("id", { count: "exact", head: true })
+    .eq("is_active", true)
+    .in("current_stage_id", onboardingStageIds.length > 0 ? onboardingStageIds : ["__none__"]);
+
+  // In Runway: territories in First Offer, First Purchase, Inventory Building (exclude Running)
+  const runwayStageIds = (salesStages ?? [])
+    .filter((s) => {
+      const pSlug = (s.pipelines as unknown as { slug: string })?.slug;
+      return pSlug === "runway" && s.slug !== "running";
+    })
+    .map((s) => s.id);
+
+  const { count: inRunway } = await supabase
+    .from("contact_pipeline_state")
+    .select("id", { count: "exact", head: true })
+    .eq("is_active", true)
+    .in("current_stage_id", runwayStageIds.length > 0 ? runwayStageIds : ["__none__"]);
+
+  return {
+    inSales: { value: inSales ?? 0, label: "In Sales", sub: "active leads" },
+    inOnboarding: { value: inOnboarding ?? 0, label: "In Onboarding", sub: "territories" },
+    inRunway: { value: inRunway ?? 0, label: "In Runway", sub: "territories" },
+  };
+}

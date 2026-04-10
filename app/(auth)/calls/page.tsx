@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Phone, RefreshCw, Calendar, Award, ChevronRight } from "lucide-react";
+import { Phone, RefreshCw, Calendar } from "lucide-react";
 import Link from "next/link";
 import { CallList, CallDetail } from "@/components/calls";
+import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
 
 interface CallSummary {
   id: string;
@@ -62,20 +63,22 @@ export default function CallsPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-1 py-3 flex-shrink-0">
-        <Phone size={20} className="text-nah-blue" />
-        <h1 className="font-headline text-page-title text-text-primary">Calls</h1>
-        <span className="text-caption text-text-tertiary ml-1">
-          {calls.length} {calls.length === 1 ? "call" : "calls"}
-        </span>
-        <button
-          onClick={fetchCalls}
-          className="btn-ghost p-1.5 ml-auto"
-          disabled={loading}
-        >
-          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-        </button>
+      {/* Scorecards + controls */}
+      <div className="px-1 py-3 flex-shrink-0 space-y-3">
+        <ScoreCardRow page="calls" />
+        <div className="flex items-center gap-2">
+          <Phone size={16} className="text-nah-blue" />
+          <span className="text-caption text-text-tertiary">
+            {calls.length} {calls.length === 1 ? "call" : "calls"}
+          </span>
+          <button
+            onClick={fetchCalls}
+            className="btn-ghost p-1.5 ml-auto"
+            disabled={loading}
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
       </div>
 
       {/* Scheduled calls from DB */}
