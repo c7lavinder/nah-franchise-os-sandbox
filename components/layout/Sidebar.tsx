@@ -46,6 +46,7 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
 
   const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(userRole));
 
@@ -63,6 +64,8 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
 
   return (
     <aside
+      onMouseEnter={() => setSidebarHovered(true)}
+      onMouseLeave={() => { setProfileOpen(false); setSidebarHovered(false); }}
       className="group fixed left-0 top-0 bottom-0 z-[100] w-[80px] hover:w-[280px] overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
       style={{
         background: "rgba(255, 255, 255, 0.6)",
@@ -121,7 +124,7 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
 
         {/* Notification bell */}
         <div className="mt-auto">
-          <NotificationBell onNavClick={onNavClick} />
+          <NotificationBell onNavClick={onNavClick} forceClose={!sidebarHovered} />
         </div>
 
         {/* User profile + dropdown */}

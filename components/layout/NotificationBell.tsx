@@ -25,9 +25,10 @@ interface Notification {
 
 interface NotificationBellProps {
   onNavClick?: () => void;
+  forceClose?: boolean;
 }
 
-export default function NotificationBell({ onNavClick }: NotificationBellProps) {
+export default function NotificationBell({ onNavClick, forceClose }: NotificationBellProps) {
   const router = useRouter();
   const { token } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -56,6 +57,11 @@ export default function NotificationBell({ onNavClick }: NotificationBellProps) 
     const interval = setInterval(() => void fetchNotifications(), 60000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
+
+  // Close when sidebar collapses
+  useEffect(() => {
+    if (forceClose) setOpen(false);
+  }, [forceClose]);
 
   // Close dropdown on outside click
   useEffect(() => {
