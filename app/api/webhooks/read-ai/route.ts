@@ -76,10 +76,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Return 200 immediately — process async
-  processReadAIWebhook(payload).catch((err) =>
-    console.error("Read.ai webhook processing error:", err)
-  );
+  // Process synchronously — Vercel serverless kills async work after response
+  try {
+    await processReadAIWebhook(payload);
+  } catch (err) {
+    console.error("Read.ai webhook processing error:", err);
+  }
 
   return NextResponse.json({ ok: true });
 }
