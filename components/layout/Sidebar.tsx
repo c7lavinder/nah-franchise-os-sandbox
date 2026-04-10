@@ -133,8 +133,10 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
             onClick={() => setProfileOpen(!profileOpen)}
             className="w-full flex items-center gap-3 pl-3 py-2 rounded-xl hover:bg-[rgba(0,161,225,0.05)] transition-all duration-200"
           >
-            <div className="w-9 h-9 rounded-full bg-nah-blue text-white flex items-center justify-center text-sm font-semibold flex-shrink-0">
-              {initials}
+            <div className="w-[20px] flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-nah-blue text-white flex items-center justify-center text-xs font-semibold">
+                {initials}
+              </div>
             </div>
             <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap flex-1 text-left">
               <p className="text-sm font-semibold text-text-primary">{user?.fullName ?? "User"}</p>
