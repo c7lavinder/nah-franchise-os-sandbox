@@ -216,7 +216,7 @@ export async function GET(request: NextRequest) {
       contacts.sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    return NextResponse.json({ contacts, total: contacts.length, totalCount: totalCount ?? contacts.length });
+    return NextResponse.json({ contacts, total: contacts.length, totalCount: contacts.length });
   } catch (err) {
     console.error("Pipeline contacts error:", err);
     return NextResponse.json({ error: "Failed to load contacts" }, { status: 500 });

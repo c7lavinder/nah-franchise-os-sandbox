@@ -72,18 +72,16 @@ export default function PipelinePage() {
         onStageClick={handleStageClick}
       />
 
-      {/* Prospects list (hide when territory pipeline stage selected) */}
-      {!showTerritories && (
-        <PipelineLeadList
-          key={refreshKey}
-          selectedStageId={selectedStage}
-          selectedStageName={selectedStageName}
-          searchQuery={searchQuery}
-        />
-      )}
+      {/* Prospects list — always visible, filtered by stage when selected */}
+      <PipelineLeadList
+        key={refreshKey}
+        selectedStageId={selectedStage}
+        selectedStageName={selectedStageName}
+        searchQuery={searchQuery}
+      />
 
-      {/* Territory Cards — Territories pipeline */}
-      <div className={showTerritories ? "" : "mt-8"}>
+      {/* Territory Cards — always below prospects */}
+      <div className="mt-8">
         <TerritoryCardList statusFilter={selectedTerritoryStatus} pipelineStageId={showTerritories && !selectedTerritoryStatus ? selectedStage : null} searchQuery={searchQuery} />
       </div>
     </div>
