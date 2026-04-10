@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import {
   CheckCircle2, XCircle, Clock, Loader2,
-  ChevronDown, ChevronRight, Zap,
+  ChevronDown, ChevronRight, Zap, Radio,
 } from "lucide-react";
+import Link from "next/link";
 
 interface IntegrationLog {
   id: string;
@@ -98,9 +99,14 @@ export default function IntegrationsPanel() {
 
   return (
     <div className="space-y-2">
-      <p className="text-caption text-text-tertiary mb-4">
-        Integration status is computed from activity logs. Connected = successful event in last 24 hours.
-      </p>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-caption text-text-tertiary">
+          Integration status is computed from activity logs. Connected = successful event in last 24 hours.
+        </p>
+        <Link href="/settings/webhooks" className="flex items-center gap-1.5 px-3 py-1.5 text-caption font-medium text-nah-blue hover:bg-nah-blue/5 rounded-md transition-colors">
+          <Radio size={14} /> Webhook Admin
+        </Link>
+      </div>
       {integrations.map((intg) => (
         <div key={intg.name} className="border border-border-default rounded-lg overflow-hidden">
           <button

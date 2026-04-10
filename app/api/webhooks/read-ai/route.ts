@@ -57,22 +57,26 @@ async function verifySignature(
 }
 
 export async function POST(request: NextRequest) {
+  const receivedAt = new Date().toISOString();
   const rawBody = await request.text();
   let payload: ReadAIWebhookPayload;
 
   try {
     payload = JSON.parse(rawBody) as ReadAIWebhookPayload;
   } catch {
+    await logWebhookEvent("parse_error", null, null, "Invalid JSON", receivedAt);
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  // Verify signature if present — but don't reject if no matching key found
-  // (Read.ai test payloads may not include owner email, and not all team members have keys yet)
+  const sessionId = payload.session_id ?? null;
+  const ownerEmail = payload.owner?.email ?? null;
+
+  // Verify signature if present
   const signature = request.headers.get("X-Read-Signature");
+  let signatureStatus: "valid" | "invalid" | "missing" = "missing";
   if (signature) {
-    const ownerEmail = payload.owner?.email ?? null;
     const isValid = await verifySignature(signature, rawBody, ownerEmail);
-    // Log but don't block — signature mismatch could be missing key config
+    signatureStatus = isValid ? "valid" : "invalid";
     if (!isValid) {
       console.warn("Read.ai signature verification failed for owner:", ownerEmail ?? "unknown");
     }
@@ -81,11 +85,45 @@ export async function POST(request: NextRequest) {
   // Process synchronously — Vercel serverless kills async work after response
   try {
     await processReadAIWebhook(payload);
+    await logWebhookEvent("success", sessionId, ownerEmail, null, receivedAt, {
+      title: payload.title,
+      signature_status: signatureStatus,
+      participant_count: payload.participants?.length ?? 0,
+    });
   } catch (err) {
+    const errMsg = err instanceof Error ? err.message : "Unknown error";
     console.error("Read.ai webhook processing error:", err);
+    await logWebhookEvent("error", sessionId, ownerEmail, errMsg, receivedAt, {
+      title: payload.title,
+      signature_status: signatureStatus,
+    });
   }
 
   return NextResponse.json({ ok: true });
+}
+
+/** Log webhook events to integration_logs for the admin debug page */
+async function logWebhookEvent(
+  status: string,
+  sessionId: string | null,
+  ownerEmail: string | null,
+  errorMessage: string | null,
+  receivedAt: string,
+  metadata?: Record<string, unknown>,
+) {
+  try {
+    const supabase = createServerClient();
+    await supabase.from("integration_logs").insert({
+      integration_name: "read_ai",
+      event_type: "webhook_received",
+      status,
+      payload_summary: metadata?.title ? `${metadata.title}` : sessionId ?? "unknown",
+      error_message: errorMessage,
+      metadata: { session_id: sessionId, owner_email: ownerEmail, received_at: receivedAt, ...metadata },
+    });
+  } catch {
+    // Don't let logging failures break the webhook
+  }
 }
 
 async function processReadAIWebhook(
@@ -183,17 +221,4 @@ async function processReadAIWebhook(
       .eq("session_id", sessionId);
   }
 
-  // Log to integration_logs
-  await supabase.from("integration_logs").insert({
-    integration_name: "read_ai",
-    event_type: "webhook_received",
-    status: classified ? "success" : "failed",
-    payload_summary: `${payload.title ?? "Untitled"} — classified as ${classified?.call_type ?? "error"}`,
-    error_message: classified ? null : "Classification failed",
-    metadata: {
-      session_id: sessionId,
-      call_type: classified?.call_type,
-      confidence: classified?.confidence,
-    },
-  });
 }
