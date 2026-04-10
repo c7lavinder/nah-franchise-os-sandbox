@@ -16,6 +16,7 @@ interface TerritoryCard {
 interface Props {
   status?: string;
   statusFilter?: string | null;
+  searchQuery?: string;
 }
 
 const STATUS_STYLES: Record<string, { label: string; bgColor: string; color: string }> = {
@@ -27,7 +28,7 @@ const STATUS_STYLES: Record<string, { label: string; bgColor: string; color: str
 type SortField = "name" | "status" | "owner";
 const PAGE_SIZE = 50;
 
-export default function TerritoryCardList({ status, statusFilter }: Props) {
+export default function TerritoryCardList({ status, statusFilter, searchQuery }: Props) {
   const effectiveStatus = statusFilter ?? status;
   const [cards, setCards] = useState<TerritoryCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +48,18 @@ export default function TerritoryCardList({ status, statusFilter }: Props) {
       .finally(() => setLoading(false));
   }, [effectiveStatus]);
 
-  const sorted = [...cards].sort((a, b) => {
+  const filtered = searchQuery
+    ? cards.filter((c) => {
+        const q = searchQuery.toLowerCase();
+        return (
+          c.territory_name.toLowerCase().includes(q) ||
+          c.ms_slug.toLowerCase().includes(q) ||
+          (c.owner_name?.toLowerCase().includes(q) ?? false)
+        );
+      })
+    : cards;
+
+  const sorted = [...filtered].sort((a, b) => {
     let cmp = 0;
     switch (sortField) {
       case "name":
@@ -82,7 +94,9 @@ export default function TerritoryCardList({ status, statusFilter }: Props) {
         <h2 className="text-h2 text-text-primary">
           {effectiveStatus ? `${effectiveStatus.charAt(0).toUpperCase() + effectiveStatus.slice(1)} Territories` : "Territory Network"}
           <span className="text-caption text-text-tertiary ml-2 font-normal">
-            {cards.length} {cards.length === 1 ? "territory" : "territories"}
+            {searchQuery && filtered.length !== cards.length
+              ? `${filtered.length} of ${cards.length} territories`
+              : `${cards.length} ${cards.length === 1 ? "territory" : "territories"}`}
           </span>
         </h2>
       </div>

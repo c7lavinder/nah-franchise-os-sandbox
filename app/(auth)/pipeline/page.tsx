@@ -76,7 +76,7 @@ export default function PipelinePage() {
         {!selectedTerritoryStatus && (
           <h2 className="text-overline text-text-tertiary tracking-wider mb-4">TERRITORY NETWORK</h2>
         )}
-        <TerritoryCardList statusFilter={selectedTerritoryStatus} />
+        <TerritoryCardList statusFilter={selectedTerritoryStatus} searchQuery={searchQuery} />
       </div>
     </div>
   );
