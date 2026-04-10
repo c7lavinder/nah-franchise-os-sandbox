@@ -21,6 +21,7 @@ interface Call {
   date: string | null;
   duration_seconds: number | null;
   platform: string | null;
+  territoryName: string | null;
 }
 
 interface CallType { id: string; name: string }
@@ -133,38 +134,37 @@ function CallRow({ c }: { c: Call }) {
     <Link href={`/calls/${c.id}`}
       className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-bg-hover transition-colors">
       <PlatformIcon platform={c.platform} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-body-sm font-medium text-text-primary truncate">{c.title ?? "Untitled"}</span>
-          {c.callTypeName && (
-            <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-bg-tertiary text-text-tertiary">{c.callTypeName}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-text-tertiary">
-          {c.hostName && (
-            <span className="flex items-center gap-1"><User size={9} className="text-nah-orange" />{c.hostName}</span>
-          )}
-          {c.contactName && (
-            <span className="flex items-center gap-1"><User size={9} className="text-nah-blue" />{c.contactName}</span>
-          )}
-          {!c.contactName && c.externalContacts.length > 0 && (
-            <span className="flex items-center gap-1">
-              <User size={9} className="text-nah-blue" />
-              {c.externalContacts.slice(0, 2).join(", ")}
-              {c.externalContacts.length > 2 && ` +${c.externalContacts.length - 2}`}
-            </span>
-          )}
-          {c.teamMembers.length > 1 && (
-            <span className="flex items-center gap-1"><Users size={9} />{c.teamMembers.length} team</span>
-          )}
-        </div>
+
+      {/* Labels */}
+      <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5">
+        {/* Call type — blue */}
+        {c.callTypeName && (
+          <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-nah-blue/10 text-nah-blue">{c.callTypeName}</span>
+        )}
+        {/* Territory — purple */}
+        {c.territoryName && (
+          <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-scout-purple/10 text-scout-purple">{c.territoryName}</span>
+        )}
+        {/* Prospects / external contacts — green */}
+        {c.contactName && (
+          <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-success/10 text-success">{c.contactName}</span>
+        )}
+        {!c.contactName && c.externalContacts.map((name, i) => (
+          <span key={i} className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-success/10 text-success">{name}</span>
+        ))}
+        {/* Team members — orange */}
+        {c.teamMembers.map((name, i) => (
+          <span key={i} className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-nah-orange/10 text-nah-orange">{name}</span>
+        ))}
       </div>
+
+      {/* Duration */}
       {c.duration_seconds ? (
-        <span className="flex-shrink-0 flex items-center gap-1 text-[11px] text-text-tertiary">
-          <Clock size={9} />{formatDuration(c.duration_seconds)}
-        </span>
+        <span className="flex-shrink-0 text-[11px] text-text-tertiary">{formatDuration(c.duration_seconds)}</span>
       ) : null}
-      <span className="flex-shrink-0 text-[11px] text-text-tertiary w-[100px] text-right">{formatDate(c.date)}</span>
+
+      {/* Date + time */}
+      <span className="flex-shrink-0 text-[11px] text-text-tertiary w-[110px] text-right">{formatDate(c.date)}</span>
     </Link>
   );
 }
