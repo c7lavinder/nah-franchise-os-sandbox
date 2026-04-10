@@ -65,13 +65,41 @@ export async function GET(request: NextRequest) {
     // Server-side search: find matching contact IDs first
     let matchingContactIds: string[] | null = null;
     if (query) {
-      const { data: matchedContacts } = await supabase
-        .from("contacts")
-        .select("id")
-        .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
-        .limit(5000);
+      // Split query into words so "brian boll" matches first_name=Brian AND last_name=Boll
+      const words = query.split(/\s+/).filter(Boolean);
 
-      matchingContactIds = (matchedContacts ?? []).map((c) => c.id);
+      if (words.length >= 2) {
+        // Multi-word: try first+last name match, plus fallback to any-field match per word
+        const [first, ...rest] = words;
+        const last = rest.join(" ");
+        const { data: nameMatch } = await supabase
+          .from("contacts")
+          .select("id")
+          .ilike("first_name", `%${first}%`)
+          .ilike("last_name", `%${last}%`)
+          .limit(5000);
+
+        // Also do single-term search on each word as fallback
+        const { data: fallback } = await supabase
+          .from("contacts")
+          .select("id")
+          .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
+          .limit(5000);
+
+        const idSet = new Set([
+          ...(nameMatch ?? []).map((c) => c.id),
+          ...(fallback ?? []).map((c) => c.id),
+        ]);
+        matchingContactIds = [...idSet];
+      } else {
+        const { data: matchedContacts } = await supabase
+          .from("contacts")
+          .select("id")
+          .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
+          .limit(5000);
+        matchingContactIds = (matchedContacts ?? []).map((c) => c.id);
+      }
+
       if (matchingContactIds.length === 0) {
         return NextResponse.json({ contacts: [], total: 0, totalCount: 0 });
       }
