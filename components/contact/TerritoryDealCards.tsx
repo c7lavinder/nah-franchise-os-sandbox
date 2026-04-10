@@ -5,8 +5,8 @@
  * Fields editable inline, saved via PATCH /api/contacts/[contactId].
  */
 
-import { useState } from "react";
-import { Pencil } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ChevronDown } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
 interface ContactFields {
@@ -18,6 +18,13 @@ interface ContactFields {
   royalty_pct: number | null;
   term_months: number | null;
   opportunity_source: string | null;
+  sub_source: string | null;
+}
+
+interface LeadSourceOption {
+  id: string;
+  name: string;
+  subSources: { id: string; name: string }[];
 }
 
 interface Props {
@@ -31,7 +38,6 @@ function InlineField({ label, value, displayValue, onSave, type = "text", readOn
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
-  const [edited, setEdited] = useState(false);
 
   if (readOnly || !editing) {
     return (
@@ -42,7 +48,6 @@ function InlineField({ label, value, displayValue, onSave, type = "text", readOn
           onClick={() => { if (!readOnly) { setEditing(true); setDraft(value); } }}
         >
           {displayValue || value || "—"}
-          {edited && <Pencil size={10} className="text-nah-orange flex-shrink-0" />}
         </p>
       </div>
     );
@@ -56,9 +61,9 @@ function InlineField({ label, value, displayValue, onSave, type = "text", readOn
         type={type}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => { setEditing(false); if (draft !== value) { onSave(draft); setEdited(true); } }}
+        onBlur={() => { setEditing(false); if (draft !== value) onSave(draft); }}
         onKeyDown={(e) => {
-          if (e.key === "Enter") { setEditing(false); if (draft !== value) { onSave(draft); setEdited(true); } }
+          if (e.key === "Enter") { setEditing(false); if (draft !== value) onSave(draft); }
           if (e.key === "Escape") { setEditing(false); setDraft(value); }
         }}
         className="w-full bg-bg-secondary border border-nah-blue rounded px-2 py-0.5 text-body-sm text-text-primary outline-none"
@@ -104,6 +109,14 @@ export function TerritoryDetailsCard({ contactId, fields, onUpdate }: Props) {
 
 export function DealDetailsCard({ contactId, fields, onUpdate }: Props) {
   const { toast } = useToast();
+  const [leadSources, setLeadSources] = useState<LeadSourceOption[]>([]);
+
+  useEffect(() => {
+    fetch("/api/settings/lead-sources")
+      .then((r) => r.json())
+      .then((d) => setLeadSources(d.sources ?? []))
+      .catch(() => {});
+  }, []);
 
   async function saveNum(field: string, value: string) {
     try {
@@ -133,10 +146,27 @@ export function DealDetailsCard({ contactId, fields, onUpdate }: Props) {
     } catch { /* silent */ }
   }
 
+  async function saveMulti(updates: Record<string, string | null>) {
+    try {
+      const res = await fetch(`/api/contacts/${contactId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) {
+        onUpdate(updates as Partial<ContactFields>);
+        toast("Saved");
+      }
+    } catch { /* silent */ }
+  }
+
+  const currentSource = leadSources.find((s) => s.name === fields.opportunity_source);
+  const subOptions = currentSource?.subSources ?? [];
+
   return (
     <div className="bg-bg-secondary border border-border-default rounded-lg px-4 py-3">
       <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-2">DEAL</h3>
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <InlineField
           label="Franchise Fee"
           value={fields.franchise_fee?.toString() ?? ""}
@@ -151,7 +181,46 @@ export function DealDetailsCard({ contactId, fields, onUpdate }: Props) {
           onSave={(v) => void saveStr("term_months", v)}
           type="date"
         />
-        <InlineField label="Lead Source" value={fields.opportunity_source ?? ""} onSave={(v) => void saveStr("opportunity_source", v)} />
+      </div>
+
+      {/* Lead Source + Sub Source dropdowns */}
+      <div className="grid grid-cols-2 gap-3 mt-3">
+        <div className="min-w-0">
+          <span className="text-[10px] text-text-tertiary block mb-0.5">Lead Source</span>
+          <div className="relative">
+            <select
+              value={fields.opportunity_source ?? ""}
+              onChange={(e) => {
+                const val = e.target.value || null;
+                void saveMulti({ opportunity_source: val, sub_source: null });
+              }}
+              className="w-full bg-bg-primary border border-border-default rounded px-2 py-1 text-body-sm text-text-primary appearance-none pr-6 focus:outline-none focus:ring-1 focus:ring-nah-blue"
+            >
+              <option value="">—</option>
+              {leadSources.map((s) => (
+                <option key={s.id} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <span className="text-[10px] text-text-tertiary block mb-0.5">Sub Source</span>
+          <div className="relative">
+            <select
+              value={fields.sub_source ?? ""}
+              onChange={(e) => void saveStr("sub_source", e.target.value)}
+              disabled={subOptions.length === 0}
+              className="w-full bg-bg-primary border border-border-default rounded px-2 py-1 text-body-sm text-text-primary appearance-none pr-6 focus:outline-none focus:ring-1 focus:ring-nah-blue disabled:opacity-40"
+            >
+              <option value="">—</option>
+              {subOptions.map((ss) => (
+                <option key={ss.id} value={ss.name}>{ss.name}</option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
+          </div>
+        </div>
       </div>
     </div>
   );

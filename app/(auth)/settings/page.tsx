@@ -13,6 +13,7 @@ import CallTypesRubricEditor from "@/components/settings/CallTypesRubricEditor";
 import IntegrationsPanel from "@/components/settings/IntegrationsPanel";
 import AutomationPanel from "@/components/settings/AutomationPanel";
 import UsersPanel from "@/components/settings/UsersPanel";
+import LeadSourcesPanel from "@/components/settings/LeadSourcesPanel";
 
 interface SetupItem {
   label: string;
@@ -27,7 +28,7 @@ interface IntegrationStatus {
   setup?: { checklist: SetupItem[]; complete: number; total: number; ready: boolean };
 }
 
-type SettingsTab = "general" | "users" | "pipelines" | "call-types" | "automation" | "app-settings" | "integrations";
+type SettingsTab = "general" | "users" | "pipelines" | "call-types" | "lead-sources" | "automation" | "app-settings" | "integrations";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -50,6 +51,7 @@ export default function SettingsPage() {
     { key: "users", label: "Users", icon: Users },
     { key: "pipelines", label: "Pipelines", icon: GitBranch },
     { key: "call-types", label: "Call Types", icon: Phone },
+    { key: "lead-sources", label: "Lead Sources", icon: Database },
     { key: "automation", label: "Automation", icon: Bot },
     { key: "app-settings", label: "App Settings", icon: Sliders },
     { key: "integrations", label: "Integrations", icon: Zap },
@@ -90,6 +92,8 @@ export default function SettingsPage() {
         <PipelineEditor />
       ) : activeTab === "call-types" ? (
         <CallTypesRubricEditor />
+      ) : activeTab === "lead-sources" ? (
+        <LeadSourcesPanel />
       ) : activeTab === "automation" ? (
         <AutomationPanel />
       ) : activeTab === "app-settings" ? (

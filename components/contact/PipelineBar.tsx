@@ -148,6 +148,14 @@ export default function PipelineBar({
             );
             const isCurrent = stage.id === selected.current_stage_id;
 
+            // Check for missing logs on passed stages
+            const isPassed = stage.sort_order < currentSortOrder;
+            const requiredTasks = stage.subTasks.filter((t) => t.is_required);
+            const hasMissingLogs = isPassed && requiredTasks.length > 0 && requiredTasks.some((t) => {
+              const logs = (logsMap.get(t.id) ?? []).filter((l) => !l.deleted_at);
+              return logs.length === 0;
+            });
+
             return (
               <StageCircle
                 key={stage.id}
@@ -158,6 +166,7 @@ export default function PipelineBar({
                 isCurrent={isCurrent}
                 colorLabel={isCurrent ? colorLabel : null}
                 isExpanded={expandedStageId === stage.id}
+                hasMissingLogs={hasMissingLogs}
                 onClick={() => onStageClick(stage.id)}
               />
             );

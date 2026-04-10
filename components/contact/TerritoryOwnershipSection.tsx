@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { MapPin, ExternalLink, Plus, ArrowRightLeft } from "lucide-react";
+import { MapPin, Plus, ArrowRightLeft, Ban } from "lucide-react";
 
 interface TerritoryOwnership {
   ms_slug: string;
@@ -23,7 +22,6 @@ interface Props {
 }
 
 export default function TerritoryOwnershipSection({ contactId, ghlContactId }: Props) {
-  const router = useRouter();
   const [current, setCurrent] = useState<TerritoryOwnership[]>([]);
   const [former, setFormer] = useState<TerritoryOwnership[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,16 +127,34 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId }: P
             </button>
           )}
           {current.length > 0 && active && active.isCurrent && (
-            <button
-              onClick={() => {
-                setTransferSlug(active.ms_slug);
-                setShowTransfer(true);
-              }}
-              className="btn-ghost p-1.5"
-              title="Transfer Territory"
-            >
-              <ArrowRightLeft size={14} />
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  setTransferSlug(active.ms_slug);
+                  setShowTransfer(true);
+                }}
+                className="btn-ghost p-1.5"
+                title="Transfer Territory"
+              >
+                <ArrowRightLeft size={14} />
+              </button>
+              {active.territories?.status === "active" && (
+                <button
+                  onClick={async () => {
+                    const res = await fetch(`/api/territories/${active.ms_slug}/status`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ status: "inactive" }),
+                    });
+                    if (res.ok) fetchOwnership();
+                  }}
+                  className="btn-ghost p-1.5 text-text-tertiary hover:text-danger"
+                  title="Mark Inactive"
+                >
+                  <Ban size={14} />
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -168,44 +184,26 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId }: P
         <div className="p-4 space-y-2">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-body-sm font-medium">
+              <a
+                href={`/territories/${active.ms_slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-body-sm font-medium text-nah-blue hover:underline"
+              >
                 {active.territories?.territory_name ?? active.ms_slug}
-              </div>
+              </a>
               <div className="text-caption text-text-tertiary">
                 {active.isCurrent ? "Current" : "Former"} {active.role} since {new Date(active.start_date).toLocaleDateString()}
                 {active.end_date && ` — ended ${new Date(active.end_date).toLocaleDateString()}`}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                active.territories?.status === "active"
-                  ? "bg-green-100 text-green-800"
-                  : "bg-gray-100 text-gray-600"
-              }`}>
-                {active.territories?.status ?? "unknown"}
-              </span>
-              <button
-                onClick={() => router.push(`/territories/${active.ms_slug}`)}
-                className="text-info hover:underline text-caption flex items-center gap-1"
-              >
-                View territory <ExternalLink size={12} />
-              </button>
-              {active.isCurrent && active.territories?.status === "active" && (
-                <button
-                  onClick={async () => {
-                    const res = await fetch(`/api/territories/${active.ms_slug}/status`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ status: "inactive" }),
-                    });
-                    if (res.ok) fetchOwnership();
-                  }}
-                  className="text-danger hover:underline text-caption"
-                >
-                  Mark Inactive
-                </button>
-              )}
-            </div>
+            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+              active.territories?.status === "active"
+                ? "bg-green-100 text-green-800"
+                : "bg-gray-100 text-gray-600"
+            }`}>
+              {active.territories?.status ?? "unknown"}
+            </span>
           </div>
         </div>
       )}

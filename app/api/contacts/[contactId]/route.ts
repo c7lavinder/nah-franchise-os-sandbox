@@ -69,6 +69,7 @@ export async function PATCH(
     "city", "state",
     "territory", "territory_slug", "legal_entity", "website",
     "franchise_fee", "royalty_pct", "term_months",
+    "opportunity_source", "sub_source",
   ];
 
   const updates: Record<string, unknown> = {};

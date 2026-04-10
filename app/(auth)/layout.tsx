@@ -51,9 +51,8 @@ export default function AuthLayout({
     return (
       <div className="min-h-screen bg-bg-primary flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-md bg-nah-orange flex items-center justify-center">
-            <span className="text-white font-bold text-body-sm">NAH</span>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/nah-icon.svg" alt="New Again Houses" className="w-10 h-10" />
           <p className="text-text-secondary text-body">Loading...</p>
         </div>
       </div>

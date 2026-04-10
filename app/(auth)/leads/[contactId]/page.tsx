@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Phone, Mail, Loader2, RefreshCw,
-  MessageSquare, Save, Award, ClipboardList,
+  MessageSquare, Save, Award, ClipboardList, Calendar,
 } from "lucide-react";
+import { SMSPanel, EmailPanel, CallPanel, SchedulePanel } from "@/components/contact/ActionPanels";
 import { ProfileSection } from "@/components/profile";
 import { PROFILE_FIELDS, getSortedCategories } from "@/lib/profile/field-registry";
 import type { FieldCategory } from "@/lib/profile/field-registry";
@@ -76,7 +77,7 @@ interface PipelineStateAPI {
 interface LocalContact {
   territory: string | null; territory_slug: string | null; legal_entity: string | null; website: string | null;
   franchise_fee: number | null; royalty_pct: number | null; term_months: number | null;
-  opportunity_source: string | null;
+  opportunity_source: string | null; sub_source: string | null;
   first_name: string | null; last_name: string | null; email: string | null; phone: string | null;
   city: string | null; state: string | null;
 }
@@ -105,6 +106,7 @@ export default function LeadProfilePage() {
   const [pipelineStates, setPipelineStates] = useState<PipelineStateAPI[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [drilldownStageId, setDrilldownStageId] = useState<string | null>(null);
+  const [activePanel, setActivePanel] = useState<"sms" | "email" | "call" | "schedule" | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -136,7 +138,7 @@ export default function LeadProfilePage() {
             first_name: psData.contact.first_name, last_name: psData.contact.last_name,
             email: psData.contact.email, phone: psData.contact.phone,
             city: psData.contact.city, state: psData.contact.state,
-            opportunity_source: psData.contact.opportunity_source,
+            opportunity_source: psData.contact.opportunity_source, sub_source: psData.contact.sub_source,
             territory: psData.contact.territory, territory_slug: psData.contact.territory_slug,
             legal_entity: psData.contact.legal_entity, website: psData.contact.website,
             franchise_fee: psData.contact.franchise_fee, royalty_pct: psData.contact.royalty_pct,
@@ -191,6 +193,7 @@ export default function LeadProfilePage() {
     legal_entity: localContact?.legal_entity ?? null, website: localContact?.website ?? null,
     franchise_fee: localContact?.franchise_fee ?? null, royalty_pct: localContact?.royalty_pct ?? null,
     term_months: localContact?.term_months ?? null, opportunity_source: localContact?.opportunity_source ?? null,
+    sub_source: localContact?.sub_source ?? null,
   };
 
   return (
@@ -201,9 +204,10 @@ export default function LeadProfilePage() {
         <h1 className="font-headline text-page-title text-text-primary truncate flex-1">{displayName}</h1>
         {contact && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            {contact.phone && <a href={`tel:${contact.phone}`} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-success/10 text-success text-caption font-medium hover:bg-success/20 transition-colors"><Phone size={12} /> Call</a>}
-            {contact.phone && <a href={`sms:${contact.phone}`} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-info/10 text-info text-caption font-medium hover:bg-info/20 transition-colors"><MessageSquare size={12} /> Text</a>}
-            {contact.email && <a href={`mailto:${contact.email}`} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-scout-purple/10 text-scout-purple text-caption font-medium hover:bg-scout-purple/20 transition-colors"><Mail size={12} /> Email</a>}
+            <button onClick={() => setActivePanel("call")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-success/10 text-success text-caption font-medium hover:bg-success/20 transition-colors"><Phone size={12} /> Call</button>
+            <button onClick={() => setActivePanel("sms")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-info/10 text-info text-caption font-medium hover:bg-info/20 transition-colors"><MessageSquare size={12} /> Text</button>
+            <button onClick={() => setActivePanel("email")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-scout-purple/10 text-scout-purple text-caption font-medium hover:bg-scout-purple/20 transition-colors"><Mail size={12} /> Email</button>
+            <button onClick={() => setActivePanel("schedule")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-nah-orange/10 text-nah-orange text-caption font-medium hover:bg-nah-orange/20 transition-colors"><Calendar size={12} /> Schedule</button>
           </div>
         )}
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -367,6 +371,24 @@ export default function LeadProfilePage() {
           </div>
         )}
       </div>
+
+      {/* Action panels */}
+      {activePanel === "sms" && contact && (
+        <SMSPanel contactId={contact.id} contactName={displayName} contactPhone={contact.phone ?? localContact?.phone ?? null}
+          onClose={() => setActivePanel(null)} onSent={() => { setActivePanel(null); void fetchAll(); }} />
+      )}
+      {activePanel === "email" && contact && (
+        <EmailPanel contactId={contact.id} contactName={displayName} contactEmail={contact.email ?? localContact?.email ?? null}
+          onClose={() => setActivePanel(null)} onSent={() => { setActivePanel(null); void fetchAll(); }} />
+      )}
+      {activePanel === "call" && contact && (
+        <CallPanel contactName={displayName} contactPhone={contact.phone ?? localContact?.phone ?? null}
+          onClose={() => setActivePanel(null)} />
+      )}
+      {activePanel === "schedule" && contact && (
+        <SchedulePanel contactId={contact.id} contactName={displayName} contactEmail={contact.email ?? localContact?.email ?? null}
+          onClose={() => setActivePanel(null)} onScheduled={() => { setActivePanel(null); void fetchAll(); }} />
+      )}
     </div>
   );
 }

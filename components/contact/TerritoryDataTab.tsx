@@ -7,7 +7,6 @@
 
 import { useState, useEffect } from "react";
 import { Loader2, MapPin, ChevronDown, ChevronRight } from "lucide-react";
-import Link from "next/link";
 
 interface TerritoryData {
   ms_slug: string;
@@ -70,7 +69,15 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
             >
               {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               <MapPin size={14} className="text-info" />
-              <span className="text-body-sm font-medium text-text-primary">{t.territory_name}</span>
+              <a
+                href={`/territories/${t.ms_slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-body-sm font-medium text-nah-blue hover:underline"
+              >
+                {t.territory_name}
+              </a>
               <span className="text-[10px] text-text-tertiary font-mono ml-1">{t.ms_slug}</span>
               <span className={`ml-auto px-1.5 py-0.5 rounded text-[10px] font-medium ${
                 t.status === "active" ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-500"
@@ -124,9 +131,6 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
                   </div>
                 )}
 
-                <Link href={`/territories/${t.ms_slug}`} className="text-caption text-nah-blue hover:underline">
-                  View full territory page
-                </Link>
               </div>
             )}
           </div>

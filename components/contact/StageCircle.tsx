@@ -5,7 +5,7 @@
  * Per §1.11: empty = not started, half = in progress, full = complete.
  */
 
-import { Check } from "lucide-react";
+import { Check, AlertTriangle } from "lucide-react";
 import type { CircleState, ColorLabel } from "@/lib/contacts/stage-visual-state";
 
 interface StageCircleProps {
@@ -16,6 +16,7 @@ interface StageCircleProps {
   isCurrent: boolean;
   colorLabel: ColorLabel | null;
   isExpanded: boolean;
+  hasMissingLogs?: boolean;
   onClick: () => void;
 }
 
@@ -33,6 +34,7 @@ export default function StageCircle({
   isCurrent,
   colorLabel,
   isExpanded,
+  hasMissingLogs,
   onClick,
 }: StageCircleProps) {
   return (
@@ -79,6 +81,13 @@ export default function StageCircle({
       {/* Color label dot — on current stage */}
       {isCurrent && colorLabel && (
         <div className={`absolute top-0 right-0 w-3 h-3 rounded-full ${COLOR_DOT[colorLabel]} border-2 border-white`} />
+      )}
+
+      {/* Amber triangle — passed stage with missing required logs */}
+      {hasMissingLogs && (
+        <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2">
+          <AlertTriangle size={12} className="text-amber-500" />
+        </div>
       )}
 
       {/* Log count badge */}

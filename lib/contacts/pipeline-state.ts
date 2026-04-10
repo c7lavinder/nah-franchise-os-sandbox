@@ -285,6 +285,7 @@ export async function getContactByIdentifier(identifier: string): Promise<{
   email: string | null;
   phone: string | null;
   opportunity_source: string | null;
+  sub_source: string | null;
   city: string | null;
   state: string | null;
   territory: string | null;
@@ -298,7 +299,7 @@ export async function getContactByIdentifier(identifier: string): Promise<{
   const supabase = createServerClient();
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
 
-  const fields = "id, ghl_contact_id, first_name, last_name, email, phone, opportunity_source, city, state, territory, territory_slug, legal_entity, website, franchise_fee, royalty_pct, term_months";
+  const fields = "id, ghl_contact_id, first_name, last_name, email, phone, opportunity_source, sub_source, city, state, territory, territory_slug, legal_entity, website, franchise_fee, royalty_pct, term_months";
 
   if (isUUID) {
     const { data } = await supabase.from("contacts").select(fields).eq("id", identifier).maybeSingle();

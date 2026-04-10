@@ -47,7 +47,8 @@ const SELECT_FIELDS = `
   pipelines (
     id,
     name,
-    slug
+    slug,
+    sort_order
   )
 `;
 
@@ -129,7 +130,32 @@ export async function GET(request: NextRequest) {
 
     type ContactRow = { id: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null; opportunity_source: string | null; city: string | null; state: string | null };
     type StageRow = { id: string; name: string; slug: string };
-    type PipelineRow = { id: string; name: string; slug: string };
+    type PipelineRow = { id: string; name: string; slug: string; sort_order: number };
+
+    // Deduplicate by contact_id — keep the row from the highest-sort_order pipeline
+    // (furthest lifecycle stage: sales=1 → onboarding=2 → runway=3 → territories=4 → followup=5)
+    if (!stageId) {
+      const bestByContact = new Map<string, Record<string, unknown>>();
+      for (const row of allRows) {
+        const cid = row.contact_id as string;
+        const rawPipeline = row.pipelines;
+        const pipeline = (Array.isArray(rawPipeline) ? rawPipeline[0] : rawPipeline) as PipelineRow | null;
+        const sortOrder = pipeline?.sort_order ?? 0;
+
+        const existing = bestByContact.get(cid);
+        if (!existing) {
+          bestByContact.set(cid, row);
+        } else {
+          const existingPipeline = existing.pipelines;
+          const ep = (Array.isArray(existingPipeline) ? existingPipeline[0] : existingPipeline) as PipelineRow | null;
+          if (sortOrder > (ep?.sort_order ?? 0)) {
+            bestByContact.set(cid, row);
+          }
+        }
+      }
+      allRows.length = 0;
+      allRows.push(...bestByContact.values());
+    }
 
     const contacts = allRows.map((row: Record<string, unknown>) => {
       // Supabase joins can return object or array — normalize

@@ -89,7 +89,6 @@ export default function ProfileSection({
           {fields.map((field) => {
             const value = values[field.name];
             const isEditing = editingField === field.name;
-            const isManual = field.source === "manual";
 
             return (
               <div
@@ -173,8 +172,8 @@ export default function ProfileSection({
                   {sourceLabel(field.source)}
                 </span>
 
-                {/* Edit button (manual fields only) */}
-                {isManual && !isEditing && (
+                {/* Edit button — all fields are manually overridable */}
+                {!isEditing && (
                   <button
                     onClick={() => setEditingField(field.name)}
                     className="p-1 text-text-tertiary hover:text-text-primary flex-shrink-0"
