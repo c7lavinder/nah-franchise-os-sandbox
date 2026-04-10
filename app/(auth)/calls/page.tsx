@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Phone, RefreshCw, Plus, X, Search, Loader2, Clock, Users, User } from "lucide-react";
+import { RefreshCw, Plus, X, Search, Loader2, Clock, Users, User, Phone } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
 
 interface Call {
   id: string;
@@ -134,11 +135,13 @@ export default function CallsPage() {
 
   return (
     <div>
-      {/* Header */}
+      {/* Scorecards */}
+      <div className="mb-4">
+        <ScoreCardRow page="calls" />
+      </div>
+
+      {/* Controls */}
       <div className="flex items-center gap-2 mb-4">
-        <Phone size={20} className="text-nah-blue" />
-        <h1 className="font-headline text-page-title text-text-primary">Calls</h1>
-        <span className="text-caption text-text-tertiary ml-1">{calls.length}</span>
         <div className="flex items-center gap-2 ml-auto">
           <button
             onClick={() => setShowManualEntry((v) => !v)}
