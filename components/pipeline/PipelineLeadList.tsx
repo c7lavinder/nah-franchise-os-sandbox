@@ -47,33 +47,33 @@ const URGENCY_STYLES = {
 };
 
 /** Stage slug → color that matches the pipeline circles */
-/** Label colors matching pipeline circle gradients: rose-orange → amber → lime → green */
+/** Label colors matching wave gradient circles — custom hex for exact match */
 const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
   // Sales
-  engagement:    { bg: "bg-rose-50", text: "text-rose-600" },
-  qualification: { bg: "bg-orange-50", text: "text-orange-600" },
-  discovery:     { bg: "bg-amber-50", text: "text-amber-600" },
-  compliance:    { bg: "bg-yellow-50", text: "text-yellow-600" },
-  awarding:      { bg: "bg-lime-50", text: "text-lime-600" },
-  closed:        { bg: "bg-green-50", text: "text-green-600" },
+  engagement:    { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  qualification: { bg: "bg-[#fceee5]", text: "text-[#c97a4a]" },
+  discovery:     { bg: "bg-[#fcf3e0]", text: "text-[#b8924a]" },
+  compliance:    { bg: "bg-[#f5f5d8]", text: "text-[#9a9a38]" },
+  awarding:      { bg: "bg-[#eef5db]", text: "text-[#6d9a3a]" },
+  closed:        { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
   // Onboarding
-  setup:         { bg: "bg-rose-50", text: "text-rose-600" },
-  training:      { bg: "bg-orange-50", text: "text-orange-600" },
-  "launch-prep": { bg: "bg-yellow-50", text: "text-yellow-600" },
-  onboarded:     { bg: "bg-green-50", text: "text-green-600" },
+  setup:         { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  training:      { bg: "bg-[#fcf0e2]", text: "text-[#b88540]" },
+  "launch-prep": { bg: "bg-[#f2f5d8]", text: "text-[#8a9a38]" },
+  onboarded:     { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
   // Runway
-  "first-offer":        { bg: "bg-rose-50", text: "text-rose-600" },
-  "first-purchase":     { bg: "bg-orange-50", text: "text-orange-600" },
-  "inventory-building": { bg: "bg-yellow-50", text: "text-yellow-600" },
-  running:              { bg: "bg-green-50", text: "text-green-600" },
+  "first-offer":        { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  "first-purchase":     { bg: "bg-[#fcf0e2]", text: "text-[#b88540]" },
+  "inventory-building": { bg: "bg-[#f2f5d8]", text: "text-[#8a9a38]" },
+  running:              { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
   // Territories
-  inactive:  { bg: "bg-rose-50", text: "text-rose-600" },
-  available: { bg: "bg-amber-50", text: "text-amber-600" },
-  active:    { bg: "bg-green-50", text: "text-green-600" },
+  inactive:  { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  available: { bg: "bg-[#fcf3e0]", text: "text-[#a89038]" },
+  active:    { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
   // Follow-up
-  nurture:   { bg: "bg-rose-50", text: "text-rose-600" },
-  followup:  { bg: "bg-amber-50", text: "text-amber-600" },
-  reengaged: { bg: "bg-green-50", text: "text-green-600" },
+  nurture:   { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  followup:  { bg: "bg-[#fcf3e0]", text: "text-[#a89038]" },
+  reengaged: { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
 };
 
 const SOURCE_COLORS: Record<string, { bg: string; text: string }> = {

@@ -16,18 +16,18 @@ interface TerritoryCard {
   pipeline_slug: string | null;
 }
 
-/** Label colors matching pipeline circle gradients */
+/** Label colors matching wave gradient circles — custom hex */
 const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
   // Onboarding
-  setup:              { bg: "bg-rose-50", text: "text-rose-600" },
-  training:           { bg: "bg-orange-50", text: "text-orange-600" },
-  "launch-prep":      { bg: "bg-yellow-50", text: "text-yellow-600" },
-  onboarded:          { bg: "bg-green-50", text: "text-green-600" },
+  setup:              { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  training:           { bg: "bg-[#fcf0e2]", text: "text-[#b88540]" },
+  "launch-prep":      { bg: "bg-[#f2f5d8]", text: "text-[#8a9a38]" },
+  onboarded:          { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
   // Runway
-  "first-offer":      { bg: "bg-rose-50", text: "text-rose-600" },
-  "first-purchase":   { bg: "bg-orange-50", text: "text-orange-600" },
-  "inventory-building": { bg: "bg-yellow-50", text: "text-yellow-600" },
-  running:            { bg: "bg-green-50", text: "text-green-600" },
+  "first-offer":      { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  "first-purchase":   { bg: "bg-[#fcf0e2]", text: "text-[#b88540]" },
+  "inventory-building": { bg: "bg-[#f2f5d8]", text: "text-[#8a9a38]" },
+  running:            { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
 };
 
 interface Props {
