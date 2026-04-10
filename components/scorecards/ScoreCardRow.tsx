@@ -45,17 +45,15 @@ export default function ScoreCardRow({ page }: ScoreCardRowProps) {
       {cards.map((card) => (
         <div
           key={card.label}
-          className="rounded-xl px-4 py-3 bg-gradient-to-br from-nah-blue to-[#0080b8] text-white shadow-md"
+          className="rounded-xl px-5 py-4 bg-gradient-to-br from-nah-blue to-[#0080b8] text-white shadow-md"
         >
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold leading-none">
-              {card.goal != null
-                ? `${card.value}/${card.goal}`
-                : card.value}
-            </span>
-          </div>
-          <p className="text-sm font-medium text-white/90 mt-0.5">{card.label}</p>
-          <p className="text-xs text-white/60">{card.sub}</p>
+          <span className="text-4xl font-extrabold leading-none tracking-tight">
+            {card.goal != null
+              ? `${card.value}/${card.goal}`
+              : card.value}
+          </span>
+          <p className="text-sm font-medium text-white/80 mt-1.5">{card.label}</p>
+          <p className="text-[11px] text-white/50">{card.sub}</p>
         </div>
       ))}
     </div>
