@@ -128,7 +128,7 @@ export default function TerritoryCardList({ status, statusFilter, searchQuery }:
               href={`/territories/${card.ms_slug}`}
               className={`
                 grid items-center gap-2 px-3 py-2.5 hover:bg-bg-hover transition-colors
-                grid-cols-[1fr_80px_80px_160px_16px]
+                grid-cols-[1fr_72px_110px_140px_16px]
                 ${i < visible.length - 1 ? "border-b border-border-default" : ""}
               `}
             >

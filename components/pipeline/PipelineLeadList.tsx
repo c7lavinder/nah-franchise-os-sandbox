@@ -220,8 +220,7 @@ export default function PipelineLeadList({
               href={`/leads/${contact.contactId}`}
               className={`
                 grid items-center gap-2 px-3 py-2.5 hover:bg-bg-hover transition-colors
-                grid-cols-[1fr_70px_110px_120px_16px]
-                lg:grid-cols-[1fr_70px_110px_140px_16px]
+                grid-cols-[1fr_72px_110px_140px_16px]
                 ${i < visible.length - 1 ? "border-b border-border-default" : ""}
               `}
             >
