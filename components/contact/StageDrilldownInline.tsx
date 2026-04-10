@@ -16,6 +16,7 @@ interface StageDrilldownInlineProps {
   logsBySubTask: Map<string, SubTaskLog[]>;
   stageHistory: StageHistoryEntry[];
   stageId: string;
+  isPastStage?: boolean;
   onRefresh: () => void;
   onClose: () => void;
 }
@@ -27,6 +28,7 @@ export default function StageDrilldownInline({
   logsBySubTask,
   stageHistory,
   stageId,
+  isPastStage,
   onRefresh,
   onClose,
 }: StageDrilldownInlineProps) {
@@ -45,6 +47,7 @@ export default function StageDrilldownInline({
           logsBySubTask={logsBySubTask}
           stageHistory={stageHistory}
           stageId={stageId}
+          isPastStage={isPastStage}
           onRefresh={onRefresh}
         />
       </div>

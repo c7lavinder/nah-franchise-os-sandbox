@@ -19,6 +19,7 @@ interface StageDrilldownProps {
   logsBySubTask: Map<string, SubTaskLog[]>;
   stageHistory: StageHistoryEntry[];
   stageId: string;
+  isPastStage?: boolean;
   onRefresh: () => void;
 }
 
@@ -28,6 +29,7 @@ export default function StageDrilldown({
   logsBySubTask,
   stageHistory,
   stageId,
+  isPastStage,
   onRefresh,
 }: StageDrilldownProps) {
   const [expandedSubTask, setExpandedSubTask] = useState<string | null>(null);
@@ -59,12 +61,13 @@ export default function StageDrilldown({
               <div className="space-y-0.5">
                 {subTasks.map((task) => {
                   const logs = logsBySubTask.get(task.id) ?? [];
+                  const activeLogs = logs.filter((l) => !l.deleted_at);
                   const state = computeSubTaskVisualState(task, logs);
                   const isHistoryExpanded = expandedSubTask === task.id;
+                  const isMissing = isPastStage && task.is_required && activeLogs.length === 0;
 
                   return (
                     <div key={task.id}>
-                      {/* Sprint 4B bugfix: clicking sub-task opens log modal directly */}
                       <SubTaskCircle
                         name={task.name}
                         state={state}
@@ -73,6 +76,7 @@ export default function StageDrilldown({
                         secondStateLabel={task.second_state_label}
                         logCount={logs.length}
                         isExpanded={isHistoryExpanded}
+                        isMissingLog={isMissing}
                         onClick={() => setLogModalSubTask(task)}
                       />
                       {/* View history toggle — only when logs exist */}

@@ -83,10 +83,10 @@ export default function StageCircle({
         <div className={`absolute top-0 right-0 w-3 h-3 rounded-full ${COLOR_DOT[colorLabel]} border-2 border-white`} />
       )}
 
-      {/* Amber triangle — passed stage with missing required logs */}
+      {/* Amber triangle — top-right corner, passed stage with missing required logs */}
       {hasMissingLogs && (
-        <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2">
-          <AlertTriangle size={12} className="text-amber-500" />
+        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center z-20">
+          <AlertTriangle size={9} className="text-amber-600" />
         </div>
       )}
 

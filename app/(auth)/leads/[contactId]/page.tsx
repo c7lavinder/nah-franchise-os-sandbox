@@ -227,12 +227,17 @@ export default function LeadProfilePage() {
             onPipelineChange={setSelectedPipelineId} expandedStageId={drilldownStageId}
             onStageClick={(id) => setDrilldownStageId(drilldownStageId === id ? null : id)}
             onRefresh={() => void fetchAll()} />
-          {drilldownStage && selectedPipeline && (
-            <StageDrilldownInline contactId={contactId} stageName={drilldownStage.name}
-              subTasks={drilldownStage.subTasks} logsBySubTask={new Map(Object.entries(drilldownStage.logsBySubTask))}
-              stageHistory={selectedPipeline.stageHistory} stageId={drilldownStage.id}
-              onRefresh={() => void fetchAll()} onClose={() => setDrilldownStageId(null)} />
-          )}
+          {drilldownStage && selectedPipeline && (() => {
+            const currentStg = selectedPipeline.stages.find((s) => s.id === selectedPipeline.current_stage_id);
+            const isPast = drilldownStage.sort_order < (currentStg?.sort_order ?? 0);
+            return (
+              <StageDrilldownInline contactId={contactId} stageName={drilldownStage.name}
+                subTasks={drilldownStage.subTasks} logsBySubTask={new Map(Object.entries(drilldownStage.logsBySubTask))}
+                stageHistory={selectedPipeline.stageHistory} stageId={drilldownStage.id}
+                isPastStage={isPast}
+                onRefresh={() => void fetchAll()} onClose={() => setDrilldownStageId(null)} />
+            );
+          })()}
         </div>
       )}
 

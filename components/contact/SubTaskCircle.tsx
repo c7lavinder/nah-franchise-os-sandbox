@@ -5,7 +5,7 @@
  * Per §1.11: empty / half / full, with name + state label beside it.
  */
 
-import { Check, ChevronDown, ChevronRight } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import type { CircleState } from "@/lib/contacts/stage-visual-state";
 
 interface SubTaskCircleProps {
@@ -16,6 +16,7 @@ interface SubTaskCircleProps {
   secondStateLabel: string | null;
   logCount: number;
   isExpanded: boolean;
+  isMissingLog?: boolean;
   onClick: () => void;
 }
 
@@ -41,6 +42,7 @@ export default function SubTaskCircle({
   secondStateLabel,
   logCount,
   isExpanded,
+  isMissingLog,
   onClick,
 }: SubTaskCircleProps) {
   const label = getStateLabel(state, stateType, firstStateLabel, secondStateLabel);
@@ -48,7 +50,9 @@ export default function SubTaskCircle({
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-3 w-full py-1.5 hover:bg-bg-hover rounded-md px-2 transition-colors text-left"
+      className={`flex items-center gap-3 w-full py-1.5 rounded-md px-2 transition-colors text-left ${
+        isMissingLog ? "bg-amber-50 hover:bg-amber-100/60" : "hover:bg-bg-hover"
+      }`}
     >
       {/* Small circle */}
       <div
@@ -58,7 +62,9 @@ export default function SubTaskCircle({
             ? "bg-success text-white"
             : state === "half"
               ? "bg-warning/20 border-2 border-warning text-warning"
-              : "bg-bg-tertiary border-2 border-border-default text-text-tertiary"
+              : isMissingLog
+                ? "bg-amber-100 border-2 border-amber-300 text-amber-600"
+                : "bg-bg-tertiary border-2 border-border-default text-text-tertiary"
           }
         `}
       >
@@ -68,6 +74,7 @@ export default function SubTaskCircle({
           </div>
         )}
         {state === "full" && <Check size={12} className="relative z-10" />}
+        {isMissingLog && state === "empty" && <AlertTriangle size={11} className="relative z-10" />}
       </div>
 
       {/* Name + state label */}
