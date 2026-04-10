@@ -116,7 +116,7 @@ export default function NotificationBell({ onNavClick, forceClose }: Notificatio
       {/* Dropdown panel */}
       {open && (
         <div
-          className="absolute bottom-full left-0 mb-2 w-[320px] max-h-[400px] rounded-xl overflow-hidden flex flex-col"
+          className="absolute bottom-full left-0 mb-2 w-full max-h-[400px] rounded-xl overflow-hidden flex flex-col"
           style={{
             background: "rgba(255, 255, 255, 0.95)",
             backdropFilter: "blur(16px)",
