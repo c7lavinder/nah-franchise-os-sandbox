@@ -132,11 +132,15 @@ export async function GET(request: NextRequest) {
     type PipelineRow = { id: string; name: string; slug: string };
 
     const contacts = allRows.map((row: Record<string, unknown>) => {
-      const contact = row.contacts as ContactRow | null;
-      const stage = row.pipeline_stages as StageRow | null;
-      const pipeline = row.pipelines as PipelineRow | null;
+      // Supabase joins can return object or array — normalize
+      const rawContact = row.contacts;
+      const contact = (Array.isArray(rawContact) ? rawContact[0] : rawContact) as ContactRow | null;
+      const rawStage = row.pipeline_stages;
+      const stage = (Array.isArray(rawStage) ? rawStage[0] : rawStage) as StageRow | null;
+      const rawPipeline = row.pipelines;
+      const pipeline = (Array.isArray(rawPipeline) ? rawPipeline[0] : rawPipeline) as PipelineRow | null;
 
-      const name = [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "Unknown";
+      const name = [contact?.first_name?.trim(), contact?.last_name?.trim()].filter(Boolean).join(" ") || (contact?.email ?? contact?.phone ?? "Unknown");
 
       const subTaskStarted = row.current_sub_task_started_at
         ? new Date(row.current_sub_task_started_at as string).getTime()
