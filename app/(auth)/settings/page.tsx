@@ -101,15 +101,15 @@ export default function SettingsPage() {
       {activeTab === "users" ? (
         <UsersPanel />
       ) : activeTab === "data" ? (
-        <div className="space-y-8">
-          <PipelineEditor />
-          <hr className="border-border-default" />
-          <CallTypesRubricEditor />
-          <hr className="border-border-default" />
-          <LeadSourcesPanel />
-          <hr className="border-border-default" />
-          {/* Pipeline Thresholds + GHL Sync — extracted from AppSettingsPanel */}
-          <AppSettingsPanel variant="data" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <PipelineEditor />
+            <CallTypesRubricEditor />
+          </div>
+          <div className="space-y-6">
+            <LeadSourcesPanel />
+            <AppSettingsPanel variant="data" />
+          </div>
         </div>
       ) : activeTab === "automation" ? (
         <AutomationPanel />
