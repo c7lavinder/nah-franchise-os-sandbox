@@ -65,7 +65,7 @@ export default function AppShell({
           {/* Persistent Scout Ask bar — hidden on Scout AI page */}
           {!isScoutPage && (
             <div className="mb-4">
-              <QuickAsk />
+              <QuickAsk context={pathname} />
             </div>
           )}
           {children}

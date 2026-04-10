@@ -4,10 +4,25 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MessageSquare, Send, ArrowRight } from "lucide-react";
 
-/** Compact Scout input — type a question, press Enter to navigate to Scout with the question prefilled */
-export default function QuickAsk() {
+const PLACEHOLDERS: Record<string, string> = {
+  "/daily-hq": "What should I prioritize today? Who needs follow-up?",
+  "/calls": "How can I improve my call performance? What did coaching suggest?",
+  "/pipeline": "Which leads need attention? How's my pipeline health?",
+  "/knowledge": "Search the knowledge base...",
+  "/settings": "Ask Scout anything...",
+};
+
+const DEFAULT_PLACEHOLDER = "Ask Scout anything...";
+
+interface QuickAskProps {
+  context?: string;
+}
+
+export default function QuickAsk({ context }: QuickAskProps) {
   const [query, setQuery] = useState("");
   const router = useRouter();
+
+  const placeholder = (context && PLACEHOLDERS[context]) ?? DEFAULT_PLACEHOLDER;
 
   function handleSubmit() {
     if (!query.trim()) return;
@@ -23,7 +38,7 @@ export default function QuickAsk() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
-        placeholder="Ask Scout anything..."
+        placeholder={placeholder}
         className="flex-1 bg-transparent text-body-sm text-text-primary placeholder:text-scout-purple/40 outline-none"
       />
       {query.trim() ? (
