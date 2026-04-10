@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, Phone, Loader2, FileText, Award, BookOpen,
-  RefreshCw, ExternalLink, Sparkles, Users, MapPin,
+  RefreshCw, ExternalLink, Sparkles, Users, MapPin, Upload, Video,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -96,6 +96,7 @@ export default function CallDetailPage() {
   const [brief, setBrief] = useState<string | null>(null);
   const [briefLoading, setBriefLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const fetchDetail = useCallback(async () => {
     try {
@@ -157,6 +158,23 @@ export default function CallDetailPage() {
       if (res.ok) { const d = await res.json(); setBrief(d.brief); }
     } catch { /* silent */ }
     setBriefLoading(false);
+  }
+
+  async function handleFileUpload(file: File) {
+    setUploading(true); setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+      form.append("type", ext === "txt" ? "transcript" : "recording");
+      const res = await fetch(`/api/calls/${callId}/upload`, { method: "POST", body: form });
+      if (res.ok) {
+        const d = await res.json();
+        toast(d.type === "transcript" ? `Transcript uploaded (${d.wordCount} words)` : "Recording uploaded");
+        await fetchDetail();
+      } else { const d = await res.json().catch(() => ({})); setError(d.error ?? "Upload failed"); }
+    } catch { setError("Upload failed"); }
+    setUploading(false);
   }
 
   if (loading) return <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-text-tertiary" /></div>;
@@ -335,14 +353,31 @@ export default function CallDetailPage() {
                 </div>
               </div>
             ) : (
-              <div>
-                <p className="text-body-sm text-text-tertiary mb-3">No transcript yet. Paste one below:</p>
+              <div className="space-y-4">
+                {/* File upload */}
+                <div className="border-2 border-dashed border-border-default rounded-lg p-6 text-center">
+                  <Upload size={24} className="mx-auto text-text-tertiary mb-2" />
+                  <p className="text-body-sm text-text-primary font-medium mb-1">Upload transcript or recording</p>
+                  <p className="text-caption text-text-tertiary mb-3">.txt transcript or .mp4/.webm recording</p>
+                  <label className="btn-primary px-4 py-2 text-body-sm cursor-pointer inline-flex items-center gap-1">
+                    {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                    {uploading ? "Uploading..." : "Choose File"}
+                    <input type="file" accept=".txt,.mp4,.webm,.m4a,.mp3,.wav" className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFileUpload(f); }} disabled={uploading} />
+                  </label>
+                </div>
+
+                {/* Or paste */}
+                <div className="relative">
+                  <div className="absolute inset-x-0 top-1/2 border-t border-border-default" />
+                  <span className="relative bg-bg-primary px-3 text-caption text-text-tertiary left-1/2 -translate-x-1/2">or paste transcript</span>
+                </div>
                 <textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)}
                   placeholder="Paste call transcript here..."
                   className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary resize-none"
-                  rows={10} disabled={savingTranscript} />
+                  rows={8} disabled={savingTranscript} />
                 <button onClick={() => void handlePasteTranscript()} disabled={savingTranscript || !pasteText.trim()}
-                  className="btn-primary px-4 py-2 text-body-sm mt-2 flex items-center gap-1">
+                  className="btn-primary px-4 py-2 text-body-sm flex items-center gap-1">
                   {savingTranscript && <Loader2 size={14} className="animate-spin" />} Save Transcript
                 </button>
               </div>
