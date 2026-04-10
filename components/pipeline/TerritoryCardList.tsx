@@ -16,14 +16,16 @@ interface TerritoryCard {
   pipeline_slug: string | null;
 }
 
-/** Stage slug → color matching pipeline circle icons */
+/** Label colors matching pipeline circle gradients: red → orange → yellow → green */
 const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
-  setup:              { bg: "bg-emerald-100", text: "text-emerald-700" },
-  training:           { bg: "bg-green-100", text: "text-green-700" },
-  "launch-prep":      { bg: "bg-lime-100", text: "text-lime-700" },
-  onboarded:          { bg: "bg-yellow-100", text: "text-yellow-700" },
-  "first-offer":      { bg: "bg-orange-100", text: "text-orange-700" },
-  "first-purchase":   { bg: "bg-amber-100", text: "text-amber-700" },
+  // Onboarding
+  setup:              { bg: "bg-red-100", text: "text-red-700" },
+  training:           { bg: "bg-orange-100", text: "text-orange-700" },
+  "launch-prep":      { bg: "bg-yellow-100", text: "text-yellow-700" },
+  onboarded:          { bg: "bg-green-100", text: "text-green-700" },
+  // Runway
+  "first-offer":      { bg: "bg-red-100", text: "text-red-700" },
+  "first-purchase":   { bg: "bg-orange-100", text: "text-orange-700" },
   "inventory-building": { bg: "bg-yellow-100", text: "text-yellow-700" },
   running:            { bg: "bg-green-100", text: "text-green-700" },
 };

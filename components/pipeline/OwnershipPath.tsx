@@ -17,33 +17,36 @@ import {
   ChevronDown, ChevronRight,
 } from "lucide-react";
 
-/** Stage metadata: slug → icon + gradient */
+/** Stage metadata: slug → icon + gradient
+ *  Color scheme: red (left/early) → orange → yellow → green (right/complete)
+ *  Applied consistently across all pipelines.
+ */
 const STAGE_META: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; gradient: string }> = {
-  // Sales
-  engagement:    { icon: Users,          gradient: "from-blue-500 to-blue-600" },
-  qualification: { icon: Search,         gradient: "from-indigo-500 to-purple-500" },
-  discovery:     { icon: Phone,          gradient: "from-purple-500 to-violet-600" },
-  compliance:    { icon: Shield,         gradient: "from-violet-600 to-fuchsia-500" },
-  awarding:      { icon: Award,          gradient: "from-amber-500 to-yellow-500" },
-  closed:        { icon: Trophy,         gradient: "from-yellow-500 to-green-500" },
-  // Onboarding
-  setup:         { icon: Settings,       gradient: "from-emerald-500 to-emerald-600" },
-  training:      { icon: BookOpen,       gradient: "from-emerald-600 to-green-500" },
-  "launch-prep": { icon: Rocket,         gradient: "from-green-500 to-lime-500" },
-  onboarded:     { icon: CheckCircle2,   gradient: "from-lime-500 to-yellow-400" },
-  // Runway
-  "first-offer":        { icon: Search,  gradient: "from-orange-500 to-orange-600" },
-  "first-purchase":     { icon: Award,   gradient: "from-orange-600 to-amber-500" },
-  "inventory-building": { icon: Rocket,  gradient: "from-amber-500 to-yellow-500" },
-  running:              { icon: Trophy,  gradient: "from-yellow-500 to-green-500" },
-  // Territories
+  // Sales (6 stages: red → orange → amber → yellow → lime → green)
+  engagement:    { icon: Users,          gradient: "from-red-500 to-red-600" },
+  qualification: { icon: Search,         gradient: "from-orange-500 to-orange-600" },
+  discovery:     { icon: Phone,          gradient: "from-amber-500 to-amber-600" },
+  compliance:    { icon: Shield,         gradient: "from-yellow-500 to-yellow-600" },
+  awarding:      { icon: Award,          gradient: "from-lime-500 to-lime-600" },
+  closed:        { icon: Trophy,         gradient: "from-green-500 to-green-600" },
+  // Onboarding (4 stages: red → orange → yellow → green)
+  setup:         { icon: Settings,       gradient: "from-red-500 to-red-600" },
+  training:      { icon: BookOpen,       gradient: "from-orange-500 to-orange-600" },
+  "launch-prep": { icon: Rocket,         gradient: "from-yellow-500 to-yellow-600" },
+  onboarded:     { icon: CheckCircle2,   gradient: "from-green-500 to-green-600" },
+  // Runway (4 stages: red → orange → yellow → green)
+  "first-offer":        { icon: Search,  gradient: "from-red-500 to-red-600" },
+  "first-purchase":     { icon: Award,   gradient: "from-orange-500 to-orange-600" },
+  "inventory-building": { icon: Rocket,  gradient: "from-yellow-500 to-yellow-600" },
+  running:              { icon: Trophy,  gradient: "from-green-500 to-green-600" },
+  // Territories (3 stages: red → yellow → green)  Order: Inactive → Available → Active
+  inactive:  { icon: UserMinus,    gradient: "from-red-500 to-red-600" },
+  available: { icon: UserPlus,     gradient: "from-yellow-500 to-yellow-600" },
   active:    { icon: CheckCircle2, gradient: "from-green-500 to-green-600" },
-  inactive:  { icon: UserMinus,    gradient: "from-gray-400 to-gray-500" },
-  available: { icon: UserPlus,     gradient: "from-blue-500 to-blue-600" },
-  // Follow-up
-  nurture:   { icon: UserMinus,      gradient: "from-sky-600 to-cyan-600" },
-  followup:  { icon: PhoneForwarded, gradient: "from-sky-500 to-sky-600" },
-  reengaged: { icon: UserPlus,       gradient: "from-cyan-500 to-teal-500" },
+  // Follow-up (3 stages: red → yellow → green)  Order: Nurture → Follow-up → Re-engaged
+  nurture:   { icon: UserMinus,      gradient: "from-red-500 to-red-600" },
+  followup:  { icon: PhoneForwarded, gradient: "from-yellow-500 to-yellow-600" },
+  reengaged: { icon: UserPlus,       gradient: "from-green-500 to-green-600" },
 };
 
 interface StageAPI {

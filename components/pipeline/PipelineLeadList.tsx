@@ -47,20 +47,33 @@ const URGENCY_STYLES = {
 };
 
 /** Stage slug → color that matches the pipeline circles */
+/** Label colors matching pipeline circle gradients: red → orange → yellow → green */
 const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
-  engagement:    { bg: "bg-blue-100", text: "text-blue-700" },
-  qualification: { bg: "bg-indigo-100", text: "text-indigo-700" },
-  discovery:     { bg: "bg-purple-100", text: "text-purple-700" },
-  compliance:    { bg: "bg-violet-100", text: "text-violet-700" },
-  awarding:      { bg: "bg-amber-100", text: "text-amber-700" },
+  // Sales
+  engagement:    { bg: "bg-red-100", text: "text-red-700" },
+  qualification: { bg: "bg-orange-100", text: "text-orange-700" },
+  discovery:     { bg: "bg-amber-100", text: "text-amber-700" },
+  compliance:    { bg: "bg-yellow-100", text: "text-yellow-700" },
+  awarding:      { bg: "bg-lime-100", text: "text-lime-700" },
   closed:        { bg: "bg-green-100", text: "text-green-700" },
-  nurture:       { bg: "bg-cyan-100", text: "text-cyan-700" },
-  followup:      { bg: "bg-sky-100", text: "text-sky-700" },
-  reengaged:     { bg: "bg-teal-100", text: "text-teal-700" },
-  setup:         { bg: "bg-emerald-100", text: "text-emerald-700" },
-  training:      { bg: "bg-green-100", text: "text-green-700" },
-  "launch-prep": { bg: "bg-lime-100", text: "text-lime-700" },
-  onboarded:     { bg: "bg-yellow-100", text: "text-yellow-700" },
+  // Onboarding
+  setup:         { bg: "bg-red-100", text: "text-red-700" },
+  training:      { bg: "bg-orange-100", text: "text-orange-700" },
+  "launch-prep": { bg: "bg-yellow-100", text: "text-yellow-700" },
+  onboarded:     { bg: "bg-green-100", text: "text-green-700" },
+  // Runway
+  "first-offer":        { bg: "bg-red-100", text: "text-red-700" },
+  "first-purchase":     { bg: "bg-orange-100", text: "text-orange-700" },
+  "inventory-building": { bg: "bg-yellow-100", text: "text-yellow-700" },
+  running:              { bg: "bg-green-100", text: "text-green-700" },
+  // Territories
+  inactive:  { bg: "bg-red-100", text: "text-red-700" },
+  available: { bg: "bg-yellow-100", text: "text-yellow-700" },
+  active:    { bg: "bg-green-100", text: "text-green-700" },
+  // Follow-up
+  nurture:   { bg: "bg-red-100", text: "text-red-700" },
+  followup:  { bg: "bg-yellow-100", text: "text-yellow-700" },
+  reengaged: { bg: "bg-green-100", text: "text-green-700" },
 };
 
 const SOURCE_COLORS: Record<string, { bg: string; text: string }> = {
