@@ -103,6 +103,7 @@ export async function GET() {
     anthropic: { connected: anthropicConnected },
     whisper: { connected: whisperConnected },
     pdl: { connected: pdlConnected },
+    read_ai: { connected: !!process.env.READ_AI_WEBHOOK_SIGNING_KEY_MATT },
     health: {
       customFieldsCached,
       pipelinesCached,

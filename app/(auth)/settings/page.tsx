@@ -26,6 +26,7 @@ interface IntegrationStatus {
   anthropic: { connected: boolean };
   whisper: { connected: boolean };
   pdl: { connected: boolean };
+  read_ai: { connected: boolean };
   setup?: { checklist: SetupItem[]; complete: number; total: number; ready: boolean };
 }
 
@@ -221,6 +222,12 @@ export default function SettingsPage() {
                     {integrations.pdl?.connected
                       ? <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> Connected</span>
                       : <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> No API Key</span>}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2"><Zap size={14} className="text-green-600" /><span className="text-body-sm text-text-primary">Read.ai</span></div>
+                    {integrations.read_ai?.connected
+                      ? <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> Connected</span>
+                      : <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> Not Configured</span>}
                   </div>
                 </div>
                 {!integrations.ghl.connected && (

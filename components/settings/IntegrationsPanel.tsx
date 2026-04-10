@@ -63,12 +63,28 @@ export default function IntegrationsPanel() {
   useEffect(() => {
     fetch("/api/settings/integrations")
       .then((r) => r.json())
-      .then((d) => setIntegrations(d.integrations ?? []))
-      .catch(() => {
-        // Fallback: show static list
+      .then((d) => {
+        // Map API connection status to the static integration list
+        const connectedSet = new Set<string>();
+        if (d.ghl?.connected) connectedSet.add("ghl-sync").add("ghl-calendar");
+        if (d.anthropic?.connected) connectedSet.add("anthropic");
+        if (d.whisper?.connected) connectedSet.add("openai");
+        if (d.pdl?.connected) connectedSet.add("pdl");
+        if (d.read_ai?.connected) connectedSet.add("read_ai");
+
         setIntegrations(INTEGRATIONS.map((i) => ({
           ...i,
-          status: ("future" in i && i.future) ? "future" as const : "pending" as const,
+          status: ("future" in i && (i as { future?: boolean }).future)
+            ? "future" as const
+            : connectedSet.has(i.name) ? "connected" as const : "pending" as const,
+          lastLog: null,
+          logs: [],
+        })));
+      })
+      .catch(() => {
+        setIntegrations(INTEGRATIONS.map((i) => ({
+          ...i,
+          status: ("future" in i && (i as { future?: boolean }).future) ? "future" as const : "pending" as const,
           lastLog: null,
           logs: [],
         })));
