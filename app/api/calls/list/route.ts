@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/calls/list — returns calls from the calls table (Sprint 9 schema).
- * Query params: status, call_type_id, hosted_by_user_id, limit, offset
+ * GET /api/calls/list — unified call list from the calls table.
+ * Returns enriched calls with host, contact, call type, participants.
+ * All enrichment queries run in parallel for speed.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -22,10 +23,10 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from("calls")
     .select(`
-      id, ghl_event_id, contact_id, call_type_id, sub_task_id,
+      id, contact_id, call_type_id,
       scheduled_at, started_at, ended_at, duration_seconds,
-      meeting_link, hosted_by_user_id, status, created_at,
-      title, source, summary, read_ai_session_id, participant_count
+      hosted_by_user_id, status, created_at,
+      title, source, read_ai_session_id
     `)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
@@ -38,56 +39,96 @@ export async function GET(request: NextRequest) {
 
   const { data: calls, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!calls?.length) return NextResponse.json({ calls: [], total: 0 });
 
-  // Enrich with names
-  const contactIds = [...new Set((calls ?? []).map((c) => c.contact_id).filter(Boolean))];
-  const userIds = [...new Set((calls ?? []).map((c) => c.hosted_by_user_id).filter(Boolean))];
-  const callTypeIds = [...new Set((calls ?? []).map((c) => c.call_type_id).filter(Boolean))];
+  // Collect IDs for batch enrichment
+  const contactIds = [...new Set(calls.map((c) => c.contact_id).filter(Boolean))];
+  const userIds = [...new Set(calls.map((c) => c.hosted_by_user_id).filter(Boolean))];
+  const callTypeIds = [...new Set(calls.map((c) => c.call_type_id).filter(Boolean))];
+  const sessionIds = calls.map((c) => c.read_ai_session_id).filter(Boolean) as string[];
+
+  // Run ALL enrichment in parallel
+  const [contactRes, userRes, callTypeRes, sessionRes] = await Promise.all([
+    contactIds.length > 0
+      ? supabase.from("contacts").select("id, first_name, last_name").in("id", contactIds)
+      : Promise.resolve({ data: [] }),
+    userIds.length > 0
+      ? supabase.from("users").select("id, full_name, email").in("id", userIds as string[])
+      : Promise.resolve({ data: [] }),
+    callTypeIds.length > 0
+      ? supabase.from("call_types").select("id, name").in("id", callTypeIds as string[])
+      : Promise.resolve({ data: [] }),
+    sessionIds.length > 0
+      ? supabase.from("read_ai_sessions").select("session_id, participant_emails, owner_email").in("session_id", sessionIds)
+      : Promise.resolve({ data: [] }),
+  ]);
 
   const contactMap = new Map<string, string>();
-  if (contactIds.length > 0) {
-    const { data } = await supabase.from("contacts").select("id, first_name, last_name").in("id", contactIds);
-    for (const c of data ?? []) contactMap.set(c.id, `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown");
+  for (const c of contactRes.data ?? []) {
+    contactMap.set(c.id, `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown");
   }
 
-  const userMap = new Map<string, string>();
-  if (userIds.length > 0) {
-    const { data } = await supabase.from("users").select("id, full_name").in("id", userIds as string[]);
-    for (const u of data ?? []) userMap.set(u.id, u.full_name);
+  const userMap = new Map<string, { name: string; email: string }>();
+  for (const u of userRes.data ?? []) {
+    userMap.set(u.id, { name: u.full_name, email: u.email });
   }
 
   const callTypeMap = new Map<string, string>();
-  if (callTypeIds.length > 0) {
-    const { data } = await supabase.from("call_types").select("id, name").in("id", callTypeIds as string[]);
-    for (const ct of data ?? []) callTypeMap.set(ct.id, ct.name);
+  for (const ct of callTypeRes.data ?? []) {
+    callTypeMap.set(ct.id, ct.name);
   }
 
-  // Check which calls have transcripts, grades, coaching
-  const callIds = (calls ?? []).map((c) => c.id);
-  const transcriptSet = new Set<string>();
-  const gradeMap = new Map<string, string>();
-  const coachingSet = new Set<string>();
-
-  if (callIds.length > 0) {
-    const { data: txs } = await supabase.from("call_transcripts").select("call_id").in("call_id", callIds);
-    for (const t of txs ?? []) transcriptSet.add(t.call_id);
-
-    const { data: grades } = await supabase.from("call_grades").select("call_id, overall_grade").in("call_id", callIds);
-    for (const g of grades ?? []) gradeMap.set(g.call_id, g.overall_grade);
-
-    const { data: coaching } = await supabase.from("call_coaching").select("call_id").in("call_id", callIds);
-    for (const c of coaching ?? []) coachingSet.add(c.call_id);
+  // Build email→name map for all known users (for participant resolution)
+  const emailToName = new Map<string, string>();
+  for (const u of userRes.data ?? []) {
+    if (u.email) emailToName.set(u.email.toLowerCase(), u.full_name);
+  }
+  // Also fetch all users for participant matching (team members may not be hosts)
+  const { data: allUsers } = await supabase.from("users").select("email, full_name").not("email", "is", null);
+  for (const u of allUsers ?? []) {
+    if (u.email) emailToName.set(u.email.toLowerCase(), u.full_name);
   }
 
-  const enriched = (calls ?? []).map((c) => ({
-    ...c,
-    contactName: c.contact_id ? (contactMap.get(c.contact_id) ?? "Unknown") : null,
-    hostName: c.hosted_by_user_id ? (userMap.get(c.hosted_by_user_id) ?? null) : null,
-    callTypeName: c.call_type_id ? (callTypeMap.get(c.call_type_id) ?? null) : null,
-    hasTranscript: transcriptSet.has(c.id),
-    grade: gradeMap.get(c.id) ?? null,
-    hasCoaching: coachingSet.has(c.id),
-  }));
+  const sessionMap = new Map<string, { participant_emails: string[]; owner_email: string | null }>();
+  for (const s of sessionRes.data ?? []) {
+    sessionMap.set(s.session_id, { participant_emails: s.participant_emails ?? [], owner_email: s.owner_email });
+  }
+
+  const NAH_DOMAIN = "newagainhouses.com";
+
+  const enriched = calls.map((c) => {
+    const session = c.read_ai_session_id ? sessionMap.get(c.read_ai_session_id) : null;
+    const participantEmails = session?.participant_emails ?? [];
+
+    // Split participants into team members and external contacts
+    const teamMembers: string[] = [];
+    const externalContacts: string[] = [];
+    for (const email of participantEmails) {
+      const lc = email.toLowerCase();
+      const name = emailToName.get(lc);
+      if (lc.endsWith(`@${NAH_DOMAIN}`)) {
+        teamMembers.push(name ?? email.split("@")[0]);
+      } else {
+        externalContacts.push(name ?? email);
+      }
+    }
+
+    const hostInfo = c.hosted_by_user_id ? userMap.get(c.hosted_by_user_id) : null;
+
+    return {
+      id: c.id,
+      title: c.title,
+      source: c.source,
+      status: c.status,
+      hostName: hostInfo?.name ?? null,
+      contactName: c.contact_id ? (contactMap.get(c.contact_id) ?? null) : null,
+      callTypeName: c.call_type_id ? (callTypeMap.get(c.call_type_id) ?? null) : null,
+      teamMembers,
+      externalContacts,
+      date: c.scheduled_at ?? c.started_at ?? c.created_at,
+      duration_seconds: c.duration_seconds,
+    };
+  });
 
   return NextResponse.json({ calls: enriched, total: enriched.length });
 }
