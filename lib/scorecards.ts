@@ -144,49 +144,50 @@ export async function getCallsScorecard() {
 export async function getPipelineScorecard() {
   const supabase = createServerClient();
 
-  // In Sales: distinct contacts in Engagement through Awarding (exclude Closed)
-  const { data: salesStages } = await supabase
+  // Look up pipeline IDs by slug (no ambiguous join needed)
+  const { data: pipelines } = await supabase
+    .from("pipelines")
+    .select("id, slug")
+    .in("slug", ["sales", "onboarding", "runway"]);
+
+  const pipelineIdBySlug = new Map<string, string>();
+  for (const p of pipelines ?? []) pipelineIdBySlug.set(p.slug, p.id);
+
+  // Get all non-terminal stages for each pipeline
+  const { data: allStages } = await supabase
     .from("pipeline_stages")
-    .select("id, slug, pipeline_id, pipelines (slug)")
-    .not("slug", "eq", "closed");
+    .select("id, slug, pipeline_id, is_terminal")
+    .eq("is_terminal", false);
 
-  const salesStageIds = (salesStages ?? [])
-    .filter((s) => (s.pipelines as unknown as { slug: string })?.slug === "sales" && s.slug !== "closed")
-    .map((s) => s.id);
+  function stageIdsFor(pipelineSlug: string): string[] {
+    const pid = pipelineIdBySlug.get(pipelineSlug);
+    if (!pid) return ["__none__"];
+    const ids = (allStages ?? [])
+      .filter((s) => s.pipeline_id === pid)
+      .map((s) => s.id);
+    return ids.length > 0 ? ids : ["__none__"];
+  }
 
+  // In Sales: non-terminal stages (Engagement through Awarding, excludes Closed)
   const { count: inSales } = await supabase
     .from("contact_pipeline_state")
     .select("id", { count: "exact", head: true })
     .eq("is_active", true)
-    .in("current_stage_id", salesStageIds.length > 0 ? salesStageIds : ["__none__"]);
+    .in("current_stage_id", stageIdsFor("sales"));
 
-  // In Onboarding: territories in Setup, Training, Launch Prep (exclude Onboarded)
-  const onboardingStageIds = (salesStages ?? [])
-    .filter((s) => {
-      const pSlug = (s.pipelines as unknown as { slug: string })?.slug;
-      return pSlug === "onboarding" && s.slug !== "onboarded";
-    })
-    .map((s) => s.id);
-
+  // In Onboarding: non-terminal stages (excludes Onboarded)
   const { count: inOnboarding } = await supabase
     .from("contact_pipeline_state")
     .select("id", { count: "exact", head: true })
     .eq("is_active", true)
-    .in("current_stage_id", onboardingStageIds.length > 0 ? onboardingStageIds : ["__none__"]);
+    .in("current_stage_id", stageIdsFor("onboarding"));
 
-  // In Runway: territories in First Offer, First Purchase, Inventory Building (exclude Running)
-  const runwayStageIds = (salesStages ?? [])
-    .filter((s) => {
-      const pSlug = (s.pipelines as unknown as { slug: string })?.slug;
-      return pSlug === "runway" && s.slug !== "running";
-    })
-    .map((s) => s.id);
-
+  // In Runway: non-terminal stages (excludes Running)
   const { count: inRunway } = await supabase
     .from("contact_pipeline_state")
     .select("id", { count: "exact", head: true })
     .eq("is_active", true)
-    .in("current_stage_id", runwayStageIds.length > 0 ? runwayStageIds : ["__none__"]);
+    .in("current_stage_id", stageIdsFor("runway"));
 
   return {
     inSales: { value: inSales ?? 0, label: "In Sales", sub: "active prospects" },
