@@ -46,13 +46,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {/* Toast container */}
       {toasts.length > 0 && (
-        <div className="fixed bottom-4 right-4 z-[200] flex flex-col gap-2">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex flex-col items-center gap-2">
           {toasts.map((t) => (
             <div
               key={t.id}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-lg text-body-sm font-medium animate-[slideIn_0.2s_ease-out] ${
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-lg shadow-lg text-body-sm font-medium animate-[slideIn_0.2s_ease-out] ${
                 t.type === "success"
-                  ? "bg-success text-white"
+                  ? "bg-nah-blue text-white"
                   : "bg-danger text-white"
               }`}
             >

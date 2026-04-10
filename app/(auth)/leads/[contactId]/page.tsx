@@ -18,11 +18,48 @@ import { TerritoryDetailsCard, DealDetailsCard } from "@/components/contact/Terr
 import RelatedPeopleCard from "@/components/contact/RelatedPeopleCard";
 import TeamCard from "@/components/contact/TeamCard";
 import TerritoryOwnershipSection from "@/components/contact/TerritoryOwnershipSection";
+import TerritoryDataTab from "@/components/contact/TerritoryDataTab";
 import { capitalizeName, formatPhone } from "@/lib/format/contact";
 import { useToast } from "@/components/ui/Toast";
 import type { SubTaskLog, StageHistoryEntry } from "@/lib/contacts/pipeline-state";
+import { Pencil } from "lucide-react";
 
 const CATEGORIES: FieldCategory[] = getSortedCategories();
+
+function EditableInfoField({ label, value, onSave }: { label: string; value: string; onSave: (v: string) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [edited, setEdited] = useState(false);
+
+  if (!editing) {
+    return (
+      <div>
+        <span className="text-text-tertiary block text-[10px]">{label}</span>
+        <p className="text-text-primary flex items-center gap-1 cursor-pointer hover:text-nah-blue" onClick={() => { setEditing(true); setDraft(value); }}>
+          {value || "—"}
+          {edited && <Pencil size={10} className="text-nah-orange flex-shrink-0" />}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <span className="text-text-tertiary block text-[10px]">{label}</span>
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => { setEditing(false); if (draft !== value) { void onSave(draft); setEdited(true); } }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { setEditing(false); if (draft !== value) { void onSave(draft); setEdited(true); } }
+          if (e.key === "Escape") { setEditing(false); setDraft(value); }
+        }}
+        className="w-full bg-bg-secondary border border-nah-blue rounded px-2 py-0.5 text-body-sm text-text-primary outline-none"
+      />
+    </div>
+  );
+}
 
 interface PipelineStateAPI {
   id: string; contact_id: string; pipeline_id: string; current_stage_id: string;
@@ -120,7 +157,7 @@ export default function LeadProfilePage() {
       if (profileRes?.ok) { const d = await profileRes.json(); setProfileValues(d.raw ?? {}); }
     } catch { /* continue */ }
     setLoading(false);
-  }, [contactId, selectedPipelineId]);
+  }, [contactId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { void fetchAll(); }, [fetchAll]);
 
@@ -272,17 +309,33 @@ export default function LeadProfilePage() {
                 ) : activeTab === "messages" ? (
                   <div className="flex flex-col h-full min-h-0"><MessagesTab contactId={contactId} highlightMessageId={highlightMessageId} /></div>
                 ) : activeTab === "profile" ? (
-                  <div className="space-y-4 max-w-2xl">
+                  <div className="space-y-4">
                     <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
                       <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-3">PROSPECT INFORMATION</h3>
                       <div className="grid grid-cols-2 gap-3 text-body-sm">
-                        <div><span className="text-text-tertiary block text-[10px]">First Name</span><p className="text-text-primary">{capitalizeName(localContact?.first_name) || "—"}</p></div>
-                        <div><span className="text-text-tertiary block text-[10px]">Last Name</span><p className="text-text-primary">{capitalizeName(localContact?.last_name) || "—"}</p></div>
-                        <div><span className="text-text-tertiary block text-[10px]">Phone</span><p className="text-text-primary">{formatPhone(localContact?.phone) || "—"}</p></div>
-                        <div><span className="text-text-tertiary block text-[10px]">Email</span><p className="text-text-primary">{localContact?.email || "—"}</p></div>
-                        <div><span className="text-text-tertiary block text-[10px]">City</span><p className="text-text-primary">{capitalizeName(localContact?.city) || "—"}</p></div>
-                        <div><span className="text-text-tertiary block text-[10px]">State</span><p className="text-text-primary">{localContact?.state?.toUpperCase() || "—"}</p></div>
-                        <div><span className="text-text-tertiary block text-[10px]">Lead Source</span><p className="text-text-primary">{localContact?.opportunity_source || "—"}</p></div>
+                        {[
+                          { label: "First Name", key: "first_name" as const, val: capitalizeName(localContact?.first_name) || "" },
+                          { label: "Last Name", key: "last_name" as const, val: capitalizeName(localContact?.last_name) || "" },
+                          { label: "Phone", key: "phone" as const, val: localContact?.phone || "" },
+                          { label: "Email", key: "email" as const, val: localContact?.email || "" },
+                          { label: "City", key: "city" as const, val: capitalizeName(localContact?.city) || "" },
+                          { label: "State", key: "state" as const, val: localContact?.state?.toUpperCase() || "" },
+                          { label: "Lead Source", key: "opportunity_source" as const, val: localContact?.opportunity_source || "" },
+                        ].map((f) => (
+                          <EditableInfoField
+                            key={f.key}
+                            label={f.label}
+                            value={f.val}
+                            onSave={async (v) => {
+                              const res = await fetch(`/api/contacts/${contactId}`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ [f.key]: v || null }),
+                              });
+                              if (res.ok) setLocalContact((prev) => prev ? { ...prev, [f.key]: v || null } : prev);
+                            }}
+                          />
+                        ))}
                       </div>
                     </div>
                     {profileValues["Auto Summary"] && (
@@ -306,7 +359,7 @@ export default function LeadProfilePage() {
                 ) : activeTab === "territories" ? (
                   <div className="space-y-4">
                     <TerritoryOwnershipSection contactId={contactId} ghlContactId={contact?.id} />
-                    <p className="text-caption text-text-tertiary">Territory profiles owned by this contact are accessible via the territory links above.</p>
+                    <TerritoryDataTab ghlContactId={contact?.id ?? null} />
                   </div>
                 ) : null}
               </div>

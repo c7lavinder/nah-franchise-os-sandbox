@@ -128,10 +128,10 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId }: P
               <Plus size={14} />
             </button>
           )}
-          {current.length > 0 && (
+          {current.length > 0 && active && active.isCurrent && (
             <button
               onClick={() => {
-                setTransferSlug(current[0].ms_slug);
+                setTransferSlug(active.ms_slug);
                 setShowTransfer(true);
               }}
               className="btn-ghost p-1.5"
@@ -190,6 +190,21 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId }: P
               >
                 View territory <ExternalLink size={12} />
               </button>
+              {active.isCurrent && active.territories?.status === "active" && (
+                <button
+                  onClick={async () => {
+                    const res = await fetch(`/api/territories/${active.ms_slug}/status`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ status: "inactive" }),
+                    });
+                    if (res.ok) fetchOwnership();
+                  }}
+                  className="text-danger hover:underline text-caption"
+                >
+                  Mark Inactive
+                </button>
+              )}
             </div>
           </div>
         </div>
