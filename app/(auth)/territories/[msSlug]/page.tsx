@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, MapPin, Activity, DollarSign,
@@ -95,72 +95,65 @@ export default function TerritoryProfilePage() {
         </div>
       </div>
 
-      {/* Persistent: Operations + Grades — always visible */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Operations */}
-        <div className="bg-bg-primary border border-border-default rounded-lg p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity size={16} className="text-info" />
-            <h2 className="text-body-sm font-semibold text-text-primary">Operations</h2>
-          </div>
-          <div className="text-center mb-4">
-            <div className="text-4xl font-bold text-text-primary">{housesYTD}</div>
-            <div className="text-caption text-text-tertiary">Houses Purchased YTD</div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <StatCard label="Sold YTD" value={p?.houses_sold_ytd ?? "—"} />
-            <StatCard label="Active Deals" value={p?.active_deals ?? "—"} />
-            <StatCard label="Lead Conv." value={p?.lead_conversion_rate ? `${p.lead_conversion_rate}%` : "—"} />
-            <StatCard label="Avg Profit" value={p?.avg_profit_per_flip ? `$${Number(p.avg_profit_per_flip).toLocaleString()}` : "—"} />
-          </div>
+      {/* Persistent: Operations — full width, big number + 4-col stats */}
+      <div className="bg-bg-primary border border-border-default rounded-lg p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Activity size={18} className="text-info" />
+          <h2 className="text-body-sm font-semibold">Operations</h2>
         </div>
+        <div className="text-center mb-4">
+          <div className="text-4xl font-bold text-text-primary">{housesYTD}</div>
+          <div className="text-caption text-text-tertiary">Houses Purchased YTD</div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatCard label="Sold YTD" value={p?.houses_sold_ytd ?? "—"} />
+          <StatCard label="Active Deals" value={p?.active_deals ?? "—"} />
+          <StatCard label="Lead Conv. Rate" value={p?.lead_conversion_rate ? `${p.lead_conversion_rate}%` : "—"} />
+          <StatCard label="Avg Profit/Flip" value={p?.avg_profit_per_flip ? `$${Number(p.avg_profit_per_flip).toLocaleString()}` : "—"} />
+        </div>
+      </div>
 
-        {/* Quarterly Grades */}
-        <div className="bg-bg-primary border border-border-default rounded-lg p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Award size={16} className="text-warning" />
-            <h2 className="text-body-sm font-semibold text-text-primary">Quarterly Grades</h2>
-          </div>
-          {grades.length === 0 ? (
-            <div className="text-caption text-text-tertiary py-4 text-center">No grades recorded yet.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-body-sm">
-                <thead>
-                  <tr className="text-left text-caption text-text-tertiary border-b border-border-default">
-                    <th className="py-2 pr-3">Year</th>
-                    <th className="py-2 px-1">Q1</th><th className="py-2 px-1">Q2</th>
-                    <th className="py-2 px-1">Q3</th><th className="py-2 px-1">Q4</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(gradesByYear)
-                    .sort(([a], [b]) => Number(b) - Number(a))
-                    .map(([year, yearGrades]) => (
-                      <tr key={year} className="border-b border-border-default">
-                        <td className="py-2 pr-3 font-medium">{year}</td>
-                        {[1, 2, 3, 4].map((q) => {
-                          const g = yearGrades.find((x) => x.quarter === q);
-                          return (
-                            <td key={q} className="py-2 px-1 text-center">
-                              {g ? (
-                                <div>
-                                  <span className="font-medium">{g.self_grade ?? "—"}</span>
-                                  {g.john_grade != null && (
-                                    <span className="text-text-tertiary text-[10px] ml-0.5">/{g.john_grade}</span>
-                                  )}
-                                </div>
-                              ) : "—"}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+      {/* Persistent: Quarterly Grades — full width, Self/John columns */}
+      <div className="bg-bg-primary border border-border-default rounded-lg p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Award size={18} className="text-warning" />
+          <h2 className="text-body-sm font-semibold">Quarterly Grades</h2>
         </div>
+        {grades.length === 0 ? (
+          <div className="text-caption text-text-tertiary py-4 text-center">No grades recorded yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-body-sm">
+              <thead>
+                <tr className="text-left text-caption text-text-tertiary border-b border-border-default">
+                  <th className="py-2 pr-4">Year</th>
+                  <th className="py-2 px-2">Q1 Self</th><th className="py-2 px-2">Q1 John</th>
+                  <th className="py-2 px-2">Q2 Self</th><th className="py-2 px-2">Q2 John</th>
+                  <th className="py-2 px-2">Q3 Self</th><th className="py-2 px-2">Q3 John</th>
+                  <th className="py-2 px-2">Q4 Self</th><th className="py-2 px-2">Q4 John</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(gradesByYear)
+                  .sort(([a], [b]) => Number(b) - Number(a))
+                  .map(([year, yearGrades]) => (
+                    <tr key={year} className="border-b border-border-default">
+                      <td className="py-2 pr-4 font-medium">{year}</td>
+                      {[1, 2, 3, 4].map((q) => {
+                        const g = yearGrades.find((x) => x.quarter === q);
+                        return (
+                          <React.Fragment key={q}>
+                            <td className="py-2 px-2 text-center">{g?.self_grade ?? "—"}</td>
+                            <td className="py-2 px-2 text-center">{g?.john_grade ?? "—"}</td>
+                          </React.Fragment>
+                        );
+                      })}
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
