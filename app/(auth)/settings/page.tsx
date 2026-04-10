@@ -173,51 +173,61 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Quick Integration Status */}
+        {/* Quick Integration Status — only render after data loads */}
         <div className="card">
           <div className="flex items-center gap-2 mb-4">
             <Zap size={16} className="text-text-secondary" />
             <h2 className="text-h3 text-text-primary">Integration Status</h2>
           </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Database size={14} className="text-text-tertiary" />
-                <span className="text-body-sm text-text-primary">GoHighLevel</span>
-              </div>
-              {integrations?.ghl.connected ? (
-                <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> {integrations.ghl.method === "oauth" ? "OAuth" : "API Key"}</span>
-              ) : (
-                <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> Not Connected</span>
-              )}
+          {!integrations ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="h-5 bg-bg-tertiary rounded animate-pulse" />
+              ))}
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Zap size={14} className="text-scout-purple" />
-                <span className="text-body-sm text-text-primary">Anthropic (Scout AI)</span>
+          ) : (
+            <>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Database size={14} className="text-text-tertiary" />
+                    <span className="text-body-sm text-text-primary">GoHighLevel</span>
+                  </div>
+                  {integrations.ghl.connected ? (
+                    <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> {integrations.ghl.method === "oauth" ? "OAuth" : "API Key"}</span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> Not Connected</span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap size={14} className="text-scout-purple" />
+                    <span className="text-body-sm text-text-primary">Anthropic (Scout AI)</span>
+                  </div>
+                  {integrations.anthropic.connected ? (
+                    <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> Connected</span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> No API Key</span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap size={14} className="text-info" />
+                    <span className="text-body-sm text-text-primary">Whisper</span>
+                  </div>
+                  {integrations.whisper.connected ? (
+                    <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> Connected</span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> No API Key</span>
+                  )}
+                </div>
               </div>
-              {integrations?.anthropic.connected ? (
-                <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> Connected</span>
-              ) : (
-                <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> No API Key</span>
+              {!integrations.ghl.connected && (
+                <a href="/api/auth/crm" className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-md bg-nah-orange text-white text-caption font-medium hover:bg-nah-orange/90 transition-colors">
+                  Connect GHL <ExternalLink size={12} />
+                </a>
               )}
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Zap size={14} className="text-info" />
-                <span className="text-body-sm text-text-primary">Whisper</span>
-              </div>
-              {integrations?.whisper.connected ? (
-                <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> Connected</span>
-              ) : (
-                <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> No API Key</span>
-              )}
-            </div>
-          </div>
-          {!integrations?.ghl.connected && (
-            <a href="/api/auth/crm" className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-md bg-nah-orange text-white text-caption font-medium hover:bg-nah-orange/90 transition-colors">
-              Connect GHL <ExternalLink size={12} />
-            </a>
+            </>
           )}
         </div>
 
