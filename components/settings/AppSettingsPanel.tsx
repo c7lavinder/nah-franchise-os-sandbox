@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * AppSettingsPanel — pipeline thresholds and GHL sync configuration.
- * Reads/writes pipeline_app_settings (id=1).
+ * AppSettingsPanel — pipeline thresholds, GHL sync, Scout model config,
+ * notification preferences, and system health.
  */
 
 import { useState, useEffect } from "react";
-import { Loader2, Save, AlertTriangle, Sliders } from "lucide-react";
+import { Loader2, Save, AlertTriangle, Sliders, Brain, Bell, Database, Activity } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 
@@ -17,15 +17,26 @@ interface AppSettings {
   ghl_sync_queue_alert_threshold: number;
 }
 
+interface SystemHealth {
+  totalContacts: number;
+  totalTerritories: number;
+  activeUsers: number;
+  kbDocuments: number;
+  pendingSuggestions: number;
+}
+
 export default function AppSettingsPanel() {
   const { user, token } = useAuth();
   const { toast } = useToast();
   const isAdmin = user?.role === "leadership";
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [health, setHealth] = useState<SystemHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const scoutModel = process.env.NEXT_PUBLIC_SCOUT_MODEL ?? "claude-sonnet-4-6-20250514";
+  const agentModel = "claude-haiku-4-5-20251001";
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -33,12 +44,15 @@ export default function AppSettingsPanel() {
   };
 
   useEffect(() => {
-    fetch("/api/settings/app-settings")
-      .then((r) => (r.ok ? r.json() : (() => { throw new Error("Failed to load settings"); })()))
-      .then((d) => { if (d?.settings) setSettings(d.settings); })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : "Failed to load app settings");
+    Promise.all([
+      fetch("/api/settings/app-settings").then((r) => r.ok ? r.json() : null),
+      fetch("/api/settings/health").then((r) => r.ok ? r.json() : null),
+    ])
+      .then(([settingsData, healthData]) => {
+        if (settingsData?.settings) setSettings(settingsData.settings);
+        if (healthData) setHealth(healthData);
       })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -46,8 +60,6 @@ export default function AppSettingsPanel() {
     if (!settings) return;
     setSaving(true);
     setError(null);
-    setSaved(false);
-
     try {
       const res = await fetch("/api/settings/app-settings", {
         method: "PATCH",
@@ -56,8 +68,6 @@ export default function AppSettingsPanel() {
       });
       if (res.ok) {
         toast("Settings saved");
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
       } else {
         const data = await res.json().catch(() => ({}));
         setError(data.error ?? "Failed to save");
@@ -69,125 +79,189 @@ export default function AppSettingsPanel() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 size={24} className="animate-spin text-text-tertiary" />
-      </div>
-    );
-  }
-
-  if (!settings) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-body-sm text-text-tertiary">App settings not configured. Insert a row into pipeline_app_settings with id=1.</p>
-      </div>
-    );
+    return <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-text-tertiary" /></div>;
   }
 
   return (
-    <div className="max-w-lg">
-      {!isAdmin && (
-        <div className="mb-4 px-3 py-2 bg-warning/10 border border-warning/20 rounded-lg flex items-center gap-2">
-          <AlertTriangle size={14} className="text-warning" />
-          <span className="text-body-sm text-warning font-medium">Admin access required to edit settings</span>
-        </div>
-      )}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Left column: Configuration */}
+      <div className="space-y-6">
+        {!isAdmin && (
+          <div className="px-3 py-2 bg-warning/10 border border-warning/20 rounded-lg flex items-center gap-2">
+            <AlertTriangle size={14} className="text-warning" />
+            <span className="text-body-sm text-warning font-medium">Admin access required to edit</span>
+          </div>
+        )}
 
-      <div className="space-y-5">
-        {/* Time-in-stage thresholds */}
-        <div>
-          <h3 className="text-overline text-text-tertiary tracking-wider mb-3">TIME-IN-STAGE THRESHOLDS</h3>
-
+        {/* Pipeline Thresholds */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <Sliders size={16} className="text-text-secondary" />
+            <h3 className="text-h3 text-text-primary">Pipeline Thresholds</h3>
+          </div>
           <div className="space-y-3">
             <div>
-              <label className="block text-caption text-text-tertiary mb-1">
-                Yellow / At Risk (days)
-              </label>
+              <label className="block text-caption text-text-tertiary mb-1">Yellow / At Risk (days)</label>
               <input
-                type="number"
-                min={1}
-                max={30}
-                value={settings.time_in_stage_yellow_days}
-                onChange={(e) => setSettings({ ...settings, time_in_stage_yellow_days: parseInt(e.target.value) || 5 })}
+                type="number" min={1} max={30}
+                value={settings?.time_in_stage_yellow_days ?? 5}
+                onChange={(e) => settings && setSettings({ ...settings, time_in_stage_yellow_days: parseInt(e.target.value) || 5 })}
                 disabled={!isAdmin}
                 className="w-24 bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary disabled:opacity-50"
               />
+              <p className="text-[10px] text-text-tertiary mt-1">Contacts idle this many days turn yellow</p>
             </div>
-
             <div>
-              <label className="block text-caption text-text-tertiary mb-1">
-                Red / Losing (days)
-              </label>
+              <label className="block text-caption text-text-tertiary mb-1">Red / Losing (days)</label>
               <input
-                type="number"
-                min={1}
-                max={60}
-                value={settings.time_in_stage_red_days}
-                onChange={(e) => setSettings({ ...settings, time_in_stage_red_days: parseInt(e.target.value) || 10 })}
+                type="number" min={1} max={60}
+                value={settings?.time_in_stage_red_days ?? 10}
+                onChange={(e) => settings && setSettings({ ...settings, time_in_stage_red_days: parseInt(e.target.value) || 10 })}
                 disabled={!isAdmin}
                 className="w-24 bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary disabled:opacity-50"
               />
+              <p className="text-[10px] text-text-tertiary mt-1">Contacts idle this many days turn red</p>
             </div>
           </div>
         </div>
 
         {/* GHL Sync */}
-        <div>
-          <h3 className="text-overline text-text-tertiary tracking-wider mb-3">GHL SYNC</h3>
-
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <Database size={16} className="text-text-secondary" />
+            <h3 className="text-h3 text-text-primary">GHL Sync</h3>
+          </div>
           <div className="space-y-3">
             <label className="flex items-center gap-3">
               <input
                 type="checkbox"
-                checked={settings.ghl_sync_enabled}
-                onChange={(e) => setSettings({ ...settings, ghl_sync_enabled: e.target.checked })}
+                checked={settings?.ghl_sync_enabled ?? false}
+                onChange={(e) => settings && setSettings({ ...settings, ghl_sync_enabled: e.target.checked })}
                 disabled={!isAdmin}
                 className="w-4 h-4 rounded border-border-default text-nah-blue"
               />
-              <span className="text-body-sm text-text-primary">GHL sync enabled</span>
+              <span className="text-body-sm text-text-primary">Stage write-back enabled</span>
             </label>
-
             <div>
-              <label className="block text-caption text-text-tertiary mb-1">
-                Sync queue alert threshold
-              </label>
+              <label className="block text-caption text-text-tertiary mb-1">Queue alert threshold</label>
               <input
-                type="number"
-                min={1}
-                max={1000}
-                value={settings.ghl_sync_queue_alert_threshold}
-                onChange={(e) => setSettings({ ...settings, ghl_sync_queue_alert_threshold: parseInt(e.target.value) || 50 })}
+                type="number" min={1} max={1000}
+                value={settings?.ghl_sync_queue_alert_threshold ?? 50}
+                onChange={(e) => settings && setSettings({ ...settings, ghl_sync_queue_alert_threshold: parseInt(e.target.value) || 50 })}
                 disabled={!isAdmin}
                 className="w-24 bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary disabled:opacity-50"
               />
-              <p className="text-[10px] text-text-tertiary mt-1">Alert when queue exceeds this many pending items</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Scout Model Config */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <Brain size={16} className="text-scout-purple" />
+            <h3 className="text-h3 text-text-primary">Scout AI Configuration</h3>
+          </div>
+          <div className="space-y-2 text-body-sm">
+            <div className="flex justify-between">
+              <span className="text-text-tertiary">Scout Model</span>
+              <span className="text-text-primary font-mono text-caption">{scoutModel}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-tertiary">Agent Model</span>
+              <span className="text-text-primary font-mono text-caption">{agentModel}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-tertiary">Draft → Review → Confirm</span>
+              <span className="text-success text-caption font-medium">Enforced</span>
+            </div>
+            <p className="text-[10px] text-text-tertiary mt-2">
+              Model configuration is set via environment variables. Scout never acts without confirmation.
+            </p>
+          </div>
+        </div>
+
+        {/* Notification Preferences */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <Bell size={16} className="text-text-secondary" />
+            <h3 className="text-h3 text-text-primary">Notifications</h3>
+            <span className="badge-info ml-auto">Coming Soon</span>
+          </div>
+          <p className="text-body-sm text-text-tertiary">
+            Alert thresholds, email notifications, and Slack integration will be configurable here.
+          </p>
+        </div>
+
+        {/* Save */}
+        {isAdmin && settings && (
+          <div className="flex items-center gap-3">
+            <button onClick={() => void handleSave()} disabled={saving} className="btn-primary px-4 py-2 text-body-sm flex items-center gap-1">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              Save Settings
+            </button>
+            {error && <span className="text-caption text-danger">{error}</span>}
+          </div>
+        )}
+      </div>
+
+      {/* Right column: System Health */}
+      <div>
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity size={16} className="text-success" />
+            <h3 className="text-h3 text-text-primary">System Health</h3>
+          </div>
+          {health ? (
+            <div className="space-y-3">
+              <HealthRow label="Total Contacts" value={health.totalContacts} />
+              <HealthRow label="Territories" value={health.totalTerritories} />
+              <HealthRow label="Active Users" value={health.activeUsers} />
+              <HealthRow label="KB Documents" value={health.kbDocuments} />
+              <HealthRow label="Pending Suggestions" value={health.pendingSuggestions} warn={health.pendingSuggestions > 20} />
+            </div>
+          ) : (
+            <p className="text-caption text-text-tertiary">Health data unavailable</p>
+          )}
+        </div>
+
+        {/* Environment info */}
+        <div className="card mt-4">
+          <h3 className="text-overline text-text-tertiary tracking-wider mb-3">ENVIRONMENT</h3>
+          <div className="space-y-2 text-body-sm">
+            <div className="flex justify-between">
+              <span className="text-text-tertiary">Platform</span>
+              <span className="text-text-primary">Vercel + Supabase</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-tertiary">CRM</span>
+              <span className="text-text-primary">GoHighLevel</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-tertiary">AI Provider</span>
+              <span className="text-text-primary">Anthropic (Claude)</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-tertiary">Transcription</span>
+              <span className="text-text-primary">OpenAI Whisper</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-tertiary">Version</span>
+              <span className="text-nah-orange text-caption font-medium">Beta</span>
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Error display on load */}
-      {!loading && error && (
-        <div className="mb-4 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg text-body-sm text-danger">
-          {error}
-        </div>
-      )}
-
-      {/* Save */}
-      {isAdmin && (
-        <div className="mt-6 flex items-center gap-3">
-          <button
-            onClick={() => void handleSave()}
-            disabled={saving}
-            className="btn-primary px-4 py-2 text-body-sm flex items-center gap-1"
-          >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            Save Settings
-          </button>
-          {saved && <span className="text-caption text-success">Saved</span>}
-          {error && <span className="text-caption text-danger">{error}</span>}
-        </div>
-      )}
+function HealthRow({ label, value, warn }: { label: string; value: number; warn?: boolean }) {
+  return (
+    <div className="flex items-center justify-between py-1.5 border-b border-border-default last:border-0">
+      <span className="text-body-sm text-text-secondary">{label}</span>
+      <span className={`text-body-sm font-medium ${warn ? "text-warning" : "text-text-primary"}`}>
+        {value.toLocaleString()}
+      </span>
     </div>
   );
 }

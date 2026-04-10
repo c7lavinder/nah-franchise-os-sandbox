@@ -18,21 +18,26 @@ interface IntegrationLog {
 interface Integration {
   name: string;
   label: string;
+  desc?: string;
   status: "connected" | "error" | "pending" | "future";
   lastLog: IntegrationLog | null;
   logs: IntegrationLog[];
 }
 
 const INTEGRATIONS = [
-  { name: "ghl-sync", label: "GoHighLevel (GHL)" },
-  { name: "docusign", label: "DocuSign" },
-  { name: "zorakle", label: "Zorakle" },
-  { name: "google-meet", label: "Google Meet" },
-  { name: "ghl-calendar", label: "GHL Calendar" },
-  { name: "form-submission", label: "JotForm / PFS" },
-  { name: "payment", label: "Payment Processor" },
-  { name: "mastersuite", label: "MasterSuite", future: true },
-  { name: "background-check", label: "Background Check", future: true },
+  { name: "ghl-sync", label: "GoHighLevel (GHL)", desc: "CRM, contacts, pipeline sync" },
+  { name: "ghl-calendar", label: "GHL Calendar", desc: "Appointment scheduling" },
+  { name: "docusign", label: "DocuSign", desc: "FDD and franchise agreement signing" },
+  { name: "zorakle", label: "Zorakle", desc: "Personality profiling + fit scoring" },
+  { name: "trainual", label: "Trainual", desc: "Onboarding training modules" },
+  { name: "google-meet", label: "Google Meet", desc: "Call recording + transcription" },
+  { name: "form-submission", label: "JotForm / PFS", desc: "Personal Financial Statement intake" },
+  { name: "payment", label: "Payment Processor", desc: "Franchise fee payments" },
+  { name: "openai", label: "OpenAI (Whisper)", desc: "Audio transcription" },
+  { name: "anthropic", label: "Anthropic (Claude)", desc: "Scout AI + agent intelligence" },
+  { name: "mastersuite", label: "MasterSuite", desc: "Deal management platform", future: true },
+  { name: "background-check", label: "Background Check", desc: "Prospect verification", future: true },
+  { name: "signing-software", label: "Signing Software", desc: "Document signing (evaluating)", future: true },
 ];
 
 function StatusBadge({ status }: { status: string }) {
@@ -85,7 +90,10 @@ export default function IntegrationsPanel() {
             className="w-full flex items-center gap-3 px-4 py-3 hover:bg-bg-hover transition-colors"
           >
             {expanded === intg.name ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            <span className="text-body-sm font-medium text-text-primary flex-1 text-left">{intg.label}</span>
+            <div className="flex-1 text-left">
+              <span className="text-body-sm font-medium text-text-primary">{intg.label}</span>
+              {intg.desc && <span className="text-caption text-text-tertiary ml-2">{intg.desc}</span>}
+            </div>
             <StatusBadge status={intg.status} />
           </button>
           {expanded === intg.name && (
