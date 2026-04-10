@@ -35,9 +35,10 @@ export async function GET(
   }
 
   let callTypeName = null;
+  let callTypeSlug = null;
   if (call.call_type_id) {
-    const { data: ct } = await supabase.from("call_types").select("name").eq("id", call.call_type_id).single();
-    if (ct) callTypeName = ct.name;
+    const { data: ct } = await supabase.from("call_types").select("name, slug").eq("id", call.call_type_id).single();
+    if (ct) { callTypeName = ct.name; callTypeSlug = ct.slug; }
   }
 
   let territoryName = null;
@@ -50,6 +51,63 @@ export async function GET(
   if (call.coach_user_id) {
     const { data: cu } = await supabase.from("users").select("full_name").eq("id", call.coach_user_id).single();
     if (cu) coachName = cu.full_name;
+  }
+
+  // Resolve participants from Read.ai session
+  const teamMembers: { name: string; email: string }[] = [];
+  const externalParticipants: { name: string; email: string; contactId: string | null }[] = [];
+
+  if (call.read_ai_session_id) {
+    const { data: session } = await supabase
+      .from("read_ai_sessions")
+      .select("participant_emails, owner_email")
+      .eq("session_id", call.read_ai_session_id)
+      .maybeSingle();
+
+    if (session?.participant_emails?.length) {
+      const { data: allUsers } = await supabase.from("users").select("email, full_name").not("email", "is", null);
+      const emailToUser = new Map<string, string>();
+      for (const u of allUsers ?? []) {
+        if (u.email) emailToUser.set(u.email.toLowerCase(), u.full_name);
+      }
+
+      const externalEmails: string[] = [];
+      for (const email of session.participant_emails) {
+        const lc = email.toLowerCase();
+        if (lc.endsWith("@newagainhouses.com")) {
+          teamMembers.push({ name: emailToUser.get(lc) ?? email.split("@")[0], email });
+        } else {
+          externalEmails.push(email);
+        }
+      }
+
+      // Match external emails to contacts
+      if (externalEmails.length > 0) {
+        const { data: matchedContacts } = await supabase
+          .from("contacts")
+          .select("id, first_name, last_name, email")
+          .in("email", externalEmails.map((e) => e.toLowerCase()));
+
+        const contactByEmail = new Map<string, { id: string; name: string }>();
+        for (const mc of matchedContacts ?? []) {
+          if (mc.email) {
+            contactByEmail.set(mc.email.toLowerCase(), {
+              id: mc.id,
+              name: `${mc.first_name ?? ""} ${mc.last_name ?? ""}`.trim() || mc.email,
+            });
+          }
+        }
+
+        for (const email of externalEmails) {
+          const matched = contactByEmail.get(email.toLowerCase());
+          externalParticipants.push({
+            name: matched?.name ?? email,
+            email,
+            contactId: matched?.id ?? null,
+          });
+        }
+      }
+    }
   }
 
   const { data: transcript } = await supabase
@@ -77,7 +135,7 @@ export async function GET(
     .maybeSingle();
 
   return NextResponse.json({
-    call: { ...call, contactName, hostName, callTypeName, territoryName, coachName },
+    call: { ...call, contactName, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, externalParticipants },
     transcript,
     grade,
     coaching,

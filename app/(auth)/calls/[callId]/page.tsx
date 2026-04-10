@@ -12,12 +12,16 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
+interface TeamMember { name: string; email: string }
+interface ExternalParticipant { name: string; email: string; contactId: string | null }
+
 interface CallDetail {
   id: string;
   contactName: string | null;
   contact_id: string | null;
   hostName: string | null;
   callTypeName: string | null;
+  callTypeSlug: string | null;
   call_type_id: string | null;
   scheduled_at: string | null;
   started_at: string | null;
@@ -35,6 +39,8 @@ interface CallDetail {
   summary: string | null;
   action_items: { text: string; assignee_name?: string }[] | null;
   raw_transcript: string | null;
+  teamMembers: TeamMember[];
+  externalParticipants: ExternalParticipant[];
 }
 
 interface Transcript {
@@ -192,63 +198,85 @@ export default function CallDetailPage() {
 
   return (
     <div>
-      {/* Header — adapts to call context */}
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={() => router.back()} className="btn-ghost p-1.5"><ArrowLeft size={18} /></button>
+      {/* Header */}
+      <div className="flex items-start gap-3 mb-4">
+        <button onClick={() => router.back()} className="btn-ghost p-1.5 mt-0.5"><ArrowLeft size={18} /></button>
         <div className="flex-1 min-w-0">
-          {ctx === "coaching" ? (
-            <>
-              <h1 className="font-headline text-page-title text-text-primary truncate">
-                {call.territoryName ?? call.territory_ms_slug ?? "Coaching Call"}
-              </h1>
-              <div className="flex items-center gap-3 mt-0.5 text-caption text-text-tertiary">
-                <span className="flex items-center gap-1"><MapPin size={10} /> {call.territoryName}</span>
-                {call.contactName && <span>{call.contactName}</span>}
-                {call.coachName && <span>Coach: {call.coachName}</span>}
-                {call.duration_seconds && <span>{Math.round(call.duration_seconds / 60)}m</span>}
-                {grade && <span className={`px-2 py-0.5 rounded text-xs font-bold ${GRADE_COLORS[grade.overall_grade] ?? ""}`}>{grade.overall_grade}</span>}
+          <h1 className="font-headline text-page-title text-text-primary truncate">{call.title ?? "Call"}</h1>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+            {/* Call type */}
+            {call.callTypeName && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-nah-blue/10 text-nah-blue">{call.callTypeName}</span>
+            )}
+            {/* Status */}
+            <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+              call.status === "completed" ? "bg-success/10 text-success" :
+              call.status === "scheduled" ? "bg-info/10 text-info" :
+              call.status === "missed" ? "bg-danger/10 text-danger" : "bg-bg-tertiary text-text-tertiary"
+            }`}>{call.status}</span>
+            {/* Territory */}
+            {call.territoryName && (
+              <a href={`/territories/${call.territory_ms_slug}`} className="flex items-center gap-1 text-caption text-nah-blue hover:underline">
+                <MapPin size={10} />{call.territoryName}
+              </a>
+            )}
+            {/* Date */}
+            <span className="text-caption text-text-tertiary">
+              {(call.started_at ?? call.scheduled_at) ? new Date(call.started_at ?? call.scheduled_at!).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}
+            </span>
+            {/* Duration */}
+            {call.duration_seconds ? <span className="text-caption text-text-tertiary">{Math.round(call.duration_seconds / 60)} min</span> : null}
+            {/* Grade */}
+            {grade && <span className={`px-2 py-0.5 rounded text-xs font-bold ${GRADE_COLORS[grade.overall_grade] ?? ""}`}>{grade.overall_grade}</span>}
+          </div>
+
+          {/* People */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+            {/* NAH Team */}
+            {call.teamMembers?.length > 0 && (
+              <div className="flex items-center gap-1.5 text-caption">
+                <span className="text-text-tertiary font-medium">Team:</span>
+                {call.teamMembers.map((m, i) => (
+                  <span key={i} className="px-2 py-0.5 rounded-full bg-nah-orange/10 text-nah-orange text-[11px] font-medium">{m.name}</span>
+                ))}
               </div>
-            </>
-          ) : ctx === "group" ? (
-            <>
-              <h1 className="font-headline text-page-title text-text-primary truncate">
-                {call.title ?? "Group Call"}
-              </h1>
-              <div className="flex items-center gap-3 mt-0.5 text-caption text-text-tertiary">
-                <span className="flex items-center gap-1"><Users size={10} /> {call.participant_count ?? 0} participants</span>
-                {call.started_at && <span>{new Date(call.started_at).toLocaleString()}</span>}
-                {call.duration_seconds && <span>{Math.round(call.duration_seconds / 60)}m</span>}
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-scout-purple/10 text-scout-purple">Group</span>
+            )}
+            {!call.teamMembers?.length && call.hostName && (
+              <div className="flex items-center gap-1.5 text-caption">
+                <span className="text-text-tertiary font-medium">Host:</span>
+                <span className="px-2 py-0.5 rounded-full bg-nah-orange/10 text-nah-orange text-[11px] font-medium">{call.hostName}</span>
               </div>
-            </>
-          ) : (
-            <>
-              <h1 className="font-headline text-page-title text-text-primary truncate">
-                {call.callTypeName ?? "Call"}{call.contactName ? ` — ${call.contactName}` : ""}
-              </h1>
-              <div className="flex items-center gap-3 mt-0.5 text-caption text-text-tertiary">
-                {call.hostName && <span>Host: {call.hostName}</span>}
-                {call.scheduled_at && <span>{new Date(call.scheduled_at).toLocaleString()}</span>}
-                {call.duration_seconds && <span>{Math.round(call.duration_seconds / 60)}m</span>}
-                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                  call.status === "completed" ? "bg-success/10 text-success" :
-                  call.status === "scheduled" ? "bg-info/10 text-info" :
-                  call.status === "missed" ? "bg-danger/10 text-danger" : "bg-text-tertiary/10 text-text-tertiary"
-                }`}>{call.status}</span>
-                {grade && <span className={`px-2 py-0.5 rounded text-xs font-bold ${GRADE_COLORS[grade.overall_grade] ?? ""}`}>{grade.overall_grade}</span>}
+            )}
+            {/* External / Prospects */}
+            {call.externalParticipants?.length > 0 && (
+              <div className="flex items-center gap-1.5 text-caption">
+                <span className="text-text-tertiary font-medium">Contacts:</span>
+                {call.externalParticipants.map((p, i) => (
+                  p.contactId ? (
+                    <a key={i} href={`/leads/${p.contactId}`} className="px-2 py-0.5 rounded-full bg-nah-blue/10 text-nah-blue text-[11px] font-medium hover:underline">{p.name}</a>
+                  ) : (
+                    <span key={i} className="px-2 py-0.5 rounded-full bg-bg-tertiary text-text-secondary text-[11px] font-medium">{p.name}</span>
+                  )
+                ))}
               </div>
-            </>
-          )}
+            )}
+            {!call.externalParticipants?.length && call.contactName && (
+              <div className="flex items-center gap-1.5 text-caption">
+                <span className="text-text-tertiary font-medium">Contact:</span>
+                <a href={`/leads/${call.contact_id}`} className="px-2 py-0.5 rounded-full bg-nah-blue/10 text-nah-blue text-[11px] font-medium hover:underline">{call.contactName}</a>
+              </div>
+            )}
+          </div>
         </div>
-        {call.meeting_link && (
-          <a href={call.meeting_link} target="_blank" rel="noopener noreferrer"
-            className="btn-primary px-3 py-1.5 text-caption flex items-center gap-1">
-            <ExternalLink size={12} /> Join Meet
-          </a>
-        )}
-        {call.contact_id && <a href={`/leads/${call.contact_id}`} className="btn-ghost px-3 py-1.5 text-caption">View Contact</a>}
-        {call.territory_ms_slug && <a href={`/territories/${call.territory_ms_slug}`} target="_blank" rel="noopener noreferrer" className="btn-ghost px-3 py-1.5 text-caption">View Territory</a>}
-        <button onClick={() => void fetchDetail()} className="btn-ghost p-1.5"><RefreshCw size={14} /></button>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {call.meeting_link && (
+            <a href={call.meeting_link} target="_blank" rel="noopener noreferrer"
+              className="btn-primary px-3 py-1.5 text-caption flex items-center gap-1">
+              <ExternalLink size={12} /> Join
+            </a>
+          )}
+          <button onClick={() => void fetchDetail()} className="btn-ghost p-1.5"><RefreshCw size={14} /></button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -272,32 +300,49 @@ export default function CallDetailPage() {
       <div>
         {activeTab === "overview" && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 text-body-sm">
-              {ctx === "coaching" ? (
-                <>
-                  <div><span className="text-text-tertiary">Territory</span><p className="text-text-primary font-medium">{call.territoryName ?? "—"}</p></div>
-                  <div><span className="text-text-tertiary">Franchisee</span><p className="text-text-primary">{call.contactName ?? "—"}</p></div>
-                  <div><span className="text-text-tertiary">Coach</span><p className="text-text-primary">{call.coachName ?? "—"}</p></div>
-                  <div><span className="text-text-tertiary">Date</span><p className="text-text-primary">{call.started_at ? new Date(call.started_at).toLocaleString() : "—"}</p></div>
-                </>
-              ) : ctx === "group" ? (
-                <>
-                  <div><span className="text-text-tertiary">Title</span><p className="text-text-primary font-medium">{call.title ?? "—"}</p></div>
-                  <div><span className="text-text-tertiary">Participants</span><p className="text-text-primary">{call.participant_count ?? "—"}</p></div>
-                  <div><span className="text-text-tertiary">Date</span><p className="text-text-primary">{call.started_at ? new Date(call.started_at).toLocaleString() : "—"}</p></div>
-                  <div><span className="text-text-tertiary">Duration</span><p className="text-text-primary">{call.duration_seconds ? `${Math.round(call.duration_seconds / 60)} min` : "—"}</p></div>
-                </>
-              ) : (
-                <>
-                  <div><span className="text-text-tertiary">Contact</span><p className="text-text-primary font-medium">{call.contactName ?? "—"}</p></div>
-                  <div><span className="text-text-tertiary">Call Type</span><p className="text-text-primary">{call.callTypeName ?? "—"}</p></div>
-                  <div><span className="text-text-tertiary">Host</span><p className="text-text-primary">{call.hostName ?? "—"}</p></div>
-                  <div><span className="text-text-tertiary">Status</span><p className="text-text-primary capitalize">{call.status}</p></div>
-                  <div><span className="text-text-tertiary">Scheduled</span><p className="text-text-primary">{call.scheduled_at ? new Date(call.scheduled_at).toLocaleString() : "—"}</p></div>
-                  <div><span className="text-text-tertiary">Duration</span><p className="text-text-primary">{call.duration_seconds ? `${Math.round(call.duration_seconds / 60)} min` : "—"}</p></div>
-                </>
-              )}
+            {/* Details grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-body-sm">
+              <div><span className="text-text-tertiary">Call Type</span><p className="text-text-primary font-medium">{call.callTypeName ?? "—"}</p></div>
+              <div><span className="text-text-tertiary">Date</span><p className="text-text-primary">{(call.started_at ?? call.scheduled_at) ? new Date(call.started_at ?? call.scheduled_at!).toLocaleString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}</p></div>
+              <div><span className="text-text-tertiary">Duration</span><p className="text-text-primary">{call.duration_seconds ? `${Math.round(call.duration_seconds / 60)} min` : "—"}</p></div>
+              {call.territoryName && <div><span className="text-text-tertiary">Territory</span><p className="text-text-primary">{call.territoryName}</p></div>}
             </div>
+
+            {/* Team Members */}
+            {call.teamMembers?.length > 0 && (
+              <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+                <h3 className="text-overline text-text-tertiary tracking-wider mb-2">NAH TEAM</h3>
+                <div className="flex flex-wrap gap-2">
+                  {call.teamMembers.map((m, i) => (
+                    <span key={i} className="px-3 py-1 rounded-full bg-nah-orange/10 text-nah-orange text-body-sm font-medium">{m.name}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* External Participants / Prospects */}
+            {call.externalParticipants?.length > 0 && (
+              <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+                <h3 className="text-overline text-text-tertiary tracking-wider mb-2">CONTACTS / PROSPECTS</h3>
+                <div className="space-y-2">
+                  {call.externalParticipants.map((p, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      {p.contactId ? (
+                        <a href={`/leads/${p.contactId}`} className="text-body-sm font-medium text-nah-blue hover:underline">{p.name}</a>
+                      ) : (
+                        <span className="text-body-sm font-medium text-text-primary">{p.name}</span>
+                      )}
+                      <span className="text-caption text-text-tertiary">{p.email}</span>
+                      {p.contactId ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-success/10 text-success">Linked</span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/10 text-warning">Unlinked</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Summary (from Read.ai) */}
             {call.summary && (
@@ -323,11 +368,13 @@ export default function CallDetailPage() {
               </div>
             )}
 
-            <div className="flex gap-2">
-              <span className={`text-caption ${transcript ? "text-success" : "text-text-tertiary"}`}>{transcript ? "Has transcript" : "No transcript"}</span>
-              <span className={`text-caption ${grade ? "text-success" : "text-text-tertiary"}`}>{grade ? `Grade: ${grade.overall_grade}` : "Not graded"}</span>
-              <span className={`text-caption ${coaching ? "text-success" : "text-text-tertiary"}`}>{coaching ? "Has coaching" : "No coaching"}</span>
-              {call.source === "read_ai" && <span className="text-caption text-scout-purple">via Read.ai</span>}
+            {/* Status indicators */}
+            <div className="flex flex-wrap gap-2">
+              <span className={`text-[11px] px-2 py-0.5 rounded-full ${transcript ? "bg-success/10 text-success" : "bg-bg-tertiary text-text-tertiary"}`}>{transcript ? "Transcript" : "No transcript"}</span>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full ${grade ? "bg-success/10 text-success" : "bg-bg-tertiary text-text-tertiary"}`}>{grade ? `Grade: ${grade.overall_grade}` : "Not graded"}</span>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full ${coaching ? "bg-success/10 text-success" : "bg-bg-tertiary text-text-tertiary"}`}>{coaching ? "Coaching" : "No coaching"}</span>
+              {call.source === "read_ai" && <span className="text-[11px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-600">Read.ai</span>}
+              {call.source === "manual" && <span className="text-[11px] px-2 py-0.5 rounded-full bg-nah-blue/10 text-nah-blue">Manual</span>}
             </div>
           </div>
         )}
