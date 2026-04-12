@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Video } from "lucide-react";
+import { ExternalLink, Video, Loader2 } from "lucide-react";
 import CallGenerateButton from "./CallGenerateButton";
 
 interface CoachingData {
@@ -25,6 +25,7 @@ interface CallOverviewTabProps {
   durationSeconds: number | null;
   startedAt: string | null;
   source: string | null;
+  generating?: boolean;
   onRefresh: () => void;
 }
 
@@ -56,6 +57,7 @@ export default function CallOverviewTab({
   durationSeconds,
   startedAt,
   source,
+  generating,
   onRefresh,
 }: CallOverviewTabProps) {
   const hasGenerated = !!aiSummaryGeneratedAt;
@@ -86,9 +88,14 @@ export default function CallOverviewTab({
               </p>
             )}
           </>
+        ) : hasTranscript && generating ? (
+          <div className="flex items-center gap-2 text-body-sm text-text-tertiary">
+            <Loader2 size={14} className="animate-spin" />
+            Scout is analyzing this call...
+          </div>
         ) : hasTranscript ? (
           <p className="text-body-sm text-text-tertiary italic">
-            Summary not yet generated. Click &quot;Generate with Scout&quot; above.
+            Summary not yet generated. Click &quot;Regenerate&quot; above.
           </p>
         ) : (
           <p className="text-body-sm text-text-tertiary italic">
@@ -153,9 +160,14 @@ export default function CallOverviewTab({
               </div>
             )}
           </div>
+        ) : hasTranscript && generating ? (
+          <div className="flex items-center gap-2 text-body-sm text-text-tertiary">
+            <Loader2 size={14} className="animate-spin" />
+            Scout is generating coaching insights...
+          </div>
         ) : hasTranscript ? (
           <p className="text-body-sm text-text-tertiary italic">
-            Coaching not yet generated. Click &quot;Generate with Scout&quot; above.
+            Coaching not yet generated. Click &quot;Regenerate&quot; above.
           </p>
         ) : (
           <p className="text-body-sm text-text-tertiary italic">

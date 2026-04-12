@@ -56,6 +56,7 @@ interface CallDetailTabsProps {
   actionItems: ActionItem[];
   dataExtractions: Extraction[];
   profileFieldCount: number;
+  generating: boolean;
   onRefresh: () => void;
 }
 
@@ -115,6 +116,7 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
           durationSeconds={props.durationSeconds}
           startedAt={props.startedAt}
           source={props.source}
+          generating={props.generating}
           onRefresh={props.onRefresh}
         />
       )}
@@ -125,6 +127,7 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
           actionItems={props.actionItems}
           hasTranscript={props.hasTranscript}
           hasGenerated={hasGenerated}
+          generating={props.generating}
           onRefresh={props.onRefresh}
         />
       )}
@@ -136,6 +139,7 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
           profileFieldCount={props.profileFieldCount}
           hasTranscript={props.hasTranscript}
           hasGenerated={hasGenerated}
+          generating={props.generating}
           onRefresh={props.onRefresh}
         />
       )}
