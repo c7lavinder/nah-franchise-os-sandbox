@@ -95,7 +95,6 @@ export default function CallDetailPage() {
   const [dataExtractions, setDataExtractions] = useState<Extraction[]>([]);
   const [profileFieldCount, setProfileFieldCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
 
   const fetchDetail = useCallback(async () => {
     try {
@@ -107,36 +106,12 @@ export default function CallDetailPage() {
         setActionItems(data.actionItems ?? []);
         setDataExtractions(data.dataExtractions ?? []);
         setProfileFieldCount(data.profileFieldCount ?? 0);
-        return data;
       }
     } catch { /* silent */ }
     setLoading(false);
-    return null;
   }, [callId]);
 
-  // Auto-generate when transcript exists but generation hasn't run
-  const autoGenerate = useCallback(async (callData: CallDetail, hasTranscriptText: boolean) => {
-    if (!hasTranscriptText || callData.ai_summary_generated_at) return;
-    setGenerating(true);
-    try {
-      const res = await fetch(`/api/calls/${callId}/generate`, { method: "POST" });
-      if (res.ok) {
-        await fetchDetail();
-      }
-    } catch { /* silent */ }
-    setGenerating(false);
-  }, [callId, fetchDetail]);
-
-  useEffect(() => {
-    void (async () => {
-      const data = await fetchDetail();
-      setLoading(false);
-      if (data?.call) {
-        const hasText = !!(data.transcript?.full_text || data.call.raw_transcript);
-        void autoGenerate(data.call, hasText);
-      }
-    })();
-  }, [fetchDetail, autoGenerate]);
+  useEffect(() => { void fetchDetail(); }, [fetchDetail]);
 
   if (loading) {
     return (
@@ -291,7 +266,6 @@ export default function CallDetailPage() {
         actionItems={actionItems}
         dataExtractions={dataExtractions}
         profileFieldCount={profileFieldCount}
-        generating={generating}
         onRefresh={() => void fetchDetail()}
       />
     </div>

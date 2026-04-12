@@ -1,6 +1,5 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
 import CallActionItem from "./CallActionItem";
 import CallGenerateButton from "./CallGenerateButton";
 
@@ -20,7 +19,6 @@ interface CallNextStepsTabProps {
   actionItems: ActionItem[];
   hasTranscript: boolean;
   hasGenerated: boolean;
-  generating?: boolean;
   onRefresh: () => void;
 }
 
@@ -29,7 +27,6 @@ export default function CallNextStepsTab({
   actionItems,
   hasTranscript,
   hasGenerated,
-  generating,
   onRefresh,
 }: CallNextStepsTabProps) {
   const pendingItems = actionItems.filter((a) => a.status === "pending");
@@ -46,31 +43,14 @@ export default function CallNextStepsTab({
     );
   }
 
-  if (generating || (!hasGenerated && actionItems.length === 0)) {
+  if (!hasGenerated && actionItems.length === 0) {
     return (
       <div className="text-center py-12">
-        {generating ? (
-          <>
-            <Loader2 size={20} className="animate-spin text-text-tertiary mx-auto mb-2" />
-            <p className="text-body-sm text-text-tertiary">
-              Scout is generating next steps...
-            </p>
-          </>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-body-sm text-text-tertiary">
-              No next steps generated yet.
-            </p>
-            <div className="flex justify-center">
-              <CallGenerateButton
-                callId={callId}
-                hasGenerated={false}
-                hasTranscript={hasTranscript}
-                onGenerated={onRefresh}
-              />
-            </div>
-          </div>
-        )}
+        <p className="text-body-sm text-text-tertiary">
+          {hasTranscript
+            ? "Scout is generating next steps. Refresh to check."
+            : "Next steps will appear once the call transcript arrives."}
+        </p>
       </div>
     );
   }

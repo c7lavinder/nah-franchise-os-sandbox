@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import CallDataField from "./CallDataField";
 import CallGenerateButton from "./CallGenerateButton";
 
@@ -23,7 +23,6 @@ interface CallDataTabProps {
   profileFieldCount: number;
   hasTranscript: boolean;
   hasGenerated: boolean;
-  generating?: boolean;
   onRefresh: () => void;
 }
 
@@ -35,7 +34,6 @@ export default function CallDataTab({
   profileFieldCount,
   hasTranscript,
   hasGenerated,
-  generating,
   onRefresh,
 }: CallDataTabProps) {
   const [contactOpen, setContactOpen] = useState(true);
@@ -58,31 +56,14 @@ export default function CallDataTab({
     );
   }
 
-  if (generating || (!hasGenerated && dataExtractions.length === 0)) {
+  if (!hasGenerated && dataExtractions.length === 0) {
     return (
       <div className="text-center py-12">
-        {generating ? (
-          <>
-            <Loader2 size={20} className="animate-spin text-text-tertiary mx-auto mb-2" />
-            <p className="text-body-sm text-text-tertiary">
-              Scout is extracting data from this call...
-            </p>
-          </>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-body-sm text-text-tertiary">
-              No data extracted yet.
-            </p>
-            <div className="flex justify-center">
-              <CallGenerateButton
-                callId={callId}
-                hasGenerated={false}
-                hasTranscript={hasTranscript}
-                onGenerated={onRefresh}
-              />
-            </div>
-          </div>
-        )}
+        <p className="text-body-sm text-text-tertiary">
+          {hasTranscript
+            ? "Scout is extracting data from this call. Refresh to check."
+            : "Data extractions will appear once the call transcript arrives."}
+        </p>
       </div>
     );
   }
