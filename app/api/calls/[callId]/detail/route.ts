@@ -134,10 +134,38 @@ export async function GET(
     .limit(1)
     .maybeSingle();
 
+  // Fetch action items for Next Steps tab
+  const { data: actionItems } = await supabase
+    .from("call_action_items")
+    .select("*")
+    .eq("call_id", callId)
+    .order("created_at", { ascending: true });
+
+  // Fetch data extractions for Data tab
+  const { data: dataExtractions } = await supabase
+    .from("call_data_extractions")
+    .select("*")
+    .eq("call_id", callId)
+    .order("field_category", { ascending: true });
+
+  // Count total contact profile fields populated (for completeness bar)
+  let profileFieldCount = 0;
+  if (call.contact_id) {
+    const { count } = await supabase
+      .from("contact_profile_fields")
+      .select("id", { count: "exact", head: true })
+      .eq("contact_id", call.contact_id)
+      .not("field_value", "is", null);
+    profileFieldCount = count ?? 0;
+  }
+
   return NextResponse.json({
     call: { ...call, contactName, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, externalParticipants },
     transcript,
     grade,
     coaching,
+    actionItems: actionItems ?? [],
+    dataExtractions: dataExtractions ?? [],
+    profileFieldCount,
   });
 }

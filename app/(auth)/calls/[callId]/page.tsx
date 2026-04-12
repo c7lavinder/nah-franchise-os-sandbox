@@ -1,19 +1,26 @@
 "use client";
 
 /**
- * Call Detail Page — adapts to three contexts: prospect, coaching, group.
+ * Call Detail Page — 3-tab layout: Overview, Next Steps, Data.
+ * Header section (title, tags, team, contacts) preserved.
+ * Tab content powered by CallDetailTabs component.
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import {
-  ArrowLeft, Phone, Loader2, FileText, Award, BookOpen,
-  RefreshCw, ExternalLink, Sparkles, Users, MapPin, Upload, Video,
-} from "lucide-react";
-import { useToast } from "@/components/ui/Toast";
+import { ArrowLeft, Loader2, RefreshCw, ExternalLink, MapPin } from "lucide-react";
+import CallDetailTabs from "@/components/calls/CallDetailTabs";
 
 interface TeamMember { name: string; email: string }
 interface ExternalParticipant { name: string; email: string; contactId: string | null }
+
+interface CoachingData {
+  score: number;
+  label: string;
+  went_well: string[];
+  watch_out: string[];
+  next_call_prep: string;
+}
 
 interface CallDetail {
   id: string;
@@ -28,6 +35,7 @@ interface CallDetail {
   ended_at: string | null;
   duration_seconds: number | null;
   meeting_link: string | null;
+  recording_url: string | null;
   status: string;
   source: string | null;
   title: string | null;
@@ -36,9 +44,12 @@ interface CallDetail {
   coach_user_id: string | null;
   coachName: string | null;
   participant_count: number | null;
-  summary: string | null;
-  action_items: { text: string; assignee_name?: string }[] | null;
   raw_transcript: string | null;
+  ai_summary: string | null;
+  ai_summary_generated_at: string | null;
+  coaching_score: number | null;
+  coaching_data: CoachingData | null;
+  coaching_generated_at: string | null;
   teamMembers: TeamMember[];
   externalParticipants: ExternalParticipant[];
 }
@@ -50,36 +61,27 @@ interface Transcript {
   source: string;
 }
 
-interface Grade {
-  overall_grade: string;
-  overall_score: number;
-  criterion_scores: { name: string; grade: string; score: number; rationale: string }[];
-  strengths: string[];
-  improvements: string[];
-  suggested_next_action: string;
+interface ActionItem {
+  id: string;
+  call_id: string;
+  category: string;
+  title: string;
+  description: string | null;
+  source: string;
+  ghl_action: boolean;
+  status: string;
 }
 
-interface Coaching {
-  coaching_notes: string;
-  coaching_plan: string;
-}
-
-type Tab = "overview" | "transcript" | "grade" | "coaching" | "brief";
-
-type CallContext = "prospect" | "coaching" | "group";
-
-const GRADE_COLORS: Record<string, string> = {
-  A: "text-success bg-success/10",
-  B: "text-nah-blue bg-nah-blue/10",
-  C: "text-warning bg-warning/10",
-  D: "text-nah-orange bg-nah-orange/10",
-  F: "text-danger bg-danger/10",
-};
-
-function getCallContext(call: CallDetail): CallContext {
-  if (call.territory_ms_slug && call.coach_user_id) return "coaching";
-  if (call.participant_count && call.participant_count >= 3) return "group";
-  return "prospect";
+interface Extraction {
+  id: string;
+  call_id: string;
+  contact_id: string | null;
+  field_key: string;
+  field_category: string;
+  extracted_value: string | null;
+  confidence: string | null;
+  saved_to_profile: boolean;
+  dismissed: boolean;
 }
 
 export default function CallDetailPage() {
@@ -89,20 +91,10 @@ export default function CallDetailPage() {
 
   const [call, setCall] = useState<CallDetail | null>(null);
   const [transcript, setTranscript] = useState<Transcript | null>(null);
-  const [grade, setGrade] = useState<Grade | null>(null);
-  const [coaching, setCoaching] = useState<Coaching | null>(null);
-  const { toast } = useToast();
+  const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+  const [dataExtractions, setDataExtractions] = useState<Extraction[]>([]);
+  const [profileFieldCount, setProfileFieldCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
-
-  const [pasteText, setPasteText] = useState("");
-  const [savingTranscript, setSavingTranscript] = useState(false);
-  const [grading, setGrading] = useState(false);
-  const [coaching2, setCoaching2] = useState(false);
-  const [brief, setBrief] = useState<string | null>(null);
-  const [briefLoading, setBriefLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
 
   const fetchDetail = useCallback(async () => {
     try {
@@ -111,8 +103,9 @@ export default function CallDetailPage() {
         const data = await res.json();
         setCall(data.call);
         setTranscript(data.transcript);
-        setGrade(data.grade);
-        setCoaching(data.coaching);
+        setActionItems(data.actionItems ?? []);
+        setDataExtractions(data.dataExtractions ?? []);
+        setProfileFieldCount(data.profileFieldCount ?? 0);
       }
     } catch { /* silent */ }
     setLoading(false);
@@ -120,114 +113,76 @@ export default function CallDetailPage() {
 
   useEffect(() => { void fetchDetail(); }, [fetchDetail]);
 
-  async function handlePasteTranscript() {
-    if (!pasteText.trim()) return;
-    setSavingTranscript(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/calls/${callId}/transcript`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: "manual_paste", text: pasteText }),
-      });
-      if (res.ok) { setPasteText(""); toast("Transcript saved"); await fetchDetail(); }
-      else { const d = await res.json().catch(() => ({})); setError(d.error ?? "Failed"); }
-    } catch { setError("Network error"); }
-    setSavingTranscript(false);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 size={24} className="animate-spin text-text-tertiary" />
+      </div>
+    );
   }
 
-  async function handleGrade() {
-    setGrading(true); setError(null);
-    try {
-      const res = await fetch(`/api/calls/${callId}/grade-rubric`, { method: "POST" });
-      if (res.ok) { toast("Call graded"); await fetchDetail(); }
-      else { const d = await res.json().catch(() => ({})); setError(d.error ?? "Grading failed"); }
-    } catch { setError("Grading failed"); }
-    setGrading(false);
+  if (!call) {
+    return <div className="text-center py-16 text-text-tertiary">Call not found</div>;
   }
 
-  async function handleCoach() {
-    setCoaching2(true); setError(null);
-    try {
-      const res = await fetch(`/api/calls/${callId}/coach`, { method: "POST" });
-      if (res.ok) { toast("Coaching generated"); await fetchDetail(); }
-      else { const d = await res.json().catch(() => ({})); setError(d.error ?? "Coaching failed"); }
-    } catch { setError("Coaching failed"); }
-    setCoaching2(false);
-  }
-
-  async function handleBrief() {
-    if (!call?.contact_id) return;
-    setBriefLoading(true);
-    try {
-      const url = `/api/contacts/${call.contact_id}/pre-call-brief${call.call_type_id ? `?callTypeId=${call.call_type_id}` : ""}`;
-      const res = await fetch(url);
-      if (res.ok) { const d = await res.json(); setBrief(d.brief); }
-    } catch { /* silent */ }
-    setBriefLoading(false);
-  }
-
-  async function handleFileUpload(file: File) {
-    setUploading(true); setError(null);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-      form.append("type", ext === "txt" ? "transcript" : "recording");
-      const res = await fetch(`/api/calls/${callId}/upload`, { method: "POST", body: form });
-      if (res.ok) {
-        const d = await res.json();
-        toast(d.type === "transcript" ? `Transcript uploaded (${d.wordCount} words)` : "Recording uploaded");
-        await fetchDetail();
-      } else { const d = await res.json().catch(() => ({})); setError(d.error ?? "Upload failed"); }
-    } catch { setError("Upload failed"); }
-    setUploading(false);
-  }
-
-  if (loading) return <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-text-tertiary" /></div>;
-  if (!call) return <div className="text-center py-16 text-text-tertiary">Call not found</div>;
-
-  const ctx = getCallContext(call);
-
-  const TABS: { key: Tab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
-    { key: "overview", label: "Overview", icon: Phone },
-    { key: "transcript", label: "Transcript", icon: FileText },
-    { key: "grade", label: ctx === "group" ? "Metrics" : "Grade", icon: Award },
-    { key: "coaching", label: "Coaching", icon: BookOpen },
-    ...(ctx === "prospect" ? [{ key: "brief" as const, label: "Pre-call Brief", icon: Sparkles }] : []),
-  ];
+  // Determine if a transcript exists (from call_transcripts table or raw_transcript on call)
+  const hasTranscript = !!(transcript?.full_text || call.raw_transcript);
+  const transcriptText = transcript?.full_text ?? call.raw_transcript ?? null;
 
   return (
     <div>
-      {/* Header */}
+      {/* Header — preserved from original */}
       <div className="flex items-start gap-3 mb-4">
-        <button onClick={() => router.back()} className="btn-ghost p-1.5 mt-0.5"><ArrowLeft size={18} /></button>
+        <button onClick={() => router.back()} className="btn-ghost p-1.5 mt-0.5">
+          <ArrowLeft size={18} />
+        </button>
         <div className="flex-1 min-w-0">
-          <h1 className="font-headline text-page-title text-text-primary truncate">{call.title ?? "Call"}</h1>
+          <h1 className="font-headline text-page-title text-text-primary truncate">
+            {call.title ?? "Call"}
+          </h1>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
             {/* Call type */}
             {call.callTypeName && (
-              <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-nah-blue/10 text-nah-blue">{call.callTypeName}</span>
+              <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-nah-blue/10 text-nah-blue">
+                {call.callTypeName}
+              </span>
             )}
             {/* Status */}
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
               call.status === "completed" ? "bg-success/10 text-success" :
               call.status === "scheduled" ? "bg-info/10 text-info" :
-              call.status === "missed" ? "bg-danger/10 text-danger" : "bg-bg-tertiary text-text-tertiary"
-            }`}>{call.status}</span>
+              call.status === "missed" ? "bg-danger/10 text-danger" :
+              "bg-bg-tertiary text-text-tertiary"
+            }`}>
+              {call.status}
+            </span>
             {/* Territory */}
             {call.territoryName && (
-              <a href={`/territories/${call.territory_ms_slug}`} className="flex items-center gap-1 text-caption text-nah-blue hover:underline">
+              <a
+                href={`/territories/${call.territory_ms_slug}`}
+                className="flex items-center gap-1 text-caption text-nah-blue hover:underline"
+              >
                 <MapPin size={10} />{call.territoryName}
               </a>
             )}
             {/* Date */}
             <span className="text-caption text-text-tertiary">
-              {(call.started_at ?? call.scheduled_at) ? new Date(call.started_at ?? call.scheduled_at!).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}
+              {(call.started_at ?? call.scheduled_at)
+                ? new Date(call.started_at ?? call.scheduled_at!).toLocaleString([], {
+                    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                  })
+                : "—"}
             </span>
             {/* Duration */}
-            {call.duration_seconds ? <span className="text-caption text-text-tertiary">{Math.round(call.duration_seconds / 60)} min</span> : null}
-            {/* Grade */}
-            {grade && <span className={`px-2 py-0.5 rounded text-xs font-bold ${GRADE_COLORS[grade.overall_grade] ?? ""}`}>{grade.overall_grade}</span>}
+            {call.duration_seconds ? (
+              <span className="text-caption text-text-tertiary">
+                {Math.round(call.duration_seconds / 60)} min
+              </span>
+            ) : null}
+            {/* Source */}
+            {call.source === "read_ai" && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-600">Read.ai</span>
+            )}
           </div>
 
           {/* People */}
@@ -237,33 +192,45 @@ export default function CallDetailPage() {
               <div className="flex items-center gap-1.5 text-caption">
                 <span className="text-text-tertiary font-medium">Team:</span>
                 {call.teamMembers.map((m, i) => (
-                  <span key={i} className="px-2 py-0.5 rounded-full bg-nah-orange/10 text-nah-orange text-[11px] font-medium">{m.name}</span>
+                  <span key={i} className="px-2 py-0.5 rounded-full bg-nah-orange/10 text-nah-orange text-[11px] font-medium">
+                    {m.name}
+                  </span>
                 ))}
               </div>
             )}
             {!call.teamMembers?.length && call.hostName && (
               <div className="flex items-center gap-1.5 text-caption">
                 <span className="text-text-tertiary font-medium">Host:</span>
-                <span className="px-2 py-0.5 rounded-full bg-nah-orange/10 text-nah-orange text-[11px] font-medium">{call.hostName}</span>
+                <span className="px-2 py-0.5 rounded-full bg-nah-orange/10 text-nah-orange text-[11px] font-medium">
+                  {call.hostName}
+                </span>
               </div>
             )}
             {/* External / Prospects */}
             {call.externalParticipants?.length > 0 && (
               <div className="flex items-center gap-1.5 text-caption">
                 <span className="text-text-tertiary font-medium">Contacts:</span>
-                {call.externalParticipants.map((p, i) => (
+                {call.externalParticipants.map((p, i) =>
                   p.contactId ? (
-                    <a key={i} href={`/leads/${p.contactId}`} className="px-2 py-0.5 rounded-full bg-nah-blue/10 text-nah-blue text-[11px] font-medium hover:underline">{p.name}</a>
+                    <a key={i} href={`/leads/${p.contactId}`}
+                      className="px-2 py-0.5 rounded-full bg-nah-blue/10 text-nah-blue text-[11px] font-medium hover:underline">
+                      {p.name}
+                    </a>
                   ) : (
-                    <span key={i} className="px-2 py-0.5 rounded-full bg-bg-tertiary text-text-secondary text-[11px] font-medium">{p.name}</span>
+                    <span key={i} className="px-2 py-0.5 rounded-full bg-bg-tertiary text-text-secondary text-[11px] font-medium">
+                      {p.name}
+                    </span>
                   )
-                ))}
+                )}
               </div>
             )}
             {!call.externalParticipants?.length && call.contactName && (
               <div className="flex items-center gap-1.5 text-caption">
                 <span className="text-text-tertiary font-medium">Contact:</span>
-                <a href={`/leads/${call.contact_id}`} className="px-2 py-0.5 rounded-full bg-nah-blue/10 text-nah-blue text-[11px] font-medium hover:underline">{call.contactName}</a>
+                <a href={`/leads/${call.contact_id}`}
+                  className="px-2 py-0.5 rounded-full bg-nah-blue/10 text-nah-blue text-[11px] font-medium hover:underline">
+                  {call.contactName}
+                </a>
               </div>
             )}
           </div>
@@ -275,297 +242,32 @@ export default function CallDetailPage() {
               <ExternalLink size={12} /> Join
             </a>
           )}
-          <button onClick={() => void fetchDetail()} className="btn-ghost p-1.5"><RefreshCw size={14} /></button>
+          <button onClick={() => void fetchDetail()} className="btn-ghost p-1.5">
+            <RefreshCw size={14} />
+          </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-border-default mb-6">
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-4 py-2 text-body-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.key ? "border-nah-orange text-nah-orange" : "border-transparent text-text-tertiary hover:text-text-primary"
-              }`}>
-              <Icon size={14} />{tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {error && <div className="mb-4 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg text-body-sm text-danger">{error}</div>}
-
-      {/* Content */}
-      <div>
-        {activeTab === "overview" && (
-          <div className="space-y-4">
-            {/* Details grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-body-sm">
-              <div><span className="text-text-tertiary">Call Type</span><p className="text-text-primary font-medium">{call.callTypeName ?? "—"}</p></div>
-              <div><span className="text-text-tertiary">Date</span><p className="text-text-primary">{(call.started_at ?? call.scheduled_at) ? new Date(call.started_at ?? call.scheduled_at!).toLocaleString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}</p></div>
-              <div><span className="text-text-tertiary">Duration</span><p className="text-text-primary">{call.duration_seconds ? `${Math.round(call.duration_seconds / 60)} min` : "—"}</p></div>
-              {call.territoryName && <div><span className="text-text-tertiary">Territory</span><p className="text-text-primary">{call.territoryName}</p></div>}
-            </div>
-
-            {/* Team Members */}
-            {call.teamMembers?.length > 0 && (
-              <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                <h3 className="text-overline text-text-tertiary tracking-wider mb-2">NAH TEAM</h3>
-                <div className="flex flex-wrap gap-2">
-                  {call.teamMembers.map((m, i) => (
-                    <span key={i} className="px-3 py-1 rounded-full bg-nah-orange/10 text-nah-orange text-body-sm font-medium">{m.name}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* External Participants / Prospects */}
-            {call.externalParticipants?.length > 0 && (
-              <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                <h3 className="text-overline text-text-tertiary tracking-wider mb-2">CONTACTS / PROSPECTS</h3>
-                <div className="space-y-2">
-                  {call.externalParticipants.map((p, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      {p.contactId ? (
-                        <a href={`/leads/${p.contactId}`} className="text-body-sm font-medium text-nah-blue hover:underline">{p.name}</a>
-                      ) : (
-                        <span className="text-body-sm font-medium text-text-primary">{p.name}</span>
-                      )}
-                      <span className="text-caption text-text-tertiary">{p.email}</span>
-                      {p.contactId ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-success/10 text-success">Linked</span>
-                      ) : (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/10 text-warning">Unlinked</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Summary (from Read.ai) */}
-            {call.summary && (
-              <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                <h3 className="text-overline text-text-tertiary tracking-wider mb-2">SUMMARY</h3>
-                <p className="text-body-sm text-text-primary whitespace-pre-wrap">{call.summary}</p>
-              </div>
-            )}
-
-            {/* Action Items (from Read.ai) */}
-            {call.action_items && (call.action_items as { text: string }[]).length > 0 && (
-              <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                <h3 className="text-overline text-text-tertiary tracking-wider mb-2">ACTION ITEMS</h3>
-                <ul className="space-y-1.5">
-                  {(call.action_items as { text: string; assignee_name?: string }[]).map((item, i) => (
-                    <li key={i} className="flex items-start gap-2 text-body-sm">
-                      <span className="text-nah-blue mt-0.5">-</span>
-                      <span className="text-text-primary">{item.text}</span>
-                      {item.assignee_name && <span className="text-text-tertiary text-caption ml-auto flex-shrink-0">({item.assignee_name})</span>}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Status indicators */}
-            <div className="flex flex-wrap gap-2">
-              <span className={`text-[11px] px-2 py-0.5 rounded-full ${transcript ? "bg-success/10 text-success" : "bg-bg-tertiary text-text-tertiary"}`}>{transcript ? "Transcript" : "No transcript"}</span>
-              <span className={`text-[11px] px-2 py-0.5 rounded-full ${grade ? "bg-success/10 text-success" : "bg-bg-tertiary text-text-tertiary"}`}>{grade ? `Grade: ${grade.overall_grade}` : "Not graded"}</span>
-              <span className={`text-[11px] px-2 py-0.5 rounded-full ${coaching ? "bg-success/10 text-success" : "bg-bg-tertiary text-text-tertiary"}`}>{coaching ? "Coaching" : "No coaching"}</span>
-              {call.source === "read_ai" && <span className="text-[11px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-600">Read.ai</span>}
-              {call.source === "manual" && <span className="text-[11px] px-2 py-0.5 rounded-full bg-nah-blue/10 text-nah-blue">Manual</span>}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "transcript" && (
-          <div>
-            {transcript ? (
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-caption text-text-tertiary">Source: {transcript.source} | {transcript.word_count ?? 0} words</span>
-                </div>
-                <div className="bg-bg-secondary border border-border-default rounded-lg p-4 overflow-y-auto">
-                  <p className="text-body-sm text-text-primary whitespace-pre-wrap">{transcript.full_text}</p>
-                </div>
-              </div>
-            ) : call.raw_transcript ? (
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-caption text-text-tertiary">From Read.ai</span>
-                </div>
-                <div className="bg-bg-secondary border border-border-default rounded-lg p-4 overflow-y-auto">
-                  <p className="text-body-sm text-text-primary whitespace-pre-wrap">{call.raw_transcript}</p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* File upload */}
-                <div className="border-2 border-dashed border-border-default rounded-lg p-6 text-center">
-                  <Upload size={24} className="mx-auto text-text-tertiary mb-2" />
-                  <p className="text-body-sm text-text-primary font-medium mb-1">Upload transcript or recording</p>
-                  <p className="text-caption text-text-tertiary mb-3">.txt transcript or .mp4/.webm recording</p>
-                  <label className="btn-primary px-4 py-2 text-body-sm cursor-pointer inline-flex items-center gap-1">
-                    {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                    {uploading ? "Uploading..." : "Choose File"}
-                    <input type="file" accept=".txt,.mp4,.webm,.m4a,.mp3,.wav" className="hidden"
-                      onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFileUpload(f); }} disabled={uploading} />
-                  </label>
-                </div>
-
-                {/* Or paste */}
-                <div className="relative">
-                  <div className="absolute inset-x-0 top-1/2 border-t border-border-default" />
-                  <span className="relative bg-bg-primary px-3 text-caption text-text-tertiary left-1/2 -translate-x-1/2">or paste transcript</span>
-                </div>
-                <textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)}
-                  placeholder="Paste call transcript here..."
-                  className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary resize-none"
-                  rows={8} disabled={savingTranscript} />
-                <button onClick={() => void handlePasteTranscript()} disabled={savingTranscript || !pasteText.trim()}
-                  className="btn-primary px-4 py-2 text-body-sm flex items-center gap-1">
-                  {savingTranscript && <Loader2 size={14} className="animate-spin" />} Save Transcript
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "grade" && (
-          <div>
-            {ctx === "group" ? (
-              /* Group calls: no grade, show Read.ai engagement metrics */
-              <div className="space-y-4">
-                <h3 className="text-overline text-text-tertiary tracking-wider">ENGAGEMENT METRICS</h3>
-                <p className="text-caption text-text-tertiary">Metrics from Read.ai for this group call.</p>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-bg-secondary border border-border-default rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-text-primary">—</div>
-                    <div className="text-caption text-text-tertiary">Read Score</div>
-                  </div>
-                  <div className="bg-bg-secondary border border-border-default rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-text-primary">—</div>
-                    <div className="text-caption text-text-tertiary">Sentiment</div>
-                  </div>
-                  <div className="bg-bg-secondary border border-border-default rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-text-primary">—</div>
-                    <div className="text-caption text-text-tertiary">Engagement</div>
-                  </div>
-                </div>
-                <p className="text-[10px] text-text-tertiary">Engagement data will populate when Read.ai provides metrics.</p>
-              </div>
-            ) : grade ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <span className={`text-3xl font-bold px-4 py-2 rounded-lg ${GRADE_COLORS[grade.overall_grade] ?? ""}`}>{grade.overall_grade}</span>
-                  <span className="text-h2 text-text-primary">{grade.overall_score}/100</span>
-                </div>
-                {grade.criterion_scores?.length > 0 && (
-                  <div className="space-y-2">
-                    <h3 className="text-overline text-text-tertiary tracking-wider">CRITERIA</h3>
-                    {grade.criterion_scores.map((cs, i) => (
-                      <div key={i} className="bg-bg-secondary border border-border-default rounded-lg p-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${GRADE_COLORS[cs.grade] ?? ""}`}>{cs.grade}</span>
-                          <span className="text-body-sm font-medium text-text-primary">{cs.name}</span>
-                          <span className="text-caption text-text-tertiary ml-auto">{cs.score}/100</span>
-                        </div>
-                        <p className="text-caption text-text-secondary">{cs.rationale}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="text-overline text-text-tertiary tracking-wider mb-2">STRENGTHS</h3>
-                    <ul className="space-y-1">{(grade.strengths ?? []).map((s, i) => <li key={i} className="text-caption text-success">+ {s}</li>)}</ul>
-                  </div>
-                  <div>
-                    <h3 className="text-overline text-text-tertiary tracking-wider mb-2">IMPROVEMENTS</h3>
-                    <ul className="space-y-1">{(grade.improvements ?? []).map((s, i) => <li key={i} className="text-caption text-warning">- {s}</li>)}</ul>
-                  </div>
-                </div>
-                {grade.suggested_next_action && (
-                  <div className="bg-nah-blue/5 border border-nah-blue/20 rounded-lg p-3">
-                    <span className="text-caption font-medium text-nah-blue">Suggested Next Action</span>
-                    <p className="text-body-sm text-text-primary mt-1">{grade.suggested_next_action}</p>
-                  </div>
-                )}
-                <button onClick={() => void handleGrade()} disabled={grading}
-                  className="btn-ghost px-3 py-1.5 text-caption flex items-center gap-1">
-                  {grading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Re-grade
-                </button>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-body-sm text-text-tertiary mb-3">{transcript || call.raw_transcript ? "Ready to grade this call." : "Upload a transcript first."}</p>
-                <button onClick={() => void handleGrade()} disabled={grading || (!transcript && !call.raw_transcript)}
-                  className="btn-primary px-4 py-2 text-body-sm flex items-center gap-1 mx-auto">
-                  {grading ? <Loader2 size={14} className="animate-spin" /> : <Award size={14} />} Grade with Scout
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "coaching" && (
-          <div>
-            {coaching ? (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-overline text-text-tertiary tracking-wider mb-2">
-                    {ctx === "coaching" ? "COACHING QUALITY FEEDBACK" : ctx === "group" ? "KEY THEMES" : "COACHING NOTES"}
-                  </h3>
-                  <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                    <p className="text-body-sm text-text-primary whitespace-pre-wrap">{coaching.coaching_notes}</p>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-overline text-text-tertiary tracking-wider mb-2">
-                    {ctx === "coaching" ? "COACHING PLAN" : "ACTION PLAN"}
-                  </h3>
-                  <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                    <p className="text-body-sm text-text-primary whitespace-pre-wrap">{coaching.coaching_plan}</p>
-                  </div>
-                </div>
-                <button onClick={() => void handleCoach()} disabled={coaching2}
-                  className="btn-ghost px-3 py-1.5 text-caption flex items-center gap-1">
-                  {coaching2 ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Regenerate
-                </button>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-body-sm text-text-tertiary mb-3">
-                  {transcript || call.raw_transcript ? "Ready to generate coaching." : "Upload a transcript first."}
-                </p>
-                <button onClick={() => void handleCoach()} disabled={coaching2 || (!transcript && !call.raw_transcript)}
-                  className="btn-primary px-4 py-2 text-body-sm flex items-center gap-1 mx-auto">
-                  {coaching2 ? <Loader2 size={14} className="animate-spin" /> : <BookOpen size={14} />} Generate Coaching
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "brief" && ctx === "prospect" && (
-          <div>
-            {brief ? (
-              <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                <p className="text-body-sm text-text-primary whitespace-pre-wrap">{brief}</p>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-body-sm text-text-tertiary mb-3">Generate a pre-call brief for this contact.</p>
-                <button onClick={() => void handleBrief()} disabled={briefLoading || !call.contact_id}
-                  className="btn-primary px-4 py-2 text-body-sm flex items-center gap-1 mx-auto">
-                  {briefLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Generate Brief
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* New 3-tab content */}
+      <CallDetailTabs
+        callId={callId}
+        aiSummary={call.ai_summary}
+        aiSummaryGeneratedAt={call.ai_summary_generated_at}
+        coachingScore={call.coaching_score}
+        coachingData={call.coaching_data}
+        coachingGeneratedAt={call.coaching_generated_at}
+        rawTranscript={transcriptText}
+        hasTranscript={hasTranscript}
+        recordingUrl={call.recording_url}
+        meetingLink={call.meeting_link}
+        durationSeconds={call.duration_seconds}
+        startedAt={call.started_at}
+        source={call.source}
+        actionItems={actionItems}
+        dataExtractions={dataExtractions}
+        profileFieldCount={profileFieldCount}
+        onRefresh={() => void fetchDetail()}
+      />
     </div>
   );
 }

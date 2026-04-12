@@ -58,13 +58,25 @@ export async function processGroupCall(
   }
 
   // 4. Trigger review pipeline (Scout will analyze transcript)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     await fetch(`${appUrl}/api/calls/${callRecord.id}/review-package`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     });
   } catch {
     // Non-critical
+  }
+
+  // 5. Trigger Scout generation (summary, coaching, next steps, data extractions)
+  if (hasTranscript) {
+    try {
+      await fetch(`${appUrl}/api/calls/${callRecord.id}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch {
+      // Non-critical — generation can be triggered manually from the UI
+    }
   }
 }

@@ -126,13 +126,25 @@ export async function processProspectCall(
   }
 
   // 9. Trigger review pipeline (non-blocking)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     await fetch(`${appUrl}/api/calls/${callRecord.id}/review-package`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     });
   } catch {
     // Non-critical — review can be triggered manually
+  }
+
+  // 10. Trigger Scout generation (summary, coaching, next steps, data extractions)
+  if (hasTranscript) {
+    try {
+      await fetch(`${appUrl}/api/calls/${callRecord.id}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch {
+      // Non-critical — generation can be triggered manually from the UI
+    }
   }
 }
