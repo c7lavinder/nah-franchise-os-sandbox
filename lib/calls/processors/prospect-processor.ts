@@ -12,16 +12,25 @@ function determineProspectCallType(
   nahEmail: string | null,
   title: string | null
 ): string {
-  if (!nahEmail) return "unknown_call";
+  if (!nahEmail) return "intro_call";
   const email = nahEmail.toLowerCase();
-  if (email.includes("matt")) return "matt_call";
-  if (email.includes("sam")) return "sam_call";
-  if (email.includes("mark")) return "mark_call";
-  if (email.includes("chad")) {
-    if (title?.toLowerCase().includes("intro")) return "intro_call";
-    return "chad_call";
+  const lowerTitle = title?.toLowerCase() ?? "";
+
+  // Matt → matt_call by default, matt_final if title hints at it
+  if (email.includes("matt")) {
+    if (lowerTitle.includes("final") || lowerTitle.includes("award")) return "matt_final_call";
+    return "matt_call";
   }
-  return "unknown_call";
+  if (email.includes("sam")) return "sam_call";
+  // Mark Pate uses altacapitalmanagement domain
+  if (email.includes("mark") || email.includes("altacapital")) return "mark_call";
+  // Nora runs intro calls
+  if (email.includes("nora")) return "intro_call";
+  // Chad → intro_call (his primary pipeline role)
+  if (email.includes("chad")) return "intro_call";
+
+  // Default: intro_call (most common call type for prospects)
+  return "intro_call";
 }
 
 export async function processProspectCall(
