@@ -50,7 +50,7 @@ export default function CallActionItem({ item, teamMembers, onAction }: CallActi
   const channel = (item.metadata?.comms_channel as string) ?? "sms";
   const Icon = item.category === "comms" ? getCommIcon(channel) : (CATEGORY_ICONS[item.category] ?? Check);
 
-  // Form state — all fields editable
+  const [expanded, setExpanded] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>(() => initFields(item));
   const [showWhy, setShowWhy] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
@@ -122,76 +122,92 @@ export default function CallActionItem({ item, teamMembers, onAction }: CallActi
     setAiLoading(false);
   }
 
+  // Collapsed summary line — show key detail per type
+  const summaryDetail = getSummaryDetail(item.category, fields);
+
   return (
-    <div className="bg-white rounded-lg border border-white/80 shadow-sm p-3 space-y-2">
-      {/* Header: contact + tags + why */}
-      <div className="flex items-start gap-2">
-        <Icon size={14} className="text-text-secondary mt-0.5 flex-shrink-0" />
+    <div className="bg-white rounded-lg border border-white/80 shadow-sm overflow-hidden">
+      {/* ── Collapsed view ── */}
+      <div className="px-3 py-2.5 flex items-center gap-2">
+        <Icon size={14} className="text-text-secondary flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-body-sm font-medium text-text-primary">{item.title}</p>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          <p className="text-body-sm font-medium text-text-primary truncate">{item.title}</p>
+          <div className="flex items-center gap-2 mt-0.5">
             {item.contact_name && (
               <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-nah-blue/10 text-nah-blue flex items-center gap-0.5">
                 <User size={8} /> {item.contact_name}
               </span>
             )}
-            {item.assigned_to_name && (
-              <span className="text-[10px] text-text-tertiary">→ {item.assigned_to_name}</span>
-            )}
-            {item.source === "scout" && (
-              <span className="text-[10px] text-scout-purple flex items-center gap-0.5"><Sparkles size={8} /> Scout</span>
-            )}
-            {item.ghl_action && (
-              <span className="text-[10px] text-nah-orange flex items-center gap-0.5"><Zap size={8} /> GHL</span>
+            {summaryDetail && (
+              <span className="text-[10px] text-text-tertiary truncate">{summaryDetail}</span>
             )}
           </div>
         </div>
-      </div>
-
-      {/* Why this action */}
-      {item.why && (
-        <>
-          <button onClick={() => setShowWhy((v) => !v)} className="text-[10px] text-scout-purple flex items-center gap-1">
-            <Sparkles size={8} /> Why? {showWhy ? "▲" : "▼"}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button onClick={() => setExpanded((v) => !v)}
+            className="px-2 py-1 text-[10px] text-nah-blue hover:bg-nah-blue/10 rounded-md transition-colors font-medium">
+            {expanded ? "Close" : "Edit"}
           </button>
-          {showWhy && <p className="text-[11px] text-text-secondary pl-4">{item.why}</p>}
-        </>
-      )}
-
-      {/* Editable fields — always visible */}
-      {item.category === "comms" && <CommsFields fields={fields} setField={setField} />}
-      {item.category === "apt" && <AptFields fields={fields} setField={setField} teamMembers={teamMembers} />}
-      {item.category === "task" && <TaskFields fields={fields} setField={setField} teamMembers={teamMembers} />}
-      {item.category === "note" && <NoteFields fields={fields} setField={setField} />}
-
-      {/* AI rewrite input */}
-      <div className="flex gap-1.5">
-        <div className="flex-1 relative">
-          <Sparkles size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-scout-purple" />
-          <input type="text" value={aiInput} onChange={(e) => setAiInput(e.target.value)}
-            placeholder="Tell AI what to change..."
-            className="w-full bg-white border border-border-default rounded-md pl-6 pr-2 py-1 text-[11px] text-text-primary placeholder:text-text-tertiary"
-            onKeyDown={(e) => { if (e.key === "Enter") void handleAiRewrite(); }} />
+          <button onClick={() => void handlePush()} disabled={loading !== null}
+            className="btn-primary px-2.5 py-1 text-[10px] flex items-center gap-1">
+            {loading === "push" ? <Loader2 size={10} className="animate-spin" /> : <Icon size={10} />}
+            {CTA_LABELS[item.category] ?? "Push"}
+          </button>
+          <button onClick={() => void handleSkip()} disabled={loading !== null}
+            className="px-1.5 py-1 text-text-tertiary hover:text-danger hover:bg-danger/5 rounded-md transition-colors">
+            {loading === "skip" ? <Loader2 size={10} className="animate-spin" /> : <X size={12} />}
+          </button>
         </div>
-        <button onClick={() => void handleAiRewrite()} disabled={aiLoading || !aiInput.trim()}
-          className="px-2 py-1 text-[10px] text-scout-purple hover:bg-scout-purple/10 rounded-md transition-colors flex items-center gap-0.5">
-          {aiLoading ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />} Apply
-        </button>
       </div>
 
-      {/* Actions row */}
-      <div className="flex items-center gap-2 pt-1">
-        <button onClick={() => void handlePush()} disabled={loading !== null}
-          className="btn-primary px-3 py-1 text-[11px] flex items-center gap-1">
-          {loading === "push" ? <Loader2 size={10} className="animate-spin" /> : <Icon size={10} />}
-          {CTA_LABELS[item.category] ?? "Push"}
-        </button>
-        <button onClick={() => void handleSkip()} disabled={loading !== null}
-          className="px-2 py-1 text-[11px] text-text-tertiary hover:text-danger hover:bg-danger/5 rounded-md transition-colors flex items-center gap-1">
-          {loading === "skip" ? <Loader2 size={10} className="animate-spin" /> : <X size={10} />} Skip
-        </button>
-      </div>
-      {error && <p className="text-[10px] text-danger">{error}</p>}
+      {/* ── Expanded editable view ── */}
+      {expanded && (
+        <div className="border-t border-border-default px-3 py-3 space-y-2 bg-bg-primary/30">
+          {item.category === "comms" && <CommsFields fields={fields} setField={setField} />}
+          {item.category === "apt" && <AptFields fields={fields} setField={setField} teamMembers={teamMembers} />}
+          {item.category === "task" && <TaskFields fields={fields} setField={setField} teamMembers={teamMembers} />}
+          {item.category === "note" && <NoteFields fields={fields} setField={setField} />}
+
+          {/* Why this action */}
+          {item.why && (
+            <>
+              <button onClick={() => setShowWhy((v) => !v)} className="text-[10px] text-scout-purple flex items-center gap-1">
+                <Sparkles size={8} /> Why? {showWhy ? "▲" : "▼"}
+              </button>
+              {showWhy && <p className="text-[11px] text-text-secondary pl-4">{item.why}</p>}
+            </>
+          )}
+
+          {/* AI rewrite */}
+          <div className="flex gap-1.5 pt-1">
+            <div className="flex-1 relative">
+              <Sparkles size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-scout-purple" />
+              <input type="text" value={aiInput} onChange={(e) => setAiInput(e.target.value)}
+                placeholder="Tell AI what to change..."
+                className="w-full bg-white border border-border-default rounded-md pl-6 pr-2 py-1 text-[11px] text-text-primary placeholder:text-text-tertiary"
+                onKeyDown={(e) => { if (e.key === "Enter") void handleAiRewrite(); }} />
+            </div>
+            <button onClick={() => void handleAiRewrite()} disabled={aiLoading || !aiInput.trim()}
+              className="px-2 py-1 text-[10px] text-scout-purple hover:bg-scout-purple/10 rounded-md transition-colors flex items-center gap-0.5">
+              {aiLoading ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />} Apply
+            </button>
+          </div>
+
+          {/* Confirm row */}
+          <div className="flex items-center gap-2 pt-1 border-t border-border-default">
+            <button onClick={() => void handlePush()} disabled={loading !== null}
+              className="btn-primary px-3 py-1 text-[11px] flex items-center gap-1">
+              {loading === "push" ? <Loader2 size={10} className="animate-spin" /> : <Icon size={10} />}
+              {CTA_LABELS[item.category] ?? "Push"}
+            </button>
+            <button onClick={() => setExpanded(false)}
+              className="px-2 py-1 text-[11px] text-text-tertiary hover:text-text-primary rounded-md transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {error && <p className="text-[10px] text-danger px-3 pb-2">{error}</p>}
     </div>
   );
 }
@@ -303,3 +319,34 @@ function initFields(item: ActionItemData): Record<string, string> {
 
 function str(v: unknown): string { return v != null ? String(v) : ""; }
 function todayISO(): string { return new Date().toISOString().split("T")[0]; }
+
+/** Brief one-liner for the collapsed view based on category */
+function getSummaryDetail(category: string, fields: Record<string, string>): string | null {
+  switch (category) {
+    case "comms": {
+      const ch = fields.comms_channel === "email" ? "Email" : "SMS";
+      const body = (fields.comms_body ?? "").split("\n")[0].slice(0, 60);
+      return body ? `${ch}: ${body}${body.length >= 60 ? "…" : ""}` : ch;
+    }
+    case "apt": {
+      const dt = fields.apt_date_time;
+      if (!dt) return null;
+      try {
+        return `${new Date(dt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${fields.apt_duration_minutes ?? "30"}min`;
+      } catch { return null; }
+    }
+    case "task": {
+      const due = fields.task_due_date;
+      if (!due) return null;
+      try {
+        return `Due: ${new Date(due + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+      } catch { return null; }
+    }
+    case "note": {
+      const body = (fields.note_body ?? "").split("\n")[0].slice(0, 60);
+      return body ? `${body}${body.length >= 60 ? "…" : ""}` : null;
+    }
+    default:
+      return null;
+  }
+}
