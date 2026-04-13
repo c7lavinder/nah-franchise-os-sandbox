@@ -73,11 +73,24 @@ const PANELS = [
 ];
 
 function categorizeCall(c: Call): string {
-  for (const panel of PANELS) {
-    if (panel.key === "other") continue;
-    if (c.callTypeSlug && panel.slugs.includes(c.callTypeSlug)) return panel.key;
-    if (c.classifiedType && panel.classified.includes(c.classifiedType)) return panel.key;
+  // Priority 1: match by call_type slug (most reliable — set by the processor)
+  if (c.callTypeSlug) {
+    for (const panel of PANELS) {
+      if (panel.key === "other") continue;
+      if (panel.slugs.includes(c.callTypeSlug)) return panel.key;
+    }
   }
+  // Priority 2: match by Read.ai classified type (fallback)
+  if (c.classifiedType) {
+    for (const panel of PANELS) {
+      if (panel.key === "other") continue;
+      if (panel.classified.includes(c.classifiedType)) return panel.key;
+    }
+  }
+  // Priority 3: match by title keywords (last resort)
+  const titleLower = (c.title ?? "").toLowerCase();
+  if (titleLower.includes("coaching")) return "coaching";
+  if (titleLower.includes("onboarding")) return "onboarding";
   return "other";
 }
 
@@ -288,11 +301,17 @@ export default function CallsPage() {
     setManualSaving(false);
   }
 
-  // Filter + categorize
+  // Filter + categorize + sort newest first within each panel
   const filtered = filterByTime(calls, timeFilter);
   const panelData = PANELS.map((p) => ({
     ...p,
-    calls: filtered.filter((c) => categorizeCall(c) === p.key),
+    calls: filtered
+      .filter((c) => categorizeCall(c) === p.key)
+      .sort((a, b) => {
+        const da = a.date ? new Date(a.date).getTime() : 0;
+        const db = b.date ? new Date(b.date).getTime() : 0;
+        return db - da;
+      }),
   }));
   // Only show panels that have calls or are key categories
   const visiblePanels = panelData.filter((p) => p.calls.length > 0 || ["pto", "coaching"].includes(p.key));
