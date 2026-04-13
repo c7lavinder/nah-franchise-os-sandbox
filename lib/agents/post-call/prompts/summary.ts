@@ -8,27 +8,11 @@ export function buildPrompt(ctx: CallContext): string {
     ? Math.round(ctx.durationSeconds / 60)
     : null;
 
-  const lengthGuidance = durationMinutes
-    ? durationMinutes >= 45
-      ? "This was a long call (45+ minutes). Write 7-10 sentences to capture the full picture."
-      : durationMinutes >= 25
-      ? "This was a medium-length call (25-44 minutes). Write 5-7 sentences."
-      : "This was a short call (under 25 minutes). Write 3-5 sentences."
-    : "Write 5-7 sentences.";
+  return `Write exactly ONE paragraph — 4 to 6 sentences maximum. This is an executive briefing, not a report.
 
-  return `${lengthGuidance}
+Pack the most important information into a tight paragraph covering: who the candidate is and where they are in the process, what was discussed, key signals (capital, engagement, concerns), what was committed (next steps with dates), and anything critical that was missed.
 
-Write in flowing paragraph form (NOT bullet points). Cover all of the following in your summary:
-1. Who the candidate is, their background, and where they are in the NAH sales process
-2. What was specifically discussed on this call (topics, FDD items, documents, tools shown)
-3. Candidate engagement signals — tone, questions asked, enthusiasm or hesitation indicators
-4. Capital signals — anything said about funding, assets, investment readiness, OR an explicit note if capital was never discussed
-5. Open items — questions the candidate said they'd follow up on, unresolved concerns, things left for later
-6. What was committed — specific next steps, dates, and actions confirmed before the call ended
-7. Relationship read — how the candidate feels about the opportunity and the NAH team right now
-8. What's missing — important topics that were NOT discussed that should come up in the next call
-
-Be specific. Reference actual things said in the transcript (names, numbers, dates, places). Do not be generic.
+Be specific — reference real names, numbers, dates from the transcript. Every sentence must earn its place.
 
 WRITING STANDARDS — this summary will be read by franchise executives and sales leaders:
 - Write in complete, professional sentences. No shorthand, no abbreviations, no casual fragments.
