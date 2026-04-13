@@ -10,7 +10,7 @@
  */
 
 import { createServerClient } from "@/lib/supabase/server";
-import type { CallContext, SummaryResult, CoachingResult, NextStepsResult, ExtractionResult } from "./types";
+import type { CallContext, SummaryResult, CoachingResult, NextStepsResult, ExtractionResult, PipelinePosition } from "./types";
 import { runSummary } from "./prompts/summary";
 import { runCoaching } from "./prompts/coaching";
 import { runNextSteps } from "./prompts/next-steps";
@@ -170,6 +170,66 @@ async function loadCallContext(
 
   const teamMembers = (teamRows ?? []).map((r) => r.display_name ?? "Unknown");
 
+  // Load contact's active pipeline positions
+  const pipelinePositions: PipelinePosition[] = [];
+  if (call.contact_id) {
+    const { data: states } = await supabase
+      .from("contact_pipeline_state")
+      .select(`
+        id,
+        pipeline_id,
+        current_stage_id,
+        current_sub_task_id,
+        pipelines ( slug, name ),
+        pipeline_stages ( slug, name )
+      `)
+      .eq("contact_id", call.contact_id)
+      .eq("is_active", true);
+
+    for (const st of states ?? []) {
+      const pipeline = Array.isArray(st.pipelines) ? st.pipelines[0] : st.pipelines;
+      const stage = Array.isArray(st.pipeline_stages) ? st.pipeline_stages[0] : st.pipeline_stages;
+      if (!pipeline || !stage) continue;
+
+      // Fetch all stages for this pipeline
+      const { data: allStageRows } = await supabase
+        .from("pipeline_stages")
+        .select("name")
+        .eq("pipeline_id", st.pipeline_id)
+        .order("sort_order", { ascending: true });
+
+      // Fetch sub-tasks for the current stage
+      const { data: subTaskRows } = await supabase
+        .from("pipeline_sub_tasks")
+        .select("id, name")
+        .eq("stage_id", st.current_stage_id)
+        .order("sort_order", { ascending: true });
+
+      // Check which sub-tasks are completed via logs
+      const subTaskIds = (subTaskRows ?? []).map((s) => s.id);
+      let completedIds = new Set<string>();
+      if (subTaskIds.length > 0) {
+        const { data: logs } = await supabase
+          .from("contact_sub_task_logs")
+          .select("sub_task_id")
+          .eq("contact_pipeline_state_id", st.id)
+          .in("sub_task_id", subTaskIds);
+        completedIds = new Set((logs ?? []).map((l) => l.sub_task_id));
+      }
+
+      pipelinePositions.push({
+        pipelineName: (pipeline as { name: string }).name,
+        pipelineSlug: (pipeline as { slug: string }).slug,
+        currentStage: (stage as { name: string }).name,
+        allStages: (allStageRows ?? []).map((s) => s.name),
+        subTasks: (subTaskRows ?? []).map((s) => ({
+          name: s.name,
+          completed: completedIds.has(s.id),
+        })),
+      });
+    }
+  }
+
   return {
     callId,
     transcript,
@@ -180,6 +240,7 @@ async function loadCallContext(
     teamMembers,
     callDate: call.started_at,
     durationSeconds: call.duration_seconds,
+    pipelinePositions,
   };
 }
 

@@ -528,10 +528,13 @@ function initFields(item: ActionItemData, contactEmail: string | null, contactPh
       return {
         ...base,
         pipeline_action: str(meta.pipeline_action),
+        pipeline_name: str(meta.pipeline_name),
         pipeline_stage: str(meta.pipeline_stage),
         subtask_name: str(meta.subtask_name),
         stage_from: str(meta.stage_from),
         stage_to: str(meta.stage_to),
+        pipeline_from: str(meta.pipeline_from),
+        pipeline_to: str(meta.pipeline_to),
       };
     default:
       return base;
@@ -570,11 +573,13 @@ function getSummaryDetail(category: string, fields: Record<string, string>): str
       return body ? `${body}${body.length >= 60 ? "…" : ""}` : null;
     }
     case "pipeline": {
+      const pName = fields.pipeline_name || "";
       const stage = fields.pipeline_stage || "";
       const subtask = fields.subtask_name || "";
       if (fields.pipeline_action === "advance_stage") return `${fields.stage_from ?? ""} → ${fields.stage_to ?? ""}`;
-      if (subtask) return `${stage}: ${subtask}`;
-      return stage || null;
+      if (fields.pipeline_action === "move_pipeline") return `${fields.pipeline_from ?? ""} → ${fields.pipeline_to ?? ""}: ${fields.stage_to ?? ""}`;
+      if (subtask) return pName ? `${pName} · ${stage}: ${subtask}` : `${stage}: ${subtask}`;
+      return stage || pName || null;
     }
     default:
       return null;

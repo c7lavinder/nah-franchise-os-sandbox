@@ -1,4 +1,4 @@
-import type { CallContext, NextStepsResult } from "../types";
+import type { CallContext, NextStepsResult, PipelinePosition } from "../types";
 import { callClaude, stripFences } from "../call-claude";
 
 const SYSTEM = "You are Scout, an AI assistant for NAH Franchise OS. You generate post-call action items for the franchise sales team.";
@@ -9,7 +9,7 @@ export function buildPrompt(ctx: CallContext): string {
 ## Rules
 - MAXIMUM 6 actions total. Combine similar sends into one comms action.
 - ALWAYS include exactly one "note" action to log the call summary to the contact's profile.
-- ALWAYS include a "pipeline" action — see Pipeline section below.
+- ALWAYS include at least one "pipeline" action — see Pipeline section below. This is CRITICAL.
 - Pre-fill ALL fields using specific information from the transcript.
 - Assign each action to the right NAH team member.
 - Each appointment with a different rep stays its own action.
@@ -20,43 +20,78 @@ export function buildPrompt(ctx: CallContext): string {
 - Matt Lavinder → any qualification or final ownership call
 - Sam → any discovery/demo call
 
-## Sales Pipeline (MUST reference when generating pipeline actions)
-Stages flow left-to-right. Each stage has sub-tasks that must be logged off before advancing.
+## Pipeline Intelligence — MUST READ
 
-1. **Engagement** → Outreach, Intro Call, PTO
-2. **Qualification** → NDA, Matt Call, Zorakle
-3. **Discovery** → Sam Call, PFS, Background, Mark Call
-4. **Compliance** → FDD, FDD Review Call, Territory Call, FA Info Gathering
-5. **Awarding** → Matt Final Call, Franchise Award Letter, FA, FF
-6. **Closed** (terminal)
+You must analyze the transcript and the contact's current pipeline position to suggest pipeline actions.
+Do NOT rely only on call type. Listen to what was discussed and determine what should be checked off or moved.
 
-### Call-to-pipeline mapping (use call type + transcript to determine):
-- intro_call → log off "Intro Call" sub-task in Engagement
-- matt_call → log off "Matt Call" in Qualification
-- sam_call → log off "Sam Call" in Discovery
-- mark_call → log off "Mark Call" in Discovery
-- fdd_review → log off "FDD Review Call" in Compliance
-- territory_call → log off "Territory Call" in Compliance
-- matt_final_call → log off "Matt Final Call" in Awarding
-- If the call discussed NDA signing → log off "NDA" in Qualification
-- If the call discussed PTO/Trainual → log off "PTO" in Engagement
-- If ALL sub-tasks in a stage were discussed as complete → also suggest "Advance to [next stage]"
+### All NAH Pipelines & Sub-tasks:
+
+**Sales — Path to Ownership:**
+1. Engagement → Outreach, Intro Call, PTO
+2. Qualification → NDA, Matt Call, Zorakle
+3. Discovery → Sam Call, PFS, Background, Mark Call
+4. Compliance → FDD, FDD Review Call, Territory Call, FA Info Gathering
+5. Awarding → Matt Final Call, Franchise Award Letter, FA, FF
+6. Closed (terminal)
+
+**Onboarding — Path to Launch:**
+1. Setup → Entity & Bank Account, Insurance & Compliance, Systems Access, Workstation Ready
+2. Training → Part 1: Onboarding, Part 2: MasterSuite, Part 3: Goals & Planning, Onboarding Test
+3. Launch Prep → Territory Finalized, Marketing Live, First Lead in Pipeline, First Offer Sent
+4. Onboarded (terminal)
+
+**Runway — First Purchases:**
+1. First Offers → Marketing Optimized, 10 Offers Sent, First Property Under Contract
+2. First Acquisition → First Property Closed, Rehab Started, Second Property Under Contract
+3. Inventory Building → 2+ Properties in Inventory, First Sale Closed, Graduate to Independent
+4. Runway Complete (terminal)
+
+**Follow-up:**
+1. Follow-up (specific reason to resume)
+2. Nurture (cold/long-term)
+3. Re-engaged → Resume Sales (spawns new Sales entry)
+
+${buildPipelinePositionBlock(ctx.pipelinePositions)}
+
+### How to decide pipeline actions:
+1. Look at the contact's CURRENT POSITION above
+2. Read the transcript for evidence of sub-task completion:
+   - Did they complete a call type? (intro call, matt call, sam call, mark call, fdd review, territory call, matt final call)
+   - Did they mention signing something? (NDA, FDD receipt, FA, franchise award letter)
+   - Did they discuss completing training? (MasterSuite, Onboarding Test, Goals & Planning)
+   - Did they mention a property? (under contract, closed, rehab started, first sale)
+   - Did they discuss marketing? (marketing live, first lead, first offer sent)
+3. For EACH completed item found in the transcript, generate a pipeline action to log it off
+4. If the call outcome suggests the contact should move to a different pipeline:
+   - Going cold / not interested → suggest "Move to Nurture" (Follow-up pipeline)
+   - Re-engaging after being cold → suggest "Move to Re-engaged"
+   - If ALL sub-tasks in current stage are done → suggest "Advance to [next stage]"
+5. If no specific sub-task was completed but a call happened (e.g., intro call), still log off that call sub-task
 
 ### Pipeline action format:
 For sub-task log-off:
 {
   "category": "pipeline",
   "title": "Log off [Sub-task Name]",
-  "description": "Mark [sub-task] as completed in the [Stage] stage",
-  "metadata": { "pipeline_action": "log_subtask", "pipeline_stage": "[stage name]", "subtask_name": "[sub-task name]" }
+  "description": "Mark [sub-task] as completed in [Pipeline] → [Stage]",
+  "metadata": { "pipeline_action": "log_subtask", "pipeline_name": "[pipeline name]", "pipeline_stage": "[stage name]", "subtask_name": "[sub-task name]" }
 }
 
-For stage advance (only if evidence supports all sub-tasks in current stage are done):
+For stage advance:
 {
   "category": "pipeline",
   "title": "Advance to [Next Stage]",
-  "description": "Move [contact] from [current stage] to [next stage]",
-  "metadata": { "pipeline_action": "advance_stage", "stage_from": "[current]", "stage_to": "[next]" }
+  "description": "Move [contact] from [current stage] to [next stage] in [Pipeline]",
+  "metadata": { "pipeline_action": "advance_stage", "pipeline_name": "[pipeline name]", "stage_from": "[current]", "stage_to": "[next]" }
+}
+
+For pipeline move (e.g., move to nurture):
+{
+  "category": "pipeline",
+  "title": "Move to [Destination]",
+  "description": "Move [contact] to [destination pipeline/stage] — [reason]",
+  "metadata": { "pipeline_action": "move_pipeline", "pipeline_from": "[current pipeline]", "pipeline_to": "[destination pipeline]", "stage_to": "[destination stage]" }
 }
 
 ## Required fields for EVERY action:
@@ -74,7 +109,7 @@ For stage advance (only if evidence supports all sub-tasks in current stage are 
     // COMMS: include comms_channel ("sms"|"email"), comms_subject (if email), comms_body (FULL pre-written message), comms_to_email, comms_to_phone
     // TASK: include task_title, task_description, task_due_date (ISO, default today)
     // NOTE: include note_body (full call summary paragraph for the contact record)
-    // PIPELINE: include pipeline_action, pipeline_stage, subtask_name (or stage_from + stage_to for advance)
+    // PIPELINE: include pipeline_action, pipeline_name, pipeline_stage, subtask_name (or stage_from + stage_to + pipeline_from + pipeline_to)
   }
 }
 
@@ -83,7 +118,7 @@ For stage advance (only if evidence supports all sub-tasks in current stage are 
 - comms_body must be a FULL ready-to-send message, not a placeholder.
 - note_body must be a complete call summary paragraph (4-5 sentences).
 - Dates and times must include day of week and timezone when known.
-- Pipeline actions should always reference the specific stage and sub-task by name.
+- Pipeline actions should always reference the specific pipeline, stage, and sub-task by name.
 
 Return only a valid JSON array. No preamble, no markdown fences.
 
@@ -95,6 +130,26 @@ Duration: ${ctx.durationSeconds ? Math.round(ctx.durationSeconds / 60) + " minut
 
 Transcript:
 ${ctx.transcript}`;
+}
+
+/** Build the "Contact's Current Position" block for the prompt */
+function buildPipelinePositionBlock(positions: PipelinePosition[]): string {
+  if (positions.length === 0) {
+    return "### Contact's Current Pipeline Position:\nNo active pipeline — contact may be new or not yet placed.";
+  }
+
+  const lines = ["### Contact's Current Pipeline Position:"];
+  for (const pos of positions) {
+    lines.push(`\n**${pos.pipelineName}** — currently in **${pos.currentStage}**`);
+    lines.push(`Stages: ${pos.allStages.join(" → ")}`);
+    if (pos.subTasks.length > 0) {
+      lines.push("Sub-tasks in current stage:");
+      for (const st of pos.subTasks) {
+        lines.push(`  ${st.completed ? "✅" : "⬜"} ${st.name}`);
+      }
+    }
+  }
+  return lines.join("\n");
 }
 
 export function parseResult(rawText: string): NextStepsResult | null {

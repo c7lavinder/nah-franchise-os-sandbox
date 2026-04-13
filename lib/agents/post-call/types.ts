@@ -1,3 +1,14 @@
+/** A pipeline the contact is currently active in */
+export interface PipelinePosition {
+  pipelineName: string;
+  pipelineSlug: string;
+  currentStage: string;
+  /** Sub-tasks in current stage with their completion status */
+  subTasks: { name: string; completed: boolean }[];
+  /** All stages in order for context */
+  allStages: string[];
+}
+
 /** Shared context passed to all post-call prompt sections */
 export interface CallContext {
   callId: string;
@@ -9,6 +20,8 @@ export interface CallContext {
   teamMembers: string[];
   callDate: string | null;
   durationSeconds: number | null;
+  /** Contact's active pipeline positions — may be in multiple pipelines */
+  pipelinePositions: PipelinePosition[];
 }
 
 /** Result types for each section */
