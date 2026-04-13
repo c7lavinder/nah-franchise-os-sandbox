@@ -122,21 +122,41 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. Link existing calls where this contact's email/phone appears as a participant
+    // 4. Link existing calls where this contact's email appears as a participant.
+    //    Also checks contact_related_people for business partner emails.
+    const displayName = `${body.firstName.trim()} ${body.lastName.trim()}`;
+    const emailsToLink: string[] = [];
+
     const contactEmail = body.email?.trim()?.toLowerCase();
-    if (contactEmail) {
+    if (contactEmail) emailsToLink.push(contactEmail);
+
+    // Include related people emails (business partners, spouses, etc.)
+    const { data: relatedPeople } = await supabase
+      .from("contact_related_people")
+      .select("email")
+      .eq("contact_id", contact.id)
+      .not("email", "is", null);
+
+    for (const rp of relatedPeople ?? []) {
+      if (rp.email) {
+        const rpEmail = rp.email.trim().toLowerCase();
+        if (rpEmail && !emailsToLink.includes(rpEmail)) emailsToLink.push(rpEmail);
+      }
+    }
+
+    for (const email of emailsToLink) {
       // Link call_participants rows
       await supabase
         .from("call_participants")
-        .update({ contact_id: contact.id, role: "prospect", display_name: `${body.firstName.trim()} ${body.lastName.trim()}` })
-        .eq("email", contactEmail)
+        .update({ contact_id: contact.id, role: "prospect", display_name: displayName })
+        .eq("email", email)
         .is("contact_id", null);
 
       // Link calls via read_ai_sessions participant emails
       const { data: sessions } = await supabase
         .from("read_ai_sessions")
-        .select("session_id, participant_emails")
-        .contains("participant_emails", [contactEmail]);
+        .select("session_id")
+        .contains("participant_emails", [email]);
 
       if (sessions && sessions.length > 0) {
         const sessionIds = sessions.map((s) => s.session_id);
