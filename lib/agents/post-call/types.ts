@@ -37,8 +37,12 @@ export interface ActionItem {
   category: string;
   title: string;
   description: string;
+  why: string;
+  contact_name: string;
+  assigned_to_name: string;
   ghl_action: boolean;
   source: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface NextStepsResult {

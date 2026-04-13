@@ -63,12 +63,16 @@ interface ActionItem {
   category: string;
   title: string;
   description: string | null;
+  why: string | null;
+  contact_name: string | null;
+  assigned_to_name: string | null;
   source: string;
   ghl_action: boolean;
   status: string;
   contact_id: string | null;
   pushed_at: string | null;
   skipped_at: string | null;
+  metadata: Record<string, unknown> | null;
 }
 
 interface Extraction {
