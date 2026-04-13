@@ -176,7 +176,14 @@ export async function POST(
       return NextResponse.json({ error: "No response from Scout" }, { status: 500 });
     }
 
-    result = JSON.parse(textBlock.text) as GenerationResult;
+    // Strip markdown code fences that Claude sometimes wraps around JSON
+    const cleanJson = textBlock.text
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
+
+    result = JSON.parse(cleanJson) as GenerationResult;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: `Scout generation failed: ${msg}` }, { status: 500 });

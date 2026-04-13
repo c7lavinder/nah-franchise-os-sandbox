@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, AlertCircle } from "lucide-react";
 import CallDataField from "./CallDataField";
-import CallGenerateButton from "./CallGenerateButton";
 
 interface Extraction {
   id: string;
@@ -23,58 +22,86 @@ interface CallDataTabProps {
   profileFieldCount: number;
   hasTranscript: boolean;
   hasGenerated: boolean;
+  isGenerating: boolean;
+  generationError: string | null;
   onRefresh: () => void;
 }
 
 const TOTAL_PROFILE_FIELDS = 14;
 
-export default function CallDataTab({
-  callId,
-  dataExtractions,
-  profileFieldCount,
-  hasTranscript,
-  hasGenerated,
-  onRefresh,
-}: CallDataTabProps) {
+type GenState = "no_transcript" | "ready" | "generating" | "complete" | "error";
+
+function getState(props: CallDataTabProps): GenState {
+  if (!props.hasTranscript) return "no_transcript";
+  if (props.isGenerating) return "generating";
+  if (props.generationError) return "error";
+  if (props.dataExtractions.length > 0 || props.hasGenerated) return "complete";
+  return "ready";
+}
+
+export default function CallDataTab(props: CallDataTabProps) {
   const [contactOpen, setContactOpen] = useState(true);
   const [territoryOpen, setTerritoryOpen] = useState(true);
 
-  const contactExtractions = dataExtractions.filter((e) => e.field_category === "contact");
-  const territoryExtractions = dataExtractions.filter((e) => e.field_category === "territory");
+  const state = getState(props);
 
-  const completenessPercent = Math.round((profileFieldCount / TOTAL_PROFILE_FIELDS) * 100);
+  const contactExtractions = props.dataExtractions.filter((e) => e.field_category === "contact");
+  const territoryExtractions = props.dataExtractions.filter((e) => e.field_category === "territory");
+
+  const completenessPercent = Math.round((props.profileFieldCount / TOTAL_PROFILE_FIELDS) * 100);
   const clampedPercent = Math.min(completenessPercent, 100);
 
-  // Empty states
-  if (!hasTranscript) {
+  // Non-complete states
+  if (state === "no_transcript") {
     return (
       <div className="text-center py-12">
         <p className="text-body-sm text-text-tertiary">
-          Data extractions will be available once the transcript arrives from Read.ai.
+          Data extraction will be available once the transcript arrives from Read.ai.
         </p>
       </div>
     );
   }
 
-  if (!hasGenerated && dataExtractions.length === 0) {
+  if (state === "ready") {
     return (
       <div className="text-center py-12">
         <p className="text-body-sm text-text-tertiary">
-          {hasTranscript
-            ? "Scout is extracting data from this call. Refresh to check."
-            : "Data extractions will appear once the call transcript arrives."}
+          Generate on the Overview tab to unlock data extraction.
         </p>
       </div>
     );
   }
 
+  if (state === "generating") {
+    return (
+      <div className="text-center py-12">
+        <Loader2 size={20} className="animate-spin text-text-tertiary mx-auto mb-2" />
+        <p className="text-body-sm text-text-tertiary">
+          Scout is extracting data points...
+        </p>
+      </div>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <div className="text-center py-12">
+        <AlertCircle size={20} className="text-danger mx-auto mb-2" />
+        <p className="text-body-sm text-danger">
+          Extraction failed. Go to Overview tab to retry.
+        </p>
+      </div>
+    );
+  }
+
+  // Complete state
   return (
     <div className="space-y-6">
       {/* Profile completeness bar */}
       <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-body-sm font-medium text-text-primary">
-            {profileFieldCount} / {TOTAL_PROFILE_FIELDS} contact fields populated
+            {props.profileFieldCount} / {TOTAL_PROFILE_FIELDS} contact fields populated
           </span>
           <span className="text-caption text-text-tertiary">{clampedPercent}%</span>
         </div>
@@ -104,7 +131,7 @@ export default function CallDataTab({
           <div className="px-4 pb-3">
             {contactExtractions.length > 0 ? (
               contactExtractions.map((e) => (
-                <CallDataField key={e.id} extraction={e} onSaved={onRefresh} />
+                <CallDataField key={e.id} extraction={e} onSaved={props.onRefresh} />
               ))
             ) : (
               <p className="text-caption text-text-tertiary italic py-2">No contact data extracted from this call.</p>
@@ -131,23 +158,13 @@ export default function CallDataTab({
           <div className="px-4 pb-3">
             {territoryExtractions.length > 0 ? (
               territoryExtractions.map((e) => (
-                <CallDataField key={e.id} extraction={e} onSaved={onRefresh} />
+                <CallDataField key={e.id} extraction={e} onSaved={props.onRefresh} />
               ))
             ) : (
               <p className="text-caption text-text-tertiary italic py-2">No territory data extracted from this call.</p>
             )}
           </div>
         )}
-      </div>
-
-      {/* Regenerate */}
-      <div className="flex justify-end pt-2 border-t border-border-default">
-        <CallGenerateButton
-          callId={callId}
-          hasGenerated={true}
-          hasTranscript={hasTranscript}
-          onGenerated={onRefresh}
-        />
       </div>
     </div>
   );

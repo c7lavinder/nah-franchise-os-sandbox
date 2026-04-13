@@ -6,7 +6,7 @@
  * Tab content powered by CallDetailTabs component.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, RefreshCw, ExternalLink, MapPin } from "lucide-react";
 import CallDetailTabs from "@/components/calls/CallDetailTabs";
@@ -54,13 +54,6 @@ interface CallDetail {
   externalParticipants: ExternalParticipant[];
 }
 
-interface Transcript {
-  id: string;
-  full_text: string;
-  word_count: number | null;
-  source: string;
-}
-
 interface ActionItem {
   id: string;
   call_id: string;
@@ -90,11 +83,14 @@ export default function CallDetailPage() {
   const callId = params.callId as string;
 
   const [call, setCall] = useState<CallDetail | null>(null);
-  const [transcript, setTranscript] = useState<Transcript | null>(null);
+  const [transcript, setTranscript] = useState<string | null>(null);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [dataExtractions, setDataExtractions] = useState<Extraction[]>([]);
   const [profileFieldCount, setProfileFieldCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchDetail = useCallback(async () => {
     try {
@@ -102,16 +98,59 @@ export default function CallDetailPage() {
       if (res.ok) {
         const data = await res.json();
         setCall(data.call);
-        setTranscript(data.transcript);
+        setTranscript(data.transcript ?? null);
         setActionItems(data.actionItems ?? []);
         setDataExtractions(data.dataExtractions ?? []);
         setProfileFieldCount(data.profileFieldCount ?? 0);
+        return data;
       }
     } catch { /* silent */ }
     setLoading(false);
+    return null;
   }, [callId]);
 
-  useEffect(() => { void fetchDetail(); }, [fetchDetail]);
+  useEffect(() => {
+    void (async () => {
+      await fetchDetail();
+      setLoading(false);
+    })();
+  }, [fetchDetail]);
+
+  // Clean up polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
+  /** Called by CallGenerateButton after POST /generate succeeds */
+  const handleGenerateStart = useCallback(() => {
+    setIsGenerating(true);
+    setGenerationError(null);
+
+    let attempts = 0;
+    pollRef.current = setInterval(async () => {
+      attempts++;
+      const data = await fetchDetail();
+      if (data?.call?.ai_summary_generated_at) {
+        // Generation complete — data is now loaded via fetchDetail
+        setIsGenerating(false);
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+      } else if (attempts >= 10) {
+        setIsGenerating(false);
+        setGenerationError("Generation is taking longer than expected. Try refreshing.");
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    }, 3000);
+  }, [fetchDetail]);
+
+  /** Called by CallGenerateButton if POST /generate returns an error */
+  const handleGenerateError = useCallback((errorMsg: string) => {
+    setIsGenerating(false);
+    setGenerationError(errorMsg);
+  }, []);
 
   if (loading) {
     return (
@@ -125,9 +164,7 @@ export default function CallDetailPage() {
     return <div className="text-center py-16 text-text-tertiary">Call not found</div>;
   }
 
-  // Determine if a transcript exists (from call_transcripts table or raw_transcript on call)
-  const hasTranscript = !!(transcript?.full_text || call.raw_transcript);
-  const transcriptText = transcript?.full_text ?? call.raw_transcript ?? null;
+  const hasTranscript = !!transcript;
 
   return (
     <div>
@@ -141,13 +178,11 @@ export default function CallDetailPage() {
             {call.title ?? "Call"}
           </h1>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-            {/* Call type */}
             {call.callTypeName && (
               <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-nah-blue/10 text-nah-blue">
                 {call.callTypeName}
               </span>
             )}
-            {/* Status */}
             <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
               call.status === "completed" ? "bg-success/10 text-success" :
               call.status === "scheduled" ? "bg-info/10 text-info" :
@@ -156,16 +191,12 @@ export default function CallDetailPage() {
             }`}>
               {call.status}
             </span>
-            {/* Territory */}
             {call.territoryName && (
-              <a
-                href={`/territories/${call.territory_ms_slug}`}
-                className="flex items-center gap-1 text-caption text-nah-blue hover:underline"
-              >
+              <a href={`/territories/${call.territory_ms_slug}`}
+                className="flex items-center gap-1 text-caption text-nah-blue hover:underline">
                 <MapPin size={10} />{call.territoryName}
               </a>
             )}
-            {/* Date */}
             <span className="text-caption text-text-tertiary">
               {(call.started_at ?? call.scheduled_at)
                 ? new Date(call.started_at ?? call.scheduled_at!).toLocaleString([], {
@@ -173,13 +204,11 @@ export default function CallDetailPage() {
                   })
                 : "—"}
             </span>
-            {/* Duration */}
             {call.duration_seconds ? (
               <span className="text-caption text-text-tertiary">
                 {Math.round(call.duration_seconds / 60)} min
               </span>
             ) : null}
-            {/* Source */}
             {call.source === "read_ai" && (
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-600">Read.ai</span>
             )}
@@ -187,7 +216,6 @@ export default function CallDetailPage() {
 
           {/* People */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
-            {/* NAH Team */}
             {call.teamMembers?.length > 0 && (
               <div className="flex items-center gap-1.5 text-caption">
                 <span className="text-text-tertiary font-medium">Team:</span>
@@ -206,7 +234,6 @@ export default function CallDetailPage() {
                 </span>
               </div>
             )}
-            {/* External / Prospects */}
             {call.externalParticipants?.length > 0 && (
               <div className="flex items-center gap-1.5 text-caption">
                 <span className="text-text-tertiary font-medium">Contacts:</span>
@@ -248,7 +275,7 @@ export default function CallDetailPage() {
         </div>
       </div>
 
-      {/* New 3-tab content */}
+      {/* 3-tab content */}
       <CallDetailTabs
         callId={callId}
         aiSummary={call.ai_summary}
@@ -256,7 +283,7 @@ export default function CallDetailPage() {
         coachingScore={call.coaching_score}
         coachingData={call.coaching_data}
         coachingGeneratedAt={call.coaching_generated_at}
-        rawTranscript={transcriptText}
+        rawTranscript={transcript}
         hasTranscript={hasTranscript}
         recordingUrl={call.recording_url}
         meetingLink={call.meeting_link}
@@ -266,6 +293,10 @@ export default function CallDetailPage() {
         actionItems={actionItems}
         dataExtractions={dataExtractions}
         profileFieldCount={profileFieldCount}
+        isGenerating={isGenerating}
+        generationError={generationError}
+        onGenerateStart={handleGenerateStart}
+        onGenerateError={handleGenerateError}
         onRefresh={() => void fetchDetail()}
       />
     </div>

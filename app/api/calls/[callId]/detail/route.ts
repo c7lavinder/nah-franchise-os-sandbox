@@ -159,9 +159,13 @@ export async function GET(
     profileFieldCount = count ?? 0;
   }
 
+  // Unified transcript text — prefer call_transcripts row, fall back to raw_transcript on call
+  const transcriptText: string | null = transcript?.full_text ?? call.raw_transcript ?? null;
+
   return NextResponse.json({
     call: { ...call, contactName, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, externalParticipants },
-    transcript,
+    transcript: transcriptText,
+    transcriptSource: transcript?.source ?? (call.raw_transcript ? "read_ai" : null),
     grade,
     coaching,
     actionItems: actionItems ?? [],
