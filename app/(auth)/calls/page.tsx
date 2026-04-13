@@ -56,7 +56,13 @@ const PANELS = [
     key: "team",
     label: "Team Calls",
     slugs: ["team_call"] as string[],
-    classified: ["internal", "group"],
+    classified: ["internal"],
+  },
+  {
+    key: "group",
+    label: "Group Calls",
+    slugs: ["group_call", "cohort_call"] as string[],
+    classified: ["group"],
   },
   {
     key: "other",
@@ -316,7 +322,7 @@ export default function CallsPage() {
       }),
   }));
   // Only show panels that have calls or are key categories
-  const visiblePanels = panelData.filter((p) => p.calls.length > 0 || ["pto", "coaching", "team"].includes(p.key));
+  const visiblePanels = panelData.filter((p) => p.calls.length > 0 || ["pto", "coaching", "team", "group"].includes(p.key));
 
   return (
     <div>
