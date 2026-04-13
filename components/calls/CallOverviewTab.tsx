@@ -84,6 +84,18 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
   const [showFullSummary, setShowFullSummary] = useState(false);
   const [showAllTranscript, setShowAllTranscript] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isCoachingGenerating, setIsCoachingGenerating] = useState(false);
+
+  const handleGenerateCoaching = async () => {
+    setIsCoachingGenerating(true);
+    try {
+      const res = await fetch(`/api/calls/${props.callId}/coach`, { method: "POST" });
+      if (res.ok) {
+        props.onRefresh();
+      }
+    } catch { /* silent — refresh will show current state */ }
+    finally { setIsCoachingGenerating(false); }
+  };
 
   const parsedTranscript = useMemo(
     () => parseTranscriptLines(props.rawTranscript ?? "", props.participantNames),
@@ -299,16 +311,27 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
             <Loader2 size={14} className="animate-spin" />
             Scout is generating coaching insights...
           </div>
-        ) : state === "error" ? (
-          <p className="text-body-sm text-danger italic">Generation failed.</p>
-        ) : state === "ready" ? (
+        ) : !props.hasTranscript ? (
           <p className="text-body-sm text-text-tertiary italic">
-            Coaching will be generated when you analyze this call.
+            Waiting for transcript from Read.ai.
           </p>
         ) : (
-          <p className="text-body-sm text-text-tertiary italic">
-            Coaching will be available once the transcript arrives from Read.ai.
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-body-sm text-text-tertiary">
+              Coaching not yet generated.
+            </p>
+            <button
+              onClick={() => void handleGenerateCoaching()}
+              disabled={isCoachingGenerating}
+              className="flex items-center gap-1.5 text-body-sm font-medium text-nah-blue hover:text-nah-blue/80 border border-nah-blue/20 hover:border-nah-blue/40 rounded-md px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isCoachingGenerating ? (
+                <><Loader2 size={14} className="animate-spin" /> Generating...</>
+              ) : (
+                "Generate Coaching"
+              )}
+            </button>
+          </div>
         )}
       </div>
 
