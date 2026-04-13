@@ -119,6 +119,11 @@ export default function EcosystemPanel({ msSlug, owner }: Props) {
             </div>
             <p className="text-body-sm font-semibold text-text-primary mt-2">{ownerName}</p>
             <span className="text-[10px] font-medium text-nah-orange tracking-wider">OWNER</span>
+            {owner?.start_date && (
+              <span className="text-[10px] text-text-tertiary mt-0.5">
+                Since {new Date(owner.start_date + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+              </span>
+            )}
             {owner?.ghlContactId && (
               <a href={`/leads/${owner.ghlContactId}`} target="_blank" rel="noopener noreferrer"
                 className="text-[10px] text-nah-blue hover:underline mt-0.5">View profile</a>
