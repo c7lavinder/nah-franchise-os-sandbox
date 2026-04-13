@@ -19,12 +19,15 @@ interface CoachingData {
 interface ActionItem {
   id: string;
   call_id: string;
+  contact_id: string | null;
   category: string;
   title: string;
   description: string | null;
   source: string;
   ghl_action: boolean;
   status: string;
+  pushed_at: string | null;
+  skipped_at: string | null;
 }
 
 interface Extraction {
@@ -58,6 +61,8 @@ interface CallDetailTabsProps {
   profileFieldCount: number;
   isGenerating: boolean;
   generationError: string | null;
+  teamMembers: { id: string; name: string }[];
+  contactName: string | null;
   onGenerateStart: () => void;
   onGenerateError: (msg: string) => void;
   onRefresh: () => void;
@@ -135,6 +140,8 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
           hasGenerated={hasGenerated}
           isGenerating={props.isGenerating}
           generationError={props.generationError}
+          teamMembers={props.teamMembers}
+          contactName={props.contactName}
           onRefresh={props.onRefresh}
         />
       )}

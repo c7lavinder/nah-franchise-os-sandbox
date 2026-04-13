@@ -11,7 +11,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, RefreshCw, ExternalLink, MapPin } from "lucide-react";
 import CallDetailTabs from "@/components/calls/CallDetailTabs";
 
-interface TeamMember { name: string; email: string }
+interface TeamMember { id: string; name: string; email: string }
 interface ExternalParticipant { name: string; email: string; contactId: string | null }
 
 interface CoachingData {
@@ -63,6 +63,9 @@ interface ActionItem {
   source: string;
   ghl_action: boolean;
   status: string;
+  contact_id: string | null;
+  pushed_at: string | null;
+  skipped_at: string | null;
 }
 
 interface Extraction {
@@ -295,6 +298,8 @@ export default function CallDetailPage() {
         profileFieldCount={profileFieldCount}
         isGenerating={isGenerating}
         generationError={generationError}
+        teamMembers={(call.teamMembers ?? []).map((m) => ({ id: m.id, name: m.name }))}
+        contactName={call.contactName}
         onGenerateStart={handleGenerateStart}
         onGenerateError={handleGenerateError}
         onRefresh={() => void fetchDetail()}

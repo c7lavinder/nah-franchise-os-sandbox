@@ -54,7 +54,7 @@ export async function GET(
   }
 
   // Resolve participants from Read.ai session
-  const teamMembers: { name: string; email: string }[] = [];
+  const teamMembers: { id: string; name: string; email: string }[] = [];
   const externalParticipants: { name: string; email: string; contactId: string | null }[] = [];
 
   if (call.read_ai_session_id) {
@@ -65,17 +65,18 @@ export async function GET(
       .maybeSingle();
 
     if (session?.participant_emails?.length) {
-      const { data: allUsers } = await supabase.from("users").select("email, full_name").not("email", "is", null);
-      const emailToUser = new Map<string, string>();
+      const { data: allUsers } = await supabase.from("users").select("id, email, full_name").not("email", "is", null);
+      const emailToUser = new Map<string, { id: string; name: string }>();
       for (const u of allUsers ?? []) {
-        if (u.email) emailToUser.set(u.email.toLowerCase(), u.full_name);
+        if (u.email) emailToUser.set(u.email.toLowerCase(), { id: u.id, name: u.full_name });
       }
 
       const externalEmails: string[] = [];
       for (const email of session.participant_emails) {
         const lc = email.toLowerCase();
         if (lc.endsWith("@newagainhouses.com")) {
-          teamMembers.push({ name: emailToUser.get(lc) ?? email.split("@")[0], email });
+          const user = emailToUser.get(lc);
+          teamMembers.push({ id: user?.id ?? "", name: user?.name ?? email.split("@")[0], email });
         } else {
           externalEmails.push(email);
         }

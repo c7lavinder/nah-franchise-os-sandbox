@@ -1,18 +1,26 @@
 "use client";
 
-import { Loader2, AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { Loader2, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
 import CallActionItem from "./CallActionItem";
-import CallGenerateButton from "./CallGenerateButton";
 
 interface ActionItem {
   id: string;
   call_id: string;
+  contact_id: string | null;
   category: string;
   title: string;
   description: string | null;
   source: string;
   ghl_action: boolean;
   status: string;
+  pushed_at: string | null;
+  skipped_at: string | null;
+}
+
+interface TeamMember {
+  id: string;
+  name: string;
 }
 
 interface CallNextStepsTabProps {
@@ -22,6 +30,8 @@ interface CallNextStepsTabProps {
   hasGenerated: boolean;
   isGenerating: boolean;
   generationError: string | null;
+  teamMembers: TeamMember[];
+  contactName: string | null;
   onRefresh: () => void;
 }
 
@@ -37,10 +47,12 @@ function getState(props: CallNextStepsTabProps): GenState {
 
 export default function CallNextStepsTab(props: CallNextStepsTabProps) {
   const state = getState(props);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [completedOpen, setCompletedOpen] = useState(false);
+
   const pendingItems = props.actionItems.filter((a) => a.status === "pending");
   const completedItems = props.actionItems.filter((a) => a.status !== "pending");
 
-  // Non-complete states
   if (state === "no_transcript") {
     return (
       <div className="text-center py-12">
@@ -83,31 +95,63 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
     );
   }
 
-  // Complete state — render action items
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Pending actions */}
       {pendingItems.length > 0 && (
         <div className="space-y-3">
           {pendingItems.map((item) => (
-            <CallActionItem key={item.id} item={item} onAction={props.onRefresh} />
+            <CallActionItem
+              key={item.id}
+              item={item}
+              teamMembers={props.teamMembers}
+              contactName={props.contactName}
+              expandedId={expandedId}
+              onExpand={setExpandedId}
+              onAction={props.onRefresh}
+            />
           ))}
-        </div>
-      )}
-
-      {completedItems.length > 0 && (
-        <div>
-          <h3 className="text-overline text-text-tertiary tracking-wider mb-2">COMPLETED</h3>
-          <div className="space-y-1">
-            {completedItems.map((item) => (
-              <CallActionItem key={item.id} item={item} onAction={props.onRefresh} />
-            ))}
-          </div>
         </div>
       )}
 
       {pendingItems.length === 0 && completedItems.length === 0 && (
         <div className="text-center py-8">
           <p className="text-body-sm text-text-tertiary">No action items were generated for this call.</p>
+        </div>
+      )}
+
+      {/* Completed section — collapsed by default */}
+      {completedItems.length > 0 && (
+        <div className="border-t border-border-default pt-3">
+          <button
+            onClick={() => setCompletedOpen((v) => !v)}
+            className="flex items-center gap-2 w-full text-left"
+          >
+            {completedOpen ? (
+              <ChevronDown size={14} className="text-text-tertiary" />
+            ) : (
+              <ChevronRight size={14} className="text-text-tertiary" />
+            )}
+            <span className="text-overline text-text-tertiary tracking-wider">COMPLETED</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-tertiary">
+              {completedItems.length}
+            </span>
+          </button>
+          {completedOpen && (
+            <div className="space-y-1 mt-2">
+              {completedItems.map((item) => (
+                <CallActionItem
+                  key={item.id}
+                  item={item}
+                  teamMembers={props.teamMembers}
+                  contactName={props.contactName}
+                  expandedId={null}
+                  onExpand={() => {}}
+                  onAction={props.onRefresh}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
