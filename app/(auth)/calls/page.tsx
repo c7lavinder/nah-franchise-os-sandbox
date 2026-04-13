@@ -53,16 +53,10 @@ const PANELS = [
     classified: ["coaching"],
   },
   {
-    key: "admin",
-    label: "Admin / Check-in",
-    slugs: [] as string[],
-    classified: ["internal"],
-  },
-  {
-    key: "group",
-    label: "Group Calls",
-    slugs: [] as string[],
-    classified: ["group"],
+    key: "team",
+    label: "Team Calls",
+    slugs: ["team_call"] as string[],
+    classified: ["internal", "group"],
   },
   {
     key: "other",
@@ -196,7 +190,12 @@ function CallRow({ c }: { c: Call }) {
   );
 }
 
+const PANEL_VISIBLE_LIMIT = 6;
+const ROW_HEIGHT_PX = 58; // approximate height per call row
+
 function CallPanel({ label, calls }: { label: string; calls: Call[] }) {
+  const maxHeight = PANEL_VISIBLE_LIMIT * ROW_HEIGHT_PX;
+
   return (
     <div className="card p-0 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border-default">
@@ -206,7 +205,10 @@ function CallPanel({ label, calls }: { label: string; calls: Call[] }) {
       {calls.length === 0 ? (
         <div className="px-4 py-6 text-center text-caption text-text-tertiary">No calls</div>
       ) : (
-        <div className="divide-y divide-border-default">
+        <div
+          className="divide-y divide-border-default overflow-y-auto"
+          style={{ maxHeight: `${maxHeight}px` }}
+        >
           {calls.map((c) => <CallRow key={c.id} c={c} />)}
         </div>
       )}
@@ -314,7 +316,7 @@ export default function CallsPage() {
       }),
   }));
   // Only show panels that have calls or are key categories
-  const visiblePanels = panelData.filter((p) => p.calls.length > 0 || ["pto", "coaching"].includes(p.key));
+  const visiblePanels = panelData.filter((p) => p.calls.length > 0 || ["pto", "coaching", "team"].includes(p.key));
 
   return (
     <div>
