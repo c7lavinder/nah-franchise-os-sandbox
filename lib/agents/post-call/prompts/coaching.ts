@@ -93,6 +93,13 @@ Rules:
 - All scores must be integers. Dimension scores must sum to the overall score.
 - Return only valid JSON. No preamble, no markdown fences.
 
+WRITING STANDARDS — all text fields will be read by franchise executives:
+- Write in complete, professional sentences. No shorthand or casual fragments.
+- BAD: "Mark's call Monday 12 noon Central" — GOOD: "Mark's lending call is scheduled for Monday at 12:00 PM Central."
+- Use full names on first reference, then first name only.
+- Format dollar amounts properly ("$150,000" not "150k").
+- Dates and times should include day of week and timezone.
+
 Call Type: ${ctx.callType ?? "Unknown"}
 Contact: ${ctx.contactName ?? "Unknown"}
 Team: ${ctx.teamMembers.join(", ") || "Unknown"}

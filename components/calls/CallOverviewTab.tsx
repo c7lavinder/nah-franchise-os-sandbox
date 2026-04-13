@@ -267,8 +267,15 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
           )}
         </div>
         {props.rawTranscript ? (
-          <div className="max-h-[400px] overflow-y-auto">
-            <p className="text-body-sm text-text-primary whitespace-pre-wrap">{props.rawTranscript}</p>
+          <div className="max-h-[400px] overflow-y-auto space-y-3">
+            {parseTranscriptLines(props.rawTranscript).map((line, i) => (
+              <div key={i}>
+                <span className="text-[11px] font-semibold" style={{ color: getSpeakerColor(line.speaker) }}>
+                  {line.speaker}
+                </span>
+                <p className="text-body-sm text-text-primary mt-0.5">{line.text}</p>
+              </div>
+            ))}
           </div>
         ) : (
           <p className="text-body-sm text-text-tertiary italic">No transcript available yet</p>
@@ -307,4 +314,68 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
       )}
     </div>
   );
+}
+
+// ── Transcript helpers ──────────────────────────
+
+interface TranscriptLine { speaker: string; text: string }
+
+/** Parse raw transcript text into speaker + text lines, cleaning up Read.ai speaker labels */
+function parseTranscriptLines(raw: string): TranscriptLine[] {
+  const lines: TranscriptLine[] = [];
+
+  const segments = raw.split(/\n+/);
+
+  for (const segment of segments) {
+    if (!segment.trim()) continue;
+
+    // Old format: [Speaker Label]: text
+    const bracketMatch = segment.match(/^\[([^\]]+)\]:\s*([\s\S]*)/);
+    if (bracketMatch) {
+      lines.push({ speaker: cleanSpeakerLabel(bracketMatch[1]), text: bracketMatch[2].trim() });
+      continue;
+    }
+
+    // New format: Name: text (name is 1-4 capitalized words before colon)
+    const colonMatch = segment.match(/^([A-Z][a-zA-Z' ]{1,40}):\s*([\s\S]*)/);
+    if (colonMatch) {
+      lines.push({ speaker: colonMatch[1].trim(), text: colonMatch[2].trim() });
+      continue;
+    }
+
+    // No speaker label — append to previous line or create unknown
+    if (lines.length > 0) {
+      lines[lines.length - 1].text += " " + segment.trim();
+    } else {
+      lines.push({ speaker: "Unknown", text: segment.trim() });
+    }
+  }
+
+  return lines;
+}
+
+/** Clean up Read.ai speaker labels: "Conference Room (Chad Arnold) - Speaker 1" → "Chad Arnold" */
+function cleanSpeakerLabel(raw: string): string {
+  const parenMatch = raw.match(/\(([^)]+)\)/);
+  if (parenMatch) return parenMatch[1].trim();
+
+  const dashMatch = raw.match(/^(.+?)\s*-\s*Speaker\s*\d+/i);
+  if (dashMatch) return dashMatch[1].trim();
+
+  const deviceMatch = raw.match(/^(.+?)['']s\s+(MacBook|iPhone|iPad|Laptop|PC|Computer)/i);
+  if (deviceMatch) return deviceMatch[1].trim();
+
+  return raw;
+}
+
+/** Assign consistent colors to speakers */
+const SPEAKER_COLORS = ["#534AB7", "#185FA5", "#3B6D11", "#854F0B", "#8B3A62", "#2D6A6A"];
+const speakerColorMap = new Map<string, string>();
+
+function getSpeakerColor(speaker: string): string {
+  const existing = speakerColorMap.get(speaker);
+  if (existing) return existing;
+  const color = SPEAKER_COLORS[speakerColorMap.size % SPEAKER_COLORS.length];
+  speakerColorMap.set(speaker, color);
+  return color;
 }

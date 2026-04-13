@@ -336,6 +336,29 @@ export async function classifyCall(
   };
 }
 
+/**
+ * Clean up Read.ai speaker names.
+ * Input:  "Conference Room (Chad Arnold) - Speaker 1"
+ * Output: "Chad Arnold"
+ */
+function cleanSpeakerName(raw: string | undefined): string {
+  if (!raw) return "Unknown";
+
+  // Pattern: "Conference Room (Name) - Speaker N" or "Name's MacBook - Speaker N"
+  const parenMatch = raw.match(/\(([^)]+)\)/);
+  if (parenMatch) return parenMatch[1].trim();
+
+  // Pattern: "Name - Speaker N"
+  const dashMatch = raw.match(/^(.+?)\s*-\s*Speaker\s*\d+/i);
+  if (dashMatch) return dashMatch[1].trim();
+
+  // Pattern: "Name's MacBook" or "Name's iPhone"
+  const deviceMatch = raw.match(/^(.+?)['']s\s+(MacBook|iPhone|iPad|Laptop|PC|Computer)/i);
+  if (deviceMatch) return deviceMatch[1].trim();
+
+  return raw;
+}
+
 /** Format Read.ai transcript turns into speaker-labeled text */
 export function formatTranscript(
   transcript: ReadAIWebhookPayload["transcript"]
@@ -344,6 +367,6 @@ export function formatTranscript(
   const blocks = transcript?.speaker_blocks ?? transcript?.turns;
   if (!blocks?.length) return "";
   return blocks
-    .map((t) => `[${t.speaker?.name ?? "Unknown"}]: ${t.words ?? t.text ?? ""}`)
-    .join("\n");
+    .map((t) => `${cleanSpeakerName(t.speaker?.name)}: ${t.words ?? t.text ?? ""}`)
+    .join("\n\n");
 }
