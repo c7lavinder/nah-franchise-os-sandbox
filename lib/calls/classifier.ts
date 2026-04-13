@@ -514,6 +514,27 @@ function buildSpeakerMap(
     // Try device name cleanup
     const deviceMatch = label.match(/^(.+?)['']s\s+(MacBook|iPhone|iPad|Laptop|PC|Computer)/i);
     if (deviceMatch) { map.set(label, deviceMatch[1].trim()); continue; }
+
+    // Fuzzy match: "Lars H" → "Lars Hackl", "Ed H" → "Ed Hammad"
+    // Match when label is a prefix of a participant's full name, or first name matches
+    const allNames = [...nahNames, ...externalNames];
+    const labelLower = label.toLowerCase();
+    const fuzzyMatch = allNames.find((name) => {
+      const nameLower = name.toLowerCase();
+      // "Lars H" matches "Lars Hackl" — label is a prefix
+      if (nameLower.startsWith(labelLower)) return true;
+      // "Ed H" — first word matches first name, second word is initial of last name
+      const labelParts = labelLower.split(/\s+/);
+      const nameParts = nameLower.split(/\s+/);
+      if (labelParts.length >= 1 && nameParts.length >= 1 && labelParts[0] === nameParts[0]) {
+        // First name matches — check if rest is initial
+        if (labelParts.length === 1) return true;
+        if (labelParts[1].length <= 2 && nameParts[1]?.startsWith(labelParts[1])) return true;
+      }
+      return false;
+    });
+    if (fuzzyMatch) { map.set(label, fuzzyMatch); continue; }
+
     // Use as-is
     map.set(label, label);
   }
