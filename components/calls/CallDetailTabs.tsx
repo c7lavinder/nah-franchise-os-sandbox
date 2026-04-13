@@ -79,6 +79,7 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
 
   const hasGenerated = !!props.aiSummaryGeneratedAt;
   const pendingCount = props.actionItems.filter((a) => a.status === "pending").length;
+  const pendingExtractions = props.dataExtractions.filter((e) => !e.saved_to_profile && !e.dismissed).length;
 
   return (
     <div>
@@ -101,6 +102,11 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
               {tab.key === "next_steps" && pendingCount > 0 && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-nah-orange/10 text-nah-orange font-bold">
                   {pendingCount}
+                </span>
+              )}
+              {tab.key === "data" && pendingExtractions > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-tertiary font-bold">
+                  {pendingExtractions}
                 </span>
               )}
             </button>

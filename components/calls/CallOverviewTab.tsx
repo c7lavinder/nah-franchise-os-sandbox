@@ -3,13 +3,32 @@
 import { ExternalLink, Video, Loader2, AlertCircle } from "lucide-react";
 import CallGenerateButton from "./CallGenerateButton";
 
+interface DimensionScores {
+  discovery: number;
+  capital: number;
+  relationship: number;
+  process_clarity: number;
+  objection_surfacing: number;
+  momentum: number;
+}
+
 interface CoachingData {
   score: number;
   label: string;
   went_well: string[];
   watch_out: string[];
   next_call_prep: string;
+  dimension_scores?: DimensionScores;
 }
+
+const DIMENSIONS: { key: keyof DimensionScores; label: string; max: number }[] = [
+  { key: "discovery", label: "Discovery", max: 20 },
+  { key: "capital", label: "Capital", max: 20 },
+  { key: "relationship", label: "Relationship", max: 15 },
+  { key: "objection_surfacing", label: "Objection Surfacing", max: 15 },
+  { key: "process_clarity", label: "Process Clarity", max: 15 },
+  { key: "momentum", label: "Momentum", max: 15 },
+];
 
 interface CallOverviewTabProps {
   callId: string;
@@ -143,6 +162,29 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
                 )}
               </div>
             </div>
+
+            {/* Dimension score bars */}
+            {props.coachingData.dimension_scores && (
+              <div className="grid grid-cols-2 gap-x-5 gap-y-2">
+                {DIMENSIONS.map((dim) => {
+                  const score = props.coachingData!.dimension_scores![dim.key] ?? 0;
+                  const pct = Math.round((score / dim.max) * 100);
+                  const barColor = pct >= 75 ? "bg-success" : pct >= 45 ? "bg-warning" : "bg-danger";
+                  const textColor = pct >= 75 ? "text-success" : pct >= 45 ? "text-warning" : "text-danger";
+                  return (
+                    <div key={dim.key} className="flex items-center gap-2">
+                      <span className="text-[11px] text-text-secondary min-w-[110px]">{dim.label}</span>
+                      <div className="flex-1 h-[5px] bg-bg-tertiary rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className={`text-[11px] font-medium min-w-[32px] text-right ${textColor}`}>
+                        {score}/{dim.max}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {props.coachingData.went_well?.length > 0 && (
               <div>
