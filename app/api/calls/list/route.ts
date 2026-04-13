@@ -104,19 +104,23 @@ export async function GET(request: NextRequest) {
     sessionMap.set(s.session_id, { participant_emails: s.participant_emails ?? [], owner_email: s.owner_email, call_type: s.call_type ?? null, platform: s.platform ?? null });
   }
 
-  const NAH_DOMAIN = "newagainhouses.com";
+  // Build set of team emails from users table (not by domain — franchisees share @newagainhouses.com)
+  const teamEmailSet = new Set<string>();
+  for (const u of allUsers ?? []) {
+    if (u.email) teamEmailSet.add(u.email.toLowerCase());
+  }
 
   const enriched = calls.map((c) => {
     const session = c.read_ai_session_id ? sessionMap.get(c.read_ai_session_id) : null;
     const participantEmails = session?.participant_emails ?? [];
 
-    // Split participants into team members and external contacts
+    // Split participants: team = in users table, external = everyone else
     const teamMembers: { name: string; color: string | null }[] = [];
     const externalContacts: string[] = [];
     for (const email of participantEmails) {
       const lc = email.toLowerCase();
       const user = emailToUser.get(lc);
-      if (lc.endsWith(`@${NAH_DOMAIN}`)) {
+      if (teamEmailSet.has(lc)) {
         teamMembers.push({ name: user?.name ?? email.split("@")[0], color: user?.color ?? null });
       } else {
         externalContacts.push(user?.name ?? email);

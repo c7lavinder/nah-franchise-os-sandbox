@@ -5,16 +5,20 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 
-/** NAH team emails — identifies internal participants */
+/** NAH team emails — identifies internal participants.
+ *  Must match users table exactly. Do NOT use domain matching —
+ *  franchisees also have @newagainhouses.com emails. */
 const NAH_TEAM_EMAILS = [
   "corey@newagainhouses.com",
   "matt@newagainhouses.com",
   "chad@newagainhouses.com",
   "sam@newagainhouses.com",
-  "mark@newagainhouses.com",
+  "mark@altacapitalmanagement.com",
   "john@newagainhouses.com",
   "erin@newagainhouses.com",
-  "ryland@newagainhouses.com",
+  "rylyn@newagainhouses.com",
+  "amber@newagainhouses.com",
+  "nora-frandev@newagainhouses.com",
 ];
 
 /** Coach emails — coaching calls when paired with franchise owner */
@@ -28,7 +32,7 @@ const COACH_EMAILS = [
 const SALES_EMAILS = [
   "matt@newagainhouses.com",
   "sam@newagainhouses.com",
-  "mark@newagainhouses.com",
+  "mark@altacapitalmanagement.com",
   "chad@newagainhouses.com",
 ];
 
@@ -398,7 +402,7 @@ function buildSpeakerMap(
     const email = p.email?.toLowerCase() ?? "";
     const name = p.name?.trim() ?? "";
     if (!name) continue;
-    if (email.endsWith("@newagainhouses.com")) {
+    if (NAH_TEAM_EMAILS.includes(email)) {
       nahNames.push(name);
     } else {
       externalNames.push(name);

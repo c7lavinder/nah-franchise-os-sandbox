@@ -121,9 +121,10 @@ export async function GET(
       }
       for (const email of session.participant_emails) {
         const lc = email.toLowerCase();
-        if (lc.endsWith("@newagainhouses.com")) {
-          const user = emailToUser.get(lc);
-          teamMembers.push({ id: user?.id ?? "", name: user?.name ?? email.split("@")[0], email });
+        const user = emailToUser.get(lc);
+        if (user) {
+          // In users table = team member
+          teamMembers.push({ id: user.id, name: user.name, email });
         } else {
           linkedContacts.push({ id: null, name: email, email, role: "unknown", linked: false });
         }
