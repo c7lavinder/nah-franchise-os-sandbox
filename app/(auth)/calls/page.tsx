@@ -165,7 +165,7 @@ function CallRow({ c }: { c: Call }) {
           {c.callTypeName ?? c.title ?? "Call"}
         </p>
         {c.teamMembers.length > 0 && (
-          <div className="flex items-center gap-1 mt-1 overflow-hidden">
+          <div className="flex items-center gap-1 mt-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: "none" }}>
             {c.teamMembers.map((m, i) => (
               <span
                 key={i}
@@ -181,7 +181,7 @@ function CallRow({ c }: { c: Call }) {
           </div>
         )}
         {c.externalContacts.length > 0 && (
-          <div className="flex items-center gap-1 mt-1 overflow-hidden">
+          <div className="flex items-center gap-1 mt-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: "none" }}>
             {c.externalContacts.map((name, i) => (
               <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-bg-tertiary text-text-secondary whitespace-nowrap flex-shrink-0">
                 {name}

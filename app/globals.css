@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hide scrollbar but keep scroll functionality */
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; }
+}
+
 /* Google Fonts — Signika (headlines) + Roboto (body) */
 @import url('https://fonts.googleapis.com/css2?family=Signika:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap');
 
