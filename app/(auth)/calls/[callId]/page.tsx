@@ -12,7 +12,8 @@ import { ArrowLeft, Loader2, RefreshCw, ExternalLink, MapPin } from "lucide-reac
 import CallDetailTabs from "@/components/calls/CallDetailTabs";
 
 interface TeamMember { id: string; name: string; email: string }
-interface ExternalParticipant { name: string; email: string; contactId: string | null }
+interface LinkedContact { id: string | null; name: string; email: string; role: string; linked: boolean }
+interface UnknownParticipant { name: string; email: string }
 
 interface CoachingData {
   score: number;
@@ -51,7 +52,8 @@ interface CallDetail {
   coaching_data: CoachingData | null;
   coaching_generated_at: string | null;
   teamMembers: TeamMember[];
-  externalParticipants: ExternalParticipant[];
+  linkedContacts: LinkedContact[];
+  unknownParticipants: UnknownParticipant[];
 }
 
 interface ActionItem {
@@ -237,30 +239,42 @@ export default function CallDetailPage() {
                 </span>
               </div>
             )}
-            {call.externalParticipants?.length > 0 && (
+            {/* Linked contacts (prospect / franchisee) */}
+            {call.linkedContacts?.length > 0 && (
               <div className="flex items-center gap-1.5 text-caption">
                 <span className="text-text-tertiary font-medium">Contacts:</span>
-                {call.externalParticipants.map((p, i) =>
-                  p.contactId ? (
-                    <a key={i} href={`/leads/${p.contactId}`}
+                {call.linkedContacts.map((p, i) =>
+                  p.linked && p.id ? (
+                    <a key={i} href={`/leads/${p.id}`}
                       className="px-2 py-0.5 rounded-full bg-nah-blue/10 text-nah-blue text-[11px] font-medium hover:underline">
                       {p.name}
                     </a>
                   ) : (
-                    <span key={i} className="px-2 py-0.5 rounded-full bg-bg-tertiary text-text-secondary text-[11px] font-medium">
-                      {p.name}
+                    <span key={i} className="px-2 py-0.5 rounded-full bg-warning/10 text-warning text-[11px] font-medium"
+                      title={`${p.email} — not in system`}>
+                      {p.name} ⚠
                     </span>
                   )
                 )}
               </div>
             )}
-            {!call.externalParticipants?.length && call.contactName && (
+            {/* Fallback: use contact_id if no linkedContacts */}
+            {!call.linkedContacts?.length && call.contactName && (
               <div className="flex items-center gap-1.5 text-caption">
                 <span className="text-text-tertiary font-medium">Contact:</span>
                 <a href={`/leads/${call.contact_id}`}
                   className="px-2 py-0.5 rounded-full bg-nah-blue/10 text-nah-blue text-[11px] font-medium hover:underline">
                   {call.contactName}
                 </a>
+              </div>
+            )}
+            {/* Unknown participants */}
+            {call.unknownParticipants?.length > 0 && (
+              <div className="flex items-center gap-1.5 text-caption">
+                <span className="text-text-tertiary">Also present:</span>
+                <span className="text-text-tertiary text-[11px]">
+                  {call.unknownParticipants.map((p) => p.name).join(", ")}
+                </span>
               </div>
             )}
           </div>

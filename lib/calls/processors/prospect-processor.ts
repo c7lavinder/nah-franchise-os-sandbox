@@ -5,6 +5,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
 import { formatTranscript, standardizeTitle } from "../classifier";
+import { insertCallParticipants } from "./insert-participants";
 
 /** Map NAH participant email to call type slug for rubric selection */
 function determineProspectCallType(
@@ -108,7 +109,10 @@ export async function processProspectCall(
 
   if (!callRecord) return;
 
-  // 7. Link call back to read_ai_sessions
+  // 7. Insert call_participants
+  await insertCallParticipants(callRecord.id, classified.resolved_participants ?? []);
+
+  // 8. Link call back to read_ai_sessions
   await supabase
     .from("read_ai_sessions")
     .update({ linked_call_id: callRecord.id })

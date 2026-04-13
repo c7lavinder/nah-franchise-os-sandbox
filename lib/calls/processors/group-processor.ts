@@ -5,6 +5,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
 import { formatTranscript, standardizeTitle, isNAHTeamEmail } from "../classifier";
+import { insertCallParticipants } from "./insert-participants";
 
 export async function processGroupCall(
   payload: ReadAIWebhookPayload,
@@ -40,7 +41,10 @@ export async function processGroupCall(
 
   if (!callRecord) return;
 
-  // 2. Link call back to read_ai_sessions
+  // 2. Insert call_participants
+  await insertCallParticipants(callRecord.id, classified.resolved_participants ?? []);
+
+  // 3. Link call back to read_ai_sessions
   await supabase
     .from("read_ai_sessions")
     .update({ linked_call_id: callRecord.id })

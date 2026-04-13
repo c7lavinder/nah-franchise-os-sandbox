@@ -53,14 +53,63 @@ export async function GET(
     if (cu) coachName = cu.full_name;
   }
 
-  // Resolve participants from Read.ai session
-  const teamMembers: { id: string; name: string; email: string }[] = [];
-  const externalParticipants: { name: string; email: string; contactId: string | null }[] = [];
+  // Resolve participants from call_participants table
+  const { data: participants } = await supabase
+    .from("call_participants")
+    .select("id, role, display_name, email, user_id, contact_id")
+    .eq("call_id", callId);
 
-  if (call.read_ai_session_id) {
+  // Batch-resolve user names and contact names
+  const pUserIds = (participants ?? []).map((p) => p.user_id).filter(Boolean) as string[];
+  const pContactIds = (participants ?? []).map((p) => p.contact_id).filter(Boolean) as string[];
+
+  const [userRes, contactRes] = await Promise.all([
+    pUserIds.length > 0
+      ? supabase.from("users").select("id, full_name, email").in("id", pUserIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string; email: string }[] }),
+    pContactIds.length > 0
+      ? supabase.from("contacts").select("id, first_name, last_name, email").in("id", pContactIds)
+      : Promise.resolve({ data: [] as { id: string; first_name: string | null; last_name: string | null; email: string | null }[] }),
+  ]);
+
+  const userMap = new Map<string, { name: string; email: string }>();
+  for (const u of userRes.data ?? []) {
+    userMap.set(u.id, { name: u.full_name, email: u.email });
+  }
+  const contactMap = new Map<string, { name: string; email: string | null }>();
+  for (const c of contactRes.data ?? []) {
+    contactMap.set(c.id, { name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown", email: c.email });
+  }
+
+  const teamMembers = (participants ?? [])
+    .filter((p) => p.role === "nah_team")
+    .map((p) => {
+      const u = p.user_id ? userMap.get(p.user_id) : null;
+      return { id: p.user_id ?? "", name: u?.name ?? p.display_name ?? "Unknown", email: u?.email ?? p.email ?? "" };
+    });
+
+  const linkedContacts = (participants ?? [])
+    .filter((p) => p.role === "prospect" || p.role === "franchisee")
+    .map((p) => {
+      const c = p.contact_id ? contactMap.get(p.contact_id) : null;
+      return {
+        id: p.contact_id,
+        name: c?.name ?? p.display_name ?? "Unknown",
+        email: c?.email ?? p.email ?? "",
+        role: p.role,
+        linked: !!p.contact_id,
+      };
+    });
+
+  const unknownParticipants = (participants ?? [])
+    .filter((p) => p.role === "unknown")
+    .map((p) => ({ name: p.display_name ?? p.email ?? "Unknown", email: p.email ?? "" }));
+
+  // Fallback: if no call_participants yet, resolve from read_ai_sessions (backwards compat)
+  if ((participants ?? []).length === 0 && call.read_ai_session_id) {
     const { data: session } = await supabase
       .from("read_ai_sessions")
-      .select("participant_emails, owner_email")
+      .select("participant_emails")
       .eq("session_id", call.read_ai_session_id)
       .maybeSingle();
 
@@ -70,42 +119,13 @@ export async function GET(
       for (const u of allUsers ?? []) {
         if (u.email) emailToUser.set(u.email.toLowerCase(), { id: u.id, name: u.full_name });
       }
-
-      const externalEmails: string[] = [];
       for (const email of session.participant_emails) {
         const lc = email.toLowerCase();
         if (lc.endsWith("@newagainhouses.com")) {
           const user = emailToUser.get(lc);
           teamMembers.push({ id: user?.id ?? "", name: user?.name ?? email.split("@")[0], email });
         } else {
-          externalEmails.push(email);
-        }
-      }
-
-      // Match external emails to contacts
-      if (externalEmails.length > 0) {
-        const { data: matchedContacts } = await supabase
-          .from("contacts")
-          .select("id, first_name, last_name, email")
-          .in("email", externalEmails.map((e) => e.toLowerCase()));
-
-        const contactByEmail = new Map<string, { id: string; name: string }>();
-        for (const mc of matchedContacts ?? []) {
-          if (mc.email) {
-            contactByEmail.set(mc.email.toLowerCase(), {
-              id: mc.id,
-              name: `${mc.first_name ?? ""} ${mc.last_name ?? ""}`.trim() || mc.email,
-            });
-          }
-        }
-
-        for (const email of externalEmails) {
-          const matched = contactByEmail.get(email.toLowerCase());
-          externalParticipants.push({
-            name: matched?.name ?? email,
-            email,
-            contactId: matched?.id ?? null,
-          });
+          linkedContacts.push({ id: null, name: email, email, role: "unknown", linked: false });
         }
       }
     }
@@ -164,7 +184,7 @@ export async function GET(
   const transcriptText: string | null = transcript?.full_text ?? call.raw_transcript ?? null;
 
   return NextResponse.json({
-    call: { ...call, contactName, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, externalParticipants },
+    call: { ...call, contactName, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, linkedContacts, unknownParticipants },
     transcript: transcriptText,
     transcriptSource: transcript?.source ?? (call.raw_transcript ? "read_ai" : null),
     grade,
