@@ -87,6 +87,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 3. Place in Sales pipeline → Engagement stage (if not already in pipeline)
+    const { data: salesPipeline } = await supabase
+      .from("pipelines")
+      .select("id")
+      .eq("slug", "sales")
+      .single();
+
+    if (salesPipeline) {
+      const { data: existingState } = await supabase
+        .from("contact_pipeline_state")
+        .select("id")
+        .eq("contact_id", contact.id)
+        .eq("pipeline_id", salesPipeline.id)
+        .maybeSingle();
+
+      if (!existingState) {
+        const { data: engagementStage } = await supabase
+          .from("pipeline_stages")
+          .select("id")
+          .eq("pipeline_id", salesPipeline.id)
+          .order("sort_order", { ascending: true })
+          .limit(1)
+          .single();
+
+        if (engagementStage) {
+          await supabase.from("contact_pipeline_state").insert({
+            contact_id: contact.id,
+            pipeline_id: salesPipeline.id,
+            current_stage_id: engagementStage.id,
+            is_active: true,
+          });
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       contactId: contact.id,
