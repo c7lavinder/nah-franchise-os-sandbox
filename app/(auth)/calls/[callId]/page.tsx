@@ -6,7 +6,7 @@
  * Tab content powered by CallDetailTabs component.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
@@ -100,7 +100,6 @@ export default function CallDetailPage() {
   const [profileFieldCount, setProfileFieldCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchDetail = useCallback(async () => {
     try {
@@ -119,57 +118,27 @@ export default function CallDetailPage() {
     return null;
   }, [callId]);
 
-  /** Start polling after generation is triggered (auto on page load) */
-  const handleGenerateStart = useCallback(() => {
-    setIsGenerating(true);
-
-    let attempts = 0;
-    pollRef.current = setInterval(async () => {
-      attempts++;
-      const data = await fetchDetail();
-      if (data?.call?.ai_summary_generated_at) {
-        setIsGenerating(false);
-        if (pollRef.current) clearInterval(pollRef.current);
-        pollRef.current = null;
-      } else if (attempts >= 10) {
-        setIsGenerating(false);
-        if (pollRef.current) clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    }, 3000);
-  }, [fetchDetail]);
-
-  // Track whether we've already auto-triggered generation this mount
-  const autoTriggeredRef = useRef(false);
-
+  // Auto-generate on page load if transcript exists but no analysis yet
   useEffect(() => {
+    let cancelled = false;
     void (async () => {
       const data = await fetchDetail();
+      if (cancelled) return;
       setLoading(false);
 
-      // Auto-trigger generation if transcript exists but hasn't been analyzed yet
-      if (
-        data?.transcript &&
-        !data.call?.ai_summary_generated_at &&
-        !autoTriggeredRef.current
-      ) {
-        autoTriggeredRef.current = true;
+      if (data?.transcript && !data.call?.ai_summary_generated_at) {
+        setIsGenerating(true);
         try {
-          const res = await fetch(`/api/calls/${callId}/generate`, { method: "POST" });
-          if (res.ok) {
-            handleGenerateStart();
+          await fetch(`/api/calls/${callId}/generate`, { method: "POST" });
+          if (!cancelled) {
+            await fetchDetail();
           }
-        } catch { /* silent — user can refresh */ }
+        } catch { /* silent */ }
+        if (!cancelled) setIsGenerating(false);
       }
     })();
-  }, [fetchDetail, callId, handleGenerateStart]);
-
-  // Clean up polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
+    return () => { cancelled = true; };
+  }, [fetchDetail, callId]);
 
 
   if (loading) {
