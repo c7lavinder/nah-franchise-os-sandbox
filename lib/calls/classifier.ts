@@ -390,19 +390,28 @@ function buildSpeakerMap(
     if (m) speakerNums.set(label, parseInt(m[1], 10));
   }
 
-  // Get participant display names (cleaned)
-  const participantNames = (participants ?? [])
-    .map((p) => p.name?.trim())
-    .filter(Boolean) as string[];
+  // Build speaker names: Speaker 1 = host (NAH team), Speaker 2 = guest (external)
+  // Don't use raw participant order — it includes silent observers
+  const nahNames: string[] = [];
+  const externalNames: string[] = [];
+  for (const p of participants ?? []) {
+    const email = p.email?.toLowerCase() ?? "";
+    const name = p.name?.trim() ?? "";
+    if (!name) continue;
+    if (email.endsWith("@newagainhouses.com")) {
+      nahNames.push(name);
+    } else {
+      externalNames.push(name);
+    }
+  }
+  // Speaker 1 = host (first NAH team), Speaker 2 = guest (first external)
+  const speakerNames = [nahNames[0], externalNames[0]].filter(Boolean) as string[];
 
-  // If we have Speaker N labels + participant names, map by number
-  if (speakerNums.size > 0 && participantNames.length > 0) {
-    // Sort labels by Speaker N
+  if (speakerNums.size > 0 && speakerNames.length > 0) {
     const sorted = [...speakerNums.entries()].sort((a, b) => a[1] - b[1]);
     for (let i = 0; i < sorted.length; i++) {
       const [label] = sorted[i];
-      // Map Speaker 1 → first participant, Speaker 2 → second, etc.
-      map.set(label, participantNames[i] ?? `Speaker ${sorted[i][1]}`);
+      map.set(label, speakerNames[i] ?? `Speaker ${sorted[i][1]}`);
     }
   }
 

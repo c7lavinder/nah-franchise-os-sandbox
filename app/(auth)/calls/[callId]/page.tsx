@@ -333,11 +333,7 @@ export default function CallDetailPage() {
         generationError={generationError}
         teamMembers={(call.teamMembers ?? []).map((m) => ({ id: m.id, name: m.name }))}
         contactName={call.contactName}
-        participantNames={[
-          ...(call.teamMembers ?? []).map((m) => m.name),
-          ...(call.linkedContacts ?? []).map((c) => c.name),
-          ...(call.unknownParticipants ?? []).map((p) => p.name),
-        ]}
+        participantNames={buildSpeakerNames(call)}
         onGenerateStart={handleGenerateStart}
         onGenerateError={handleGenerateError}
         onRefresh={() => void fetchDetail()}
@@ -357,4 +353,28 @@ function initials(name: string): string {
 function getPlatformLabel(source: string | null): string {
   if (source === "read_ai") return "Google Meet";
   return "Phone Call";
+}
+
+/**
+ * Build speaker names in transcript order: Speaker 1 = host, Speaker 2 = contact.
+ * Read.ai assigns Speaker 1 to the meeting owner (NAH team host) and
+ * Speaker 2 to the guest. Silent observers (like Rylyn on Chad's calls)
+ * are NOT included — they were invited but aren't speaking.
+ */
+function buildSpeakerNames(call: CallDetail): string[] {
+  const names: string[] = [];
+
+  // Speaker 1 = the host (NAH team member who ran the call)
+  const host = call.hostName
+    ?? call.teamMembers?.[0]?.name
+    ?? null;
+  if (host) names.push(host);
+
+  // Speaker 2 = the contact/prospect on the call
+  const contact = call.linkedContacts?.[0]?.name
+    ?? call.contactName
+    ?? null;
+  if (contact) names.push(contact);
+
+  return names;
 }
