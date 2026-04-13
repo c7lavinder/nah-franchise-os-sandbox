@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
       id, contact_id, call_type_id, territory_ms_slug,
       scheduled_at, started_at, ended_at, duration_seconds,
       hosted_by_user_id, status, created_at,
-      title, source, read_ai_session_id
+      title, source, read_ai_session_id,
+      raw_transcript, ai_summary_generated_at
     `)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
@@ -142,6 +143,8 @@ export async function GET(request: NextRequest) {
       externalContacts,
       date: c.scheduled_at ?? c.started_at ?? c.created_at,
       duration_seconds: c.duration_seconds,
+      has_transcript: !!c.raw_transcript,
+      ai_summary_generated_at: c.ai_summary_generated_at ?? null,
     };
   });
 

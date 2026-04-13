@@ -22,6 +22,8 @@ interface Call {
   duration_seconds: number | null;
   platform: string | null;
   territoryName: string | null;
+  has_transcript: boolean;
+  ai_summary_generated_at: string | null;
 }
 
 interface CallType { id: string; name: string }
@@ -79,24 +81,23 @@ function categorizeCall(c: Call): string {
   return "other";
 }
 
-function getMonday(): Date {
+function getRolling7Days(): Date {
   const d = new Date();
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const mon = new Date(d);
-  mon.setDate(diff);
-  mon.setHours(0, 0, 0, 0);
-  return mon;
+  d.setDate(d.getDate() - 7);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
-function getFirstOfMonth(): Date {
+function getRolling30Days(): Date {
   const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1);
+  d.setDate(d.getDate() - 30);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
 function filterByTime(calls: Call[], filter: TimeFilter): Call[] {
   if (filter === "all") return calls;
-  const cutoff = filter === "week" ? getMonday() : getFirstOfMonth();
+  const cutoff = filter === "week" ? getRolling7Days() : getRolling30Days();
   return calls.filter((c) => {
     if (!c.date) return false;
     return new Date(c.date) >= cutoff;
@@ -160,6 +161,15 @@ function CallRow({ c }: { c: Call }) {
             <span key={i} className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${getTeamColor(name)}`}>{name}</span>
           ))}
         </div>
+      </div>
+
+      {/* Status badge */}
+      <div className="flex-shrink-0 w-[90px] text-right">
+        {c.status === "scheduled" && c.date && new Date(c.date) > new Date() ? (
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-info/10 text-info">Upcoming</span>
+        ) : c.has_transcript && !c.ai_summary_generated_at ? (
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-warning/10 text-warning">Needs Review</span>
+        ) : null}
       </div>
 
       {/* Duration + date stacked */}

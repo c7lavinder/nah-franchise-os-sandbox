@@ -1,21 +1,17 @@
 /**
  * Scorecard data fetchers for Daily HQ, Calls, and Pipeline pages.
  *
- * Week = Monday 00:00 through Sunday 23:59 of CURRENT calendar week.
+ * Week = rolling 7 days (now - 7 days to now).
  */
 
 import { createServerClient } from "@/lib/supabase/server";
 
 export function getWeekBounds(): { start: Date; end: Date } {
   const now = new Date();
-  const day = now.getDay();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((day + 6) % 7));
-  monday.setHours(0, 0, 0, 0);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
-  return { start: monday, end: sunday };
+  const start = new Date(now);
+  start.setDate(now.getDate() - 7);
+  start.setHours(0, 0, 0, 0);
+  return { start, end: now };
 }
 
 // ─────────────────────────────────────────────
@@ -81,59 +77,42 @@ export async function getCallsScorecard() {
   const supabase = createServerClient();
   const { start, end } = getWeekBounds();
 
-  // Get call-type sub-task IDs
-  const { data: callSubTasks } = await supabase
-    .from("pipeline_sub_tasks")
-    .select("id, slug")
-    .in("slug", CALL_SUB_TASK_SLUGS);
-
-  const callSubTaskIds = (callSubTasks ?? []).map((s) => s.id);
-
-  // Calls completed this week (second state = completed)
+  // Calls completed in rolling 7 days (from calls table directly)
   const { count: callsCompleted } = await supabase
-    .from("contact_sub_task_logs")
+    .from("calls")
     .select("id", { count: "exact", head: true })
-    .in("sub_task_id", callSubTaskIds.length > 0 ? callSubTaskIds : ["__none__"])
-    .eq("content_type", "second_state")
-    .gte("created_at", start.toISOString())
-    .lte("created_at", end.toISOString())
+    .eq("status", "completed")
+    .gte("started_at", start.toISOString())
+    .lte("started_at", end.toISOString())
     .is("deleted_at", null);
 
-  // Calls scheduled this week (first state = scheduled)
+  // Calls scheduled (future scheduled_at or status = scheduled)
   const { count: callsScheduled } = await supabase
-    .from("contact_sub_task_logs")
+    .from("calls")
     .select("id", { count: "exact", head: true })
-    .in("sub_task_id", callSubTaskIds.length > 0 ? callSubTaskIds : ["__none__"])
-    .eq("content_type", "first_state")
-    .gte("created_at", start.toISOString())
-    .lte("created_at", end.toISOString())
+    .eq("status", "scheduled")
+    .gte("scheduled_at", new Date().toISOString())
     .is("deleted_at", null);
 
-  // Avg call score this week
-  const { data: grades } = await supabase
-    .from("call_review_packages")
-    .select("grade")
-    .gte("created_at", start.toISOString())
-    .lte("created_at", end.toISOString())
-    .not("grade", "is", null);
+  // Avg coaching score from calls with ai generation in last 7 days
+  const { data: scoredCalls } = await supabase
+    .from("calls")
+    .select("coaching_score")
+    .gte("started_at", start.toISOString())
+    .lte("started_at", end.toISOString())
+    .not("coaching_score", "is", null)
+    .is("deleted_at", null);
 
-  let avgScore: string | null = null;
-  if (grades && grades.length > 0) {
-    const gradeMap: Record<string, number> = { A: 95, B: 85, C: 75, D: 65, F: 50 };
-    const total = grades.reduce((s, g) => s + (gradeMap[g.grade] ?? 0), 0);
-    const avg = Math.round(total / grades.length);
-    // Convert back to letter
-    if (avg >= 90) avgScore = "A";
-    else if (avg >= 80) avgScore = "B";
-    else if (avg >= 70) avgScore = "C";
-    else if (avg >= 60) avgScore = "D";
-    else avgScore = "F";
+  let avgScore = "—";
+  if (scoredCalls && scoredCalls.length > 0) {
+    const total = scoredCalls.reduce((s, c) => s + (c.coaching_score ?? 0), 0);
+    avgScore = String(Math.round(total / scoredCalls.length));
   }
 
   return {
-    callsCompleted: { value: callsCompleted ?? 0, label: "Calls This Week", sub: "completed" },
-    callsScheduled: { value: callsScheduled ?? 0, label: "Calls Scheduled", sub: "this week" },
-    avgCallScore: { value: avgScore ?? "—", label: "Avg Call Score", sub: "this week" },
+    callsCompleted: { value: callsCompleted ?? 0, label: "Calls This Week", sub: "last 7 days" },
+    callsScheduled: { value: callsScheduled ?? 0, label: "Calls Scheduled", sub: "upcoming" },
+    avgCallScore: { value: avgScore, label: "Avg Call Score", sub: "last 7 days" },
   };
 }
 

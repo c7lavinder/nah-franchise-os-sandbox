@@ -82,8 +82,8 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
 
   return (
     <div>
-      {/* Tab bar */}
-      <div className="flex border-b border-border-default mb-6">
+      {/* Tab bar — sticky so it stays visible when scrolling */}
+      <div className="sticky top-0 z-10 bg-bg-primary flex border-b border-border-default mb-6 -mx-4 md:-mx-8 px-4 md:px-8">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           return (

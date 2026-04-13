@@ -62,8 +62,8 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Generate / Regenerate button — shown when transcript exists */}
-      {props.hasTranscript && (
+      {/* Generate / Regenerate button — shown when transcript exists and not yet complete, or as compact regenerate */}
+      {props.hasTranscript && (state === "ready" || state === "error") && (
         <div className="flex items-center justify-between">
           {state === "ready" && (
             <p className="text-body-sm text-text-secondary">
@@ -76,7 +76,6 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
               {props.generationError}
             </div>
           )}
-          {state !== "ready" && state !== "error" && <div />}
           <CallGenerateButton
             callId={props.callId}
             hasGenerated={hasGenerated}
@@ -94,11 +93,21 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
         {state === "complete" && props.aiSummary ? (
           <>
             <p className="text-body-sm text-text-primary whitespace-pre-wrap">{props.aiSummary}</p>
-            {props.aiSummaryGeneratedAt && (
-              <p className="text-[10px] text-text-tertiary mt-2">
-                Scout &middot; {new Date(props.aiSummaryGeneratedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
-              </p>
-            )}
+            <div className="flex items-center justify-between mt-2">
+              {props.aiSummaryGeneratedAt && (
+                <p className="text-[10px] text-text-tertiary">
+                  Scout &middot; {new Date(props.aiSummaryGeneratedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                </p>
+              )}
+              <CallGenerateButton
+                callId={props.callId}
+                hasGenerated={true}
+                hasTranscript={props.hasTranscript}
+                isGenerating={props.isGenerating}
+                onGenerateStart={props.onGenerateStart}
+                onGenerateError={props.onGenerateError}
+              />
+            </div>
           </>
         ) : state === "generating" ? (
           <div className="flex items-center gap-2 text-body-sm text-text-tertiary">
