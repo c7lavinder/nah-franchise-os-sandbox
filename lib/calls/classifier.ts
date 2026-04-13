@@ -19,6 +19,7 @@ const NAH_TEAM_EMAILS = [
   "rylyn@newagainhouses.com",
   "amber@newagainhouses.com",
   "nora-frandev@newagainhouses.com",
+  "jeff@newagainhouses.com",
 ];
 
 /** Coach emails — coaching calls when paired with franchise owner */

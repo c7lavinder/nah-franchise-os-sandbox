@@ -144,8 +144,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Also try to match by display_name (catches email typos like houstinmail vs houstonmail)
+    const { data: nameMatchParticipants } = await supabase
+      .from("call_participants")
+      .select("call_id, email")
+      .eq("display_name", displayName)
+      .is("contact_id", null);
+
+    for (const p of nameMatchParticipants ?? []) {
+      if (p.email) {
+        const pEmail = p.email.trim().toLowerCase();
+        if (!emailsToLink.includes(pEmail)) emailsToLink.push(pEmail);
+      }
+    }
+
     for (const email of emailsToLink) {
-      // Link call_participants rows
+      // Link call_participants rows (by email OR by display_name)
       await supabase
         .from("call_participants")
         .update({ contact_id: contact.id, role: "prospect", display_name: displayName })
