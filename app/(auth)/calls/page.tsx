@@ -212,7 +212,7 @@ function CallRow({ c }: { c: Call }) {
 }
 
 const PANEL_VISIBLE_LIMIT = 6;
-const ROW_HEIGHT_PX = 58; // approximate height per call row
+const ROW_HEIGHT_PX = 76; // approximate height per call row (title + team + contacts)
 
 function CallPanel({ label, calls }: { label: string; calls: Call[] }) {
   const maxHeight = PANEL_VISIBLE_LIMIT * ROW_HEIGHT_PX;
