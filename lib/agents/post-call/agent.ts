@@ -20,12 +20,14 @@ import { updateKnowledgeBase } from "./kb-updater";
 
 // ── Model routing ──────────────────────────────────────────
 // Change model per section here. One line per section.
+// Sonnet for deep reasoning (next steps, coaching, KB intel).
+// Haiku for straightforward extraction (summary, data fields).
 const MODELS = {
   summary: "claude-haiku-4-5-20251001",
-  coaching: "claude-haiku-4-5-20251001",
-  nextSteps: "claude-haiku-4-5-20251001",
+  coaching: "claude-sonnet-4-5-20250514",
+  nextSteps: "claude-sonnet-4-5-20250514",
   extraction: "claude-haiku-4-5-20251001",
-  kbIntelligence: "claude-haiku-4-5-20251001",
+  kbIntelligence: "claude-sonnet-4-5-20250514",
 };
 
 // ── Public API ─────────────────────────────────────────────
