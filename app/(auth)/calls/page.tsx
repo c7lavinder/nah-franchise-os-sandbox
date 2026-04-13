@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, Plus, X, Search, Loader2, Clock, Users, User, Phone, Monitor } from "lucide-react";
+import { RefreshCw, Plus, X, Search, Loader2, Phone, Monitor } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
@@ -16,7 +16,7 @@ interface Call {
   callTypeName: string | null;
   callTypeSlug: string | null;
   classifiedType: string | null;
-  teamMembers: string[];
+  teamMembers: { name: string; color: string | null }[];
   externalContacts: string[];
   date: string | null;
   duration_seconds: number | null;
@@ -151,21 +151,7 @@ function PlatformIcon({ platform, source }: { platform: string | null; source: s
   return <Phone size={16} className="text-text-tertiary flex-shrink-0" />;
 }
 
-// Rotating colors for team member pills
-const TEAM_COLORS = [
-  "bg-nah-orange/10 text-nah-orange",
-  "bg-nah-blue/10 text-nah-blue",
-  "bg-scout-purple/10 text-scout-purple",
-  "bg-success/10 text-success",
-  "bg-info/10 text-info",
-  "bg-warning/10 text-warning",
-];
 
-function getTeamColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return TEAM_COLORS[Math.abs(hash) % TEAM_COLORS.length];
-}
 
 function CallRow({ c }: { c: Call }) {
   return (
@@ -173,14 +159,36 @@ function CallRow({ c }: { c: Call }) {
       className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-bg-hover transition-colors">
       <PlatformIcon platform={c.platform} source={c.source} />
 
-      {/* Title + labels */}
+      {/* Call type + team + contacts */}
       <div className="flex-1 min-w-0">
-        <p className="text-body-sm font-semibold text-text-primary truncate">{c.title ?? "Untitled"}</p>
-        <div className="flex flex-wrap items-center gap-1.5 mt-1">
-          {c.teamMembers.map((name, i) => (
-            <span key={i} className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${getTeamColor(name)}`}>{name}</span>
-          ))}
-        </div>
+        <p className="text-body-sm font-semibold text-text-primary truncate">
+          {c.callTypeName ?? c.title ?? "Call"}
+        </p>
+        {c.teamMembers.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+            {c.teamMembers.map((m, i) => (
+              <span
+                key={i}
+                className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                style={m.color
+                  ? { backgroundColor: `${m.color}18`, color: m.color }
+                  : undefined
+                }
+              >
+                {m.name}
+              </span>
+            ))}
+          </div>
+        )}
+        {c.externalContacts.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+            {c.externalContacts.map((name, i) => (
+              <span key={i} className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-bg-tertiary text-text-secondary">
+                {name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Status badge */}

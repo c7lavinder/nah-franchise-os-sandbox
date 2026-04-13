@@ -88,15 +88,15 @@ export async function GET(request: NextRequest) {
     territoryMap.set(t.ms_slug, t.territory_name);
   }
 
-  // Build email→name map for all known users (for participant resolution)
-  const emailToName = new Map<string, string>();
+  // Build email→user map for all known users (for participant resolution)
+  const emailToUser = new Map<string, { name: string; color: string | null }>();
   for (const u of userRes.data ?? []) {
-    if (u.email) emailToName.set(u.email.toLowerCase(), u.full_name);
+    if (u.email) emailToUser.set(u.email.toLowerCase(), { name: u.full_name, color: null });
   }
-  // Also fetch all users for participant matching (team members may not be hosts)
-  const { data: allUsers } = await supabase.from("users").select("email, full_name").not("email", "is", null);
+  // Fetch all users with label_color for participant matching (team members may not be hosts)
+  const { data: allUsers } = await supabase.from("users").select("email, full_name, label_color").not("email", "is", null);
   for (const u of allUsers ?? []) {
-    if (u.email) emailToName.set(u.email.toLowerCase(), u.full_name);
+    if (u.email) emailToUser.set(u.email.toLowerCase(), { name: u.full_name, color: u.label_color });
   }
 
   const sessionMap = new Map<string, { participant_emails: string[]; owner_email: string | null; call_type: string | null; platform: string | null }>();
@@ -111,15 +111,15 @@ export async function GET(request: NextRequest) {
     const participantEmails = session?.participant_emails ?? [];
 
     // Split participants into team members and external contacts
-    const teamMembers: string[] = [];
+    const teamMembers: { name: string; color: string | null }[] = [];
     const externalContacts: string[] = [];
     for (const email of participantEmails) {
       const lc = email.toLowerCase();
-      const name = emailToName.get(lc);
+      const user = emailToUser.get(lc);
       if (lc.endsWith(`@${NAH_DOMAIN}`)) {
-        teamMembers.push(name ?? email.split("@")[0]);
+        teamMembers.push({ name: user?.name ?? email.split("@")[0], color: user?.color ?? null });
       } else {
-        externalContacts.push(name ?? email);
+        externalContacts.push(user?.name ?? email);
       }
     }
 

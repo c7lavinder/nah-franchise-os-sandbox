@@ -8,7 +8,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, full_name, role, ghl_user_id, is_active, is_real_user, last_login_at, created_at")
+    .select("id, email, full_name, role, ghl_user_id, is_active, is_real_user, label_color, last_login_at, created_at")
     .order("full_name");
 
   if (error) {
@@ -28,7 +28,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
 
-  const allowed = ["full_name", "role", "ghl_user_id", "is_active"];
+  const allowed = ["full_name", "role", "ghl_user_id", "is_active", "label_color"];
   const updates: Record<string, unknown> = {};
   for (const key of allowed) {
     if (fields[key] !== undefined) updates[key] = fields[key];
