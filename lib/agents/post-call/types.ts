@@ -23,6 +23,14 @@ export interface CoachingResult {
   went_well: string[];
   watch_out: string[];
   next_call_prep: string;
+  dimension_scores?: {
+    discovery: number;
+    capital: number;
+    relationship: number;
+    process_clarity: number;
+    objection_surfacing: number;
+    momentum: number;
+  };
 }
 
 export interface ActionItem {
