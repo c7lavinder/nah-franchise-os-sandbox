@@ -164,10 +164,36 @@ Evaluate against the universal framework above. Apply all 6 dimensions and flag 
 
 export function parseResult(rawText: string): CoachingResult | null {
   try {
-    const data = JSON.parse(stripFences(rawText)) as { coaching?: CoachingResult };
-    if (!data.coaching || typeof data.coaching.score !== "number") return null;
-    return data.coaching;
-  } catch {
+    const cleaned = stripFences(rawText);
+    const data = JSON.parse(cleaned) as Record<string, unknown>;
+
+    // Expected format: { "coaching": { score, label, ... } }
+    if (data.coaching && typeof (data.coaching as CoachingResult).score === "number") {
+      return data.coaching as CoachingResult;
+    }
+
+    // Fallback: Claude returned the coaching object directly (no wrapper)
+    if (typeof data.score === "number" && typeof data.label === "string") {
+      return data as unknown as CoachingResult;
+    }
+
+    console.error("[coaching] parse: unexpected structure", Object.keys(data));
+    return null;
+  } catch (err) {
+    // Try to extract JSON from response that may have preamble text
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const fallback = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+        if (fallback.coaching && typeof (fallback.coaching as CoachingResult).score === "number") {
+          return fallback.coaching as CoachingResult;
+        }
+        if (typeof fallback.score === "number") {
+          return fallback as unknown as CoachingResult;
+        }
+      } catch { /* give up */ }
+    }
+    console.error("[coaching] parse failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }

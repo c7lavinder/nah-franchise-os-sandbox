@@ -66,6 +66,10 @@ export async function runPostCallAgent(callId: string): Promise<{
   if (extractionsRes.status === "rejected") errors.push(`extractions: ${String(extractionsRes.reason)}`);
   else if (!extractions) errors.push("extractions: returned null (parse failure)");
 
+  if (errors.length > 0) {
+    console.error(`[post-call-agent] ${callId} errors:`, errors.join("; "));
+  }
+
   // 3. Write results to DB
   await writeResults(callId, context.contactId, { summary, coaching, actions, extractions }, supabase);
 
