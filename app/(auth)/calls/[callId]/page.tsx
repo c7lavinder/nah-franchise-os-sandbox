@@ -118,9 +118,28 @@ export default function CallDetailPage() {
     return null;
   }, [callId]);
 
-  // Auto-generate on page load if transcript exists but no analysis yet
+  // Auto-generate on page load if transcript exists but no analysis yet.
+  // Fire-and-forget the generate call, then poll /detail until results appear.
   useEffect(() => {
     let cancelled = false;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const poll = (remaining: number) => {
+      if (cancelled || remaining <= 0) {
+        if (!cancelled) setIsGenerating(false);
+        return;
+      }
+      pollTimer = setTimeout(async () => {
+        const refreshed = await fetchDetail();
+        if (cancelled) return;
+        if (refreshed?.call?.ai_summary_generated_at) {
+          setIsGenerating(false);
+        } else {
+          poll(remaining - 1);
+        }
+      }, 5000);
+    };
+
     void (async () => {
       const data = await fetchDetail();
       if (cancelled) return;
@@ -128,16 +147,16 @@ export default function CallDetailPage() {
 
       if (data?.transcript && !data.call?.ai_summary_generated_at) {
         setIsGenerating(true);
-        try {
-          await fetch(`/api/calls/${callId}/generate`, { method: "POST" });
-          if (!cancelled) {
-            await fetchDetail();
-          }
-        } catch { /* silent */ }
-        if (!cancelled) setIsGenerating(false);
+        // Fire and forget — don't await the full generation
+        fetch(`/api/calls/${callId}/generate`, { method: "POST" }).catch(() => {});
+        // Poll detail endpoint for results (up to 60 attempts × 5s = 5 min)
+        poll(60);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (pollTimer) clearTimeout(pollTimer);
+    };
   }, [fetchDetail, callId]);
 
 
