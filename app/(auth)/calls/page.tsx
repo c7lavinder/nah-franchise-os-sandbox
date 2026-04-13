@@ -165,11 +165,11 @@ function CallRow({ c }: { c: Call }) {
           {c.callTypeName ?? c.title ?? "Call"}
         </p>
         {c.teamMembers.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+          <div className="flex items-center gap-1 mt-1 overflow-hidden">
             {c.teamMembers.map((m, i) => (
               <span
                 key={i}
-                className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                className="text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap flex-shrink-0"
                 style={m.color
                   ? { backgroundColor: `${m.color}18`, color: m.color }
                   : undefined
@@ -181,9 +181,9 @@ function CallRow({ c }: { c: Call }) {
           </div>
         )}
         {c.externalContacts.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+          <div className="flex items-center gap-1 mt-1 overflow-hidden">
             {c.externalContacts.map((name, i) => (
-              <span key={i} className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-bg-tertiary text-text-secondary">
+              <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-bg-tertiary text-text-secondary whitespace-nowrap flex-shrink-0">
                 {name}
               </span>
             ))}
