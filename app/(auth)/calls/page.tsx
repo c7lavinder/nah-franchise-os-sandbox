@@ -329,7 +329,7 @@ export default function CallsPage() {
       }),
   }));
   // Only show panels that have calls or are key categories
-  const visiblePanels = panelData.filter((p) => p.calls.length > 0 || ["pto", "coaching", "team", "group"].includes(p.key));
+  const visiblePanels = panelData.filter((p) => p.key !== "other" || p.calls.length > 0);
 
   return (
     <div>
