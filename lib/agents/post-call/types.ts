@@ -1,0 +1,49 @@
+/** Shared context passed to all post-call prompt sections */
+export interface CallContext {
+  callId: string;
+  transcript: string;
+  callType: string | null;
+  callTypeSlug: string | null;
+  contactName: string | null;
+  contactId: string | null;
+  teamMembers: string[];
+  callDate: string | null;
+  durationSeconds: number | null;
+}
+
+/** Result types for each section */
+
+export interface SummaryResult {
+  summary: string;
+}
+
+export interface CoachingResult {
+  score: number;
+  label: string;
+  went_well: string[];
+  watch_out: string[];
+  next_call_prep: string;
+}
+
+export interface ActionItem {
+  category: string;
+  title: string;
+  description: string;
+  ghl_action: boolean;
+  source: string;
+}
+
+export interface NextStepsResult {
+  actions: ActionItem[];
+}
+
+export interface ExtractionField {
+  field_key: string;
+  field_category: string;
+  extracted_value: string | null;
+  confidence: string;
+}
+
+export interface ExtractionResult {
+  extractions: ExtractionField[];
+}
