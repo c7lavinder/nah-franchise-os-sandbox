@@ -80,5 +80,31 @@ export async function PATCH(
 
   const { error } = await supabase.from("contacts").update(updates).eq("id", localId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Sync GHL-relevant fields back to GHL
+  const ghlFields: Record<string, string> = {};
+  if (updates.first_name) ghlFields.firstName = updates.first_name as string;
+  if (updates.last_name) ghlFields.lastName = updates.last_name as string;
+  if (updates.email) ghlFields.email = updates.email as string;
+  if (updates.phone) ghlFields.phone = updates.phone as string;
+  if (updates.city) ghlFields.city = updates.city as string;
+  if (updates.state) ghlFields.state = updates.state as string;
+
+  if (Object.keys(ghlFields).length > 0) {
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("ghl_contact_id")
+      .eq("id", localId)
+      .single();
+
+    if (contact?.ghl_contact_id) {
+      try {
+        await ghl.updateContact(contact.ghl_contact_id, ghlFields);
+      } catch (err) {
+        console.error("[contacts/PATCH] GHL sync failed:", err instanceof Error ? err.message : err);
+      }
+    }
+  }
+
   return NextResponse.json({ success: true });
 }
