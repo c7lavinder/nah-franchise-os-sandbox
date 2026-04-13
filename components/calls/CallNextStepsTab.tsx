@@ -5,7 +5,7 @@ import { Loader2, ChevronDown, ChevronRight, Plus, Sparkles } from "lucide-react
 import CallActionItem from "./CallActionItem";
 import type { ActionItemData } from "./CallActionItem";
 
-interface TeamMember { id: string; name: string }
+interface TeamMember { id: string; name: string; email: string }
 
 interface CallNextStepsTabProps {
   callId: string;
@@ -15,6 +15,8 @@ interface CallNextStepsTabProps {
   isGenerating: boolean;
   teamMembers: TeamMember[];
   contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
   onRefresh: () => void;
 }
 
@@ -153,6 +155,8 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
                   key={item.id}
                   item={item}
                   teamMembers={props.teamMembers}
+                  contactEmail={props.contactEmail}
+                  contactPhone={props.contactPhone}
                   onAction={props.onRefresh}
                 />
               ))}
@@ -178,7 +182,7 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
           {completedOpen && (
             <div className="space-y-1 mt-2">
               {completedItems.map((item) => (
-                <CallActionItem key={item.id} item={item} teamMembers={props.teamMembers} onAction={props.onRefresh} />
+                <CallActionItem key={item.id} item={item} teamMembers={props.teamMembers} contactEmail={props.contactEmail} contactPhone={props.contactPhone} onAction={props.onRefresh} />
               ))}
             </div>
           )}

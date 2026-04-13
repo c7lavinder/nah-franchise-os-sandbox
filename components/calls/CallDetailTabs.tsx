@@ -65,8 +65,10 @@ interface CallDetailTabsProps {
   dataExtractions: Extraction[];
   profileFieldCount: number;
   isGenerating: boolean;
-  teamMembers: { id: string; name: string }[];
+  teamMembers: { id: string; name: string; email: string }[];
   contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
   participantNames: string[];
   onRefresh: () => void;
 }
@@ -149,6 +151,8 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
           isGenerating={props.isGenerating}
           teamMembers={props.teamMembers}
           contactName={props.contactName}
+          contactEmail={props.contactEmail}
+          contactPhone={props.contactPhone}
           onRefresh={props.onRefresh}
         />
       )}

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
-  Check, X, Loader2, Sparkles, Zap, User,
+  Check, X, Loader2, Sparkles, Zap, User, ChevronDown, Search,
   Send, CalendarPlus, ListChecks, Save, FileText, Mail, MessageSquare,
 } from "lucide-react";
 
@@ -24,11 +24,15 @@ export interface ActionItemData {
   metadata: Record<string, unknown> | null;
 }
 
-interface TeamMember { id: string; name: string }
+interface TeamMember { id: string; name: string; email: string }
+
+interface ContactOption { id: string; name: string; email: string | null; phone: string | null }
 
 interface CallActionItemProps {
   item: ActionItemData;
   teamMembers: TeamMember[];
+  contactEmail: string | null;
+  contactPhone: string | null;
   onAction: () => void;
 }
 
@@ -45,13 +49,13 @@ function getCommIcon(channel: string) {
   return channel === "email" ? Mail : MessageSquare;
 }
 
-export default function CallActionItem({ item, teamMembers, onAction }: CallActionItemProps) {
+export default function CallActionItem({ item, teamMembers, contactEmail, contactPhone, onAction }: CallActionItemProps) {
   const isDone = item.status !== "pending";
   const channel = (item.metadata?.comms_channel as string) ?? "sms";
   const Icon = item.category === "comms" ? getCommIcon(channel) : (CATEGORY_ICONS[item.category] ?? Check);
 
   const [expanded, setExpanded] = useState(false);
-  const [fields, setFields] = useState<Record<string, string>>(() => initFields(item));
+  const [fields, setFields] = useState<Record<string, string>>(() => initFields(item, contactEmail, contactPhone));
   const [showWhy, setShowWhy] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -163,7 +167,7 @@ export default function CallActionItem({ item, teamMembers, onAction }: CallActi
       {/* ── Expanded editable view ── */}
       {expanded && (
         <div className="border-t border-border-default px-3 py-3 space-y-2 bg-bg-primary/30">
-          {item.category === "comms" && <CommsFields fields={fields} setField={setField} />}
+          {item.category === "comms" && <CommsFields fields={fields} setField={setField} teamMembers={teamMembers} contactEmail={contactEmail} contactPhone={contactPhone} />}
           {item.category === "apt" && <AptFields fields={fields} setField={setField} teamMembers={teamMembers} />}
           {item.category === "task" && <TaskFields fields={fields} setField={setField} teamMembers={teamMembers} />}
           {item.category === "note" && <NoteFields fields={fields} setField={setField} />}
@@ -217,8 +221,184 @@ export default function CallActionItem({ item, teamMembers, onAction }: CallActi
 const LABEL = "text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-0.5 block";
 const INPUT = "w-full bg-white border border-border-default rounded-md px-2 py-1 text-[12px] text-text-primary";
 
-function CommsFields({ fields, setField }: { fields: Record<string, string>; setField: (k: string, v: string) => void }) {
+/** Searchable dropdown for contacts (with API search) */
+function ContactSearchDropdown({ value, detail, onSelect, placeholder }: {
+  value: string;
+  detail: string;
+  onSelect: (name: string, email: string, phone: string) => void;
+  placeholder?: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [results, setResults] = useState<ContactOption[]>([]);
+  const [searching, setSearching] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (query.length < 2) { setResults([]); return; }
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(query)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setResults(data.contacts ?? []);
+        }
+      } catch { /* silent */ }
+      setSearching(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        onClick={() => setOpen(true)}
+        className={`${INPUT} cursor-pointer flex items-center gap-1 min-h-[28px]`}
+      >
+        {value ? (
+          <div className="flex-1 min-w-0">
+            <span className="text-[12px] text-text-primary">{value}</span>
+            {detail && <span className="text-[10px] text-text-tertiary ml-1">{detail}</span>}
+          </div>
+        ) : (
+          <span className="text-[12px] text-text-tertiary">{placeholder ?? "Select contact..."}</span>
+        )}
+        <ChevronDown size={10} className="text-text-tertiary flex-shrink-0" />
+      </div>
+      {open && (
+        <div className="absolute z-20 mt-0.5 w-full bg-white border border-border-default rounded-md shadow-lg max-h-48 overflow-hidden">
+          <div className="flex items-center gap-1 px-2 py-1 border-b border-border-default">
+            <Search size={10} className="text-text-tertiary" />
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search contacts..."
+              className="flex-1 text-[11px] text-text-primary outline-none bg-transparent placeholder:text-text-tertiary"
+            />
+            {searching && <Loader2 size={10} className="animate-spin text-text-tertiary" />}
+          </div>
+          <div className="overflow-y-auto max-h-36">
+            {results.length === 0 && query.length >= 2 && !searching && (
+              <div className="px-2 py-2 text-[10px] text-text-tertiary text-center">No contacts found</div>
+            )}
+            {results.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => { onSelect(c.name, c.email ?? "", c.phone ?? ""); setOpen(false); setQuery(""); }}
+                className="w-full text-left px-2 py-1.5 hover:bg-bg-secondary transition-colors"
+              >
+                <div className="text-[11px] font-medium text-text-primary">{c.name}</div>
+                <div className="text-[10px] text-text-tertiary">
+                  {[c.email, c.phone].filter(Boolean).join(" · ") || "No contact info"}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Dropdown for team members (static list — no API call needed) */
+function TeamMemberDropdown({ value, detail, teamMembers, channel, onSelect }: {
+  value: string;
+  detail: string;
+  teamMembers: TeamMember[];
+  channel: string;
+  onSelect: (name: string, email: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  const filtered = filter
+    ? teamMembers.filter((m) => m.name.toLowerCase().includes(filter.toLowerCase()) || m.email.toLowerCase().includes(filter.toLowerCase()))
+    : teamMembers;
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        onClick={() => setOpen(true)}
+        className={`${INPUT} cursor-pointer flex items-center gap-1 min-h-[28px]`}
+      >
+        {value ? (
+          <div className="flex-1 min-w-0">
+            <span className="text-[12px] text-text-primary">{value}</span>
+            {detail && <span className="text-[10px] text-text-tertiary ml-1">{detail}</span>}
+          </div>
+        ) : (
+          <span className="text-[12px] text-text-tertiary">Select team member...</span>
+        )}
+        <ChevronDown size={10} className="text-text-tertiary flex-shrink-0" />
+      </div>
+      {open && (
+        <div className="absolute z-20 mt-0.5 w-full bg-white border border-border-default rounded-md shadow-lg max-h-48 overflow-hidden">
+          <div className="flex items-center gap-1 px-2 py-1 border-b border-border-default">
+            <Search size={10} className="text-text-tertiary" />
+            <input
+              autoFocus
+              type="text"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter team..."
+              className="flex-1 text-[11px] text-text-primary outline-none bg-transparent placeholder:text-text-tertiary"
+            />
+          </div>
+          <div className="overflow-y-auto max-h-36">
+            {filtered.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => { onSelect(m.name, m.email); setOpen(false); setFilter(""); }}
+                className="w-full text-left px-2 py-1.5 hover:bg-bg-secondary transition-colors"
+              >
+                <div className="text-[11px] font-medium text-text-primary">{m.name}</div>
+                <div className="text-[10px] text-text-tertiary">{m.email}</div>
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <div className="px-2 py-2 text-[10px] text-text-tertiary text-center">No match</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommsFields({ fields, setField, teamMembers, contactEmail, contactPhone }: {
+  fields: Record<string, string>;
+  setField: (k: string, v: string) => void;
+  teamMembers: TeamMember[];
+  contactEmail: string | null;
+  contactPhone: string | null;
+}) {
   const channel = fields.comms_channel ?? "sms";
+  const isEmail = channel === "email";
+
+  // Derive display details for To/From based on channel
+  const toDetail = isEmail ? (fields.comms_to_email || "") : (fields.comms_to_phone || "");
+  const fromDetail = fields.comms_from_email || "";
+
   return (
     <div className="space-y-1.5">
       <div>
@@ -233,10 +413,34 @@ function CommsFields({ fields, setField }: { fields: Record<string, string>; set
         </div>
       </div>
       <div className="grid grid-cols-2 gap-1.5">
-        <div><label className={LABEL}>To</label><input type="text" value={fields.contact_name ?? ""} onChange={(e) => setField("contact_name", e.target.value)} className={INPUT} /></div>
-        <div><label className={LABEL}>From</label><input type="text" value={fields.assigned_to_name ?? ""} onChange={(e) => setField("assigned_to_name", e.target.value)} className={INPUT} /></div>
+        <div>
+          <label className={LABEL}>To {isEmail ? "(email)" : "(phone)"}</label>
+          <ContactSearchDropdown
+            value={fields.contact_name ?? ""}
+            detail={toDetail}
+            placeholder="Search contacts..."
+            onSelect={(name, email, phone) => {
+              setField("contact_name", name);
+              setField("comms_to_email", email);
+              setField("comms_to_phone", phone);
+            }}
+          />
+        </div>
+        <div>
+          <label className={LABEL}>From {isEmail ? "(email)" : ""}</label>
+          <TeamMemberDropdown
+            value={fields.assigned_to_name ?? ""}
+            detail={fromDetail}
+            teamMembers={teamMembers}
+            channel={channel}
+            onSelect={(name, email) => {
+              setField("assigned_to_name", name);
+              setField("comms_from_email", email);
+            }}
+          />
+        </div>
       </div>
-      {channel === "email" && (
+      {isEmail && (
         <div><label className={LABEL}>Subject</label><input type="text" value={fields.comms_subject ?? ""} onChange={(e) => setField("comms_subject", e.target.value)} className={INPUT} /></div>
       )}
       <div><label className={LABEL}>Message</label><textarea value={fields.comms_body ?? ""} onChange={(e) => setField("comms_body", e.target.value)} rows={3} className={INPUT + " resize-none"} /></div>
@@ -296,7 +500,7 @@ function NoteFields({ fields, setField }: { fields: Record<string, string>; setF
 
 // ── Initialize form fields from item metadata ──
 
-function initFields(item: ActionItemData): Record<string, string> {
+function initFields(item: ActionItemData, contactEmail: string | null, contactPhone: string | null): Record<string, string> {
   const meta = item.metadata ?? {};
   const base: Record<string, string> = {
     contact_name: item.contact_name ?? "",
@@ -307,7 +511,15 @@ function initFields(item: ActionItemData): Record<string, string> {
     case "apt":
       return { ...base, apt_title: str(meta.apt_title) || item.title, apt_date_time: str(meta.apt_date_time), apt_duration_minutes: str(meta.apt_duration_minutes) || "30", apt_notes: str(meta.apt_notes), assigned_to: "" };
     case "comms":
-      return { ...base, comms_channel: str(meta.comms_channel) || "sms", comms_subject: str(meta.comms_subject), comms_body: str(meta.comms_body) || item.description || "" };
+      return {
+        ...base,
+        comms_channel: str(meta.comms_channel) || "sms",
+        comms_subject: str(meta.comms_subject),
+        comms_body: str(meta.comms_body) || item.description || "",
+        comms_to_email: str(meta.comms_to_email) || contactEmail || "",
+        comms_to_phone: str(meta.comms_to_phone) || contactPhone || "",
+        comms_from_email: str(meta.comms_from_email) || "",
+      };
     case "task":
       return { ...base, task_title: str(meta.task_title) || item.title, task_description: str(meta.task_description) || item.description || "", task_due_date: str(meta.task_due_date) || todayISO(), assigned_to: "" };
     case "note":
@@ -324,9 +536,11 @@ function todayISO(): string { return new Date().toISOString().split("T")[0]; }
 function getSummaryDetail(category: string, fields: Record<string, string>): string | null {
   switch (category) {
     case "comms": {
-      const ch = fields.comms_channel === "email" ? "Email" : "SMS";
-      const body = (fields.comms_body ?? "").split("\n")[0].slice(0, 60);
-      return body ? `${ch}: ${body}${body.length >= 60 ? "…" : ""}` : ch;
+      const isEmail = fields.comms_channel === "email";
+      const detail = isEmail ? (fields.comms_to_email || "") : (fields.comms_to_phone || "");
+      if (detail) return `${isEmail ? "Email" : "SMS"} → ${detail}`;
+      const body = (fields.comms_body ?? "").split("\n")[0].slice(0, 50);
+      return body ? `${isEmail ? "Email" : "SMS"}: ${body}${body.length >= 50 ? "…" : ""}` : (isEmail ? "Email" : "SMS");
     }
     case "apt": {
       const dt = fields.apt_date_time;

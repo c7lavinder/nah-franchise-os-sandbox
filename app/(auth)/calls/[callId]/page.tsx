@@ -13,7 +13,7 @@ import { ArrowLeft, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import CallDetailTabs from "@/components/calls/CallDetailTabs";
 
 interface TeamMember { id: string; name: string; email: string }
-interface LinkedContact { id: string | null; name: string; email: string; role: string; linked: boolean }
+interface LinkedContact { id: string | null; name: string; email: string; phone: string; role: string; linked: boolean }
 interface UnknownParticipant { name: string; email: string }
 
 interface CoachingData {
@@ -41,6 +41,8 @@ interface CallDetail {
   status: string;
   source: string | null;
   title: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
   territory_ms_slug: string | null;
   territoryName: string | null;
   coach_user_id: string | null;
@@ -336,8 +338,10 @@ export default function CallDetailPage() {
         dataExtractions={dataExtractions}
         profileFieldCount={profileFieldCount}
         isGenerating={isGenerating}
-        teamMembers={(call.teamMembers ?? []).map((m) => ({ id: m.id, name: m.name }))}
+        teamMembers={call.teamMembers ?? []}
         contactName={call.contactName}
+        contactEmail={call.contactEmail}
+        contactPhone={call.contactPhone}
         participantNames={buildSpeakerNames(call)}
         onRefresh={() => void fetchDetail()}
       />

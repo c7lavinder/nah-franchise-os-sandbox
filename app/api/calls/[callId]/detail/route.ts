@@ -21,11 +21,17 @@ export async function GET(
     .single();
   if (!call) return NextResponse.json({ error: "Call not found" }, { status: 404 });
 
-  // Enrich with names
+  // Enrich with names + contact info
   let contactName = null;
+  let primaryContactEmail: string | null = null;
+  let primaryContactPhone: string | null = null;
   if (call.contact_id) {
-    const { data: c } = await supabase.from("contacts").select("first_name, last_name").eq("id", call.contact_id).single();
-    if (c) contactName = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown";
+    const { data: contactRow } = await supabase.from("contacts").select("first_name, last_name, email, phone").eq("id", call.contact_id).single();
+    if (contactRow) {
+      contactName = `${contactRow.first_name ?? ""} ${contactRow.last_name ?? ""}`.trim() || "Unknown";
+      primaryContactEmail = contactRow.email ?? null;
+      primaryContactPhone = contactRow.phone ?? null;
+    }
   }
 
   let hostName = null;
@@ -68,17 +74,17 @@ export async function GET(
       ? supabase.from("users").select("id, full_name, email").in("id", pUserIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string; email: string }[] }),
     pContactIds.length > 0
-      ? supabase.from("contacts").select("id, first_name, last_name, email").in("id", pContactIds)
-      : Promise.resolve({ data: [] as { id: string; first_name: string | null; last_name: string | null; email: string | null }[] }),
+      ? supabase.from("contacts").select("id, first_name, last_name, email, phone").in("id", pContactIds)
+      : Promise.resolve({ data: [] as { id: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null }[] }),
   ]);
 
   const userMap = new Map<string, { name: string; email: string }>();
   for (const u of userRes.data ?? []) {
     userMap.set(u.id, { name: u.full_name, email: u.email });
   }
-  const contactMap = new Map<string, { name: string; email: string | null }>();
+  const contactMap = new Map<string, { name: string; email: string | null; phone: string | null }>();
   for (const c of contactRes.data ?? []) {
-    contactMap.set(c.id, { name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown", email: c.email });
+    contactMap.set(c.id, { name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown", email: c.email, phone: c.phone });
   }
 
   const teamMembers = (participants ?? [])
@@ -96,6 +102,7 @@ export async function GET(
         id: p.contact_id,
         name: c?.name ?? p.display_name ?? "Unknown",
         email: c?.email ?? p.email ?? "",
+        phone: c?.phone ?? "",
         role: p.role,
         linked: !!p.contact_id,
       };
@@ -126,7 +133,7 @@ export async function GET(
           // In users table = team member
           teamMembers.push({ id: user.id, name: user.name, email });
         } else {
-          linkedContacts.push({ id: null, name: email, email, role: "unknown", linked: false });
+          linkedContacts.push({ id: null, name: email, email, phone: "", role: "unknown", linked: false });
         }
       }
     }
@@ -184,8 +191,12 @@ export async function GET(
   // Unified transcript text — prefer call_transcripts row, fall back to raw_transcript on call
   const transcriptText: string | null = transcript?.full_text ?? call.raw_transcript ?? null;
 
+  // Resolve contact email/phone for action items (from main contact query or first linked contact)
+  const contactEmail = primaryContactEmail ?? linkedContacts[0]?.email ?? null;
+  const contactPhone = primaryContactPhone ?? linkedContacts[0]?.phone ?? null;
+
   return NextResponse.json({
-    call: { ...call, contactName, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, linkedContacts, unknownParticipants },
+    call: { ...call, contactName, contactEmail, contactPhone, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, linkedContacts, unknownParticipants },
     transcript: transcriptText,
     transcriptSource: transcript?.source ?? (call.raw_transcript ? "read_ai" : null),
     grade,
