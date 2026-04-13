@@ -320,38 +320,54 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
 
 interface TranscriptLine { speaker: string; text: string }
 
-/** Parse raw transcript text into speaker + text lines, cleaning up Read.ai speaker labels */
+/** Parse raw transcript text into speaker + text lines, cleaning up Read.ai speaker labels.
+ *  Merges consecutive turns from the same speaker into one block. */
 function parseTranscriptLines(raw: string): TranscriptLine[] {
-  const lines: TranscriptLine[] = [];
+  const parsed: TranscriptLine[] = [];
 
-  const segments = raw.split(/\n+/);
+  // Split on every newline (not just double), handle empties in the loop
+  const segments = raw.split("\n");
 
   for (const segment of segments) {
     if (!segment.trim()) continue;
 
+    let speaker: string | null = null;
+    let text = "";
+
     // Old format: [Speaker Label]: text
     const bracketMatch = segment.match(/^\[([^\]]+)\]:\s*([\s\S]*)/);
     if (bracketMatch) {
-      lines.push({ speaker: cleanSpeakerLabel(bracketMatch[1]), text: bracketMatch[2].trim() });
-      continue;
+      speaker = cleanSpeakerLabel(bracketMatch[1]);
+      text = bracketMatch[2].trim();
     }
 
     // New format: Name: text (name is 1-4 capitalized words before colon)
-    const colonMatch = segment.match(/^([A-Z][a-zA-Z' ]{1,40}):\s*([\s\S]*)/);
-    if (colonMatch) {
-      lines.push({ speaker: colonMatch[1].trim(), text: colonMatch[2].trim() });
+    if (!speaker) {
+      const colonMatch = segment.match(/^([A-Z][a-zA-Z' ]{1,40}):\s*([\s\S]*)/);
+      if (colonMatch) {
+        speaker = colonMatch[1].trim();
+        text = colonMatch[2].trim();
+      }
+    }
+
+    // No speaker label — continuation line, append to previous
+    if (!speaker) {
+      if (parsed.length > 0) {
+        parsed[parsed.length - 1].text += " " + segment.trim();
+      }
+      // Drop orphan lines with no previous speaker (don't create "Unknown")
       continue;
     }
 
-    // No speaker label — append to previous line or create unknown
-    if (lines.length > 0) {
-      lines[lines.length - 1].text += " " + segment.trim();
+    // Merge consecutive turns from the same speaker
+    if (parsed.length > 0 && parsed[parsed.length - 1].speaker === speaker) {
+      parsed[parsed.length - 1].text += " " + text;
     } else {
-      lines.push({ speaker: "Unknown", text: segment.trim() });
+      parsed.push({ speaker, text });
     }
   }
 
-  return lines;
+  return parsed;
 }
 
 /** Clean up Read.ai speaker labels: "Conference Room (Chad Arnold) - Speaker 1" → "Chad Arnold" */
