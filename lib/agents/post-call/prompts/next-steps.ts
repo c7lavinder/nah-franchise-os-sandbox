@@ -7,8 +7,9 @@ export function buildPrompt(ctx: CallContext): string {
   return `Generate post-call action items for the sales team. Return a JSON array.
 
 ## Rules
-- MAXIMUM 5 actions total. Combine similar sends into one comms action.
+- MAXIMUM 6 actions total. Combine similar sends into one comms action.
 - ALWAYS include exactly one "note" action to log the call summary to the contact's profile.
+- ALWAYS include a "pipeline" action — see Pipeline section below.
 - Pre-fill ALL fields using specific information from the transcript.
 - Assign each action to the right NAH team member.
 - Each appointment with a different rep stays its own action.
@@ -18,6 +19,45 @@ export function buildPrompt(ctx: CallContext): string {
 - Mark → any capital/lending related call or task
 - Matt Lavinder → any qualification or final ownership call
 - Sam → any discovery/demo call
+
+## Sales Pipeline (MUST reference when generating pipeline actions)
+Stages flow left-to-right. Each stage has sub-tasks that must be logged off before advancing.
+
+1. **Engagement** → Outreach, Intro Call, PTO
+2. **Qualification** → NDA, Matt Call, Zorakle
+3. **Discovery** → Sam Call, PFS, Background, Mark Call
+4. **Compliance** → FDD, FDD Review Call, Territory Call, FA Info Gathering
+5. **Awarding** → Matt Final Call, Franchise Award Letter, FA, FF
+6. **Closed** (terminal)
+
+### Call-to-pipeline mapping (use call type + transcript to determine):
+- intro_call → log off "Intro Call" sub-task in Engagement
+- matt_call → log off "Matt Call" in Qualification
+- sam_call → log off "Sam Call" in Discovery
+- mark_call → log off "Mark Call" in Discovery
+- fdd_review → log off "FDD Review Call" in Compliance
+- territory_call → log off "Territory Call" in Compliance
+- matt_final_call → log off "Matt Final Call" in Awarding
+- If the call discussed NDA signing → log off "NDA" in Qualification
+- If the call discussed PTO/Trainual → log off "PTO" in Engagement
+- If ALL sub-tasks in a stage were discussed as complete → also suggest "Advance to [next stage]"
+
+### Pipeline action format:
+For sub-task log-off:
+{
+  "category": "pipeline",
+  "title": "Log off [Sub-task Name]",
+  "description": "Mark [sub-task] as completed in the [Stage] stage",
+  "metadata": { "pipeline_action": "log_subtask", "pipeline_stage": "[stage name]", "subtask_name": "[sub-task name]" }
+}
+
+For stage advance (only if evidence supports all sub-tasks in current stage are done):
+{
+  "category": "pipeline",
+  "title": "Advance to [Next Stage]",
+  "description": "Move [contact] from [current stage] to [next stage]",
+  "metadata": { "pipeline_action": "advance_stage", "stage_from": "[current]", "stage_to": "[next]" }
+}
 
 ## Required fields for EVERY action:
 {
@@ -31,9 +71,10 @@ export function buildPrompt(ctx: CallContext): string {
   "source": "scout",
   "metadata": {
     // APT: include apt_title, apt_date_time (ISO if from transcript), apt_duration_minutes (default 30), apt_notes
-    // COMMS: include comms_channel ("sms"|"email"), comms_subject (if email), comms_body (FULL pre-written message)
+    // COMMS: include comms_channel ("sms"|"email"), comms_subject (if email), comms_body (FULL pre-written message), comms_to_email, comms_to_phone
     // TASK: include task_title, task_description, task_due_date (ISO, default today)
     // NOTE: include note_body (full call summary paragraph for the contact record)
+    // PIPELINE: include pipeline_action, pipeline_stage, subtask_name (or stage_from + stage_to for advance)
   }
 }
 
@@ -42,6 +83,7 @@ export function buildPrompt(ctx: CallContext): string {
 - comms_body must be a FULL ready-to-send message, not a placeholder.
 - note_body must be a complete call summary paragraph (4-5 sentences).
 - Dates and times must include day of week and timezone when known.
+- Pipeline actions should always reference the specific stage and sub-task by name.
 
 Return only a valid JSON array. No preamble, no markdown fences.
 

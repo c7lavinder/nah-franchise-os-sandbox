@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   Check, X, Loader2, Sparkles, Zap, User, ChevronDown, Search,
-  Send, CalendarPlus, ListChecks, Save, FileText, Mail, MessageSquare,
+  Send, CalendarPlus, ListChecks, Save, FileText, Mail, MessageSquare, ArrowRightCircle,
 } from "lucide-react";
 
 export interface ActionItemData {
@@ -37,7 +37,7 @@ interface CallActionItemProps {
 }
 
 const CATEGORY_ICONS: Record<string, typeof Send> = {
-  comms: Send, task: ListChecks, apt: CalendarPlus, note: FileText, data: Save,
+  comms: Send, task: ListChecks, apt: CalendarPlus, note: FileText, data: Save, pipeline: ArrowRightCircle,
 };
 
 const CTA_LABELS: Record<string, string> = {
@@ -524,6 +524,15 @@ function initFields(item: ActionItemData, contactEmail: string | null, contactPh
       return { ...base, task_title: str(meta.task_title) || item.title, task_description: str(meta.task_description) || item.description || "", task_due_date: str(meta.task_due_date) || todayISO(), assigned_to: "" };
     case "note":
       return { ...base, note_body: str(meta.note_body) || item.description || "" };
+    case "pipeline":
+      return {
+        ...base,
+        pipeline_action: str(meta.pipeline_action),
+        pipeline_stage: str(meta.pipeline_stage),
+        subtask_name: str(meta.subtask_name),
+        stage_from: str(meta.stage_from),
+        stage_to: str(meta.stage_to),
+      };
     default:
       return base;
   }
@@ -559,6 +568,13 @@ function getSummaryDetail(category: string, fields: Record<string, string>): str
     case "note": {
       const body = (fields.note_body ?? "").split("\n")[0].slice(0, 60);
       return body ? `${body}${body.length >= 60 ? "…" : ""}` : null;
+    }
+    case "pipeline": {
+      const stage = fields.pipeline_stage || "";
+      const subtask = fields.subtask_name || "";
+      if (fields.pipeline_action === "advance_stage") return `${fields.stage_from ?? ""} → ${fields.stage_to ?? ""}`;
+      if (subtask) return `${stage}: ${subtask}`;
+      return stage || null;
     }
     default:
       return null;
