@@ -186,38 +186,57 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
               </div>
             )}
 
-            {props.coachingData.went_well?.length > 0 && (
-              <div>
-                <p className="text-caption font-medium text-success mb-1">What went well</p>
-                <ul className="space-y-1">
-                  {props.coachingData.went_well.map((item, i) => (
-                    <li key={i} className="text-body-sm text-text-primary flex items-start gap-1.5">
-                      <span className="text-success mt-0.5 flex-shrink-0">+</span>
-                      {item}
-                    </li>
+            {/* Side-by-side panels: What went well + Watch out for */}
+            {(props.coachingData.went_well?.length > 0 || props.coachingData.watch_out?.length > 0) && (
+              <div className="grid grid-cols-2 gap-3">
+                {/* Left — What went well */}
+                <div className="rounded-lg p-3" style={{ background: "#EAF3DE", border: "0.5px solid #97C459" }}>
+                  <p className="text-[10px] font-medium uppercase tracking-wider mb-2" style={{ color: "#3B6D11" }}>
+                    What went well
+                  </p>
+                  {props.coachingData.went_well?.map((item, i) => (
+                    <div key={i} className="flex items-start gap-2 mb-2 last:mb-0">
+                      <div className="w-[5px] h-[5px] rounded-full mt-[5px] flex-shrink-0" style={{ background: "#3B6D11" }} />
+                      <span className="text-[12px] leading-relaxed" style={{ color: "#27500A" }}>{item}</span>
+                    </div>
                   ))}
-                </ul>
+                  {(!props.coachingData.went_well || props.coachingData.went_well.length === 0) && (
+                    <p className="text-[12px] italic" style={{ color: "#3B6D11" }}>No specific strengths noted.</p>
+                  )}
+                </div>
+
+                {/* Right — Watch out for */}
+                <div className="rounded-lg p-3" style={{ background: "#FAEEDA", border: "0.5px solid #EF9F27" }}>
+                  <p className="text-[10px] font-medium uppercase tracking-wider mb-2" style={{ color: "#854F0B" }}>
+                    Watch out for
+                  </p>
+                  {props.coachingData.watch_out?.map((item, i) => (
+                    <div key={i} className="flex items-start gap-2 mb-2 last:mb-0">
+                      <div className="w-[5px] h-[5px] rounded-full mt-[5px] flex-shrink-0" style={{ background: "#854F0B" }} />
+                      <span className="text-[12px] leading-relaxed" style={{ color: "#633806" }}>{item}</span>
+                    </div>
+                  ))}
+                  {(!props.coachingData.watch_out || props.coachingData.watch_out.length === 0) && (
+                    <p className="text-[12px] italic" style={{ color: "#854F0B" }}>No concerns flagged.</p>
+                  )}
+                </div>
               </div>
             )}
 
-            {props.coachingData.watch_out?.length > 0 && (
-              <div>
-                <p className="text-caption font-medium text-warning mb-1">Watch out for</p>
-                <ul className="space-y-1">
-                  {props.coachingData.watch_out.map((item, i) => (
-                    <li key={i} className="text-body-sm text-text-primary flex items-start gap-1.5">
-                      <span className="text-warning mt-0.5 flex-shrink-0">!</span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
+            {/* For next call — full width blue accent */}
             {props.coachingData.next_call_prep && (
-              <div className="bg-nah-blue/5 border border-nah-blue/20 rounded-md p-3">
-                <p className="text-caption font-medium text-nah-blue mb-1">For next call</p>
-                <p className="text-body-sm text-text-primary">{props.coachingData.next_call_prep}</p>
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{ color: "#185FA5" }}>
+                  For next call
+                </p>
+                <div className="text-[12px] leading-relaxed p-3" style={{
+                  borderLeft: "3px solid #378ADD",
+                  background: "#E6F1FB",
+                  color: "#0C447C",
+                  borderRadius: "0 8px 8px 0",
+                }}>
+                  {props.coachingData.next_call_prep}
+                </div>
               </div>
             )}
           </div>

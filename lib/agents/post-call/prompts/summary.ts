@@ -1,32 +1,61 @@
 import type { CallContext, SummaryResult } from "../types";
-import { callClaude, stripFences } from "../call-claude";
+import { callClaude } from "../call-claude";
 
-const SYSTEM = "You are Scout, the AI assistant for NAH Franchise OS. You analyze franchise sales call transcripts and extract structured intelligence.";
+const SYSTEM = "You are Scout, an AI assistant for NAH Franchise OS. You write detailed call summaries for the sales team to read before their next interaction with a candidate.";
 
 export function buildPrompt(ctx: CallContext): string {
-  return `Analyze this call transcript and return a JSON object with exactly one key:
+  const durationMinutes = ctx.durationSeconds
+    ? Math.round(ctx.durationSeconds / 60)
+    : null;
 
-{
-  "summary": "2-3 sentence summary covering: candidate's why, capital signals, timeline, tone"
-}
+  const lengthGuidance = durationMinutes
+    ? durationMinutes >= 45
+      ? "This was a long call (45+ minutes). Write 7-10 sentences to capture the full picture."
+      : durationMinutes >= 25
+      ? "This was a medium-length call (25-44 minutes). Write 5-7 sentences."
+      : "This was a short call (under 25 minutes). Write 3-5 sentences."
+    : "Write 5-7 sentences.";
 
-Return only valid JSON. No preamble, no markdown.
+  return `${lengthGuidance}
+
+Write in flowing paragraph form (NOT bullet points). Cover all of the following in your summary:
+1. Who the candidate is, their background, and where they are in the NAH sales process
+2. What was specifically discussed on this call (topics, FDD items, documents, tools shown)
+3. Candidate engagement signals — tone, questions asked, enthusiasm or hesitation indicators
+4. Capital signals — anything said about funding, assets, investment readiness, OR an explicit note if capital was never discussed
+5. Open items — questions the candidate said they'd follow up on, unresolved concerns, things left for later
+6. What was committed — specific next steps, dates, and actions confirmed before the call ended
+7. Relationship read — how the candidate feels about the opportunity and the NAH team right now
+8. What's missing — important topics that were NOT discussed that should come up in the next call
+
+Be specific. Reference actual things said in the transcript (names, numbers, dates, places). Do not be generic.
+
+Return only the summary text. No labels, no headers, no JSON, no markdown fences.
+
+Call Type: ${ctx.callType ?? "Unknown"}
+Contact: ${ctx.contactName ?? "Unknown"}
+Team: ${ctx.teamMembers.join(", ") || "Unknown"}
+Duration: ${durationMinutes ? `${durationMinutes} minutes` : "Unknown"}
+Date: ${ctx.callDate ?? "Unknown"}
 
 Transcript:
-${ctx.transcript}
-
-Call type: ${ctx.callType ?? "unknown"}
-Contact name: ${ctx.contactName ?? "unknown"}`;
+${ctx.transcript}`;
 }
 
 export function parseResult(rawText: string): SummaryResult | null {
-  try {
-    const data = JSON.parse(stripFences(rawText)) as { summary?: string };
-    if (!data.summary) return null;
-    return { summary: data.summary };
-  } catch {
-    return null;
+  // New prompt returns plain text, not JSON
+  const text = rawText.trim();
+  if (!text) return null;
+
+  // Handle legacy JSON format gracefully
+  if (text.startsWith("{")) {
+    try {
+      const data = JSON.parse(text) as { summary?: string };
+      if (data.summary) return { summary: data.summary };
+    } catch { /* not JSON, treat as plain text */ }
   }
+
+  return { summary: text };
 }
 
 export async function runSummary(ctx: CallContext, model?: string): Promise<SummaryResult | null> {
