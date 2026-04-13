@@ -202,14 +202,24 @@ export async function classifyCall(
     .map((p) => p.email?.toLowerCase())
     .filter(Boolean) as string[];
 
+  // Build live team email set from users table (not hardcoded list)
+  const { data: teamUsers } = await supabase
+    .from("users")
+    .select("email")
+    .eq("is_active", true)
+    .not("email", "is", null);
+  const liveTeamEmails = new Set(
+    (teamUsers ?? []).map((u) => u.email!.toLowerCase()),
+  );
+
   // Resolve all participants up front
   const resolved_participants = await resolveAllParticipants(participants, supabase);
 
   const nahParticipants = participantEmails.filter((e) =>
-    NAH_TEAM_EMAILS.includes(e)
+    liveTeamEmails.has(e)
   );
   const externalParticipants = participantEmails.filter(
-    (e) => !NAH_TEAM_EMAILS.includes(e)
+    (e) => !liveTeamEmails.has(e)
   );
 
   // INTERNAL — all participants are NAH team

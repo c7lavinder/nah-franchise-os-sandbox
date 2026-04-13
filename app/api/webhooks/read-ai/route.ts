@@ -185,10 +185,8 @@ async function processReadAIWebhook(
         await processGroupCall(payload, classified);
         break;
       case "internal":
-        await supabase
-          .from("read_ai_sessions")
-          .update({ processing_status: "skipped" })
-          .eq("session_id", sessionId);
+        // Create a team call record instead of skipping
+        await processGroupCall(payload, classified);
         break;
       case "unknown":
         await supabase
@@ -202,7 +200,7 @@ async function processReadAIWebhook(
     }
 
     // Mark complete (unless internal/unknown already handled)
-    if (classified.call_type !== "internal" && classified.call_type !== "unknown") {
+    if (classified.call_type !== "unknown") {
       await supabase
         .from("read_ai_sessions")
         .update({

@@ -13,7 +13,22 @@ export async function processGroupCall(
 ): Promise<void> {
   const supabase = createServerClient();
 
-  // 1. Build standardized title from external participant names
+  // 1. Determine call type — internal (team only) vs group (with externals)
+  const isInternal = classified.call_type === "internal";
+  const callTypeSlug = isInternal ? "team_call" : null;
+
+  // Look up call_type_id for team calls
+  let callTypeId: string | null = null;
+  if (callTypeSlug) {
+    const { data: ct } = await supabase
+      .from("call_types")
+      .select("id")
+      .eq("slug", callTypeSlug)
+      .maybeSingle();
+    callTypeId = ct?.id ?? null;
+  }
+
+  const typeLabel = isInternal ? "Team Call" : "Group Call";
   const externalNames = (payload.participants ?? [])
     .filter((p) => !isNAHTeamEmail(p.email))
     .map((p) => p.name)
@@ -22,9 +37,9 @@ export async function processGroupCall(
   const { data: callRecord } = await supabase
     .from("calls")
     .insert({
-      call_type_id: null,
+      call_type_id: callTypeId,
       read_ai_session_id: payload.session_id,
-      title: standardizeTitle("Group Call", externalNames, payload.title ?? null),
+      title: standardizeTitle(typeLabel, externalNames, payload.title ?? null),
       started_at: payload.start_time ?? null,
       ended_at: payload.end_time ?? null,
       duration_seconds: payload.start_time && payload.end_time
