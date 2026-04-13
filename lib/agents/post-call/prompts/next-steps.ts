@@ -57,13 +57,38 @@ ${ctx.transcript}`;
 
 export function parseResult(rawText: string): NextStepsResult | null {
   try {
-    const cleaned = stripFences(rawText);
-    // Handle both { "actions": [...] } and bare [...] array
+    let cleaned = stripFences(rawText);
+
+    // Claude sometimes wraps in { "actions": [...] } or returns bare array
+    // Also handle case where it returns an object with a single key containing the array
     const parsed = JSON.parse(cleaned);
-    if (Array.isArray(parsed)) return { actions: parsed };
-    if (parsed.actions && Array.isArray(parsed.actions)) return { actions: parsed.actions };
+
+    if (Array.isArray(parsed)) {
+      return { actions: parsed };
+    }
+
+    if (typeof parsed === "object" && parsed !== null) {
+      // Check common wrapper keys
+      const arr = parsed.actions ?? parsed.action_items ?? parsed.items;
+      if (Array.isArray(arr)) return { actions: arr };
+
+      // If it's a single action object (not an array), wrap it
+      if (parsed.category && parsed.title) return { actions: [parsed] };
+    }
+
+    console.error("[next-steps] parseResult: unexpected shape", typeof parsed);
     return null;
-  } catch {
+  } catch (err) {
+    // Try to extract JSON array from text that has extra content around it
+    try {
+      const arrayMatch = rawText.match(/\[[\s\S]*\]/);
+      if (arrayMatch) {
+        const arr = JSON.parse(arrayMatch[0]);
+        if (Array.isArray(arr)) return { actions: arr };
+      }
+    } catch { /* fallthrough */ }
+
+    console.error("[next-steps] parseResult: JSON parse failed", err instanceof Error ? err.message : err);
     return null;
   }
 }

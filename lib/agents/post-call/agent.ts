@@ -55,12 +55,16 @@ export async function runPostCallAgent(callId: string): Promise<{
   const actions = actionsRes.status === "fulfilled" ? actionsRes.value : null;
   const extractions = extractionsRes.status === "fulfilled" ? extractionsRes.value : null;
 
-  // Collect errors for diagnostics
+  // Collect errors for diagnostics — include null results (parse failures)
   const errors: string[] = [];
   if (summaryRes.status === "rejected") errors.push(`summary: ${String(summaryRes.reason)}`);
+  else if (!summary) errors.push("summary: returned null (parse failure)");
   if (coachingRes.status === "rejected") errors.push(`coaching: ${String(coachingRes.reason)}`);
+  else if (!coaching) errors.push("coaching: returned null (parse failure)");
   if (actionsRes.status === "rejected") errors.push(`actions: ${String(actionsRes.reason)}`);
+  else if (!actions) errors.push("actions: returned null (parse failure)");
   if (extractionsRes.status === "rejected") errors.push(`extractions: ${String(extractionsRes.reason)}`);
+  else if (!extractions) errors.push("extractions: returned null (parse failure)");
 
   // 3. Write results to DB
   await writeResults(callId, context.contactId, { summary, coaching, actions, extractions }, supabase);

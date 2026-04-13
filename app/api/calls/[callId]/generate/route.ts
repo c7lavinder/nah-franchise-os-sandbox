@@ -24,9 +24,9 @@ export async function POST(
   }
 
   return NextResponse.json({
-    success: true,
-    summary: result.summary,
-    coaching: result.coaching,
+    success: result.errors.length === 0,
+    summary: result.summary ? "generated" : null,
+    coaching_score: result.coaching?.score ?? null,
     actionsCount: result.actionsCount,
     extractionsCount: result.extractionsCount,
     errors: result.errors.length > 0 ? result.errors : undefined,

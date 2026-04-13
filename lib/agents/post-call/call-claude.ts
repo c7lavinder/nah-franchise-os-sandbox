@@ -17,11 +17,12 @@ interface CallClaudeOptions<T> {
 
 /** Strip markdown code fences that Claude sometimes wraps around JSON */
 export function stripFences(text: string): string {
-  return text
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/```\s*$/i, "")
-    .trim();
+  let cleaned = text.trim();
+  // Remove opening fence: ```json, ```javascript, ``` etc.
+  cleaned = cleaned.replace(/^```\w*\s*\n?/i, "");
+  // Remove closing fence
+  cleaned = cleaned.replace(/\n?```\s*$/, "");
+  return cleaned.trim();
 }
 
 export async function callClaude<T>(options: CallClaudeOptions<T>): Promise<T | null> {
