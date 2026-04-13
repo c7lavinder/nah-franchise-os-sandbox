@@ -205,7 +205,10 @@ async function writeResults(
       status: "pending",
     }));
 
-    await supabase.from("call_action_items").insert(rows);
+    const { error: insertErr } = await supabase.from("call_action_items").insert(rows);
+    if (insertErr) {
+      console.error("[agent] call_action_items insert failed:", insertErr.message, insertErr.details);
+    }
   }
 
   // Data extractions → call_data_extractions
@@ -231,7 +234,10 @@ async function writeResults(
       }));
 
     if (rows.length > 0) {
-      await supabase.from("call_data_extractions").insert(rows);
+      const { error: insertErr } = await supabase.from("call_data_extractions").insert(rows);
+      if (insertErr) {
+        console.error("[agent] call_data_extractions insert failed:", insertErr.message, insertErr.details);
+      }
     }
   }
 }
