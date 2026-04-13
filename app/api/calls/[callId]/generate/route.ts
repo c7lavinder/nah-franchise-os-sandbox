@@ -30,6 +30,7 @@ export async function POST(
     coaching_score: result.coaching?.score ?? null,
     actionsCount: result.actionsCount,
     extractionsCount: result.extractionsCount,
+    kbDocsUpdated: result.kbDocsUpdated,
     errors: result.errors.length > 0 ? result.errors : undefined,
   });
 }

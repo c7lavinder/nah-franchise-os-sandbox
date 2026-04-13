@@ -233,35 +233,71 @@ async function executeSearchKnowledge(
   try {
     const supabase = createServerClient();
     const query = (input.query as string).toLowerCase();
+    const queryWords = query.split(/\s+/).filter((w) => w.length > 2);
 
-    // Search knowledge documents by title and content match
+    // Fetch all active KB docs
     const { data: rawDocs, error } = await supabase
       .from("knowledge_documents")
-      .select("title, category, content")
+      .select("id, title, category, content, priority")
       .eq("is_active", true)
-      .order("priority", { ascending: false })
-      .limit(5);
+      .order("priority", { ascending: false });
 
     if (error) {
       return { data: `Error searching knowledge base: ${error.message}` };
     }
 
-    const docs = rawDocs as { title: string; category: string; content: string }[] | null;
-
+    const docs = rawDocs as { id: string; title: string; category: string; content: string; priority: number }[] | null;
     if (!docs || docs.length === 0) {
-      return { data: "No knowledge base documents found. The knowledge base has not been populated yet." };
+      return { data: "No knowledge base documents found." };
     }
 
-    // Simple keyword filtering — filter docs that contain the search query
-    const matched = docs.filter(
-      (doc) =>
-        doc.title.toLowerCase().includes(query) ||
-        doc.content.toLowerCase().includes(query) ||
-        doc.category.toLowerCase().includes(query)
-    );
+    // Score each doc by keyword relevance
+    const scored = docs.map((doc) => {
+      const titleLower = doc.title.toLowerCase();
+      const contentLower = doc.content.toLowerCase();
+      const catLower = doc.category.toLowerCase();
+      let score = 0;
 
-    const results = matched.length > 0 ? matched : docs;
-    return { data: JSON.stringify(results) };
+      // Exact phrase match in title = highest signal
+      if (titleLower.includes(query)) score += 20;
+      // Exact phrase match in content
+      if (contentLower.includes(query)) score += 10;
+      // Category match
+      if (catLower.includes(query)) score += 15;
+
+      // Individual word matches
+      for (const word of queryWords) {
+        if (titleLower.includes(word)) score += 5;
+        if (contentLower.includes(word)) score += 2;
+      }
+
+      // Priority boost
+      score += doc.priority;
+
+      return { ...doc, score };
+    });
+
+    // Sort by score, take top results
+    const sorted = scored.filter((d) => d.score > 0).sort((a, b) => b.score - a.score);
+    const results = sorted.length > 0 ? sorted.slice(0, 8) : docs.slice(0, 5);
+
+    // Update retrieval metrics for matched docs
+    const matchedIds = results.map((d) => d.id);
+    if (matchedIds.length > 0) {
+      for (const docId of matchedIds) {
+        await supabase
+          .from("knowledge_documents")
+          .update({
+            last_retrieved_at: new Date().toISOString(),
+            retrieval_count: (results.find((r) => r.id === docId)?.priority ?? 0) + 1,
+          })
+          .eq("id", docId);
+      }
+    }
+
+    // Return without score/id for cleaner LLM context
+    const cleaned = results.map(({ title, category, content }) => ({ title, category, content }));
+    return { data: JSON.stringify(cleaned) };
   } catch (err) {
     return { data: `Error searching knowledge base: ${err instanceof Error ? err.message : "Unknown error"}` };
   }

@@ -1,8 +1,12 @@
 /**
- * Post-Call Agent — orchestrates all 4 AI analysis sections after a call.
+ * Post-Call Agent — orchestrates all 5 AI analysis sections after a call.
  *
  * Sections run in parallel. If any section fails, the others still write.
  * Each section has its own prompt file in ./prompts/ for independent tuning.
+ *
+ * Section 5 (KB Intelligence) extracts knowledge from every call and
+ * auto-updates the knowledge base — questions, objections, competitive
+ * intel, best practices, and process updates all flow into knowledge_documents.
  */
 
 import { createServerClient } from "@/lib/supabase/server";
@@ -11,6 +15,8 @@ import { runSummary } from "./prompts/summary";
 import { runCoaching } from "./prompts/coaching";
 import { runNextSteps } from "./prompts/next-steps";
 import { runExtraction } from "./prompts/extraction";
+import { runKBIntelligence } from "./prompts/kb-intelligence";
+import { updateKnowledgeBase } from "./kb-updater";
 
 // ── Model routing ──────────────────────────────────────────
 // Change model per section here. One line per section.
@@ -19,6 +25,7 @@ const MODELS = {
   coaching: "claude-haiku-4-5-20251001",
   nextSteps: "claude-haiku-4-5-20251001",
   extraction: "claude-haiku-4-5-20251001",
+  kbIntelligence: "claude-haiku-4-5-20251001",
 };
 
 // ── Public API ─────────────────────────────────────────────
@@ -29,6 +36,7 @@ export async function runPostCallAgent(callId: string): Promise<{
   coaching: CoachingResult | null;
   actionsCount: number;
   extractionsCount: number;
+  kbDocsUpdated: number;
   errors: string[];
 }> {
   const supabase = createServerClient();
@@ -36,24 +44,26 @@ export async function runPostCallAgent(callId: string): Promise<{
   // 1. Load context
   const context = await loadCallContext(callId, supabase);
   if (!context) {
-    return { success: false, summary: null, coaching: null, actionsCount: 0, extractionsCount: 0, errors: ["Call not found"] };
+    return { success: false, summary: null, coaching: null, actionsCount: 0, extractionsCount: 0, kbDocsUpdated: 0, errors: ["Call not found"] };
   }
   if (!context.transcript) {
-    return { success: false, summary: null, coaching: null, actionsCount: 0, extractionsCount: 0, errors: ["No transcript available"] };
+    return { success: false, summary: null, coaching: null, actionsCount: 0, extractionsCount: 0, kbDocsUpdated: 0, errors: ["No transcript available"] };
   }
 
-  // 2. Run all 4 sections in parallel
-  const [summaryRes, coachingRes, actionsRes, extractionsRes] = await Promise.allSettled([
+  // 2. Run all 5 sections in parallel
+  const [summaryRes, coachingRes, actionsRes, extractionsRes, kbRes] = await Promise.allSettled([
     runSummary(context, MODELS.summary),
     runCoaching(context, MODELS.coaching),
     runNextSteps(context, MODELS.nextSteps),
     runExtraction(context, MODELS.extraction),
+    runKBIntelligence(context, MODELS.kbIntelligence),
   ]);
 
   const summary = summaryRes.status === "fulfilled" ? summaryRes.value : null;
   const coaching = coachingRes.status === "fulfilled" ? coachingRes.value : null;
   const actions = actionsRes.status === "fulfilled" ? actionsRes.value : null;
   const extractions = extractionsRes.status === "fulfilled" ? extractionsRes.value : null;
+  const kbIntelligence = kbRes.status === "fulfilled" ? kbRes.value : null;
 
   // Collect errors for diagnostics — include null results (parse failures)
   const errors: string[] = [];
@@ -65,6 +75,8 @@ export async function runPostCallAgent(callId: string): Promise<{
   else if (!actions) errors.push("actions: returned null (parse failure)");
   if (extractionsRes.status === "rejected") errors.push(`extractions: ${String(extractionsRes.reason)}`);
   else if (!extractions) errors.push("extractions: returned null (parse failure)");
+  if (kbRes.status === "rejected") errors.push(`kb-intelligence: ${String(kbRes.reason)}`);
+  else if (!kbIntelligence) errors.push("kb-intelligence: returned null (parse failure)");
 
   if (errors.length > 0) {
     console.error(`[post-call-agent] ${callId} errors:`, errors.join("; "));
@@ -73,12 +85,30 @@ export async function runPostCallAgent(callId: string): Promise<{
   // 3. Write results to DB
   await writeResults(callId, context.contactId, { summary, coaching, actions, extractions }, supabase);
 
+  // 4. Update knowledge base with extracted intelligence
+  let kbDocsUpdated = 0;
+  if (kbIntelligence && kbIntelligence.items.length > 0) {
+    try {
+      const kbResult = await updateKnowledgeBase(
+        kbIntelligence.items,
+        callId,
+        context.callDate,
+        context.contactName,
+        context.callType,
+      );
+      kbDocsUpdated = kbResult.docsUpdated;
+    } catch (err) {
+      errors.push(`kb-update: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   return {
     success: errors.length === 0,
     summary: summary?.summary ?? null,
     coaching,
     actionsCount: actions?.actions?.length ?? 0,
     extractionsCount: extractions?.extractions?.filter((e) => e.extracted_value !== null).length ?? 0,
+    kbDocsUpdated,
     errors,
   };
 }
