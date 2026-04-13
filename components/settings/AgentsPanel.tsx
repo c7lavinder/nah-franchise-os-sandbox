@@ -14,6 +14,7 @@ interface AgentInfo {
 }
 
 const AGENT_DEFS = [
+  { name: "post-call", label: "Post-Call Agent", trigger: "Read.ai webhook (auto), Generate button (manual)" },
   { name: "contact-research", label: "Contact Research", trigger: "New contact, Research button, 30-day cron" },
   { name: "territory-market", label: "Territory Market", trigger: "Territory presented, Research button, 30-day cron" },
   { name: "pre-call-brief", label: "Pre-Call Brief", trigger: "Call scheduled, daily 7am cron" },
@@ -57,13 +58,15 @@ export default function AgentsPanel() {
     setTriggering(name);
     try {
       // Map agent name to trigger endpoint
-      const endpoints: Record<string, string> = {
-        "contact-research": "/api/cron/research-contacts",
-        "territory-market": "/api/cron/research-territories",
-        "pre-call-brief": "/api/cron/pre-call-briefs",
-        "reengagement-signal": "/api/cron/reengagement-scan",
+      const endpoints: Record<string, { url: string; method: string }> = {
+        "post-call": { url: "/api/agents/post-call/run", method: "POST" },
+        "contact-research": { url: "/api/cron/research-contacts", method: "GET" },
+        "territory-market": { url: "/api/cron/research-territories", method: "GET" },
+        "pre-call-brief": { url: "/api/cron/pre-call-briefs", method: "GET" },
+        "reengagement-signal": { url: "/api/cron/reengagement-scan", method: "GET" },
       };
-      await fetch(endpoints[name] ?? "", { method: "GET" });
+      const ep = endpoints[name];
+      if (ep) await fetch(ep.url, { method: ep.method });
     } catch { /* silent */ }
     setTriggering(null);
   }

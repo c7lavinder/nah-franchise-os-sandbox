@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 
 const AGENT_DEFS = [
+  { name: "post-call", label: "Post-Call Agent", trigger: "Read.ai webhook (auto), Generate button (manual)" },
   { name: "contact-research", label: "Contact Research", trigger: "New contact, Research button, 30-day cron" },
   { name: "territory-market", label: "Territory Market", trigger: "Territory presented, Research button, 30-day cron" },
   { name: "pre-call-brief", label: "Pre-Call Brief", trigger: "Call scheduled, daily 7am cron" },
