@@ -110,6 +110,16 @@ export async function GET(request: NextRequest) {
     if (u.email) teamEmailSet.add(u.email.toLowerCase());
   }
 
+  // Build email→name map from contacts table for external participant name resolution
+  const { data: allContacts } = await supabase.from("contacts").select("email, first_name, last_name").not("email", "is", null);
+  const contactEmailToName = new Map<string, string>();
+  for (const c of allContacts ?? []) {
+    if (c.email) {
+      const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
+      if (name) contactEmailToName.set(c.email.toLowerCase(), name);
+    }
+  }
+
   const enriched = calls.map((c) => {
     const session = c.read_ai_session_id ? sessionMap.get(c.read_ai_session_id) : null;
     const participantEmails = session?.participant_emails ?? [];
@@ -123,7 +133,7 @@ export async function GET(request: NextRequest) {
       if (teamEmailSet.has(lc)) {
         teamMembers.push({ name: user?.name ?? email.split("@")[0], color: user?.color ?? null });
       } else {
-        externalContacts.push(user?.name ?? email);
+        externalContacts.push(contactEmailToName.get(lc) ?? user?.name ?? email);
       }
     }
 
