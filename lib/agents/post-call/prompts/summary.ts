@@ -1,7 +1,7 @@
 import type { CallContext, SummaryResult } from "../types";
 import { callClaude } from "../call-claude";
 
-const SYSTEM = "You are Scout, an AI assistant for NAH Franchise OS. You write detailed call summaries for the sales team to read before their next interaction with a candidate.";
+const SYSTEM = "You are Scout, an AI assistant for NAH Franchise OS. You write detailed call summaries and concise bullet digests for the sales team to read before their next interaction with a candidate.";
 
 export function buildPrompt(ctx: CallContext): string {
   const durationMinutes = ctx.durationSeconds
@@ -23,7 +23,16 @@ WRITING STANDARDS — this summary will be read by franchise executives and sale
 - Dollar amounts should be formatted properly (e.g. "$150,000" not "150k").
 - Write as if preparing a briefing document, not a text message.
 
-Return only the summary text. No labels, no headers, no JSON, no markdown fences.
+Additionally, generate exactly 3 bullet points summarizing the most critical takeaways from this call.
+Each bullet must be under 12 words. Focus on: what happened, what was missing, what's needed next.
+
+Return your response in this exact format (no other text):
+<summary>
+[Your full paragraph summary here]
+</summary>
+<bullets>
+["bullet one under 12 words", "bullet two under 12 words", "bullet three under 12 words"]
+</bullets>
 
 Call Type: ${ctx.callType ?? "Unknown"}
 Contact: ${ctx.contactName ?? "Unknown"}
@@ -36,19 +45,40 @@ ${ctx.transcript}`;
 }
 
 export function parseResult(rawText: string): SummaryResult | null {
-  // New prompt returns plain text, not JSON
   const text = rawText.trim();
   if (!text) return null;
 
-  // Handle legacy JSON format gracefully
+  // Parse structured <summary> + <bullets> format
+  const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
+  const bulletsMatch = text.match(/<bullets>([\s\S]*?)<\/bullets>/);
+
+  const summary = summaryMatch ? summaryMatch[1].trim() : null;
+
+  let bullets: string[] = [];
+  if (bulletsMatch) {
+    try {
+      const parsed: unknown = JSON.parse(bulletsMatch[1].trim());
+      if (Array.isArray(parsed)) {
+        bullets = parsed.filter((b): b is string => typeof b === "string").slice(0, 3);
+      }
+    } catch { /* bullets parse failed, continue without them */ }
+  }
+
+  // If structured format worked, return it
+  if (summary) {
+    return { summary, bullets };
+  }
+
+  // Fallback: handle legacy JSON format
   if (text.startsWith("{")) {
     try {
       const data = JSON.parse(text) as { summary?: string };
-      if (data.summary) return { summary: data.summary };
+      if (data.summary) return { summary: data.summary, bullets: [] };
     } catch { /* not JSON, treat as plain text */ }
   }
 
-  return { summary: text };
+  // Fallback: treat entire response as plain text summary
+  return { summary: text, bullets: [] };
 }
 
 export async function runSummary(ctx: CallContext, model?: string): Promise<SummaryResult | null> {

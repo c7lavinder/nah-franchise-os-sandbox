@@ -1,6 +1,7 @@
 "use client";
 
-import { ExternalLink, Video, Loader2, AlertCircle } from "lucide-react";
+import { useState, useMemo } from "react";
+import { ExternalLink, Video, Loader2, AlertCircle, Copy, ChevronDown, ChevronUp } from "lucide-react";
 import CallGenerateButton from "./CallGenerateButton";
 
 interface DimensionScores {
@@ -33,6 +34,7 @@ const DIMENSIONS: { key: keyof DimensionScores; label: string; max: number }[] =
 interface CallOverviewTabProps {
   callId: string;
   aiSummary: string | null;
+  summaryBullets: string[] | null;
   aiSummaryGeneratedAt: string | null;
   coachingScore: number | null;
   coachingData: CoachingData | null;
@@ -79,6 +81,23 @@ function ScoreCircle({ score }: { score: number }) {
 export default function CallOverviewTab(props: CallOverviewTabProps) {
   const state = getState(props);
   const hasGenerated = !!props.aiSummaryGeneratedAt;
+  const [showFullSummary, setShowFullSummary] = useState(false);
+  const [showAllTranscript, setShowAllTranscript] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const parsedTranscript = useMemo(
+    () => parseTranscriptLines(props.rawTranscript ?? "", props.participantNames),
+    [props.rawTranscript, props.participantNames],
+  );
+
+  const visibleTranscript = showAllTranscript ? parsedTranscript : parsedTranscript.slice(0, 5);
+
+  const handleCopyTranscript = async () => {
+    const text = parsedTranscript.map((t) => `${t.speaker}: ${t.text}`).join("\n");
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div className="space-y-6">
@@ -109,24 +128,58 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
 
       {/* Section A — AI Summary */}
       <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-        <h3 className="text-overline text-text-tertiary tracking-wider mb-2">AI SUMMARY</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-overline text-text-tertiary tracking-wider">AI SUMMARY</h3>
+          {state === "complete" && (
+            <CallGenerateButton
+              callId={props.callId}
+              hasGenerated={true}
+              hasTranscript={props.hasTranscript}
+              isGenerating={props.isGenerating}
+              onGenerateStart={props.onGenerateStart}
+              onGenerateError={props.onGenerateError}
+            />
+          )}
+        </div>
         {state === "complete" && props.aiSummary ? (
           <>
-            <p className="text-body-sm text-text-primary whitespace-pre-wrap">{props.aiSummary}</p>
-            <div className="flex items-center justify-between mt-2">
+            {/* Bullet digest — default view when bullets exist */}
+            {props.summaryBullets && props.summaryBullets.length > 0 ? (
+              <>
+                <ul className="space-y-2 mb-3">
+                  {props.summaryBullets.map((bullet, i) => (
+                    <li key={i} className="flex items-start gap-2 text-body-sm text-text-primary">
+                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-nah-blue flex-shrink-0" />
+                      {bullet}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => setShowFullSummary((s) => !s)}
+                  className="flex items-center gap-1 text-[11px] text-nah-blue hover:text-nah-blue/80 font-medium transition-colors"
+                >
+                  {showFullSummary ? (
+                    <>Hide full summary <ChevronUp size={12} /></>
+                  ) : (
+                    <>Read full summary <ChevronDown size={12} /></>
+                  )}
+                </button>
+                {showFullSummary && (
+                  <p className="mt-3 text-body-sm text-text-secondary whitespace-pre-wrap border-t border-border-default pt-3">
+                    {props.aiSummary}
+                  </p>
+                )}
+              </>
+            ) : (
+              /* No bullets yet — show full paragraph (backward compat) */
+              <p className="text-body-sm text-text-primary whitespace-pre-wrap">{props.aiSummary}</p>
+            )}
+            <div className="flex items-center mt-2">
               {props.aiSummaryGeneratedAt && (
                 <p className="text-[10px] text-text-tertiary">
                   Scout &middot; {new Date(props.aiSummaryGeneratedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
                 </p>
               )}
-              <CallGenerateButton
-                callId={props.callId}
-                hasGenerated={true}
-                hasTranscript={props.hasTranscript}
-                isGenerating={props.isGenerating}
-                onGenerateStart={props.onGenerateStart}
-                onGenerateError={props.onGenerateError}
-              />
             </div>
           </>
         ) : state === "generating" ? (
@@ -202,7 +255,7 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
                     </div>
                   ))}
                   {(!props.coachingData.went_well || props.coachingData.went_well.length === 0) && (
-                    <p className="text-[12px] italic" style={{ color: "#3B6D11" }}>No specific strengths noted.</p>
+                    <span className="text-[12px]" style={{ color: "#3B6D11", opacity: 0.5 }}>&mdash;</span>
                   )}
                 </div>
 
@@ -218,7 +271,7 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
                     </div>
                   ))}
                   {(!props.coachingData.watch_out || props.coachingData.watch_out.length === 0) && (
-                    <p className="text-[12px] italic" style={{ color: "#854F0B" }}>No concerns flagged.</p>
+                    <span className="text-[12px]" style={{ color: "#854F0B", opacity: 0.5 }}>&mdash;</span>
                   )}
                 </div>
               </div>
@@ -261,23 +314,43 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
 
       {/* Section C — Transcript */}
       <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-overline text-text-tertiary tracking-wider">TRANSCRIPT</h3>
-          {props.source === "read_ai" && (
-            <span className="text-[10px] text-text-tertiary">From Read.ai</span>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-overline text-text-tertiary tracking-wider">TRANSCRIPT</h3>
+            {props.source === "read_ai" && (
+              <span className="text-[10px] text-text-tertiary">From Read.ai</span>
+            )}
+          </div>
+          {parsedTranscript.length > 0 && (
+            <button
+              onClick={handleCopyTranscript}
+              className="flex items-center gap-1 text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
+            >
+              <Copy size={12} />
+              {copied ? "Copied!" : "Copy"}
+            </button>
           )}
         </div>
-        {props.rawTranscript ? (
-          <div className="max-h-[400px] overflow-y-auto space-y-3">
-            {parseTranscriptLines(props.rawTranscript, props.participantNames).map((line, i) => (
-              <div key={i}>
-                <span className="text-[11px] font-semibold" style={{ color: getSpeakerColor(line.speaker) }}>
-                  {line.speaker}
-                </span>
-                <p className="text-body-sm text-text-primary mt-0.5">{line.text}</p>
-              </div>
-            ))}
-          </div>
+        {parsedTranscript.length > 0 ? (
+          <>
+            <div className="space-y-3">
+              {visibleTranscript.map((line, i) => (
+                <TranscriptCard key={i} line={line} isNahTeam={isNahTeamMember(line.speaker)} />
+              ))}
+            </div>
+            {parsedTranscript.length > 5 && (
+              <button
+                onClick={() => setShowAllTranscript((s) => !s)}
+                className="mt-3 flex items-center gap-1 text-[11px] text-nah-blue hover:text-nah-blue/80 font-medium transition-colors"
+              >
+                {showAllTranscript ? (
+                  <>Show less <ChevronUp size={12} /></>
+                ) : (
+                  <>Show all {parsedTranscript.length} turns <ChevronDown size={12} /></>
+                )}
+              </button>
+            )}
+          </>
         ) : (
           <p className="text-body-sm text-text-tertiary italic">No transcript available yet</p>
         )}
@@ -313,6 +386,44 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Transcript sub-components ────────────────────
+
+const NAH_TEAM_NAMES = ["chad arnold", "matt lavinder", "sam ", "mark ", "john ", "rylyn"];
+
+function isNahTeamMember(speaker: string): boolean {
+  const lower = speaker.toLowerCase();
+  return NAH_TEAM_NAMES.some((name) => lower.includes(name));
+}
+
+function speakerInitials(name: string): string {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+function TranscriptCard({ line, isNahTeam }: { line: TranscriptLine; isNahTeam: boolean }) {
+  const initials = speakerInitials(line.speaker) || "?";
+  return (
+    <div className="flex gap-3">
+      <div
+        className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold text-white ${
+          isNahTeam ? "bg-[#534AB7]" : "bg-[#9CA3AF]"
+        }`}
+      >
+        {initials}
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className="text-[11px] font-semibold" style={{ color: getSpeakerColor(line.speaker) }}>
+          {line.speaker}
+        </span>
+        <p className="text-body-sm text-text-primary mt-0.5">{line.text}</p>
+      </div>
     </div>
   );
 }

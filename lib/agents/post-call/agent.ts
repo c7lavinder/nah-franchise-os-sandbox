@@ -170,6 +170,7 @@ async function writeResults(
   const callUpdate: Record<string, unknown> = {};
   if (results.summary) {
     callUpdate.ai_summary = results.summary.summary;
+    callUpdate.summary_bullets = results.summary.bullets.length > 0 ? results.summary.bullets : null;
     callUpdate.ai_summary_generated_at = now;
   }
   if (results.coaching) {

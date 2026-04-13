@@ -49,6 +49,7 @@ interface Extraction {
 interface CallDetailTabsProps {
   callId: string;
   aiSummary: string | null;
+  summaryBullets: string[] | null;
   aiSummaryGeneratedAt: string | null;
   coachingScore: number | null;
   coachingData: CoachingData | null;
@@ -89,7 +90,7 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
   return (
     <div>
       {/* Tab bar — sticky so it stays visible when scrolling */}
-      <div className="sticky top-0 z-10 bg-bg-primary flex border-b border-border-default mb-6 -mx-4 md:-mx-8 px-4 md:px-8">
+      <div className="bg-bg-primary flex border-b border-border-default mb-6 -mx-4 md:-mx-8 px-4 md:px-8">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -124,6 +125,7 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
         <CallOverviewTab
           callId={props.callId}
           aiSummary={props.aiSummary}
+          summaryBullets={props.summaryBullets}
           aiSummaryGeneratedAt={props.aiSummaryGeneratedAt}
           coachingScore={props.coachingScore}
           coachingData={props.coachingData}

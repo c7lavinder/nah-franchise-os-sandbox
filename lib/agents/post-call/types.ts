@@ -15,6 +15,7 @@ export interface CallContext {
 
 export interface SummaryResult {
   summary: string;
+  bullets: string[];
 }
 
 export interface CoachingResult {

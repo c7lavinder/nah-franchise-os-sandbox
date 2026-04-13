@@ -48,6 +48,7 @@ interface CallDetail {
   participant_count: number | null;
   raw_transcript: string | null;
   ai_summary: string | null;
+  summary_bullets: string[] | null;
   ai_summary_generated_at: string | null;
   coaching_score: number | null;
   coaching_data: CoachingData | null;
@@ -319,6 +320,7 @@ export default function CallDetailPage() {
       <CallDetailTabs
         callId={callId}
         aiSummary={call.ai_summary}
+        summaryBullets={call.summary_bullets}
         aiSummaryGeneratedAt={call.ai_summary_generated_at}
         coachingScore={call.coaching_score}
         coachingData={call.coaching_data}
