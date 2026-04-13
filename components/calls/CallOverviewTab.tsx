@@ -259,10 +259,14 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
           <p className="text-body-sm text-text-tertiary italic">
             Waiting for transcript from Read.ai.
           </p>
+        ) : props.aiSummaryGeneratedAt ? (
+          <p className="text-body-sm text-text-tertiary">
+            Coaching data was not generated for this call.
+          </p>
         ) : (
           <div className="flex items-center gap-2 text-body-sm text-text-tertiary">
             <Loader2 size={14} className="animate-spin" />
-            Coaching will appear after analysis completes...
+            Preparing analysis...
           </div>
         )}
       </div>
