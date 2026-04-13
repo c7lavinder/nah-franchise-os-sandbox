@@ -27,19 +27,29 @@ function getState(props: CallNextStepsTabProps): GenState {
   return "ready";
 }
 
-function groupBy<T>(items: T[], keyFn: (item: T) => string): Record<string, T[]> {
-  const groups: Record<string, T[]> = {};
-  for (const item of items) {
-    const key = keyFn(item);
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(item);
+/** Resolve display type — splits "comms" into "email" or "sms" based on metadata */
+function getDisplayType(item: ActionItemData): string {
+  if (item.category === "comms") {
+    const channel = (item.metadata?.comms_channel as string) ?? "sms";
+    return channel === "email" ? "email" : "sms";
   }
-  return groups;
+  return item.category;
 }
+
+/** Type group definitions — order, label, and background color */
+const TYPE_GROUPS: { key: string; label: string; bg: string; border: string }[] = [
+  { key: "email", label: "Email", bg: "bg-[#EFF6FF]", border: "border-[#BFDBFE]" },
+  { key: "sms", label: "SMS", bg: "bg-[#F0FDF4]", border: "border-[#BBF7D0]" },
+  { key: "apt", label: "Appointments", bg: "bg-[#F5F3FF]", border: "border-[#DDD6FE]" },
+  { key: "task", label: "Tasks", bg: "bg-[#FFF7ED]", border: "border-[#FED7AA]" },
+  { key: "note", label: "Notes", bg: "bg-[#ECFEFF]", border: "border-[#A5F3FC]" },
+  { key: "pipeline", label: "Pipeline", bg: "bg-[#EFF6FF]", border: "border-[#BFDBFE]" },
+  { key: "data", label: "Data", bg: "bg-[#FFFBEB]", border: "border-[#FDE68A]" },
+  { key: "workflow", label: "Workflow", bg: "bg-[#F0F9FF]", border: "border-[#BAE6FD]" },
+];
 
 export default function CallNextStepsTab(props: CallNextStepsTabProps) {
   const state = getState(props);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [aiInput, setAiInput] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -47,8 +57,14 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
   const pendingItems = props.actionItems.filter((a) => a.status === "pending");
   const completedItems = props.actionItems.filter((a) => a.status !== "pending");
 
-  // Group pending items by contact name
-  const grouped = groupBy(pendingItems, (a) => a.contact_name ?? "General");
+  // Group pending items by display type
+  const typeGroups = new Map<string, ActionItemData[]>();
+  for (const item of pendingItems) {
+    const displayType = getDisplayType(item);
+    const group = typeGroups.get(displayType) ?? [];
+    group.push(item);
+    typeGroups.set(displayType, group);
+  }
 
   async function handleAddAction() {
     if (!aiInput.trim() || isAdding) return;
@@ -60,10 +76,7 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
         body: JSON.stringify({ instruction: aiInput }),
       });
       if (res.ok) {
-        const data = await res.json();
         setAiInput("");
-        // Expand the new item
-        if (data.actionId) setExpandedId(data.actionId);
         props.onRefresh();
       }
     } catch { /* silent */ }
@@ -81,7 +94,9 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
   if (state === "ready") {
     return (
       <div className="text-center py-12">
-        <p className="text-body-sm text-text-tertiary">Generate on the Overview tab to unlock next steps.</p>
+        <div className="flex items-center gap-2 text-body-sm text-text-tertiary justify-center">
+          <Loader2 size={14} className="animate-spin" /> Preparing analysis...
+        </div>
       </div>
     );
   }
@@ -93,7 +108,6 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
       </div>
     );
   }
-
 
   return (
     <div className="space-y-4">
@@ -120,26 +134,32 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
         </button>
       </div>
 
-      {/* Grouped pending actions */}
-      {Object.entries(grouped).map(([contactName, actions]) => (
-        <div key={contactName}>
-          <div className="text-[10px] font-medium uppercase tracking-wider text-text-tertiary mb-2 mt-2">
-            {contactName}
+      {/* Grouped action panels by type */}
+      {TYPE_GROUPS.filter((g) => typeGroups.has(g.key)).map((group) => {
+        const items = typeGroups.get(group.key) ?? [];
+        return (
+          <div key={group.key} className={`rounded-lg border ${group.border} ${group.bg} overflow-hidden`}>
+            <div className="px-4 py-2 flex items-center justify-between">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
+                {group.label}
+              </h3>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/60 text-text-tertiary font-medium">
+                {items.length}
+              </span>
+            </div>
+            <div className="space-y-2 px-3 pb-3">
+              {items.map((item) => (
+                <CallActionItem
+                  key={item.id}
+                  item={item}
+                  teamMembers={props.teamMembers}
+                  onAction={props.onRefresh}
+                />
+              ))}
+            </div>
           </div>
-          <div className="space-y-3">
-            {actions.map((item) => (
-              <CallActionItem
-                key={item.id}
-                item={item}
-                teamMembers={props.teamMembers}
-                expandedId={expandedId}
-                onExpand={setExpandedId}
-                onAction={props.onRefresh}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
+        );
+      })}
 
       {pendingItems.length === 0 && completedItems.length === 0 && (
         <div className="text-center py-8">
@@ -158,7 +178,7 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
           {completedOpen && (
             <div className="space-y-1 mt-2">
               {completedItems.map((item) => (
-                <CallActionItem key={item.id} item={item} teamMembers={props.teamMembers} expandedId={null} onExpand={() => {}} onAction={props.onRefresh} />
+                <CallActionItem key={item.id} item={item} teamMembers={props.teamMembers} onAction={props.onRefresh} />
               ))}
             </div>
           )}
