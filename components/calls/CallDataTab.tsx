@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Loader2, AlertCircle } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import CallDataField from "./CallDataField";
 
 interface Extraction {
@@ -23,16 +23,14 @@ interface CallDataTabProps {
   hasTranscript: boolean;
   hasGenerated: boolean;
   isGenerating: boolean;
-  generationError: string | null;
   onRefresh: () => void;
 }
 
-type GenState = "no_transcript" | "ready" | "generating" | "complete" | "error";
+type GenState = "no_transcript" | "ready" | "generating" | "complete";
 
 function getState(props: CallDataTabProps): GenState {
   if (!props.hasTranscript) return "no_transcript";
   if (props.isGenerating) return "generating";
-  if (props.generationError) return "error";
   if (props.dataExtractions.length > 0 || props.hasGenerated) return "complete";
   return "ready";
 }
@@ -88,16 +86,6 @@ export default function CallDataTab(props: CallDataTabProps) {
     );
   }
 
-  if (state === "error") {
-    return (
-      <div className="text-center py-12">
-        <AlertCircle size={20} className="text-danger mx-auto mb-2" />
-        <p className="text-body-sm text-danger">
-          Extraction failed. Go to Overview tab to retry.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

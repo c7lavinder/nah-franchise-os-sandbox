@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, AlertCircle, ChevronDown, ChevronRight, Plus, Sparkles } from "lucide-react";
+import { Loader2, ChevronDown, ChevronRight, Plus, Sparkles } from "lucide-react";
 import CallActionItem from "./CallActionItem";
 import type { ActionItemData } from "./CallActionItem";
 
@@ -13,18 +13,16 @@ interface CallNextStepsTabProps {
   hasTranscript: boolean;
   hasGenerated: boolean;
   isGenerating: boolean;
-  generationError: string | null;
   teamMembers: TeamMember[];
   contactName: string | null;
   onRefresh: () => void;
 }
 
-type GenState = "no_transcript" | "ready" | "generating" | "complete" | "error";
+type GenState = "no_transcript" | "ready" | "generating" | "complete";
 
 function getState(props: CallNextStepsTabProps): GenState {
   if (!props.hasTranscript) return "no_transcript";
   if (props.isGenerating) return "generating";
-  if (props.generationError) return "error";
   if (props.actionItems.length > 0 || props.hasGenerated) return "complete";
   return "ready";
 }
@@ -95,14 +93,7 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
       </div>
     );
   }
-  if (state === "error") {
-    return (
-      <div className="text-center py-12">
-        <AlertCircle size={20} className="text-danger mx-auto mb-2" />
-        <p className="text-body-sm text-danger">Generation failed. Go to Overview tab to retry.</p>
-      </div>
-    );
-  }
+
 
   return (
     <div className="space-y-4">

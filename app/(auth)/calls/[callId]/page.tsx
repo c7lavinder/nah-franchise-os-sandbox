@@ -100,7 +100,6 @@ export default function CallDetailPage() {
   const [profileFieldCount, setProfileFieldCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationError, setGenerationError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchDetail = useCallback(async () => {
@@ -120,12 +119,50 @@ export default function CallDetailPage() {
     return null;
   }, [callId]);
 
+  /** Start polling after generation is triggered (auto on page load) */
+  const handleGenerateStart = useCallback(() => {
+    setIsGenerating(true);
+
+    let attempts = 0;
+    pollRef.current = setInterval(async () => {
+      attempts++;
+      const data = await fetchDetail();
+      if (data?.call?.ai_summary_generated_at) {
+        setIsGenerating(false);
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+      } else if (attempts >= 10) {
+        setIsGenerating(false);
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    }, 3000);
+  }, [fetchDetail]);
+
+  // Track whether we've already auto-triggered generation this mount
+  const autoTriggeredRef = useRef(false);
+
   useEffect(() => {
     void (async () => {
-      await fetchDetail();
+      const data = await fetchDetail();
       setLoading(false);
+
+      // Auto-trigger generation if transcript exists but hasn't been analyzed yet
+      if (
+        data?.transcript &&
+        !data.call?.ai_summary_generated_at &&
+        !autoTriggeredRef.current
+      ) {
+        autoTriggeredRef.current = true;
+        try {
+          const res = await fetch(`/api/calls/${callId}/generate`, { method: "POST" });
+          if (res.ok) {
+            handleGenerateStart();
+          }
+        } catch { /* silent — user can refresh */ }
+      }
     })();
-  }, [fetchDetail]);
+  }, [fetchDetail, callId, handleGenerateStart]);
 
   // Clean up polling on unmount
   useEffect(() => {
@@ -134,34 +171,6 @@ export default function CallDetailPage() {
     };
   }, []);
 
-  /** Called by CallGenerateButton after POST /generate succeeds */
-  const handleGenerateStart = useCallback(() => {
-    setIsGenerating(true);
-    setGenerationError(null);
-
-    let attempts = 0;
-    pollRef.current = setInterval(async () => {
-      attempts++;
-      const data = await fetchDetail();
-      if (data?.call?.ai_summary_generated_at) {
-        // Generation complete — data is now loaded via fetchDetail
-        setIsGenerating(false);
-        if (pollRef.current) clearInterval(pollRef.current);
-        pollRef.current = null;
-      } else if (attempts >= 10) {
-        setIsGenerating(false);
-        setGenerationError("Generation is taking longer than expected. Try refreshing.");
-        if (pollRef.current) clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    }, 3000);
-  }, [fetchDetail]);
-
-  /** Called by CallGenerateButton if POST /generate returns an error */
-  const handleGenerateError = useCallback((errorMsg: string) => {
-    setIsGenerating(false);
-    setGenerationError(errorMsg);
-  }, []);
 
   if (loading) {
     return (
@@ -336,12 +345,9 @@ export default function CallDetailPage() {
         dataExtractions={dataExtractions}
         profileFieldCount={profileFieldCount}
         isGenerating={isGenerating}
-        generationError={generationError}
         teamMembers={(call.teamMembers ?? []).map((m) => ({ id: m.id, name: m.name }))}
         contactName={call.contactName}
         participantNames={buildSpeakerNames(call)}
-        onGenerateStart={handleGenerateStart}
-        onGenerateError={handleGenerateError}
         onRefresh={() => void fetchDetail()}
       />
     </div>

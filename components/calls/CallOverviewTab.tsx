@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ExternalLink, Video, Loader2, AlertCircle, Copy, ChevronDown, ChevronUp } from "lucide-react";
-import CallGenerateButton from "./CallGenerateButton";
+import { ExternalLink, Video, Loader2, Copy, ChevronDown, ChevronUp } from "lucide-react";
 
 interface DimensionScores {
   discovery: number;
@@ -47,19 +46,15 @@ interface CallOverviewTabProps {
   startedAt: string | null;
   source: string | null;
   isGenerating: boolean;
-  generationError: string | null;
   participantNames: string[];
-  onGenerateStart: () => void;
-  onGenerateError: (msg: string) => void;
   onRefresh: () => void;
 }
 
-type GenState = "no_transcript" | "ready" | "generating" | "complete" | "error";
+type GenState = "no_transcript" | "ready" | "generating" | "complete";
 
 function getState(props: CallOverviewTabProps): GenState {
   if (!props.hasTranscript) return "no_transcript";
   if (props.isGenerating) return "generating";
-  if (props.generationError) return "error";
   if (props.aiSummary) return "complete";
   return "ready";
 }
@@ -80,22 +75,9 @@ function ScoreCircle({ score }: { score: number }) {
 
 export default function CallOverviewTab(props: CallOverviewTabProps) {
   const state = getState(props);
-  const hasGenerated = !!props.aiSummaryGeneratedAt;
   const [showFullSummary, setShowFullSummary] = useState(false);
   const [showAllTranscript, setShowAllTranscript] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [isCoachingGenerating, setIsCoachingGenerating] = useState(false);
-
-  const handleGenerateCoaching = async () => {
-    setIsCoachingGenerating(true);
-    try {
-      const res = await fetch(`/api/calls/${props.callId}/coach`, { method: "POST" });
-      if (res.ok) {
-        props.onRefresh();
-      }
-    } catch { /* silent — refresh will show current state */ }
-    finally { setIsCoachingGenerating(false); }
-  };
 
   const parsedTranscript = useMemo(
     () => parseTranscriptLines(props.rawTranscript ?? "", props.participantNames),
@@ -113,46 +95,9 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Generate / Regenerate button — shown when transcript exists and not yet complete, or as compact regenerate */}
-      {props.hasTranscript && (state === "ready" || state === "error") && (
-        <div className="flex items-center justify-between">
-          {state === "ready" && (
-            <p className="text-body-sm text-text-secondary">
-              Transcript received — click to analyze this call.
-            </p>
-          )}
-          {state === "error" && (
-            <div className="flex items-center gap-1.5 text-body-sm text-danger">
-              <AlertCircle size={14} />
-              {props.generationError}
-            </div>
-          )}
-          <CallGenerateButton
-            callId={props.callId}
-            hasGenerated={hasGenerated}
-            hasTranscript={props.hasTranscript}
-            isGenerating={props.isGenerating}
-            onGenerateStart={props.onGenerateStart}
-            onGenerateError={props.onGenerateError}
-          />
-        </div>
-      )}
-
       {/* Section A — AI Summary */}
       <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-overline text-text-tertiary tracking-wider">AI SUMMARY</h3>
-          {state === "complete" && (
-            <CallGenerateButton
-              callId={props.callId}
-              hasGenerated={true}
-              hasTranscript={props.hasTranscript}
-              isGenerating={props.isGenerating}
-              onGenerateStart={props.onGenerateStart}
-              onGenerateError={props.onGenerateError}
-            />
-          )}
-        </div>
+        <h3 className="text-overline text-text-tertiary tracking-wider mb-2">AI SUMMARY</h3>
         {state === "complete" && props.aiSummary ? (
           <>
             {/* Bullet digest — default view when bullets exist */}
@@ -199,15 +144,14 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
             <Loader2 size={14} className="animate-spin" />
             Scout is analyzing this call...
           </div>
-        ) : state === "error" ? (
-          <p className="text-body-sm text-danger italic">Generation failed. Click Retry above.</p>
         ) : state === "ready" ? (
-          <p className="text-body-sm text-text-tertiary italic">
-            Click &quot;Generate with Scout&quot; above to analyze this call.
-          </p>
+          <div className="flex items-center gap-2 text-body-sm text-text-tertiary">
+            <Loader2 size={14} className="animate-spin" />
+            Preparing analysis...
+          </div>
         ) : (
           <p className="text-body-sm text-text-tertiary italic">
-            No transcript available. Transcript is pulled automatically from Read.ai after each call.
+            Waiting for transcript from Read.ai.
           </p>
         )}
       </div>
@@ -316,21 +260,9 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
             Waiting for transcript from Read.ai.
           </p>
         ) : (
-          <div className="flex items-center justify-between">
-            <p className="text-body-sm text-text-tertiary">
-              Coaching not yet generated.
-            </p>
-            <button
-              onClick={() => void handleGenerateCoaching()}
-              disabled={isCoachingGenerating}
-              className="flex items-center gap-1.5 text-body-sm font-medium text-nah-blue hover:text-nah-blue/80 border border-nah-blue/20 hover:border-nah-blue/40 rounded-md px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isCoachingGenerating ? (
-                <><Loader2 size={14} className="animate-spin" /> Generating...</>
-              ) : (
-                "Generate Coaching"
-              )}
-            </button>
+          <div className="flex items-center gap-2 text-body-sm text-text-tertiary">
+            <Loader2 size={14} className="animate-spin" />
+            Coaching will appear after analysis completes...
           </div>
         )}
       </div>
