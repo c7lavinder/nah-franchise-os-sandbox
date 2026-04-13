@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, RefreshCw } from "lucide-react";
+import { Search, RefreshCw, Plus } from "lucide-react";
 
 interface PipelineFiltersProps {
   onSearchChange: (query: string) => void;
   onStatusChange?: (status: string) => void;
   onRefresh: () => void;
+  onAddProspect?: () => void;
   loading: boolean;
   currentStatus?: string;
 }
@@ -14,6 +15,7 @@ interface PipelineFiltersProps {
 export default function PipelineFilters({
   onSearchChange,
   onRefresh,
+  onAddProspect,
   loading,
 }: PipelineFiltersProps) {
   const [searchInput, setSearchInput] = useState("");
@@ -49,6 +51,17 @@ export default function PipelineFilters({
       >
         <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
       </button>
+
+      {/* Add Prospect */}
+      {onAddProspect && (
+        <button
+          onClick={onAddProspect}
+          className="ml-auto flex items-center gap-1.5 px-3 py-2 bg-nah-orange text-white text-body-sm font-medium rounded-md hover:bg-nah-orange/90 transition-colors"
+        >
+          <Plus size={14} />
+          Add Prospect
+        </button>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { OwnershipPath, PipelineFilters } from "@/components/pipeline";
 import PipelineLeadList from "@/components/pipeline/PipelineLeadList";
 import TerritoryCardList from "@/components/pipeline/TerritoryCardList";
 import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
+import AddProspectModal from "@/components/pipeline/AddProspectModal";
 
 /**
  * Pipeline Page — Sprint 3 Rewire
@@ -21,6 +22,7 @@ export default function PipelinePage() {
   const [showTerritories, setShowTerritories] = useState(false);
   const [selectedTerritoryStatus, setSelectedTerritoryStatus] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showAddProspect, setShowAddProspect] = useState(false);
 
   // Pipelines where clicking a stage should show territories, not prospects
   const TERRITORY_PIPELINES = new Set(["onboarding", "runway", "territories"]);
@@ -63,6 +65,7 @@ export default function PipelinePage() {
       <PipelineFilters
         onSearchChange={setSearchQuery}
         onRefresh={handleRefresh}
+        onAddProspect={() => setShowAddProspect(true)}
         loading={false}
       />
 
@@ -84,6 +87,13 @@ export default function PipelinePage() {
       <div className="mt-8">
         <TerritoryCardList statusFilter={selectedTerritoryStatus} pipelineStageId={showTerritories && !selectedTerritoryStatus ? selectedStage : null} searchQuery={searchQuery} />
       </div>
+
+      {/* Add Prospect Modal */}
+      <AddProspectModal
+        open={showAddProspect}
+        onClose={() => setShowAddProspect(false)}
+        onCreated={handleRefresh}
+      />
     </div>
   );
 }
