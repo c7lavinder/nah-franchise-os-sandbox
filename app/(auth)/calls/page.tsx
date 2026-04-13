@@ -94,26 +94,33 @@ function categorizeCall(c: Call): string {
   return "other";
 }
 
-function getRolling7Days(): Date {
-  const d = new Date();
-  d.setDate(d.getDate() - 7);
-  d.setHours(0, 0, 0, 0);
-  return d;
+function getWeekBounds(): { start: Date; end: Date } {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun, 1=Mon, ...
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return { start: monday, end: sunday };
 }
 
-function getRolling30Days(): Date {
-  const d = new Date();
-  d.setDate(d.getDate() - 30);
-  d.setHours(0, 0, 0, 0);
-  return d;
+function getMonthBounds(): { start: Date; end: Date } {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  return { start, end };
 }
 
 function filterByTime(calls: Call[], filter: TimeFilter): Call[] {
   if (filter === "all") return calls;
-  const cutoff = filter === "week" ? getRolling7Days() : getRolling30Days();
+  const bounds = filter === "week" ? getWeekBounds() : getMonthBounds();
   return calls.filter((c) => {
     if (!c.date) return false;
-    return new Date(c.date) >= cutoff;
+    const d = new Date(c.date);
+    return d >= bounds.start && d <= bounds.end;
   });
 }
 
