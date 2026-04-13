@@ -46,6 +46,7 @@ interface CallOverviewTabProps {
   source: string | null;
   isGenerating: boolean;
   generationError: string | null;
+  participantNames: string[];
   onGenerateStart: () => void;
   onGenerateError: (msg: string) => void;
   onRefresh: () => void;
@@ -268,7 +269,7 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
         </div>
         {props.rawTranscript ? (
           <div className="max-h-[400px] overflow-y-auto space-y-3">
-            {parseTranscriptLines(props.rawTranscript).map((line, i) => (
+            {parseTranscriptLines(props.rawTranscript, props.participantNames).map((line, i) => (
               <div key={i}>
                 <span className="text-[11px] font-semibold" style={{ color: getSpeakerColor(line.speaker) }}>
                   {line.speaker}
@@ -321,11 +322,21 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
 interface TranscriptLine { speaker: string; text: string }
 
 /** Parse raw transcript text into speaker + text lines, cleaning up Read.ai speaker labels.
- *  Merges consecutive turns from the same speaker into one block. */
-function parseTranscriptLines(raw: string): TranscriptLine[] {
+ *  Merges consecutive turns from the same speaker into one block.
+ *  Uses participantNames to remap "Speaker N" labels to real names. */
+function parseTranscriptLines(raw: string, participantNames: string[] = []): TranscriptLine[] {
   const parsed: TranscriptLine[] = [];
 
-  // Split on every newline (not just double), handle empties in the loop
+  // First pass: collect unique raw bracket labels to build a speaker map
+  const rawLabels: string[] = [];
+  for (const line of raw.split("\n")) {
+    const m = line.match(/^\[([^\]]+)\]/);
+    if (m && !rawLabels.includes(m[1])) rawLabels.push(m[1]);
+  }
+
+  // Build label → display name mapping
+  const labelMap = buildDisplaySpeakerMap(rawLabels, participantNames);
+
   const segments = raw.split("\n");
 
   for (const segment of segments) {
@@ -337,11 +348,11 @@ function parseTranscriptLines(raw: string): TranscriptLine[] {
     // Old format: [Speaker Label]: text
     const bracketMatch = segment.match(/^\[([^\]]+)\]:\s*([\s\S]*)/);
     if (bracketMatch) {
-      speaker = cleanSpeakerLabel(bracketMatch[1]);
+      speaker = labelMap.get(bracketMatch[1]) ?? cleanSpeakerLabel(bracketMatch[1]);
       text = bracketMatch[2].trim();
     }
 
-    // New format: Name: text (name is 1-4 capitalized words before colon)
+    // New format: Name: text
     if (!speaker) {
       const colonMatch = segment.match(/^([A-Z][a-zA-Z' ]{1,40}):\s*([\s\S]*)/);
       if (colonMatch) {
@@ -355,7 +366,6 @@ function parseTranscriptLines(raw: string): TranscriptLine[] {
       if (parsed.length > 0) {
         parsed[parsed.length - 1].text += " " + segment.trim();
       }
-      // Drop orphan lines with no previous speaker (don't create "Unknown")
       continue;
     }
 
@@ -368,6 +378,35 @@ function parseTranscriptLines(raw: string): TranscriptLine[] {
   }
 
   return parsed;
+}
+
+/** Map raw bracket labels to display names using Speaker N + participant list */
+function buildDisplaySpeakerMap(rawLabels: string[], participantNames: string[]): Map<string, string> {
+  const map = new Map<string, string>();
+
+  // Extract Speaker N numbers
+  const withNums: { label: string; num: number }[] = [];
+  for (const label of rawLabels) {
+    const m = label.match(/Speaker\s*(\d+)/i);
+    if (m) withNums.push({ label, num: parseInt(m[1], 10) });
+  }
+
+  // If we have Speaker N labels + participant names, map by number
+  if (withNums.length > 0 && participantNames.length > 0) {
+    withNums.sort((a, b) => a.num - b.num);
+    for (let i = 0; i < withNums.length; i++) {
+      map.set(withNums[i].label, participantNames[i] ?? `Speaker ${withNums[i].num}`);
+    }
+  }
+
+  // Handle labels without Speaker N
+  for (const label of rawLabels) {
+    if (map.has(label)) continue;
+    if (label === "UNKNOWN_SPEAKER") { map.set(label, "Unknown"); continue; }
+    map.set(label, cleanSpeakerLabel(label));
+  }
+
+  return map;
 }
 
 /** Clean up Read.ai speaker labels: "Conference Room (Chad Arnold) - Speaker 1" → "Chad Arnold" */

@@ -333,6 +333,11 @@ export default function CallDetailPage() {
         generationError={generationError}
         teamMembers={(call.teamMembers ?? []).map((m) => ({ id: m.id, name: m.name }))}
         contactName={call.contactName}
+        participantNames={[
+          ...(call.teamMembers ?? []).map((m) => m.name),
+          ...(call.linkedContacts ?? []).map((c) => c.name),
+          ...(call.unknownParticipants ?? []).map((p) => p.name),
+        ]}
         onGenerateStart={handleGenerateStart}
         onGenerateError={handleGenerateError}
         onRefresh={() => void fetchDetail()}

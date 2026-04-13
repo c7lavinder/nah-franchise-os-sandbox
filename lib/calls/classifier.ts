@@ -337,36 +337,91 @@ export async function classifyCall(
 }
 
 /**
- * Clean up Read.ai speaker names.
- * Input:  "Conference Room (Chad Arnold) - Speaker 1"
- * Output: "Chad Arnold"
+ * Format Read.ai transcript turns into clean speaker-labeled text.
+ *
+ * Handles the Read.ai bug where all speakers are labeled with the
+ * room owner's name (e.g. "Conference Room (Chad Arnold) - Speaker 1").
+ * Uses participant names from the payload to map Speaker N → real name.
  */
-function cleanSpeakerName(raw: string | undefined): string {
-  if (!raw) return "Unknown";
-
-  // Pattern: "Conference Room (Name) - Speaker N" or "Name's MacBook - Speaker N"
-  const parenMatch = raw.match(/\(([^)]+)\)/);
-  if (parenMatch) return parenMatch[1].trim();
-
-  // Pattern: "Name - Speaker N"
-  const dashMatch = raw.match(/^(.+?)\s*-\s*Speaker\s*\d+/i);
-  if (dashMatch) return dashMatch[1].trim();
-
-  // Pattern: "Name's MacBook" or "Name's iPhone"
-  const deviceMatch = raw.match(/^(.+?)['']s\s+(MacBook|iPhone|iPad|Laptop|PC|Computer)/i);
-  if (deviceMatch) return deviceMatch[1].trim();
-
-  return raw;
-}
-
-/** Format Read.ai transcript turns into speaker-labeled text */
 export function formatTranscript(
-  transcript: ReadAIWebhookPayload["transcript"]
+  transcript: ReadAIWebhookPayload["transcript"],
+  participants?: ReadAIParticipant[],
 ): string {
-  // Read.ai sends speaker_blocks; our test payloads used turns
   const blocks = transcript?.speaker_blocks ?? transcript?.turns;
   if (!blocks?.length) return "";
+
+  // Build a mapping from raw speaker labels → clean display names
+  const speakerMap = buildSpeakerMap(blocks, participants);
+
   return blocks
-    .map((t) => `${cleanSpeakerName(t.speaker?.name)}: ${t.words ?? t.text ?? ""}`)
+    .map((t) => {
+      const rawName = t.speaker?.name ?? "Unknown";
+      const displayName = speakerMap.get(rawName) ?? rawName;
+      return `${displayName}: ${t.words ?? t.text ?? ""}`;
+    })
     .join("\n\n");
+}
+
+/**
+ * Build speaker label → display name map.
+ *
+ * Read.ai labels like "Conference Room (Chad Arnold) - Speaker 1" and
+ * "Conference Room (Chad Arnold) - Speaker 2" both contain the same
+ * parenthesized name. We use the Speaker N suffix to differentiate,
+ * then assign participant names by order.
+ */
+function buildSpeakerMap(
+  blocks: ReadAITranscriptTurn[],
+  participants?: ReadAIParticipant[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+
+  // Collect unique raw labels in order of first appearance
+  const rawLabels: string[] = [];
+  for (const b of blocks) {
+    const name = b.speaker?.name;
+    if (name && !rawLabels.includes(name)) rawLabels.push(name);
+  }
+
+  // Extract Speaker N numbers from labels
+  const speakerNums = new Map<string, number>();
+  for (const label of rawLabels) {
+    const m = label.match(/Speaker\s*(\d+)/i);
+    if (m) speakerNums.set(label, parseInt(m[1], 10));
+  }
+
+  // Get participant display names (cleaned)
+  const participantNames = (participants ?? [])
+    .map((p) => p.name?.trim())
+    .filter(Boolean) as string[];
+
+  // If we have Speaker N labels + participant names, map by number
+  if (speakerNums.size > 0 && participantNames.length > 0) {
+    // Sort labels by Speaker N
+    const sorted = [...speakerNums.entries()].sort((a, b) => a[1] - b[1]);
+    for (let i = 0; i < sorted.length; i++) {
+      const [label] = sorted[i];
+      // Map Speaker 1 → first participant, Speaker 2 → second, etc.
+      map.set(label, participantNames[i] ?? `Speaker ${sorted[i][1]}`);
+    }
+  }
+
+  // For labels without Speaker N (e.g. "Ed H", "UNKNOWN_SPEAKER"), clean them
+  for (const label of rawLabels) {
+    if (map.has(label)) continue;
+    if (label === "UNKNOWN_SPEAKER") {
+      map.set(label, "Unknown");
+      continue;
+    }
+    // Try parenthesized name extraction
+    const parenMatch = label.match(/\(([^)]+)\)/);
+    if (parenMatch) { map.set(label, parenMatch[1].trim()); continue; }
+    // Try device name cleanup
+    const deviceMatch = label.match(/^(.+?)['']s\s+(MacBook|iPhone|iPad|Laptop|PC|Computer)/i);
+    if (deviceMatch) { map.set(label, deviceMatch[1].trim()); continue; }
+    // Use as-is
+    map.set(label, label);
+  }
+
+  return map;
 }

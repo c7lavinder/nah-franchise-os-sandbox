@@ -63,6 +63,7 @@ interface CallDetailTabsProps {
   generationError: string | null;
   teamMembers: { id: string; name: string }[];
   contactName: string | null;
+  participantNames: string[];
   onGenerateStart: () => void;
   onGenerateError: (msg: string) => void;
   onRefresh: () => void;
@@ -132,6 +133,7 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
           source={props.source}
           isGenerating={props.isGenerating}
           generationError={props.generationError}
+          participantNames={props.participantNames}
           onGenerateStart={props.onGenerateStart}
           onGenerateError={props.onGenerateError}
           onRefresh={props.onRefresh}

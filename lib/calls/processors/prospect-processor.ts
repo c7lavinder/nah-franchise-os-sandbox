@@ -99,7 +99,7 @@ export async function processProspectCall(
       duration_seconds: payload.start_time && payload.end_time
         ? Math.round((new Date(payload.end_time).getTime() - new Date(payload.start_time).getTime()) / 1000)
         : null,
-      raw_transcript: formatTranscript(payload.transcript),
+      raw_transcript: formatTranscript(payload.transcript, payload.participants),
       source: "read_ai",
       status: "completed",
       hosted_by_user_id: hostedByUserId,
@@ -124,8 +124,8 @@ export async function processProspectCall(
     await supabase.from("call_transcripts").insert({
       call_id: callRecord.id,
       source: "read_ai",
-      full_text: formatTranscript(payload.transcript),
-      word_count: formatTranscript(payload.transcript).split(/\s+/).length,
+      full_text: formatTranscript(payload.transcript, payload.participants),
+      word_count: formatTranscript(payload.transcript, payload.participants).split(/\s+/).length,
     });
   }
 
