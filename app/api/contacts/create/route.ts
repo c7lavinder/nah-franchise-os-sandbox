@@ -122,6 +122,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 4. Link existing calls where this contact's email/phone appears as a participant
+    const contactEmail = body.email?.trim()?.toLowerCase();
+    if (contactEmail) {
+      // Link call_participants rows
+      await supabase
+        .from("call_participants")
+        .update({ contact_id: contact.id, role: "prospect", display_name: `${body.firstName.trim()} ${body.lastName.trim()}` })
+        .eq("email", contactEmail)
+        .is("contact_id", null);
+
+      // Link calls via read_ai_sessions participant emails
+      const { data: sessions } = await supabase
+        .from("read_ai_sessions")
+        .select("session_id, participant_emails")
+        .contains("participant_emails", [contactEmail]);
+
+      if (sessions && sessions.length > 0) {
+        const sessionIds = sessions.map((s) => s.session_id);
+        await supabase
+          .from("calls")
+          .update({ contact_id: contact.id })
+          .in("read_ai_session_id", sessionIds)
+          .is("contact_id", null);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       contactId: contact.id,
