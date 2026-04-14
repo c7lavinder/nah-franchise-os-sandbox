@@ -9,31 +9,24 @@ interface Props {
   onUpdate: () => void;
 }
 
-const CHANNEL_GROUPS: { label: string; channels: string[] }[] = [
-  {
-    label: "Prospecting",
-    channels: [
-      "Bulk Lists", "Lead Mining", "Vacants", "High Equity", "Absentee Owners",
-      "Probates", "Evictions", "City Citations", "Distressed Rentals", "Divorces",
-      "Birddogs", "FSBO", "Foreclosures", "Listed Auctions",
-    ],
-  },
-  {
-    label: "Networking",
-    channels: [
-      "Referral Partners", "Agent Listed", "Brokered Auctions", "Wholesalers",
-      "Agents Industry Network", "Homelight", "Asset Managers",
-    ],
-  },
-  {
-    label: "Digital",
-    channels: [
-      "Digital Prospect Now", "Facebook Ads", "Google Ads", "Google Retargeting",
-      "Organic Search", "Google Map Pack", "Google Business", "Facebook",
-      "Instagram", "TikTok", "YouTube", "Google Business Profile",
-      "Other Social Media", "Social Platforms",
-    ],
-  },
+const CHANNEL_HEADERS = [
+  "Bulk Lists",
+  "Lead Mining",
+  "Listed Auctions",
+  "Referral Partners",
+  "Digital Prospect Now",
+  "Vacants",
+];
+
+const CHANNEL_CHECKBOXES = [
+  "High Equity", "Absentee Owners", "Probates", "Evictions",
+  "City Citations", "Distressed Rentals", "Divorces", "Social Platforms",
+  "Birddogs", "Agent Listed", "FSBO", "Foreclosures",
+  "Brokered Auctions", "Wholesalers", "Agents Industry Network", "Homelight",
+  "Asset Managers", "Facebook Ads", "Google Ads", "Google Retargeting",
+  "Organic Search", "Google Map Pack", "Google Business", "Facebook",
+  "Instagram", "TikTok", "YouTube", "Google Business Profile",
+  "Other Social Media",
 ];
 
 export default function TerritoryEosLeadChannels({ msSlug, channels, onUpdate }: Props) {
@@ -55,40 +48,43 @@ export default function TerritoryEosLeadChannels({ msSlug, channels, onUpdate }:
     onUpdate();
   }
 
+  function renderCell(name: string) {
+    const ch = channelMap.get(name);
+    if (!ch) return <div key={name} />;
+    return (
+      <label
+        key={ch.id}
+        className="flex items-center gap-1.5 px-1 py-1 cursor-pointer hover:bg-bg-secondary rounded transition-colors"
+      >
+        <input
+          type="checkbox"
+          checked={ch.is_active}
+          onChange={() => toggle(ch)}
+          className="h-3.5 w-3.5 rounded border-border-primary text-nah-blue focus:ring-nah-blue/30"
+        />
+        <span className={`text-[11px] leading-tight ${ch.is_active ? "text-text-primary" : "text-text-tertiary"}`}>
+          {ch.channel_name}
+        </span>
+      </label>
+    );
+  }
+
   return (
     <div>
-      <h3 className="text-body-sm font-semibold text-text-primary mb-1">Lead Channels</h3>
-      {CHANNEL_GROUPS.map((group) => (
-        <div key={group.label}>
-          <div className="text-center mt-5 mb-2">
-            <span className="block border-b border-border-primary w-[calc(100%-15px)] mx-auto pb-1 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-              {group.label}
+      <h3 className="text-body-sm font-semibold text-text-primary mb-3">Lead Channels</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "4px" }}>
+        {/* Header row — 6 label cells with underline */}
+        {CHANNEL_HEADERS.map((label) => (
+          <div key={label} className="text-center py-px my-3">
+            <span className="block border-b border-current w-[calc(100%-15px)] mx-auto opacity-60 text-[11px] text-text-secondary pb-0.5">
+              {label}
             </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-1">
-            {group.channels.map((name) => {
-              const ch = channelMap.get(name);
-              if (!ch) return null;
-              return (
-                <label
-                  key={ch.id}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-bg-secondary cursor-pointer transition-colors"
-                >
-                  <input
-                    type="checkbox"
-                    checked={ch.is_active}
-                    onChange={() => toggle(ch)}
-                    className="h-4 w-4 rounded border-border-primary text-nah-blue focus:ring-nah-blue/30"
-                  />
-                  <span className={`text-body-sm ${ch.is_active ? "text-text-primary" : "text-text-tertiary"}`}>
-                    {ch.channel_name}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      ))}
+        ))}
+
+        {/* Checkbox cells */}
+        {CHANNEL_CHECKBOXES.map((name) => renderCell(name))}
+      </div>
     </div>
   );
 }
