@@ -95,18 +95,20 @@ export async function runPostCallAgent(callId: string): Promise<{
   const extractions = extractionsRes.status === "fulfilled" ? extractionsRes.value : null;
   const kbIntelligence = kbRes.status === "fulfilled" ? kbRes.value : null;
 
-  // Collect errors for diagnostics — include null results (parse failures)
+  // Collect errors for diagnostics — skip intentionally null sections (extraction-only mode)
   const errors: string[] = [];
-  if (summaryRes.status === "rejected") errors.push(`summary: ${String(summaryRes.reason)}`);
-  else if (!summary) errors.push("summary: returned null (parse failure)");
-  if (coachingRes.status === "rejected") errors.push(`coaching: ${String(coachingRes.reason)}`);
-  else if (!coaching) errors.push("coaching: returned null (parse failure)");
-  if (actionsRes.status === "rejected") errors.push(`actions: ${String(actionsRes.reason)}`);
-  else if (!actions) errors.push("actions: returned null (parse failure)");
+  if (!extractionOnly) {
+    if (summaryRes.status === "rejected") errors.push(`summary: ${String(summaryRes.reason)}`);
+    else if (!summary) errors.push("summary: returned null (parse failure)");
+    if (coachingRes.status === "rejected") errors.push(`coaching: ${String(coachingRes.reason)}`);
+    else if (!coaching) errors.push("coaching: returned null (parse failure)");
+    if (actionsRes.status === "rejected") errors.push(`actions: ${String(actionsRes.reason)}`);
+    else if (!actions) errors.push("actions: returned null (parse failure)");
+    if (kbRes.status === "rejected") errors.push(`kb-intelligence: ${String(kbRes.reason)}`);
+    else if (!kbIntelligence) errors.push("kb-intelligence: returned null (parse failure)");
+  }
   if (extractionsRes.status === "rejected") errors.push(`extractions: ${String(extractionsRes.reason)}`);
   else if (!extractions) errors.push("extractions: returned null (parse failure)");
-  if (kbRes.status === "rejected") errors.push(`kb-intelligence: ${String(kbRes.reason)}`);
-  else if (!kbIntelligence) errors.push("kb-intelligence: returned null (parse failure)");
 
   if (errors.length > 0) {
     console.error(`[post-call-agent] ${callId} errors:`, errors.join("; "));
