@@ -55,12 +55,14 @@ export async function POST() {
     ghlToTerritory.set(o.ghl_contact_id, o.ms_slug);
   }
 
-  // 4. Find all unlinked participants
+  // 4. Find all participants needing fixes:
+  //    - No contact_id AND no user_id (completely unlinked)
+  //    - OR has email display name that needs cleaning
   const { data: orphans } = await supabase
     .from("call_participants")
     .select("id, call_id, email, display_name, contact_id, user_id, role")
-    .or("contact_id.is.null,user_id.is.null")
-    .not("email", "is", null);
+    .is("contact_id", null)
+    .is("user_id", null);
 
   let participantsFixed = 0;
   let callsFixed = 0;
