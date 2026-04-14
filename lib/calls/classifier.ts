@@ -433,6 +433,17 @@ function applyTranscriptionFixes(text: string): string {
   return result;
 }
 
+/**
+ * Strip title/role suffixes from Read.ai speaker names.
+ * "John Wright (Dir Franchise Success)" → "John Wright"
+ * "Chad Arnold (CEO)" → "Chad Arnold"
+ */
+function cleanSpeakerName(name: string): string {
+  // Remove parenthesized title suffixes like "(Dir Franchise Success)", "(CEO)"
+  const cleaned = name.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  return cleaned || name;
+}
+
 export function formatTranscript(
   transcript: ReadAIWebhookPayload["transcript"],
   participants?: ReadAIParticipant[],
@@ -440,16 +451,17 @@ export function formatTranscript(
   const blocks = transcript?.speaker_blocks ?? transcript?.turns;
   if (!blocks?.length) return "";
 
-  // Build email → name map from participants
+  // Build email → clean name map from participants (strip title suffixes)
   const emailToName = new Map<string, string>();
   for (const p of participants ?? []) {
-    if (p.email && p.name) emailToName.set(p.email.toLowerCase(), p.name.trim());
+    if (p.email && p.name) emailToName.set(p.email.toLowerCase(), cleanSpeakerName(p.name.trim()));
   }
 
-  // Build raw speaker label → display name map
+  // Build raw speaker label → display name map (for "Speaker N" labels, device names, etc.)
   const speakerMap = buildSpeakerMap(blocks, participants);
 
   // Format each turn, merging consecutive same-speaker blocks
+  // UNKNOWN_SPEAKER short utterances get merged into previous speaker's block
   const lines: string[] = [];
   let prevSpeaker = "";
 
@@ -457,13 +469,36 @@ export function formatTranscript(
     const rawName = t.speaker?.name ?? "Unknown";
     const rawEmail = t.speaker?.email?.toLowerCase() ?? "";
 
-    // Resolve speaker: email match first, then label map, then raw name
-    let displayName = rawEmail ? emailToName.get(rawEmail) : undefined;
-    if (!displayName) displayName = speakerMap.get(rawName);
-    if (!displayName) displayName = rawName;
-
     const spokenText = applyTranscriptionFixes((t.words ?? t.text ?? "").trim());
     if (!spokenText) continue;
+
+    // Check if this is an unknown short utterance (backchannel like "Good.", "Probably.", "Yeah.")
+    const isUnknown = rawName === "UNKNOWN_SPEAKER" || rawName === "Unknown";
+    const isShortUtterance = spokenText.split(/\s+/).length <= 5;
+
+    if (isUnknown && isShortUtterance && lines.length > 0) {
+      // Merge short unknown utterances into previous speaker's block
+      lines[lines.length - 1] += " " + spokenText;
+      continue;
+    }
+
+    // Resolve speaker name:
+    // 1. If block has email → use cleaned participant name
+    // 2. If raw name is a known label → use speaker map (handles "Speaker N", device names)
+    // 3. Otherwise clean the raw name directly (strips title suffixes)
+    let displayName: string;
+    if (rawEmail && emailToName.has(rawEmail)) {
+      displayName = emailToName.get(rawEmail)!;
+    } else if (speakerMap.has(rawName)) {
+      displayName = speakerMap.get(rawName)!;
+    } else {
+      displayName = cleanSpeakerName(rawName);
+    }
+
+    // For longer unknown blocks, label them but don't lose the text
+    if (isUnknown && !isShortUtterance) {
+      displayName = prevSpeaker || "Unknown";
+    }
 
     // Merge consecutive turns from the same speaker
     if (displayName === prevSpeaker && lines.length > 0) {
@@ -505,33 +540,36 @@ function buildSpeakerMap(
     if (m) speakerNums.set(label, parseInt(m[1], 10));
   }
 
-  // Build speaker names: Speaker 1 = host (NAH team), Speaker 2 = guest (external)
+  // Build all participant names in order (cleaned of title suffixes)
+  // Use cached team emails if available, otherwise use fallback
+  const teamEmailSet = new Set(_cachedTeamEmails ?? NAH_TEAM_EMAILS_FALLBACK);
   const nahNames: string[] = [];
   const externalNames: string[] = [];
   for (const p of participants ?? []) {
     const email = p.email?.toLowerCase() ?? "";
-    const name = p.name?.trim() ?? "";
+    const name = cleanSpeakerName(p.name?.trim() ?? "");
     if (!name) continue;
-    if (NAH_TEAM_EMAILS.includes(email)) {
+    if (teamEmailSet.has(email)) {
       nahNames.push(name);
     } else {
       externalNames.push(name);
     }
   }
-  const speakerNames = [nahNames[0], externalNames[0]].filter(Boolean) as string[];
+  // All participants in order: NAH team first, then externals
+  const allParticipantNames = [...nahNames, ...externalNames];
 
-  if (speakerNums.size > 0 && speakerNames.length > 0) {
+  if (speakerNums.size > 0 && allParticipantNames.length > 0) {
     const sorted = [...speakerNums.entries()].sort((a, b) => a[1] - b[1]);
     for (let i = 0; i < sorted.length; i++) {
       const [label] = sorted[i];
-      map.set(label, speakerNames[i] ?? `Speaker ${sorted[i][1]}`);
+      map.set(label, allParticipantNames[i] ?? `Speaker ${sorted[i][1]}`);
     }
   }
 
   // For labels without Speaker N, try to resolve from email on blocks
   const emailToParticipantName = new Map<string, string>();
   for (const p of participants ?? []) {
-    if (p.email && p.name) emailToParticipantName.set(p.email.toLowerCase(), p.name.trim());
+    if (p.email && p.name) emailToParticipantName.set(p.email.toLowerCase(), cleanSpeakerName(p.name.trim()));
   }
 
   for (const label of rawLabels) {
