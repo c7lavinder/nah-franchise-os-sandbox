@@ -241,7 +241,7 @@ export default function CallsPage() {
   const router = useRouter();
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("week");
 
   // Manual entry
   const [showManualEntry, setShowManualEntry] = useState(false);
