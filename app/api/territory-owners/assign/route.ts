@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { runTerritoryMarketResearch } from "@/lib/agents/territory-market";
 
 interface AssignBody {
   ms_slug: string;
@@ -51,6 +52,14 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Seed EOS data for the territory (idempotent)
+  await supabase.rpc("seed_eos_territory", { p_slug: body.ms_slug });
+
+  // Trigger background market research (non-blocking)
+  runTerritoryMarketResearch(body.ms_slug).catch((err) => {
+    console.error("[territory-assign] Background market research failed:", err instanceof Error ? err.message : err);
+  });
 
   return NextResponse.json({ success: true, ownership: data });
 }

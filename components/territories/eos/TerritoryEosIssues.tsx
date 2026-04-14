@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { X, Sparkles, ArrowUp } from "lucide-react";
+import { X } from "lucide-react";
+import SourceBadge from "@/components/ui/SourceBadge";
 import type { EosTerritoryIssue } from "@/types/database";
 
 interface Props {
@@ -62,16 +63,7 @@ export default function TerritoryEosIssues({ msSlug, issues, onUpdate }: Props) 
             <span className={`flex-1 text-body-sm ${issue.is_done ? "line-through text-text-tertiary opacity-60" : "text-text-primary"}`}>
               {issue.issue_text}
             </span>
-            {issue.source === "carried_forward" && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-medium shrink-0" title="Carried forward from sales">
-                <ArrowUp className="h-3 w-3" /> From sales
-              </span>
-            )}
-            {issue.source === "ai" && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px] font-medium shrink-0">
-                <Sparkles className="h-3 w-3" /> AI
-              </span>
-            )}
+            <SourceBadge source={issue.source} />
             <button
               onClick={() => deleteIssue(issue.id)}
               className="opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-red-500 transition-opacity shrink-0"

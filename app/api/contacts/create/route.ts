@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { upsertContact } from "@/lib/ghl/client";
+import { runContactResearch } from "@/lib/agents/contact-research";
 
 interface CreateContactBody {
   firstName: string;
@@ -181,6 +182,17 @@ export async function POST(request: NextRequest) {
           .is("contact_id", null);
       }
     }
+
+    // 5. Seed EOS goals (empty row so the tab is ready)
+    await supabase.from("eos_contact_goals").upsert(
+      { contact_id: contact.id, source: "system" },
+      { onConflict: "contact_id", ignoreDuplicates: true }
+    );
+
+    // 6. Trigger background research agent (non-blocking)
+    runContactResearch(ghlContactId, true).catch((err) => {
+      console.error("[contacts/create] Background research failed:", err instanceof Error ? err.message : err);
+    });
 
     return NextResponse.json({
       success: true,

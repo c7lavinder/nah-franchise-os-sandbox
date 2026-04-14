@@ -27,7 +27,7 @@ export type MarketCategory =
   | "financial_performance"
   | "territory_overview";
 
-export type MarketDataType = "text" | "number" | "currency" | "percentage" | "date" | "boolean";
+export type MarketDataType = "text" | "number" | "currency" | "percentage" | "date" | "boolean" | "select" | "multi_select" | "tags";
 
 export type MarketPopulationSource =
   | "census"
@@ -47,6 +47,8 @@ export interface MarketField {
   populationSource: MarketPopulationSource;
   autoPopulate: boolean;
   help?: string;
+  /** For select/multi_select fields — the dropdown options */
+  options?: string[];
 }
 
 export const MARKET_CATEGORIES: { key: MarketCategory; label: string; icon: string }[] = [
@@ -67,11 +69,11 @@ export const MARKET_FIELDS: MarketField[] = [
   // 1. TERRITORY OVERVIEW (8)
   // ═══════════════════════════════════════
   { name: "region", label: "Region", category: "territory_overview", dataType: "text", populationSource: "manual", autoPopulate: false },
-  { name: "market_type", label: "Market Type", category: "territory_overview", dataType: "text", populationSource: "manual", autoPopulate: false, help: "Primary, Secondary, Tertiary" },
+  { name: "market_type", label: "Market Type", category: "territory_overview", dataType: "select", populationSource: "manual", autoPopulate: false, options: ["Primary", "Secondary", "Tertiary"] },
   { name: "territory_value_est", label: "Territory Value Estimate", category: "territory_overview", dataType: "currency", populationSource: "mastersuite", autoPopulate: false },
-  { name: "counties_included", label: "Counties Included", category: "territory_overview", dataType: "text", populationSource: "manual", autoPopulate: false },
-  { name: "major_cities", label: "Major Cities", category: "territory_overview", dataType: "text", populationSource: "manual", autoPopulate: false },
-  { name: "zip_codes", label: "Zip Codes Covered", category: "territory_overview", dataType: "text", populationSource: "manual", autoPopulate: false },
+  { name: "counties_included", label: "Counties Included", category: "territory_overview", dataType: "tags", populationSource: "manual", autoPopulate: false },
+  { name: "major_cities", label: "Major Cities", category: "territory_overview", dataType: "tags", populationSource: "manual", autoPopulate: false },
+  { name: "zip_codes", label: "Zip Codes Covered", category: "territory_overview", dataType: "tags", populationSource: "manual", autoPopulate: false },
   { name: "territory_sq_miles", label: "Square Miles", category: "territory_overview", dataType: "number", populationSource: "census", autoPopulate: true },
   { name: "territory_notes", label: "Territory Notes", category: "territory_overview", dataType: "text", populationSource: "manual", autoPopulate: false },
 
@@ -160,9 +162,9 @@ export const MARKET_FIELDS: MarketField[] = [
   { name: "avg_purchase_discount", label: "Avg Purchase Discount (%)", category: "flip_market", dataType: "percentage", populationSource: "attom", autoPopulate: true },
   { name: "avg_rehab_cost", label: "Avg Rehab Cost", category: "flip_market", dataType: "currency", populationSource: "scout", autoPopulate: false },
   { name: "avg_hold_time_days", label: "Avg Hold Time (Days)", category: "flip_market", dataType: "number", populationSource: "attom", autoPopulate: true },
-  { name: "best_flip_zip_codes", label: "Best Zip Codes for Flips", category: "flip_market", dataType: "text", populationSource: "scout", autoPopulate: false },
+  { name: "best_flip_zip_codes", label: "Best Zip Codes for Flips", category: "flip_market", dataType: "tags", populationSource: "scout", autoPopulate: false },
   { name: "best_price_range", label: "Best Price Range for Flips", category: "flip_market", dataType: "text", populationSource: "scout", autoPopulate: false },
-  { name: "flip_friendly_lenders", label: "Flip-Friendly Lenders (Local)", category: "flip_market", dataType: "text", populationSource: "scout", autoPopulate: false },
+  { name: "flip_friendly_lenders", label: "Flip-Friendly Lenders (Local)", category: "flip_market", dataType: "tags", populationSource: "scout", autoPopulate: false },
   { name: "wholesale_deal_flow", label: "Wholesale Deal Flow (Monthly)", category: "flip_market", dataType: "number", populationSource: "scout", autoPopulate: false },
   { name: "avg_days_to_sell_flip", label: "Avg Days to Sell (Flipped)", category: "flip_market", dataType: "number", populationSource: "attom", autoPopulate: true },
 
@@ -187,25 +189,25 @@ export const MARKET_FIELDS: MarketField[] = [
   // ═══════════════════════════════════════
   // 8. CONSTRUCTION (11)
   // ═══════════════════════════════════════
-  { name: "contractor_availability", label: "Contractor Availability", category: "construction", dataType: "text", populationSource: "scout", autoPopulate: false, help: "High / Medium / Low" },
+  { name: "contractor_availability", label: "Contractor Availability", category: "construction", dataType: "select", populationSource: "scout", autoPopulate: false, options: ["High", "Medium", "Low"] },
   { name: "avg_labor_rate_hr", label: "Avg Labor Rate ($/hr)", category: "construction", dataType: "currency", populationSource: "scout", autoPopulate: false },
   { name: "avg_material_cost_sqft", label: "Avg Material Cost ($/sq ft)", category: "construction", dataType: "currency", populationSource: "scout", autoPopulate: false },
   { name: "avg_rehab_cost_sqft", label: "Avg Rehab Cost ($/sq ft)", category: "construction", dataType: "currency", populationSource: "scout", autoPopulate: false },
   { name: "permit_timeline_days", label: "Permit Timeline (Days)", category: "construction", dataType: "number", populationSource: "scout", autoPopulate: false },
   { name: "permit_cost_avg", label: "Avg Permit Cost", category: "construction", dataType: "currency", populationSource: "scout", autoPopulate: false },
-  { name: "inspection_requirements", label: "Inspection Requirements", category: "construction", dataType: "text", populationSource: "scout", autoPopulate: false, help: "Strict / Moderate / Lenient" },
-  { name: "hoa_prevalence", label: "HOA Prevalence", category: "construction", dataType: "text", populationSource: "scout", autoPopulate: false, help: "High / Medium / Low / Rare" },
+  { name: "inspection_requirements", label: "Inspection Requirements", category: "construction", dataType: "select", populationSource: "scout", autoPopulate: false, options: ["Strict", "Moderate", "Lenient"] },
+  { name: "hoa_prevalence", label: "HOA Prevalence", category: "construction", dataType: "select", populationSource: "scout", autoPopulate: false, options: ["High", "Medium", "Low", "Rare"] },
   { name: "renovation_restrictions", label: "Renovation Restrictions", category: "construction", dataType: "text", populationSource: "scout", autoPopulate: false },
   { name: "licensed_contractors_count", label: "Licensed Contractors (Area)", category: "construction", dataType: "number", populationSource: "manual", autoPopulate: false },
-  { name: "construction_season", label: "Construction Season", category: "construction", dataType: "text", populationSource: "scout", autoPopulate: false, help: "Year-round / Seasonal (months)" },
+  { name: "construction_season", label: "Construction Season", category: "construction", dataType: "select", populationSource: "scout", autoPopulate: false, options: ["Year-round", "Mar-Nov", "Apr-Oct", "May-Sep"] },
 
   // ═══════════════════════════════════════
   // 9. COMPETITION (10)
   // ═══════════════════════════════════════
   { name: "active_flippers_count", label: "Active Flippers (Estimated)", category: "competition", dataType: "number", populationSource: "attom", autoPopulate: true },
-  { name: "ibuyer_presence", label: "iBuyer Presence", category: "competition", dataType: "text", populationSource: "manual", autoPopulate: false, help: "Opendoor, Offerpad, etc." },
-  { name: "wholesaler_activity", label: "Wholesaler Activity", category: "competition", dataType: "text", populationSource: "scout", autoPopulate: false, help: "High / Medium / Low" },
-  { name: "investor_saturation", label: "Investor Saturation", category: "competition", dataType: "text", populationSource: "scout", autoPopulate: false, help: "Saturated / Moderate / Underserved" },
+  { name: "ibuyer_presence", label: "iBuyer Presence", category: "competition", dataType: "multi_select", populationSource: "manual", autoPopulate: false, options: ["Opendoor", "Offerpad", "Zillow Offers", "RedfinNow", "None"] },
+  { name: "wholesaler_activity", label: "Wholesaler Activity", category: "competition", dataType: "select", populationSource: "scout", autoPopulate: false, options: ["High", "Medium", "Low"] },
+  { name: "investor_saturation", label: "Investor Saturation", category: "competition", dataType: "select", populationSource: "scout", autoPopulate: false, options: ["Saturated", "Moderate", "Underserved"] },
   { name: "competitor_presence", label: "Competitor Presence", category: "competition", dataType: "text", populationSource: "scout", autoPopulate: false },
   { name: "top_competitor_1", label: "Top Competitor #1", category: "competition", dataType: "text", populationSource: "scout", autoPopulate: false },
   { name: "top_competitor_2", label: "Top Competitor #2", category: "competition", dataType: "text", populationSource: "scout", autoPopulate: false },

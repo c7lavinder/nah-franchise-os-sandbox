@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, X, Sparkles } from "lucide-react";
+import { Loader2, X } from "lucide-react";
+import SourceBadge from "@/components/ui/SourceBadge";
 import type { EosContactTodo } from "@/types/database";
 
 interface Props {
@@ -82,11 +83,7 @@ export default function ContactEosTodos({ contactId, carriedTerritoryName }: Pro
             >
               {todo.todo_text}
             </span>
-            {todo.source === "ai" && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px] font-medium shrink-0">
-                <Sparkles className="h-3 w-3" /> AI
-              </span>
-            )}
+            <SourceBadge source={todo.source} />
             {carriedTerritoryName && (
               <span className="text-[10px] text-text-tertiary shrink-0">Carried to {carriedTerritoryName}</span>
             )}

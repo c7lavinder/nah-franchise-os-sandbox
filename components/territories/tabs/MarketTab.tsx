@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Loader2, MapPin, Users, TrendingUp, Home, BarChart3,
-  Repeat, Briefcase, Wrench, Target, DollarSign, Sparkles,
+  Repeat, Briefcase, Wrench, Target, DollarSign, X,
 } from "lucide-react";
+import SourceBadge from "@/components/ui/SourceBadge";
 import {
   MARKET_CATEGORIES,
   MARKET_FIELDS,
@@ -82,29 +83,154 @@ function MarketSection({
   const col1 = fields.slice(0, mid);
   const col2 = fields.slice(mid);
 
+  function addTag(fieldName: string, tag: string) {
+    const current = local[fieldName] ?? "";
+    const tags = current ? JSON.parse(current) as string[] : [];
+    if (!tags.includes(tag)) {
+      const updated = JSON.stringify([...tags, tag]);
+      setLocal((prev) => ({ ...prev, [fieldName]: updated }));
+      handleBlurDirect(fieldName, updated);
+    }
+  }
+
+  function removeTag(fieldName: string, tag: string) {
+    const current = local[fieldName] ?? "[]";
+    const tags = (JSON.parse(current) as string[]).filter((t) => t !== tag);
+    const updated = JSON.stringify(tags);
+    setLocal((prev) => ({ ...prev, [fieldName]: updated }));
+    handleBlurDirect(fieldName, updated);
+  }
+
+  function handleBlurDirect(fieldName: string, value: string) {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setSaving(fieldName);
+      await fetch(`/api/territories/${msSlug}/market-data`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field_name: fieldName, field_value: value || null, source: "manual" }),
+      }).catch(() => {});
+      setSaving(null);
+    }, 200);
+  }
+
+  function toggleMultiSelect(fieldName: string, option: string) {
+    const current = local[fieldName] ?? "";
+    const selected = current ? JSON.parse(current) as string[] : [];
+    const updated = selected.includes(option)
+      ? selected.filter((s) => s !== option)
+      : [...selected, option];
+    const val = JSON.stringify(updated);
+    setLocal((prev) => ({ ...prev, [fieldName]: val }));
+    handleBlurDirect(fieldName, val);
+  }
+
   function renderField(f: MarketField) {
     const source = data[f.name]?.source;
-    const isAutoPopulated = source && source !== "manual";
+    const inputBase = "rounded border border-border-primary/50 bg-bg-primary px-2 py-1 text-body-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-nah-blue/30";
+
+    // Select dropdown
+    if (f.dataType === "select" && f.options) {
+      return (
+        <div key={f.name} className="flex items-center justify-between gap-2 py-1.5 border-b border-border-primary/30 last:border-b-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-shrink-0 w-[55%]">
+            <span className="text-body-sm text-text-secondary truncate">{f.label}</span>
+            <SourceBadge source={source} />
+          </div>
+          <select
+            className={`w-[45%] ${inputBase} text-right`}
+            value={local[f.name] ?? ""}
+            onChange={(e) => {
+              setLocal((prev) => ({ ...prev, [f.name]: e.target.value }));
+              handleBlurDirect(f.name, e.target.value);
+            }}
+          >
+            <option value="">—</option>
+            {f.options.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    // Multi-select checkboxes
+    if (f.dataType === "multi_select" && f.options) {
+      const selected: string[] = (() => {
+        try { return JSON.parse(local[f.name] ?? "[]"); }
+        catch { return []; }
+      })();
+      return (
+        <div key={f.name} className="py-1.5 border-b border-border-primary/30 last:border-b-0">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="text-body-sm text-text-secondary">{f.label}</span>
+            <SourceBadge source={source} />
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {f.options.map((opt) => (
+              <button key={opt} onClick={() => toggleMultiSelect(f.name, opt)}
+                className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                  selected.includes(opt)
+                    ? "bg-nah-blue text-white"
+                    : "bg-bg-secondary text-text-tertiary hover:bg-bg-tertiary"
+                }`}
+              >{opt}</button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Tags (multi-value text — stored as JSON array)
+    if (f.dataType === "tags") {
+      const tags: string[] = (() => {
+        try { return JSON.parse(local[f.name] ?? "[]"); }
+        catch { return []; }
+      })();
+      return (
+        <div key={f.name} className="py-1.5 border-b border-border-primary/30 last:border-b-0">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="text-body-sm text-text-secondary">{f.label}</span>
+            <SourceBadge source={source} />
+          </div>
+          <div className="flex flex-wrap gap-1 mb-1">
+            {tags.map((tag) => (
+              <span key={tag} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-bg-secondary text-body-sm text-text-primary">
+                {tag}
+                <button onClick={() => removeTag(f.name, tag)} className="text-text-tertiary hover:text-red-500">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <input
+            className={`w-full ${inputBase}`}
+            placeholder={`Add ${f.label.toLowerCase()}...`}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.target as HTMLInputElement).value.trim()) {
+                addTag(f.name, (e.target as HTMLInputElement).value.trim());
+                (e.target as HTMLInputElement).value = "";
+              }
+            }}
+          />
+        </div>
+      );
+    }
+
+    // Default: text/number/currency/percentage input
     return (
       <div key={f.name} className="flex items-center justify-between gap-2 py-1.5 border-b border-border-primary/30 last:border-b-0">
         <div className="flex items-center gap-1.5 min-w-0 flex-shrink-0 w-[55%]">
           <span className="text-body-sm text-text-secondary truncate">{f.label}</span>
-          {isAutoPopulated && (
-            <span className="inline-flex items-center px-1 py-0.5 rounded bg-blue-50 text-blue-600 text-[9px] font-medium shrink-0" title={`Source: ${source}`}>
-              {source === "scout" ? <Sparkles className="h-2.5 w-2.5" /> : source}
-            </span>
-          )}
+          <SourceBadge source={source} />
         </div>
         <input
-          className="w-[45%] rounded border border-border-primary/50 bg-bg-primary px-2 py-1 text-body-sm text-text-primary text-right focus:outline-none focus:ring-1 focus:ring-nah-blue/30 focus:border-nah-blue/30"
+          className={`w-[45%] ${inputBase} text-right`}
           value={local[f.name] ?? ""}
           placeholder="—"
           onChange={(e) => setLocal((prev) => ({ ...prev, [f.name]: e.target.value }))}
           onBlur={() => handleBlur(f.name)}
         />
-        {saving === f.name && (
-          <Loader2 className="h-3 w-3 animate-spin text-text-tertiary absolute right-2" />
-        )}
       </div>
     );
   }

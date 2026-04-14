@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import SourceBadge from "@/components/ui/SourceBadge";
 import type { EosContactGoals } from "@/types/database";
 
 interface Props {
@@ -79,11 +80,7 @@ export default function ContactEosGoals({ contactId, carriedTerritoryName }: Pro
         <div key={f.key}>
           <label className="block text-caption font-medium text-text-secondary mb-1">
             {f.label}
-            {goals?.source === "ai" && (
-              <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px] font-medium">
-                <Sparkles className="h-3 w-3" /> AI
-              </span>
-            )}
+            <SourceBadge source={goals?.source} className="ml-2" />
           </label>
           <textarea
             rows={2}
