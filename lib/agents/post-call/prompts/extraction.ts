@@ -11,21 +11,38 @@ export function buildPrompt(ctx: CallContext): string {
     ? `Contacts on call: ${ctx.contactNames.join(", ")}`
     : `Contact: ${ctx.contactName ?? "Unknown"}`;
 
+  // Determine if this is a prospect or franchisee based on pipeline position
+  const isProspect = ctx.pipelinePositions.length === 0
+    || ctx.pipelinePositions.some((p) => p.pipelineSlug === "sales" || p.pipelineSlug === "followup");
+  const isFranchisee = ctx.pipelinePositions.some((p) =>
+    p.pipelineSlug === "onboarding" || p.pipelineSlug === "runway"
+  );
+
   const territoryBlock = ctx.territoryNames.length > 0
-    ? `Territories linked: ${ctx.territoryNames.join(", ")}`
-    : "No territories linked yet — extract any territory names mentioned.";
+    ? `Territories owned: ${ctx.territoryNames.join(", ")} (franchisee — extract territory operations/coaching data)`
+    : isProspect
+      ? "No territory yet — this is a PROSPECT. Extract territory preferences (desired areas) but NOT territory operations data."
+      : "No territories linked yet — extract any territory names mentioned.";
+
+  const contactTypeNote = isProspect
+    ? `\n**IMPORTANT: This contact is a PROSPECT (not yet a franchisee).** Focus on contact fields: financial capacity, motivation, timeline, territory preferences, competitive intel, family situation. Do NOT extract territory operations/coaching fields — they have no territory yet. Territory preference fields (desired_territory, market_area, territory_type_preference) ARE relevant.`
+    : isFranchisee
+      ? `\n**This contact is an ACTIVE FRANCHISEE.** Extract both contact profile updates AND territory operations/coaching data. Coaching calls should yield goals, challenges, wins, deal updates, and operational metrics.`
+      : "";
 
   return `Extract EVERY piece of structured data from this call transcript.
 Be exhaustive — a 1-hour call should yield 30-50+ data points.
 If a piece of information was discussed, even briefly, extract it.
+${contactTypeNote}
 
 ## EXTRACTION RULES
 1. Extract for EVERY contact discussed, not just the primary contact.
-2. Extract for EVERY territory mentioned, not just linked ones.
+2. Extract for EVERY territory mentioned — but ONLY if the contact is a franchisee with an active territory.
 3. If someone mentions a number, date, name, place, preference, concern, or fact — extract it.
 4. Use "high" confidence for direct quotes/statements, "medium" for inferred, "low" for uncertain.
 5. For territory data: identify which territory by name if possible.
 6. If multiple contacts are on the call, tag each extraction with the correct contact name.
+7. For PROSPECTS: focus heavily on financial capacity, motivation, timeline, and competitive intel. These are the highest-value data points for the sales team.
 
 ## CONTACT FIELDS (field_category: "contact")
 Extract any of these that are mentioned or can be inferred:
