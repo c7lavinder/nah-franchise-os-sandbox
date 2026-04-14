@@ -6,6 +6,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
 import { formatTranscript, standardizeTitle, isNAHTeamEmail } from "../classifier";
 import { insertCallParticipants } from "./insert-participants";
+import { reconcileCall } from "./reconcile-call";
 
 export async function processGroupCall(
   payload: ReadAIWebhookPayload,
@@ -58,6 +59,9 @@ export async function processGroupCall(
 
   // 2. Insert call_participants
   await insertCallParticipants(callRecord.id, classified.resolved_participants ?? []);
+
+  // 2b. Reconcile — link any unmatched participants to contacts/territories immediately
+  await reconcileCall(callRecord.id);
 
   // 3. Link call back to read_ai_sessions
   await supabase

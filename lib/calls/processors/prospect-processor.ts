@@ -6,6 +6,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
 import { formatTranscript, standardizeTitle } from "../classifier";
 import { insertCallParticipants } from "./insert-participants";
+import { reconcileCall } from "./reconcile-call";
 
 /** Map NAH participant email to call type slug for rubric selection */
 function determineProspectCallType(
@@ -120,6 +121,9 @@ export async function processProspectCall(
 
   // 7. Insert call_participants
   await insertCallParticipants(callRecord.id, classified.resolved_participants ?? []);
+
+  // 7b. Reconcile — link any unmatched participants to contacts/territories immediately
+  await reconcileCall(callRecord.id);
 
   // 8. Link call back to read_ai_sessions
   await supabase
