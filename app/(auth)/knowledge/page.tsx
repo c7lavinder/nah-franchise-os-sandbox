@@ -18,20 +18,56 @@ interface KnowledgeDoc {
   updated_at: string;
 }
 
-const CATEGORIES: { value: KnowledgeCategory; label: string; color: string }[] = [
-  { value: "brand", label: "Brand", color: "bg-[#e6f7fd] text-[#00a1e1]" },
-  { value: "pipeline", label: "Pipeline", color: "bg-[#e3f2fd] text-[#1565c0]" },
-  { value: "objections", label: "Objections", color: "bg-[#fff3e0] text-[#e65100]" },
-  { value: "coaching", label: "Coaching", color: "bg-[#ede7f6] text-[#4527a0]" },
-  { value: "ideal_candidate", label: "Ideal Candidate", color: "bg-[#e0f2f1] text-[#00695c]" },
-  { value: "competitors", label: "Competitors", color: "bg-[#fce4ec] text-[#c62828]" },
-  { value: "industry", label: "Industry", color: "bg-[#e8f5e9] text-[#2e7d32]" },
-  { value: "territory", label: "Territory", color: "bg-[#fff8e1] text-[#f57f17]" },
-  { value: "operations", label: "Operations", color: "bg-[#efebe9] text-[#4e342e]" },
-  { value: "training", label: "Training", color: "bg-[#e1f5fe] text-[#0277bd]" },
-  { value: "fdd", label: "FDD", color: "bg-[#f3e5f5] text-[#6a1b9a]" },
-  { value: "contact-notes", label: "Contact Notes", color: "bg-[#f1f5f9] text-[#64748b]" },
+/** Growth pillar groupings for the KB filter UI */
+const CATEGORY_GROUPS: { pillar: string; categories: { value: KnowledgeCategory; label: string; color: string }[] }[] = [
+  {
+    pillar: "More Leads",
+    categories: [
+      { value: "marketing", label: "Marketing", color: "bg-[#dbeafe] text-[#1d4ed8]" },
+      { value: "lead_generation", label: "Lead Generation", color: "bg-[#e0f2fe] text-[#0369a1]" },
+    ],
+  },
+  {
+    pillar: "Better Conversion",
+    categories: [
+      { value: "pipeline", label: "Pipeline", color: "bg-[#e3f2fd] text-[#1565c0]" },
+      { value: "objections", label: "Objections", color: "bg-[#fff3e0] text-[#e65100]" },
+      { value: "fdd", label: "FDD", color: "bg-[#f3e5f5] text-[#6a1b9a]" },
+      { value: "ideal_candidate", label: "Ideal Candidate", color: "bg-[#e0f2f1] text-[#00695c]" },
+      { value: "competitors", label: "Competitors", color: "bg-[#fce4ec] text-[#c62828]" },
+      { value: "conversion_playbook", label: "Conversion Playbook", color: "bg-[#fef3c7] text-[#92400e]" },
+    ],
+  },
+  {
+    pillar: "Faster Onboarding",
+    categories: [
+      { value: "training", label: "Training", color: "bg-[#e1f5fe] text-[#0277bd]" },
+      { value: "franchisee_playbook", label: "Franchisee Playbook", color: "bg-[#d1fae5] text-[#065f46]" },
+      { value: "onboarding_ops", label: "Onboarding Ops", color: "bg-[#ccfbf1] text-[#0f766e]" },
+    ],
+  },
+  {
+    pillar: "More Houses",
+    categories: [
+      { value: "coaching", label: "Coaching", color: "bg-[#ede7f6] text-[#4527a0]" },
+      { value: "territory", label: "Territory", color: "bg-[#fff8e1] text-[#f57f17]" },
+      { value: "industry", label: "Industry", color: "bg-[#e8f5e9] text-[#2e7d32]" },
+      { value: "deal_execution", label: "Deal Execution", color: "bg-[#fef9c3] text-[#854d0e]" },
+    ],
+  },
+  {
+    pillar: "Cross-cutting",
+    categories: [
+      { value: "brand", label: "Brand", color: "bg-[#e6f7fd] text-[#00a1e1]" },
+      { value: "operations", label: "Operations", color: "bg-[#efebe9] text-[#4e342e]" },
+      { value: "business_planning", label: "Business Planning", color: "bg-[#f0fdf4] text-[#166534]" },
+      { value: "governance", label: "Governance", color: "bg-[#faf5ff] text-[#7e22ce]" },
+      { value: "contact-notes", label: "Contact Notes", color: "bg-[#f1f5f9] text-[#64748b]" },
+    ],
+  },
 ];
+
+const CATEGORIES = CATEGORY_GROUPS.flatMap((g) => g.categories);
 
 function categoryBadge(cat: KnowledgeCategory): string {
   return CATEGORIES.find((c) => c.value === cat)?.color ?? "bg-bg-tertiary text-text-tertiary";

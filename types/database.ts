@@ -111,19 +111,40 @@ export interface ScoutActionLog {
   executed_at: string | null;
 }
 
-/** Categories for knowledge base documents */
+/**
+ * Categories for knowledge base documents.
+ * Organized around 4 growth pillars:
+ *   1. More leads (marketing, lead_generation)
+ *   2. Better conversion (pipeline, objections, fdd, ideal_candidate, competitors, conversion_playbook)
+ *   3. Faster onboarding (training, franchisee_playbook, onboarding_ops)
+ *   4. More houses (coaching, territory, industry, deal_execution)
+ * Plus: cross-cutting (brand, operations, business_planning, governance, contact-notes)
+ */
 export type KnowledgeCategory =
-  | "brand"
+  // Pillar 1: More franchise prospect leads
+  | "marketing"
+  | "lead_generation"
+  // Pillar 2: Converting more prospects
   | "pipeline"
   | "objections"
-  | "competitors"
-  | "industry"
   | "fdd"
-  | "coaching"
   | "ideal_candidate"
-  | "operations"
-  | "territory"
+  | "competitors"
+  | "conversion_playbook"
+  // Pillar 3: Getting franchisees up and running quicker
   | "training"
+  | "franchisee_playbook"
+  | "onboarding_ops"
+  // Pillar 4: Getting franchisees to buy more houses
+  | "coaching"
+  | "territory"
+  | "industry"
+  | "deal_execution"
+  // Cross-cutting
+  | "brand"
+  | "operations"
+  | "business_planning"
+  | "governance"
   | "contact-notes";
 
 /** Knowledge documents table — franchise knowledge injected into Scout's prompt */

@@ -14,31 +14,61 @@ import type { KBIntelligenceItem } from "./prompts/kb-intelligence";
 
 /** Maps extraction categories → knowledge_documents category */
 const CATEGORY_MAP: Record<string, string> = {
+  // Pillar 1: More leads
+  marketing_insight: "marketing",
+  lead_source_intel: "lead_generation",
+  // Pillar 2: Better conversion
   prospect_questions: "objections",
   objections: "objections",
   prospect_motivations: "ideal_candidate",
   competitors: "competitors",
-  sales_effectiveness: "coaching",
+  sales_effectiveness: "conversion_playbook",
   capital_intelligence: "objections",
-  process_updates: "operations",
-  best_practices: "coaching",
-  market_intelligence: "territory",
-  operations: "operations",
+  fdd_intel: "fdd",
+  // Pillar 3: Faster onboarding
+  onboarding_insight: "onboarding_ops",
+  training_intel: "training",
+  franchisee_setup: "franchisee_playbook",
+  // Pillar 4: More houses
   coaching: "coaching",
   franchisee_challenges: "coaching",
-  brand: "brand",
+  deal_intel: "deal_execution",
+  market_intelligence: "territory",
   territory: "territory",
+  // Cross-cutting
+  process_updates: "operations",
+  best_practices: "operations",
+  operations: "operations",
+  brand: "brand",
+  business_decision: "business_planning",
+  governance_update: "governance",
 };
 
 /** Human-readable titles for auto-created category docs */
 const CATEGORY_TITLES: Record<string, string> = {
+  // Pillar 1
+  marketing: "Marketing Strategies & Campaign Intelligence",
+  lead_generation: "Lead Sources & Generation Insights",
+  // Pillar 2
   objections: "Prospect Questions, Objections & Capital Intelligence",
-  ideal_candidate: "Prospect Motivations & Candidate Signals",
+  ideal_candidate: "Prospect Motivations & Ideal Candidate Signals",
   competitors: "Competitive Intelligence from Calls",
-  coaching: "Sales Best Practices & Coaching Insights",
-  operations: "Process Updates & Operational Changes",
+  conversion_playbook: "Sales Effectiveness & Conversion Tactics",
+  fdd: "FDD Strategy, Questions & Review Insights",
+  // Pillar 3
+  training: "Training Progress & Curriculum Insights",
+  franchisee_playbook: "Franchisee Setup & Success Playbook",
+  onboarding_ops: "Onboarding Operations & Process Notes",
+  // Pillar 4
+  coaching: "Coaching Insights & Franchisee Development",
   territory: "Territory & Market Intelligence",
+  industry: "Industry Trends & Market Conditions",
+  deal_execution: "Deal Execution — Acquisitions, Rehabs, Sales",
+  // Cross-cutting
+  operations: "Process Updates & Operational Changes",
   brand: "Brand Positioning & Value Propositions",
+  business_planning: "Business Planning, EOS & Strategic Decisions",
+  governance: "Governance, Policies & Decision Framework",
 };
 
 export async function updateKnowledgeBase(
