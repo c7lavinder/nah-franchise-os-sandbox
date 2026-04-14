@@ -269,15 +269,11 @@ export function parseResult(rawText: string): ExtractionResult | null {
 }
 
 export async function runExtraction(ctx: CallContext, model?: string): Promise<ExtractionResult | null> {
-  // Scale maxTokens — long calls with 30-50 extractions need room
-  const durationMin = ctx.durationSeconds ? Math.round(ctx.durationSeconds / 60) : 30;
-  const maxTokens = durationMin >= 45 ? 8192 : 4096;
-
   return callClaude({
     model,
     systemPrompt: SYSTEM,
     userPrompt: buildPrompt(ctx),
     parse: parseResult,
-    maxTokens,
+    maxTokens: 16384,
   });
 }

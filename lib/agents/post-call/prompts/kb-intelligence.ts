@@ -172,15 +172,11 @@ export async function runKBIntelligence(
   ctx: CallContext,
   model?: string,
 ): Promise<KBIntelligenceResult | null> {
-  // Scale maxTokens based on call duration — long calls need more room for 30-50 items
-  const durationMin = ctx.durationSeconds ? Math.round(ctx.durationSeconds / 60) : 30;
-  const maxTokens = durationMin >= 45 ? 8192 : 4096;
-
   return callClaude({
     model,
     systemPrompt: SYSTEM,
     userPrompt: buildPrompt(ctx),
     parse: parseResult,
-    maxTokens,
+    maxTokens: 16384,
   });
 }
