@@ -82,8 +82,8 @@ ${rosterBlock}
 ## CONTACT FIELDS (field_category: "contact")
 Extract any of these that are mentioned or can be inferred:
 
-### Basic Info
-- first_name, last_name, email, phone, city, state, zip
+### Basic Info (do NOT extract first_name or last_name — we already have those)
+- email, phone, city, state, zip
 - spouse_name, spouse_email, spouse_phone
 - business_partner_name, business_partner_email
 
