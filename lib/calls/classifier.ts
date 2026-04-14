@@ -8,7 +8,8 @@ import { createServerClient } from "@/lib/supabase/server";
 /** NAH team emails — identifies internal participants.
  *  Must match users table exactly. Do NOT use domain matching —
  *  franchisees also have @newagainhouses.com emails. */
-const NAH_TEAM_EMAILS = [
+// Hardcoded fallback — used only if DB query fails
+const NAH_TEAM_EMAILS_FALLBACK = [
   "corey@newagainhouses.com",
   "matt@newagainhouses.com",
   "chad@newagainhouses.com",
@@ -20,7 +21,36 @@ const NAH_TEAM_EMAILS = [
   "amber@newagainhouses.com",
   "nora-frandev@newagainhouses.com",
   "jeff@newagainhouses.com",
+  "joekraus@newagainhouses.com",
 ];
+
+// Dynamic team email list — loaded from users table on first use
+let _cachedTeamEmails: string[] | null = null;
+let _cacheTime = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function loadTeamEmails(): Promise<string[]> {
+  if (_cachedTeamEmails && Date.now() - _cacheTime < CACHE_TTL_MS) {
+    return _cachedTeamEmails;
+  }
+  try {
+    const { createServerClient } = await import("@/lib/supabase/server");
+    const supabase = createServerClient();
+    const { data } = await supabase
+      .from("users")
+      .select("email")
+      .eq("is_active", true)
+      .not("email", "is", null);
+    _cachedTeamEmails = (data ?? []).map((u) => u.email.toLowerCase());
+    _cacheTime = Date.now();
+    return _cachedTeamEmails;
+  } catch {
+    return NAH_TEAM_EMAILS_FALLBACK;
+  }
+}
+
+// Synchronous check uses cache or fallback
+const NAH_TEAM_EMAILS = NAH_TEAM_EMAILS_FALLBACK;
 
 /** Coach emails — coaching calls when paired with franchise owner */
 const COACH_EMAILS = [
@@ -123,6 +153,10 @@ async function resolveAllParticipants(
   participants: ReadAIParticipant[],
   supabase: ReturnType<typeof createServerClient>
 ): Promise<ResolvedParticipant[]> {
+  // Load team emails dynamically from DB
+  const teamEmails = await loadTeamEmails();
+  const teamEmailSet = new Set(teamEmails);
+
   const resolved: ResolvedParticipant[] = [];
 
   for (const p of participants) {
@@ -132,8 +166,8 @@ async function resolveAllParticipants(
       continue;
     }
 
-    // NAH team member
-    if (NAH_TEAM_EMAILS.includes(email)) {
+    // NAH team member (checked against dynamic users table)
+    if (teamEmailSet.has(email)) {
       const { data: user } = await supabase
         .from("users")
         .select("id, full_name")
@@ -178,9 +212,13 @@ async function resolveAllParticipants(
         territory_ms_slug: ownerLink?.ms_slug ?? null,
       });
     } else {
+      // Derive readable name: prefer Read.ai name, then email local part cleaned up
+      const fallbackName = p.name && !p.name.includes("@")
+        ? p.name
+        : email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       resolved.push({
         email,
-        display_name: p.name ?? email,
+        display_name: fallbackName,
         role: "unknown",
         user_id: null,
         contact_id: null,

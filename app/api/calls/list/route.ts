@@ -120,6 +120,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Build email→display_name map from call_participants for fallback resolution
+  const callIds = calls.map((c) => c.id);
+  const { data: allParticipants } = callIds.length > 0
+    ? await supabase.from("call_participants").select("call_id, email, display_name").in("call_id", callIds)
+    : { data: [] };
+  const participantEmailToName = new Map<string, string>();
+  for (const p of allParticipants ?? []) {
+    if (p.email && p.display_name && !p.display_name.includes("@")) {
+      participantEmailToName.set(p.email.toLowerCase(), p.display_name);
+    }
+  }
+
   const enriched = calls.map((c) => {
     const session = c.read_ai_session_id ? sessionMap.get(c.read_ai_session_id) : null;
     const participantEmails = session?.participant_emails ?? [];
@@ -133,7 +145,8 @@ export async function GET(request: NextRequest) {
       if (teamEmailSet.has(lc)) {
         teamMembers.push({ name: user?.name ?? email.split("@")[0], color: user?.color ?? null });
       } else {
-        externalContacts.push(contactEmailToName.get(lc) ?? user?.name ?? email);
+        const displayName = contactEmailToName.get(lc) ?? participantEmailToName.get(lc) ?? user?.name ?? null;
+        externalContacts.push(displayName ?? email.split("@")[0]);
       }
     }
 
