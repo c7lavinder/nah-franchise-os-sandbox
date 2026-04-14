@@ -6,7 +6,7 @@
  * learnings, best practices, market signals, and team updates.
  */
 
-import type { CallContext } from "../types";
+import type { CallContext, RosterEntry } from "../types";
 import { callClaude, stripFences } from "../call-claude";
 
 export interface KBIntelligenceResult {
@@ -72,17 +72,27 @@ Be thorough — a 30-minute call should yield 5-15 items. A 60-minute call shoul
 - **Business decisions** — strategic decisions, quarterly goals, EOS rocks, growth targets (category: "business_decision")
 - **Governance updates** — policy changes, approval processes, pricing decisions (category: "governance_update")
 
+## EXTRACTION VOLUME TARGETS
+- 15-minute call: 5-10 items
+- 30-minute call: 10-20 items
+- 60-minute call: 20-40 items
+- Team strategy calls (60+ min): 30-50+ items — these are GOLD MINES
+
 ## Rules
-- Extract 5-25 items per call depending on length and density.
 - Each item MUST have a direct quote from the transcript as evidence.
 - Title should be specific and searchable (not generic like "Capital concern").
 - Content should be 2-4 sentences summarizing the insight with context.
 - If the same topic appears across many calls, mark frequency_signal as "recurring".
-- For team/group calls: capture EVERY decision made, every problem raised, every strategy discussed.
+- For team/group calls: capture EVERY decision made, every problem raised, every strategy discussed,
+  every mention of a specific franchisee or prospect, every market insight, every process change.
 - For prospect calls: capture EVERY question, objection, motivation, and competitive mention.
 - For coaching calls: capture EVERY challenge, win, goal, and operational metric mentioned.
-- Skip only pleasantries and small talk.
+- When a specific contact or territory is discussed, include their name in the content
+  so the knowledge is attributable.
+- Skip only pleasantries and small talk — everything else is intelligence.
 - Return ONLY valid JSON, no preamble.
+
+${ctx.isTeamCall && ctx.roster.length > 0 ? buildKBRosterBlock(ctx.roster) : ""}
 
 ## Return format
 {
@@ -91,7 +101,7 @@ Be thorough — a 30-minute call should yield 5-15 items. A 60-minute call shoul
       "category": "<from list above>",
       "subcategory": "<specific sub-topic, e.g. 'royalty_fees' under objections>",
       "title": "<specific, searchable title>",
-      "content": "<2-4 sentence insight with context>",
+      "content": "<2-4 sentence insight with context. Include contact/territory name if relevant.>",
       "source_quote": "<exact quote from transcript that supports this>",
       "frequency_signal": "new|recurring|unknown"
     }
@@ -102,6 +112,7 @@ Call Type: ${ctx.callType ?? "Unknown"}
 Contact: ${ctx.contactName ?? "Unknown"}
 Team: ${ctx.teamMembers.join(", ") || "Unknown"}
 Date: ${ctx.callDate ?? "Unknown"}
+Duration: ${ctx.durationSeconds ? Math.round(ctx.durationSeconds / 60) + " minutes" : "Unknown"}
 
 Transcript:
 ${ctx.transcript}`;
@@ -129,15 +140,47 @@ export function parseResult(rawText: string): KBIntelligenceResult | null {
   }
 }
 
+/** Build roster block for KB intelligence context on team calls */
+function buildKBRosterBlock(roster: RosterEntry[]): string {
+  const franchisees = roster.filter((r) => r.role === "franchisee");
+  const prospects = roster.filter((r) => r.role === "prospect");
+
+  const lines = [
+    "## KNOWN CONTACTS (match names from transcript to tag knowledge correctly):",
+  ];
+
+  if (franchisees.length > 0) {
+    lines.push("\n**Franchisees:**");
+    for (const f of franchisees) {
+      const territory = f.territory ? ` — ${f.territory}` : "";
+      lines.push(`- ${f.name}${territory}`);
+    }
+  }
+
+  if (prospects.length > 0) {
+    lines.push("\n**Active Prospects:**");
+    for (const p of prospects.slice(0, 30)) {
+      const stage = p.pipelineStage ? ` (${p.pipelineStage})` : "";
+      lines.push(`- ${p.name}${stage}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
 export async function runKBIntelligence(
   ctx: CallContext,
   model?: string,
 ): Promise<KBIntelligenceResult | null> {
+  // Scale maxTokens based on call duration — long calls need more room for 30-50 items
+  const durationMin = ctx.durationSeconds ? Math.round(ctx.durationSeconds / 60) : 30;
+  const maxTokens = durationMin >= 45 ? 8192 : 4096;
+
   return callClaude({
     model,
     systemPrompt: SYSTEM,
     userPrompt: buildPrompt(ctx),
     parse: parseResult,
-    maxTokens: 4096,
+    maxTokens,
   });
 }
