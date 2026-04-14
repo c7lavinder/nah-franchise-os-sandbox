@@ -28,6 +28,22 @@ export default function ScoutFAB() {
   const inputRef = useRef<HTMLInputElement>(null);
   const isScoutPage = pathname === "/scout";
 
+  // Derive page context from URL for context-aware KB loading
+  const pageContext = useCallback(() => {
+    const ctx: Record<string, string | undefined> = {};
+    if (pathname.startsWith("/pipeline")) ctx.page = "pipeline";
+    else if (pathname.match(/\/calls\/[^/]+$/)) ctx.page = "call_detail";
+    else if (pathname.startsWith("/calls")) ctx.page = "calls";
+    else if (pathname.match(/\/leads\/[^/]+$/)) { ctx.page = "lead_detail"; ctx.contactId = pathname.split("/").pop(); }
+    else if (pathname.startsWith("/leads")) ctx.page = "leads";
+    else if (pathname.match(/\/territories\/[^/]+$/)) { ctx.page = "territory"; ctx.territorySlug = pathname.split("/").pop(); }
+    else if (pathname.startsWith("/territories")) ctx.page = "territory";
+    else if (pathname.startsWith("/knowledge")) ctx.page = "knowledge";
+    else if (pathname.startsWith("/settings")) ctx.page = "settings";
+    else ctx.page = "dashboard";
+    return ctx;
+  }, [pathname]);
+
   // Auto-scroll on new messages
   useEffect(() => {
     if (scrollRef.current) {
@@ -60,6 +76,7 @@ export default function ScoutFAB() {
           userId: user?.id ?? "",
           userRole: user?.role ?? "rep",
           userName: user?.fullName ?? "User",
+          pageContext: pageContext(),
         }),
       });
 
