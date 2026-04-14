@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/refresh-ghl-token",
       "schedule": "0 */12 * * *"
+    },
+    {
+      "path": "/api/calls/reconcile",
+      "schedule": "*/10 * * * *"
     }
   ]
 }
