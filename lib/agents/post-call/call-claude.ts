@@ -1,6 +1,6 @@
 /**
  * Shared Claude API caller for post-call agent sections.
- * Each section provides a system prompt, user prompt, and parse function.
+ * Uses streaming to handle long-running Sonnet calls (>10 min).
  * Includes retry with exponential backoff for API resilience.
  */
 
@@ -40,12 +40,15 @@ export async function callClaude<T>(options: CallClaudeOptions<T>): Promise<T | 
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const response = await client.messages.create({
+      // Use streaming to avoid 10-minute timeout on long Sonnet calls
+      const stream = client.messages.stream({
         model: options.model ?? DEFAULT_MODEL,
         max_tokens: options.maxTokens ?? 25000,
         system: options.systemPrompt,
         messages: [{ role: "user", content: options.userPrompt }],
       });
+
+      const response = await stream.finalMessage();
 
       const textBlock = response.content.find(
         (b): b is Anthropic.TextBlock => b.type === "text"
@@ -87,7 +90,6 @@ export async function callClaude<T>(options: CallClaudeOptions<T>): Promise<T | 
         continue;
       }
 
-      // Non-retryable or exhausted retries
       console.error(`[call-claude] Failed after ${attempt} attempts:`, lastError.message);
       throw lastError;
     }
