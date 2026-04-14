@@ -129,33 +129,57 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Build email→display_name map from call_participants for fallback resolution
+  // Build per-call participant lists from call_participants (primary source of truth)
   const callIds = calls.map((c) => c.id);
   const { data: allParticipants } = callIds.length > 0
-    ? await supabase.from("call_participants").select("call_id, email, display_name").in("call_id", callIds)
+    ? await supabase.from("call_participants").select("call_id, email, display_name, user_id, role").in("call_id", callIds)
     : { data: [] };
-  const participantEmailToName = new Map<string, string>();
+
+  const callParticipantMap = new Map<string, typeof allParticipants>();
   for (const p of allParticipants ?? []) {
-    if (p.email && p.display_name && !p.display_name.includes("@")) {
-      participantEmailToName.set(p.email.toLowerCase(), p.display_name);
-    }
+    const list = callParticipantMap.get(p.call_id) ?? [];
+    list.push(p);
+    callParticipantMap.set(p.call_id, list);
   }
 
   const enriched = calls.map((c) => {
+    const participants = callParticipantMap.get(c.id) ?? [];
     const session = c.read_ai_session_id ? sessionMap.get(c.read_ai_session_id) : null;
-    const participantEmails = session?.participant_emails ?? [];
 
-    // Split participants: team = in users table, external = everyone else
+    // Use call_participants as primary source; fall back to session emails only if no participants
     const teamMembers: { name: string; color: string | null }[] = [];
     const externalContacts: string[] = [];
-    for (const email of participantEmails) {
-      const lc = email.toLowerCase();
-      const user = emailToUser.get(lc);
-      if (teamEmailSet.has(lc)) {
-        teamMembers.push({ name: user?.name ?? email.split("@")[0], color: user?.color ?? null });
-      } else {
-        const displayName = contactEmailToName.get(lc) ?? participantEmailToName.get(lc) ?? user?.name ?? null;
-        externalContacts.push(displayName ?? email.split("@")[0]);
+
+    if (participants.length > 0) {
+      for (const p of participants) {
+        const lc = p.email?.toLowerCase() ?? "";
+        const isTeam = p.role === "nah_team" || (lc && teamEmailSet.has(lc)) || !!p.user_id;
+        if (isTeam) {
+          const user = lc ? emailToUser.get(lc) : null;
+          teamMembers.push({
+            name: user?.name ?? p.display_name ?? lc.split("@")[0],
+            color: user?.color ?? null,
+          });
+        } else {
+          const name = p.display_name && !p.display_name.includes("@")
+            ? p.display_name
+            : (lc ? (contactEmailToName.get(lc) ?? null) : null)
+              ?? (lc ? lc.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (ch: string) => ch.toUpperCase()) : "Unknown");
+          externalContacts.push(name);
+        }
+      }
+    } else {
+      // Fallback: use session participant_emails when no call_participants exist
+      const participantEmails = session?.participant_emails ?? [];
+      for (const email of participantEmails) {
+        const lc = email.toLowerCase();
+        const user = emailToUser.get(lc);
+        if (teamEmailSet.has(lc)) {
+          teamMembers.push({ name: user?.name ?? email.split("@")[0], color: user?.color ?? null });
+        } else {
+          const displayName = contactEmailToName.get(lc) ?? user?.name ?? null;
+          externalContacts.push(displayName ?? email.split("@")[0]);
+        }
       }
     }
 
