@@ -23,8 +23,7 @@ import { updateKnowledgeBase } from "./kb-updater";
 // Change model per section here. One line per section.
 // All sections on Sonnet — every call is a high-value touchpoint,
 // maximize intelligence extracted from each one.
-// Using Haiku until API key has Sonnet access — switch back when upgraded
-const MODEL = "claude-haiku-4-5-20251001";
+const MODEL = "claude-4-sonnet-20250514";
 const MODELS = {
   summary: MODEL,
   coaching: MODEL,
