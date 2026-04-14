@@ -506,7 +506,7 @@ async function writeResults(
     }
 
     // Ensure field_category is valid per DB constraint
-    const validCategories = new Set(["contact", "territory", "territory_market", "market", "business_financials", "business_health"]);
+    const validCategories = new Set(["contact", "contact_eos", "territory", "territory_eos", "territory_market", "market", "business_financials", "business_health"]);
 
     const rows = results.extractions.extractions
       .filter((e) => e.extracted_value !== null)
@@ -679,6 +679,115 @@ async function writeResults(
               },
               { onConflict: "territory_slug,field_name" }
             );
+        }
+      }
+
+      // Auto-sync contact_eos extractions (goals, issues, todos)
+      const contactEosExtractions = results.extractions.extractions.filter(
+        (e) => e.field_category === "contact_eos" && e.confidence === "high" && e.extracted_value
+      );
+
+      if (contactEosExtractions.length > 0) {
+        // Resolve contact IDs from names
+        for (const ext of contactEosExtractions) {
+          let targetContactId = contactId;
+          if (ext.target_contact_name) {
+            const matched = nameToContactId.get(ext.target_contact_name.toLowerCase());
+            if (matched) targetContactId = matched;
+          }
+          if (!targetContactId) continue;
+
+          if (ext.field_key === "income_goal" || ext.field_key === "lifestyle_goal" || ext.field_key === "qol_goal") {
+            // Upsert to eos_contact_goals
+            await supabase.from("eos_contact_goals").upsert(
+              { contact_id: targetContactId, [ext.field_key]: ext.extracted_value, source: "ai" },
+              { onConflict: "contact_id" }
+            );
+          } else if (ext.field_key === "issue") {
+            await supabase.from("eos_contact_issues").insert({
+              contact_id: targetContactId,
+              issue_text: ext.extracted_value,
+              source: "ai",
+            });
+          } else if (ext.field_key === "todo") {
+            await supabase.from("eos_contact_todos").insert({
+              contact_id: targetContactId,
+              todo_text: ext.extracted_value,
+              source: "ai",
+            });
+          }
+        }
+      }
+
+      // Auto-sync territory_eos extractions (rocks, issues, todos, scorecard, habits)
+      const territoryEosExtractions = results.extractions.extractions.filter(
+        (e) => e.field_category === "territory_eos" && e.confidence === "high" && e.extracted_value
+      );
+
+      if (territoryEosExtractions.length > 0) {
+        // Resolve territory names → slugs
+        const tEosNames = [...new Set(
+          territoryEosExtractions.map((e) => e.target_territory).filter((t): t is string => !!t)
+        )];
+        const tEosNameToSlug = new Map<string, string>();
+
+        if (tEosNames.length > 0) {
+          const { data: territories } = await supabase
+            .from("territories")
+            .select("ms_slug, territory_name");
+          for (const t of territories ?? []) {
+            for (const tName of tEosNames) {
+              if (t.territory_name.toLowerCase().includes(tName.toLowerCase())) {
+                tEosNameToSlug.set(tName.toLowerCase(), t.ms_slug);
+              }
+            }
+          }
+        }
+
+        // Fallback slug from contact
+        let eosFallbackSlug: string | null = null;
+        if (contactId) {
+          const { data: ctct } = await supabase
+            .from("contacts")
+            .select("territory_slug")
+            .eq("id", contactId)
+            .single();
+          eosFallbackSlug = ctct?.territory_slug ?? null;
+        }
+
+        const now = new Date();
+        for (const ext of territoryEosExtractions) {
+          const tName = ext.target_territory?.toLowerCase();
+          const slug = tName ? tEosNameToSlug.get(tName) : eosFallbackSlug;
+          if (!slug) continue;
+
+          if (ext.field_key === "rock") {
+            await supabase.from("eos_territory_rocks").insert({
+              territory_slug: slug,
+              rock_text: ext.extracted_value,
+              quarter: Math.ceil((now.getMonth() + 1) / 3),
+              year: now.getFullYear(),
+            });
+          } else if (ext.field_key === "territory_issue") {
+            await supabase.from("eos_territory_issues").insert({
+              territory_slug: slug,
+              issue_text: ext.extracted_value,
+              source: "ai",
+            });
+          } else if (ext.field_key === "territory_todo") {
+            await supabase.from("eos_territory_todos").insert({
+              territory_slug: slug,
+              todo_text: ext.extracted_value,
+              source: "ai",
+            });
+          } else if (ext.field_key === "scorecard_goal") {
+            // field_key like "t3_leads_entered" in extracted_value context
+            // The LLM should put the metric_key in target_contact_name (overloaded)
+            // or we try to parse it — skip for now unless format is clear
+          } else if (ext.field_key === "habit_grade") {
+            // Similar — field needs a habit_key identifier
+            // Skip auto-sync for habits/scorecard — handled via manual or Scout draft tool
+          }
         }
       }
     }

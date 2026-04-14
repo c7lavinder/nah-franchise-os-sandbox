@@ -119,6 +119,40 @@ Extract any of these that are mentioned or can be inferred:
 - travel_constraints
 - health_considerations
 
+## CONTACT EOS (field_category: "contact_eos")
+Personal goals and concerns shared by the prospect during the call.
+Extract these as structured items for the contact's EOS tab:
+
+### Goals (update existing — use field_key to identify which goal)
+- income_goal (what income they're targeting — e.g. "$200k year 1", "replace my $120k salary")
+- lifestyle_goal (what lifestyle change they want — e.g. "work from home", "be my own boss", "more time with family")
+- qol_goal (what success looks like personally — e.g. "financial freedom by 50", "build generational wealth")
+
+### Issues (create new items — each extraction = one issue)
+- issue (any concern, objection, or problem the prospect raised — e.g. "worried about contractor availability", "spouse not fully on board yet")
+
+### To-Dos (create new items — each extraction = one action item)
+- todo (any next step or action item discussed for this prospect — e.g. "send FDD by Friday", "schedule call with Guidant", "follow up on territory availability")
+
+## TERRITORY EOS (field_category: "territory_eos")
+Operational priorities and metrics discussed for a specific territory.
+Tag with target_territory name.
+
+### Rocks (create new — each extraction = one 90-day priority)
+- rock (a 90-day priority or goal discussed — e.g. "close 3 deals this quarter", "hire second contractor crew", "launch direct mail campaign")
+
+### Issues (create new — each extraction = one operational issue)
+- territory_issue (an operational problem discussed — e.g. "contractor no-shows on Mondays", "permits taking 6+ weeks", "low lead volume from Google Ads")
+
+### To-Dos (create new — each extraction = one action item)
+- territory_todo (a territory-level action item — e.g. "fire underperforming contractor", "set up Privy alerts for 3 new zip codes", "update Lowe's account")
+
+### Scorecard (update existing metrics)
+- scorecard_goal (a scorecard goal value mentioned — use field_key format: "t3_leads_entered", "t3_purchased", "t3_gross_profit", etc.)
+
+### Habits (update grades)
+- habit_grade (a habit grade discussed — field_key: "daily_tasks", "weekly_contractor_meeting", "biweekly_agent_meeting", "weekly_accounting", "monthly_lead_manager" — value: A/B/C/D/F)
+
 ## TERRITORY FIELDS (field_category: "territory")
 Extract for any territory discussed:
 
@@ -205,6 +239,38 @@ Return a JSON object:
       "field_key": "coaching_notes",
       "field_category": "territory",
       "extracted_value": "Struggling with contractor reliability, needs to expand contractor network",
+      "confidence": "high",
+      "target_contact_name": null,
+      "target_territory": "Cincinnati"
+    },
+    {
+      "field_key": "income_goal",
+      "field_category": "contact_eos",
+      "extracted_value": "$200k in year 1",
+      "confidence": "high",
+      "target_contact_name": "Jacob Phillips",
+      "target_territory": null
+    },
+    {
+      "field_key": "issue",
+      "field_category": "contact_eos",
+      "extracted_value": "Worried about finding reliable contractors in his area",
+      "confidence": "high",
+      "target_contact_name": "Jacob Phillips",
+      "target_territory": null
+    },
+    {
+      "field_key": "rock",
+      "field_category": "territory_eos",
+      "extracted_value": "Close 3 deals by end of Q2",
+      "confidence": "high",
+      "target_contact_name": null,
+      "target_territory": "Cincinnati"
+    },
+    {
+      "field_key": "avg_rehab_cost",
+      "field_category": "territory_market",
+      "extracted_value": "45000",
       "confidence": "high",
       "target_contact_name": null,
       "target_territory": "Cincinnati"
