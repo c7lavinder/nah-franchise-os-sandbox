@@ -27,7 +27,7 @@ interface PipelineContact {
   pipelineName: string;
   pipelineSlug: string;
   daysSinceSubTask: number;
-  urgency: "fresh" | "at_risk" | "losing";
+  urgency: "fresh" | "at_risk" | "losing" | "won";
   urgencyScore: number;
   enteredStageAt: string | null;
 }
@@ -41,6 +41,7 @@ interface PipelineLeadListProps {
 type SortField = "urgency" | "name" | "recent";
 
 const URGENCY_STYLES = {
+  won:     { label: "Won",     color: "text-[#1565c0]", bgColor: "bg-[#e3f2fd]" },
   losing:  { label: "Losing",  color: "text-[#c62828]", bgColor: "bg-[#fce4ec]" },
   at_risk: { label: "At Risk", color: "text-[#e65100]", bgColor: "bg-[#fff3e0]" },
   fresh:   { label: "Fresh",   color: "text-[#2e7d32]", bgColor: "bg-[#e8f5e9]" },

@@ -203,9 +203,17 @@ export async function GET(request: NextRequest) {
           : now;
       const daysSinceSubTask = Math.floor((now - subTaskStarted) / (1000 * 60 * 60 * 24));
 
-      let urgency: "fresh" | "at_risk" | "losing";
+      // Terminal/won stages skip urgency — they're done
+      const isTerminal = stage?.slug === "closed" || stage?.slug === "onboarded"
+        || stage?.slug === "runway-complete" || stage?.slug === "running"
+        || (stage as StageRow & { is_terminal?: boolean })?.is_terminal === true;
+
+      let urgency: "fresh" | "at_risk" | "losing" | "won";
       let urgencyScore: number;
-      if (daysSinceSubTask >= 10) {
+      if (isTerminal) {
+        urgency = "won";
+        urgencyScore = 0;
+      } else if (daysSinceSubTask >= 10) {
         urgency = "losing";
         urgencyScore = 3;
       } else if (daysSinceSubTask >= 5) {
