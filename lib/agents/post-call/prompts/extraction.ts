@@ -4,7 +4,24 @@ import { callClaude, stripFences } from "../call-claude";
 const SYSTEM = `You are Scout, the AI data extraction engine for NAH Franchise OS.
 You analyze franchise sales call transcripts with extreme thoroughness.
 Your job is to extract EVERY piece of structured intelligence from the conversation.
-A 1-hour call should yield 30-50+ data points. Miss nothing.`;
+
+EXTRACTION DENSITY REQUIREMENTS (non-negotiable):
+- 15-minute call: 15-25 extractions minimum
+- 30-minute call: 25-40 extractions minimum
+- 45-minute call: 40-55 extractions minimum
+- 60-minute call: 50-70 extractions minimum
+
+You are UNDER-EXTRACTING if you return fewer than these minimums.
+Every sentence in the transcript potentially contains extractable data.
+When in doubt, EXTRACT IT. Low-confidence extractions are better than missed data.
+
+Common mistakes that cause under-extraction:
+- Summarizing instead of extracting (extract each individual fact separately)
+- Skipping "obvious" info (extract it anyway — names, roles, locations, dates)
+- Combining multiple facts into one extraction (split them — one fact per row)
+- Ignoring small talk that reveals personal info (hobbies, family, sports teams = extractable)
+- Missing territory operations data in coaching calls (deals, timelines, contractors, metrics)
+- Missing EOS items: every problem mentioned = issue, every commitment = todo, every goal = rock`;
 
 export function buildPrompt(ctx: CallContext): string {
   const contactBlock = ctx.contactNames.length > 0
@@ -56,6 +73,11 @@ ${rosterBlock}
 6. If multiple contacts are on the call, tag each extraction with the correct contact name.
 7. For PROSPECTS: focus heavily on financial capacity, motivation, timeline, and competitive intel.
 8. For TEAM CALLS: when someone says "Jacob is going cold" or "Ron's territory is doing well", tag those extractions to the specific person/territory from the roster.
+9. SPLIT compound facts: "He has $150k liquid and a credit score around 720" = TWO extractions (liquid_capital + credit_score_range).
+10. Extract personal details from small talk: sports teams, hobbies, family mentions, vacation plans = hobbies_interests or family_situation.
+11. Every problem/complaint = an "issue" extraction. Every commitment/next-step = a "todo" extraction. Every goal = a "rock" extraction.
+12. For coaching calls: extract EVERY metric discussed — deals in pipeline, houses purchased, profit numbers, timeline, contractor issues, lead counts.
+13. Extract relationship data: who referred whom, who knows whom, family members on the call.
 
 ## CONTACT FIELDS (field_category: "contact")
 Extract any of these that are mentioned or can be inferred:
@@ -283,7 +305,16 @@ Rules:
 - Do NOT include fields with null values — only extract what's there.
 - For target_contact_name: use the contact's name if specific to them. Null if general.
 - For target_territory: use the territory name if specific to a territory. Null if general.
-- Be THOROUGH. A 30-minute call should have 15-25 extractions. A 60-minute call should have 30-50+.
+- SPLIT compound facts into separate extractions — one fact per row.
+- Extract personal details from casual conversation (hobbies, sports, family, travel).
+- Every problem = issue, every commitment = todo, every 90-day goal = rock.
+
+MINIMUM EXTRACTION COUNTS (you MUST meet these):
+- Calls under 20 min: 15+ extractions
+- Calls 20-40 min: 30+ extractions
+- Calls 40-60 min: 50+ extractions
+- Calls over 60 min: 60+ extractions
+If you are below these minimums, re-read the transcript and extract more aggressively.
 
 Return only valid JSON. No preamble, no markdown fences.
 
@@ -360,6 +391,6 @@ export async function runExtraction(ctx: CallContext, model?: string): Promise<E
     systemPrompt: SYSTEM,
     userPrompt: buildPrompt(ctx),
     parse: parseResult,
-    maxTokens: 16384,
+    maxTokens: 32768,
   });
 }
