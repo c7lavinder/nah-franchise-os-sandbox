@@ -1,47 +1,60 @@
 "use client";
 
-import { Sparkles, Globe, Database } from "lucide-react";
+import { Sparkles, Globe, Pencil } from "lucide-react";
 
 type Source = string | null | undefined;
 
-const SOURCE_STYLES: Record<string, { bg: string; text: string; label: string; icon?: "sparkles" | "globe" | "database" }> = {
-  ai:          { bg: "bg-purple-100", text: "text-purple-700", label: "AI",         icon: "sparkles" },
-  scout:       { bg: "bg-purple-100", text: "text-purple-700", label: "AI",         icon: "sparkles" },
-  census:      { bg: "bg-blue-100",   text: "text-blue-700",   label: "Census",     icon: "database" },
-  zillow:      { bg: "bg-green-100",  text: "text-green-700",  label: "Zillow",     icon: "globe" },
-  attom:       { bg: "bg-teal-100",   text: "text-teal-700",   label: "ATTOM",      icon: "database" },
-  bls:         { bg: "bg-indigo-100", text: "text-indigo-700", label: "BLS",        icon: "database" },
-  mastersuite: { bg: "bg-orange-100", text: "text-orange-700", label: "MasterSuite",icon: "globe" },
-  calculated:  { bg: "bg-gray-100",   text: "text-gray-600",   label: "Calc",       icon: "database" },
-  api:         { bg: "bg-blue-100",   text: "text-blue-700",   label: "API",        icon: "globe" },
-  system:      { bg: "bg-gray-100",   text: "text-gray-600",   label: "System",     icon: "database" },
-  carried_forward: { bg: "bg-amber-100", text: "text-amber-700", label: "From sales" },
-};
+/** Map every possible source string to one of 3 display categories */
+function resolveCategory(source: string): "api" | "ai" | "manual" {
+  switch (source) {
+    case "ai":
+    case "scout":
+      return "ai";
+    case "census":
+    case "zillow":
+    case "attom":
+    case "bls":
+    case "mastersuite":
+    case "api":
+    case "system":
+    case "calculated":
+    case "agent_research":
+    case "carried_forward":
+      return "api";
+    case "manual":
+      return "manual";
+    default:
+      return "manual";
+  }
+}
 
-const ICON_MAP = {
-  sparkles: Sparkles,
-  globe: Globe,
-  database: Database,
-};
+const BADGE_STYLES = {
+  api:    { bg: "bg-green-100",  text: "text-green-700",  label: "API",    Icon: Globe },
+  ai:     { bg: "bg-blue-100",   text: "text-blue-700",   label: "AI",     Icon: Sparkles },
+  manual: { bg: "bg-orange-100", text: "text-orange-700", label: "Manual", Icon: Pencil },
+} as const;
 
 interface Props {
   source: Source;
+  /** Set to true to show the manual badge (default: hidden for manual) */
+  showManual?: boolean;
   className?: string;
 }
 
-export default function SourceBadge({ source, className = "" }: Props) {
-  if (!source || source === "manual") return null;
+export default function SourceBadge({ source, showManual = false, className = "" }: Props) {
+  if (!source) return null;
 
-  const style = SOURCE_STYLES[source] ?? { bg: "bg-gray-100", text: "text-gray-600", label: source };
-  const IconComponent = style.icon ? ICON_MAP[style.icon] : null;
+  const cat = resolveCategory(source);
+  if (cat === "manual" && !showManual) return null;
+
+  const { bg, text, label, Icon } = BADGE_STYLES[cat];
 
   return (
     <span
-      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium shrink-0 ${style.bg} ${style.text} ${className}`}
-      title={`Source: ${source}`}
+      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium shrink-0 ${bg} ${text} ${className}`}
     >
-      {IconComponent && <IconComponent className="h-2.5 w-2.5" />}
-      {style.label}
+      <Icon className="h-2.5 w-2.5" />
+      {label}
     </span>
   );
 }
