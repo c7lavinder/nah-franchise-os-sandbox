@@ -33,7 +33,7 @@ export async function callClaude<T>(options: CallClaudeOptions<T>): Promise<T | 
 
   const response = await client.messages.create({
     model: options.model ?? DEFAULT_MODEL,
-    max_tokens: options.maxTokens ?? 16384,
+    max_tokens: options.maxTokens ?? 25000,
     system: options.systemPrompt,
     messages: [{ role: "user", content: options.userPrompt }],
   });
