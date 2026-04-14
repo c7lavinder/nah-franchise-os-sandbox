@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import EcosystemPanel from "@/components/territory/EcosystemPanel";
 import TerritoryEosTab from "@/components/territories/tabs/EosTab";
+import MarketTab from "@/components/territories/tabs/MarketTab";
 
 interface TerritoryData {
   territory: { ms_slug: string; territory_name: string; status: string; region: string | null; awarded_date: string | null };
@@ -191,37 +192,7 @@ export default function TerritoryProfilePage() {
       )}
 
       {activeTab === "market" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Market */}
-          <div className="bg-bg-primary border border-border-default rounded-lg p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <MapPin size={16} className="text-info" />
-              <h2 className="text-body-sm font-semibold text-text-primary">Market</h2>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard label="Region" value={(territory.region as string) ?? "—"} />
-              <StatCard label="Market Type" value={(p?.market_type as string) ?? "—"} />
-              <StatCard label="Territory Value" value={p?.territory_value_est ? `$${Number(p.territory_value_est).toLocaleString()}` : "—"} />
-              <StatCard label="Flip Activity" value={(p?.flip_activity_score as number) ?? "—"} />
-              <StatCard label="Competitors" value={(p?.competitor_presence as string) ?? "—"} />
-              <StatCard label="Stage 3 Mix" value={p?.stage3_pct ? `${p.stage3_pct}%` : "—"} />
-            </div>
-          </div>
-
-          {/* Financial */}
-          <div className="bg-bg-primary border border-border-default rounded-lg p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <DollarSign size={16} className="text-success" />
-              <h2 className="text-body-sm font-semibold text-text-primary">Financial</h2>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard label="Total Invested" value={p?.total_invested ? `$${Number(p.total_invested).toLocaleString()}` : "—"} />
-              <StatCard label="Revenue YTD" value={p?.revenue_ytd ? `$${Number(p.revenue_ytd).toLocaleString()}` : "—"} />
-              <StatCard label="Projected" value={p?.projected_purchases ?? "—"} sub="purchases" />
-              <StatCard label="Actual" value={p?.actual_purchases ?? "—"} sub="purchases" />
-            </div>
-          </div>
-        </div>
+        <MarketTab msSlug={msSlug} />
       )}
     </div>
   );

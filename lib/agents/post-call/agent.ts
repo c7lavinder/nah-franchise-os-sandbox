@@ -506,7 +506,7 @@ async function writeResults(
     }
 
     // Ensure field_category is valid per DB constraint
-    const validCategories = new Set(["contact", "territory", "market", "business_financials", "business_health"]);
+    const validCategories = new Set(["contact", "territory", "territory_market", "market", "business_financials", "business_health"]);
 
     const rows = results.extractions.extractions
       .filter((e) => e.extracted_value !== null)
@@ -622,6 +622,63 @@ async function writeResults(
             .eq("contact_id", cId)
             .in("field_key", savedKeys)
             .eq("confidence", "high");
+        }
+      }
+
+      // Auto-sync high-confidence territory_market extractions to territory_market_data
+      // Use original extraction results (not rows) to access target_territory
+      const marketExtractions = results.extractions.extractions.filter(
+        (e) => e.field_category === "territory_market" && e.confidence === "high" && e.extracted_value
+      );
+
+      if (marketExtractions.length > 0) {
+        // Resolve territory names → ms_slug by querying territories table
+        const tNames = [...new Set(
+          marketExtractions.map((e) => e.target_territory).filter((t): t is string => !!t)
+        )];
+        const territoryNameToSlug = new Map<string, string>();
+
+        if (tNames.length > 0) {
+          const { data: territories } = await supabase
+            .from("territories")
+            .select("ms_slug, territory_name");
+          for (const t of territories ?? []) {
+            // Match by exact name or case-insensitive partial match
+            for (const tName of tNames) {
+              if (t.territory_name.toLowerCase().includes(tName.toLowerCase())) {
+                territoryNameToSlug.set(tName.toLowerCase(), t.ms_slug);
+              }
+            }
+          }
+        }
+
+        // Fallback: if contact has a territory_slug, use it for untagged extractions
+        let fallbackSlug: string | null = null;
+        if (contactId) {
+          const { data: ctct } = await supabase
+            .from("contacts")
+            .select("territory_slug")
+            .eq("id", contactId)
+            .single();
+          fallbackSlug = ctct?.territory_slug ?? null;
+        }
+
+        for (const ext of marketExtractions) {
+          const tName = ext.target_territory?.toLowerCase();
+          const slug = tName ? territoryNameToSlug.get(tName) : fallbackSlug;
+          if (!slug) continue;
+
+          await supabase
+            .from("territory_market_data")
+            .upsert(
+              {
+                territory_slug: slug,
+                field_name: ext.field_key,
+                field_value: ext.extracted_value,
+                source: "scout",
+              },
+              { onConflict: "territory_slug,field_name" }
+            );
         }
       }
     }

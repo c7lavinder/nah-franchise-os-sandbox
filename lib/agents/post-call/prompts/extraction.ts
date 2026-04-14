@@ -122,15 +122,6 @@ Extract any of these that are mentioned or can be inferred:
 ## TERRITORY FIELDS (field_category: "territory")
 Extract for any territory discussed:
 
-### Market Data
-- territory_value_est (estimated market value)
-- market_type (urban/suburban/rural/mixed)
-- flip_activity_score (how active the flipping market is)
-- competitor_presence (competitors operating in the area)
-- local_market_notes (market conditions, trends, challenges)
-- avg_home_price, median_income, population
-- growth_rate, new_construction_rate
-
 ### Operations (for active franchisees)
 - active_deals (number of current deals)
 - houses_purchased_ytd
@@ -154,20 +145,49 @@ Extract for any territory discussed:
 - challenges_reported (challenges or problems mentioned)
 - wins_reported (successes or milestones achieved)
 
-## MARKET INTELLIGENCE (field_category: "market")
-- market_trend (any market trends discussed)
-- interest_rate_discussion (rates mentioned)
-- local_regulation (zoning, permits, regulations mentioned)
-- deal_source_discussed (where deals come from in the area)
-- contractor_situation (contractor availability/pricing)
+## TERRITORY MARKET DATA (field_category: "territory_market")
+These fields go into territory_market_data. Tag with target_territory name.
+Extract ANY of these when discussed:
 
-## BUSINESS FINANCIALS (field_category: "business_financials")
-- deal_profit (profit on a specific deal discussed)
-- rehab_cost (rehab costs mentioned)
-- arv_discussed (after-repair value mentioned)
-- purchase_price (specific property price)
-- holding_costs (holding costs mentioned)
-- closing_costs (closing costs discussed)
+### Territory Overview
+- region, market_type (primary/secondary/tertiary), territory_value_est
+- counties_included, major_cities, territory_notes
+
+### Demographics
+- population_total, median_age, median_household_income, per_capita_income
+- poverty_rate, pct_bachelors_degree, avg_household_size, total_households
+
+### Housing
+- median_home_value, median_rent, homeownership_rate, vacancy_rate
+- median_year_built, pct_built_before_1970, housing_permits_annual
+- avg_property_tax, median_monthly_housing_cost
+
+### Real Estate Market
+- avg_days_on_market, list_to_sale_ratio, active_listings, months_of_inventory
+- price_per_sqft, yoy_home_appreciation, foreclosure_rate, distressed_property_pct
+- cash_buyer_pct, investor_purchase_pct, avg_seller_concession, pct_price_reductions
+
+### Flip Market
+- flip_rate, flip_volume_annual, avg_flip_profit, avg_flip_roi
+- avg_arv, avg_purchase_price, avg_purchase_discount, avg_rehab_cost
+- avg_hold_time_days, best_flip_zip_codes, best_price_range
+- flip_friendly_lenders, wholesale_deal_flow, avg_days_to_sell_flip
+
+### Economy & Employment
+- unemployment_rate, job_growth_rate_1yr, top_employer_1/2/3
+- top_industry_1/2/3, cost_of_living_index
+
+### Construction
+- contractor_availability (High/Medium/Low), avg_labor_rate_hr
+- avg_material_cost_sqft, avg_rehab_cost_sqft, permit_timeline_days
+- permit_cost_avg, inspection_requirements, hoa_prevalence
+- renovation_restrictions, construction_season
+
+### Competition
+- active_flippers_count, ibuyer_presence, wholesaler_activity
+- investor_saturation (Saturated/Moderate/Underserved)
+- competitor_presence, top_competitor_1/2/3
+- buy_box_overlap, competitive_advantage
 
 ## OUTPUT FORMAT
 Return a JSON object:

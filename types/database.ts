@@ -205,6 +205,22 @@ export interface InactivityAlert {
 
 // ─── EOS (Entrepreneurial Operating System) Types ────────────────────────────
 
+// ─── Territory Market Data Types ─────────────────────────────────────────────
+
+export type MarketDataSource = "census" | "zillow" | "attom" | "bls" | "manual" | "scout" | "mastersuite" | "calculated";
+
+/** Territory market data — EAV row */
+export interface TerritoryMarketData {
+  id: string;
+  territory_slug: string;
+  field_name: string;
+  field_value: string | null;
+  source: MarketDataSource;
+  source_date: string | null;
+  updated_at: string;
+  updated_by: string | null;
+}
+
 export type EosSource = "manual" | "ai";
 export type EosTerritorySource = "manual" | "ai" | "carried_forward";
 export type EosGoalType = "houses_purchased" | "gross_profit" | "quality_of_life";
