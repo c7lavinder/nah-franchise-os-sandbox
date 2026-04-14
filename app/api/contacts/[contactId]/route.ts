@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
+import { carryForwardContactEos } from "@/lib/eos/carry-forward";
 
 export async function GET(
   _request: NextRequest,
@@ -78,8 +79,28 @@ export async function PATCH(
   }
   if (Object.keys(updates).length === 0) return NextResponse.json({ error: "No fields" }, { status: 400 });
 
+  // Check if territory_slug is being set for the first time (carry-forward trigger)
+  let shouldCarryForward = false;
+  if (updates.territory_slug && typeof updates.territory_slug === "string") {
+    const { data: current } = await supabase
+      .from("contacts")
+      .select("territory_slug")
+      .eq("id", localId)
+      .single();
+    if (!current?.territory_slug) shouldCarryForward = true;
+  }
+
   const { error } = await supabase.from("contacts").update(updates).eq("id", localId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // EOS carry-forward: copy contact EOS → territory EOS when territory first assigned
+  if (shouldCarryForward) {
+    try {
+      await carryForwardContactEos(localId, updates.territory_slug as string);
+    } catch (err) {
+      console.error("[contacts/PATCH] EOS carry-forward failed:", err instanceof Error ? err.message : err);
+    }
+  }
 
   // Sync GHL-relevant fields back to GHL
   const ghlFields: Record<string, string> = {};

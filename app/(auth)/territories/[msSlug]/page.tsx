@@ -7,6 +7,7 @@ import {
   BarChart3, Award, AlertTriangle, Loader2,
 } from "lucide-react";
 import EcosystemPanel from "@/components/territory/EcosystemPanel";
+import TerritoryEosTab from "@/components/territories/tabs/EosTab";
 
 interface TerritoryData {
   territory: { ms_slug: string; territory_name: string; status: string; region: string | null; awarded_date: string | null };
@@ -46,7 +47,7 @@ export default function TerritoryProfilePage() {
 
   const [data, setData] = useState<TerritoryData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"ecosystem" | "market">("ecosystem");
+  const [activeTab, setActiveTab] = useState<"ecosystem" | "market" | "eos">("ecosystem");
 
   useEffect(() => {
     fetch(`/api/territories/${msSlug}`)
@@ -161,6 +162,7 @@ export default function TerritoryProfilePage() {
         {([
           { key: "ecosystem" as const, label: "Ecosystem" },
           { key: "market" as const, label: "Market & Financial" },
+          { key: "eos" as const, label: "EOS" },
         ]).map((tab) => (
           <button
             key={tab.key}
@@ -179,6 +181,13 @@ export default function TerritoryProfilePage() {
       {/* Tab Content */}
       {activeTab === "ecosystem" && (
         <EcosystemPanel msSlug={msSlug} owner={currentOwner} />
+      )}
+
+      {activeTab === "eos" && (
+        <TerritoryEosTab
+          msSlug={msSlug}
+          carriedFromContactName={currentOwner?.ownerName ?? null}
+        />
       )}
 
       {activeTab === "market" && (

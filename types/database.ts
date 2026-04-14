@@ -203,6 +203,139 @@ export interface InactivityAlert {
   created_at: string;
 }
 
+// ─── EOS (Entrepreneurial Operating System) Types ────────────────────────────
+
+export type EosSource = "manual" | "ai";
+export type EosTerritorySource = "manual" | "ai" | "carried_forward";
+export type EosGoalType = "houses_purchased" | "gross_profit" | "quality_of_life";
+export type EosHabitGrade = "A" | "B" | "C" | "D" | "F";
+export type EosRockStatus = "not_done" | "on_track" | "off_track" | "complete";
+
+/** Contact EOS — goals (one row per contact) */
+export interface EosContactGoals {
+  id: string;
+  contact_id: string;
+  income_goal: string | null;
+  lifestyle_goal: string | null;
+  qol_goal: string | null;
+  source: EosSource;
+  updated_at: string;
+}
+
+/** Contact EOS — issues */
+export interface EosContactIssue {
+  id: string;
+  contact_id: string;
+  issue_text: string;
+  is_done: boolean;
+  source: EosSource;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Contact EOS — todos */
+export interface EosContactTodo {
+  id: string;
+  contact_id: string;
+  todo_text: string;
+  is_done: boolean;
+  owner_user_id: string | null;
+  source: EosSource;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Territory EOS — goals (3 rows per territory: houses, profit, qol) */
+export interface EosTerritoryGoal {
+  id: string;
+  territory_slug: string;
+  goal_type: EosGoalType;
+  actual: string | null;
+  current_year_goal: string | null;
+  year_5_goal: string | null;
+  year_25_goal: string | null;
+  updated_at: string;
+}
+
+/** Territory EOS — scorecard metrics */
+export interface EosTerritoryScorecard {
+  id: string;
+  territory_slug: string;
+  metric_key: string;
+  metric_label: string;
+  goal_value: string | null;
+  sort_order: number;
+  updated_at: string;
+}
+
+/** Territory EOS — budget line items */
+export interface EosTerritoryBudget {
+  id: string;
+  territory_slug: string;
+  description: string;
+  amount: number;
+  sort_order: number;
+  updated_at: string;
+}
+
+/** Territory EOS — lead channels */
+export interface EosTerritoryLeadChannel {
+  id: string;
+  territory_slug: string;
+  channel_name: string;
+  is_active: boolean;
+  sort_order: number;
+  updated_at: string;
+}
+
+/** Territory EOS — habits */
+export interface EosTerritoryHabit {
+  id: string;
+  territory_slug: string;
+  habit_key: string;
+  habit_label: string;
+  grade: EosHabitGrade | null;
+  sort_order: number;
+  updated_at: string;
+}
+
+/** Territory EOS — rocks (90-day priorities) */
+export interface EosTerritoryRock {
+  id: string;
+  territory_slug: string;
+  rock_text: string;
+  status: EosRockStatus;
+  quarter: number | null;
+  year: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Territory EOS — issues */
+export interface EosTerritoryIssue {
+  id: string;
+  territory_slug: string;
+  issue_text: string;
+  is_done: boolean;
+  source: EosTerritorySource;
+  origin_contact_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Territory EOS — todos */
+export interface EosTerritoryTodo {
+  id: string;
+  territory_slug: string;
+  todo_text: string;
+  is_done: boolean;
+  owner_user_id: string | null;
+  source: EosTerritorySource;
+  origin_contact_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Supabase Database type for typed client access */
 export interface Database {
   public: {

@@ -20,6 +20,7 @@ import RelatedPeopleCard from "@/components/contact/RelatedPeopleCard";
 import TeamCard from "@/components/contact/TeamCard";
 import TerritoryOwnershipSection from "@/components/contact/TerritoryOwnershipSection";
 import TerritoryDataTab from "@/components/contact/TerritoryDataTab";
+import EosTab from "@/components/leads/tabs/EosTab";
 import { capitalizeName, formatPhone } from "@/lib/format/contact";
 import { useToast } from "@/components/ui/Toast";
 import type { SubTaskLog, StageHistoryEntry } from "@/lib/contacts/pipeline-state";
@@ -99,7 +100,7 @@ export default function LeadProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
-  const [activeTab, setActiveTab] = useState<"overview" | "messages" | "profile" | "territories">(
+  const [activeTab, setActiveTab] = useState<"overview" | "messages" | "profile" | "territories" | "eos">(
     highlightMessageId ? "messages" : "overview"
   );
   const [contactCalls, setContactCalls] = useState<{ id: string; callTypeName: string | null; hostName: string | null; scheduled_at: string | null; status: string; grade: string | null; duration_seconds: number | null }[]>([]);
@@ -258,6 +259,7 @@ export default function LeadProfilePage() {
           { key: "messages" as const, label: "Messages" },
           { key: "profile" as const, label: "Profile" },
           { key: "territories" as const, label: "Territories" },
+          { key: "eos" as const, label: "EOS" },
         ]).map((tab) => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             className={`px-4 py-2 text-body-sm font-medium border-b-2 transition-colors ${activeTab === tab.key ? "border-nah-orange text-nah-orange" : "border-transparent text-text-tertiary hover:text-text-primary"}`}>
@@ -367,6 +369,8 @@ export default function LeadProfilePage() {
                   </div>
                 ) : activeTab === "territories" ? (
                   <TerritoryDataTab ghlContactId={contact?.id ?? null} />
+                ) : activeTab === "eos" ? (
+                  <EosTab contactId={contactId} carriedTerritoryName={localContact?.territory ?? null} />
                 ) : null}
               </div>
             </div>
