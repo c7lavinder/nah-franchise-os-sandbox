@@ -54,24 +54,39 @@ export async function runPostCallAgent(callId: string): Promise<{
     return { success: false, summary: null, coaching: null, actionsCount: 0, extractionsCount: 0, kbDocsUpdated: 0, errors: ["No transcript available"] };
   }
 
-  // Idempotency guard: if this call already has a summary, skip re-generation
+  // Idempotency guard: if summary already generated, check if extractions also exist.
+  // If extractions are missing, run extraction only. If everything exists, skip entirely.
   const { data: callRow } = await supabase
     .from("calls")
     .select("ai_summary_generated_at")
     .eq("id", callId)
     .single();
-  if (callRow?.ai_summary_generated_at) {
-    console.warn(`[post-call-agent] callId=${callId} already processed (ai_summary_generated_at=${callRow.ai_summary_generated_at}) — skipping`);
+
+  const { count: existingExtractions } = await supabase
+    .from("call_data_extractions")
+    .select("id", { count: "exact", head: true })
+    .eq("call_id", callId);
+
+  const alreadyHasSummary = !!callRow?.ai_summary_generated_at;
+  const alreadyHasExtractions = (existingExtractions ?? 0) > 0;
+
+  if (alreadyHasSummary && alreadyHasExtractions) {
+    console.warn(`[post-call-agent] callId=${callId} already fully processed — skipping`);
     return { success: true, summary: "already_generated", coaching: null, actionsCount: 0, extractionsCount: 0, kbDocsUpdated: 0, errors: [] };
   }
 
-  // 2. Run all 5 sections in parallel
+  // 2. Run sections — if summary exists but extractions missing, only run extraction
+  const extractionOnly = alreadyHasSummary && !alreadyHasExtractions;
+  if (extractionOnly) {
+    console.warn(`[post-call-agent] callId=${callId} summary exists but extractions missing — running extraction only`);
+  }
+
   const [summaryRes, coachingRes, actionsRes, extractionsRes, kbRes] = await Promise.allSettled([
-    runSummary(context, MODELS.summary),
-    runCoaching(context, MODELS.coaching),
-    runNextSteps(context, MODELS.nextSteps),
+    extractionOnly ? Promise.resolve(null) : runSummary(context, MODELS.summary),
+    extractionOnly ? Promise.resolve(null) : runCoaching(context, MODELS.coaching),
+    extractionOnly ? Promise.resolve(null) : runNextSteps(context, MODELS.nextSteps),
     runExtraction(context, MODELS.extraction),
-    runKBIntelligence(context, MODELS.kbIntelligence),
+    extractionOnly ? Promise.resolve(null) : runKBIntelligence(context, MODELS.kbIntelligence),
   ]);
 
   const summary = summaryRes.status === "fulfilled" ? summaryRes.value : null;
