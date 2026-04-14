@@ -14,8 +14,16 @@ import { createServerClient } from "@/lib/supabase/server";
 import type { KnowledgeCategory } from "@/types/database";
 
 const VALID_CATEGORIES: KnowledgeCategory[] = [
-  "brand", "pipeline", "objections", "competitors", "industry", "fdd",
-  "coaching", "ideal_candidate", "operations", "territory", "training", "contact-notes",
+  // Pillar 1: More Leads
+  "marketing", "lead_generation",
+  // Pillar 2: Better Conversion
+  "pipeline", "objections", "fdd", "ideal_candidate", "competitors", "conversion_playbook",
+  // Pillar 3: Faster Onboarding
+  "training", "franchisee_playbook", "onboarding_ops",
+  // Pillar 4: More Houses
+  "coaching", "territory", "industry", "deal_execution",
+  // Cross-cutting
+  "brand", "operations", "business_planning", "governance", "contact-notes",
 ];
 
 export async function GET() {
