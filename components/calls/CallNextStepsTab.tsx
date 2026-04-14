@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, ChevronDown, ChevronRight, Plus, Sparkles } from "lucide-react";
+import { Loader2, Plus, Sparkles } from "lucide-react";
 import CallActionItem from "./CallActionItem";
 import type { ActionItemData } from "./CallActionItem";
 
@@ -52,12 +52,13 @@ const TYPE_GROUPS: { key: string; label: string; bg: string; border: string }[] 
 
 export default function CallNextStepsTab(props: CallNextStepsTabProps) {
   const state = getState(props);
-  const [completedOpen, setCompletedOpen] = useState(false);
+  const [skippedOpen, setSkippedOpen] = useState(false);
   const [aiInput, setAiInput] = useState("");
   const [isAdding, setIsAdding] = useState(false);
 
   const pendingItems = props.actionItems.filter((a) => a.status === "pending");
-  const completedItems = props.actionItems.filter((a) => a.status !== "pending");
+  const pushedItems = props.actionItems.filter((a) => a.status === "pushed" || a.status === "edited_pushed");
+  const skippedItems = props.actionItems.filter((a) => a.status === "skipped");
 
   // Group pending items by display type
   const typeGroups = new Map<string, ActionItemData[]>();
@@ -165,27 +166,35 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
         );
       })}
 
-      {pendingItems.length === 0 && completedItems.length === 0 && (
+      {pendingItems.length === 0 && pushedItems.length === 0 && skippedItems.length === 0 && (
         <div className="text-center py-8">
           <p className="text-body-sm text-text-tertiary">No action items generated. Use the input above to add one.</p>
         </div>
       )}
 
-      {/* Completed section */}
-      {completedItems.length > 0 && (
-        <div className="border-t border-border-default pt-3">
-          <button onClick={() => setCompletedOpen((v) => !v)} className="flex items-center gap-2 w-full text-left">
-            {completedOpen ? <ChevronDown size={14} className="text-text-tertiary" /> : <ChevronRight size={14} className="text-text-tertiary" />}
-            <span className="text-overline text-text-tertiary tracking-wider">COMPLETED</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-tertiary">{completedItems.length}</span>
-          </button>
-          {completedOpen && (
-            <div className="space-y-1 mt-2">
-              {completedItems.map((item) => (
-                <CallActionItem key={item.id} item={item} teamMembers={props.teamMembers} contactEmail={props.contactEmail} contactPhone={props.contactPhone} onAction={props.onRefresh} />
-              ))}
-            </div>
-          )}
+      {/* Pushed items — always visible, greyed out */}
+      {pushedItems.length > 0 && (
+        <div className="border-t border-border-default pt-3 space-y-1.5">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">Pushed</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-success/10 text-success font-medium">{pushedItems.length}</span>
+          </div>
+          {pushedItems.map((item) => (
+            <CallActionItem key={item.id} item={item} teamMembers={props.teamMembers} contactEmail={props.contactEmail} contactPhone={props.contactPhone} onAction={props.onRefresh} />
+          ))}
+        </div>
+      )}
+
+      {/* Skipped items — always visible, red-tinted */}
+      {skippedItems.length > 0 && (
+        <div className="border-t border-border-default pt-3 space-y-1.5">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">Skipped</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-danger/10 text-danger font-medium">{skippedItems.length}</span>
+          </div>
+          {skippedItems.map((item) => (
+            <CallActionItem key={item.id} item={item} teamMembers={props.teamMembers} contactEmail={props.contactEmail} contactPhone={props.contactPhone} onAction={props.onRefresh} />
+          ))}
         </div>
       )}
     </div>

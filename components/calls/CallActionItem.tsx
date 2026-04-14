@@ -68,16 +68,40 @@ export default function CallActionItem({ item, teamMembers, contactEmail, contac
 
   // ── Done state ──
   if (isDone) {
+    const isSkipped = item.status === "skipped";
+    const isPushed = item.status === "pushed" || item.status === "edited_pushed";
+    const summaryDetail = getSummaryDetail(item.category, initFields(item, contactEmail, contactPhone));
+    const timestamp = item.pushed_at ?? item.skipped_at;
+    const timeStr = timestamp
+      ? new Date(timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+      : null;
+
     return (
-      <div className={`flex items-center gap-3 px-3 py-2 rounded-lg bg-white/50 ${item.status === "skipped" ? "opacity-40" : "opacity-60"}`}>
-        {item.status === "skipped" ? <X size={14} className="text-text-tertiary" /> : <Check size={14} className="text-success" />}
+      <div className={`flex items-center gap-3 px-3 py-2 rounded-lg ${
+        isSkipped ? "bg-danger/5 border border-danger/10" : "bg-white/50 border border-white/60"
+      } ${isSkipped ? "opacity-60" : "opacity-50"}`}>
+        <Icon size={14} className={isSkipped ? "text-danger/50" : "text-text-tertiary"} />
         <div className="flex-1 min-w-0">
-          <p className={`text-body-sm text-text-primary ${item.status === "skipped" ? "line-through" : ""}`}>{item.title}</p>
-          {item.contact_name && <span className="text-[10px] text-text-tertiary">{item.contact_name}</span>}
+          <p className={`text-body-sm ${isSkipped ? "text-danger/70 line-through" : "text-text-secondary"}`}>{item.title}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            {item.contact_name && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                isSkipped ? "bg-danger/5 text-danger/50" : "bg-bg-tertiary text-text-tertiary"
+              }`}>
+                {item.contact_name}
+              </span>
+            )}
+            {summaryDetail && (
+              <span className="text-[10px] text-text-tertiary truncate">{summaryDetail}</span>
+            )}
+          </div>
         </div>
-        <span className="text-[10px] text-text-tertiary flex-shrink-0">
-          {item.status === "skipped" ? "Skipped" : "Done"}
-        </span>
+        <div className="flex flex-col items-end flex-shrink-0">
+          <span className={`text-[10px] font-medium ${isSkipped ? "text-danger/60" : "text-success/70"}`}>
+            {isSkipped ? "Skipped" : isPushed ? "Pushed" : "Done"}
+          </span>
+          {timeStr && <span className="text-[9px] text-text-tertiary">{timeStr}</span>}
+        </div>
       </div>
     );
   }
