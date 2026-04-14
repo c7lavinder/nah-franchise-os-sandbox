@@ -125,16 +125,18 @@ export default function TerritoryEosTab({ msSlug, carriedFromContactName }: Prop
         <TerritoryEosHabits msSlug={msSlug} habits={data.habits} onUpdate={handleUpdate} />
       </div>
 
-      <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosRocks msSlug={msSlug} rocks={data.rocks} onUpdate={handleUpdate} />
-      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+        <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
+          <TerritoryEosRocks msSlug={msSlug} rocks={data.rocks} onUpdate={handleUpdate} />
+        </div>
 
-      <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosIssues msSlug={msSlug} issues={data.issues} onUpdate={handleUpdate} />
-      </div>
+        <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
+          <TerritoryEosIssues msSlug={msSlug} issues={data.issues} onUpdate={handleUpdate} />
+        </div>
 
-      <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosTodos msSlug={msSlug} todos={data.todos} onUpdate={handleUpdate} />
+        <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
+          <TerritoryEosTodos msSlug={msSlug} todos={data.todos} onUpdate={handleUpdate} />
+        </div>
       </div>
     </div>
   );
