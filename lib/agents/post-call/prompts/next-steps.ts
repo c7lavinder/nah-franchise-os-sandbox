@@ -1,4 +1,4 @@
-import type { CallContext, NextStepsResult, PipelinePosition } from "../types";
+import type { CallContext, NextStepsResult, PipelinePosition, RosterEntry } from "../types";
 import { callClaude, stripFences } from "../call-claude";
 
 const SYSTEM = "You are Scout, an AI assistant for NAH Franchise OS. You generate post-call action items for the franchise sales team.";
@@ -128,6 +128,8 @@ certain actions, keep suggesting those.
 
 ${ctx.feedbackBlock}
 
+${ctx.isTeamCall ? buildTeamCallBlock(ctx.roster) : ""}
+
 Return only a valid JSON array. No preamble, no markdown fences.
 
 Call Type: ${ctx.callType ?? "Unknown"}
@@ -138,6 +140,50 @@ Duration: ${ctx.durationSeconds ? Math.round(ctx.durationSeconds / 60) + " minut
 
 Transcript:
 ${ctx.transcript}`;
+}
+
+/** Build team/group call instructions with roster */
+function buildTeamCallBlock(roster: RosterEntry[]): string {
+  const lines = [
+    "## TEAM/GROUP CALL INSTRUCTIONS",
+    "",
+    "This is a team or group call — multiple contacts and territories may be discussed.",
+    "Generate actions for EACH contact/territory mentioned in the transcript:",
+    "- If someone says a prospect is going cold → suggest pipeline move to Nurture for that prospect",
+    "- If someone reports a franchisee win → suggest data extraction or note for that franchisee",
+    "- If a territory issue is raised → suggest a task to address it",
+    "- If a process change is decided → suggest a KB update task",
+    "- If follow-up is needed with a specific person → suggest the comms/task for that person",
+    "",
+    "Tag EVERY action with the correct contact_name from the roster below.",
+    "Generate up to 10 actions if the call covers many topics/people.",
+  ];
+
+  if (roster.length > 0) {
+    const franchisees = roster.filter((r) => r.role === "franchisee");
+    const prospects = roster.filter((r) => r.role === "prospect");
+
+    lines.push("", "### ROSTER (match names from transcript):");
+
+    if (franchisees.length > 0) {
+      lines.push("", "**Franchisees:**");
+      for (const f of franchisees) {
+        const territory = f.territory ? ` — ${f.territory}` : "";
+        const stage = f.pipelineStage ? ` (${f.pipelineStage})` : "";
+        lines.push(`- ${f.name}${territory}${stage}`);
+      }
+    }
+
+    if (prospects.length > 0) {
+      lines.push("", "**Active Prospects:**");
+      for (const p of prospects.slice(0, 30)) {
+        const stage = p.pipelineStage ? ` (${p.pipelineStage})` : "";
+        lines.push(`- ${p.name}${stage}`);
+      }
+    }
+  }
+
+  return lines.join("\n");
 }
 
 /** Build the "Contact's Current Position" block for the prompt */

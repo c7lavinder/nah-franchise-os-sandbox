@@ -10,7 +10,7 @@
  */
 
 import { createServerClient } from "@/lib/supabase/server";
-import type { CallContext, SummaryResult, CoachingResult, NextStepsResult, ExtractionResult, PipelinePosition } from "./types";
+import type { CallContext, SummaryResult, CoachingResult, NextStepsResult, ExtractionResult, PipelinePosition, RosterEntry } from "./types";
 import { retrieveFeedback } from "./feedback-retrieval";
 import { runSummary } from "./prompts/summary";
 import { runCoaching } from "./prompts/coaching";
@@ -280,6 +280,115 @@ async function loadCallContext(
     contactId: call.contact_id,
   });
 
+  // Determine if team/group call (no specific external contact focus)
+  const isTeamCall = callTypeSlug === "team_call" || callTypeSlug === "internal"
+    || callTypeSlug === "group_call" || callTypeSlug === "cohort_call"
+    || (contactNames.length === 0 && teamMembers.length >= 2);
+
+  // For team/group calls: load a lightweight roster of all active contacts + territories
+  // so the LLM can match names mentioned in the transcript
+  const roster: RosterEntry[] = [];
+  if (isTeamCall) {
+    // Load active franchisees (in onboarding or runway)
+    const { data: franchiseeStates } = await supabase
+      .from("contact_pipeline_state")
+      .select("contact_id, pipeline_id, current_stage_id")
+      .eq("is_active", true)
+      .in("pipeline_id", [
+        "a0000000-0000-0000-0000-000000000003", // onboarding
+        "a0000000-0000-0000-0000-000000000004", // runway
+      ]);
+
+    const fContactIds = [...new Set((franchiseeStates ?? []).map((s) => s.contact_id))];
+    if (fContactIds.length > 0) {
+      const { data: fContacts } = await supabase
+        .from("contacts")
+        .select("id, first_name, last_name")
+        .in("id", fContactIds);
+
+      // Get their territories
+      const { data: fOwners } = await supabase
+        .from("territory_owners")
+        .select("ghl_contact_id, ms_slug, territories ( territory_name )")
+        .is("end_date", null);
+
+      // Map contact_id → ghl_contact_id
+      const { data: fGhlMap } = await supabase
+        .from("contacts")
+        .select("id, ghl_contact_id")
+        .in("id", fContactIds);
+      const idToGhl = new Map((fGhlMap ?? []).map((c) => [c.id, c.ghl_contact_id]));
+
+      // Map ghl_contact_id → territory name
+      const ghlToTerritory = new Map<string, string>();
+      for (const o of fOwners ?? []) {
+        const t = Array.isArray(o.territories) ? o.territories[0] : o.territories;
+        ghlToTerritory.set(o.ghl_contact_id, (t as { territory_name: string } | null)?.territory_name ?? o.ms_slug);
+      }
+
+      // Get pipeline stage names
+      const stageIds = [...new Set((franchiseeStates ?? []).map((s) => s.current_stage_id))];
+      const { data: stageRows } = await supabase
+        .from("pipeline_stages")
+        .select("id, name")
+        .in("id", stageIds);
+      const stageMap = new Map((stageRows ?? []).map((s) => [s.id, s.name]));
+
+      const contactStageMap = new Map<string, string>();
+      for (const s of franchiseeStates ?? []) {
+        contactStageMap.set(s.contact_id, stageMap.get(s.current_stage_id) ?? "Unknown");
+      }
+
+      for (const c of fContacts ?? []) {
+        const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
+        const ghlId = idToGhl.get(c.id);
+        roster.push({
+          name,
+          role: "franchisee",
+          pipelineStage: contactStageMap.get(c.id) ?? null,
+          territory: ghlId ? (ghlToTerritory.get(ghlId) ?? null) : null,
+        });
+      }
+    }
+
+    // Load active prospects (in sales pipeline)
+    const { data: prospectStates } = await supabase
+      .from("contact_pipeline_state")
+      .select("contact_id, current_stage_id")
+      .eq("is_active", true)
+      .eq("pipeline_id", "a0000000-0000-0000-0000-000000000001"); // sales
+
+    const pContactIds = [...new Set((prospectStates ?? []).map((s) => s.contact_id))];
+    if (pContactIds.length > 0) {
+      const { data: pContacts } = await supabase
+        .from("contacts")
+        .select("id, first_name, last_name")
+        .in("id", pContactIds.slice(0, 100)); // Cap at 100 for token budget
+
+      const pStageIds = [...new Set((prospectStates ?? []).map((s) => s.current_stage_id))];
+      const { data: pStageRows } = await supabase
+        .from("pipeline_stages")
+        .select("id, name")
+        .in("id", pStageIds);
+      const pStageMap = new Map((pStageRows ?? []).map((s) => [s.id, s.name]));
+
+      const pContactStageMap = new Map<string, string>();
+      for (const s of prospectStates ?? []) {
+        pContactStageMap.set(s.contact_id, pStageMap.get(s.current_stage_id) ?? "Unknown");
+      }
+
+      for (const c of pContacts ?? []) {
+        const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
+        roster.push({
+          name,
+          role: "prospect",
+          pipelineStage: pContactStageMap.get(c.id) ?? null,
+          territory: null,
+        });
+      }
+    }
+  }
+
   return {
     callId,
     transcript,
@@ -294,6 +403,8 @@ async function loadCallContext(
     feedbackBlock: feedback.promptBlock,
     contactNames,
     territoryNames,
+    roster,
+    isTeamCall,
   };
 }
 

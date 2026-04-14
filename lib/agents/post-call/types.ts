@@ -9,6 +9,14 @@ export interface PipelinePosition {
   allStages: string[];
 }
 
+/** Lightweight roster entry for team/group call context */
+export interface RosterEntry {
+  name: string;
+  role: "prospect" | "franchisee";
+  pipelineStage: string | null;
+  territory: string | null;
+}
+
 /** Shared context passed to all post-call prompt sections */
 export interface CallContext {
   callId: string;
@@ -28,6 +36,10 @@ export interface CallContext {
   contactNames: string[];
   /** Territories linked to the contact(s) */
   territoryNames: string[];
+  /** For team/group calls: full roster of contacts + territories so LLM can match names from transcript */
+  roster: RosterEntry[];
+  /** Whether this is a team/group/internal call (no specific contact focus) */
+  isTeamCall: boolean;
 }
 
 /** Result types for each section */

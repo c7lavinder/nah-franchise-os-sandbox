@@ -1,4 +1,4 @@
-import type { CallContext, ExtractionResult } from "../types";
+import type { CallContext, ExtractionResult, RosterEntry } from "../types";
 import { callClaude, stripFences } from "../call-claude";
 
 const SYSTEM = `You are Scout, the AI data extraction engine for NAH Franchise OS.
@@ -30,19 +30,32 @@ export function buildPrompt(ctx: CallContext): string {
       ? `\n**This contact is an ACTIVE FRANCHISEE.** Extract both contact profile updates AND territory operations/coaching data. Coaching calls should yield goals, challenges, wins, deal updates, and operational metrics.`
       : "";
 
+  // Build roster block for team/group calls
+  const rosterBlock = ctx.isTeamCall && ctx.roster.length > 0
+    ? buildRosterBlock(ctx.roster)
+    : "";
+
   return `Extract EVERY piece of structured data from this call transcript.
 Be exhaustive — a 1-hour call should yield 30-50+ data points.
 If a piece of information was discussed, even briefly, extract it.
 ${contactTypeNote}
+${ctx.isTeamCall ? `
+**THIS IS A TEAM/GROUP CALL.** Multiple contacts and territories may be discussed.
+Listen for EVERY mention of a contact, franchisee, prospect, or territory by name.
+When someone discusses a specific person or territory, tag extractions to them using
+target_contact_name and target_territory. Use the roster below to match names.
+` : ""}
+${rosterBlock}
 
 ## EXTRACTION RULES
 1. Extract for EVERY contact discussed, not just the primary contact.
-2. Extract for EVERY territory mentioned — but ONLY if the contact is a franchisee with an active territory.
+2. Extract for EVERY territory mentioned — match to the roster when possible.
 3. If someone mentions a number, date, name, place, preference, concern, or fact — extract it.
 4. Use "high" confidence for direct quotes/statements, "medium" for inferred, "low" for uncertain.
 5. For territory data: identify which territory by name if possible.
 6. If multiple contacts are on the call, tag each extraction with the correct contact name.
-7. For PROSPECTS: focus heavily on financial capacity, motivation, timeline, and competitive intel. These are the highest-value data points for the sales team.
+7. For PROSPECTS: focus heavily on financial capacity, motivation, timeline, and competitive intel.
+8. For TEAM CALLS: when someone says "Jacob is going cold" or "Ron's territory is doing well", tag those extractions to the specific person/territory from the roster.
 
 ## CONTACT FIELDS (field_category: "contact")
 Extract any of these that are mentioned or can be inferred:
@@ -196,6 +209,38 @@ Team on call: ${ctx.teamMembers.join(", ") || "Unknown"}
 
 Transcript:
 ${ctx.transcript}`;
+}
+
+/** Build a compact roster block for team/group call prompts */
+function buildRosterBlock(roster: RosterEntry[]): string {
+  if (roster.length === 0) return "";
+
+  const franchisees = roster.filter((r) => r.role === "franchisee");
+  const prospects = roster.filter((r) => r.role === "prospect");
+
+  const lines = ["## KNOWN CONTACTS & TERRITORIES (match names from transcript to this roster):"];
+
+  if (franchisees.length > 0) {
+    lines.push("\n**Franchisees:**");
+    for (const f of franchisees) {
+      const territory = f.territory ? ` — ${f.territory}` : "";
+      const stage = f.pipelineStage ? ` (${f.pipelineStage})` : "";
+      lines.push(`- ${f.name}${territory}${stage}`);
+    }
+  }
+
+  if (prospects.length > 0) {
+    lines.push("\n**Prospects:**");
+    for (const p of prospects.slice(0, 50)) { // Cap at 50 for token budget
+      const stage = p.pipelineStage ? ` (${p.pipelineStage})` : "";
+      lines.push(`- ${p.name}${stage}`);
+    }
+    if (prospects.length > 50) {
+      lines.push(`- ... and ${prospects.length - 50} more`);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 export function parseResult(rawText: string): ExtractionResult | null {
