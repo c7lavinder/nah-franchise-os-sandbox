@@ -54,6 +54,10 @@ export async function executeTool(
       return executeDraftStageMove(input);
     case "draft_profile_update":
       return executeDraftProfileUpdate(input);
+    case "draft_eos_update":
+      return executeDraftEosUpdate(input);
+    case "draft_market_data_update":
+      return executeDraftMarketDataUpdate(input);
     case "workflow_analyze":
       return executeWorkflowAnalyze(input);
     case "workflow_rewrite":
@@ -1093,6 +1097,95 @@ async function executeDraftProfileUpdate(
 
   return {
     data: `I've drafted profile updates for ${contactName}: ${fieldSummary}. Please review below and confirm, edit, or cancel.`,
+    draftedAction,
+  };
+}
+
+async function executeDraftEosUpdate(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const entityType = input.entity_type as "contact" | "territory";
+  const entityId = input.entity_id as string;
+  const entityName = input.entity_name as string;
+  const section = input.section as string;
+  const updatesRaw = input.updates as string;
+
+  let updates: { fieldName: string; value: string; reason: string }[];
+  try {
+    updates = JSON.parse(updatesRaw);
+  } catch {
+    return { data: "Error: Could not parse EOS updates. Please provide valid JSON." };
+  }
+
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return { data: "Error: No EOS updates provided." };
+  }
+
+  const fieldSummary = updates
+    .map((u) => `${u.fieldName} → "${u.value}"`)
+    .join(", ");
+
+  const label = entityType === "contact" ? `contact ${entityName}` : `territory ${entityName}`;
+
+  const draftedAction: DraftedAction = {
+    id: crypto.randomUUID(),
+    type: "eos_update",
+    status: "pending",
+    contactId: entityId,
+    contactName: entityName,
+    payload: {
+      actionType: "eos_update",
+      entityType,
+      entityId,
+      section: section as "goals" | "issues" | "todos" | "scorecard" | "budgets" | "habits" | "rocks" | "lead_channels",
+      updates,
+    },
+  };
+
+  return {
+    data: `I've drafted EOS ${section} updates for ${label}: ${fieldSummary}. Please review below and confirm, edit, or cancel.`,
+    draftedAction,
+  };
+}
+
+async function executeDraftMarketDataUpdate(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const territorySlug = input.territory_slug as string;
+  const territoryName = input.territory_name as string;
+  const updatesRaw = input.updates as string;
+
+  let updates: { fieldName: string; value: string; reason: string }[];
+  try {
+    updates = JSON.parse(updatesRaw);
+  } catch {
+    return { data: "Error: Could not parse market data updates. Please provide valid JSON." };
+  }
+
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return { data: "Error: No market data updates provided." };
+  }
+
+  const fieldSummary = updates
+    .map((u) => `${u.fieldName} → "${u.value}"`)
+    .join(", ");
+
+  const draftedAction: DraftedAction = {
+    id: crypto.randomUUID(),
+    type: "market_data_update",
+    status: "pending",
+    contactId: territorySlug,
+    contactName: territoryName,
+    payload: {
+      actionType: "market_data_update",
+      territorySlug,
+      territoryName,
+      fields: updates,
+    },
+  };
+
+  return {
+    data: `I've drafted market data updates for ${territoryName}: ${fieldSummary}. Please review below and confirm, edit, or cancel.`,
     draftedAction,
   };
 }

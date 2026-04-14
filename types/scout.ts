@@ -11,6 +11,8 @@ export type ScoutToolName =
   | "draft_task"
   | "draft_stage_move"
   | "draft_profile_update"
+  | "draft_eos_update"
+  | "draft_market_data_update"
   | "get_schedule"
   | "search_knowledge"
   | "workflow_analyze"
@@ -32,7 +34,7 @@ export interface ChatMessage {
 }
 
 /** Types of actions Scout can draft for user confirmation */
-export type DraftedActionType = "message" | "task" | "stage_move" | "appointment" | "profile_update";
+export type DraftedActionType = "message" | "task" | "stage_move" | "appointment" | "profile_update" | "eos_update" | "market_data_update";
 
 /** Status of a drafted action in the UI */
 export type DraftedActionStatus = "pending" | "editing" | "confirmed" | "cancelled";
@@ -45,7 +47,7 @@ export interface DraftedAction {
   contactId: string;
   contactName: string;
   /** The specific payload depends on the action type */
-  payload: DraftedMessagePayload | DraftedTaskPayload | DraftedStageMovePayload | DraftedAppointmentPayload | DraftedProfileUpdatePayload;
+  payload: DraftedMessagePayload | DraftedTaskPayload | DraftedStageMovePayload | DraftedAppointmentPayload | DraftedProfileUpdatePayload | DraftedEosUpdatePayload | DraftedMarketDataUpdatePayload;
 }
 
 /** Payload for a drafted SMS or email message */
@@ -84,6 +86,24 @@ export interface DraftedAppointmentPayload {
 /** Payload for a drafted profile field update */
 export interface DraftedProfileUpdatePayload {
   actionType: "profile_update";
+  fields: { fieldName: string; value: string; reason: string }[];
+}
+
+/** Payload for a drafted EOS update (contact or territory) */
+export interface DraftedEosUpdatePayload {
+  actionType: "eos_update";
+  entityType: "contact" | "territory";
+  /** Contact ID (for contact EOS) or territory ms_slug (for territory EOS) */
+  entityId: string;
+  section: "goals" | "issues" | "todos" | "scorecard" | "budgets" | "habits" | "rocks" | "lead_channels";
+  updates: { fieldName: string; value: string; reason: string }[];
+}
+
+/** Payload for a drafted territory market data update */
+export interface DraftedMarketDataUpdatePayload {
+  actionType: "market_data_update";
+  territorySlug: string;
+  territoryName: string;
   fields: { fieldName: string; value: string; reason: string }[];
 }
 

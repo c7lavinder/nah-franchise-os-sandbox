@@ -17,6 +17,8 @@ import type {
   DraftedTaskPayload,
   DraftedStageMovePayload,
   DraftedProfileUpdatePayload,
+  DraftedEosUpdatePayload,
+  DraftedMarketDataUpdatePayload,
 } from "@/types/scout";
 
 /** Update engagement tracking fields after an action touches a contact */
@@ -170,6 +172,108 @@ export async function POST(request: NextRequest) {
           } else {
             throw new Error("No valid field mappings found — run setup script to populate ghl_custom_fields");
           }
+          break;
+        }
+        case "eos_update": {
+          const eosPayload = action.payload as DraftedEosUpdatePayload;
+          const supabaseEos = createServerClient();
+
+          if (eosPayload.entityType === "contact") {
+            // Contact EOS updates
+            if (eosPayload.section === "goals") {
+              const goalUpdates: Record<string, unknown> = { contact_id: eosPayload.entityId, updated_at: new Date().toISOString() };
+              for (const u of eosPayload.updates) {
+                goalUpdates[u.fieldName] = u.value;
+              }
+              await supabaseEos.from("eos_contact_goals").upsert(goalUpdates, { onConflict: "contact_id" });
+            } else if (eosPayload.section === "issues") {
+              for (const u of eosPayload.updates) {
+                await supabaseEos.from("eos_contact_issues").insert({
+                  contact_id: eosPayload.entityId,
+                  issue_text: u.value,
+                  source: "ai",
+                });
+              }
+            } else if (eosPayload.section === "todos") {
+              for (const u of eosPayload.updates) {
+                await supabaseEos.from("eos_contact_todos").insert({
+                  contact_id: eosPayload.entityId,
+                  todo_text: u.value,
+                  source: "ai",
+                });
+              }
+            }
+          } else {
+            // Territory EOS updates
+            const slug = eosPayload.entityId;
+            if (eosPayload.section === "goals") {
+              for (const u of eosPayload.updates) {
+                await supabaseEos.from("eos_territory_goals").upsert({
+                  territory_slug: slug,
+                  goal_type: u.fieldName,
+                  current_year_goal: u.value,
+                  updated_at: new Date().toISOString(),
+                }, { onConflict: "territory_slug,goal_type" });
+              }
+            } else if (eosPayload.section === "issues") {
+              for (const u of eosPayload.updates) {
+                await supabaseEos.from("eos_territory_issues").insert({
+                  territory_slug: slug,
+                  issue_text: u.value,
+                  source: "ai",
+                });
+              }
+            } else if (eosPayload.section === "todos") {
+              for (const u of eosPayload.updates) {
+                await supabaseEos.from("eos_territory_todos").insert({
+                  territory_slug: slug,
+                  todo_text: u.value,
+                  source: "ai",
+                });
+              }
+            } else if (eosPayload.section === "rocks") {
+              const now = new Date();
+              for (const u of eosPayload.updates) {
+                await supabaseEos.from("eos_territory_rocks").insert({
+                  territory_slug: slug,
+                  rock_text: u.value,
+                  quarter: Math.ceil((now.getMonth() + 1) / 3),
+                  year: now.getFullYear(),
+                });
+              }
+            } else if (eosPayload.section === "scorecard") {
+              for (const u of eosPayload.updates) {
+                await supabaseEos.from("eos_territory_scorecard").update({
+                  goal_value: u.value,
+                  updated_at: new Date().toISOString(),
+                }).eq("territory_slug", slug).eq("metric_key", u.fieldName);
+              }
+            } else if (eosPayload.section === "habits") {
+              for (const u of eosPayload.updates) {
+                await supabaseEos.from("eos_territory_habits").update({
+                  grade: u.value,
+                  updated_at: new Date().toISOString(),
+                }).eq("territory_slug", slug).eq("habit_key", u.fieldName);
+              }
+            }
+          }
+          ghlResponse = { updated: eosPayload.updates.length };
+          break;
+        }
+        case "market_data_update": {
+          const mdPayload = action.payload as DraftedMarketDataUpdatePayload;
+          const supabaseMd = createServerClient();
+
+          for (const u of mdPayload.fields) {
+            await supabaseMd.from("territory_market_data").upsert({
+              territory_slug: mdPayload.territorySlug,
+              field_name: u.fieldName,
+              field_value: u.value,
+              source: "scout",
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "territory_slug,field_name" });
+          }
+          ghlResponse = { updated: mdPayload.fields.length };
           break;
         }
         case "appointment": {

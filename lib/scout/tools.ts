@@ -184,6 +184,61 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     },
   },
   {
+    name: "draft_eos_update",
+    description:
+      "Draft updates to a contact's or territory's EOS (Entrepreneurial Operating System) data. Use this when the user provides information about goals, issues, to-dos, rocks, habits, or scorecard metrics. For contacts: goals (income/lifestyle/QoL), issues, to-dos. For territories: goals, scorecard, habits, rocks, issues, to-dos, budgets. The update will be presented to the user for review before saving.",
+    input_schema: {
+      type: "object",
+      properties: {
+        entity_type: {
+          type: "string",
+          description: "Whether this update is for a 'contact' or a 'territory'",
+          enum: ["contact", "territory"],
+        },
+        entity_id: {
+          type: "string",
+          description: "The contact ID (UUID) or territory slug (e.g. 'CHLTNE')",
+        },
+        entity_name: {
+          type: "string",
+          description: "Display name of the contact or territory",
+        },
+        section: {
+          type: "string",
+          description: "Which EOS section to update: goals, issues, todos, scorecard, habits, rocks, budgets, lead_channels",
+        },
+        updates: {
+          type: "string",
+          description: "JSON array of updates. Each item: {\"fieldName\": \"income_goal\", \"value\": \"$200k year 1\", \"reason\": \"Discussed on coaching call\"}",
+        },
+      },
+      required: ["entity_type", "entity_id", "entity_name", "section", "updates"],
+    },
+  },
+  {
+    name: "draft_market_data_update",
+    description:
+      "Draft updates to a territory's market data fields (demographics, housing, real estate market, flip market, economy, construction, competition, financial). Use this when the user mentions market conditions, property values, flip stats, contractor costs, competition, or any territory-level market intelligence. The update will be presented to the user for review before saving.",
+    input_schema: {
+      type: "object",
+      properties: {
+        territory_slug: {
+          type: "string",
+          description: "The territory slug (e.g. 'CHLTNE')",
+        },
+        territory_name: {
+          type: "string",
+          description: "Display name of the territory",
+        },
+        updates: {
+          type: "string",
+          description: "JSON array of field updates. Each item: {\"fieldName\": \"median_home_value\", \"value\": \"285000\", \"reason\": \"Updated from latest Zillow data discussed\"}. Use field names from the market data registry.",
+        },
+      },
+      required: ["territory_slug", "territory_name", "updates"],
+    },
+  },
+  {
     name: "get_schedule",
     description:
       "Get upcoming appointments and scheduled events within a date range.",
