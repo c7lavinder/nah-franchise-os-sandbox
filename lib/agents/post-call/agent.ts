@@ -54,6 +54,17 @@ export async function runPostCallAgent(callId: string): Promise<{
     return { success: false, summary: null, coaching: null, actionsCount: 0, extractionsCount: 0, kbDocsUpdated: 0, errors: ["No transcript available"] };
   }
 
+  // Idempotency guard: if this call already has a summary, skip re-generation
+  const { data: callRow } = await supabase
+    .from("calls")
+    .select("ai_summary_generated_at")
+    .eq("id", callId)
+    .single();
+  if (callRow?.ai_summary_generated_at) {
+    console.warn(`[post-call-agent] callId=${callId} already processed (ai_summary_generated_at=${callRow.ai_summary_generated_at}) — skipping`);
+    return { success: true, summary: "already_generated", coaching: null, actionsCount: 0, extractionsCount: 0, kbDocsUpdated: 0, errors: [] };
+  }
+
   // 2. Run all 5 sections in parallel
   const [summaryRes, coachingRes, actionsRes, extractionsRes, kbRes] = await Promise.allSettled([
     runSummary(context, MODELS.summary),
@@ -408,6 +419,30 @@ async function loadCallContext(
   };
 }
 
+// ── Territory resolution helpers ──────────────────────────
+
+/** Build a map of territory_name (lowercase) → ms_slug and ms_slug (lowercase) → ms_slug */
+async function buildTerritoryMap(
+  supabase: ReturnType<typeof createServerClient>
+): Promise<Map<string, string>> {
+  const { data: territories } = await supabase
+    .from("territories")
+    .select("ms_slug, territory_name");
+
+  const map = new Map<string, string>();
+  for (const t of territories ?? []) {
+    // Exact matches on both name and slug
+    map.set(t.territory_name.toLowerCase(), t.ms_slug);
+    map.set(t.ms_slug.toLowerCase(), t.ms_slug);
+  }
+  return map;
+}
+
+/** Resolve a territory name/slug to ms_slug. Exact match only — no fuzzy matching. */
+function resolveTerritory(name: string, map: Map<string, string>): string | null {
+  return map.get(name.toLowerCase()) ?? null;
+}
+
 // ── DB writer ──────────────────────────────────────────────
 
 interface AgentResults {
@@ -632,25 +667,7 @@ async function writeResults(
       );
 
       if (marketExtractions.length > 0) {
-        // Resolve territory names → ms_slug by querying territories table
-        const tNames = [...new Set(
-          marketExtractions.map((e) => e.target_territory).filter((t): t is string => !!t)
-        )];
-        const territoryNameToSlug = new Map<string, string>();
-
-        if (tNames.length > 0) {
-          const { data: territories } = await supabase
-            .from("territories")
-            .select("ms_slug, territory_name");
-          for (const t of territories ?? []) {
-            // Match by exact name or case-insensitive partial match
-            for (const tName of tNames) {
-              if (t.territory_name.toLowerCase().includes(tName.toLowerCase())) {
-                territoryNameToSlug.set(tName.toLowerCase(), t.ms_slug);
-              }
-            }
-          }
-        }
+        const territoryNameToSlug = await buildTerritoryMap(supabase);
 
         // Fallback: if contact has a territory_slug, use it for untagged extractions
         let fallbackSlug: string | null = null;
@@ -663,23 +680,26 @@ async function writeResults(
           fallbackSlug = ctct?.territory_slug ?? null;
         }
 
+        let synced = 0;
+        let skipped = 0;
         for (const ext of marketExtractions) {
-          const tName = ext.target_territory?.toLowerCase();
-          const slug = tName ? territoryNameToSlug.get(tName) : fallbackSlug;
-          if (!slug) continue;
+          const tName = ext.target_territory;
+          const slug = tName ? resolveTerritory(tName, territoryNameToSlug) : fallbackSlug;
+          if (!slug) {
+            console.warn(`[post-call-agent] callId=${callId} SKIPPED market extraction: field=${ext.field_key} territory="${tName}" — no match found`);
+            skipped++;
+            continue;
+          }
 
           await supabase
             .from("territory_market_data")
             .upsert(
-              {
-                territory_slug: slug,
-                field_name: ext.field_key,
-                field_value: ext.extracted_value,
-                source: "scout",
-              },
+              { territory_slug: slug, field_name: ext.field_key, field_value: ext.extracted_value, source: "scout" },
               { onConflict: "territory_slug,field_name" }
             );
+          synced++;
         }
+        if (skipped > 0) console.warn(`[post-call-agent] callId=${callId} territory_market: ${synced} synced, ${skipped} skipped (unresolved territory)`);
       }
 
       // Auto-sync contact_eos extractions (goals, issues, todos)
@@ -688,14 +708,18 @@ async function writeResults(
       );
 
       if (contactEosExtractions.length > 0) {
-        // Resolve contact IDs from names
+        let eosSkipped = 0;
         for (const ext of contactEosExtractions) {
           let targetContactId = contactId;
           if (ext.target_contact_name) {
             const matched = nameToContactId.get(ext.target_contact_name.toLowerCase());
             if (matched) targetContactId = matched;
           }
-          if (!targetContactId) continue;
+          if (!targetContactId) {
+            console.warn(`[post-call-agent] callId=${callId} SKIPPED contact_eos: field=${ext.field_key} contact="${ext.target_contact_name}" — no match`);
+            eosSkipped++;
+            continue;
+          }
 
           if (ext.field_key === "income_goal" || ext.field_key === "lifestyle_goal" || ext.field_key === "qol_goal") {
             // Upsert to eos_contact_goals
@@ -725,41 +749,30 @@ async function writeResults(
       );
 
       if (territoryEosExtractions.length > 0) {
-        // Resolve territory names → slugs
-        const tEosNames = [...new Set(
-          territoryEosExtractions.map((e) => e.target_territory).filter((t): t is string => !!t)
-        )];
-        const tEosNameToSlug = new Map<string, string>();
+        const tEosMap = await buildTerritoryMap(supabase);
 
-        if (tEosNames.length > 0) {
-          const { data: territories } = await supabase
-            .from("territories")
-            .select("ms_slug, territory_name");
-          for (const t of territories ?? []) {
-            for (const tName of tEosNames) {
-              if (t.territory_name.toLowerCase().includes(tName.toLowerCase())) {
-                tEosNameToSlug.set(tName.toLowerCase(), t.ms_slug);
-              }
-            }
-          }
-        }
-
-        // Fallback slug from contact
-        let eosFallbackSlug: string | null = null;
+        let eosTFallbackSlug: string | null = null;
         if (contactId) {
           const { data: ctct } = await supabase
             .from("contacts")
             .select("territory_slug")
             .eq("id", contactId)
             .single();
-          eosFallbackSlug = ctct?.territory_slug ?? null;
+          eosTFallbackSlug = ctct?.territory_slug ?? null;
         }
 
         const now = new Date();
+        let tEosSynced = 0;
+        let tEosSkipped = 0;
         for (const ext of territoryEosExtractions) {
-          const tName = ext.target_territory?.toLowerCase();
-          const slug = tName ? tEosNameToSlug.get(tName) : eosFallbackSlug;
-          if (!slug) continue;
+          const tName = ext.target_territory;
+          const slug = tName ? resolveTerritory(tName, tEosMap) : eosTFallbackSlug;
+          if (!slug) {
+            console.warn(`[post-call-agent] callId=${callId} SKIPPED territory_eos: field=${ext.field_key} territory="${tName}" — no match`);
+            tEosSkipped++;
+            continue;
+          }
+          tEosSynced++;
 
           if (ext.field_key === "rock") {
             await supabase.from("eos_territory_rocks").insert({
@@ -789,6 +802,7 @@ async function writeResults(
             // Skip auto-sync for habits/scorecard — handled via manual or Scout draft tool
           }
         }
+        if (tEosSkipped > 0) console.warn(`[post-call-agent] callId=${callId} territory_eos: ${tEosSynced} synced, ${tEosSkipped} skipped`);
       }
     }
   }

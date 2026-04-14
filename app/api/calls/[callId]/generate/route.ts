@@ -15,22 +15,38 @@ export async function POST(
 ) {
   const { callId } = await params;
 
-  const result = await runPostCallAgent(callId);
+  try {
+    const result = await runPostCallAgent(callId);
 
-  if (!result.success && result.errors.length > 0 && !result.summary) {
+    // Any errors = 500 so callers know something failed
+    if (!result.success || result.errors.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          summary: result.summary ? "generated" : null,
+          coaching_score: result.coaching?.score ?? null,
+          actionsCount: result.actionsCount,
+          extractionsCount: result.extractionsCount,
+          kbDocsUpdated: result.kbDocsUpdated,
+          errors: result.errors,
+        },
+        { status: result.summary ? 207 : 500 } // 207 = partial success (some sections worked)
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      summary: "generated",
+      coaching_score: result.coaching?.score ?? null,
+      actionsCount: result.actionsCount,
+      extractionsCount: result.extractionsCount,
+      kbDocsUpdated: result.kbDocsUpdated,
+    });
+  } catch (err) {
+    console.error(`[generate] callId=${callId} fatal error:`, err instanceof Error ? err.message : err);
     return NextResponse.json(
-      { error: `Scout generation failed: ${result.errors.join("; ")}` },
+      { success: false, error: err instanceof Error ? err.message : "Unknown error" },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({
-    success: result.errors.length === 0,
-    summary: result.summary ? "generated" : null,
-    coaching_score: result.coaching?.score ?? null,
-    actionsCount: result.actionsCount,
-    extractionsCount: result.extractionsCount,
-    kbDocsUpdated: result.kbDocsUpdated,
-    errors: result.errors.length > 0 ? result.errors : undefined,
-  });
 }
