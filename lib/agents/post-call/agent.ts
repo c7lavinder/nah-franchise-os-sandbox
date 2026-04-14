@@ -535,6 +535,95 @@ async function writeResults(
       if (insertErr) {
         console.error("[agent] call_data_extractions insert failed:", insertErr.message, insertErr.details);
       }
+
+      // Auto-sync high-confidence contact extractions to contact_profile_data
+      // This ensures the master contact profile stays current
+      const contactExtractions = rows.filter(
+        (r) => r.field_category === "contact" && r.contact_id && r.confidence === "high"
+      );
+
+      // Fields that map to contact_profile_data columns
+      const PROFILE_FIELDS = new Set([
+        "liquid_capital", "financing_type", "net_worth_estimate", "guidant_robs_active",
+        "pfs_received", "desired_territory", "market_area", "secondary_territory",
+        "territory_value_est", "zip_codes_of_interest", "local_market_notes",
+        "competitor_notes", "primary_motivation", "definition_of_success",
+        "objections_raised", "decision_style", "prior_re_experience", "skill_set_notes",
+      ]);
+
+      // Fields that map to the contacts table directly
+      const CONTACTS_FIELDS = new Set([
+        "first_name", "last_name", "email", "phone", "city", "state", "zip", "address",
+      ]);
+
+      // Group extractions by contact_id
+      const byContact = new Map<string, typeof contactExtractions>();
+      for (const row of contactExtractions) {
+        const existing = byContact.get(row.contact_id!) ?? [];
+        existing.push(row);
+        byContact.set(row.contact_id!, existing);
+      }
+
+      for (const [cId, extractions] of byContact) {
+        // Get ghl_contact_id for contact_profile_data (keyed by ghl_contact_id)
+        const { data: contact } = await supabase
+          .from("contacts")
+          .select("ghl_contact_id")
+          .eq("id", cId)
+          .single();
+
+        if (!contact?.ghl_contact_id) continue;
+
+        // Update contact_profile_data
+        const profileUpdates: Record<string, unknown> = {};
+        for (const ext of extractions) {
+          if (PROFILE_FIELDS.has(ext.field_key)) {
+            // Convert boolean-like values
+            if (ext.field_key === "guidant_robs_active" || ext.field_key === "pfs_received") {
+              profileUpdates[ext.field_key] = ext.extracted_value?.toLowerCase() === "yes" || ext.extracted_value?.toLowerCase() === "true";
+            } else if (["liquid_capital", "net_worth_estimate", "territory_value_est"].includes(ext.field_key)) {
+              // Extract numeric value from strings like "$150,000"
+              const num = parseFloat((ext.extracted_value ?? "").replace(/[$,]/g, ""));
+              if (!isNaN(num)) profileUpdates[ext.field_key] = num;
+            } else {
+              profileUpdates[ext.field_key] = ext.extracted_value;
+            }
+          }
+        }
+
+        if (Object.keys(profileUpdates).length > 0) {
+          await supabase
+            .from("contact_profile_data")
+            .upsert(
+              { ghl_contact_id: contact.ghl_contact_id, ...profileUpdates },
+              { onConflict: "ghl_contact_id" }
+            );
+        }
+
+        // Update contacts table for basic fields
+        const contactUpdates: Record<string, unknown> = {};
+        for (const ext of extractions) {
+          if (CONTACTS_FIELDS.has(ext.field_key) && ext.extracted_value) {
+            contactUpdates[ext.field_key] = ext.extracted_value;
+          }
+        }
+
+        if (Object.keys(contactUpdates).length > 0) {
+          await supabase.from("contacts").update(contactUpdates).eq("id", cId);
+        }
+
+        // Mark these extractions as saved to profile
+        const savedKeys = [...Object.keys(profileUpdates), ...Object.keys(contactUpdates)];
+        if (savedKeys.length > 0) {
+          await supabase
+            .from("call_data_extractions")
+            .update({ saved_to_profile: true })
+            .eq("call_id", callId)
+            .eq("contact_id", cId)
+            .in("field_key", savedKeys)
+            .eq("confidence", "high");
+        }
+      }
     }
   }
 }
