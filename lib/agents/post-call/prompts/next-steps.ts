@@ -120,6 +120,14 @@ For pipeline move (e.g., move to nurture):
 - Dates and times must include day of week and timezone when known.
 - Pipeline actions should always reference the specific pipeline, stage, and sub-task by name.
 
+## LEARNING FROM PAST BEHAVIOR (RAG)
+
+Use this feedback to generate better actions. If the team consistently skips a type of action,
+stop suggesting it. If they always edit a field, pre-fill it better. If they always push
+certain actions, keep suggesting those.
+
+${ctx.feedbackBlock}
+
 Return only a valid JSON array. No preamble, no markdown fences.
 
 Call Type: ${ctx.callType ?? "Unknown"}

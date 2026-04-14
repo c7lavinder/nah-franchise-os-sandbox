@@ -11,6 +11,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import type { CallContext, SummaryResult, CoachingResult, NextStepsResult, ExtractionResult, PipelinePosition } from "./types";
+import { retrieveFeedback } from "./feedback-retrieval";
 import { runSummary } from "./prompts/summary";
 import { runCoaching } from "./prompts/coaching";
 import { runNextSteps } from "./prompts/next-steps";
@@ -233,6 +234,12 @@ async function loadCallContext(
     }
   }
 
+  // Load feedback patterns for the learning loop
+  const feedback = await retrieveFeedback({
+    callTypeSlug,
+    contactId: call.contact_id,
+  });
+
   return {
     callId,
     transcript,
@@ -244,6 +251,7 @@ async function loadCallContext(
     callDate: call.started_at,
     durationSeconds: call.duration_seconds,
     pipelinePositions,
+    feedbackBlock: feedback.promptBlock,
   };
 }
 

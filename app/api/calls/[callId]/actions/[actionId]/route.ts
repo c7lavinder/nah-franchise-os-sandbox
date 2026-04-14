@@ -59,6 +59,7 @@ export async function PATCH(
     await supabase.from("call_action_feedback").insert({
       call_action_item_id: actionId,
       action: "skip",
+      payload: { category: item.category, title: item.title, reason: "user_skipped" },
     });
 
     return NextResponse.json({ success: true });
@@ -122,11 +123,18 @@ export async function PATCH(
     .update(updateFields)
     .eq("id", actionId);
 
-  // Write feedback row
+  // Write feedback row with full payload for learning loop
   await supabase.from("call_action_feedback").insert({
     call_action_item_id: actionId,
     action: body.action === "edit_push" ? "edit" : "push",
     edit_diff: editDiff,
+    payload: {
+      category: item.category,
+      original_title: item.title,
+      original_description: item.description,
+      pushed_fields: payload,
+      was_edited: body.action === "edit_push",
+    },
   });
 
   return NextResponse.json({ success: true });

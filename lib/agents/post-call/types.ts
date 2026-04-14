@@ -22,6 +22,8 @@ export interface CallContext {
   durationSeconds: number | null;
   /** Contact's active pipeline positions — may be in multiple pipelines */
   pipelinePositions: PipelinePosition[];
+  /** RAG feedback block — patterns from past push/skip/edit behavior */
+  feedbackBlock: string;
 }
 
 /** Result types for each section */
