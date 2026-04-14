@@ -238,7 +238,7 @@ async function executeSearchKnowledge(
     // Fetch all active KB docs
     const { data: rawDocs, error } = await supabase
       .from("knowledge_documents")
-      .select("id, title, category, content, priority")
+      .select("id, title, category, content, priority, retrieval_count")
       .eq("is_active", true)
       .order("priority", { ascending: false });
 
@@ -246,7 +246,7 @@ async function executeSearchKnowledge(
       return { data: `Error searching knowledge base: ${error.message}` };
     }
 
-    const docs = rawDocs as { id: string; title: string; category: string; content: string; priority: number }[] | null;
+    const docs = rawDocs as { id: string; title: string; category: string; content: string; priority: number; retrieval_count: number | null }[] | null;
     if (!docs || docs.length === 0) {
       return { data: "No knowledge base documents found." };
     }
@@ -259,19 +259,23 @@ async function executeSearchKnowledge(
       let score = 0;
 
       // Exact phrase match in title = highest signal
-      if (titleLower.includes(query)) score += 20;
+      if (titleLower.includes(query)) score += 30;
       // Exact phrase match in content
-      if (contentLower.includes(query)) score += 10;
-      // Category match
-      if (catLower.includes(query)) score += 15;
-
-      // Individual word matches
+      if (contentLower.includes(query)) score += 15;
+      // Category match (including partial — "coach" matches "coaching")
       for (const word of queryWords) {
-        if (titleLower.includes(word)) score += 5;
-        if (contentLower.includes(word)) score += 2;
+        if (catLower.includes(word)) score += 20;
       }
 
-      // Priority boost
+      // Individual word matches — weighted by position
+      for (const word of queryWords) {
+        if (titleLower.includes(word)) score += 8;
+        // Count occurrences in content for density scoring
+        const matches = contentLower.split(word).length - 1;
+        score += Math.min(matches * 3, 15); // Cap at 15 per word
+      }
+
+      // Priority boost (0-10 scale)
       score += doc.priority;
 
       return { ...doc, score };
@@ -279,23 +283,30 @@ async function executeSearchKnowledge(
 
     // Sort by score, take top results
     const sorted = scored.filter((d) => d.score > 0).sort((a, b) => b.score - a.score);
-    const results = sorted.length > 0 ? sorted.slice(0, 8) : docs.slice(0, 5);
+    const results = sorted.length > 0 ? sorted.slice(0, 10) : docs.slice(0, 5);
 
-    // Update retrieval metrics for matched docs
-    const matchedIds = results.map((d) => d.id);
-    if (matchedIds.length > 0) {
-      for (const docId of matchedIds) {
-        await supabase
-          .from("knowledge_documents")
-          .update({
-            last_retrieved_at: new Date().toISOString(),
-            retrieval_count: (results.find((r) => r.id === docId)?.priority ?? 0) + 1,
-          })
-          .eq("id", docId);
-      }
+    // Update retrieval metrics — increment count, not replace
+    const now = new Date().toISOString();
+    for (const doc of results) {
+      await supabase
+        .from("knowledge_documents")
+        .update({
+          last_retrieved_at: now,
+          retrieval_count: (doc.retrieval_count ?? 0) + 1,
+        })
+        .eq("id", doc.id);
     }
 
-    // Return without score/id for cleaner LLM context
+    // Log gap signal if no results found
+    if (sorted.length === 0) {
+      await supabase.from("kb_gap_signals").insert({
+        query: input.query as string,
+        results_found: 0,
+        suggested_category: queryWords[0] ?? null,
+      }); // non-critical — errors ignored
+    }
+
+    // Return with category for context
     const cleaned = results.map(({ title, category, content }) => ({ title, category, content }));
     return { data: JSON.stringify(cleaned) };
   } catch (err) {

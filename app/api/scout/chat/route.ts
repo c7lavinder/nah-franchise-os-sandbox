@@ -22,6 +22,14 @@ interface ChatRequestBody {
   userId: string;
   userRole: UserRole;
   userName: string;
+  /** Page context for context-aware KB loading */
+  pageContext?: {
+    page: string;
+    callType?: string;
+    contactId?: string;
+    territorySlug?: string;
+    pipelineStage?: string;
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -47,6 +55,7 @@ export async function POST(request: NextRequest) {
       userId: body.userId,
       userRole: body.userRole ?? "rep",
       userName: body.userName ?? "User",
+      pageContext: body.pageContext,
     });
 
     // Persist session to Supabase

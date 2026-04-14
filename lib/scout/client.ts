@@ -147,6 +147,14 @@ export interface ScoutConversationInput {
   userRole: UserRole;
   /** Current user's name */
   userName: string;
+  /** Page context — where the user is in the app (for context-aware KB loading) */
+  pageContext?: {
+    page: string; // "pipeline" | "calls" | "call_detail" | "leads" | "lead_detail" | "territory" | "knowledge" | "dashboard" | "settings"
+    callType?: string; // e.g. "intro_call", "team_call"
+    contactId?: string;
+    territorySlug?: string;
+    pipelineStage?: string;
+  };
 }
 
 /** Output from a full Scout conversation turn */
@@ -159,24 +167,81 @@ export interface ScoutConversationOutput {
   updatedMessages: Anthropic.Messages.MessageParam[];
 }
 
-/** Loads active knowledge docs from Supabase and formats them for the system prompt */
-async function loadKnowledgeBase(): Promise<string> {
+/** Category relevance by page context */
+const PAGE_CATEGORY_BOOST: Record<string, string[]> = {
+  pipeline: ["pipeline", "objections", "conversion_playbook", "ideal_candidate", "competitors", "fdd"],
+  calls: ["coaching", "objections", "pipeline", "conversion_playbook"],
+  call_detail: ["coaching", "objections", "pipeline", "conversion_playbook", "territory"],
+  leads: ["pipeline", "objections", "ideal_candidate", "conversion_playbook", "fdd", "competitors"],
+  lead_detail: ["pipeline", "objections", "ideal_candidate", "conversion_playbook", "fdd"],
+  territory: ["territory", "deal_execution", "coaching", "industry"],
+  knowledge: ["business_planning", "governance", "operations", "brand"],
+  dashboard: ["business_planning", "pipeline", "coaching", "marketing"],
+};
+
+/** Call-type to category boost */
+const CALL_TYPE_BOOST: Record<string, string[]> = {
+  intro_call: ["pipeline", "objections", "ideal_candidate", "brand", "conversion_playbook"],
+  matt_call: ["pipeline", "ideal_candidate", "conversion_playbook"],
+  sam_call: ["deal_execution", "territory", "coaching"],
+  mark_call: ["objections", "fdd", "conversion_playbook"],
+  fdd_review: ["fdd", "objections", "governance"],
+  territory_call: ["territory", "deal_execution", "industry"],
+  matt_final_call: ["conversion_playbook", "governance", "pipeline"],
+  coaching_call: ["coaching", "deal_execution", "territory", "franchisee_playbook"],
+  team_call: ["business_planning", "operations", "governance", "marketing", "coaching"],
+  group_call: ["coaching", "deal_execution", "territory", "franchisee_playbook"],
+};
+
+/**
+ * Loads active knowledge docs from Supabase with context-aware prioritization.
+ * Loads up to 25 docs — priority-boosted by page context and call type.
+ */
+async function loadKnowledgeBase(pageContext?: ScoutConversationInput["pageContext"]): Promise<string> {
   try {
     const supabase = createServerClient();
-    const { data: docs, error } = await supabase
+    const { data: allDocs, error } = await supabase
       .from("knowledge_documents")
-      .select("title, category, content")
+      .select("id, title, category, content, priority")
       .eq("is_active", true)
-      .order("priority", { ascending: false })
-      .limit(10);
+      .order("priority", { ascending: false });
 
-    if (error || !docs || docs.length === 0) return "";
+    if (error || !allDocs || allDocs.length === 0) return "";
 
-    const formatted = (docs as { title: string; category: string; content: string }[])
-      .map((doc) => `### ${doc.title} [${doc.category}]\n${doc.content}`)
-      .join("\n\n");
+    const docs = allDocs as { id: string; title: string; category: string; content: string; priority: number }[];
 
-    return `KNOWLEDGE BASE — Use this information to answer questions accurately:\n\n${formatted}`;
+    // Build boost set from page context
+    const boostedCategories = new Set<string>();
+    if (pageContext?.page) {
+      for (const cat of PAGE_CATEGORY_BOOST[pageContext.page] ?? []) {
+        boostedCategories.add(cat);
+      }
+    }
+    if (pageContext?.callType) {
+      for (const cat of CALL_TYPE_BOOST[pageContext.callType] ?? []) {
+        boostedCategories.add(cat);
+      }
+    }
+
+    // Score and sort — boosted categories get +50, then by priority
+    const scored = docs.map((doc) => ({
+      ...doc,
+      score: (boostedCategories.has(doc.category) ? 50 : 0) + doc.priority,
+    }));
+    scored.sort((a, b) => b.score - a.score);
+
+    // Take top 25 docs
+    const selected = scored.slice(0, 25);
+
+    // Format — boosted docs get a "RELEVANT" marker
+    const formatted = selected
+      .map((doc) => {
+        const marker = boostedCategories.has(doc.category) ? " [HIGHLY RELEVANT]" : "";
+        return `### ${doc.title} [${doc.category}]${marker}\n${doc.content}`;
+      })
+      .join("\n\n---\n\n");
+
+    return `KNOWLEDGE BASE — You have deep knowledge of NAH operations. Use this information to answer questions accurately. Documents marked [HIGHLY RELEVANT] are most relevant to what the user is currently doing.\n\n${formatted}`;
   } catch {
     return "";
   }
@@ -224,9 +289,9 @@ export async function runConversationTurn(
 ): Promise<ScoutConversationOutput> {
   const client = createAnthropicClient();
 
-  // Load dynamic context from Supabase
+  // Load dynamic context from Supabase — KB is context-aware
   const [knowledgeBase, pipelineSnapshot] = await Promise.all([
-    loadKnowledgeBase(),
+    loadKnowledgeBase(input.pageContext),
     loadPipelineSnapshot(),
   ]);
 
