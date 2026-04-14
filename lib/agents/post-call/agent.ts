@@ -174,6 +174,46 @@ async function loadCallContext(
 
   const teamMembers = (teamRows ?? []).map((r) => r.display_name ?? "Unknown");
 
+  // Resolve ALL external contacts on this call (for multi-contact extraction)
+  const { data: contactParticipants } = await supabase
+    .from("call_participants")
+    .select("display_name, contact_id")
+    .eq("call_id", callId)
+    .in("role", ["prospect", "franchisee"]);
+
+  const contactNames: string[] = [];
+  for (const cp of contactParticipants ?? []) {
+    if (cp.contact_id) {
+      const { data: c } = await supabase.from("contacts").select("first_name, last_name").eq("id", cp.contact_id).single();
+      if (c) contactNames.push(`${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || cp.display_name || "Unknown");
+    } else if (cp.display_name) {
+      contactNames.push(cp.display_name);
+    }
+  }
+  // Ensure primary contact is included
+  if (contactName && !contactNames.includes(contactName)) {
+    contactNames.unshift(contactName);
+  }
+
+  // Resolve territories linked to contact(s)
+  const territoryNames: string[] = [];
+  const contactIds = (contactParticipants ?? []).map((p) => p.contact_id).filter(Boolean) as string[];
+  if (call.contact_id && !contactIds.includes(call.contact_id)) contactIds.push(call.contact_id);
+  if (contactIds.length > 0) {
+    const { data: owners } = await supabase
+      .from("territory_owners")
+      .select("ms_slug, territories ( territory_name )")
+      .in("ghl_contact_id",
+        (await supabase.from("contacts").select("ghl_contact_id").in("id", contactIds)).data?.map((c) => c.ghl_contact_id).filter(Boolean) ?? []
+      )
+      .is("end_date", null);
+    for (const o of owners ?? []) {
+      const t = Array.isArray(o.territories) ? o.territories[0] : o.territories;
+      const name = (t as { territory_name: string } | null)?.territory_name ?? o.ms_slug;
+      if (!territoryNames.includes(name)) territoryNames.push(name);
+    }
+  }
+
   // Load contact's active pipeline positions
   const pipelinePositions: PipelinePosition[] = [];
   if (call.contact_id) {
@@ -252,6 +292,8 @@ async function loadCallContext(
     durationSeconds: call.duration_seconds,
     pipelinePositions,
     feedbackBlock: feedback.promptBlock,
+    contactNames,
+    territoryNames,
   };
 }
 
@@ -328,17 +370,54 @@ async function writeResults(
       .eq("saved_to_profile", false)
       .eq("dismissed", false);
 
+    // Build a name → contact_id map for multi-contact resolution
+    const { data: callParticipants } = await supabase
+      .from("call_participants")
+      .select("contact_id, display_name")
+      .eq("call_id", callId)
+      .in("role", ["prospect", "franchisee"]);
+
+    const nameToContactId = new Map<string, string>();
+    for (const p of callParticipants ?? []) {
+      if (p.contact_id && p.display_name) {
+        nameToContactId.set(p.display_name.toLowerCase(), p.contact_id);
+      }
+    }
+    // Also resolve full names from contacts table
+    const pContactIds = (callParticipants ?? []).map((p) => p.contact_id).filter(Boolean) as string[];
+    if (pContactIds.length > 0) {
+      const { data: contacts } = await supabase.from("contacts").select("id, first_name, last_name").in("id", pContactIds);
+      for (const c of contacts ?? []) {
+        const fullName = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim().toLowerCase();
+        if (fullName) nameToContactId.set(fullName, c.id);
+        if (c.last_name) nameToContactId.set(c.last_name.toLowerCase(), c.id);
+      }
+    }
+
+    // Ensure field_category is valid per DB constraint
+    const validCategories = new Set(["contact", "territory", "market", "business_financials", "business_health"]);
+
     const rows = results.extractions.extractions
       .filter((e) => e.extracted_value !== null)
-      .map((e) => ({
-        call_id: callId,
-        contact_id: contactId ?? null,
-        field_key: e.field_key,
-        field_category: e.field_category,
-        extracted_value: e.extracted_value,
-        confidence: e.confidence,
-        source: "scout",
-      }));
+      .filter((e) => validCategories.has(e.field_category))
+      .map((e) => {
+        // Resolve contact_id from target_contact_name if provided
+        let resolvedContactId = contactId;
+        if (e.target_contact_name) {
+          const matched = nameToContactId.get(e.target_contact_name.toLowerCase());
+          if (matched) resolvedContactId = matched;
+        }
+
+        return {
+          call_id: callId,
+          contact_id: resolvedContactId ?? null,
+          field_key: e.field_key,
+          field_category: e.field_category,
+          extracted_value: e.extracted_value,
+          confidence: e.confidence,
+          source: "scout",
+        };
+      });
 
     if (rows.length > 0) {
       const { error: insertErr } = await supabase.from("call_data_extractions").insert(rows);

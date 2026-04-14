@@ -24,6 +24,10 @@ export interface CallContext {
   pipelinePositions: PipelinePosition[];
   /** RAG feedback block — patterns from past push/skip/edit behavior */
   feedbackBlock: string;
+  /** All external contacts on the call (for multi-contact extraction) */
+  contactNames: string[];
+  /** Territories linked to the contact(s) */
+  territoryNames: string[];
 }
 
 /** Result types for each section */
@@ -70,6 +74,10 @@ export interface ExtractionField {
   field_category: string;
   extracted_value: string | null;
   confidence: string;
+  /** For multi-contact calls: which contact this applies to (name) */
+  target_contact_name?: string;
+  /** For territory data: which territory this applies to (name or slug) */
+  target_territory?: string;
 }
 
 export interface ExtractionResult {
