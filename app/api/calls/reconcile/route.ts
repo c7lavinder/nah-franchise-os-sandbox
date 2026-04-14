@@ -15,11 +15,22 @@ import { createServerClient } from "@/lib/supabase/server";
 export async function POST() {
   const supabase = createServerClient();
 
-  // 1. Build email → contact map
-  const { data: contacts } = await supabase
-    .from("contacts")
-    .select("id, email, ghl_contact_id, first_name, last_name")
-    .not("email", "is", null);
+  // 1. Build email → contact map (fetch all — may be 2000+)
+  let allContacts: { id: string; email: string; ghl_contact_id: string; first_name: string | null; last_name: string | null }[] = [];
+  let offset = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data } = await supabase
+      .from("contacts")
+      .select("id, email, ghl_contact_id, first_name, last_name")
+      .not("email", "is", null)
+      .range(offset, offset + PAGE - 1);
+    if (!data || data.length === 0) break;
+    allContacts = allContacts.concat(data);
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+  const contacts = allContacts;
 
   const emailToContact = new Map<string, { id: string; ghl_contact_id: string; name: string }>();
   for (const c of contacts ?? []) {

@@ -111,7 +111,16 @@ export async function GET(request: NextRequest) {
   }
 
   // Build email→name map from contacts table for external participant name resolution
-  const { data: allContacts } = await supabase.from("contacts").select("email, first_name, last_name").not("email", "is", null);
+  // Paginate to get all contacts (2000+)
+  let allContacts: { email: string; first_name: string | null; last_name: string | null }[] = [];
+  let cOffset = 0;
+  while (true) {
+    const { data: page } = await supabase.from("contacts").select("email, first_name, last_name").not("email", "is", null).range(cOffset, cOffset + 999);
+    if (!page || page.length === 0) break;
+    allContacts = allContacts.concat(page);
+    if (page.length < 1000) break;
+    cOffset += 1000;
+  }
   const contactEmailToName = new Map<string, string>();
   for (const c of allContacts ?? []) {
     if (c.email) {
