@@ -11,6 +11,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import CallDetailTabs from "@/components/calls/CallDetailTabs";
+import CallOverrideControls from "@/components/calls/CallOverrideControls";
 
 interface TeamMember { id: string; name: string; email: string }
 interface LinkedContact { id: string | null; name: string; email: string; phone: string; role: string; linked: boolean }
@@ -29,6 +30,7 @@ interface CallDetail {
   contactName: string | null;
   contact_id: string | null;
   hostName: string | null;
+  hosted_by_user_id: string | null;
   callTypeName: string | null;
   callTypeSlug: string | null;
   call_type_id: string | null;
@@ -191,6 +193,14 @@ export default function CallDetailPage() {
           <h1 className="font-headline text-page-title text-text-primary truncate flex-1">
             {call.title ?? "Call"}
           </h1>
+          <CallOverrideControls
+            callId={call.id}
+            hostedByUserId={call.hosted_by_user_id}
+            currentCallTypeId={call.call_type_id}
+            currentContactId={call.contact_id}
+            currentTerritorySlug={call.territory_ms_slug}
+            onChange={() => void fetchDetail()}
+          />
           <button onClick={() => void fetchDetail()} className="btn-ghost p-1.5 flex-shrink-0">
             <RefreshCw size={14} />
           </button>
