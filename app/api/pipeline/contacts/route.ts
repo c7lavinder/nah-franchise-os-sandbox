@@ -3,8 +3,11 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/pipeline/contacts
  *
- * Returns active pipeline contacts from Supabase for the All Leads list.
- * Fetches ALL matching rows (paginating through Supabase's 1000-row limit).
+ * Phase 3 cutover: pipeline rows now come from journey_pipeline_state +
+ * journey_contacts (primary member) instead of contact_pipeline_state.
+ * Response shape is unchanged so the existing PipelineLeadList UI renders
+ * identically. journeyId and territoryMsSlug are added non-breaking so the
+ * lead-card link target can evolve later without another route rewrite.
  *
  * Query params:
  *   stage_id — filter to a specific stage (optional)
@@ -16,11 +19,12 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 
-const PAGE_SIZE = 1000; // Supabase PostgREST max per request
+const PAGE_SIZE = 1000;
 
 const SELECT_FIELDS = `
   id,
-  contact_id,
+  journey_id,
+  territory_ms_slug,
   pipeline_id,
   current_stage_id,
   current_sub_task_id,
@@ -29,15 +33,20 @@ const SELECT_FIELDS = `
   entered_pipeline_at,
   assigned_user_id,
   is_active,
-  contacts (
+  journeys!inner (
     id,
-    first_name,
-    last_name,
-    email,
-    phone,
-    opportunity_source,
-    city,
-    state
+    name,
+    primary_contact_id,
+    contacts!journeys_primary_contact_id_fkey (
+      id,
+      first_name,
+      last_name,
+      email,
+      phone,
+      opportunity_source,
+      city,
+      state
+    )
   ),
   pipeline_stages (
     id,
@@ -62,14 +71,13 @@ export async function GET(request: NextRequest) {
 
     const supabase = createServerClient();
 
-    // Server-side search: find matching contact IDs first
+    // Server-side search resolves to a set of primary_contact_ids. We then
+    // restrict to journeys whose primary member matches.
     let matchingContactIds: string[] | null = null;
     if (query) {
-      // Split query into words so "brian boll" matches first_name=Brian AND last_name=Boll
       const words = query.split(/\s+/).filter(Boolean);
 
       if (words.length >= 2) {
-        // Multi-word: try first+last name match, plus fallback to any-field match per word
         const [first, ...rest] = words;
         const last = rest.join(" ");
         const { data: nameMatch } = await supabase
@@ -79,7 +87,6 @@ export async function GET(request: NextRequest) {
           .ilike("last_name", `%${last}%`)
           .limit(5000);
 
-        // Also do single-term search on each word as fallback
         const { data: fallback } = await supabase
           .from("contacts")
           .select("id")
@@ -105,32 +112,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get total count
-    let totalCountQuery = supabase
-      .from("contact_pipeline_state")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true);
-    if (matchingContactIds) totalCountQuery = totalCountQuery.in("contact_id", matchingContactIds);
-    if (stageId) totalCountQuery = totalCountQuery.eq("current_stage_id", stageId);
-    if (pipelineSlug === "sales") totalCountQuery = totalCountQuery.eq("pipeline_id", "a0000000-0000-0000-0000-000000000001");
-    else if (pipelineSlug === "followup") totalCountQuery = totalCountQuery.eq("pipeline_id", "a0000000-0000-0000-0000-000000000002");
-    const { count: totalCount } = await totalCountQuery;
-
-    // Fetch ALL rows by paginating through Supabase's 1000-row limit
+    // Fetch every matching jps row, paginated. Total count is derived post-
+    // dedupe since the unfiltered view collapses journeys across pipelines.
     const allRows: Record<string, unknown>[] = [];
     let offset = 0;
     let hasMore = true;
 
     while (hasMore) {
       let dbQuery = supabase
-        .from("contact_pipeline_state")
+        .from("journey_pipeline_state")
         .select(SELECT_FIELDS)
         .eq("is_active", true);
 
-      if (matchingContactIds) dbQuery = dbQuery.in("contact_id", matchingContactIds);
       if (stageId) dbQuery = dbQuery.eq("current_stage_id", stageId);
       if (pipelineSlug === "sales") dbQuery = dbQuery.eq("pipeline_id", "a0000000-0000-0000-0000-000000000001");
       else if (pipelineSlug === "followup") dbQuery = dbQuery.eq("pipeline_id", "a0000000-0000-0000-0000-000000000002");
+      if (matchingContactIds) dbQuery = dbQuery.in("journeys.primary_contact_id", matchingContactIds);
 
       if (sort === "recent") {
         dbQuery = dbQuery.order("entered_current_stage_at", { ascending: false });
@@ -149,52 +146,56 @@ export async function GET(request: NextRequest) {
       hasMore = (rows?.length ?? 0) === PAGE_SIZE;
       offset += PAGE_SIZE;
 
-      // Safety cap at 10k to prevent runaway
       if (allRows.length >= 10000) break;
     }
 
-    // Post-process: compute urgency
     const now = Date.now();
 
     type ContactRow = { id: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null; opportunity_source: string | null; city: string | null; state: string | null };
+    type JourneyRow = { id: string; name: string; primary_contact_id: string; contacts: ContactRow | ContactRow[] | null };
     type StageRow = { id: string; name: string; slug: string };
     type PipelineRow = { id: string; name: string; slug: string; sort_order: number };
 
-    // Deduplicate by contact_id — keep the row from the highest-sort_order pipeline
-    // (furthest lifecycle stage: sales=1 → onboarding=2 → runway=3 → territories=4 → followup=5)
+    // Unfiltered view: one card per journey, preferring the highest-sort_order
+    // pipeline (lifecycle furthest along). Matches the pre-cutover behavior.
     if (!stageId) {
-      const bestByContact = new Map<string, Record<string, unknown>>();
+      const bestByJourney = new Map<string, Record<string, unknown>>();
       for (const row of allRows) {
-        const cid = row.contact_id as string;
+        const journeyIdKey = row.journey_id as string;
         const rawPipeline = row.pipelines;
         const pipeline = (Array.isArray(rawPipeline) ? rawPipeline[0] : rawPipeline) as PipelineRow | null;
         const sortOrder = pipeline?.sort_order ?? 0;
 
-        const existing = bestByContact.get(cid);
+        const existing = bestByJourney.get(journeyIdKey);
         if (!existing) {
-          bestByContact.set(cid, row);
+          bestByJourney.set(journeyIdKey, row);
         } else {
           const existingPipeline = existing.pipelines;
           const ep = (Array.isArray(existingPipeline) ? existingPipeline[0] : existingPipeline) as PipelineRow | null;
           if (sortOrder > (ep?.sort_order ?? 0)) {
-            bestByContact.set(cid, row);
+            bestByJourney.set(journeyIdKey, row);
           }
         }
       }
       allRows.length = 0;
-      allRows.push(...bestByContact.values());
+      allRows.push(...bestByJourney.values());
     }
 
     const contacts = allRows.map((row: Record<string, unknown>) => {
-      // Supabase joins can return object or array — normalize
-      const rawContact = row.contacts;
+      const rawJourney = row.journeys;
+      const journey = (Array.isArray(rawJourney) ? rawJourney[0] : rawJourney) as JourneyRow | null;
+      const rawContact = journey?.contacts;
       const contact = (Array.isArray(rawContact) ? rawContact[0] : rawContact) as ContactRow | null;
       const rawStage = row.pipeline_stages;
       const stage = (Array.isArray(rawStage) ? rawStage[0] : rawStage) as StageRow | null;
       const rawPipeline = row.pipelines;
       const pipeline = (Array.isArray(rawPipeline) ? rawPipeline[0] : rawPipeline) as PipelineRow | null;
 
-      const name = [contact?.first_name?.trim(), contact?.last_name?.trim()].filter(Boolean).join(" ") || (contact?.email ?? contact?.phone ?? "Unknown");
+      const name = journey?.name
+        ?? [contact?.first_name?.trim(), contact?.last_name?.trim()].filter(Boolean).join(" ")
+        ?? contact?.email
+        ?? contact?.phone
+        ?? "Unknown";
 
       const subTaskStarted = row.current_sub_task_started_at
         ? new Date(row.current_sub_task_started_at as string).getTime()
@@ -203,7 +204,6 @@ export async function GET(request: NextRequest) {
           : now;
       const daysSinceSubTask = Math.floor((now - subTaskStarted) / (1000 * 60 * 60 * 24));
 
-      // Terminal/won stages skip urgency — they're done
       const isTerminal = stage?.slug === "closed" || stage?.slug === "onboarded"
         || stage?.slug === "runway-complete" || stage?.slug === "running"
         || (stage as StageRow & { is_terminal?: boolean })?.is_terminal === true;
@@ -226,7 +226,9 @@ export async function GET(request: NextRequest) {
 
       return {
         stateId: row.id as string,
-        contactId: row.contact_id as string,
+        contactId: (contact?.id ?? journey?.primary_contact_id ?? "") as string,
+        journeyId: row.journey_id as string,
+        territoryMsSlug: (row.territory_ms_slug as string | null) ?? null,
         name,
         email: contact?.email ?? null,
         phone: contact?.phone ?? null,
@@ -245,7 +247,6 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Sort
     if (sort === "urgency") {
       contacts.sort((a, b) => b.urgencyScore - a.urgencyScore || b.daysSinceSubTask - a.daysSinceSubTask);
     } else if (sort === "name") {
