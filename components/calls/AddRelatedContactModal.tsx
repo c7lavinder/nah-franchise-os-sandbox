@@ -130,7 +130,7 @@ export default function AddRelatedContactModal({ open, primaryContactId, prefill
       <form
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
-        className="bg-bg-secondary border border-border-default rounded-lg shadow-xl w-full max-w-md mx-4 p-4 space-y-3"
+        className="bg-surface-solid border border-border-default rounded-lg shadow-xl w-full max-w-md mx-4 p-4 space-y-3"
       >
         <div className="flex items-center justify-between">
           <h3 className="text-body-sm font-medium text-text-primary">Add related contact</h3>

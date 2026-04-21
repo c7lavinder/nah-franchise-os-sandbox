@@ -186,7 +186,7 @@ function ReclassifyButton(props: Props & { token: string | null }) {
                           className={`w-full text-left px-3 py-2 text-body-sm rounded-md border transition-colors ${
                             active
                               ? "border-nah-blue bg-[#E6F1FB] text-text-primary"
-                              : "border-border-default bg-bg-primary text-text-primary hover:bg-bg-secondary"
+                              : "border-border-default bg-bg-primary text-text-primary hover:bg-bg-tertiary"
                           }`}
                         >
                           {ct.name}
@@ -547,33 +547,6 @@ function ReassignButton(props: Props & { token: string | null }) {
               </section>
             )}
 
-            {unionSelected.length > 0 && (
-              <section>
-                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1.5">
-                  Call territories ({unionSelected.length}) · star = primary
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {unionSelected.map((t) => {
-                    const isPrimary = primaryTerritory === t.ms_slug;
-                    return (
-                      <button
-                        key={t.ms_slug}
-                        type="button"
-                        onClick={() => setPrimaryTerritory(t.ms_slug)}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border ${
-                          isPrimary
-                            ? "border-[#EAB308] bg-[#EAB308]/10 text-text-primary"
-                            : "border-border-default bg-bg-primary text-text-secondary hover:text-text-primary"
-                        }`}
-                      >
-                        <Star size={10} fill={isPrimary ? "currentColor" : "none"} className={isPrimary ? "text-[#EAB308]" : ""} />
-                        {t.territory_name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
 
             {rows.length === 0 && (
               <div className="text-caption text-text-tertiary py-4 text-center">
@@ -707,7 +680,7 @@ function ParticipantRow({
 
       {row.contactId && !editing ? (
         <>
-          <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-bg-secondary">
+          <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-bg-tertiary">
             <div className="flex-1 text-caption text-text-primary truncate">
               <span className="font-medium">{row.contactName ?? "Unknown"}</span>
               {row.ownedTerritories.length > 0 && (
@@ -810,7 +783,7 @@ function ParticipantRow({
                     setQuery("");
                     setResults([]);
                   }}
-                  className="w-full text-left px-3 py-1.5 text-caption hover:bg-bg-secondary"
+                  className="w-full text-left px-3 py-1.5 text-caption hover:bg-bg-tertiary"
                 >
                   <div className="text-text-primary font-medium">{c.name}</div>
                   {(c.email || c.phone) && (
@@ -826,14 +799,14 @@ function ParticipantRow({
               <div className="border-t border-border-default">
                 <button
                   onClick={() => { onRequestAdd("prospect"); setEditing(false); setQuery(""); setResults([]); }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-caption text-nah-blue hover:bg-bg-secondary"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-caption text-nah-blue hover:bg-bg-tertiary"
                 >
                   <UserPlus size={12} />
                   Add new prospect
                 </button>
                 <button
                   onClick={() => { onRequestAdd("related"); setEditing(false); setQuery(""); setResults([]); }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-caption text-nah-blue hover:bg-bg-secondary"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-caption text-nah-blue hover:bg-bg-tertiary"
                 >
                   <Users size={12} />
                   Add related contact
@@ -929,9 +902,9 @@ function ModalShell({
   wide?: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={onClose}>
       <div
-        className={`bg-bg-secondary border border-border-default rounded-lg shadow-xl w-full ${wide ? "max-w-xl" : "max-w-md"} p-4`}
+        className={`bg-surface-solid border border-border-default rounded-lg shadow-xl w-full ${wide ? "max-w-xl" : "max-w-md"} p-4`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">

@@ -148,7 +148,7 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
       {/* Modal */}
       <form
         onSubmit={handleSubmit}
-        className="relative bg-bg-primary rounded-lg border border-border-default shadow-xl w-full max-w-md mx-4 p-6 space-y-4"
+        className="relative bg-surface-solid rounded-lg border border-border-default shadow-xl w-full max-w-md mx-4 p-6 space-y-4"
       >
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -172,7 +172,7 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
               type="text"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
-              className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary focus:border-nah-orange focus:outline-none"
+              className="w-full bg-bg-tertiary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary focus:border-nah-orange focus:outline-none"
               required
             />
           </label>
@@ -182,7 +182,7 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
               type="text"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
-              className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary focus:border-nah-orange focus:outline-none"
+              className="w-full bg-bg-tertiary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary focus:border-nah-orange focus:outline-none"
               required
             />
           </label>
@@ -196,7 +196,7 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="prospect@email.com"
-            className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary focus:border-nah-orange focus:outline-none"
+            className="w-full bg-bg-tertiary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary focus:border-nah-orange focus:outline-none"
           />
         </label>
         <label className="block space-y-1">
@@ -206,7 +206,7 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="(555) 123-4567"
-            className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary focus:border-nah-orange focus:outline-none"
+            className="w-full bg-bg-tertiary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary focus:border-nah-orange focus:outline-none"
           />
         </label>
 
@@ -218,7 +218,7 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
               type="text"
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary focus:border-nah-orange focus:outline-none"
+              className="w-full bg-bg-tertiary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary focus:border-nah-orange focus:outline-none"
             />
           </label>
           <label className="space-y-1">
@@ -229,7 +229,7 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
               onChange={(e) => setState(e.target.value)}
               placeholder="TX"
               maxLength={2}
-              className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary focus:border-nah-orange focus:outline-none"
+              className="w-full bg-bg-tertiary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary focus:border-nah-orange focus:outline-none"
             />
           </label>
         </div>
@@ -241,7 +241,7 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
             <select
               value={source}
               onChange={(e) => setSource(e.target.value)}
-              className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary focus:border-nah-orange focus:outline-none"
+              className="w-full bg-bg-tertiary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary focus:border-nah-orange focus:outline-none"
             >
               <option value="">Select...</option>
               {sources.map((s) => (
@@ -255,7 +255,7 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
               value={subSource}
               onChange={(e) => setSubSource(e.target.value)}
               disabled={!source || activeSubSources.length === 0}
-              className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary focus:border-nah-orange focus:outline-none disabled:opacity-50"
+              className="w-full bg-bg-tertiary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary focus:border-nah-orange focus:outline-none disabled:opacity-50"
             >
               <option value="">Select...</option>
               {activeSubSources.map((ss) => (
