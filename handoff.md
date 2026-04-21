@@ -1,116 +1,61 @@
-# Session Handoff — 2026-04-14 — Session 4
+# Session Handoff — 2026-04-20 — Call Classification Consolidation
 
 ## Status
-Phase: Call Intelligence + KB Foundation + Data Readiness / Health: Green / Duration: full session
+Phase: Sprint "Call type classification — consolidate 5 paths into 1" / Health: Green / **Shipped end-to-end. Merged to main, pushed, deployed.**
 
-## What Was Built This Session (continued from Session 3)
+- 6 commits on `main` (fast-forward merge from the feature branch).
+- GitHub: pushed to `origin/main`.
+- Vercel production deploy `dpl_D7AKVfuhoi7UcJNRvt5iRJaHTBpu` at commit `ea0adda` — state READY, region iad1.
 
-### Next Steps Tab
-- Collapsible action panels with getSummaryDetail per type
-- Searchable To/From dropdowns (contact search API + team member dropdown with email/phone)
-- Pipeline stage moves and sub-task log-offs on every call
-- Pushed (greyed) and skipped (red) items always visible at bottom
-- RAG feedback loop — learns from push/skip/edit behavior
+## What Shipped
 
-### Post-Call Agent Intelligence
-- All 5 sections on Sonnet with 25,000 token budget
-- Transcript-driven pipeline intelligence across all 4 pipelines
-- Contact's live pipeline position loaded (stage, sub-tasks done/pending)
-- Pipeline-aware extraction: prospects get financial fields, franchisees get territory/ops
-- Multi-contact + multi-territory extraction support
-- Team/group calls are roster-aware — 70 franchisees + all prospects loaded into prompt
-- Auto-sync high-confidence extractions to contact_profile_data
+All behavior preserved from the per-file logic documented in `docs/call-classification-audit.md`. No classification rules invented — pure consolidation.
 
-### Knowledge Base
-- 21 categories organized by 4 growth pillars (More Leads, Better Conversion, Faster Onboarding, More Houses)
-- 17+ foundation docs seeded (FDD Strategy, Conversion Playbook, Franchisee Playbook, etc.)
-- KB intelligence extraction expanded to 25+ categories
-- KB page redesigned — pillar dashboard, document viewer, full-text search, freshness indicators
-- Scout is context-aware — loads 25 docs boosted by page/call-type context
-- search_knowledge improved — density scoring, gap signal logging
+- **Phase 1** `36a539e` — migration inserts the `unclassified` call_type row.
+- **Phase 2** `94701ff` — installed Vitest (+ `vitest.config.ts`, `npm test`, `npm run test:watch`), built `lib/calls/classify-type.ts` with top-down first-match-wins logic (team → coaching → matt_final → matt → sam → mark → intro → ghl title regex → unclassified). 17 tests, all green.
+- **Phase 3** `1d883bb` — migration adds `calls.classification_reason text NULL`. All 5 entry points rewired through `classifyCallType`:
+  - `lib/calls/processors/prospect-processor.ts`
+  - `lib/calls/processors/coaching-processor.ts`
+  - `lib/calls/processors/group-processor.ts`
+  - `app/api/cron/sync-ghl-calendar/route.ts`
+  - `app/api/calls/create/route.ts` (user dropdown wins when provided; classifier fills in when blank)
+  
+  Centralized slug→id lookup in `lib/calls/resolve-call-type.ts`. Old per-file classification code deleted.
+- **Phase 4** `3c44276` — cron update path now checks `existing.source`. Read.ai / manual / NULL source → `call_type_id` preserved. `console.info` log fires on skip; a `callTypePreserved` counter is returned in the response JSON so we can verify it's working in real-world runs.
+- **Phase 5** `d920cb8` — `scripts/backfill-call-types.ts` with dry-run default and `--live` flag.
+- **Phase 6** `ea0adda` — migration enforces `call_type_id NOT NULL`.
 
-### Territory & Contact Data
-- GHL OAuth re-connected + auto-refresh cron every 12 hours
-- All 77 territories linked to 70 unique owners (6 own multiple)
-- 12 duplicate/placeholder territories deleted
-- All franchisees synced from GHL with spouse/partner contacts
-- Pipeline state aligned: 70 in Sales/Closed, 70 Onboarding/Onboarded, 70 Runway/Running
+`npx tsc --noEmit` clean after every phase. All 17 Vitest tests pass on final commit.
 
-### Pre-Mega-Push Fixes
-- 13 call types seeded (was 5) — team_call, coaching_call, group_call, fdd_review, territory_call, cohort_call, onboarding_call
-- 31 missing franchisees added to onboarding + runway pipeline state
-- High-confidence extractions auto-sync to contact_profile_data and contacts table
-- Terminal stages (Closed, Onboarded, Running) show "Won" not "Losing"
-- Spencer Lambert moved from Engagement to Closed
-- Follow-up pipeline cleaned of franchisees (43 removed)
+## Production DB State
 
-## What Is Confirmed Working
-- TypeScript passes on all changes
-- All commits pushed to main
-- All migrations applied to Supabase
-- GHL OAuth token fresh with auto-refresh cron
-- 77 territories, 70 owners, all pipeline states aligned
-- KB page redesign deployed with pillar dashboard
+All three migrations applied to remote (`llnrvophuvrqcqducgrr`):
+- `20260420000000_add_unclassified_call_type.sql`
+- `20260420000100_add_classification_reason.sql`
+- `20260420000200_enforce_call_type_not_null.sql`
 
-## What Is Broken or Incomplete
-- KB curation workflow not built — extracted knowledge piles up but no review/promote process — Medium
-- Some franchisees have placeholder ghl_contact_ids (manual_*) — need GHL sync — Low
-- contact_related_people table doesn't exist — spouse/partner contacts created but not linked as related — Low
-- Joe Hughes not in GHL — created manually — Low
+Live backfill ran. 8 rows updated:
+- 5 → `coaching_call` (participant is a territory owner)
+- 3 → `unclassified` (no signals matched)
 
-## Decisions Made
-- All post-call sections on Sonnet — Corey approved
-- 25,000 max tokens — Corey approved
-- KB organized by 4 growth pillars — Corey approved
-- Terminal stages show "Won" — Corey approved
-- All franchisees in Runway/Running — Corey approved
+Verified post-backfill: 0 NULL `call_type_id` rows (including soft-deleted). NOT NULL constraint now holds.
 
-## Files Created (this session)
-- app/api/contacts/search/route.ts
-- app/api/cron/refresh-ghl-token/route.ts
-- lib/agents/post-call/feedback-retrieval.ts
-- supabase/migrations/20260413700000_feedback_payload_column.sql
-- supabase/migrations/20260414000000_kb_expansion_growth_pillars.sql
-- supabase/migrations/20260414100000_pre_mega_push_fixes.sql
+## Three Rows Flagged for Human Review
 
-## Files Modified (this session)
-- app/(auth)/calls/[callId]/page.tsx
-- app/(auth)/knowledge/page.tsx
-- app/api/calls/[callId]/actions/[actionId]/route.ts
-- app/api/calls/[callId]/actions/[actionId]/rewrite/route.ts
-- app/api/calls/[callId]/actions/generate-single/route.ts
-- app/api/calls/[callId]/detail/route.ts
-- app/api/knowledge/route.ts
-- app/api/pipeline/contacts/route.ts
-- app/api/scout/chat/route.ts
-- components/calls/CallActionItem.tsx
-- components/calls/CallDetailTabs.tsx
-- components/calls/CallNextStepsTab.tsx
-- components/layout/ScoutFAB.tsx
-- components/pipeline/PipelineLeadList.tsx
-- lib/agents/post-call/agent.ts
-- lib/agents/post-call/call-claude.ts
-- lib/agents/post-call/kb-updater.ts
-- lib/agents/post-call/prompts/extraction.ts
-- lib/agents/post-call/prompts/kb-intelligence.ts
-- lib/agents/post-call/prompts/next-steps.ts
-- lib/agents/post-call/types.ts
-- lib/scout/client.ts
-- lib/scout/tool-executor.ts
-- types/database.ts
-- vercel.json
+These rows classified as `unclassified` during backfill — should be eyeballed and reassigned manually in the UI:
 
-## Open Issues Carried Forward
-- KB curation workflow — Medium
-- contact_related_people table — Low
-- Placeholder ghl_contact_ids — Low
+- `ad4d2fd7-1380-4e7e-bf36-e03f18b8451a` — "Group Call w/ Abe Dunaway - AC Inc., admin@fieldcoachexperts.com +15"
+- `48367299-3fb6-4e88-b2cc-5c300f66bd7a` — "Group Call w/ Arvie C., Bever Parba +15"
+- `7b0a8c2c-24a2-41d8-b2e6-f1808e379e51` — "Group Call w/ Arvie C., Bever Parba +15"
 
-## Exact Next Step
-Continue with the user's next big build prompt — they have a major feature to implement.
+All three are legacy group calls with no stored NAH-team participants and no territory owner — no signals for the classifier. Easy to filter by the `unclassified` call type.
 
-## Copy This To Start Next Session In Claude.ai
----
-Read this file then tell me: current status, last session summary, open issues, what we build today.
-GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Continue with the user's next big build prompt.
----
+## Surprises / Notes
+
+- **Only 8 NULL rows existed.** The audit predicted more. Reality: most traffic ran through Read.ai processors that already set a type; nulls were concentrated in legacy group calls.
+- **`isNAHTeamEmail` + cached-emails logic in `lib/calls/classifier.ts`** was NOT consolidated — out of scope this sprint. The shared classifier accepts pre-computed `nah_emails[]`. Future cleanup candidate.
+- **Cron insert path now sets `source: "ghl_calendar"`** explicitly. The old code never set `source` on insert, which is why Phase 4's guard treats pre-existing cron rows (NULL source) as "don't touch." New inserts will have the correct source going forward.
+
+## Next Step
+
+Triage the 3 `unclassified` legacy calls in the UI — assign correct types manually.
