@@ -43,6 +43,17 @@ export default async function JourneyPage({
 
   if (!journey) notFound();
 
+  // LeadDetailView's GHL-facing fetches (/api/contacts/[id] → GHL, GHL
+  // profile/messages) expect the ghl_contact_id, not the local UUID.
+  // Resolve here so the header + profile/messages/tasks load instead of
+  // staying stuck on "Loading...".
+  const { data: primaryContact } = await supabase
+    .from("contacts")
+    .select("ghl_contact_id")
+    .eq("id", journey.primary_contact_id)
+    .maybeSingle();
+  const ghlContactId = primaryContact?.ghl_contact_id ?? journey.primary_contact_id;
+
   const { data: memberRows } = await supabase
     .from("journey_contacts")
     .select("contact_id, role, joined_at, contacts(first_name, last_name)")
@@ -71,7 +82,7 @@ export default async function JourneyPage({
 
   return (
     <LeadDetailView
-      contactId={journey.primary_contact_id}
+      contactId={ghlContactId}
       journeyId={journey.id}
       initialTerritorySlug={territory ?? null}
       highlightMessageId={message ?? null}

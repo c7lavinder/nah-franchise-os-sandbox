@@ -14,11 +14,24 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status");
   const callTypeId = searchParams.get("call_type_id");
   const hostedBy = searchParams.get("hosted_by_user_id");
-  const contactId = searchParams.get("contact_id");
+  const rawContactId = searchParams.get("contact_id");
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "50"), 200);
   const offset = parseInt(searchParams.get("offset") ?? "0");
 
   const supabase = createServerClient();
+
+  // contact_id filter accepts either a local UUID or a GHL contact ID.
+  // calls.contact_id stores the local UUID, so resolve GHL → local when
+  // we were handed a GHL identifier (non-UUID shape).
+  let contactId: string | null = rawContactId;
+  if (rawContactId) {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(rawContactId)) {
+      const { data: localRow } = await supabase
+        .from("contacts").select("id").eq("ghl_contact_id", rawContactId).maybeSingle();
+      contactId = localRow?.id ?? null;
+    }
+  }
 
   let query = supabase
     .from("calls")
@@ -37,6 +50,8 @@ export async function GET(request: NextRequest) {
   if (callTypeId) query = query.eq("call_type_id", callTypeId);
   if (hostedBy) query = query.eq("hosted_by_user_id", hostedBy);
   if (contactId) query = query.eq("contact_id", contactId);
+  // GHL ID that didn't resolve to any contact → return empty list, not everything.
+  if (rawContactId && !contactId) return NextResponse.json({ calls: [], total: 0 });
 
   const { data: calls, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
