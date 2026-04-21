@@ -18,8 +18,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Tag, UserCog, X, Loader2, Search, Star, Trash2 } from "lucide-react";
+import { Tag, UserCog, X, Loader2, Search, Star, Trash2, UserPlus, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
+import AddProspectModal from "@/components/pipeline/AddProspectModal";
+import AddRelatedContactModal from "@/components/calls/AddRelatedContactModal";
 
 interface CallType {
   id: string;
@@ -61,6 +63,9 @@ interface ContactOption {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
 }
 
 interface TerritoryOption {
@@ -239,6 +244,45 @@ function buildInitialState(participants: RawParticipant[]): ParticipantState[] {
     }));
 }
 
+interface PendingAdd {
+  participantId: string;
+  kind: "prospect" | "related";
+  prefill: { firstName?: string; lastName?: string; email?: string; phone?: string };
+}
+
+function splitNameForPrefill(participant: ParticipantState): {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+} {
+  const result: { firstName?: string; lastName?: string; email?: string; phone?: string } = {};
+  if (participant.email && !participant.email.includes("@newagainhouses.com")) result.email = participant.email;
+  if (participant.phone) result.phone = participant.phone;
+
+  const name = participant.display_name?.includes("@") ? null : participant.display_name;
+  if (name) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      result.firstName = parts[0];
+      result.lastName = parts.slice(1).join(" ");
+    } else if (parts.length === 1) {
+      result.firstName = parts[0];
+    }
+  } else if (participant.email) {
+    const local = participant.email.split("@")[0];
+    const pretty = local.replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const parts = pretty.split(" ");
+    if (parts.length >= 2) {
+      result.firstName = parts[0];
+      result.lastName = parts.slice(1).join(" ");
+    } else {
+      result.firstName = pretty;
+    }
+  }
+  return result;
+}
+
 function ReassignButton(props: Props & { token: string | null }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<ParticipantState[]>([]);
@@ -247,6 +291,7 @@ function ReassignButton(props: Props & { token: string | null }) {
   const [territories, setTerritories] = useState<TerritoryOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingAdd, setPendingAdd] = useState<PendingAdd | null>(null);
 
   const orphanCount = useMemo(
     () => props.participants.filter((p) => p.role !== "nah_team" && !p.contact_id).length,
@@ -345,6 +390,9 @@ function ReassignButton(props: Props & { token: string | null }) {
                         )
                       }
                       onPrimaryChange={() => setPrimaryContactId(p.contactId)}
+                      onRequestAdd={(kind) =>
+                        setPendingAdd({ participantId: p.id, kind, prefill: splitNameForPrefill(p) })
+                      }
                     />
                   ))}
                 </div>
@@ -370,6 +418,9 @@ function ReassignButton(props: Props & { token: string | null }) {
                         )
                       }
                       onPrimaryChange={() => setPrimaryContactId(p.contactId)}
+                      onRequestAdd={(kind) =>
+                        setPendingAdd({ participantId: p.id, kind, prefill: splitNameForPrefill(p) })
+                      }
                     />
                   ))}
                 </div>
@@ -408,6 +459,45 @@ function ReassignButton(props: Props & { token: string | null }) {
           </div>
         </ModalShell>
       )}
+
+      <AddProspectModal
+        open={pendingAdd?.kind === "prospect"}
+        prefill={pendingAdd?.kind === "prospect" ? pendingAdd.prefill : undefined}
+        onClose={() => setPendingAdd(null)}
+        onCreated={(contactId, displayName) => {
+          if (!pendingAdd || !contactId) return;
+          const id = pendingAdd.participantId;
+          setRows((prev) =>
+            prev.map((r) =>
+              r.id === id
+                ? { ...r, contactId, contactName: displayName ?? r.contactName ?? null }
+                : r,
+            ),
+          );
+          setPendingAdd(null);
+        }}
+      />
+
+      <AddRelatedContactModal
+        open={pendingAdd?.kind === "related"}
+        primaryContactId={primaryContactId}
+        prefill={pendingAdd?.kind === "related" ? pendingAdd.prefill : undefined}
+        onClose={() => setPendingAdd(null)}
+        onCreated={(newContactId) => {
+          if (!pendingAdd) return;
+          const id = pendingAdd.participantId;
+          const pf = pendingAdd.prefill;
+          const derivedName = [pf.firstName, pf.lastName].filter(Boolean).join(" ").trim() || null;
+          setRows((prev) =>
+            prev.map((r) =>
+              r.id === id
+                ? { ...r, contactId: newContactId, contactName: derivedName ?? r.contactName ?? null }
+                : r,
+            ),
+          );
+          setPendingAdd(null);
+        }}
+      />
     </>
   );
 }
@@ -419,9 +509,10 @@ interface RowProps {
   isPrimary: boolean;
   onContactChange: (contactId: string | null, contactName: string | null, territory: string | null) => void;
   onPrimaryChange: () => void;
+  onRequestAdd: (kind: "prospect" | "related") => void;
 }
 
-function ParticipantRow({ row, isPrimary, onContactChange, onPrimaryChange }: RowProps) {
+function ParticipantRow({ row, isPrimary, onContactChange, onPrimaryChange, onRequestAdd }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ContactOption[]>([]);
@@ -432,10 +523,10 @@ function ParticipantRow({ row, isPrimary, onContactChange, onPrimaryChange }: Ro
     if (query.length < 2) { setResults([]); return; }
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(async () => {
-      const res = await fetch(`/api/pipeline/contacts?q=${encodeURIComponent(query)}&limit=8`);
+      const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(query)}&limit=8`);
       if (res.ok) {
         const data = await res.json();
-        setResults((data.contacts ?? []) as ContactOption[]);
+        setResults((data.results ?? data.contacts ?? []) as ContactOption[]);
       }
     }, 250);
     return () => { if (debounce.current) clearTimeout(debounce.current); };
@@ -508,25 +599,46 @@ function ParticipantRow({ row, isPrimary, onContactChange, onPrimaryChange }: Ro
               </button>
             )}
           </div>
-          {results.length > 0 && (
-            <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-bg-primary border border-border-default rounded-md shadow-lg max-h-40 overflow-y-auto">
-              {results.map((c) => {
-                const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown";
-                return (
-                  <button
-                    key={c.id}
-                    onClick={() => {
-                      onContactChange(c.id, name, null);
-                      setEditing(false);
-                      setQuery("");
-                      setResults([]);
-                    }}
-                    className="w-full text-left px-3 py-1.5 text-caption text-text-primary hover:bg-bg-secondary"
-                  >
-                    {name}
-                  </button>
-                );
-              })}
+          {editing && query.length >= 2 && (
+            <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-bg-primary border border-border-default rounded-md shadow-lg max-h-60 overflow-y-auto">
+              {results.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => {
+                    onContactChange(c.id, c.name, null);
+                    setEditing(false);
+                    setQuery("");
+                    setResults([]);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-caption hover:bg-bg-secondary"
+                >
+                  <div className="text-text-primary font-medium">{c.name}</div>
+                  {(c.email || c.phone) && (
+                    <div className="text-text-tertiary truncate">
+                      {c.email ?? ""}{c.email && c.phone ? " · " : ""}{c.phone ?? ""}
+                    </div>
+                  )}
+                </button>
+              ))}
+              {results.length === 0 && (
+                <div className="px-3 py-1.5 text-caption text-text-tertiary">No matches.</div>
+              )}
+              <div className="border-t border-border-default">
+                <button
+                  onClick={() => { onRequestAdd("prospect"); setEditing(false); setQuery(""); setResults([]); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-caption text-nah-blue hover:bg-bg-secondary"
+                >
+                  <UserPlus size={12} />
+                  Add new prospect
+                </button>
+                <button
+                  onClick={() => { onRequestAdd("related"); setEditing(false); setQuery(""); setResults([]); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-caption text-nah-blue hover:bg-bg-secondary"
+                >
+                  <Users size={12} />
+                  Add related contact
+                </button>
+              </div>
             </div>
           )}
         </div>

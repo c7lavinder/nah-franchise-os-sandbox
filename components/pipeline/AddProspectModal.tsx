@@ -22,14 +22,20 @@ interface LeadSource {
 interface AddProspectModalProps {
   open: boolean;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (contactId?: string, displayName?: string) => void;
+  prefill?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+  };
 }
 
-export default function AddProspectModal({ open, onClose, onCreated }: AddProspectModalProps) {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+export default function AddProspectModal({ open, onClose, onCreated, prefill }: AddProspectModalProps) {
+  const [firstName, setFirstName] = useState(prefill?.firstName ?? "");
+  const [lastName, setLastName] = useState(prefill?.lastName ?? "");
+  const [email, setEmail] = useState(prefill?.email ?? "");
+  const [phone, setPhone] = useState(prefill?.phone ?? "");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [source, setSource] = useState("");
@@ -52,6 +58,15 @@ export default function AddProspectModal({ open, onClose, onCreated }: AddProspe
       } catch { /* silent */ }
     })();
   }, [open]);
+
+  // Apply prefill when modal opens
+  useEffect(() => {
+    if (!open) return;
+    setFirstName(prefill?.firstName ?? "");
+    setLastName(prefill?.lastName ?? "");
+    setEmail(prefill?.email ?? "");
+    setPhone(prefill?.phone ?? "");
+  }, [open, prefill]);
 
   // Reset sub-source when source changes
   useEffect(() => {
@@ -112,8 +127,9 @@ export default function AddProspectModal({ open, onClose, onCreated }: AddProspe
         setError(result.error ?? "Failed to create prospect.");
         return;
       }
+      const displayName = `${firstName.trim()} ${lastName.trim()}`.trim();
       resetForm();
-      onCreated();
+      onCreated(result.contactId, displayName || undefined);
       onClose();
     } catch {
       setError("Network error. Please try again.");
