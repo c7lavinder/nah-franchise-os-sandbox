@@ -287,7 +287,9 @@ function ReassignButton(props: Props & { token: string | null }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<ParticipantState[]>([]);
   const [primaryContactId, setPrimaryContactId] = useState<string | null>(props.currentContactId);
-  const [territorySlug, setTerritorySlug] = useState<string | null>(props.currentTerritorySlug);
+  const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
+  const [primaryTerritory, setPrimaryTerritory] = useState<string | null>(null);
+  const [initialSelection, setInitialSelection] = useState<{ list: string[]; primary: string | null }>({ list: [], primary: null });
   const [territories, setTerritories] = useState<TerritoryOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -303,15 +305,48 @@ function ReassignButton(props: Props & { token: string | null }) {
     setError(null);
     setRows(buildInitialState(props.participants));
     setPrimaryContactId(props.currentContactId);
-    setTerritorySlug(props.currentTerritorySlug);
     void (async () => {
-      const res = await fetch("/api/territories");
-      if (res.ok) {
-        const data = await res.json();
+      const [tRes, ctRes] = await Promise.all([
+        fetch("/api/territories"),
+        fetch(`/api/calls/${props.callId}/territories`),
+      ]);
+      if (tRes.ok) {
+        const data = await tRes.json();
         setTerritories(((data.territories ?? data) as TerritoryOption[]) ?? []);
       }
+      if (ctRes.ok) {
+        const data = await ctRes.json();
+        const list = (data.territories ?? []) as Array<{ territory_ms_slug: string; is_primary: boolean }>;
+        const slugs = list.map((t) => t.territory_ms_slug);
+        const primary = list.find((t) => t.is_primary)?.territory_ms_slug ?? props.currentTerritorySlug ?? slugs[0] ?? null;
+        // Ensure the call's primary territory is in the selection even if
+        // call_territories hasn't been backfilled for this call yet.
+        if (props.currentTerritorySlug && !slugs.includes(props.currentTerritorySlug)) {
+          slugs.push(props.currentTerritorySlug);
+        }
+        setSelectedTerritories(slugs);
+        setPrimaryTerritory(primary);
+        setInitialSelection({ list: [...slugs].sort(), primary });
+      } else {
+        const fallback = props.currentTerritorySlug ? [props.currentTerritorySlug] : [];
+        setSelectedTerritories(fallback);
+        setPrimaryTerritory(props.currentTerritorySlug);
+        setInitialSelection({ list: [...fallback].sort(), primary: props.currentTerritorySlug });
+      }
     })();
-  }, [open, props.participants, props.currentContactId, props.currentTerritorySlug]);
+  }, [open, props.callId, props.participants, props.currentContactId, props.currentTerritorySlug]);
+
+  function toggleTerritory(slug: string) {
+    setSelectedTerritories((prev) => {
+      if (prev.includes(slug)) {
+        const next = prev.filter((s) => s !== slug);
+        if (primaryTerritory === slug) setPrimaryTerritory(next[0] ?? null);
+        return next;
+      }
+      if (prev.length === 0) setPrimaryTerritory(slug);
+      return [...prev, slug];
+    });
+  }
 
   async function submit() {
     const payload: Record<string, unknown> = {};
@@ -321,7 +356,16 @@ function ReassignButton(props: Props & { token: string | null }) {
     }
     if (changed.length > 0) payload.participants = changed;
     if (primaryContactId !== props.currentContactId) payload.contact_id = primaryContactId;
-    if (territorySlug !== props.currentTerritorySlug) payload.territory_ms_slug = territorySlug;
+
+    const sortedNow = [...selectedTerritories].sort();
+    const listChanged =
+      sortedNow.length !== initialSelection.list.length ||
+      sortedNow.some((s, i) => s !== initialSelection.list[i]);
+    const primaryChanged = primaryTerritory !== initialSelection.primary;
+    if (listChanged || primaryChanged) {
+      payload.territories = selectedTerritories;
+      payload.primary_territory_ms_slug = primaryTerritory;
+    }
 
     if (Object.keys(payload).length === 0) { setOpen(false); return; }
 
@@ -428,19 +472,47 @@ function ReassignButton(props: Props & { token: string | null }) {
             )}
 
             <section>
-              <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1.5">
-                Call territory
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
+                  Call territories ({selectedTerritories.length})
+                </div>
+                <div className="text-[10px] text-text-tertiary">
+                  star = primary
+                </div>
               </div>
-              <select
-                value={territorySlug ?? ""}
-                onChange={(e) => setTerritorySlug(e.target.value || null)}
-                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary"
-              >
-                <option value="">— none —</option>
-                {territories.map((t) => (
-                  <option key={t.ms_slug} value={t.ms_slug}>{t.territory_name}</option>
-                ))}
-              </select>
+              <div className="bg-bg-primary border border-border-default rounded-md max-h-40 overflow-y-auto divide-y divide-border-default">
+                {territories.length === 0 && (
+                  <div className="px-3 py-2 text-caption text-text-tertiary">Loading…</div>
+                )}
+                {territories.map((t) => {
+                  const checked = selectedTerritories.includes(t.ms_slug);
+                  const isPrimary = primaryTerritory === t.ms_slug;
+                  return (
+                    <label
+                      key={t.ms_slug}
+                      className="flex items-center gap-2 px-3 py-1.5 text-caption text-text-primary hover:bg-bg-secondary cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleTerritory(t.ms_slug)}
+                        className="accent-nah-orange"
+                      />
+                      <span className="flex-1 truncate">{t.territory_name}</span>
+                      {checked && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); setPrimaryTerritory(t.ms_slug); }}
+                          title={isPrimary ? "Primary territory" : "Make primary"}
+                          className={`p-0.5 rounded ${isPrimary ? "text-[#EAB308]" : "text-text-tertiary hover:text-text-primary"}`}
+                        >
+                          <Star size={12} fill={isPrimary ? "currentColor" : "none"} />
+                        </button>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
             </section>
 
             {rows.length === 0 && (

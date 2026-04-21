@@ -13,6 +13,11 @@ export const dynamic = "force-dynamic";
  *   territory_ms_slug     — new primary territory for the call
  *   participants          — per-row call_participants updates
  *     [{ id, contact_id }]  contact_id can be null to unmap
+ *   territories           — full list of territories this call touches
+ *     string[]              replaces call_territories rows for this call;
+ *                           [] clears them all
+ *   primary_territory_ms_slug — which territory in the list is primary
+ *                               (falls back to territories[0] or null)
  *
  * Access: admin, or the rep who owns the call (hosted_by_user_id).
  */
@@ -31,6 +36,8 @@ interface OverrideBody {
   contact_id?: string | null;
   territory_ms_slug?: string | null;
   participants?: ParticipantUpdate[];
+  territories?: string[];
+  primary_territory_ms_slug?: string | null;
 }
 
 export async function POST(
@@ -60,14 +67,28 @@ export async function POST(
   }
 
   const body = (await request.json()) as OverrideBody;
-  const { call_type_id, contact_id, territory_ms_slug, participants } = body;
+  const {
+    call_type_id,
+    contact_id,
+    territory_ms_slug,
+    participants,
+    territories,
+    primary_territory_ms_slug,
+  } = body;
 
   const hasCallTypeChange = call_type_id !== undefined;
   const hasContactChange = contact_id !== undefined;
   const hasTerritoryChange = territory_ms_slug !== undefined;
   const hasParticipantUpdates = Array.isArray(participants) && participants.length > 0;
+  const hasTerritoriesList = Array.isArray(territories);
 
-  if (!hasCallTypeChange && !hasContactChange && !hasTerritoryChange && !hasParticipantUpdates) {
+  if (
+    !hasCallTypeChange &&
+    !hasContactChange &&
+    !hasTerritoryChange &&
+    !hasParticipantUpdates &&
+    !hasTerritoriesList
+  ) {
     return NextResponse.json({ error: "No override fields provided" }, { status: 400 });
   }
 
@@ -124,6 +145,35 @@ export async function POST(
     }
   }
 
+  // ── Multi-territory sync: replace the full set in call_territories, and
+  //    keep calls.territory_ms_slug in sync with the chosen primary.
+  let territoriesWritten = 0;
+  let resolvedPrimary: string | null | undefined = undefined;
+  if (hasTerritoriesList) {
+    const unique = Array.from(new Set((territories ?? []).filter((s): s is string => !!s && typeof s === "string")));
+    resolvedPrimary =
+      primary_territory_ms_slug && unique.includes(primary_territory_ms_slug)
+        ? primary_territory_ms_slug
+        : unique[0] ?? null;
+
+    const { error: delErr } = await supabase
+      .from("call_territories")
+      .delete()
+      .eq("call_id", callId);
+    if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
+
+    if (unique.length > 0) {
+      const rows = unique.map((slug) => ({
+        call_id: callId,
+        territory_ms_slug: slug,
+        is_primary: slug === resolvedPrimary,
+      }));
+      const { error: insErr } = await supabase.from("call_territories").insert(rows);
+      if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
+      territoriesWritten = rows.length;
+    }
+  }
+
   // ── Call-level updates.
   const callUpdates: Record<string, unknown> = {};
 
@@ -132,10 +182,11 @@ export async function POST(
     callUpdates.classification_reason = audit;
   }
 
-  if (hasContactChange || hasTerritoryChange || hasParticipantUpdates) {
+  if (hasContactChange || hasTerritoryChange || hasParticipantUpdates || hasTerritoriesList) {
     if (hasContactChange) callUpdates.contact_id = contact_id;
     if (hasTerritoryChange) callUpdates.territory_ms_slug = territory_ms_slug;
-    // Any of these three imply a human-confirmed match.
+    if (hasTerritoriesList) callUpdates.territory_ms_slug = resolvedPrimary;
+    // Any of these imply a human-confirmed match.
     callUpdates.match_confidence = 1.0;
     callUpdates.match_reason = audit;
   }
@@ -151,6 +202,7 @@ export async function POST(
   return NextResponse.json({
     success: true,
     participantsUpdated,
+    territoriesWritten,
     callUpdates,
   });
 }
