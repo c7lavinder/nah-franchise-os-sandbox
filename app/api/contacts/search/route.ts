@@ -54,6 +54,8 @@ export async function GET(request: NextRequest) {
 
   const results = (contacts ?? []).map((c) => ({
     id: c.id,
+    first_name: c.first_name ?? null,
+    last_name: c.last_name ?? null,
     name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.email || "Unknown",
     email: c.email ?? null,
     phone: c.phone ?? null,
