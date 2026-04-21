@@ -17,7 +17,8 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Tag, UserCog, X, Loader2, Search, Star } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Tag, UserCog, X, Loader2, Search, Star, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 interface CallType {
@@ -101,6 +102,7 @@ export default function CallOverrideControls(props: Props) {
     <>
       <ReclassifyButton {...props} token={token} />
       <ReassignButton {...props} token={token} />
+      <DeleteButton callId={props.callId} token={token} />
     </>
   );
 }
@@ -530,6 +532,74 @@ function ParticipantRow({ row, isPrimary, onContactChange, onPrimaryChange }: Ro
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Delete (soft-delete the call) ───────────────────────────────────────
+
+function DeleteButton({ callId, token }: { callId: string; token: string | null }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/calls/${callId}/delete`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Failed to delete");
+        setSaving(false);
+        return;
+      }
+      router.push("/calls");
+    } catch {
+      setError("Network error");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="btn-ghost p-1.5 flex-shrink-0 text-text-tertiary hover:text-danger"
+        title="Delete call"
+      >
+        <Trash2 size={14} />
+      </button>
+      {open && (
+        <ModalShell title="Delete this call?" onClose={() => !saving && setOpen(false)}>
+          <div className="space-y-3">
+            <p className="text-body-sm text-text-primary">
+              Use this for calls that didn&apos;t happen — no-shows, cancellations, or duplicate webhooks.
+            </p>
+            <p className="text-caption text-text-tertiary">
+              The call is soft-deleted and hidden from every view. An admin can restore it from the database if needed.
+            </p>
+            {error && <div className="text-caption text-danger">{error}</div>}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-default -mx-4 px-4">
+              <button onClick={() => setOpen(false)} disabled={saving} className="btn-ghost px-3 py-1.5 text-caption">
+                Cancel
+              </button>
+              <button
+                onClick={submit}
+                disabled={saving}
+                className="px-3 py-1.5 text-caption rounded-md bg-danger text-white hover:opacity-90 disabled:opacity-50 flex items-center gap-1"
+              >
+                {saving ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                Delete call
+              </button>
+            </div>
+          </div>
+        </ModalShell>
+      )}
+    </>
   );
 }
 
