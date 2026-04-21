@@ -76,6 +76,16 @@ export async function POST(
         current_sub_task_started_at: now,
       }).eq("id", jps.id);
 
+      await supabase.from("pipeline_stage_history").insert({
+        journey_pipeline_state_id: jps.id,
+        from_stage_id: jps.current_stage_id,
+        to_stage_id: prevStage.id,
+        reason,
+        was_skip: false,
+        was_revert: true,
+        was_auto: false,
+      });
+
       return NextResponse.json({ success: true, newStageId: prevStage.id, scope: "territory" });
     }
 

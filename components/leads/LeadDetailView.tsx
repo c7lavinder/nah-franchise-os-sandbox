@@ -21,10 +21,12 @@ import TeamCard from "@/components/contact/TeamCard";
 import TerritoryOwnershipSection from "@/components/contact/TerritoryOwnershipSection";
 import TerritoryDataTab from "@/components/contact/TerritoryDataTab";
 import EosTab from "@/components/leads/tabs/EosTab";
+import SplitJourneyModal from "@/components/leads/SplitJourneyModal";
+import type { SplitTerritory } from "@/components/leads/SplitJourneyModal";
 import { capitalizeName } from "@/lib/format/contact";
 import { useToast } from "@/components/ui/Toast";
 import type { SubTaskLog, StageHistoryEntry } from "@/lib/contacts/pipeline-state";
-import { Pencil } from "lucide-react";
+import { Pencil, GitBranch } from "lucide-react";
 
 const CATEGORIES: FieldCategory[] = getSortedCategories();
 
@@ -132,6 +134,7 @@ export default function LeadDetailView({
   const [drilldownStageId, setDrilldownStageId] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<"sms" | "email" | "call" | "schedule" | null>(null);
   const [focusedTerritorySlug, setFocusedTerritorySlug] = useState<string | null>(initialTerritorySlug ?? null);
+  const [splitOpen, setSplitOpen] = useState(false);
 
   // Profile tab supports editing any journey member. Defaults to the main
   // contact and swaps when the user clicks a sub-tab.
@@ -389,7 +392,7 @@ export default function LeadDetailView({
                 ) : activeTab === "profile" ? (
                   <div className="space-y-4">
                     {showMemberTabs && (
-                      <div className="flex flex-wrap gap-1 border-b border-border-default">
+                      <div className="flex flex-wrap items-center gap-1 border-b border-border-default">
                         {activeMembers.map((m) => {
                           const label = capitalizeName(`${m.first_name ?? ""} ${m.last_name ?? ""}`.trim()) || "Member";
                           const active = m.contact_id === profileContactId;
@@ -406,6 +409,15 @@ export default function LeadDetailView({
                             </button>
                           );
                         })}
+                        {journeyId && (
+                          <button
+                            onClick={() => setSplitOpen(true)}
+                            className="ml-auto mb-1 flex items-center gap-1 px-2.5 py-1 rounded-md text-caption font-medium text-danger bg-danger/10 hover:bg-danger/20 transition-colors"
+                            title="Split this journey into two new journeys"
+                          >
+                            <GitBranch size={12} /> Split Journey
+                          </button>
+                        )}
                       </div>
                     )}
                     <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
@@ -496,6 +508,34 @@ export default function LeadDetailView({
       {activePanel === "schedule" && contact && (
         <SchedulePanel contactId={contact.id} contactName={displayName} contactEmail={contact.email ?? localContact?.email ?? null}
           onClose={() => setActivePanel(null)} onScheduled={() => { setActivePanel(null); void fetchAll(); }} />
+      )}
+
+      {/* Split Journey modal — visible only when a journey has 2+ members */}
+      {splitOpen && journeyId && (
+        <SplitJourneyModal
+          journeyId={journeyId}
+          originalName={displayName}
+          members={activeMembers.map((m) => ({
+            contact_id: m.contact_id,
+            first_name: m.first_name,
+            last_name: m.last_name,
+            role: m.role,
+          }))}
+          territories={(() => {
+            const seen = new Set<string>();
+            const out: SplitTerritory[] = [];
+            for (const ps of pipelineStates) {
+              for (const t of (ps.territories ?? [])) {
+                if (!seen.has(t.ms_slug)) {
+                  seen.add(t.ms_slug);
+                  out.push({ ms_slug: t.ms_slug, territory_name: t.territory_name });
+                }
+              }
+            }
+            return out;
+          })()}
+          onClose={() => setSplitOpen(false)}
+        />
       )}
     </div>
   );

@@ -54,7 +54,7 @@ export async function POST(
 
       const { data: jps } = await supabase
         .from("journey_pipeline_state")
-        .select("id")
+        .select("id, current_stage_id")
         .eq("journey_id", journey.id)
         .eq("pipeline_id", pipelineId)
         .eq("territory_ms_slug", territory_ms_slug)
@@ -67,6 +67,16 @@ export async function POST(
         closed_reason: closedReason,
         closed_at: now,
       }).eq("id", jps.id);
+
+      await supabase.from("pipeline_stage_history").insert({
+        journey_pipeline_state_id: jps.id,
+        from_stage_id: jps.current_stage_id,
+        to_stage_id: jps.current_stage_id,
+        reason: reason ?? `Dropped to ${destination} (territory)`,
+        was_skip: false,
+        was_revert: false,
+        was_auto: false,
+      });
 
       return NextResponse.json({ success: true, closedStateId: jps.id, newStateId: null, scope: "territory" });
     }

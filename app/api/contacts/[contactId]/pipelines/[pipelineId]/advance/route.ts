@@ -88,6 +88,16 @@ export async function POST(
         current_sub_task_started_at: now,
       }).eq("id", jps.id);
 
+      await supabase.from("pipeline_stage_history").insert({
+        journey_pipeline_state_id: jps.id,
+        from_stage_id: jps.current_stage_id,
+        to_stage_id: nextStage.id,
+        reason: reason ?? (force ? "Skipped forward (territory)" : null),
+        was_skip: force ?? false,
+        was_revert: false,
+        was_auto: false,
+      });
+
       const { data: pipeline } = await supabase.from("pipelines").select("slug").eq("id", pipelineId).single();
       const { data: nextStageDef } = await supabase.from("pipeline_stages").select("slug").eq("id", nextStage.id).single();
       if (pipeline?.slug && nextStageDef?.slug) {
