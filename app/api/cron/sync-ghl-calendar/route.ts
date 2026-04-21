@@ -10,22 +10,16 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { getAppointments } from "@/lib/ghl/client";
+import { classifyCallType } from "@/lib/calls/classify-type";
 
-// Map event title keywords → call type slugs
-const CALL_TYPE_MAP: [RegExp, string][] = [
-  [/matt.*final|final.*matt/i, "matt_final_call"],
-  [/matt/i, "matt_call"],
-  [/sam/i, "sam_call"],
-  [/mark/i, "mark_call"],
-  [/intro|initial|discovery|outreach/i, "intro_call"],
-];
-
-function guessCallTypeSlug(title: string): string {
-  for (const [pattern, slug] of CALL_TYPE_MAP) {
-    if (pattern.test(title)) return slug;
-  }
-  return "intro_call";
-}
+// Sub-task slug mapping — only populated for prospect-sequence call types.
+const CALL_TYPE_TO_SUB_TASK: Record<string, string> = {
+  intro_call: "intro-call",
+  matt_call: "matt-call",
+  sam_call: "sam-call",
+  mark_call: "mark-call",
+  matt_final_call: "matt-final-call",
+};
 
 export async function GET(request: NextRequest) {
   // Optionally protect with CRON_SECRET
@@ -49,21 +43,18 @@ export async function GET(request: NextRequest) {
 
     // Pre-fetch lookup data
     const { data: callTypes } = await supabase.from("call_types").select("id, slug");
-    const callTypeMap = new Map((callTypes ?? []).map((ct) => [ct.slug, ct.id]));
+    const slugToCallTypeId = new Map((callTypes ?? []).map((ct) => [ct.slug, ct.id]));
 
-    const { data: users } = await supabase.from("users").select("id, ghl_user_id").not("ghl_user_id", "is", null);
+    const { data: users } = await supabase
+      .from("users")
+      .select("id, email, ghl_user_id")
+      .not("ghl_user_id", "is", null);
     const userMap = new Map((users ?? []).map((u) => [u.ghl_user_id, u.id]));
+    const userEmailMap = new Map((users ?? []).map((u) => [u.ghl_user_id, u.email as string | null]));
 
     // Sub-task slugs matching call types
     const { data: subTasks } = await supabase.from("pipeline_sub_tasks").select("id, slug");
     const subTaskSlugMap = new Map((subTasks ?? []).map((st) => [st.slug, st.id]));
-    const callToSubTask: Record<string, string> = {
-      intro_call: "intro-call",
-      matt_call: "matt-call",
-      sam_call: "sam-call",
-      mark_call: "mark-call",
-      matt_final_call: "matt-final-call",
-    };
 
     let created = 0;
     let updated = 0;
@@ -76,22 +67,45 @@ export async function GET(request: NextRequest) {
       // Resolve contact
       const ghlContactId = event.contactId;
       let localContactId: string | null = null;
+      let contactGhlId: string | null = null;
       if (ghlContactId) {
         const { data: contact } = await supabase
           .from("contacts")
-          .select("id")
+          .select("id, ghl_contact_id")
           .eq("ghl_contact_id", ghlContactId)
           .maybeSingle();
         localContactId = contact?.id ?? null;
+        contactGhlId = contact?.ghl_contact_id ?? null;
       }
 
-      const callTypeSlug = guessCallTypeSlug(event.title ?? "");
-      const callTypeId = callTypeMap.get(callTypeSlug) ?? null;
-      const subTaskSlug = callToSubTask[callTypeSlug];
-      const subTaskId = subTaskSlug ? (subTaskSlugMap.get(subTaskSlug) ?? null) : null;
-
       // Resolve hosted_by from GHL assigned user
-      const hostedByUserId = userMap.get((event as unknown as Record<string, unknown>).assignedUserId as string) ?? null;
+      const assignedUserId = (event as unknown as Record<string, unknown>).assignedUserId as string | undefined;
+      const hostedByUserId = assignedUserId ? userMap.get(assignedUserId) ?? null : null;
+      const hostEmail = assignedUserId ? userEmailMap.get(assignedUserId) ?? null : null;
+
+      // Territory-owner signal: is the resolved contact a current franchisee?
+      let hasTerritoryOwner = false;
+      if (contactGhlId) {
+        const { data: owner } = await supabase
+          .from("territory_owners")
+          .select("ms_slug")
+          .eq("ghl_contact_id", contactGhlId)
+          .is("end_date", null)
+          .maybeSingle();
+        hasTerritoryOwner = !!owner;
+      }
+
+      const classification = classifyCallType({
+        title: event.title ?? null,
+        nah_emails: hostEmail ? [hostEmail] : [],
+        is_internal: false,
+        has_external_participant: !!localContactId,
+        has_territory_owner: hasTerritoryOwner,
+        source: "ghl_calendar",
+      });
+      const callTypeId = slugToCallTypeId.get(classification.slug) ?? null;
+      const subTaskSlug = CALL_TYPE_TO_SUB_TASK[classification.slug];
+      const subTaskId = subTaskSlug ? (subTaskSlugMap.get(subTaskSlug) ?? null) : null;
 
       // Extract meeting link from event (GHL may include it as meetingLocation or other field)
       const meetingLink = (event as unknown as Record<string, unknown>).meetingLocation as string ??
@@ -132,6 +146,7 @@ export async function GET(request: NextRequest) {
         await supabase.from("calls").update({
           contact_id: localContactId,
           call_type_id: callTypeId,
+          classification_reason: classification.reason,
           sub_task_id: subTaskId,
           contact_pipeline_state_id: contactPipelineStateId,
           scheduled_at: event.startTime,
@@ -149,8 +164,10 @@ export async function GET(request: NextRequest) {
           ghl_event_id: ghlEventId,
           contact_id: localContactId,
           call_type_id: callTypeId,
+          classification_reason: classification.reason,
           sub_task_id: subTaskId,
           contact_pipeline_state_id: contactPipelineStateId,
+          source: "ghl_calendar",
           scheduled_at: event.startTime,
           started_at: status === "completed" ? event.startTime : null,
           ended_at: status === "completed" ? event.endTime : null,

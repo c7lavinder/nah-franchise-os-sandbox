@@ -7,32 +7,8 @@ import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
 import { formatTranscript, standardizeTitle } from "../classifier";
 import { insertCallParticipants } from "./insert-participants";
 import { reconcileCall } from "./reconcile-call";
-
-/** Map NAH participant email to call type slug for rubric selection */
-function determineProspectCallType(
-  nahEmail: string | null,
-  title: string | null
-): string {
-  if (!nahEmail) return "intro_call";
-  const email = nahEmail.toLowerCase();
-  const lowerTitle = title?.toLowerCase() ?? "";
-
-  // Matt → matt_call by default, matt_final if title hints at it
-  if (email.includes("matt")) {
-    if (lowerTitle.includes("final") || lowerTitle.includes("award")) return "matt_final_call";
-    return "matt_call";
-  }
-  if (email.includes("sam")) return "sam_call";
-  // Mark Pate uses altacapitalmanagement domain
-  if (email.includes("mark") || email.includes("altacapital")) return "mark_call";
-  // Nora runs intro calls
-  if (email.includes("nora")) return "intro_call";
-  // Chad → intro_call (his primary pipeline role)
-  if (email.includes("chad")) return "intro_call";
-
-  // Default: intro_call (most common call type for prospects)
-  return "intro_call";
-}
+import { classifyCallType } from "../classify-type";
+import { resolveCallTypeBySlug } from "../resolve-call-type";
 
 export async function processProspectCall(
   payload: ReadAIWebhookPayload,
@@ -57,18 +33,24 @@ export async function processProspectCall(
     contactId = newContact?.ghl_contact_id ?? null;
   }
 
-  // 2. Determine call type for rubric
-  const callTypeSlug = determineProspectCallType(
-    classified.nah_participant_email,
-    payload.title ?? null
-  );
+  // 2. Classify via shared helper
+  const nahEmails = (classified.resolved_participants ?? [])
+    .filter((p) => p.role === "nah_team" && p.email)
+    .map((p) => p.email as string);
+  if (classified.nah_participant_email && !nahEmails.includes(classified.nah_participant_email)) {
+    nahEmails.push(classified.nah_participant_email);
+  }
+  const classification = classifyCallType({
+    title: payload.title ?? null,
+    nah_emails: nahEmails,
+    is_internal: false,
+    has_external_participant: true,
+    has_territory_owner: !!classified.territory_ms_slug,
+    source: "read_ai",
+  });
 
-  // 3. Look up call_type_id + name
-  const { data: callType } = await supabase
-    .from("call_types")
-    .select("id, name")
-    .eq("slug", callTypeSlug)
-    .maybeSingle();
+  // 3. Resolve slug → call_type row
+  const callType = await resolveCallTypeBySlug(supabase, classification.slug);
 
   // 4. Look up host user
   let hostedByUserId: string | null = null;
@@ -97,10 +79,11 @@ export async function processProspectCall(
     .from("calls")
     .insert({
       contact_id: contactUuid,
-      call_type_id: callType?.id ?? null,
+      call_type_id: callType.id,
+      classification_reason: classification.reason,
       read_ai_session_id: payload.session_id,
       title: standardizeTitle(
-        callType?.name ?? null,
+        callType.name,
         classified.external_participant_name ? [classified.external_participant_name] : [],
         payload.title ?? null,
       ),

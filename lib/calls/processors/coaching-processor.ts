@@ -7,6 +7,8 @@ import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
 import { formatTranscript, standardizeTitle } from "../classifier";
 import { insertCallParticipants } from "./insert-participants";
 import { reconcileCall } from "./reconcile-call";
+import { classifyCallType } from "../classify-type";
+import { resolveCallTypeBySlug } from "../resolve-call-type";
 
 export async function processCoachingCall(
   payload: ReadAIWebhookPayload,
@@ -27,12 +29,21 @@ export async function processCoachingCall(
     contactUuid = localContact?.id ?? null;
   }
 
-  // 2. Look up coaching call type
-  const { data: callType } = await supabase
-    .from("call_types")
-    .select("id")
-    .eq("slug", "coaching_call")
-    .maybeSingle();
+  // 2. Classify via shared helper
+  const nahEmails = (classified.resolved_participants ?? [])
+    .filter((p) => p.role === "nah_team" && p.email)
+    .map((p) => p.email as string);
+  const classification = classifyCallType({
+    title: payload.title ?? null,
+    nah_emails: nahEmails,
+    is_internal: false,
+    has_external_participant: true,
+    has_territory_owner: true,
+    source: "read_ai",
+  });
+
+  // 3. Resolve slug → call_type row
+  const callType = await resolveCallTypeBySlug(supabase, classification.slug);
 
   // 3. Create call record
   const { data: callRecord } = await supabase
@@ -41,10 +52,11 @@ export async function processCoachingCall(
       contact_id: contactUuid,
       territory_ms_slug: classified.territory_ms_slug,
       coach_user_id: classified.coach_user_id,
-      call_type_id: callType?.id ?? null,
+      call_type_id: callType.id,
+      classification_reason: classification.reason,
       read_ai_session_id: payload.session_id,
       title: standardizeTitle(
-        "Coaching Call",
+        callType.name ?? "Coaching Call",
         classified.external_participant_name ? [classified.external_participant_name] : [],
         payload.title ?? null,
       ),
