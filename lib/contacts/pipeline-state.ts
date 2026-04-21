@@ -84,29 +84,57 @@ export interface StageHistoryEntry {
 
 // ─── Data fetching functions ───
 
-/** Get all active pipeline states for a contact (by local contact UUID) */
+/**
+ * Get all active pipeline states for a contact (by local contact UUID).
+ *
+ * Phase 4 full cutover: sources from journey_pipeline_state via the
+ * contact's primary journey. For pipelines that fan out per territory
+ * (runway/onboarding), the canonical jps row is chosen — NULL-territory
+ * preferred (matches the legacy one-cps-per-pipeline shape), otherwise
+ * the lowest-id active row. The returned `id` is now jps.id, not cps.id.
+ * All downstream callers (getSubTaskLogs, getStageHistory, log writers)
+ * have been updated accordingly.
+ */
 export async function getContactPipelineStates(contactId: string): Promise<ContactPipelineState[]> {
   const supabase = createServerClient();
 
+  const { data: journey } = await supabase
+    .from("journeys")
+    .select("id")
+    .eq("primary_contact_id", contactId)
+    .maybeSingle();
+  if (!journey?.id) return [];
+
   const { data, error } = await supabase
-    .from("contact_pipeline_state")
+    .from("journey_pipeline_state")
     .select(`
-      id, contact_id, pipeline_id, current_stage_id, current_sub_task_id,
+      id, journey_id, pipeline_id, territory_ms_slug, current_stage_id, current_sub_task_id,
       current_sub_task_started_at, entered_pipeline_at, entered_current_stage_at,
       assigned_user_id, is_active, closed_reason, closed_at,
       pipelines (name, slug)
     `)
-    .eq("contact_id", contactId)
+    .eq("journey_id", journey.id)
     .eq("is_active", true)
     .order("entered_pipeline_at", { ascending: false });
 
   if (error || !data) return [];
 
-  return data.map((row) => {
+  // Fold per-pipeline: prefer NULL-territory rows, else the first by id.
+  // Preserves the one-row-per-pipeline contract the lead page expects.
+  const canonByPipeline = new Map<string, typeof data[number]>();
+  for (const row of data) {
+    const existing = canonByPipeline.get(row.pipeline_id);
+    if (!existing) { canonByPipeline.set(row.pipeline_id, row); continue; }
+    if (row.territory_ms_slug === null && existing.territory_ms_slug !== null) {
+      canonByPipeline.set(row.pipeline_id, row);
+    }
+  }
+
+  return [...canonByPipeline.values()].map((row) => {
     const pipeline = (row.pipelines as unknown) as { name: string; slug: string } | null;
     return {
       id: row.id,
-      contact_id: row.contact_id,
+      contact_id: contactId,
       pipeline_id: row.pipeline_id,
       current_stage_id: row.current_stage_id,
       current_sub_task_id: row.current_sub_task_id,
@@ -151,9 +179,13 @@ export async function getSubTasksForStage(stageId: string): Promise<PipelineSubT
   return data as PipelineSubTask[];
 }
 
-/** Get sub-task logs for a contact_pipeline_state + sub_task, newest first */
+/**
+ * Get sub-task logs for a pipeline state + sub_task, newest first.
+ * Phase 4 full cutover: the passed id is now a jps id (contract change).
+ * Logs are queried by journey_pipeline_state_id (every row backfilled).
+ */
 export async function getSubTaskLogs(
-  contactPipelineStateId: string,
+  journeyPipelineStateId: string,
   subTaskId?: string
 ): Promise<SubTaskLog[]> {
   const supabase = createServerClient();
@@ -165,7 +197,7 @@ export async function getSubTaskLogs(
       source, state_advance, content_type, content_text,
       content_file_url, content_link_url, metadata, created_at, deleted_at
     `)
-    .eq("contact_pipeline_state_id", contactPipelineStateId)
+    .eq("journey_pipeline_state_id", journeyPipelineStateId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
@@ -176,7 +208,7 @@ export async function getSubTaskLogs(
   const { data, error } = await query;
 
   if (error || !data) {
-    console.error("getSubTaskLogs error:", error?.message, { contactPipelineStateId, subTaskId });
+    console.error("getSubTaskLogs error:", error?.message, { journeyPipelineStateId, subTaskId });
     return [];
   }
 
@@ -201,8 +233,12 @@ export async function getSubTaskLogs(
   }));
 }
 
-/** Get stage history for a contact_pipeline_state, newest first */
-export async function getStageHistory(contactPipelineStateId: string): Promise<StageHistoryEntry[]> {
+/**
+ * Get stage history for a pipeline state, newest first.
+ * Phase 4 full cutover: queries by journey_pipeline_state_id (the passed
+ * id is now jps.id; pre-cutover rows were backfilled with the jps FK).
+ */
+export async function getStageHistory(journeyPipelineStateId: string): Promise<StageHistoryEntry[]> {
   const supabase = createServerClient();
 
   const { data, error } = await supabase
@@ -211,7 +247,7 @@ export async function getStageHistory(contactPipelineStateId: string): Promise<S
       id, contact_pipeline_state_id, from_stage_id, to_stage_id,
       moved_by_user_id, reason, was_skip, was_revert, was_auto, created_at
     `)
-    .eq("contact_pipeline_state_id", contactPipelineStateId)
+    .eq("journey_pipeline_state_id", journeyPipelineStateId)
     .order("created_at", { ascending: false });
 
   if (error || !data) return [];
