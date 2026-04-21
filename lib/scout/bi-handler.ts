@@ -31,9 +31,11 @@ async function gatherBIContext(): Promise<BIContext> {
     .from("contacts")
     .select("id", { count: "exact", head: true });
 
-  // Sales pipeline stage counts
+  // Sales pipeline stage counts — Phase 4 read migration: counts come from
+  // journey_pipeline_state so multi-territory franchisees correctly show up
+  // as N entries in runway/onboarding stages (one per territory).
   const { data: stageCounts } = await supabase
-    .from("contact_pipeline_state")
+    .from("journey_pipeline_state")
     .select("current_stage_id, pipeline_stages (name)")
     .eq("is_active", true);
 
@@ -51,9 +53,9 @@ async function gatherBIContext(): Promise<BIContext> {
     .select("id", { count: "exact", head: true })
     .gte("created_at", sevenDaysAgo);
 
-  // Average days in current stage
+  // Average days in current stage — Phase 4 read migration.
   const { data: stateRows } = await supabase
-    .from("contact_pipeline_state")
+    .from("journey_pipeline_state")
     .select("entered_current_stage_at")
     .eq("is_active", true)
     .limit(100);

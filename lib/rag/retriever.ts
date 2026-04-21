@@ -142,17 +142,19 @@ export async function retrieveContext(
       })().catch(() => {})
     );
 
-    // Pipeline state
+    // Pipeline state — Phase 4 read migration: source from
+    // journey_pipeline_state via the contact's primary journey.
     promises.push(
       (async () => {
         const { data } = await supabase
-          .from("contact_pipeline_state")
+          .from("journey_pipeline_state")
           .select(`
             id, pipeline_id, current_stage_id, entered_current_stage_at,
             pipelines (name),
-            pipeline_stages (name)
+            pipeline_stages (name),
+            journeys!inner(primary_contact_id)
           `)
-          .eq("contact_id", contactId)
+          .eq("journeys.primary_contact_id", contactId)
           .eq("is_active", true)
           .limit(1)
           .maybeSingle();

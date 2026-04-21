@@ -69,15 +69,19 @@ export async function gradeCall(callId: string): Promise<GradeResult> {
       .single();
     if (contact) contactName = `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() || "Unknown";
 
-    const { data: cps } = await supabase
-      .from("contact_pipeline_state")
-      .select("current_stage_id, pipeline_stages (name)")
-      .eq("contact_id", call.contact_id)
+    // Phase 4 read migration: source stage from journey_pipeline_state via
+    // the journey whose primary is this contact. Any active jps row works for
+    // "what stage is this contact in" since runway territories share a stage
+    // during the transition period.
+    const { data: jps } = await supabase
+      .from("journey_pipeline_state")
+      .select("current_stage_id, pipeline_stages(name), journeys!inner(primary_contact_id)")
+      .eq("journeys.primary_contact_id", call.contact_id)
       .eq("is_active", true)
       .limit(1)
       .maybeSingle();
-    if (cps) {
-      const stage = (cps.pipeline_stages as unknown) as { name: string } | null;
+    if (jps) {
+      const stage = jps.pipeline_stages as unknown as { name: string } | null;
       stageName = stage?.name ?? "";
     }
   }
