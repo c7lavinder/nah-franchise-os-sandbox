@@ -15,6 +15,8 @@ import { capitalizeName, formatPhone } from "@/lib/format/contact";
 interface PipelineContact {
   stateId: string;
   contactId: string;
+  journeyId?: string;
+  territoryMsSlug?: string | null;
   name: string;
   email: string | null;
   phone: string | null;
@@ -231,7 +233,11 @@ export default function PipelineLeadList({
           return (
             <Link
               key={contact.stateId}
-              href={`/leads/${contact.contactId}`}
+              href={
+                contact.journeyId
+                  ? `/journeys/${contact.journeyId}${contact.territoryMsSlug ? `?territory=${contact.territoryMsSlug}` : ""}`
+                  : `/leads/${contact.contactId}`
+              }
               className={`
                 grid items-center gap-2 px-3 py-2.5 hover:bg-bg-hover transition-colors
                 grid-cols-[1fr_72px_110px_140px_16px]
