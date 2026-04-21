@@ -13,20 +13,59 @@
 --   3. Drop the contact_pipeline_state table.
 
 -- ── 1. RLS policies ──────────────────────────────────────────
--- Member-role policies on related tables cross-reference cps for
--- "own contact" checks. The member role is not yet active in prod; drop
--- them rather than rewrite. Journey-based equivalents can be added when
--- the member role is actually activated.
-
+-- Step 1a: drop the four cps-only policies on contact_pipeline_state.
 DROP POLICY IF EXISTS "cps_read_all" ON contact_pipeline_state;
 DROP POLICY IF EXISTS "cps_read_own" ON contact_pipeline_state;
 DROP POLICY IF EXISTS "cps_write" ON contact_pipeline_state;
 DROP POLICY IF EXISTS "cps_update_member" ON contact_pipeline_state;
 
+-- Step 1b: the four member-role policies on related tables currently gate
+-- access via a cps sub-query. Drop them and re-create equivalents keyed
+-- off journey_pipeline_state. Logic is preserved: a member can read a
+-- contact / log / history row / activity message when they are the
+-- assigned_user_id on some jps row that links to it.
+
 DROP POLICY IF EXISTS "contacts_read_own_member" ON contacts;
+CREATE POLICY "contacts_read_own_member" ON contacts FOR SELECT USING (
+  current_user_role() = 'member'
+  AND EXISTS (
+    SELECT 1 FROM journey_pipeline_state jps
+    JOIN journeys j ON j.id = jps.journey_id
+    WHERE j.primary_contact_id = contacts.id
+      AND jps.assigned_user_id::text = auth.uid()::text
+  )
+);
+
 DROP POLICY IF EXISTS "sub_task_logs_read_own" ON contact_sub_task_logs;
+CREATE POLICY "sub_task_logs_read_own" ON contact_sub_task_logs FOR SELECT USING (
+  current_user_role() = 'member'
+  AND EXISTS (
+    SELECT 1 FROM journey_pipeline_state jps
+    WHERE jps.id = contact_sub_task_logs.journey_pipeline_state_id
+      AND jps.assigned_user_id::text = auth.uid()::text
+  )
+);
+
 DROP POLICY IF EXISTS "stage_history_read_own" ON pipeline_stage_history;
+CREATE POLICY "stage_history_read_own" ON pipeline_stage_history FOR SELECT USING (
+  current_user_role() = 'member'
+  AND EXISTS (
+    SELECT 1 FROM journey_pipeline_state jps
+    WHERE jps.id = pipeline_stage_history.journey_pipeline_state_id
+      AND jps.assigned_user_id::text = auth.uid()::text
+  )
+);
+
 DROP POLICY IF EXISTS "activity_read_own" ON contact_activity_messages;
+CREATE POLICY "activity_read_own" ON contact_activity_messages FOR SELECT USING (
+  current_user_role() = 'member'
+  AND EXISTS (
+    SELECT 1 FROM journey_pipeline_state jps
+    JOIN journeys j ON j.id = jps.journey_id
+    WHERE j.primary_contact_id = contact_activity_messages.contact_id
+      AND jps.assigned_user_id::text = auth.uid()::text
+  )
+);
 
 -- ── 2. FK columns on dependent tables ────────────────────────
 
