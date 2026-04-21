@@ -672,7 +672,14 @@ async function writeResults(
           source: "scout",
           territory_ms_slug: resolvedTerritorySlug,
         };
-      });
+      })
+      // Data-lake integrity: drop any row that couldn't be scoped to a
+      // contact, journey, or territory. These are typically team-call
+      // mashups where Scout couldn't attribute the fact to a specific
+      // prospect. Without a scope pointer the predictive LLM can't use
+      // the row downstream, and the chk_extraction_has_scope constraint
+      // would reject it anyway.
+      .filter((r) => r.contact_id || r.journey_id || r.territory_ms_slug);
 
     if (rows.length > 0) {
       const { error: insertErr } = await supabase.from("call_data_extractions").insert(rows);
