@@ -23,9 +23,10 @@ export async function POST(
 ) {
   try {
     const { contactId: rawId, pipelineId } = await params;
-    const { destination, reason } = (await request.json()) as {
+    const { destination, reason, territory_ms_slug } = (await request.json()) as {
       destination: "followup" | "nurture";
       reason?: string;
+      territory_ms_slug?: string | null;
     };
     const supabase = createServerClient();
 
@@ -35,6 +36,40 @@ export async function POST(
 
     const localContactId = await resolveContactId(rawId);
     if (!localContactId) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
+
+    const now = new Date().toISOString();
+    const closedReason = destination === "followup" ? "dropped_to_followup" : "dropped_to_nurture";
+    const targetStageId = destination === "followup" ? FOLLOWUP_STAGE_ID : NURTURE_STAGE_ID;
+
+    // Per-territory path: close just the jps row for the specified territory.
+    // Follow-up/Nurture is a journey-level pipeline so dropping one territory
+    // does NOT spawn a followup entry (other territories may still be active).
+    if (territory_ms_slug) {
+      const { data: journey } = await supabase
+        .from("journeys")
+        .select("id")
+        .eq("primary_contact_id", localContactId)
+        .maybeSingle();
+      if (!journey?.id) return NextResponse.json({ error: "No journey for contact" }, { status: 404 });
+
+      const { data: jps } = await supabase
+        .from("journey_pipeline_state")
+        .select("id")
+        .eq("journey_id", journey.id)
+        .eq("pipeline_id", pipelineId)
+        .eq("territory_ms_slug", territory_ms_slug)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!jps) return NextResponse.json({ error: "No active state for territory" }, { status: 404 });
+
+      await supabase.from("journey_pipeline_state").update({
+        is_active: false,
+        closed_reason: closedReason,
+        closed_at: now,
+      }).eq("id", jps.id);
+
+      return NextResponse.json({ success: true, closedStateId: jps.id, newStateId: null, scope: "territory" });
+    }
 
     // Get active pipeline state
     const { data: state } = await supabase
@@ -46,10 +81,6 @@ export async function POST(
       .single();
 
     if (!state) return NextResponse.json({ error: "No active pipeline state" }, { status: 404 });
-
-    const now = new Date().toISOString();
-    const closedReason = destination === "followup" ? "dropped_to_followup" : "dropped_to_nurture";
-    const targetStageId = destination === "followup" ? FOLLOWUP_STAGE_ID : NURTURE_STAGE_ID;
 
     // Close source pipeline state
     await supabase.from("contact_pipeline_state").update({

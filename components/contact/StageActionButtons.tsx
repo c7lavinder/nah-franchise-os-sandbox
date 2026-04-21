@@ -19,6 +19,7 @@ interface StageActionButtonsProps {
   allSubTasksComplete: boolean;
   isFirstStage: boolean;
   isLastStage: boolean;
+  territoryMsSlug?: string | null;
   onRefresh: () => void;
 }
 
@@ -32,6 +33,7 @@ export default function StageActionButtons({
   allSubTasksComplete,
   isFirstStage,
   isLastStage,
+  territoryMsSlug,
   onRefresh,
 }: StageActionButtonsProps) {
   const isFollowupPipeline = pipelineSlug === "followup";
@@ -48,7 +50,7 @@ export default function StageActionButtons({
       const res = await fetch(`/api/contacts/${contactId}/pipelines/${pipelineId}/advance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ force, reason: reason || undefined }),
+        body: JSON.stringify({ force, reason: reason || undefined, territory_ms_slug: territoryMsSlug ?? undefined }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -73,7 +75,7 @@ export default function StageActionButtons({
       const res = await fetch(`/api/contacts/${contactId}/pipelines/${pipelineId}/revert`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, territory_ms_slug: territoryMsSlug ?? undefined }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -101,7 +103,7 @@ export default function StageActionButtons({
       const res = await fetch(`/api/contacts/${contactId}/pipelines/${pipelineId}/drop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destination, reason: reason || undefined }),
+        body: JSON.stringify({ destination, reason: reason || undefined, territory_ms_slug: territoryMsSlug ?? undefined }),
       });
       if (!res.ok) {
         const data = await res.json();

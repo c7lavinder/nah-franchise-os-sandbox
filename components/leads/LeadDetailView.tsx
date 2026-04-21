@@ -73,6 +73,11 @@ interface PipelineStateAPI {
     logsBySubTask: Record<string, SubTaskLog[]>; totalLogs: number;
   }[];
   stageHistory: StageHistoryEntry[];
+  territories?: {
+    ms_slug: string; territory_name: string; stage_id: string; stage_name: string;
+    jps_id: string; entered_current_stage_at: string;
+    current_sub_task_id: string | null; current_sub_task_started_at: string | null;
+  }[];
 }
 
 interface LocalContact {
@@ -102,6 +107,7 @@ interface LeadDetailViewProps {
 export default function LeadDetailView({
   contactId,
   journeyId,
+  initialTerritorySlug,
   highlightMessageId,
   members = [],
 }: LeadDetailViewProps) {
@@ -125,6 +131,7 @@ export default function LeadDetailView({
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [drilldownStageId, setDrilldownStageId] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<"sms" | "email" | "call" | "schedule" | null>(null);
+  const [focusedTerritorySlug, setFocusedTerritorySlug] = useState<string | null>(initialTerritorySlug ?? null);
 
   // Profile tab supports editing any journey member. Defaults to the main
   // contact and swaps when the user clicks a sub-tab.
@@ -285,6 +292,8 @@ export default function LeadDetailView({
           <PipelineBar contactId={contactId} pipelineStates={pipelineStates} selectedPipelineId={selectedPipelineId}
             onPipelineChange={setSelectedPipelineId} expandedStageId={drilldownStageId}
             onStageClick={(id) => setDrilldownStageId(drilldownStageId === id ? null : id)}
+            focusedTerritorySlug={focusedTerritorySlug}
+            onTerritoryChange={setFocusedTerritorySlug}
             onRefresh={() => void fetchAll()} />
           {drilldownStage && selectedPipeline && (() => {
             const currentStg = selectedPipeline.stages.find((s) => s.id === selectedPipeline.current_stage_id);
