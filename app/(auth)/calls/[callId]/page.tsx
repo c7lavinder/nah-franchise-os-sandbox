@@ -193,6 +193,17 @@ export default function CallDetailPage() {
 
   const hasTranscript = !!transcript;
 
+  // Signals that the call didn't happen or the transcript is unusable.
+  const badCallReasons: string[] = [];
+  if (call.status === "missed") badCallReasons.push("Marked missed");
+  if (call.status === "completed" && !hasTranscript) badCallReasons.push("No transcript");
+  if (call.status === "completed" && transcript && transcript.length < 500) badCallReasons.push("Transcript too short to analyze");
+  if (call.duration_seconds != null && call.duration_seconds > 0 && call.duration_seconds < 120) badCallReasons.push("Call under 2 minutes");
+
+  const unmappedCount = (call.rawParticipants ?? []).filter(
+    (p) => p.role !== "nah_team" && !p.contact_id,
+  ).length;
+
   return (
     <div>
       {/* ═══ HEADER ═══ */}
@@ -245,6 +256,24 @@ export default function CallDetailPage() {
               : "—"}
             {call.duration_seconds ? ` · ${Math.round(call.duration_seconds / 60)} min` : ""}
           </span>
+
+          {badCallReasons.length > 0 && (
+            <span
+              className="inline-flex items-center text-danger"
+              title={`Likely bad call: ${badCallReasons.join(", ")}`}
+            >
+              <AlertTriangle size={13} fill="currentColor" className="text-danger" />
+            </span>
+          )}
+
+          {unmappedCount > 0 && (
+            <span
+              className="inline-flex items-center text-[#EAB308]"
+              title={`${unmappedCount} participant${unmappedCount === 1 ? "" : "s"} not mapped to a contact`}
+            >
+              <AlertTriangle size={13} fill="currentColor" />
+            </span>
+          )}
 
           <span className="inline-block w-px h-3 bg-border-default" />
 
