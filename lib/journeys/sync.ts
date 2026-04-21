@@ -1,12 +1,11 @@
 /**
- * Phase 2 dual-write layer for the journeys restructure.
+ * Journey helpers used by the small set of routes that create new contact
+ * pipeline entries (contacts/create, ghl/auto-create-pipeline-state).
  *
- * After every write to contact_pipeline_state, callers invoke
- * syncJourneyForContact() to mirror the state onto journey_pipeline_state.
- * The sync is idempotent and one-directional (cps → jps). If the contact
- * has no journey yet, one is created with primary membership.
- *
- * Removed in Phase 4 after the read cutover.
+ * Phase 4 final: the dual-write sync (syncJourneyForContact) and the
+ * resolveJpsIdForCps translation helper are gone — every writer now
+ * targets journey_pipeline_state directly. This file is now just the
+ * "make sure this contact has a journey" primitive.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -51,97 +50,7 @@ export async function ensureJourneyForContact(supabase: SB, contactId: string): 
   return journey.id;
 }
 
-/** Return the territory slugs this contact owns currently (end_date IS NULL). */
-async function activeTerritoriesForContact(supabase: SB, contactId: string): Promise<string[]> {
-  const { data: contact } = await supabase
-    .from("contacts")
-    .select("ghl_contact_id")
-    .eq("id", contactId)
-    .maybeSingle();
-  if (!contact?.ghl_contact_id) return [];
-
-  const { data } = await supabase
-    .from("territory_owners")
-    .select("ms_slug")
-    .eq("ghl_contact_id", contact.ghl_contact_id)
-    .is("end_date", null);
-  return (data ?? []).map((r) => r.ms_slug);
-}
-
-/**
- * Mirror contact_pipeline_state rows for (contact, pipeline) onto
- * journey_pipeline_state. Called AFTER the cps write so the source-of-truth
- * row already reflects the caller's change. Idempotent.
- *
- * For runway / onboarding pipelines, we fan out one jps row per active
- * territory the contact owns (handles Phil-style multi-territory franchisees).
- * For every other pipeline, we write one jps row with territory_ms_slug = NULL.
- */
-export async function syncJourneyForContact(
-  supabase: SB,
-  contactId: string,
-  pipelineId: string,
-): Promise<void> {
-  const journeyId = await ensureJourneyForContact(supabase, contactId);
-  if (!journeyId) return;
-
-  const { data: cpsRows } = await supabase
-    .from("contact_pipeline_state")
-    .select("pipeline_id, current_stage_id, current_sub_task_id, current_sub_task_started_at, entered_pipeline_at, entered_current_stage_at, assigned_user_id, is_active, closed_reason, closed_at")
-    .eq("contact_id", contactId)
-    .eq("pipeline_id", pipelineId);
-
-  if (!cpsRows || cpsRows.length === 0) return;
-
-  const { data: pipeline } = await supabase
-    .from("pipelines")
-    .select("slug")
-    .eq("id", pipelineId)
-    .maybeSingle();
-  const isTerritoryPipeline = pipeline?.slug === "runway" || pipeline?.slug === "onboarding";
-
-  const territories = isTerritoryPipeline ? await activeTerritoriesForContact(supabase, contactId) : [];
-  const targetSlugs: (string | null)[] = territories.length > 0 ? territories : [null];
-
-  for (const cps of cpsRows) {
-    for (const slug of targetSlugs) {
-      const row = {
-        journey_id: journeyId,
-        territory_ms_slug: slug,
-        pipeline_id: cps.pipeline_id,
-        current_stage_id: cps.current_stage_id,
-        current_sub_task_id: cps.current_sub_task_id,
-        current_sub_task_started_at: cps.current_sub_task_started_at,
-        entered_pipeline_at: cps.entered_pipeline_at,
-        entered_current_stage_at: cps.entered_current_stage_at,
-        assigned_user_id: cps.assigned_user_id,
-        is_active: cps.is_active,
-        closed_reason: cps.closed_reason,
-        closed_at: cps.closed_at,
-      };
-
-      const matchQuery = supabase
-        .from("journey_pipeline_state")
-        .select("id")
-        .eq("journey_id", journeyId)
-        .eq("pipeline_id", cps.pipeline_id);
-      const scopedMatch = slug === null
-        ? matchQuery.is("territory_ms_slug", null)
-        : matchQuery.eq("territory_ms_slug", slug);
-
-      const { data: existingRows } = await scopedMatch;
-      const existing = existingRows?.[0];
-
-      if (existing?.id) {
-        await supabase.from("journey_pipeline_state").update(row).eq("id", existing.id);
-      } else {
-        await supabase.from("journey_pipeline_state").insert(row);
-      }
-    }
-  }
-}
-
-/** Lookup helper used by post-call writers to tag extractions / actions. */
+/** Lookup helper: returns the active journey id for a contact (as primary). */
 export async function resolveJourneyIdForContact(supabase: SB, contactId: string | null): Promise<string | null> {
   if (!contactId) return null;
   const { data } = await supabase
@@ -150,37 +59,4 @@ export async function resolveJourneyIdForContact(supabase: SB, contactId: string
     .eq("primary_contact_id", contactId)
     .maybeSingle();
   return data?.id ?? null;
-}
-
-/**
- * Resolve the mirroring jps row id for a given cps row id so new
- * contact_sub_task_logs can populate both the cps and jps FK columns.
- * Picks the NULL-territory jps row when present (the "canonical" row for
- * journey-level moves); otherwise the first active jps row for that
- * (journey, pipeline). Returns null when no jps row exists.
- */
-export async function resolveJpsIdForCps(supabase: SB, cpsId: string | null): Promise<string | null> {
-  if (!cpsId) return null;
-  const { data: cps } = await supabase
-    .from("contact_pipeline_state")
-    .select("contact_id, pipeline_id")
-    .eq("id", cpsId)
-    .maybeSingle();
-  if (!cps?.contact_id || !cps.pipeline_id) return null;
-
-  const { data: journey } = await supabase
-    .from("journeys")
-    .select("id")
-    .eq("primary_contact_id", cps.contact_id)
-    .maybeSingle();
-  if (!journey?.id) return null;
-
-  const { data: rows } = await supabase
-    .from("journey_pipeline_state")
-    .select("id, territory_ms_slug")
-    .eq("journey_id", journey.id)
-    .eq("pipeline_id", cps.pipeline_id)
-    .eq("is_active", true);
-  const list = rows ?? [];
-  return (list.find((r) => r.territory_ms_slug === null)?.id) ?? list[0]?.id ?? null;
 }

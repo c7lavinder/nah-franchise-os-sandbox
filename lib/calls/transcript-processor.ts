@@ -8,7 +8,6 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { transcribeAudio } from "@/lib/calls/whisper";
 import { generateReviewPackage } from "@/lib/calls/review-package";
-import { resolveJpsIdForCps } from "@/lib/journeys/sync";
 
 const MAX_ATTEMPTS = 3;
 const BATCH_SIZE = 5;
@@ -97,16 +96,14 @@ export async function processTranscriptJobs(): Promise<{
       // Auto-log sub-task and trigger review package (fire-and-forget)
       const { data: call } = await supabase
         .from("calls")
-        .select("id, contact_id, sub_task_id, contact_pipeline_state_id, hosted_by_user_id")
+        .select("id, contact_id, sub_task_id, journey_pipeline_state_id, hosted_by_user_id")
         .eq("id", job.call_id)
         .single();
 
-      if (call?.sub_task_id && call.contact_pipeline_state_id) {
+      if (call?.sub_task_id && call.journey_pipeline_state_id) {
         const preview = result.text.length > 500 ? result.text.slice(0, 500) + "..." : result.text;
-        const jpsId = await resolveJpsIdForCps(supabase, call.contact_pipeline_state_id);
         await supabase.from("contact_sub_task_logs").insert({
-          contact_pipeline_state_id: call.contact_pipeline_state_id,
-          journey_pipeline_state_id: jpsId,
+          journey_pipeline_state_id: call.journey_pipeline_state_id,
           sub_task_id: call.sub_task_id,
           logger_user_id: call.hosted_by_user_id,
           source: "ai",

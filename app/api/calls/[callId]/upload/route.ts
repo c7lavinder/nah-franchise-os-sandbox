@@ -8,7 +8,6 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { resolveJpsIdForCps } from "@/lib/journeys/sync";
 
 export async function POST(
   request: NextRequest,
@@ -19,7 +18,7 @@ export async function POST(
 
   const { data: call } = await supabase
     .from("calls")
-    .select("id, contact_id, sub_task_id, contact_pipeline_state_id, hosted_by_user_id")
+    .select("id, contact_id, sub_task_id, journey_pipeline_state_id, hosted_by_user_id")
     .eq("id", callId)
     .single();
   if (!call) return NextResponse.json({ error: "Call not found" }, { status: 404 });
@@ -58,12 +57,10 @@ export async function POST(
       await supabase.from("calls").update({ raw_transcript: text.trim(), status: "completed" }).eq("id", callId);
 
       // Auto-log sub-task if applicable
-      if (call.sub_task_id && call.contact_pipeline_state_id) {
+      if (call.sub_task_id && call.journey_pipeline_state_id) {
         const preview = text.length > 500 ? text.slice(0, 500) + "..." : text;
-        const jpsId = await resolveJpsIdForCps(supabase, call.contact_pipeline_state_id);
         await supabase.from("contact_sub_task_logs").insert({
-          contact_pipeline_state_id: call.contact_pipeline_state_id,
-          journey_pipeline_state_id: jpsId,
+          journey_pipeline_state_id: call.journey_pipeline_state_id,
           sub_task_id: call.sub_task_id,
           logger_user_id: call.hosted_by_user_id,
           source: "ai",

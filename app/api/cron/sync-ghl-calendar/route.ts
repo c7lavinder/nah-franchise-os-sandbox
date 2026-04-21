@@ -132,17 +132,24 @@ export async function GET(request: NextRequest) {
         ? Math.round((new Date(event.endTime).getTime() - new Date(event.startTime).getTime()) / 1000)
         : null;
 
-      // Find pipeline state for auto-log
-      let contactPipelineStateId: string | null = null;
+      // Find pipeline state for auto-log — Phase 4 final: source from jps
+      // via the contact's primary journey. Any active jps row is fine for
+      // the "which pipeline state is this call attached to" question; the
+      // log writer later picks the canonical (NULL-territory) row if needed.
+      let journeyPipelineStateId: string | null = null;
       if (localContactId) {
-        const { data: cps } = await supabase
-          .from("contact_pipeline_state")
-          .select("id")
-          .eq("contact_id", localContactId)
-          .eq("is_active", true)
-          .limit(1)
-          .maybeSingle();
-        contactPipelineStateId = cps?.id ?? null;
+        const { data: journey } = await supabase
+          .from("journeys").select("id")
+          .eq("primary_contact_id", localContactId).maybeSingle();
+        if (journey?.id) {
+          const { data: rows } = await supabase
+            .from("journey_pipeline_state")
+            .select("id, territory_ms_slug")
+            .eq("journey_id", journey.id)
+            .eq("is_active", true);
+          const list = rows ?? [];
+          journeyPipelineStateId = (list.find((r) => r.territory_ms_slug === null)?.id) ?? list[0]?.id ?? null;
+        }
       }
 
       // Check if exists
@@ -171,7 +178,7 @@ export async function GET(request: NextRequest) {
 
         const updatePayload: Record<string, unknown> = {
           sub_task_id: subTaskId,
-          contact_pipeline_state_id: contactPipelineStateId,
+          journey_pipeline_state_id: journeyPipelineStateId,
           scheduled_at: event.startTime,
           started_at: status === "completed" ? event.startTime : null,
           ended_at: status === "completed" ? event.endTime : null,
@@ -202,7 +209,7 @@ export async function GET(request: NextRequest) {
           match_confidence: match.confidence,
           match_reason: match.reason,
           sub_task_id: subTaskId,
-          contact_pipeline_state_id: contactPipelineStateId,
+          journey_pipeline_state_id: journeyPipelineStateId,
           source: "ghl_calendar",
           scheduled_at: event.startTime,
           started_at: status === "completed" ? event.startTime : null,

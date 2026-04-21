@@ -260,63 +260,81 @@ async function loadCallContext(
     if (!territoryNames.includes(name)) territoryNames.push(name);
   }
 
-  // Load contact's active pipeline positions
+  // Load contact's active pipeline positions — Phase 4 read migration: jps
+  // via the contact's journey. For multi-territory pipelines (runway/
+  // onboarding), the canonical NULL-territory row is preferred; otherwise
+  // any active jps row. Logs are queried by the jps FK.
   const pipelinePositions: PipelinePosition[] = [];
   if (call.contact_id) {
-    const { data: states } = await supabase
-      .from("contact_pipeline_state")
-      .select(`
-        id,
-        pipeline_id,
-        current_stage_id,
-        current_sub_task_id,
-        pipelines ( slug, name ),
-        pipeline_stages ( slug, name )
-      `)
-      .eq("contact_id", call.contact_id)
-      .eq("is_active", true);
+    const { data: journey } = await supabase
+      .from("journeys").select("id")
+      .eq("primary_contact_id", call.contact_id).maybeSingle();
 
-    for (const st of states ?? []) {
-      const pipeline = Array.isArray(st.pipelines) ? st.pipelines[0] : st.pipelines;
-      const stage = Array.isArray(st.pipeline_stages) ? st.pipeline_stages[0] : st.pipeline_stages;
-      if (!pipeline || !stage) continue;
+    if (journey?.id) {
+      const { data: states } = await supabase
+        .from("journey_pipeline_state")
+        .select(`
+          id,
+          pipeline_id,
+          territory_ms_slug,
+          current_stage_id,
+          current_sub_task_id,
+          pipelines ( slug, name ),
+          pipeline_stages ( slug, name )
+        `)
+        .eq("journey_id", journey.id)
+        .eq("is_active", true);
 
-      // Fetch all stages for this pipeline
-      const { data: allStageRows } = await supabase
-        .from("pipeline_stages")
-        .select("name")
-        .eq("pipeline_id", st.pipeline_id)
-        .order("sort_order", { ascending: true });
-
-      // Fetch sub-tasks for the current stage
-      const { data: subTaskRows } = await supabase
-        .from("pipeline_sub_tasks")
-        .select("id, name")
-        .eq("stage_id", st.current_stage_id)
-        .order("sort_order", { ascending: true });
-
-      // Check which sub-tasks are completed via logs
-      const subTaskIds = (subTaskRows ?? []).map((s) => s.id);
-      let completedIds = new Set<string>();
-      if (subTaskIds.length > 0) {
-        const { data: logs } = await supabase
-          .from("contact_sub_task_logs")
-          .select("sub_task_id")
-          .eq("contact_pipeline_state_id", st.id)
-          .in("sub_task_id", subTaskIds);
-        completedIds = new Set((logs ?? []).map((l) => l.sub_task_id));
+      // Fold per-pipeline, NULL-territory preferred.
+      type StateRow = NonNullable<typeof states>[number];
+      const canonByPipeline = new Map<string, StateRow>();
+      for (const st of states ?? []) {
+        const existing = canonByPipeline.get(st.pipeline_id);
+        if (!existing) { canonByPipeline.set(st.pipeline_id, st); continue; }
+        if (st.territory_ms_slug === null && existing.territory_ms_slug !== null) {
+          canonByPipeline.set(st.pipeline_id, st);
+        }
       }
 
-      pipelinePositions.push({
-        pipelineName: (pipeline as { name: string }).name,
-        pipelineSlug: (pipeline as { slug: string }).slug,
-        currentStage: (stage as { name: string }).name,
-        allStages: (allStageRows ?? []).map((s) => s.name),
-        subTasks: (subTaskRows ?? []).map((s) => ({
-          name: s.name,
-          completed: completedIds.has(s.id),
-        })),
-      });
+      for (const st of canonByPipeline.values()) {
+        const pipeline = Array.isArray(st.pipelines) ? st.pipelines[0] : st.pipelines;
+        const stage = Array.isArray(st.pipeline_stages) ? st.pipeline_stages[0] : st.pipeline_stages;
+        if (!pipeline || !stage) continue;
+
+        const { data: allStageRows } = await supabase
+          .from("pipeline_stages")
+          .select("name")
+          .eq("pipeline_id", st.pipeline_id)
+          .order("sort_order", { ascending: true });
+
+        const { data: subTaskRows } = await supabase
+          .from("pipeline_sub_tasks")
+          .select("id, name")
+          .eq("stage_id", st.current_stage_id)
+          .order("sort_order", { ascending: true });
+
+        const subTaskIds = (subTaskRows ?? []).map((s) => s.id);
+        let completedIds = new Set<string>();
+        if (subTaskIds.length > 0) {
+          const { data: logs } = await supabase
+            .from("contact_sub_task_logs")
+            .select("sub_task_id")
+            .eq("journey_pipeline_state_id", st.id)
+            .in("sub_task_id", subTaskIds);
+          completedIds = new Set((logs ?? []).map((l) => l.sub_task_id));
+        }
+
+        pipelinePositions.push({
+          pipelineName: (pipeline as { name: string }).name,
+          pipelineSlug: (pipeline as { slug: string }).slug,
+          currentStage: (stage as { name: string }).name,
+          allStages: (allStageRows ?? []).map((s) => s.name),
+          subTasks: (subTaskRows ?? []).map((s) => ({
+            name: s.name,
+            completed: completedIds.has(s.id),
+          })),
+        });
+      }
     }
   }
 
@@ -335,17 +353,21 @@ async function loadCallContext(
   // so the LLM can match names mentioned in the transcript
   const roster: RosterEntry[] = [];
   if (isTeamCall) {
-    // Load active franchisees (in onboarding or runway)
+    // Load active franchisees (in onboarding or runway) — Phase 4 read
+    // migration: source from jps and resolve contact via journey primary.
     const { data: franchiseeStates } = await supabase
-      .from("contact_pipeline_state")
-      .select("contact_id, pipeline_id, current_stage_id")
+      .from("journey_pipeline_state")
+      .select("pipeline_id, current_stage_id, journeys!inner(primary_contact_id)")
       .eq("is_active", true)
       .in("pipeline_id", [
         "a0000000-0000-0000-0000-000000000003", // onboarding
         "a0000000-0000-0000-0000-000000000004", // runway
       ]);
 
-    const fContactIds = [...new Set((franchiseeStates ?? []).map((s) => s.contact_id))];
+    const fContactIds = [...new Set((franchiseeStates ?? []).map((s) => {
+      const j = s.journeys as unknown as { primary_contact_id: string } | null;
+      return j?.primary_contact_id ?? null;
+    }).filter(Boolean) as string[])];
     if (fContactIds.length > 0) {
       const { data: fContacts } = await supabase
         .from("contacts")
@@ -382,7 +404,9 @@ async function loadCallContext(
 
       const contactStageMap = new Map<string, string>();
       for (const s of franchiseeStates ?? []) {
-        contactStageMap.set(s.contact_id, stageMap.get(s.current_stage_id) ?? "Unknown");
+        const j = s.journeys as unknown as { primary_contact_id: string } | null;
+        const cid = j?.primary_contact_id;
+        if (cid) contactStageMap.set(cid, stageMap.get(s.current_stage_id) ?? "Unknown");
       }
 
       for (const c of fContacts ?? []) {

@@ -9,17 +9,16 @@ export const dynamic = "force-dynamic";
  *   - reason (optional)
  *   - force (optional) — skip sub-task completion check
  *   - territory_ms_slug (optional) — when set, advance ONLY the journey's
- *     jps row for (pipeline, territory). cps is left untouched and stage
- *     history is skipped for this move (known gap until stage_history
- *     gets a jps FK). Without this param, advance operates on cps as
- *     before and the dual-write sync fans the stage out to all jps rows.
+ *     jps row for (pipeline, territory). Without it, every active jps row
+ *     for the (journey, pipeline) pair moves together — the legacy
+ *     contact-wide semantic. Both paths write jps directly now; cps is no
+ *     longer touched and syncJourneyForContact is gone.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 import { syncStageToGHL } from "@/lib/ghl/stage-sync";
-import { syncJourneyForContact } from "@/lib/journeys/sync";
 
 export async function POST(
   request: NextRequest,
@@ -37,7 +36,6 @@ export async function POST(
     const localContactId = await resolveContactId(rawId);
     if (!localContactId) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
 
-    // Get all stages ordered — used by both the cps path and the jps path.
     const { data: stages } = await supabase
       .from("pipeline_stages")
       .select("id, sort_order, is_terminal, auto_spawn_pipeline_id")
@@ -47,17 +45,17 @@ export async function POST(
       return NextResponse.json({ error: "Pipeline has no stages" }, { status: 400 });
     }
 
+    const { data: journey } = await supabase
+      .from("journeys")
+      .select("id")
+      .eq("primary_contact_id", localContactId)
+      .maybeSingle();
+    if (!journey?.id) return NextResponse.json({ error: "No journey for contact" }, { status: 404 });
+
     const now = new Date().toISOString();
 
-    // ─── Per-territory path: write directly to jps, skip cps + history. ───
+    // ─── Per-territory path: write one targeted jps row. ───
     if (territory_ms_slug) {
-      const { data: journey } = await supabase
-        .from("journeys")
-        .select("id")
-        .eq("primary_contact_id", localContactId)
-        .maybeSingle();
-      if (!journey?.id) return NextResponse.json({ error: "No journey for contact" }, { status: 404 });
-
       const { data: jps } = await supabase
         .from("journey_pipeline_state")
         .select("id, current_stage_id")
@@ -75,11 +73,8 @@ export async function POST(
       const nextStage = stages[currentIdx + 1];
 
       const { data: nextTasks } = await supabase
-        .from("pipeline_sub_tasks")
-        .select("id")
-        .eq("stage_id", nextStage.id)
-        .order("sort_order")
-        .limit(1);
+        .from("pipeline_sub_tasks").select("id")
+        .eq("stage_id", nextStage.id).order("sort_order").limit(1);
 
       await supabase.from("journey_pipeline_state").update({
         current_stage_id: nextStage.id,
@@ -107,34 +102,37 @@ export async function POST(
       return NextResponse.json({ success: true, newStageId: nextStage.id, scope: "territory" });
     }
 
-    // ─── Contact-wide path: existing cps-based advance flow. ───
-    const { data: state } = await supabase
-      .from("contact_pipeline_state")
-      .select("id, current_stage_id, pipeline_id")
-      .eq("contact_id", localContactId)
+    // ─── Contact-wide path: every active jps row for (journey, pipeline) moves together. ───
+    const { data: jpsRows } = await supabase
+      .from("journey_pipeline_state")
+      .select("id, current_stage_id, territory_ms_slug")
+      .eq("journey_id", journey.id)
       .eq("pipeline_id", pipelineId)
-      .eq("is_active", true)
-      .single();
+      .eq("is_active", true);
+    if (!jpsRows || jpsRows.length === 0) {
+      return NextResponse.json({ error: "No active pipeline state" }, { status: 404 });
+    }
 
-    if (!state) return NextResponse.json({ error: "No active pipeline state" }, { status: 404 });
-
-    const currentIdx = stages.findIndex((s) => s.id === state.current_stage_id);
+    // All active jps rows for a (journey, pipeline) share a stage under legacy
+    // cps-sync semantics. Use the canonical row (NULL-territory preferred) for
+    // completion checks + next-stage math.
+    const canonical = jpsRows.find((r) => r.territory_ms_slug === null) ?? jpsRows[0];
+    const currentIdx = stages.findIndex((s) => s.id === canonical.current_stage_id);
     if (currentIdx === -1 || currentIdx >= stages.length - 1) {
       return NextResponse.json({ error: "No next stage available" }, { status: 400 });
     }
 
-    // Check sub-task completion if not forcing
     if (!force) {
       const { data: subTasks } = await supabase
         .from("pipeline_sub_tasks")
         .select("id, state_type, is_required")
-        .eq("stage_id", state.current_stage_id);
+        .eq("stage_id", canonical.current_stage_id);
 
       for (const task of (subTasks ?? []).filter((t) => t.is_required)) {
         const { data: logs } = await supabase
           .from("contact_sub_task_logs")
           .select("state_advance")
-          .eq("contact_pipeline_state_id", state.id)
+          .eq("journey_pipeline_state_id", canonical.id)
           .eq("sub_task_id", task.id)
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
@@ -153,68 +151,82 @@ export async function POST(
     const nextStage = stages[currentIdx + 1];
 
     const { data: nextTasks } = await supabase
-      .from("pipeline_sub_tasks")
-      .select("id")
-      .eq("stage_id", nextStage.id)
-      .order("sort_order")
-      .limit(1);
+      .from("pipeline_sub_tasks").select("id")
+      .eq("stage_id", nextStage.id).order("sort_order").limit(1);
 
-    await supabase.from("contact_pipeline_state").update({
+    // Move every active jps row to the next stage; one history row per jps row.
+    const jpsIds = jpsRows.map((r) => r.id);
+    await supabase.from("journey_pipeline_state").update({
       current_stage_id: nextStage.id,
       entered_current_stage_at: now,
       current_sub_task_id: nextTasks?.[0]?.id ?? null,
       current_sub_task_started_at: now,
-    }).eq("id", state.id);
+    }).in("id", jpsIds);
 
-    await supabase.from("pipeline_stage_history").insert({
-      contact_pipeline_state_id: state.id,
-      from_stage_id: state.current_stage_id,
-      to_stage_id: nextStage.id,
-      reason: reason ?? (force ? "Skipped forward" : null),
-      was_skip: force ?? false,
-      was_revert: false,
-      was_auto: false,
-    });
+    await supabase.from("pipeline_stage_history").insert(
+      jpsRows.map((r) => ({
+        journey_pipeline_state_id: r.id,
+        from_stage_id: r.current_stage_id,
+        to_stage_id: nextStage.id,
+        reason: reason ?? (force ? "Skipped forward" : null),
+        was_skip: force ?? false,
+        was_revert: false,
+        was_auto: false,
+      }))
+    );
 
     const { data: pipeline } = await supabase.from("pipelines").select("slug").eq("id", pipelineId).single();
     const { data: nextStageDef } = await supabase.from("pipeline_stages").select("slug").eq("id", nextStage.id).single();
-
     if (pipeline?.slug && nextStageDef?.slug) {
       void syncStageToGHL(localContactId, pipeline.slug, nextStageDef.slug);
     }
 
+    // Auto-spawn: if the next stage is terminal and names an auto-spawn
+    // pipeline, create fresh jps rows in that pipeline. Runway and onboarding
+    // spawn per active territory; everything else spawns a single
+    // NULL-territory row.
     if (nextStage.is_terminal && nextStage.auto_spawn_pipeline_id) {
+      const spawnPipelineId = nextStage.auto_spawn_pipeline_id;
+      const { data: spawnPipeline } = await supabase
+        .from("pipelines").select("slug").eq("id", spawnPipelineId).single();
       const { data: spawnStages } = await supabase
-        .from("pipeline_stages")
-        .select("id")
-        .eq("pipeline_id", nextStage.auto_spawn_pipeline_id)
-        .order("sort_order")
-        .limit(1);
+        .from("pipeline_stages").select("id")
+        .eq("pipeline_id", spawnPipelineId).order("sort_order").limit(1);
+      const { data: spawnTasks } = spawnStages?.[0]
+        ? await supabase.from("pipeline_sub_tasks").select("id")
+            .eq("stage_id", spawnStages[0].id).order("sort_order").limit(1)
+        : { data: [] as { id: string }[] };
 
       if (spawnStages?.[0]) {
-        const { data: spawnTasks } = await supabase
-          .from("pipeline_sub_tasks")
-          .select("id")
-          .eq("stage_id", spawnStages[0].id)
-          .order("sort_order")
-          .limit(1);
+        const fanOut = spawnPipeline?.slug === "runway" || spawnPipeline?.slug === "onboarding";
+        let spawnSlugs: (string | null)[] = [null];
+        if (fanOut) {
+          const { data: contactRow } = await supabase
+            .from("contacts").select("ghl_contact_id").eq("id", localContactId).maybeSingle();
+          if (contactRow?.ghl_contact_id) {
+            const { data: owners } = await supabase
+              .from("territory_owners").select("ms_slug")
+              .eq("ghl_contact_id", contactRow.ghl_contact_id).is("end_date", null);
+            const slugs = (owners ?? []).map((o) => o.ms_slug);
+            spawnSlugs = slugs.length > 0 ? slugs : [null];
+          }
+        }
 
-        await supabase.from("contact_pipeline_state").insert({
-          contact_id: localContactId,
-          pipeline_id: nextStage.auto_spawn_pipeline_id,
-          current_stage_id: spawnStages[0].id,
-          current_sub_task_id: spawnTasks?.[0]?.id ?? null,
-          current_sub_task_started_at: now,
-          entered_pipeline_at: now,
-          entered_current_stage_at: now,
-          is_active: true,
-        });
-
-        await syncJourneyForContact(supabase, localContactId, nextStage.auto_spawn_pipeline_id);
+        await supabase.from("journey_pipeline_state").insert(
+          spawnSlugs.map((slug) => ({
+            journey_id: journey.id,
+            territory_ms_slug: slug,
+            pipeline_id: spawnPipelineId,
+            current_stage_id: spawnStages[0].id,
+            current_sub_task_id: spawnTasks?.[0]?.id ?? null,
+            current_sub_task_started_at: now,
+            entered_pipeline_at: now,
+            entered_current_stage_at: now,
+            is_active: true,
+          }))
+        );
       }
     }
-
-    await syncJourneyForContact(supabase, localContactId, pipelineId);
 
     return NextResponse.json({ success: true, newStageId: nextStage.id, scope: "contact" });
   } catch (err) {

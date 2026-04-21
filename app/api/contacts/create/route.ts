@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { upsertContact } from "@/lib/ghl/client";
 import { runContactResearch } from "@/lib/agents/contact-research";
-import { syncJourneyForContact } from "@/lib/journeys/sync";
+import { ensureJourneyForContact } from "@/lib/journeys/sync";
 
 interface CreateContactBody {
   firstName: string;
@@ -89,7 +89,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Place in Sales pipeline → Engagement stage (if not already in pipeline)
+    // 3. Place in Sales pipeline → Engagement stage. Creates the journey
+    // + primary membership via ensureJourneyForContact, then inserts a
+    // single NULL-territory jps row (sales is journey-level).
     const { data: salesPipeline } = await supabase
       .from("pipelines")
       .select("id")
@@ -97,33 +99,33 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (salesPipeline) {
-      const { data: existingState } = await supabase
-        .from("contact_pipeline_state")
-        .select("id")
-        .eq("contact_id", contact.id)
-        .eq("pipeline_id", salesPipeline.id)
-        .maybeSingle();
-
-      if (!existingState) {
-        const { data: engagementStage } = await supabase
-          .from("pipeline_stages")
+      const journeyId = await ensureJourneyForContact(supabase, contact.id);
+      if (journeyId) {
+        const { data: existingState } = await supabase
+          .from("journey_pipeline_state")
           .select("id")
+          .eq("journey_id", journeyId)
           .eq("pipeline_id", salesPipeline.id)
-          .order("sort_order", { ascending: true })
-          .limit(1)
-          .single();
+          .maybeSingle();
 
-        if (engagementStage) {
-          await supabase.from("contact_pipeline_state").insert({
-            contact_id: contact.id,
-            pipeline_id: salesPipeline.id,
-            current_stage_id: engagementStage.id,
-            is_active: true,
-          });
+        if (!existingState) {
+          const { data: engagementStage } = await supabase
+            .from("pipeline_stages")
+            .select("id")
+            .eq("pipeline_id", salesPipeline.id)
+            .order("sort_order", { ascending: true })
+            .limit(1)
+            .single();
 
-          // Phase 2 dual-write: creates a journey + primary membership and
-          // mirrors the new pipeline state row onto journey_pipeline_state.
-          await syncJourneyForContact(supabase, contact.id, salesPipeline.id);
+          if (engagementStage) {
+            await supabase.from("journey_pipeline_state").insert({
+              journey_id: journeyId,
+              territory_ms_slug: null,
+              pipeline_id: salesPipeline.id,
+              current_stage_id: engagementStage.id,
+              is_active: true,
+            });
+          }
         }
       }
     }

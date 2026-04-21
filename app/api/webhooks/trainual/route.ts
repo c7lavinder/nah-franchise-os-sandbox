@@ -10,7 +10,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { checkAutoAdvance } from "@/lib/contacts/auto-advance";
-import { resolveJpsIdForCps } from "@/lib/journeys/sync";
 
 /** Map Trainual module/course names to sub-task names (case-insensitive matching) */
 const TRAINUAL_SUBTASK_MAP: Record<string, string> = {
@@ -142,13 +141,23 @@ export async function POST(request: NextRequest) {
     pipelines: { slug: string };
   };
 
-  const { data: pipelineState } = await supabase
-    .from("contact_pipeline_state")
-    .select("id, current_stage_id")
-    .eq("contact_id", contact.id)
-    .eq("pipeline_id", stageData.pipeline_id)
-    .eq("is_active", true)
-    .maybeSingle();
+  // Find the canonical active jps row for (journey, pipeline).
+  const { data: journey } = await supabase
+    .from("journeys").select("id")
+    .eq("primary_contact_id", contact.id).maybeSingle();
+
+  let pipelineState: { id: string; current_stage_id: string } | null = null;
+  if (journey?.id) {
+    const { data: rows } = await supabase
+      .from("journey_pipeline_state")
+      .select("id, current_stage_id, territory_ms_slug")
+      .eq("journey_id", journey.id)
+      .eq("pipeline_id", stageData.pipeline_id)
+      .eq("is_active", true);
+    const list = rows ?? [];
+    const canon = list.find((r) => r.territory_ms_slug === null) ?? list[0];
+    if (canon) pipelineState = { id: canon.id, current_stage_id: canon.current_stage_id };
+  }
 
   if (!pipelineState) {
     await supabase.from("integration_logs").insert({
@@ -161,11 +170,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  // Log the sub-task completion
-  const jpsId = await resolveJpsIdForCps(supabase, pipelineState.id);
   await supabase.from("contact_sub_task_logs").insert({
-    contact_pipeline_state_id: pipelineState.id,
-    journey_pipeline_state_id: jpsId,
+    journey_pipeline_state_id: pipelineState.id,
     sub_task_id: subTask.id,
     logger_user_id: null,
     source: "api",

@@ -6,15 +6,16 @@ export const dynamic = "force-dynamic";
  * Creates a sub-task log entry. Per §1.5: a log is an attempt to hit a milestone.
  * Multiple logs can exist on a single sub-task.
  *
- * After creating the log, if the sub-task reaches its final state AND it's the
- * current sub-task, advances current_sub_task_id to the next required sub-task.
+ * Phase 4 final: writes against journey_pipeline_state directly. Logs carry
+ * only the jps FK (cps FK left null). After a log, the current_sub_task_id
+ * pointer is advanced; when all required sub-tasks are complete, auto-
+ * advance runs against the canonical jps row.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 import { checkAutoAdvance } from "@/lib/contacts/auto-advance";
-import { syncJourneyForContact } from "@/lib/journeys/sync";
 
 interface LogBody {
   contentType: string;
@@ -34,13 +35,11 @@ export async function POST(
     const body = (await request.json()) as LogBody;
     const supabase = createServerClient();
 
-    // Resolve contact
     const localContactId = await resolveContactId(rawContactId);
     if (!localContactId) {
       return NextResponse.json({ error: "Contact not found" }, { status: 404 });
     }
 
-    // Get sub-task definition
     const { data: subTask, error: stError } = await supabase
       .from("pipeline_sub_tasks")
       .select("id, slug, name, state_type, stage_id, default_logger_type, default_logger_user_id")
@@ -51,7 +50,6 @@ export async function POST(
       return NextResponse.json({ error: "Sub-task not found" }, { status: 404 });
     }
 
-    // Validate state_advance
     if (subTask.state_type === "two_state" && !body.stateAdvance) {
       return NextResponse.json({ error: "stateAdvance is required for two-state sub-tasks" }, { status: 400 });
     }
@@ -59,25 +57,28 @@ export async function POST(
       return NextResponse.json({ error: "stateAdvance must be null for single-state sub-tasks" }, { status: 400 });
     }
 
-    // Find the active pipeline state for this contact + sub-task's pipeline
     const { data: stage } = await supabase
       .from("pipeline_stages")
       .select("id, pipeline_id")
       .eq("id", subTask.stage_id)
       .single();
+    if (!stage) return NextResponse.json({ error: "Stage not found" }, { status: 404 });
 
-    if (!stage) {
-      return NextResponse.json({ error: "Stage not found" }, { status: 404 });
-    }
+    const { data: journey } = await supabase
+      .from("journeys").select("id")
+      .eq("primary_contact_id", localContactId).maybeSingle();
+    if (!journey?.id) return NextResponse.json({ error: "No journey for contact" }, { status: 404 });
 
-    const { data: pipelineState } = await supabase
-      .from("contact_pipeline_state")
-      .select("id, current_sub_task_id, current_stage_id")
-      .eq("contact_id", localContactId)
+    // Find the canonical active jps row for (journey, pipeline). NULL-territory
+    // preferred so sales/followup always hits the single journey-level row.
+    const { data: jpsRows } = await supabase
+      .from("journey_pipeline_state")
+      .select("id, current_sub_task_id, current_stage_id, territory_ms_slug")
+      .eq("journey_id", journey.id)
       .eq("pipeline_id", stage.pipeline_id)
-      .eq("is_active", true)
-      .maybeSingle();
-
+      .eq("is_active", true);
+    const rows = jpsRows ?? [];
+    const pipelineState = rows.find((r) => r.territory_ms_slug === null) ?? rows[0] ?? null;
     if (!pipelineState) {
       return NextResponse.json({ error: "No active pipeline state for this contact" }, { status: 404 });
     }
@@ -86,30 +87,10 @@ export async function POST(
     const loggerUserId = body.loggerUserId
       ?? (subTask.default_logger_type === "user" ? subTask.default_logger_user_id : null);
 
-    // Resolve the mirroring jps id so the log FK points at both sides. Picks
-    // the canonical NULL-territory row when present; otherwise any active jps
-    // row for this (journey, pipeline) pair. This keeps reads via jps FK
-    // working on contact-wide (non-territory) log writes.
-    const { data: journey } = await supabase
-      .from("journeys").select("id").eq("primary_contact_id", localContactId).maybeSingle();
-    let jpsId: string | null = null;
-    if (journey?.id) {
-      const { data: jpsRows } = await supabase
-        .from("journey_pipeline_state")
-        .select("id, territory_ms_slug")
-        .eq("journey_id", journey.id)
-        .eq("pipeline_id", stage.pipeline_id)
-        .eq("is_active", true);
-      const rows = jpsRows ?? [];
-      jpsId = (rows.find((r) => r.territory_ms_slug === null)?.id) ?? rows[0]?.id ?? null;
-    }
-
-    // Insert log — populate both FKs so readers on either side resolve it.
     const { data: newLog, error: logError } = await supabase
       .from("contact_sub_task_logs")
       .insert({
-        contact_pipeline_state_id: pipelineState.id,
-        journey_pipeline_state_id: jpsId,
+        journey_pipeline_state_id: pipelineState.id,
         sub_task_id: subTaskId,
         logger_user_id: loggerUserId,
         source: "manual",
@@ -127,30 +108,27 @@ export async function POST(
     }
 
     // If this log completes the sub-task AND it's the current sub-task,
-    // advance current_sub_task_id to the next required sub-task in the stage
+    // advance current_sub_task_id to the next required sub-task in the stage.
     const isComplete =
       subTask.state_type === "single" ||
       (subTask.state_type === "two_state" && body.stateAdvance === "second");
 
     if (isComplete && pipelineState.current_sub_task_id === subTaskId) {
-      // Get all sub-tasks in this stage ordered by sort_order
       const { data: stageTasks } = await supabase
         .from("pipeline_sub_tasks")
         .select("id, is_required, sort_order")
         .eq("stage_id", subTask.stage_id)
         .order("sort_order");
 
-      // Find next incomplete required sub-task
       let nextSubTaskId: string | null = null;
       for (const task of stageTasks ?? []) {
         if (!task.is_required) continue;
         if (task.id === subTaskId) continue;
 
-        // Check if this task has a completing log
         const { data: taskLogs } = await supabase
           .from("contact_sub_task_logs")
           .select("state_advance")
-          .eq("contact_pipeline_state_id", pipelineState.id)
+          .eq("journey_pipeline_state_id", pipelineState.id)
           .eq("sub_task_id", task.id)
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
@@ -173,20 +151,15 @@ export async function POST(
         }
       }
 
-      // Update current sub-task pointer
+      // Update pointer on every sister jps row (keeps multi-territory in sync).
       await supabase
-        .from("contact_pipeline_state")
+        .from("journey_pipeline_state")
         .update({
           current_sub_task_id: nextSubTaskId,
           current_sub_task_started_at: new Date().toISOString(),
         })
-        .eq("id", pipelineState.id);
+        .in("id", rows.map((r) => r.id));
 
-      // Phase 2 dual-write: mirror the sub-task pointer change. auto-advance
-      // below already mirrors on its own when it runs.
-      await syncJourneyForContact(supabase, localContactId, stage.pipeline_id);
-
-      // If no more required sub-tasks remain, check auto-advance
       if (!nextSubTaskId) {
         const autoResult = await checkAutoAdvance(pipelineState.id, pipelineState.current_stage_id);
         if (autoResult.advanced) {

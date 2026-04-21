@@ -36,15 +36,15 @@ export async function DELETE(
 
   const supabase = createServerClient();
 
-  // Check for referenced contact data
+  // Check for referenced data — Phase 4 read migration: jps is source.
   const { count } = await supabase
-    .from("contact_pipeline_state")
+    .from("journey_pipeline_state")
     .select("*", { count: "exact", head: true })
     .eq("current_stage_id", stageId);
 
   if (count && count > 0) {
     return NextResponse.json(
-      { error: `In use by ${count} contacts — cannot delete` },
+      { error: `In use by ${count} pipeline-state rows — cannot delete` },
       { status: 409 }
     );
   }

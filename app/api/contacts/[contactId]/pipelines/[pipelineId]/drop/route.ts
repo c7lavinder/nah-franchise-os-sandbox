@@ -6,12 +6,16 @@ export const dynamic = "force-dynamic";
  * Drops a contact from a pipeline to Follow-up or Nurture.
  * Per §1.13: closes source pipeline, spawns Follow-up entry.
  * Follow-up requires reason text; Nurture does not.
+ *
+ * Phase 4 final: writes jps directly. Contact-wide drop closes every
+ * active jps row for (journey, pipeline) and spawns one Follow-up /
+ * Nurture jps row (NULL territory — Follow-up/Nurture is journey-level).
+ * Per-territory drop closes the one targeted jps row without spawning.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
-import { syncJourneyForContact } from "@/lib/journeys/sync";
 
 const FOLLOWUP_PIPELINE_ID = "a0000000-0000-0000-0000-000000000002";
 const FOLLOWUP_STAGE_ID = "c0000000-0000-0000-0000-000000000001";
@@ -37,21 +41,19 @@ export async function POST(
     const localContactId = await resolveContactId(rawId);
     if (!localContactId) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
 
+    const { data: journey } = await supabase
+      .from("journeys")
+      .select("id")
+      .eq("primary_contact_id", localContactId)
+      .maybeSingle();
+    if (!journey?.id) return NextResponse.json({ error: "No journey for contact" }, { status: 404 });
+
     const now = new Date().toISOString();
     const closedReason = destination === "followup" ? "dropped_to_followup" : "dropped_to_nurture";
     const targetStageId = destination === "followup" ? FOLLOWUP_STAGE_ID : NURTURE_STAGE_ID;
 
-    // Per-territory path: close just the jps row for the specified territory.
-    // Follow-up/Nurture is a journey-level pipeline so dropping one territory
-    // does NOT spawn a followup entry (other territories may still be active).
+    // Per-territory: close just the one jps row. No Follow-up spawn.
     if (territory_ms_slug) {
-      const { data: journey } = await supabase
-        .from("journeys")
-        .select("id")
-        .eq("primary_contact_id", localContactId)
-        .maybeSingle();
-      if (!journey?.id) return NextResponse.json({ error: "No journey for contact" }, { status: 404 });
-
       const { data: jps } = await supabase
         .from("journey_pipeline_state")
         .select("id, current_stage_id")
@@ -81,40 +83,42 @@ export async function POST(
       return NextResponse.json({ success: true, closedStateId: jps.id, newStateId: null, scope: "territory" });
     }
 
-    // Get active pipeline state
-    const { data: state } = await supabase
-      .from("contact_pipeline_state")
+    // Contact-wide: close every active jps row for (journey, pipeline) and
+    // spawn one Follow-up/Nurture jps row if none exists yet.
+    const { data: jpsRows } = await supabase
+      .from("journey_pipeline_state")
       .select("id, current_stage_id")
-      .eq("contact_id", localContactId)
+      .eq("journey_id", journey.id)
       .eq("pipeline_id", pipelineId)
-      .eq("is_active", true)
-      .single();
+      .eq("is_active", true);
+    if (!jpsRows || jpsRows.length === 0) {
+      return NextResponse.json({ error: "No active pipeline state" }, { status: 404 });
+    }
 
-    if (!state) return NextResponse.json({ error: "No active pipeline state" }, { status: 404 });
+    const jpsIds = jpsRows.map((r) => r.id);
 
-    // Close source pipeline state
-    await supabase.from("contact_pipeline_state").update({
+    await supabase.from("journey_pipeline_state").update({
       is_active: false,
       closed_reason: closedReason,
       closed_at: now,
-    }).eq("id", state.id);
+    }).in("id", jpsIds);
 
-    // Record history on source
-    await supabase.from("pipeline_stage_history").insert({
-      contact_pipeline_state_id: state.id,
-      from_stage_id: state.current_stage_id,
-      to_stage_id: state.current_stage_id,
-      reason: reason ?? `Dropped to ${destination}`,
-      was_skip: false,
-      was_revert: false,
-      was_auto: false,
-    });
+    await supabase.from("pipeline_stage_history").insert(
+      jpsRows.map((r) => ({
+        journey_pipeline_state_id: r.id,
+        from_stage_id: r.current_stage_id,
+        to_stage_id: r.current_stage_id,
+        reason: reason ?? `Dropped to ${destination}`,
+        was_skip: false,
+        was_revert: false,
+        was_auto: false,
+      }))
+    );
 
-    // Create Follow-up pipeline state (check if one already exists)
     const { data: existingFollowup } = await supabase
-      .from("contact_pipeline_state")
+      .from("journey_pipeline_state")
       .select("id")
-      .eq("contact_id", localContactId)
+      .eq("journey_id", journey.id)
       .eq("pipeline_id", FOLLOWUP_PIPELINE_ID)
       .eq("is_active", true)
       .maybeSingle();
@@ -122,10 +126,11 @@ export async function POST(
     let newStateId: string | null = null;
     if (!existingFollowup) {
       const { data: newState } = await supabase
-        .from("contact_pipeline_state")
+        .from("journey_pipeline_state")
         .insert({
-          contact_id: localContactId,
+          journey_id: journey.id,
           pipeline_id: FOLLOWUP_PIPELINE_ID,
+          territory_ms_slug: null,
           current_stage_id: targetStageId,
           current_sub_task_id: null,
           current_sub_task_started_at: null,
@@ -138,14 +143,7 @@ export async function POST(
       newStateId = newState?.id ?? null;
     }
 
-    // Phase 2 dual-write: mirror both the closed source state and the new
-    // Follow-up/Nurture state onto journey_pipeline_state.
-    await syncJourneyForContact(supabase, localContactId, pipelineId);
-    if (newStateId) {
-      await syncJourneyForContact(supabase, localContactId, FOLLOWUP_PIPELINE_ID);
-    }
-
-    return NextResponse.json({ success: true, closedStateId: state.id, newStateId });
+    return NextResponse.json({ success: true, closedStateId: jpsIds[0], newStateId, scope: "contact" });
   } catch (err) {
     console.error("Drop error:", err);
     return NextResponse.json({ error: "Failed to drop contact" }, { status: 500 });
