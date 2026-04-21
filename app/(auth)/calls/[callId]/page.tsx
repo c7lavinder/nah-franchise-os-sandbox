@@ -16,6 +16,17 @@ import CallOverrideControls from "@/components/calls/CallOverrideControls";
 interface TeamMember { id: string; name: string; email: string }
 interface LinkedContact { id: string | null; name: string; email: string; phone: string; role: string; linked: boolean }
 interface UnknownParticipant { name: string; email: string }
+interface RawParticipant {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+  role: "nah_team" | "prospect" | "franchisee" | "unknown";
+  user_id: string | null;
+  contact_id: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  territory_ms_slug: string | null;
+}
 
 interface CoachingData {
   score: number;
@@ -60,6 +71,7 @@ interface CallDetail {
   teamMembers: TeamMember[];
   linkedContacts: LinkedContact[];
   unknownParticipants: UnknownParticipant[];
+  rawParticipants: RawParticipant[];
 }
 
 interface ActionItem {
@@ -199,6 +211,7 @@ export default function CallDetailPage() {
             currentCallTypeId={call.call_type_id}
             currentContactId={call.contact_id}
             currentTerritorySlug={call.territory_ms_slug}
+            participants={call.rawParticipants ?? []}
             onChange={() => void fetchDetail()}
           />
           <button onClick={() => void fetchDetail()} className="btn-ghost p-1.5 flex-shrink-0">

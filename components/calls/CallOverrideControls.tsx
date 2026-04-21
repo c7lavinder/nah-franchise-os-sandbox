@@ -1,16 +1,23 @@
 "use client";
 
 /**
- * Reclassify + Reassign buttons for the call detail page header.
+ * Reclassify + Reassign controls for the call detail page header.
  *
- * Reclassify: pick a new call_type from the dropdown of all call_types.
- * Reassign: pick a new contact and/or a new territory via search inputs.
- * Both submit to POST /api/calls/[id]/override and trigger a page refresh.
- * Visible only to admins and the call's owning rep (hosted_by_user_id).
+ * Reclassify — pick a new call_type from grouped panels (sales / coaching /
+ *   internal / other).
+ * Reassign   — full participant-mapping modal:
+ *     * "Needs mapping" section for participants with no contact_id.
+ *     * "Mapped" section with each participant's contact + territory + star
+ *       to mark the call's primary contact.
+ *     * Call-level territory override.
+ *   Orphan count shows as a red badge on the button when > 0.
+ *
+ * Both submit to POST /api/calls/[id]/override. Access: admins + the rep who
+ * hosts the call.
  */
 
-import { useEffect, useRef, useState } from "react";
-import { Tag, UserCog, X, Loader2, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Tag, UserCog, X, Loader2, Search, Star } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 interface CallType {
@@ -43,12 +50,8 @@ function groupByCategory(callTypes: CallType[]): { label: string; items: CallTyp
       buckets.delete(key);
     }
   }
-  // Any unknown categories slot in under their raw name (Title Case).
   for (const [key, items] of buckets.entries()) {
-    ordered.push({
-      label: key.charAt(0).toUpperCase() + key.slice(1),
-      items,
-    });
+    ordered.push({ label: key.charAt(0).toUpperCase() + key.slice(1), items });
   }
   return ordered;
 }
@@ -64,12 +67,25 @@ interface TerritoryOption {
   territory_name: string;
 }
 
+export interface RawParticipant {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+  role: "nah_team" | "prospect" | "franchisee" | "unknown";
+  user_id: string | null;
+  contact_id: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  territory_ms_slug: string | null;
+}
+
 interface Props {
   callId: string;
   hostedByUserId: string | null;
   currentCallTypeId: string | null;
   currentContactId: string | null;
   currentTerritorySlug: string | null;
+  participants: RawParticipant[];
   onChange: () => void;
 }
 
@@ -106,16 +122,13 @@ function ReclassifyButton(props: Props & { token: string | null }) {
       const res = await fetch("/api/settings/call-types");
       if (res.ok) {
         const data = await res.json();
-        setCallTypes(data.callTypes ?? data ?? []);
+        setCallTypes((data.callTypes ?? data ?? []) as CallType[]);
       }
     })();
   }, [open, props.currentCallTypeId]);
 
   async function submit() {
-    if (!selected || selected === props.currentCallTypeId) {
-      setOpen(false);
-      return;
-    }
+    if (!selected || selected === props.currentCallTypeId) { setOpen(false); return; }
     setSaving(true);
     setError(null);
     try {
@@ -144,11 +157,7 @@ function ReclassifyButton(props: Props & { token: string | null }) {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="btn-ghost p-1.5 flex-shrink-0"
-        title="Reclassify call type"
-      >
+      <button onClick={() => setOpen(true)} className="btn-ghost p-1.5 flex-shrink-0" title="Reclassify call type">
         <Tag size={14} />
       </button>
       {open && (
@@ -198,68 +207,76 @@ function ReclassifyButton(props: Props & { token: string | null }) {
   );
 }
 
-// ─── Reassign (Contact / Territory) ──────────────────────────────────────
+// ─── Reassign (participant mapping) ──────────────────────────────────────
+
+interface ParticipantState {
+  id: string;
+  email: string | null;
+  phone: string | null;
+  display_name: string | null;
+  role: RawParticipant["role"];
+  originalContactId: string | null;
+  contactId: string | null;
+  contactName: string | null;
+  territorySlug: string | null;
+}
+
+function buildInitialState(participants: RawParticipant[]): ParticipantState[] {
+  return participants
+    .filter((p) => p.role !== "nah_team") // NAH team rows are handled by user_id and don't get mapped
+    .map((p) => ({
+      id: p.id,
+      email: p.email,
+      phone: p.contact_phone,
+      display_name: p.display_name,
+      role: p.role,
+      originalContactId: p.contact_id,
+      contactId: p.contact_id,
+      contactName: p.contact_name,
+      territorySlug: p.territory_ms_slug,
+    }));
+}
 
 function ReassignButton(props: Props & { token: string | null }) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"contact" | "territory">("contact");
-
-  // Contact search state
-  const [contactQuery, setContactQuery] = useState("");
-  const [contactResults, setContactResults] = useState<ContactOption[]>([]);
-  const [selectedContactId, setSelectedContactId] = useState<string | null>(props.currentContactId);
-  const [selectedContactName, setSelectedContactName] = useState<string>("");
-
-  // Territory state
+  const [rows, setRows] = useState<ParticipantState[]>([]);
+  const [primaryContactId, setPrimaryContactId] = useState<string | null>(props.currentContactId);
+  const [territorySlug, setTerritorySlug] = useState<string | null>(props.currentTerritorySlug);
   const [territories, setTerritories] = useState<TerritoryOption[]>([]);
-  const [selectedTerritorySlug, setSelectedTerritorySlug] = useState<string | null>(
-    props.currentTerritorySlug,
-  );
-
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const orphanCount = useMemo(
+    () => props.participants.filter((p) => p.role !== "nah_team" && !p.contact_id).length,
+    [props.participants],
+  );
 
   useEffect(() => {
     if (!open) return;
     setError(null);
-    setSelectedContactId(props.currentContactId);
-    setSelectedTerritorySlug(props.currentTerritorySlug);
+    setRows(buildInitialState(props.participants));
+    setPrimaryContactId(props.currentContactId);
+    setTerritorySlug(props.currentTerritorySlug);
     void (async () => {
       const res = await fetch("/api/territories");
       if (res.ok) {
         const data = await res.json();
-        setTerritories((data.territories ?? data ?? []) as TerritoryOption[]);
+        setTerritories(((data.territories ?? data) as TerritoryOption[]) ?? []);
       }
     })();
-  }, [open, props.currentContactId, props.currentTerritorySlug]);
-
-  // Debounced contact search
-  useEffect(() => {
-    if (contactQuery.length < 2) { setContactResults([]); return; }
-    const timer = setTimeout(async () => {
-      const res = await fetch(`/api/pipeline/contacts?q=${encodeURIComponent(contactQuery)}&limit=8`);
-      if (res.ok) {
-        const data = await res.json();
-        setContactResults((data.contacts ?? []) as ContactOption[]);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [contactQuery]);
-
-  const lastSavedRef = useRef<string>("");
+  }, [open, props.participants, props.currentContactId, props.currentTerritorySlug]);
 
   async function submit() {
-    const payload: Record<string, string | null> = {};
-    if (selectedContactId !== props.currentContactId) payload.contact_id = selectedContactId;
-    if (selectedTerritorySlug !== props.currentTerritorySlug) payload.territory_ms_slug = selectedTerritorySlug;
-
-    if (Object.keys(payload).length === 0) {
-      setOpen(false);
-      return;
+    const payload: Record<string, unknown> = {};
+    const changed: Array<{ id: string; contact_id: string | null }> = [];
+    for (const r of rows) {
+      if (r.contactId !== r.originalContactId) changed.push({ id: r.id, contact_id: r.contactId });
     }
+    if (changed.length > 0) payload.participants = changed;
+    if (primaryContactId !== props.currentContactId) payload.contact_id = primaryContactId;
+    if (territorySlug !== props.currentTerritorySlug) payload.territory_ms_slug = territorySlug;
 
-    const key = JSON.stringify(payload);
-    if (key === lastSavedRef.current) { setOpen(false); return; }
+    if (Object.keys(payload).length === 0) { setOpen(false); return; }
 
     setSaving(true);
     setError(null);
@@ -278,7 +295,6 @@ function ReassignButton(props: Props & { token: string | null }) {
         setSaving(false);
         return;
       }
-      lastSavedRef.current = key;
       setSaving(false);
       setOpen(false);
       props.onChange();
@@ -288,86 +304,83 @@ function ReassignButton(props: Props & { token: string | null }) {
     }
   }
 
+  const orphans = rows.filter((r) => !r.contactId);
+  const mapped = rows.filter((r) => !!r.contactId);
+
   return (
     <>
       <button
         onClick={() => setOpen(true)}
-        className="btn-ghost p-1.5 flex-shrink-0"
-        title="Reassign contact or territory"
+        className="relative btn-ghost p-1.5 flex-shrink-0"
+        title="Reassign contacts / territory"
       >
         <UserCog size={14} />
+        {orphanCount > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-[3px] rounded-full bg-danger text-white text-[9px] font-semibold flex items-center justify-center">
+            {orphanCount}
+          </span>
+        )}
       </button>
       {open && (
-        <ModalShell title="Reassign call" onClose={() => setOpen(false)}>
-          <div className="flex gap-1 mb-3 border-b border-border-default">
-            {(["contact", "territory"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-3 py-1.5 text-caption font-medium capitalize border-b-2 -mb-px ${
-                  tab === t ? "border-nah-blue text-text-primary" : "border-transparent text-text-tertiary hover:text-text-primary"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-
-          {tab === "contact" && (
-            <div className="space-y-2">
-              {selectedContactId && selectedContactName ? (
-                <div className="flex items-center gap-2 bg-bg-primary border border-border-default rounded-md px-3 py-2">
-                  <span className="text-body-sm text-text-primary flex-1 truncate">{selectedContactName}</span>
-                  <button
-                    onClick={() => { setSelectedContactId(null); setSelectedContactName(""); setContactQuery(""); }}
-                    className="text-text-tertiary hover:text-text-primary"
-                  >
-                    <X size={12} />
-                  </button>
+        <ModalShell title="Map call participants" onClose={() => setOpen(false)} wide>
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto -mx-1 px-1">
+            {orphans.length > 0 && (
+              <section>
+                <div className="text-[10px] uppercase tracking-wider text-danger font-medium mb-1.5">
+                  Needs mapping ({orphans.length})
                 </div>
-              ) : (
-                <>
-                  <div className="relative">
-                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
-                    <input
-                      type="text"
-                      value={contactQuery}
-                      onChange={(e) => setContactQuery(e.target.value)}
-                      placeholder="Search contacts..."
-                      className="w-full bg-bg-primary border border-border-default rounded-md pl-8 pr-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary"
+                <div className="space-y-1.5">
+                  {orphans.map((p) => (
+                    <ParticipantRow
+                      key={p.id}
+                      row={p}
+                      isPrimary={false}
+                      onContactChange={(contactId, contactName, territory) =>
+                        setRows((prev) =>
+                          prev.map((r) =>
+                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory } : r,
+                          ),
+                        )
+                      }
+                      onPrimaryChange={() => setPrimaryContactId(p.contactId)}
                     />
-                  </div>
-                  {contactResults.length > 0 && (
-                    <div className="bg-bg-primary border border-border-default rounded-md max-h-40 overflow-y-auto">
-                      {contactResults.map((c) => {
-                        const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown";
-                        return (
-                          <button
-                            key={c.id}
-                            onClick={() => {
-                              setSelectedContactId(c.id);
-                              setSelectedContactName(name);
-                              setContactQuery("");
-                              setContactResults([]);
-                            }}
-                            className="w-full text-left px-3 py-2 text-body-sm text-text-primary hover:bg-bg-secondary"
-                          >
-                            {name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+                  ))}
+                </div>
+              </section>
+            )}
 
-          {tab === "territory" && (
-            <div className="space-y-2">
+            {mapped.length > 0 && (
+              <section>
+                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1.5">
+                  Mapped ({mapped.length})
+                </div>
+                <div className="space-y-1.5">
+                  {mapped.map((p) => (
+                    <ParticipantRow
+                      key={p.id}
+                      row={p}
+                      isPrimary={primaryContactId === p.contactId}
+                      onContactChange={(contactId, contactName, territory) =>
+                        setRows((prev) =>
+                          prev.map((r) =>
+                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory } : r,
+                          ),
+                        )
+                      }
+                      onPrimaryChange={() => setPrimaryContactId(p.contactId)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section>
+              <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1.5">
+                Call territory
+              </div>
               <select
-                value={selectedTerritorySlug ?? ""}
-                onChange={(e) => setSelectedTerritorySlug(e.target.value || null)}
+                value={territorySlug ?? ""}
+                onChange={(e) => setTerritorySlug(e.target.value || null)}
                 className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary"
               >
                 <option value="">— none —</option>
@@ -375,11 +388,17 @@ function ReassignButton(props: Props & { token: string | null }) {
                   <option key={t.ms_slug} value={t.ms_slug}>{t.territory_name}</option>
                 ))}
               </select>
-            </div>
-          )}
+            </section>
+
+            {rows.length === 0 && (
+              <div className="text-caption text-text-tertiary py-4 text-center">
+                No external participants on this call.
+              </div>
+            )}
+          </div>
 
           {error && <div className="text-caption text-danger mt-2">{error}</div>}
-          <div className="flex items-center justify-end gap-2 pt-3">
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-border-default -mx-4 px-4 mt-3">
             <button onClick={() => setOpen(false)} className="btn-ghost px-3 py-1.5 text-caption">Cancel</button>
             <button onClick={submit} disabled={saving} className="btn-primary px-3 py-1.5 text-caption disabled:opacity-50">
               {saving ? <Loader2 size={12} className="animate-spin" /> : "Save"}
@@ -391,16 +410,146 @@ function ReassignButton(props: Props & { token: string | null }) {
   );
 }
 
+// ─── Participant row with contact search ─────────────────────────────────
+
+interface RowProps {
+  row: ParticipantState;
+  isPrimary: boolean;
+  onContactChange: (contactId: string | null, contactName: string | null, territory: string | null) => void;
+  onPrimaryChange: () => void;
+}
+
+function ParticipantRow({ row, isPrimary, onContactChange, onPrimaryChange }: RowProps) {
+  const [editing, setEditing] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<ContactOption[]>([]);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!editing) return;
+    if (query.length < 2) { setResults([]); return; }
+    if (debounce.current) clearTimeout(debounce.current);
+    debounce.current = setTimeout(async () => {
+      const res = await fetch(`/api/pipeline/contacts?q=${encodeURIComponent(query)}&limit=8`);
+      if (res.ok) {
+        const data = await res.json();
+        setResults((data.contacts ?? []) as ContactOption[]);
+      }
+    }, 250);
+    return () => { if (debounce.current) clearTimeout(debounce.current); };
+  }, [editing, query]);
+
+  const participantLabel = row.display_name?.includes("@") || !row.display_name
+    ? row.email ?? row.display_name ?? "Unknown"
+    : row.display_name;
+
+  return (
+    <div className="bg-bg-primary border border-border-default rounded-md p-2.5 space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="text-body-sm font-medium text-text-primary truncate">{participantLabel}</div>
+          {row.email && row.display_name !== row.email && (
+            <div className="text-caption text-text-tertiary truncate">{row.email}</div>
+          )}
+        </div>
+        {row.contactId && (
+          <button
+            onClick={onPrimaryChange}
+            title={isPrimary ? "Primary contact" : "Make primary"}
+            className={`p-1 rounded ${isPrimary ? "text-[#EAB308]" : "text-text-tertiary hover:text-text-primary"}`}
+          >
+            <Star size={14} fill={isPrimary ? "currentColor" : "none"} />
+          </button>
+        )}
+      </div>
+
+      {row.contactId && !editing ? (
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-bg-secondary">
+          <div className="flex-1 text-caption text-text-primary truncate">
+            <span className="font-medium">{row.contactName ?? "Unknown"}</span>
+            {row.territorySlug && (
+              <span className="text-text-tertiary"> · {row.territorySlug}</span>
+            )}
+          </div>
+          <button
+            onClick={() => { setEditing(true); setQuery(""); setResults([]); }}
+            className="text-caption text-nah-blue hover:underline"
+          >
+            Change
+          </button>
+          <button
+            onClick={() => onContactChange(null, null, null)}
+            className="text-text-tertiary hover:text-danger"
+            title="Unmap"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      ) : (
+        <div className="relative">
+          <div className="relative">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search contacts by name…"
+              autoFocus
+              className="w-full bg-bg-primary border border-border-default rounded-md pl-7 pr-8 py-1.5 text-caption text-text-primary placeholder:text-text-tertiary"
+            />
+            {editing && (
+              <button
+                onClick={() => { setEditing(false); setQuery(""); setResults([]); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          {results.length > 0 && (
+            <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-bg-primary border border-border-default rounded-md shadow-lg max-h-40 overflow-y-auto">
+              {results.map((c) => {
+                const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown";
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      onContactChange(c.id, name, null);
+                      setEditing(false);
+                      setQuery("");
+                      setResults([]);
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-caption text-text-primary hover:bg-bg-secondary"
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Modal shell ──────────────────────────────────────────────────────────
 
-function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function ModalShell({
+  title,
+  onClose,
+  children,
+  wide = false,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  wide?: boolean;
+}) {
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onClose}>
       <div
-        className="bg-bg-secondary border border-border-default rounded-lg shadow-xl w-full max-w-md p-4"
+        className={`bg-bg-secondary border border-border-default rounded-lg shadow-xl w-full ${wide ? "max-w-xl" : "max-w-md"} p-4`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">

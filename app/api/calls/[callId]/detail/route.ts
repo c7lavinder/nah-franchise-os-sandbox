@@ -82,9 +82,38 @@ export async function GET(
   for (const u of userRes.data ?? []) {
     userMap.set(u.id, { name: u.full_name, email: u.email });
   }
-  const contactMap = new Map<string, { name: string; email: string | null; phone: string | null }>();
+  const contactMap = new Map<string, { name: string; email: string | null; phone: string | null; ghl_contact_id: string | null }>();
   for (const c of contactRes.data ?? []) {
-    contactMap.set(c.id, { name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown", email: c.email, phone: c.phone });
+    contactMap.set(c.id, {
+      name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown",
+      email: c.email,
+      phone: c.phone,
+      ghl_contact_id: (c as unknown as { ghl_contact_id: string | null }).ghl_contact_id ?? null,
+    });
+  }
+
+  // Fetch ghl_contact_id for mapped contacts so we can look up active territory.
+  const mappedContactIds = Array.from(contactMap.keys());
+  const ghlContactIdByLocal = new Map<string, string>();
+  if (mappedContactIds.length > 0) {
+    const { data: ghlRows } = await supabase
+      .from("contacts")
+      .select("id, ghl_contact_id")
+      .in("id", mappedContactIds);
+    for (const row of ghlRows ?? []) {
+      if (row.ghl_contact_id) ghlContactIdByLocal.set(row.id, row.ghl_contact_id);
+    }
+  }
+
+  // Active-territory lookup: ghl_contact_id → ms_slug
+  const ghlToTerritory = new Map<string, string>();
+  if (ghlContactIdByLocal.size > 0) {
+    const { data: owners } = await supabase
+      .from("territory_owners")
+      .select("ghl_contact_id, ms_slug")
+      .in("ghl_contact_id", Array.from(ghlContactIdByLocal.values()))
+      .is("end_date", null);
+    for (const o of owners ?? []) ghlToTerritory.set(o.ghl_contact_id, o.ms_slug);
   }
 
   const teamMembers = (participants ?? [])
@@ -111,6 +140,25 @@ export async function GET(
   const unknownParticipants = (participants ?? [])
     .filter((p) => p.role === "unknown")
     .map((p) => ({ name: p.display_name ?? p.email ?? "Unknown", email: p.email ?? "" }));
+
+  // Raw participant rows — used by the mapping UI, needs the row id and the
+  // current contact/territory link for each participant.
+  const rawParticipants = (participants ?? []).map((p) => {
+    const contact = p.contact_id ? contactMap.get(p.contact_id) : null;
+    const ghl = p.contact_id ? ghlContactIdByLocal.get(p.contact_id) : null;
+    const territory = ghl ? ghlToTerritory.get(ghl) ?? null : null;
+    return {
+      id: p.id,
+      email: p.email,
+      display_name: p.display_name,
+      role: p.role,
+      user_id: p.user_id,
+      contact_id: p.contact_id,
+      contact_name: contact?.name ?? null,
+      contact_phone: contact?.phone ?? null,
+      territory_ms_slug: territory,
+    };
+  });
 
   // Fallback: if no call_participants yet, resolve from read_ai_sessions (backwards compat)
   if ((participants ?? []).length === 0 && call.read_ai_session_id) {
@@ -196,7 +244,7 @@ export async function GET(
   const contactPhone = primaryContactPhone ?? linkedContacts[0]?.phone ?? null;
 
   return NextResponse.json({
-    call: { ...call, contactName, contactEmail, contactPhone, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, linkedContacts, unknownParticipants },
+    call: { ...call, contactName, contactEmail, contactPhone, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, linkedContacts, unknownParticipants, rawParticipants },
     transcript: transcriptText,
     transcriptSource: transcript?.source ?? (call.raw_transcript ? "read_ai" : null),
     grade,
