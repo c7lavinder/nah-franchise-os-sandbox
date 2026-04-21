@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { isUuid } from "@/lib/journeys/slug";
 
 const ALLOWED_ROLES = new Set([
   "primary", "co_primary", "spouse", "family", "attorney",
@@ -22,7 +23,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ journeyId: string }> }
 ) {
-  const { journeyId } = await params;
+  const { journeyId: rawId } = await params;
   const body = await request.json().catch(() => ({})) as { contact_id?: string; role?: string };
   const contactId = body.contact_id?.trim();
   const role = body.role?.trim();
@@ -36,13 +37,15 @@ export async function POST(
 
   const supabase = createServerClient();
 
-  // Guard: journey exists and is active.
+  // Guard: journey exists and is active. Accept slug or UUID.
+  const lookupColumn = isUuid(rawId) ? "id" : "slug";
   const { data: journey } = await supabase
-    .from("journeys").select("id, status").eq("id", journeyId).maybeSingle();
+    .from("journeys").select("id, status").eq(lookupColumn, rawId).maybeSingle();
   if (!journey) return NextResponse.json({ error: "Journey not found" }, { status: 404 });
   if (journey.status !== "active") {
     return NextResponse.json({ error: "Journey is closed or archived" }, { status: 409 });
   }
+  const journeyId = journey.id;
 
   // Guard: contact exists.
   const { data: contact } = await supabase

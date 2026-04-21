@@ -16,6 +16,7 @@ interface PipelineContact {
   stateId: string;
   contactId: string;
   journeyId?: string;
+  journeySlug?: string | null;
   territoryMsSlug?: string | null;
   name: string;
   email: string | null;
@@ -234,8 +235,8 @@ export default function PipelineLeadList({
             <Link
               key={contact.stateId}
               href={
-                contact.journeyId
-                  ? `/journeys/${contact.journeyId}${contact.territoryMsSlug ? `?territory=${contact.territoryMsSlug}` : ""}`
+                contact.journeySlug || contact.journeyId
+                  ? `/journeys/${contact.journeySlug ?? contact.journeyId}${contact.territoryMsSlug ? `?territory=${contact.territoryMsSlug}` : ""}`
                   : `/leads/${contact.contactId}`
               }
               className={`

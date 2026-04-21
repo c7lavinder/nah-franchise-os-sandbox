@@ -46,6 +46,21 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { isUuid, slugifyBase } from "@/lib/journeys/slug";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+async function generateUniqueSlug(supabase: SupabaseClient, base: string): Promise<string> {
+  const cleaned = slugifyBase(base) || "journey";
+  const { data: existing } = await supabase
+    .from("journeys").select("slug").like("slug", `${cleaned}%`);
+  const taken = new Set((existing ?? []).map((r: { slug: string | null }) => r.slug).filter(Boolean));
+  if (!taken.has(cleaned)) return cleaned;
+  for (let i = 2; i < 100; i++) {
+    const candidate = `${cleaned}-${i}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  return `${cleaned}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 interface NewJourneyRequest {
   name: string;
@@ -59,7 +74,7 @@ export async function POST(
   { params }: { params: Promise<{ journeyId: string }> }
 ) {
   try {
-    const { journeyId } = await params;
+    const { journeyId: rawId } = await params;
     const body = (await request.json()) as {
       reason?: string;
       new_journeys: NewJourneyRequest[];
@@ -71,13 +86,16 @@ export async function POST(
 
     const supabase = createServerClient();
 
-    // Load original journey.
+    // Resolve identifier (slug or UUID) to the canonical journey id before
+    // the rest of the route keeps using it.
+    const lookupColumn = isUuid(rawId) ? "id" : "slug";
     const { data: original } = await supabase
       .from("journeys")
       .select("id, name, status")
-      .eq("id", journeyId)
+      .eq(lookupColumn, rawId)
       .maybeSingle();
     if (!original) return NextResponse.json({ error: "Journey not found" }, { status: 404 });
+    const journeyId = original.id;
     if (original.status !== "active") {
       return NextResponse.json({ error: "Only active journeys can be split" }, { status: 400 });
     }
@@ -158,10 +176,13 @@ export async function POST(
     const results: { id: string; name: string; primary_contact_id: string }[] = [];
 
     for (const nj of body.new_journeys) {
+      const newName = nj.name.trim();
+      const newSlug = await generateUniqueSlug(supabase, newName);
       const { data: newJourney, error: jErr } = await supabase
         .from("journeys")
         .insert({
-          name: nj.name.trim(),
+          name: newName,
+          slug: newSlug,
           status: "active",
           primary_contact_id: nj.primary_contact_id,
           parent_journey_id: journeyId,

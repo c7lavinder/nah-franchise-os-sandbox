@@ -9,8 +9,25 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { slugifyBase } from "@/lib/journeys/slug";
 
 type SB = SupabaseClient;
+
+/** Generate a unique slug for a new journey. Falls through to "journey-<n>"
+ *  suffixing if the base collides. Capped at 100 tries to avoid a runaway
+ *  loop; extreme collisions return the base with a short random suffix. */
+async function generateUniqueSlug(supabase: SB, base: string): Promise<string> {
+  const cleaned = slugifyBase(base) || "journey";
+  const { data: existing } = await supabase
+    .from("journeys").select("slug").like("slug", `${cleaned}%`);
+  const taken = new Set((existing ?? []).map((r: { slug: string | null }) => r.slug).filter(Boolean));
+  if (!taken.has(cleaned)) return cleaned;
+  for (let i = 2; i < 100; i++) {
+    const candidate = `${cleaned}-${i}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  return `${cleaned}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 /** Find or create a journey for the contact. Returns journey id. */
 export async function ensureJourneyForContact(supabase: SB, contactId: string): Promise<string | null> {
@@ -29,10 +46,11 @@ export async function ensureJourneyForContact(supabase: SB, contactId: string): 
   const name = `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim()
     || contact?.email
     || "Unnamed";
+  const slug = await generateUniqueSlug(supabase, name);
 
   const { data: journey, error } = await supabase
     .from("journeys")
-    .insert({ primary_contact_id: contactId, name, status: "active" })
+    .insert({ primary_contact_id: contactId, name, slug, status: "active" })
     .select("id")
     .single();
   if (error || !journey) {

@@ -75,6 +75,7 @@ interface TerritoryOption {
 
 interface JourneyMembership {
   journey_id: string;
+  journey_slug: string | null;
   journey_name: string;
   role: string;
   is_journey_primary: boolean;
@@ -742,7 +743,7 @@ function ParticipantRow({
               {row.journeys.map((j) => (
                 <a
                   key={j.journey_id}
-                  href={`/journeys/${j.journey_id}`}
+                  href={`/journeys/${j.journey_slug ?? j.journey_id}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border border-border-default bg-bg-primary text-text-primary hover:border-nah-blue hover:text-nah-blue transition-colors"

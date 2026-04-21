@@ -11,9 +11,10 @@
  *   message   — open the Messages tab and highlight a specific message.
  */
 
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import LeadDetailView, { type JourneyMember } from "@/components/leads/LeadDetailView";
+import { isUuid } from "@/lib/journeys/slug";
 
 export const dynamic = "force-dynamic";
 
@@ -35,13 +36,28 @@ export default async function JourneyPage({
   const { territory, message } = await searchParams;
 
   const supabase = createServerClient();
+
+  // URL accepts slug (preferred, human-readable) or UUID (legacy). Pick the
+  // lookup column up-front and resolve.
+  const lookupColumn = isUuid(journeyId) ? "id" : "slug";
   const { data: journey } = await supabase
     .from("journeys")
-    .select("id, primary_contact_id, status")
-    .eq("id", journeyId)
+    .select("id, slug, primary_contact_id, status")
+    .eq(lookupColumn, journeyId)
     .maybeSingle();
 
   if (!journey) notFound();
+
+  // Canonical-URL redirect: when a UUID resolved to a journey that has a
+  // slug, bounce to the slug URL so bookmarks drift toward the pretty form.
+  // Preserve ?territory and ?message query params.
+  if (lookupColumn === "id" && journey.slug) {
+    const qs = new URLSearchParams();
+    if (territory) qs.set("territory", territory);
+    if (message) qs.set("message", message);
+    const suffix = qs.toString();
+    redirect(`/journeys/${journey.slug}${suffix ? `?${suffix}` : ""}`);
+  }
 
   // LeadDetailView's GHL-facing fetches (/api/contacts/[id] → GHL, GHL
   // profile/messages) expect the ghl_contact_id, not the local UUID.
