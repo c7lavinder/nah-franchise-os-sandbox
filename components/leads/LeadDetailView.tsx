@@ -23,10 +23,11 @@ import TerritoryDataTab from "@/components/contact/TerritoryDataTab";
 import EosTab from "@/components/leads/tabs/EosTab";
 import SplitJourneyModal from "@/components/leads/SplitJourneyModal";
 import type { SplitTerritory } from "@/components/leads/SplitJourneyModal";
+import AddJourneyMemberModal from "@/components/leads/AddJourneyMemberModal";
 import { capitalizeName } from "@/lib/format/contact";
 import { useToast } from "@/components/ui/Toast";
 import type { SubTaskLog, StageHistoryEntry } from "@/lib/contacts/pipeline-state";
-import { Pencil, GitBranch } from "lucide-react";
+import { Pencil, GitBranch, UserPlus } from "lucide-react";
 
 const CATEGORIES: FieldCategory[] = getSortedCategories();
 
@@ -137,6 +138,7 @@ export default function LeadDetailView({
   const [activePanel, setActivePanel] = useState<"sms" | "email" | "call" | "schedule" | null>(null);
   const [focusedTerritorySlug, setFocusedTerritorySlug] = useState<string | null>(initialTerritorySlug ?? null);
   const [splitOpen, setSplitOpen] = useState(false);
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
 
   // Keep the URL's ?territory= param in sync with the focused territory so
   // sharing the page or using back/forward preserves the selection. Browser
@@ -284,6 +286,10 @@ export default function LeadDetailView({
 
   const activeMembers = members.filter((m) => m.contact_id);
   const showMemberTabs = Boolean(journeyId) && activeMembers.length >= 2;
+  // Profile header stays visible on any journey page (even solo) so the
+  // "Add contact" action always has a home — tabs only render when there
+  // are 2+ members, but the action row renders whenever journeyId is set.
+  const showProfileHeader = Boolean(journeyId);
   const profileTarget: LocalContact | null = isAltContact ? profileContactData : localContact;
 
   return (
@@ -417,9 +423,9 @@ export default function LeadDetailView({
                   <div className="flex flex-col h-full min-h-0"><MessagesTab contactId={contactId} highlightMessageId={highlightMessageId ?? null} /></div>
                 ) : activeTab === "profile" ? (
                   <div className="space-y-4">
-                    {showMemberTabs && (
+                    {showProfileHeader && (
                       <div className="flex flex-wrap items-center gap-1 border-b border-border-default">
-                        {activeMembers.map((m) => {
+                        {showMemberTabs && activeMembers.map((m) => {
                           const label = capitalizeName(`${m.first_name ?? ""} ${m.last_name ?? ""}`.trim()) || "Member";
                           const active = m.contact_id === profileContactId;
                           return (
@@ -435,15 +441,24 @@ export default function LeadDetailView({
                             </button>
                           );
                         })}
-                        {journeyId && (
+                        <div className="ml-auto mb-1 flex items-center gap-1.5">
                           <button
-                            onClick={() => setSplitOpen(true)}
-                            className="ml-auto mb-1 flex items-center gap-1 px-2.5 py-1 rounded-md text-caption font-medium text-danger bg-danger/10 hover:bg-danger/20 transition-colors"
-                            title="Split this journey into two new journeys"
+                            onClick={() => setAddMemberOpen(true)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-md text-caption font-medium text-nah-blue bg-nah-blue/10 hover:bg-nah-blue/20 transition-colors"
+                            title="Add a spouse, co-owner, advisor, etc. to this journey"
                           >
-                            <GitBranch size={12} /> Split Journey
+                            <UserPlus size={12} /> Add contact
                           </button>
-                        )}
+                          {showMemberTabs && (
+                            <button
+                              onClick={() => setSplitOpen(true)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-caption font-medium text-danger bg-danger/10 hover:bg-danger/20 transition-colors"
+                              title="Split this journey into two new journeys"
+                            >
+                              <GitBranch size={12} /> Split Journey
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                     <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
@@ -561,6 +576,18 @@ export default function LeadDetailView({
             return out;
           })()}
           onClose={() => setSplitOpen(false)}
+        />
+      )}
+
+      {/* Add Contact to Journey modal — available on any journey, including
+          solo ones so the rep can attach a spouse/advisor later. */}
+      {journeyId && (
+        <AddJourneyMemberModal
+          open={addMemberOpen}
+          journeyId={journeyId}
+          existingMemberIds={activeMembers.map((m) => m.contact_id)}
+          onClose={() => setAddMemberOpen(false)}
+          onAdded={() => { router.refresh(); }}
         />
       )}
     </div>
