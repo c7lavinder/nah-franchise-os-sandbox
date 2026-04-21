@@ -1,30 +1,38 @@
 /**
  * /journeys/[journeyId] — canonical journey URL.
  *
- * Phase 3B intermediate state: server-resolves the journey's current primary
- * contact and renders the proven /leads/[contactId] UI for that contact via
- * redirect. Any ?territory=<slug> query param is forwarded so the lead page
- * can later focus the Territories tab on the requested territory.
+ * Phase 3C: renders the shared LeadDetailView directly (no redirect). The
+ * server resolves the journey's active members so the Profile tab can show
+ * a per-contact sub-tab strip when the journey has 2+ members.
  *
- * A follow-up sprint will extract the LeadDetailView into a shared client
- * component so /journeys/[id] can be the canonical rendering URL (no URL
- * change on click). For now the pipeline-card entry point works cleanly.
+ * Query params:
+ *   territory — focus the Territories tab on a specific ms_slug (forwarded
+ *               to the client component).
+ *   message   — open the Messages tab and highlight a specific message.
  */
 
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
+import LeadDetailView, { type JourneyMember } from "@/components/leads/LeadDetailView";
 
 export const dynamic = "force-dynamic";
+
+interface JourneyMemberRow {
+  contact_id: string;
+  role: string;
+  joined_at: string;
+  contacts: { first_name: string | null; last_name: string | null } | { first_name: string | null; last_name: string | null }[] | null;
+}
 
 export default async function JourneyPage({
   params,
   searchParams,
 }: {
   params: Promise<{ journeyId: string }>;
-  searchParams: Promise<{ territory?: string }>;
+  searchParams: Promise<{ territory?: string; message?: string }>;
 }) {
   const { journeyId } = await params;
-  const { territory } = await searchParams;
+  const { territory, message } = await searchParams;
 
   const supabase = createServerClient();
   const { data: journey } = await supabase
@@ -33,13 +41,41 @@ export default async function JourneyPage({
     .eq("id", journeyId)
     .maybeSingle();
 
-  if (!journey) {
-    redirect("/pipeline");
-  }
+  if (!journey) notFound();
 
-  const qs = new URLSearchParams();
-  qs.set("journey", journey.id);
-  if (territory) qs.set("territory", territory);
+  const { data: memberRows } = await supabase
+    .from("journey_contacts")
+    .select("contact_id, role, joined_at, contacts(first_name, last_name)")
+    .eq("journey_id", journey.id)
+    .is("left_at", null)
+    .order("joined_at", { ascending: true });
 
-  redirect(`/leads/${journey.primary_contact_id}?${qs.toString()}`);
+  const members: JourneyMember[] = (memberRows ?? []).map((row) => {
+    const raw = row as JourneyMemberRow;
+    const contact = Array.isArray(raw.contacts) ? raw.contacts[0] : raw.contacts;
+    return {
+      contact_id: raw.contact_id,
+      role: raw.role,
+      first_name: contact?.first_name ?? null,
+      last_name: contact?.last_name ?? null,
+      is_primary: raw.contact_id === journey.primary_contact_id,
+    };
+  });
+
+  // Sort: primary first, then by original join order.
+  members.sort((a, b) => {
+    if (a.is_primary && !b.is_primary) return -1;
+    if (!a.is_primary && b.is_primary) return 1;
+    return 0;
+  });
+
+  return (
+    <LeadDetailView
+      contactId={journey.primary_contact_id}
+      journeyId={journey.id}
+      initialTerritorySlug={territory ?? null}
+      highlightMessageId={message ?? null}
+      members={members}
+    />
+  );
 }
