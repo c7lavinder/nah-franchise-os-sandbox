@@ -16,19 +16,31 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: { contactId: string } }
 ) {
-  const { contactId } = params;
+  const { contactId: rawId } = params;
 
-  if (!contactId) {
+  if (!rawId) {
     return NextResponse.json({ error: "contactId is required" }, { status: 400 });
+  }
+
+  // Accept either a local UUID or a GHL contact ID. GHL-facing calls need
+  // the ghl_contact_id, so resolve up-front when we were handed the local
+  // UUID (e.g. from /journeys/[id] which passes journey.primary_contact_id).
+  let ghlContactId = rawId;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(rawId)) {
+    const supabase = createServerClient();
+    const { data: row } = await supabase
+      .from("contacts").select("ghl_contact_id").eq("id", rawId).maybeSingle();
+    if (row?.ghl_contact_id) ghlContactId = row.ghl_contact_id;
   }
 
   try {
     // Fetch all data in parallel
     const [contact, notes, tasks, messages] = await Promise.all([
-      ghl.getContact(contactId).catch(() => null),
-      ghl.getNotes(contactId).catch(() => []),
-      ghl.getTasks(contactId).catch(() => []),
-      ghl.getContactHistory(contactId).catch(() => []),
+      ghl.getContact(ghlContactId).catch(() => null),
+      ghl.getNotes(ghlContactId).catch(() => []),
+      ghl.getTasks(ghlContactId).catch(() => []),
+      ghl.getContactHistory(ghlContactId).catch(() => []),
     ]);
 
     if (!contact) {
