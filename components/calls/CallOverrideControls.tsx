@@ -226,6 +226,10 @@ interface ParticipantState {
   contactId: string | null;
   contactName: string | null;
   territorySlug: string | null;
+  /** Territories the mapped contact owns (franchisees can own multiple). */
+  ownedTerritories: TerritoryOption[];
+  /** Slugs of territories this call touches for this participant — default is all owned. */
+  selectedTerritories: string[];
 }
 
 function buildInitialState(participants: RawParticipant[]): ParticipantState[] {
@@ -241,7 +245,28 @@ function buildInitialState(participants: RawParticipant[]): ParticipantState[] {
       contactId: p.contact_id,
       contactName: p.contact_name,
       territorySlug: p.territory_ms_slug,
+      ownedTerritories: [],
+      selectedTerritories: [],
     }));
+}
+
+async function fetchContactTerritories(contactId: string): Promise<TerritoryOption[]> {
+  try {
+    const res = await fetch(`/api/contacts/${contactId}/territories`);
+    if (!res.ok) return [];
+    const data = await res.json() as {
+      current?: Array<{ ms_slug: string; territories?: { territory_name?: string } | Array<{ territory_name?: string }> }>;
+    };
+    return (data.current ?? []).map((row) => {
+      const t = Array.isArray(row.territories) ? row.territories[0] : row.territories;
+      return {
+        ms_slug: row.ms_slug,
+        territory_name: t?.territory_name ?? row.ms_slug,
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
 interface PendingAdd {
@@ -287,10 +312,8 @@ function ReassignButton(props: Props & { token: string | null }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<ParticipantState[]>([]);
   const [primaryContactId, setPrimaryContactId] = useState<string | null>(props.currentContactId);
-  const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
   const [primaryTerritory, setPrimaryTerritory] = useState<string | null>(null);
   const [initialSelection, setInitialSelection] = useState<{ list: string[]; primary: string | null }>({ list: [], primary: null });
-  const [territories, setTerritories] = useState<TerritoryOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingAdd, setPendingAdd] = useState<PendingAdd | null>(null);
@@ -303,49 +326,75 @@ function ReassignButton(props: Props & { token: string | null }) {
   useEffect(() => {
     if (!open) return;
     setError(null);
-    setRows(buildInitialState(props.participants));
+    const initial = buildInitialState(props.participants);
+    setRows(initial);
     setPrimaryContactId(props.currentContactId);
+
     void (async () => {
-      const [tRes, ctRes] = await Promise.all([
-        fetch("/api/territories"),
+      const [ctRes, ...territoryResults] = await Promise.all([
         fetch(`/api/calls/${props.callId}/territories`),
+        ...initial.map((r) => r.contactId ? fetchContactTerritories(r.contactId) : Promise.resolve([])),
       ]);
-      if (tRes.ok) {
-        const data = await tRes.json();
-        setTerritories(((data.territories ?? data) as TerritoryOption[]) ?? []);
-      }
+
+      // Pull the call's existing territory selection + primary.
+      let selectedSet = new Set<string>();
+      let primary = props.currentTerritorySlug;
       if (ctRes.ok) {
         const data = await ctRes.json();
         const list = (data.territories ?? []) as Array<{ territory_ms_slug: string; is_primary: boolean }>;
-        const slugs = list.map((t) => t.territory_ms_slug);
-        const primary = list.find((t) => t.is_primary)?.territory_ms_slug ?? props.currentTerritorySlug ?? slugs[0] ?? null;
-        // Ensure the call's primary territory is in the selection even if
-        // call_territories hasn't been backfilled for this call yet.
-        if (props.currentTerritorySlug && !slugs.includes(props.currentTerritorySlug)) {
-          slugs.push(props.currentTerritorySlug);
-        }
-        setSelectedTerritories(slugs);
-        setPrimaryTerritory(primary);
-        setInitialSelection({ list: [...slugs].sort(), primary });
-      } else {
-        const fallback = props.currentTerritorySlug ? [props.currentTerritorySlug] : [];
-        setSelectedTerritories(fallback);
-        setPrimaryTerritory(props.currentTerritorySlug);
-        setInitialSelection({ list: [...fallback].sort(), primary: props.currentTerritorySlug });
+        selectedSet = new Set(list.map((t) => t.territory_ms_slug));
+        primary = list.find((t) => t.is_primary)?.territory_ms_slug ?? props.currentTerritorySlug;
       }
+      if (props.currentTerritorySlug) selectedSet.add(props.currentTerritorySlug);
+
+      // Merge each participant's owned territories into their row. Default
+      // selection = (prior call selection ∩ owned) if the call already has
+      // selections, otherwise all owned territories (auto-select active).
+      const hasPriorSelection = selectedSet.size > 0;
+      const merged = initial.map((r, i) => {
+        const owned = territoryResults[i] as TerritoryOption[];
+        const defaulted = hasPriorSelection
+          ? owned.filter((t) => selectedSet.has(t.ms_slug)).map((t) => t.ms_slug)
+          : owned.map((t) => t.ms_slug);
+        return { ...r, ownedTerritories: owned, selectedTerritories: defaulted };
+      });
+      setRows(merged);
+
+      // Compute the call-level union for the initial snapshot (for change-detection on save).
+      const union = new Set<string>();
+      for (const r of merged) for (const s of r.selectedTerritories) union.add(s);
+      for (const s of selectedSet) union.add(s); // include any call-level-only slugs not owned by a participant
+      const unionList = [...union];
+      const resolvedPrimary = primary && union.has(primary) ? primary : (unionList[0] ?? null);
+      setPrimaryTerritory(resolvedPrimary);
+      setInitialSelection({ list: [...unionList].sort(), primary: resolvedPrimary });
     })();
   }, [open, props.callId, props.participants, props.currentContactId, props.currentTerritorySlug]);
 
-  function toggleTerritory(slug: string) {
-    setSelectedTerritories((prev) => {
-      if (prev.includes(slug)) {
-        const next = prev.filter((s) => s !== slug);
-        if (primaryTerritory === slug) setPrimaryTerritory(next[0] ?? null);
-        return next;
+  // Compute the current call-level union of selected territories across participants.
+  const unionSelected = useMemo(() => {
+    const seen = new Map<string, string>(); // slug -> name
+    for (const r of rows) {
+      for (const slug of r.selectedTerritories) {
+        if (!seen.has(slug)) {
+          const name = r.ownedTerritories.find((t) => t.ms_slug === slug)?.territory_name ?? slug;
+          seen.set(slug, name);
+        }
       }
-      if (prev.length === 0) setPrimaryTerritory(slug);
-      return [...prev, slug];
-    });
+    }
+    return [...seen.entries()].map(([ms_slug, territory_name]) => ({ ms_slug, territory_name }));
+  }, [rows]);
+
+  // If the primary was unchecked across all participants, fall back to first union slug.
+  useEffect(() => {
+    if (primaryTerritory && unionSelected.some((t) => t.ms_slug === primaryTerritory)) return;
+    setPrimaryTerritory(unionSelected[0]?.ms_slug ?? null);
+  }, [unionSelected, primaryTerritory]);
+
+  function setParticipantTerritories(participantId: string, slugs: string[]) {
+    setRows((prev) =>
+      prev.map((r) => r.id === participantId ? { ...r, selectedTerritories: slugs } : r),
+    );
   }
 
   async function submit() {
@@ -357,13 +406,14 @@ function ReassignButton(props: Props & { token: string | null }) {
     if (changed.length > 0) payload.participants = changed;
     if (primaryContactId !== props.currentContactId) payload.contact_id = primaryContactId;
 
-    const sortedNow = [...selectedTerritories].sort();
+    const unionSlugs = unionSelected.map((t) => t.ms_slug);
+    const sortedNow = [...unionSlugs].sort();
     const listChanged =
       sortedNow.length !== initialSelection.list.length ||
       sortedNow.some((s, i) => s !== initialSelection.list[i]);
     const primaryChanged = primaryTerritory !== initialSelection.primary;
     if (listChanged || primaryChanged) {
-      payload.territories = selectedTerritories;
+      payload.territories = unionSlugs;
       payload.primary_territory_ms_slug = primaryTerritory;
     }
 
@@ -426,14 +476,27 @@ function ReassignButton(props: Props & { token: string | null }) {
                       key={p.id}
                       row={p}
                       isPrimary={false}
-                      onContactChange={(contactId, contactName, territory) =>
+                      callPrimaryTerritory={primaryTerritory}
+                      onContactChange={async (contactId, contactName, territory) => {
                         setRows((prev) =>
                           prev.map((r) =>
-                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory } : r,
+                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [] } : r,
                           ),
-                        )
-                      }
+                        );
+                        if (contactId) {
+                          const owned = await fetchContactTerritories(contactId);
+                          setRows((prev) =>
+                            prev.map((r) =>
+                              r.id === p.id
+                                ? { ...r, ownedTerritories: owned, selectedTerritories: owned.map((t) => t.ms_slug) }
+                                : r,
+                            ),
+                          );
+                        }
+                      }}
+                      onTerritoriesChange={(slugs) => setParticipantTerritories(p.id, slugs)}
                       onPrimaryChange={() => setPrimaryContactId(p.contactId)}
+                      onPrimaryTerritoryChange={(slug) => setPrimaryTerritory(slug)}
                       onRequestAdd={(kind) =>
                         setPendingAdd({ participantId: p.id, kind, prefill: splitNameForPrefill(p) })
                       }
@@ -454,14 +517,27 @@ function ReassignButton(props: Props & { token: string | null }) {
                       key={p.id}
                       row={p}
                       isPrimary={primaryContactId === p.contactId}
-                      onContactChange={(contactId, contactName, territory) =>
+                      callPrimaryTerritory={primaryTerritory}
+                      onContactChange={async (contactId, contactName, territory) => {
                         setRows((prev) =>
                           prev.map((r) =>
-                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory } : r,
+                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [] } : r,
                           ),
-                        )
-                      }
+                        );
+                        if (contactId) {
+                          const owned = await fetchContactTerritories(contactId);
+                          setRows((prev) =>
+                            prev.map((r) =>
+                              r.id === p.id
+                                ? { ...r, ownedTerritories: owned, selectedTerritories: owned.map((t) => t.ms_slug) }
+                                : r,
+                            ),
+                          );
+                        }
+                      }}
+                      onTerritoriesChange={(slugs) => setParticipantTerritories(p.id, slugs)}
                       onPrimaryChange={() => setPrimaryContactId(p.contactId)}
+                      onPrimaryTerritoryChange={(slug) => setPrimaryTerritory(slug)}
                       onRequestAdd={(kind) =>
                         setPendingAdd({ participantId: p.id, kind, prefill: splitNameForPrefill(p) })
                       }
@@ -471,49 +547,33 @@ function ReassignButton(props: Props & { token: string | null }) {
               </section>
             )}
 
-            <section>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
-                  Call territories ({selectedTerritories.length})
+            {unionSelected.length > 0 && (
+              <section>
+                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1.5">
+                  Call territories ({unionSelected.length}) · star = primary
                 </div>
-                <div className="text-[10px] text-text-tertiary">
-                  star = primary
+                <div className="flex flex-wrap gap-1.5">
+                  {unionSelected.map((t) => {
+                    const isPrimary = primaryTerritory === t.ms_slug;
+                    return (
+                      <button
+                        key={t.ms_slug}
+                        type="button"
+                        onClick={() => setPrimaryTerritory(t.ms_slug)}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border ${
+                          isPrimary
+                            ? "border-[#EAB308] bg-[#EAB308]/10 text-text-primary"
+                            : "border-border-default bg-bg-primary text-text-secondary hover:text-text-primary"
+                        }`}
+                      >
+                        <Star size={10} fill={isPrimary ? "currentColor" : "none"} className={isPrimary ? "text-[#EAB308]" : ""} />
+                        {t.territory_name}
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
-              <div className="bg-bg-primary border border-border-default rounded-md max-h-40 overflow-y-auto divide-y divide-border-default">
-                {territories.length === 0 && (
-                  <div className="px-3 py-2 text-caption text-text-tertiary">Loading…</div>
-                )}
-                {territories.map((t) => {
-                  const checked = selectedTerritories.includes(t.ms_slug);
-                  const isPrimary = primaryTerritory === t.ms_slug;
-                  return (
-                    <label
-                      key={t.ms_slug}
-                      className="flex items-center gap-2 px-3 py-1.5 text-caption text-text-primary hover:bg-bg-secondary cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleTerritory(t.ms_slug)}
-                        className="accent-nah-orange"
-                      />
-                      <span className="flex-1 truncate">{t.territory_name}</span>
-                      {checked && (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.preventDefault(); setPrimaryTerritory(t.ms_slug); }}
-                          title={isPrimary ? "Primary territory" : "Make primary"}
-                          className={`p-0.5 rounded ${isPrimary ? "text-[#EAB308]" : "text-text-tertiary hover:text-text-primary"}`}
-                        >
-                          <Star size={12} fill={isPrimary ? "currentColor" : "none"} />
-                        </button>
-                      )}
-                    </label>
-                  );
-                })}
-              </div>
-            </section>
+              </section>
+            )}
 
             {rows.length === 0 && (
               <div className="text-caption text-text-tertiary py-4 text-center">
@@ -579,19 +639,36 @@ function ReassignButton(props: Props & { token: string | null }) {
 interface RowProps {
   row: ParticipantState;
   isPrimary: boolean;
+  callPrimaryTerritory: string | null;
   onContactChange: (contactId: string | null, contactName: string | null, territory: string | null) => void;
+  onTerritoriesChange: (slugs: string[]) => void;
   onPrimaryChange: () => void;
+  onPrimaryTerritoryChange: (slug: string) => void;
   onRequestAdd: (kind: "prospect" | "related") => void;
 }
 
-function ParticipantRow({ row, isPrimary, onContactChange, onPrimaryChange, onRequestAdd }: RowProps) {
+function ParticipantRow({
+  row,
+  isPrimary,
+  callPrimaryTerritory,
+  onContactChange,
+  onTerritoriesChange,
+  onPrimaryChange,
+  onPrimaryTerritoryChange,
+  onRequestAdd,
+}: RowProps) {
   const [editing, setEditing] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ContactOption[]>([]);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Orphans (no contactId yet) are implicitly in search mode — the input is
+  // always showing for them, so the search fetch + dropdown must work without
+  // requiring an explicit "editing" toggle.
+  const searchActive = editing || !row.contactId;
+
   useEffect(() => {
-    if (!editing) return;
+    if (!searchActive) return;
     if (query.length < 2) { setResults([]); return; }
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(async () => {
@@ -602,7 +679,7 @@ function ParticipantRow({ row, isPrimary, onContactChange, onPrimaryChange, onRe
       }
     }, 250);
     return () => { if (debounce.current) clearTimeout(debounce.current); };
-  }, [editing, query]);
+  }, [searchActive, query]);
 
   const participantLabel = row.display_name?.includes("@") || !row.display_name
     ? row.email ?? row.display_name ?? "Unknown"
@@ -629,27 +706,78 @@ function ParticipantRow({ row, isPrimary, onContactChange, onPrimaryChange, onRe
       </div>
 
       {row.contactId && !editing ? (
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-bg-secondary">
-          <div className="flex-1 text-caption text-text-primary truncate">
-            <span className="font-medium">{row.contactName ?? "Unknown"}</span>
-            {row.territorySlug && (
-              <span className="text-text-tertiary"> · {row.territorySlug}</span>
-            )}
+        <>
+          <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-bg-secondary">
+            <div className="flex-1 text-caption text-text-primary truncate">
+              <span className="font-medium">{row.contactName ?? "Unknown"}</span>
+              {row.ownedTerritories.length > 0 && (
+                <span className="text-text-tertiary"> · {row.ownedTerritories.length} territor{row.ownedTerritories.length === 1 ? "y" : "ies"}</span>
+              )}
+            </div>
+            <button
+              onClick={() => { setEditing(true); setQuery(""); setResults([]); }}
+              className="text-caption text-nah-blue hover:underline"
+            >
+              Change
+            </button>
+            <button
+              onClick={() => onContactChange(null, null, null)}
+              className="text-text-tertiary hover:text-danger"
+              title="Unmap"
+            >
+              <X size={12} />
+            </button>
           </div>
-          <button
-            onClick={() => { setEditing(true); setQuery(""); setResults([]); }}
-            className="text-caption text-nah-blue hover:underline"
-          >
-            Change
-          </button>
-          <button
-            onClick={() => onContactChange(null, null, null)}
-            className="text-text-tertiary hover:text-danger"
-            title="Unmap"
-          >
-            <X size={12} />
-          </button>
-        </div>
+
+          {row.ownedTerritories.length > 0 && (
+            <div className="pl-3 border-l-2 border-border-default space-y-1">
+              <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
+                Territories discussed
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {row.ownedTerritories.map((t) => {
+                  const checked = row.selectedTerritories.includes(t.ms_slug);
+                  const isPrimary = checked && callPrimaryTerritory === t.ms_slug;
+                  return (
+                    <label
+                      key={t.ms_slug}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border cursor-pointer transition-colors ${
+                        checked
+                          ? isPrimary
+                            ? "border-[#EAB308] bg-[#EAB308]/10 text-text-primary"
+                            : "border-nah-orange bg-nah-orange/10 text-text-primary"
+                          : "border-border-default bg-bg-primary text-text-tertiary hover:text-text-primary"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          const next = checked
+                            ? row.selectedTerritories.filter((s) => s !== t.ms_slug)
+                            : [...row.selectedTerritories, t.ms_slug];
+                          onTerritoriesChange(next);
+                        }}
+                        className="sr-only"
+                      />
+                      {checked && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onPrimaryTerritoryChange(t.ms_slug); }}
+                          title={isPrimary ? "Primary territory" : "Make primary"}
+                          className={isPrimary ? "text-[#EAB308]" : "text-text-tertiary hover:text-text-primary"}
+                        >
+                          <Star size={10} fill={isPrimary ? "currentColor" : "none"} />
+                        </button>
+                      )}
+                      <span>{t.territory_name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="relative">
           <div className="relative">
@@ -671,7 +799,7 @@ function ParticipantRow({ row, isPrimary, onContactChange, onPrimaryChange, onRe
               </button>
             )}
           </div>
-          {editing && query.length >= 2 && (
+          {searchActive && query.length >= 2 && (
             <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-bg-primary border border-border-default rounded-md shadow-lg max-h-60 overflow-y-auto">
               {results.map((c) => (
                 <button
