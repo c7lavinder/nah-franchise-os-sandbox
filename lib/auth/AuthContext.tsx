@@ -52,7 +52,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(USER_KEY);
   }, []);
 
-  /** Restore session from localStorage on mount */
+  /**
+   * Refresh the access token using the stored refresh_token. Supabase JWTs
+   * expire in ~1 hour, so without this every API call after an idle period
+   * returns 401. Returns true on success, false if the refresh token is
+   * also expired (forces re-login).
+   */
+  const refreshAccessToken = useCallback(async (): Promise<boolean> => {
+    const storedRefresh = localStorage.getItem(REFRESH_KEY);
+    if (!storedRefresh) return false;
+
+    try {
+      const res = await fetch("/api/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: storedRefresh }),
+      });
+      if (!res.ok) {
+        clearAuth();
+        return false;
+      }
+      const data = (await res.json()) as { token: string; refreshToken: string };
+      localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.setItem(REFRESH_KEY, data.refreshToken);
+      setToken(data.token);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [clearAuth]);
+
+  /** Restore session from localStorage on mount + refresh the access token. */
   useEffect(() => {
     const storedToken = localStorage.getItem(TOKEN_KEY);
     const storedUser = localStorage.getItem(USER_KEY);
@@ -62,12 +92,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(storedUser) as SessionUser;
         setToken(storedToken);
         setUser(parsed);
+        // Eagerly refresh so an idle-overnight token doesn't 401 the first API call.
+        void refreshAccessToken();
       } catch {
         clearAuth();
       }
     }
     setLoading(false);
-  }, [clearAuth]);
+  }, [clearAuth, refreshAccessToken]);
+
+  /** Refresh the access token every 45 min while the tab is open. */
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => { void refreshAccessToken(); }, 45 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user, refreshAccessToken]);
 
   /** Log in with email and password */
   async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
