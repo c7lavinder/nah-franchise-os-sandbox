@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, Plus, X, Search, Loader2, Phone, Monitor } from "lucide-react";
+import { RefreshCw, Plus, X, Search, Loader2, Phone, Monitor, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
@@ -23,7 +23,18 @@ interface Call {
   platform: string | null;
   territoryName: string | null;
   has_transcript: boolean;
+  transcript_length: number;
   ai_summary_generated_at: string | null;
+  unmappedCount: number;
+}
+
+function getBadCallReasons(c: Call): string[] {
+  const reasons: string[] = [];
+  if (c.status === "missed") reasons.push("Marked missed");
+  if (c.status === "completed" && !c.has_transcript) reasons.push("No transcript");
+  if (c.status === "completed" && c.has_transcript && c.transcript_length < 500) reasons.push("Transcript too short");
+  if (c.duration_seconds != null && c.duration_seconds > 0 && c.duration_seconds < 120) reasons.push("Under 2 minutes");
+  return reasons;
 }
 
 interface CallType { id: string; name: string }
@@ -154,6 +165,7 @@ function PlatformIcon({ platform, source }: { platform: string | null; source: s
 
 
 function CallRow({ c }: { c: Call }) {
+  const badReasons = getBadCallReasons(c);
   return (
     <Link href={`/calls/${c.id}`}
       className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-bg-hover transition-colors">
@@ -161,9 +173,27 @@ function CallRow({ c }: { c: Call }) {
 
       {/* Call type + team + contacts */}
       <div className="flex-1 min-w-0">
-        <p className="text-body-sm font-semibold text-text-primary truncate">
-          {c.callTypeName ?? c.title ?? "Call"}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-body-sm font-semibold text-text-primary truncate">
+            {c.callTypeName ?? c.title ?? "Call"}
+          </p>
+          {badReasons.length > 0 && (
+            <span
+              className="inline-flex items-center text-danger flex-shrink-0"
+              title={`Likely bad call: ${badReasons.join(", ")}`}
+            >
+              <AlertTriangle size={12} fill="currentColor" />
+            </span>
+          )}
+          {c.unmappedCount > 0 && (
+            <span
+              className="inline-flex items-center text-[#EAB308] flex-shrink-0"
+              title={`${c.unmappedCount} participant${c.unmappedCount === 1 ? "" : "s"} not mapped`}
+            >
+              <AlertTriangle size={12} fill="currentColor" />
+            </span>
+          )}
+        </div>
         {c.teamMembers.length > 0 && (
           <div className="flex items-center gap-1 mt-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: "none" }}>
             {c.teamMembers.map((m, i) => (

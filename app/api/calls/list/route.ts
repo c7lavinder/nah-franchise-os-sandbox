@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
   // Build per-call participant lists from call_participants (primary source of truth)
   const callIds = calls.map((c) => c.id);
   const { data: allParticipants } = callIds.length > 0
-    ? await supabase.from("call_participants").select("call_id, email, display_name, user_id, role").in("call_id", callIds)
+    ? await supabase.from("call_participants").select("call_id, email, display_name, user_id, role, contact_id").in("call_id", callIds)
     : { data: [] };
 
   const callParticipantMap = new Map<string, typeof allParticipants>();
@@ -145,6 +145,8 @@ export async function GET(request: NextRequest) {
   const enriched = calls.map((c) => {
     const participants = callParticipantMap.get(c.id) ?? [];
     const session = c.read_ai_session_id ? sessionMap.get(c.read_ai_session_id) : null;
+
+    const unmappedCount = participants.filter((p) => p.role !== "nah_team" && !p.contact_id).length;
 
     // Use call_participants as primary source; fall back to session emails only if no participants
     const teamMembers: { name: string; color: string | null }[] = [];
@@ -204,7 +206,9 @@ export async function GET(request: NextRequest) {
       date: c.scheduled_at ?? c.started_at ?? c.created_at,
       duration_seconds: c.duration_seconds,
       has_transcript: !!c.raw_transcript,
+      transcript_length: c.raw_transcript?.length ?? 0,
       ai_summary_generated_at: c.ai_summary_generated_at ?? null,
+      unmappedCount,
     };
   });
 
