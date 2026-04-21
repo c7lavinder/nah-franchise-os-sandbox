@@ -36,6 +36,7 @@ export async function POST(
   const body = await request.json() as {
     first_name?: string; last_name?: string; email?: string; phone?: string;
     role?: string; relationship_notes?: string; is_primary_decision_maker?: boolean;
+    linked_contact_id?: string | null;
   };
 
   const { data, error } = await supabase
@@ -49,6 +50,7 @@ export async function POST(
       role: body.role ?? "other",
       relationship_notes: body.relationship_notes ?? null,
       is_primary_decision_maker: body.is_primary_decision_maker ?? false,
+      linked_contact_id: body.linked_contact_id ?? null,
     })
     .select("id")
     .single();
