@@ -12,6 +12,7 @@
  */
 
 import { createServerClient } from "@/lib/supabase/server";
+import { syncJourneyForContact } from "@/lib/journeys/sync";
 
 const SALES_PIPELINE_ID = "a0000000-0000-0000-0000-000000000001";
 const ENGAGEMENT_STAGE_ID = "b0000000-0000-0000-0000-000000000001";
@@ -79,6 +80,10 @@ export async function autoCreatePipelineState(contactId: string): Promise<string
     was_revert: false,
     was_auto: true,
   });
+
+  // Phase 2 dual-write: mirror onto journey_pipeline_state. Creates a journey
+  // if one doesn't exist. Removed in Phase 4 after the read cutover.
+  await syncJourneyForContact(supabase, contactId, SALES_PIPELINE_ID);
 
   return stateRow.id;
 }

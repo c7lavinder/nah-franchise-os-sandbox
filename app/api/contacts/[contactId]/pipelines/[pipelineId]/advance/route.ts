@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 import { syncStageToGHL } from "@/lib/ghl/stage-sync";
+import { syncJourneyForContact } from "@/lib/journeys/sync";
 
 export async function POST(
   request: NextRequest,
@@ -149,8 +150,14 @@ export async function POST(
           entered_current_stage_at: now,
           is_active: true,
         });
+
+        // Phase 2 dual-write for the auto-spawned pipeline.
+        await syncJourneyForContact(supabase, localContactId, nextStage.auto_spawn_pipeline_id);
       }
     }
+
+    // Phase 2 dual-write for the advanced pipeline itself.
+    await syncJourneyForContact(supabase, localContactId, pipelineId);
 
     return NextResponse.json({ success: true, newStageId: nextStage.id });
   } catch (err) {

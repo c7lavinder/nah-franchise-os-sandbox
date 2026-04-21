@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { upsertContact } from "@/lib/ghl/client";
 import { runContactResearch } from "@/lib/agents/contact-research";
+import { syncJourneyForContact } from "@/lib/journeys/sync";
 
 interface CreateContactBody {
   firstName: string;
@@ -119,6 +120,10 @@ export async function POST(request: NextRequest) {
             current_stage_id: engagementStage.id,
             is_active: true,
           });
+
+          // Phase 2 dual-write: creates a journey + primary membership and
+          // mirrors the new pipeline state row onto journey_pipeline_state.
+          await syncJourneyForContact(supabase, contact.id, salesPipeline.id);
         }
       }
     }

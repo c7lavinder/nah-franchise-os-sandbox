@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 import { checkAutoAdvance } from "@/lib/contacts/auto-advance";
+import { syncJourneyForContact } from "@/lib/journeys/sync";
 
 interface LogBody {
   contentType: string;
@@ -161,6 +162,10 @@ export async function POST(
           current_sub_task_started_at: new Date().toISOString(),
         })
         .eq("id", pipelineState.id);
+
+      // Phase 2 dual-write: mirror the sub-task pointer change. auto-advance
+      // below already mirrors on its own when it runs.
+      await syncJourneyForContact(supabase, localContactId, stage.pipeline_id);
 
       // If no more required sub-tasks remain, check auto-advance
       if (!nextSubTaskId) {

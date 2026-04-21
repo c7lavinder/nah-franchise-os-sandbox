@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
+import { syncJourneyForContact } from "@/lib/journeys/sync";
 
 const SALES_PIPELINE_ID = "a0000000-0000-0000-0000-000000000001";
 const ENGAGEMENT_STAGE_ID = "b0000000-0000-0000-0000-000000000001";
@@ -99,6 +100,9 @@ export async function POST(
       was_revert: false,
       was_auto: false,
     });
+
+    // Phase 2 dual-write: mirror onto journey_pipeline_state.
+    await syncJourneyForContact(supabase, localContactId, SALES_PIPELINE_ID);
 
     return NextResponse.json({ success: true, stateId: newState.id, stageId: targetStageId });
   } catch (err) {

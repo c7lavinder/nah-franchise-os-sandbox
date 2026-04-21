@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
+import { syncJourneyForContact } from "@/lib/journeys/sync";
 
 const FOLLOWUP_PIPELINE_ID = "a0000000-0000-0000-0000-000000000002";
 const FOLLOWUP_STAGE_ID = "c0000000-0000-0000-0000-000000000001";
@@ -94,6 +95,13 @@ export async function POST(
         .select("id")
         .single();
       newStateId = newState?.id ?? null;
+    }
+
+    // Phase 2 dual-write: mirror both the closed source state and the new
+    // Follow-up/Nurture state onto journey_pipeline_state.
+    await syncJourneyForContact(supabase, localContactId, pipelineId);
+    if (newStateId) {
+      await syncJourneyForContact(supabase, localContactId, FOLLOWUP_PIPELINE_ID);
     }
 
     return NextResponse.json({ success: true, closedStateId: state.id, newStateId });

@@ -6,6 +6,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import { syncStageToGHL } from "@/lib/ghl/stage-sync";
+import { syncJourneyForContact } from "@/lib/journeys/sync";
 
 interface AutoAdvanceResult {
   advanced: boolean;
@@ -94,6 +95,17 @@ export async function checkAutoAdvance(
     })
     .eq("id", pipelineStateId);
 
+  // Phase 2 dual-write: mirror to journey_pipeline_state. Need the contact_id
+  // and pipeline_id for syncing, which we'll pull once below for the GHL sync too.
+  const { data: pStateForMirror } = await supabase
+    .from("contact_pipeline_state")
+    .select("contact_id, pipeline_id")
+    .eq("id", pipelineStateId)
+    .single();
+  if (pStateForMirror) {
+    await syncJourneyForContact(supabase, pStateForMirror.contact_id, pStateForMirror.pipeline_id);
+  }
+
   // Write history
   await supabase.from("pipeline_stage_history").insert({
     contact_pipeline_state_id: pipelineStateId,
@@ -139,6 +151,9 @@ export async function checkAutoAdvance(
           entered_current_stage_at: now,
           is_active: true,
         });
+
+        // Phase 2 dual-write for the auto-spawned pipeline.
+        await syncJourneyForContact(supabase, pState.contact_id, nextStage.auto_spawn_pipeline_id);
       }
     }
   }

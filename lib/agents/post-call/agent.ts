@@ -512,6 +512,12 @@ async function writeResults(
     await supabase.from("calls").update(callUpdate).eq("id", callId);
   }
 
+  // Resolve the journey for the call's primary contact (Phase 2 tagging).
+  // Cached once and reused across action items + extractions.
+  const primaryJourneyId = contactId
+    ? (await supabase.from("journeys").select("id").eq("primary_contact_id", contactId).maybeSingle()).data?.id ?? null
+    : null;
+
   // Action items → call_action_items
   if (results.actions && results.actions.actions.length > 0) {
     await supabase
@@ -524,6 +530,7 @@ async function writeResults(
     const rows = results.actions.actions.map((a) => ({
       call_id: callId,
       contact_id: contactId ?? null,
+      journey_id: primaryJourneyId,
       category: a.category,
       title: a.title,
       description: a.description ?? null,
@@ -590,6 +597,19 @@ async function writeResults(
     const callTerritoryPrimary =
       (callTerritoryRows ?? []).find((r) => r.is_primary)?.territory_ms_slug ?? null;
 
+    // Journey cache — resolve once per contact_id used in extractions.
+    const contactIdsInPlay = new Set<string>();
+    if (contactId) contactIdsInPlay.add(contactId);
+    for (const cid of nameToContactId.values()) contactIdsInPlay.add(cid);
+    const journeyByContact = new Map<string, string | null>();
+    if (contactIdsInPlay.size > 0) {
+      const { data: js } = await supabase
+        .from("journeys")
+        .select("id, primary_contact_id")
+        .in("primary_contact_id", [...contactIdsInPlay]);
+      for (const j of js ?? []) journeyByContact.set(j.primary_contact_id, j.id);
+    }
+
     const rows = results.extractions.extractions
       .filter((e) => e.extracted_value !== null)
       .filter((e) => validCategories.has(e.field_category))
@@ -612,9 +632,15 @@ async function writeResults(
           resolvedTerritorySlug = callTerritoryPrimary;
         }
 
+        // Tag the journey from the resolved contact (falls back to the
+        // call's primary journey when the target contact isn't enrolled).
+        const resolvedJourneyId =
+          (resolvedContactId ? journeyByContact.get(resolvedContactId) : null) ?? primaryJourneyId;
+
         return {
           call_id: callId,
           contact_id: resolvedContactId ?? null,
+          journey_id: resolvedJourneyId,
           field_key: e.field_key,
           field_category: e.field_category,
           extracted_value: e.extracted_value,
