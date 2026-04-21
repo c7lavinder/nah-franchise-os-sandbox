@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
     let created = 0;
     let updated = 0;
     let skipped = 0;
+    let callTypePreserved = 0;
 
     for (const event of events) {
       const ghlEventId = event.id;
@@ -137,16 +138,25 @@ export async function GET(request: NextRequest) {
       // Check if exists
       const { data: existing } = await supabase
         .from("calls")
-        .select("id")
+        .select("id, source")
         .eq("ghl_event_id", ghlEventId)
         .maybeSingle();
 
       if (existing) {
-        // Update
-        await supabase.from("calls").update({
+        // Only overwrite call_type_id / classification_reason when we own the
+        // row. Rows sourced from Read.ai or manual entry carry higher-signal
+        // classifications and must not be clobbered by title-regex guesses.
+        const canOverwriteCallType = existing.source === "ghl_calendar";
+        if (!canOverwriteCallType) {
+          console.info(
+            `[sync-ghl-calendar] preserving call_type_id on call ${existing.id} ` +
+              `(source=${existing.source ?? "null"}, cron would have set slug=${classification.slug})`,
+          );
+          callTypePreserved++;
+        }
+
+        const updatePayload: Record<string, unknown> = {
           contact_id: localContactId,
-          call_type_id: callTypeId,
-          classification_reason: classification.reason,
           sub_task_id: subTaskId,
           contact_pipeline_state_id: contactPipelineStateId,
           scheduled_at: event.startTime,
@@ -156,7 +166,13 @@ export async function GET(request: NextRequest) {
           meeting_link: meetingLink,
           hosted_by_user_id: hostedByUserId,
           status,
-        }).eq("id", existing.id);
+        };
+        if (canOverwriteCallType) {
+          updatePayload.call_type_id = callTypeId;
+          updatePayload.classification_reason = classification.reason;
+        }
+
+        await supabase.from("calls").update(updatePayload).eq("id", existing.id);
         updated++;
       } else {
         // Insert
@@ -186,6 +202,7 @@ export async function GET(request: NextRequest) {
       created,
       updated,
       skipped,
+      callTypePreserved,
     });
   } catch (err) {
     console.error("GHL calendar sync error:", err);
