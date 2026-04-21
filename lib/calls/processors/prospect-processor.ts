@@ -9,12 +9,18 @@ import { insertCallParticipants } from "./insert-participants";
 import { reconcileCall } from "./reconcile-call";
 import { classifyCallType } from "../classify-type";
 import { resolveCallTypeBySlug } from "../resolve-call-type";
+import { callAlreadyExistsForReadAiSession } from "./check-existing";
 
 export async function processProspectCall(
   payload: ReadAIWebhookPayload,
   classified: ClassifiedCall
 ): Promise<void> {
   const supabase = createServerClient();
+
+  if (await callAlreadyExistsForReadAiSession(supabase, payload.session_id)) {
+    console.info(`[prospect-processor] call already exists for session ${payload.session_id}; skipping`);
+    return;
+  }
 
   // 1. Create a contact if the classifier couldn't match one.
   let resolvedContactUuid = classified.match.contact_id;

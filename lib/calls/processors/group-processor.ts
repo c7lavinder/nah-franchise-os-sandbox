@@ -10,12 +10,18 @@ import { insertCallParticipants } from "./insert-participants";
 import { reconcileCall } from "./reconcile-call";
 import { classifyCallType } from "../classify-type";
 import { resolveCallTypeBySlug } from "../resolve-call-type";
+import { callAlreadyExistsForReadAiSession } from "./check-existing";
 
 export async function processGroupCall(
   payload: ReadAIWebhookPayload,
   classified: ClassifiedCall
 ): Promise<void> {
   const supabase = createServerClient();
+
+  if (await callAlreadyExistsForReadAiSession(supabase, payload.session_id)) {
+    console.info(`[group-processor] call already exists for session ${payload.session_id}; skipping`);
+    return;
+  }
 
   const isInternal = classified.call_type === "internal";
   const nahEmails = classified.match.participants

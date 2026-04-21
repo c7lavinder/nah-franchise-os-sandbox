@@ -9,12 +9,18 @@ import { insertCallParticipants } from "./insert-participants";
 import { reconcileCall } from "./reconcile-call";
 import { classifyCallType } from "../classify-type";
 import { resolveCallTypeBySlug } from "../resolve-call-type";
+import { callAlreadyExistsForReadAiSession } from "./check-existing";
 
 export async function processCoachingCall(
   payload: ReadAIWebhookPayload,
   classified: ClassifiedCall
 ): Promise<void> {
   const supabase = createServerClient();
+
+  if (await callAlreadyExistsForReadAiSession(supabase, payload.session_id)) {
+    console.info(`[coaching-processor] call already exists for session ${payload.session_id}; skipping`);
+    return;
+  }
 
   if (!classified.match.territory_ms_slug) return;
 
