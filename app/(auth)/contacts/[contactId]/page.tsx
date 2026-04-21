@@ -158,7 +158,7 @@ export default async function ContactPage({
               </h3>
             </div>
             {memberships.length === 0 ? (
-              <p className="text-caption text-text-tertiary">This contact isn't part of any journey yet.</p>
+              <p className="text-caption text-text-tertiary">This contact is not part of any journey yet.</p>
             ) : (
               <div className="space-y-1">
                 {memberships.map(({ journey, role, joinedAt }) => (
