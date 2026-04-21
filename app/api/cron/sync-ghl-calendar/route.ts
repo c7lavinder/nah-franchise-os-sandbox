@@ -153,23 +153,23 @@ export async function GET(request: NextRequest) {
         .maybeSingle();
 
       if (existing) {
-        // Only overwrite call_type_id / classification_reason when we own the
-        // row. Rows sourced from Read.ai or manual entry carry higher-signal
-        // classifications and must not be clobbered by title-regex guesses.
-        const canOverwriteCallType = existing.source === "ghl_calendar";
-        if (!canOverwriteCallType) {
+        // Only overwrite classifier/resolver fields when the row was first
+        // authored by the cron. Rows sourced from Read.ai or manual entry
+        // (and rows with unknown source, pre-Phase-4 migration era) carry
+        // higher-signal matches and must not be clobbered by title-regex
+        // or GHL-only lookups.
+        const canOverwriteMatch = existing.source === "ghl_calendar";
+        if (!canOverwriteMatch) {
           console.info(
-            `[sync-ghl-calendar] preserving call_type_id on call ${existing.id} ` +
-              `(source=${existing.source ?? "null"}, cron would have set slug=${classification.slug})`,
+            `[sync-ghl-calendar] preserving match fields on call ${existing.id} ` +
+              `(source=${existing.source ?? "null"}; cron would have set ` +
+              `call_type=${classification.slug}, contact_id=${localContactId}, ` +
+              `territory=${match.territory_ms_slug})`,
           );
           callTypePreserved++;
         }
 
         const updatePayload: Record<string, unknown> = {
-          contact_id: localContactId,
-          territory_ms_slug: match.territory_ms_slug,
-          match_confidence: match.confidence,
-          match_reason: match.reason,
           sub_task_id: subTaskId,
           contact_pipeline_state_id: contactPipelineStateId,
           scheduled_at: event.startTime,
@@ -180,9 +180,13 @@ export async function GET(request: NextRequest) {
           hosted_by_user_id: hostedByUserId,
           status,
         };
-        if (canOverwriteCallType) {
+        if (canOverwriteMatch) {
           updatePayload.call_type_id = callTypeId;
           updatePayload.classification_reason = classification.reason;
+          updatePayload.contact_id = localContactId;
+          updatePayload.territory_ms_slug = match.territory_ms_slug;
+          updatePayload.match_confidence = match.confidence;
+          updatePayload.match_reason = match.reason;
         }
 
         await supabase.from("calls").update(updatePayload).eq("id", existing.id);
