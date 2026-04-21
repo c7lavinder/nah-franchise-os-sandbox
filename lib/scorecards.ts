@@ -39,9 +39,11 @@ export async function getDailyHQScorecard() {
   const supabase = createServerClient();
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  // New Prospects: contacts that entered the Sales pipeline in last 30 days
+  // New Prospects: journeys that entered the Sales pipeline in last 30 days.
+  // Phase 4 read migration. Sales jps rows have territory_ms_slug = NULL so
+  // this counts journeys, not territories.
   const { count: newProspectCount } = await supabase
-    .from("contact_pipeline_state")
+    .from("journey_pipeline_state")
     .select("id", { count: "exact", head: true })
     .eq("pipeline_id", "a0000000-0000-0000-0000-000000000001") // Sales pipeline
     .gte("entered_pipeline_at", thirtyDaysAgo);
@@ -178,23 +180,24 @@ export async function getPipelineScorecard() {
     return ids.length > 0 ? ids : ["__none__"];
   }
 
-  // In Sales: non-terminal stages (Engagement through Awarding, excludes Closed)
+  // Phase 4 read migration: counts come from journey_pipeline_state.
+  //   - Sales has one jps row per journey (NULL territory) → counts prospects.
+  //   - Onboarding / Runway fan out per territory → counts territories,
+  //     which matches the "territories" sub-label below.
   const { count: inSales } = await supabase
-    .from("contact_pipeline_state")
+    .from("journey_pipeline_state")
     .select("id", { count: "exact", head: true })
     .eq("is_active", true)
     .in("current_stage_id", stageIdsFor("sales"));
 
-  // In Onboarding: non-terminal stages (excludes Onboarded)
   const { count: inOnboarding } = await supabase
-    .from("contact_pipeline_state")
+    .from("journey_pipeline_state")
     .select("id", { count: "exact", head: true })
     .eq("is_active", true)
     .in("current_stage_id", stageIdsFor("onboarding"));
 
-  // In Runway: non-terminal stages (excludes Running)
   const { count: inRunway } = await supabase
-    .from("contact_pipeline_state")
+    .from("journey_pipeline_state")
     .select("id", { count: "exact", head: true })
     .eq("is_active", true)
     .in("current_stage_id", stageIdsFor("runway"));

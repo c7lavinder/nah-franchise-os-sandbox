@@ -24,37 +24,18 @@ export async function GET(request: NextRequest) {
     query = query.eq("status", status);
   }
 
-  // If filtering by pipeline stage, find which territories have owners in that stage
-  let stageFilterSlugs: string[] | null = null;
+  // If filtering by pipeline stage, find which territories have jps rows in
+  // that stage. Phase 4 read migration — jps carries territory_ms_slug
+  // directly, so we skip the old contact→ghl→territory_owners dance.
   if (stageId) {
-    // Get contacts in this stage
     const { data: stateRows } = await supabase
-      .from("contact_pipeline_state")
-      .select("contact_id")
+      .from("journey_pipeline_state")
+      .select("territory_ms_slug")
       .eq("current_stage_id", stageId)
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .not("territory_ms_slug", "is", null);
 
-    const contactIds = (stateRows ?? []).map((r) => r.contact_id);
-    if (contactIds.length === 0) {
-      return NextResponse.json({ cards: [] });
-    }
-
-    // Get ghl_contact_ids for these contacts
-    const { data: contactRows } = await supabase
-      .from("contacts")
-      .select("ghl_contact_id")
-      .in("id", contactIds);
-
-    const ghlIds = (contactRows ?? []).map((c) => c.ghl_contact_id).filter(Boolean);
-
-    // Get territory slugs owned by these contacts
-    const { data: ownerRows } = await supabase
-      .from("territory_owners")
-      .select("ms_slug")
-      .in("ghl_contact_id", ghlIds.length > 0 ? ghlIds : ["__none__"])
-      .is("end_date", null);
-
-    stageFilterSlugs = (ownerRows ?? []).map((o) => o.ms_slug);
+    const stageFilterSlugs = [...new Set((stateRows ?? []).map((r) => r.territory_ms_slug).filter(Boolean) as string[])];
     if (stageFilterSlugs.length === 0) {
       return NextResponse.json({ cards: [] });
     }
@@ -96,39 +77,28 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Get pipeline stages for territory owners (onboarding + runway)
-  const ownerGhlIds = [...ownerMap.values()].map((o) => o.ghlContactId).filter(Boolean) as string[];
-  const stageMap = new Map<string, { stageName: string; stageSlug: string; pipelineSlug: string }>();
+  // Phase 4 read migration: jps carries territory_ms_slug, so we can look
+  // up onboarding/runway stage directly per territory. Runway wins when both
+  // are present (matches the old "first one found" behavior since a territory
+  // is typically only in one of the two at a time).
+  const stageBySlug = new Map<string, { stageName: string; stageSlug: string; pipelineSlug: string }>();
+  if (slugs.length > 0) {
+    const { data: jpsRows } = await supabase
+      .from("journey_pipeline_state")
+      .select("territory_ms_slug, pipeline_stages(slug, name), pipelines(slug)")
+      .eq("is_active", true)
+      .in("territory_ms_slug", slugs);
 
-  if (ownerGhlIds.length > 0) {
-    // Get contact IDs from ghl_contact_ids
-    const { data: contactRows } = await supabase
-      .from("contacts")
-      .select("id, ghl_contact_id")
-      .in("ghl_contact_id", ownerGhlIds);
-
-    const ghlToId = new Map<string, string>();
-    for (const c of contactRows ?? []) ghlToId.set(c.ghl_contact_id, c.id);
-
-    const contactIds = [...ghlToId.values()];
-    if (contactIds.length > 0) {
-      const { data: pipelineStates } = await supabase
-        .from("contact_pipeline_state")
-        .select("contact_id, pipeline_stages (slug, name), pipelines (slug)")
-        .eq("is_active", true)
-        .in("contact_id", contactIds);
-
-      for (const ps of pipelineStates ?? []) {
-        const pSlug = (ps.pipelines as unknown as { slug: string } | null)?.slug;
-        const stage = ps.pipeline_stages as unknown as { slug: string; name: string } | null;
-        if ((pSlug === "onboarding" || pSlug === "runway") && stage) {
-          // Find the ghl_contact_id for this contact_id
-          for (const [ghl, cid] of ghlToId.entries()) {
-            if (cid === ps.contact_id) {
-              stageMap.set(ghl, { stageName: stage.name, stageSlug: stage.slug, pipelineSlug: pSlug });
-              break;
-            }
-          }
+    for (const row of jpsRows ?? []) {
+      const slug = row.territory_ms_slug as string | null;
+      if (!slug) continue;
+      const pSlug = (row.pipelines as unknown as { slug: string } | null)?.slug;
+      const stage = row.pipeline_stages as unknown as { slug: string; name: string } | null;
+      if (!stage) continue;
+      if (pSlug === "onboarding" || pSlug === "runway") {
+        const existing = stageBySlug.get(slug);
+        if (!existing || pSlug === "runway") {
+          stageBySlug.set(slug, { stageName: stage.name, stageSlug: stage.slug, pipelineSlug: pSlug });
         }
       }
     }
@@ -136,7 +106,7 @@ export async function GET(request: NextRequest) {
 
   const cards = (territories ?? []).map((t) => {
     const owner = ownerMap.get(t.ms_slug);
-    const pipelineStage = owner?.ghlContactId ? stageMap.get(owner.ghlContactId) : null;
+    const pipelineStage = stageBySlug.get(t.ms_slug) ?? null;
     return {
       ms_slug: t.ms_slug,
       territory_name: t.territory_name,

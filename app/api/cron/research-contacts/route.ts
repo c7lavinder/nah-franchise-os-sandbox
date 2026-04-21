@@ -14,16 +14,21 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServerClient();
 
-  // Get active pipeline contacts (Sales pipeline, not Nurture)
-  const { data: contacts } = await supabase
-    .from("contact_pipeline_state")
-    .select("contact_id, contacts (ghl_contact_id)")
+  // Phase 4 read migration: get active journey primaries, one per journey.
+  // Multi-territory franchisees get researched once rather than N times.
+  const { data: rows } = await supabase
+    .from("journey_pipeline_state")
+    .select("journey_id, journeys!inner(primary_contact_id, contacts!journeys_primary_contact_id_fkey(ghl_contact_id))")
     .eq("is_active", true)
     .limit(50);
 
+  const seen = new Set<string>();
   let processed = 0;
-  for (const row of contacts ?? []) {
-    const ghlId = (row.contacts as unknown as { ghl_contact_id: string } | null)?.ghl_contact_id;
+  for (const row of rows ?? []) {
+    const journey = (row as unknown as { journeys: { primary_contact_id: string; contacts: { ghl_contact_id: string | null } | null } }).journeys;
+    if (seen.has(journey.primary_contact_id)) continue;
+    seen.add(journey.primary_contact_id);
+    const ghlId = journey.contacts?.ghl_contact_id;
     if (!ghlId) continue;
     try {
       await runContactResearch(ghlId, false);
