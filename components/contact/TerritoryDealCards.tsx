@@ -10,8 +10,6 @@ import { ChevronDown } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
 interface ContactFields {
-  territory: string | null;
-  territory_slug: string | null;
   legal_entity: string | null;
   website: string | null;
   franchise_fee: number | null;
@@ -96,10 +94,8 @@ export function TerritoryDetailsCard({ contactId, fields, onUpdate }: Props) {
 
   return (
     <div className="bg-bg-secondary border border-border-default rounded-lg px-4 py-3">
-      <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-2">TERRITORY</h3>
-      <div className="grid grid-cols-4 gap-3">
-        <InlineField label="Territory" value={fields.territory ?? ""} onSave={(v) => void save("territory", v)} />
-        <InlineField label="Slug" value={fields.territory_slug ?? ""} onSave={(v) => void save("territory_slug", v)} />
+      <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-2">ENTITY</h3>
+      <div className="grid grid-cols-2 gap-3">
         <InlineField label="Legal Entity" value={fields.legal_entity ?? ""} onSave={(v) => void save("legal_entity", v)} />
         <InlineField label="Website" value={fields.website ?? ""} onSave={(v) => void save("website", v)} />
       </div>

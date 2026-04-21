@@ -11,6 +11,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import { syncStageToGHL } from "@/lib/ghl/stage-sync";
+import { carryForwardContactEos } from "@/lib/eos/carry-forward";
 
 interface AutoAdvanceResult {
   advanced: boolean;
@@ -170,6 +171,24 @@ export async function checkAutoAdvance(
           is_active: true,
         }))
       );
+
+      // EOS carry-forward on territory fan-out. Mirrors the advance-route
+      // hook; idempotent so either path (manual or auto) is safe.
+      if (fanOut) {
+        const { data: journeyOwner } = await supabase
+          .from("journeys").select("primary_contact_id").eq("id", rootJps.journey_id).single();
+        const primaryContactId = journeyOwner?.primary_contact_id;
+        if (primaryContactId) {
+          for (const slug of spawnSlugs) {
+            if (!slug) continue;
+            try {
+              await carryForwardContactEos(primaryContactId, slug);
+            } catch (err) {
+              console.error("[auto-advance] EOS carry-forward failed:", err instanceof Error ? err.message : err);
+            }
+          }
+        }
+      }
     }
   }
 

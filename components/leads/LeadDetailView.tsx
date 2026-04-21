@@ -83,7 +83,7 @@ interface PipelineStateAPI {
 }
 
 interface LocalContact {
-  territory: string | null; territory_slug: string | null; legal_entity: string | null; website: string | null;
+  legal_entity: string | null; website: string | null;
   franchise_fee: number | null; royalty_pct: number | null; term_months: number | null;
   opportunity_source: string | null; sub_source: string | null;
   first_name: string | null; last_name: string | null; email: string | null; phone: string | null;
@@ -178,7 +178,6 @@ export default function LeadDetailView({
             email: psData.contact.email, phone: psData.contact.phone,
             city: psData.contact.city, state: psData.contact.state,
             opportunity_source: psData.contact.opportunity_source, sub_source: psData.contact.sub_source,
-            territory: psData.contact.territory, territory_slug: psData.contact.territory_slug,
             legal_entity: psData.contact.legal_entity, website: psData.contact.website,
             franchise_fee: psData.contact.franchise_fee, royalty_pct: psData.contact.royalty_pct,
             term_months: psData.contact.term_months,
@@ -218,7 +217,6 @@ export default function LeadDetailView({
           email: d.contact.email, phone: d.contact.phone,
           city: d.contact.city, state: d.contact.state,
           opportunity_source: d.contact.opportunity_source, sub_source: d.contact.sub_source,
-          territory: d.contact.territory, territory_slug: d.contact.territory_slug,
           legal_entity: d.contact.legal_entity, website: d.contact.website,
           franchise_fee: d.contact.franchise_fee, royalty_pct: d.contact.royalty_pct,
           term_months: d.contact.term_months,
@@ -254,12 +252,19 @@ export default function LeadDetailView({
   const drilldownStage = selectedPipeline?.stages.find((s) => s.id === drilldownStageId);
 
   const territoryDealFields = {
-    territory: localContact?.territory ?? null, territory_slug: localContact?.territory_slug ?? null,
     legal_entity: localContact?.legal_entity ?? null, website: localContact?.website ?? null,
     franchise_fee: localContact?.franchise_fee ?? null, royalty_pct: localContact?.royalty_pct ?? null,
     term_months: localContact?.term_months ?? null, opportunity_source: localContact?.opportunity_source ?? null,
     sub_source: localContact?.sub_source ?? null,
   };
+
+  // Territory name for the "Carried to X" banner in the EOS tab. Sourced from
+  // the journey's first active runway/onboarding jps row with a territory,
+  // replacing the old contacts.territory column.
+  const carriedTerritoryName =
+    pipelineStates
+      .flatMap((p) => p.territories ?? [])
+      .find((t) => t.territory_name)?.territory_name ?? null;
 
   const activeMembers = members.filter((m) => m.contact_id);
   const showMemberTabs = Boolean(journeyId) && activeMembers.length >= 2;
@@ -484,7 +489,7 @@ export default function LeadDetailView({
                 ) : activeTab === "territories" ? (
                   <TerritoryDataTab ghlContactId={contact?.id ?? null} />
                 ) : activeTab === "eos" ? (
-                  <EosTab contactId={contactId} carriedTerritoryName={localContact?.territory ?? null} />
+                  <EosTab contactId={contactId} carriedTerritoryName={carriedTerritoryName} />
                 ) : null}
               </div>
             </div>

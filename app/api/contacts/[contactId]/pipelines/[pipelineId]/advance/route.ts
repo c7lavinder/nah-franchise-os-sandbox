@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 import { syncStageToGHL } from "@/lib/ghl/stage-sync";
+import { carryForwardContactEos } from "@/lib/eos/carry-forward";
 
 export async function POST(
   request: NextRequest,
@@ -225,6 +226,20 @@ export async function POST(
             is_active: true,
           }))
         );
+
+        // EOS carry-forward: when the spawn fanned out to real territories
+        // (runway/onboarding), seed each territory's EOS from the primary
+        // contact's EOS. Idempotent — safe to call even if already carried.
+        if (fanOut) {
+          for (const slug of spawnSlugs) {
+            if (!slug) continue;
+            try {
+              await carryForwardContactEos(localContactId, slug);
+            } catch (err) {
+              console.error("[advance] EOS carry-forward failed:", err instanceof Error ? err.message : err);
+            }
+          }
+        }
       }
     }
 
