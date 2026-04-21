@@ -73,6 +73,13 @@ interface TerritoryOption {
   territory_name: string;
 }
 
+interface JourneyMembership {
+  journey_id: string;
+  journey_name: string;
+  role: string;
+  is_journey_primary: boolean;
+}
+
 export interface RawParticipant {
   id: string;
   email: string | null;
@@ -230,6 +237,9 @@ interface ParticipantState {
   ownedTerritories: TerritoryOption[];
   /** Slugs of territories this call touches for this participant — default is all owned. */
   selectedTerritories: string[];
+  /** Active journeys this contact is a member of. Surfaced inline so the rep
+   *  can jump from a call's participant straight to the deal. */
+  journeys: JourneyMembership[];
 }
 
 function buildInitialState(participants: RawParticipant[]): ParticipantState[] {
@@ -247,6 +257,7 @@ function buildInitialState(participants: RawParticipant[]): ParticipantState[] {
       territorySlug: p.territory_ms_slug,
       ownedTerritories: [],
       selectedTerritories: [],
+      journeys: [],
     }));
 }
 
@@ -264,6 +275,17 @@ async function fetchContactTerritories(contactId: string): Promise<TerritoryOpti
         territory_name: t?.territory_name ?? row.ms_slug,
       };
     });
+  } catch {
+    return [];
+  }
+}
+
+async function fetchContactJourneys(contactId: string): Promise<JourneyMembership[]> {
+  try {
+    const res = await fetch(`/api/contacts/${contactId}/journey`);
+    if (!res.ok) return [];
+    const data = await res.json() as { journeys?: JourneyMembership[] };
+    return data.journeys ?? [];
   } catch {
     return [];
   }
@@ -331,9 +353,13 @@ function ReassignButton(props: Props & { token: string | null }) {
     setPrimaryContactId(props.currentContactId);
 
     void (async () => {
-      const [ctRes, ...territoryResults] = await Promise.all([
-        fetch(`/api/calls/${props.callId}/territories`),
-        ...initial.map((r) => r.contactId ? fetchContactTerritories(r.contactId) : Promise.resolve([])),
+      const ctPromise = fetch(`/api/calls/${props.callId}/territories`);
+      const territoryPromises = initial.map((r) => r.contactId ? fetchContactTerritories(r.contactId) : Promise.resolve([]));
+      const journeyPromises = initial.map((r) => r.contactId ? fetchContactJourneys(r.contactId) : Promise.resolve([]));
+      const [ctRes, territoryResults, journeyResults] = await Promise.all([
+        ctPromise,
+        Promise.all(territoryPromises),
+        Promise.all(journeyPromises),
       ]);
 
       // Pull the call's existing territory selection + primary.
@@ -347,16 +373,16 @@ function ReassignButton(props: Props & { token: string | null }) {
       }
       if (props.currentTerritorySlug) selectedSet.add(props.currentTerritorySlug);
 
-      // Merge each participant's owned territories into their row. Default
-      // selection = (prior call selection ∩ owned) if the call already has
-      // selections, otherwise all owned territories (auto-select active).
+      // Merge each participant's owned territories + journey memberships into
+      // their row. Default territory selection = (prior call selection ∩ owned)
+      // if the call already has selections, otherwise all owned territories.
       const hasPriorSelection = selectedSet.size > 0;
       const merged = initial.map((r, i) => {
-        const owned = territoryResults[i] as TerritoryOption[];
+        const owned = territoryResults[i];
         const defaulted = hasPriorSelection
           ? owned.filter((t) => selectedSet.has(t.ms_slug)).map((t) => t.ms_slug)
           : owned.map((t) => t.ms_slug);
-        return { ...r, ownedTerritories: owned, selectedTerritories: defaulted };
+        return { ...r, ownedTerritories: owned, selectedTerritories: defaulted, journeys: journeyResults[i] };
       });
       setRows(merged);
 
@@ -480,15 +506,18 @@ function ReassignButton(props: Props & { token: string | null }) {
                       onContactChange={async (contactId, contactName, territory) => {
                         setRows((prev) =>
                           prev.map((r) =>
-                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [] } : r,
+                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [], journeys: [] } : r,
                           ),
                         );
                         if (contactId) {
-                          const owned = await fetchContactTerritories(contactId);
+                          const [owned, journeys] = await Promise.all([
+                            fetchContactTerritories(contactId),
+                            fetchContactJourneys(contactId),
+                          ]);
                           setRows((prev) =>
                             prev.map((r) =>
                               r.id === p.id
-                                ? { ...r, ownedTerritories: owned, selectedTerritories: owned.map((t) => t.ms_slug) }
+                                ? { ...r, ownedTerritories: owned, selectedTerritories: owned.map((t) => t.ms_slug), journeys }
                                 : r,
                             ),
                           );
@@ -521,15 +550,18 @@ function ReassignButton(props: Props & { token: string | null }) {
                       onContactChange={async (contactId, contactName, territory) => {
                         setRows((prev) =>
                           prev.map((r) =>
-                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [] } : r,
+                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [], journeys: [] } : r,
                           ),
                         );
                         if (contactId) {
-                          const owned = await fetchContactTerritories(contactId);
+                          const [owned, journeys] = await Promise.all([
+                            fetchContactTerritories(contactId),
+                            fetchContactJourneys(contactId),
+                          ]);
                           setRows((prev) =>
                             prev.map((r) =>
                               r.id === p.id
-                                ? { ...r, ownedTerritories: owned, selectedTerritories: owned.map((t) => t.ms_slug) }
+                                ? { ...r, ownedTerritories: owned, selectedTerritories: owned.map((t) => t.ms_slug), journeys }
                                 : r,
                             ),
                           );
@@ -701,6 +733,27 @@ function ParticipantRow({
               <X size={12} />
             </button>
           </div>
+
+          {row.journeys.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1 pl-2">
+              <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
+                Journey{row.journeys.length > 1 ? "s" : ""}
+              </span>
+              {row.journeys.map((j) => (
+                <a
+                  key={j.journey_id}
+                  href={`/journeys/${j.journey_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border border-border-default bg-bg-primary text-text-primary hover:border-nah-blue hover:text-nah-blue transition-colors"
+                  title={`Open ${j.journey_name} (${j.role}${j.is_journey_primary ? " — primary" : ""})`}
+                >
+                  <span>{j.journey_name}</span>
+                  <span className="text-text-tertiary">· {j.role.replace(/_/g, " ")}</span>
+                </a>
+              ))}
+            </div>
+          )}
 
           {row.ownedTerritories.length > 0 && (
             <div className="pl-3 border-l-2 border-border-default space-y-1">
