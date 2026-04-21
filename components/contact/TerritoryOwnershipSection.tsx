@@ -19,13 +19,17 @@ interface TerritoryOption {
 interface Props {
   contactId: string;
   ghlContactId?: string;
+  /** Optional controlled territory slug — when the parent owns focus, the
+   *  active tab follows this value and clicks bubble up via onTerritoryChange. */
+  focusedTerritorySlug?: string | null;
+  onTerritoryChange?: (slug: string | null) => void;
 }
 
-export default function TerritoryOwnershipSection({ contactId, ghlContactId }: Props) {
+export default function TerritoryOwnershipSection({ contactId, ghlContactId, focusedTerritorySlug, onTerritoryChange }: Props) {
   const [current, setCurrent] = useState<TerritoryOwnership[]>([]);
   const [former, setFormer] = useState<TerritoryOwnership[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(0);
+  const [internalTab, setInternalTab] = useState(0);
 
   // Assign modal state
   const [showAssign, setShowAssign] = useState(false);
@@ -113,7 +117,19 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId }: P
     ...former.map((t) => ({ ...t, isCurrent: false })),
   ];
 
+  // When the parent controls focus (focusedTerritorySlug passed in), derive
+  // the active tab index from the slug; otherwise use internal state.
+  const controlled = focusedTerritorySlug !== undefined;
+  const controlledIdx = controlled
+    ? Math.max(0, allTabs.findIndex((t) => t.ms_slug === focusedTerritorySlug))
+    : internalTab;
+  const activeTab = controlled ? controlledIdx : internalTab;
   const active = allTabs[activeTab];
+
+  const handleTabClick = (i: number) => {
+    if (onTerritoryChange) onTerritoryChange(allTabs[i]?.ms_slug ?? null);
+    if (!controlled) setInternalTab(i);
+  };
 
   return (
     <div className="border border-border-default rounded-lg overflow-hidden mt-4">
@@ -165,7 +181,7 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId }: P
           {allTabs.map((t, i) => (
             <button
               key={t.ms_slug + (t.end_date ?? "")}
-              onClick={() => setActiveTab(i)}
+              onClick={() => handleTabClick(i)}
               className={`px-3 py-1.5 text-caption rounded-t-md transition-colors ${
                 i === activeTab
                   ? "bg-bg-primary text-text-primary border border-b-0 border-border-default"
@@ -205,6 +221,14 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId }: P
               {active.territories?.status ?? "unknown"}
             </span>
           </div>
+          {/* Explicit link to the pipeline bar context, so the rep knows
+              which territory the stage circles above are showing. */}
+          {active.isCurrent && controlled && (
+            <div className="flex items-center gap-1 text-[10px] text-text-tertiary pt-1 border-t border-border-default mt-2">
+              <span className="text-nah-orange">↑</span>
+              <span>Pipeline bar above is scoped to this territory</span>
+            </div>
+          )}
         </div>
       )}
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Phone, Mail, Loader2, RefreshCw,
   MessageSquare, Save, Award, ClipboardList, Calendar,
@@ -114,6 +114,8 @@ export default function LeadDetailView({
   members = [],
 }: LeadDetailViewProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const [contact, setContact] = useState<GHLContact | null>(null);
@@ -135,6 +137,20 @@ export default function LeadDetailView({
   const [activePanel, setActivePanel] = useState<"sms" | "email" | "call" | "schedule" | null>(null);
   const [focusedTerritorySlug, setFocusedTerritorySlug] = useState<string | null>(initialTerritorySlug ?? null);
   const [splitOpen, setSplitOpen] = useState(false);
+
+  // Keep the URL's ?territory= param in sync with the focused territory so
+  // sharing the page or using back/forward preserves the selection. Browser
+  // URL updates only when the slug actually changes — avoids a replace loop.
+  useEffect(() => {
+    if (!pathname) return;
+    const currentSlug = searchParams?.get("territory") ?? null;
+    if (currentSlug === focusedTerritorySlug) return;
+    const next = new URLSearchParams(searchParams?.toString() ?? "");
+    if (focusedTerritorySlug) next.set("territory", focusedTerritorySlug);
+    else next.delete("territory");
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [focusedTerritorySlug, pathname, router, searchParams]);
 
   // Profile tab supports editing any journey member. Defaults to the main
   // contact and swaps when the user clicks a sub-tab.
@@ -358,7 +374,12 @@ export default function LeadDetailView({
                 <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
                   <TeamCard contactId={contactId} />
                 </div>
-                <TerritoryOwnershipSection contactId={contactId} ghlContactId={contact?.id} />
+                <TerritoryOwnershipSection
+                  contactId={contactId}
+                  ghlContactId={contact?.id}
+                  focusedTerritorySlug={focusedTerritorySlug}
+                  onTerritoryChange={setFocusedTerritorySlug}
+                />
               </div>
 
               {/* RIGHT — Tab content */}
