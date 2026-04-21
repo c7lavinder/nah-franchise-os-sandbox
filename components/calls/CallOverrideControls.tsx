@@ -17,6 +17,40 @@ interface CallType {
   id: string;
   name: string;
   slug: string;
+  category: string | null;
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  sales: "Sales",
+  coaching: "Coaching",
+  internal: "Internal",
+  other: "Other",
+};
+
+const CATEGORY_ORDER = ["sales", "coaching", "internal", "other"] as const;
+
+function groupByCategory(callTypes: CallType[]): { label: string; items: CallType[] }[] {
+  const buckets = new Map<string, CallType[]>();
+  for (const ct of callTypes) {
+    const key = ct.category ?? "other";
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key)!.push(ct);
+  }
+  const ordered: { label: string; items: CallType[] }[] = [];
+  for (const key of CATEGORY_ORDER) {
+    if (buckets.has(key)) {
+      ordered.push({ label: CATEGORY_LABELS[key], items: buckets.get(key)! });
+      buckets.delete(key);
+    }
+  }
+  // Any unknown categories slot in under their raw name (Title Case).
+  for (const [key, items] of buckets.entries()) {
+    ordered.push({
+      label: key.charAt(0).toUpperCase() + key.slice(1),
+      items,
+    });
+  }
+  return ordered;
 }
 
 interface ContactOption {
@@ -120,19 +154,38 @@ function ReclassifyButton(props: Props & { token: string | null }) {
       {open && (
         <ModalShell title="Reclassify call" onClose={() => setOpen(false)}>
           <div className="space-y-3">
-            <label className="block text-caption text-text-tertiary">Call type</label>
-            <select
-              value={selected}
-              onChange={(e) => setSelected(e.target.value)}
-              className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary"
-            >
-              <option value="">Select...</option>
-              {callTypes.map((ct) => (
-                <option key={ct.id} value={ct.id}>{ct.name}</option>
+            <div className="max-h-80 overflow-y-auto space-y-3 -mx-1 px-1">
+              {groupByCategory(callTypes).map((group) => (
+                <div key={group.label}>
+                  <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1.5">
+                    {group.label}
+                  </div>
+                  <div className="grid grid-cols-1 gap-1">
+                    {group.items.map((ct) => {
+                      const active = selected === ct.id;
+                      return (
+                        <button
+                          key={ct.id}
+                          onClick={() => setSelected(ct.id)}
+                          className={`w-full text-left px-3 py-2 text-body-sm rounded-md border transition-colors ${
+                            active
+                              ? "border-nah-blue bg-[#E6F1FB] text-text-primary"
+                              : "border-border-default bg-bg-primary text-text-primary hover:bg-bg-secondary"
+                          }`}
+                        >
+                          {ct.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
-            </select>
+              {callTypes.length === 0 && (
+                <div className="text-caption text-text-tertiary py-4 text-center">Loading…</div>
+              )}
+            </div>
             {error && <div className="text-caption text-danger">{error}</div>}
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-default -mx-4 px-4">
               <button onClick={() => setOpen(false)} className="btn-ghost px-3 py-1.5 text-caption">Cancel</button>
               <button onClick={submit} disabled={saving || !selected} className="btn-primary px-3 py-1.5 text-caption disabled:opacity-50">
                 {saving ? <Loader2 size={12} className="animate-spin" /> : "Save"}

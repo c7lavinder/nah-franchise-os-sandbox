@@ -8,7 +8,7 @@ export async function GET() {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("call_types")
-    .select("id, slug, name, description")
+    .select("id, slug, name, description, category")
     .order("name");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ callTypes: data ?? [] });
