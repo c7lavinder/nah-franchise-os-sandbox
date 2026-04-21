@@ -36,6 +36,8 @@ export interface CallContext {
   contactNames: string[];
   /** Territories linked to the contact(s) */
   territoryNames: string[];
+  /** Territories explicitly attached to this call via call_territories (authoritative for per-call extraction routing) */
+  callTerritories: Array<{ ms_slug: string; territory_name: string; is_primary: boolean }>;
   /** For team/group calls: full roster of contacts + territories so LLM can match names from transcript */
   roster: RosterEntry[];
   /** Whether this is a team/group/internal call (no specific contact focus) */

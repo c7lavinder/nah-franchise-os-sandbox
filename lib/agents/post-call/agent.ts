@@ -242,6 +242,24 @@ async function loadCallContext(
     }
   }
 
+  // Authoritative per-call territory list (set by the rep in the mapping modal).
+  const callTerritories: CallContext["callTerritories"] = [];
+  const { data: ctRows } = await supabase
+    .from("call_territories")
+    .select("territory_ms_slug, is_primary, territories ( territory_name )")
+    .eq("call_id", callId)
+    .order("is_primary", { ascending: false });
+  for (const r of ctRows ?? []) {
+    const t = Array.isArray(r.territories) ? r.territories[0] : r.territories;
+    const name = (t as { territory_name: string } | null)?.territory_name ?? r.territory_ms_slug;
+    callTerritories.push({
+      ms_slug: r.territory_ms_slug,
+      territory_name: name,
+      is_primary: !!r.is_primary,
+    });
+    if (!territoryNames.includes(name)) territoryNames.push(name);
+  }
+
   // Load contact's active pipeline positions
   const pipelinePositions: PipelinePosition[] = [];
   if (call.contact_id) {
@@ -431,6 +449,7 @@ async function loadCallContext(
     feedbackBlock: feedback.promptBlock,
     contactNames,
     territoryNames,
+    callTerritories,
     roster,
     isTeamCall,
   };
@@ -560,6 +579,17 @@ async function writeResults(
     // Ensure field_category is valid per DB constraint
     const validCategories = new Set(["contact", "contact_eos", "territory", "territory_eos", "territory_market", "market", "business_financials", "business_health"]);
 
+    // Build a territory name/slug → slug map, scoped to this call's mapped
+    // territories first so the LLM's names always resolve to valid slugs.
+    const territoryMap = await buildTerritoryMap(supabase);
+    const { data: callTerritoryRows } = await supabase
+      .from("call_territories")
+      .select("territory_ms_slug, is_primary, territories ( territory_name )")
+      .eq("call_id", callId)
+      .order("is_primary", { ascending: false });
+    const callTerritoryPrimary =
+      (callTerritoryRows ?? []).find((r) => r.is_primary)?.territory_ms_slug ?? null;
+
     const rows = results.extractions.extractions
       .filter((e) => e.extracted_value !== null)
       .filter((e) => validCategories.has(e.field_category))
@@ -571,6 +601,17 @@ async function writeResults(
           if (matched) resolvedContactId = matched;
         }
 
+        // Resolve territory_ms_slug from target_territory if provided. If the
+        // LLM leaves it blank on a territory-category extraction, fall back to
+        // the call's primary territory so reports don't lose the datapoint.
+        let resolvedTerritorySlug: string | null = null;
+        if (e.target_territory) {
+          resolvedTerritorySlug = resolveTerritory(e.target_territory, territoryMap);
+        }
+        if (!resolvedTerritorySlug && e.field_category.startsWith("territory")) {
+          resolvedTerritorySlug = callTerritoryPrimary;
+        }
+
         return {
           call_id: callId,
           contact_id: resolvedContactId ?? null,
@@ -579,6 +620,7 @@ async function writeResults(
           extracted_value: e.extracted_value,
           confidence: e.confidence,
           source: "scout",
+          territory_ms_slug: resolvedTerritorySlug,
         };
       });
 
