@@ -11,6 +11,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { getAppointments } from "@/lib/ghl/client";
 import { classifyCallType } from "@/lib/calls/classify-type";
+import {
+  resolveCallParticipants,
+  createSupabaseResolverDb,
+  type ParticipantSignal,
+} from "@/lib/calls/resolve-participants";
 
 // Sub-task slug mapping — only populated for prospect-sequence call types.
 const CALL_TYPE_TO_SUB_TASK: Record<string, string> = {
@@ -56,6 +61,8 @@ export async function GET(request: NextRequest) {
     const { data: subTasks } = await supabase.from("pipeline_sub_tasks").select("id, slug");
     const subTaskSlugMap = new Map((subTasks ?? []).map((st) => [st.slug, st.id]));
 
+    const resolverDb = createSupabaseResolverDb(supabase);
+
     let created = 0;
     let updated = 0;
     let skipped = 0;
@@ -65,43 +72,46 @@ export async function GET(request: NextRequest) {
       const ghlEventId = event.id;
       if (!ghlEventId) { skipped++; continue; }
 
-      // Resolve contact
+      // Build participant signals from what GHL gives us.
       const ghlContactId = event.contactId;
-      let localContactId: string | null = null;
-      let contactGhlId: string | null = null;
-      if (ghlContactId) {
-        const { data: contact } = await supabase
-          .from("contacts")
-          .select("id, ghl_contact_id")
-          .eq("ghl_contact_id", ghlContactId)
-          .maybeSingle();
-        localContactId = contact?.id ?? null;
-        contactGhlId = contact?.ghl_contact_id ?? null;
-      }
+      const signals: ParticipantSignal[] = [];
 
-      // Resolve hosted_by from GHL assigned user
+      // Host — resolver will recognize as NAH team.
       const assignedUserId = (event as unknown as Record<string, unknown>).assignedUserId as string | undefined;
       const hostedByUserId = assignedUserId ? userMap.get(assignedUserId) ?? null : null;
       const hostEmail = assignedUserId ? userEmailMap.get(assignedUserId) ?? null : null;
+      if (hostEmail) signals.push({ email: hostEmail });
 
-      // Territory-owner signal: is the resolved contact a current franchisee?
-      let hasTerritoryOwner = false;
-      if (contactGhlId) {
-        const { data: owner } = await supabase
-          .from("territory_owners")
-          .select("ms_slug")
-          .eq("ghl_contact_id", contactGhlId)
-          .is("end_date", null)
+      // Contact — feed email + phone + name so the resolver can confirm or
+      // upgrade the link (e.g., phone rematch if email changed in GHL).
+      if (ghlContactId) {
+        const { data: contact } = await supabase
+          .from("contacts")
+          .select("email, phone, first_name, last_name")
+          .eq("ghl_contact_id", ghlContactId)
           .maybeSingle();
-        hasTerritoryOwner = !!owner;
+        if (contact) {
+          const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim() || null;
+          signals.push({
+            email: contact.email ?? null,
+            phone: contact.phone ?? null,
+            name,
+          });
+        }
       }
+
+      const match = await resolveCallParticipants(
+        { participants: signals, meeting_title: event.title ?? null, source: "ghl_calendar" },
+        resolverDb,
+      );
+      const localContactId = match.contact_id;
 
       const classification = classifyCallType({
         title: event.title ?? null,
         nah_emails: hostEmail ? [hostEmail] : [],
         is_internal: false,
         has_external_participant: !!localContactId,
-        has_territory_owner: hasTerritoryOwner,
+        has_territory_owner: !!match.territory_ms_slug,
         source: "ghl_calendar",
       });
       const callTypeId = slugToCallTypeId.get(classification.slug) ?? null;
@@ -157,6 +167,9 @@ export async function GET(request: NextRequest) {
 
         const updatePayload: Record<string, unknown> = {
           contact_id: localContactId,
+          territory_ms_slug: match.territory_ms_slug,
+          match_confidence: match.confidence,
+          match_reason: match.reason,
           sub_task_id: subTaskId,
           contact_pipeline_state_id: contactPipelineStateId,
           scheduled_at: event.startTime,
@@ -179,8 +192,11 @@ export async function GET(request: NextRequest) {
         await supabase.from("calls").insert({
           ghl_event_id: ghlEventId,
           contact_id: localContactId,
+          territory_ms_slug: match.territory_ms_slug,
           call_type_id: callTypeId,
           classification_reason: classification.reason,
+          match_confidence: match.confidence,
+          match_reason: match.reason,
           sub_task_id: subTaskId,
           contact_pipeline_state_id: contactPipelineStateId,
           source: "ghl_calendar",

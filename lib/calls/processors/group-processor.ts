@@ -1,5 +1,6 @@
 /**
- * Group call processor — creates call record, pending KB suggestion, flags for journal.
+ * Group call processor — writes contact_id/territory from the shared resolver,
+ * inserts the participant list, triggers downstream review.
  */
 
 import { createServerClient } from "@/lib/supabase/server";
@@ -17,24 +18,17 @@ export async function processGroupCall(
   const supabase = createServerClient();
 
   const isInternal = classified.call_type === "internal";
-
-  // 1. Classify via shared helper
-  const nahEmails = (classified.resolved_participants ?? [])
+  const nahEmails = classified.match.participants
     .filter((p) => p.role === "nah_team" && p.email)
     .map((p) => p.email as string);
-  const hasTerritoryOwner = (classified.resolved_participants ?? []).some(
-    (p) => !!p.territory_ms_slug,
-  );
   const classification = classifyCallType({
     title: payload.title ?? null,
     nah_emails: nahEmails,
     is_internal: isInternal,
     has_external_participant: !isInternal,
-    has_territory_owner: hasTerritoryOwner,
+    has_territory_owner: !!classified.match.territory_ms_slug,
     source: "read_ai",
   });
-
-  // 2. Resolve slug → call_type row
   const callType = await resolveCallTypeBySlug(supabase, classification.slug);
 
   const typeLabel = callType.name ?? (isInternal ? "Team Call" : "Group Call");
@@ -46,8 +40,12 @@ export async function processGroupCall(
   const { data: callRecord } = await supabase
     .from("calls")
     .insert({
+      contact_id: classified.match.contact_id,
+      territory_ms_slug: classified.match.territory_ms_slug,
       call_type_id: callType.id,
       classification_reason: classification.reason,
+      match_confidence: classified.match.confidence,
+      match_reason: classified.match.reason,
       read_ai_session_id: payload.session_id,
       title: standardizeTitle(typeLabel, externalNames, payload.title ?? null),
       started_at: payload.start_time ?? null,
@@ -66,19 +64,14 @@ export async function processGroupCall(
 
   if (!callRecord) return;
 
-  // 3. Insert call_participants
-  await insertCallParticipants(callRecord.id, classified.resolved_participants ?? []);
-
-  // 3b. Reconcile — link any unmatched participants to contacts/territories immediately
+  await insertCallParticipants(callRecord.id, classified.match.participants);
   await reconcileCall(callRecord.id);
 
-  // 4. Link call back to read_ai_sessions
   await supabase
     .from("read_ai_sessions")
     .update({ linked_call_id: callRecord.id })
     .eq("session_id", payload.session_id);
 
-  // 5. Store transcript
   const hasTranscript = (payload.transcript?.speaker_blocks?.length ?? 0) > 0 || (payload.transcript?.turns?.length ?? 0) > 0;
   if (hasTranscript) {
     await supabase.from("call_transcripts").insert({
@@ -89,7 +82,6 @@ export async function processGroupCall(
     });
   }
 
-  // 6. Trigger review pipeline (Scout will analyze transcript)
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   try {
     await fetch(`${appUrl}/api/calls/${callRecord.id}/review-package`, {
@@ -99,8 +91,6 @@ export async function processGroupCall(
   } catch {
     // Non-critical
   }
-
-  // 7. Trigger Scout generation (summary, coaching, next steps, data extractions)
   if (hasTranscript) {
     try {
       await fetch(`${appUrl}/api/calls/${callRecord.id}/generate`, {
@@ -108,7 +98,7 @@ export async function processGroupCall(
         headers: { "Content-Type": "application/json" },
       });
     } catch {
-      // Non-critical — generation can be triggered manually from the UI
+      // Non-critical
     }
   }
 }

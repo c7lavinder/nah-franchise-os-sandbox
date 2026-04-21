@@ -4,6 +4,13 @@
  */
 
 import { createServerClient } from "@/lib/supabase/server";
+import {
+  resolveCallParticipants,
+  createSupabaseResolverDb,
+  type ResolveResult,
+  type ResolvedCallParticipant,
+  type ParticipantSignal,
+} from "./resolve-participants";
 
 /** NAH team emails — identifies internal participants.
  *  Must match users table exactly. Do NOT use domain matching —
@@ -105,27 +112,19 @@ export interface ReadAIWebhookPayload {
   };
 }
 
-export interface ResolvedParticipant {
-  email: string | null;
-  display_name: string | null;
-  role: "nah_team" | "prospect" | "franchisee" | "unknown";
-  user_id: string | null;
-  contact_id: string | null;
-  contact_ghl_id: string | null;
-  territory_ms_slug: string | null;
-}
+// Backward-compat alias — use ResolvedCallParticipant from resolve-participants.ts directly in new code.
+export type ResolvedParticipant = ResolvedCallParticipant;
 
 export interface ClassifiedCall {
   call_type: "prospect" | "coaching" | "group" | "internal" | "unknown";
   nah_participant_email: string | null;
   external_participant_email: string | null;
   external_participant_name: string | null;
-  contact_id: string | null;
-  territory_ms_slug: string | null;
   coach_user_id: string | null;
   confidence: "high" | "medium" | "low";
   classification_reason: string;
-  resolved_participants: ResolvedParticipant[];
+  /** Output of the shared participant resolver — contact/territory/participants/etc. */
+  match: ResolveResult;
 }
 
 export function isNAHTeamEmail(email: string | null | undefined): boolean {
@@ -148,186 +147,63 @@ export function standardizeTitle(
   return originalTitle ?? type;
 }
 
-/** Resolve all participants to user/contact records */
-async function resolveAllParticipants(
-  participants: ReadAIParticipant[],
-  supabase: ReturnType<typeof createServerClient>
-): Promise<ResolvedParticipant[]> {
-  // Load team emails dynamically from DB
-  const teamEmails = await loadTeamEmails();
-  const teamEmailSet = new Set(teamEmails);
-
-  const resolved: ResolvedParticipant[] = [];
-
-  for (const p of participants) {
-    const email = p.email?.toLowerCase() ?? null;
-    if (!email) {
-      resolved.push({ email: null, display_name: p.name ?? null, role: "unknown", user_id: null, contact_id: null, contact_ghl_id: null, territory_ms_slug: null });
-      continue;
-    }
-
-    // NAH team member (checked against dynamic users table)
-    if (teamEmailSet.has(email)) {
-      const { data: user } = await supabase
-        .from("users")
-        .select("id, full_name")
-        .ilike("email", email)
-        .maybeSingle();
-      resolved.push({
-        email,
-        display_name: user?.full_name ?? p.name ?? email.split("@")[0],
-        role: "nah_team",
-        user_id: user?.id ?? null,
-        contact_id: null,
-        contact_ghl_id: null,
-        territory_ms_slug: null,
-      });
-      continue;
-    }
-
-    // External — try to match to contact
-    const { data: contact } = await supabase
-      .from("contacts")
-      .select("id, ghl_contact_id, first_name, last_name")
-      .ilike("email", email)
-      .maybeSingle();
-
-    if (contact) {
-      // Check if franchisee
-      const { data: ownerLink } = await supabase
-        .from("territory_owners")
-        .select("ms_slug")
-        .eq("ghl_contact_id", contact.ghl_contact_id)
-        .is("end_date", null)
-        .maybeSingle();
-
-      const isFranchisee = !!ownerLink?.ms_slug;
-      resolved.push({
-        email,
-        display_name: [contact.first_name, contact.last_name].filter(Boolean).join(" ") || p.name || email,
-        role: isFranchisee ? "franchisee" : "prospect",
-        user_id: null,
-        contact_id: contact.id,
-        contact_ghl_id: contact.ghl_contact_id,
-        territory_ms_slug: ownerLink?.ms_slug ?? null,
-      });
-    } else {
-      // Derive readable name: prefer Read.ai name, then email local part cleaned up
-      const fallbackName = p.name && !p.name.includes("@")
-        ? p.name
-        : email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-      resolved.push({
-        email,
-        display_name: fallbackName,
-        role: "unknown",
-        user_id: null,
-        contact_id: null,
-        contact_ghl_id: null,
-        territory_ms_slug: null,
-      });
-    }
-  }
-
-  return resolved;
-}
-
 export async function classifyCall(
-  payload: ReadAIWebhookPayload
+  payload: ReadAIWebhookPayload,
 ): Promise<ClassifiedCall> {
   const supabase = createServerClient();
-  const participants = payload.participants ?? [];
-  const participantEmails = participants
-    .map((p) => p.email?.toLowerCase())
-    .filter(Boolean) as string[];
+  const db = createSupabaseResolverDb(supabase);
 
-  // Build live team email set from users table (not hardcoded list)
-  const { data: teamUsers } = await supabase
-    .from("users")
-    .select("email")
-    .eq("is_active", true)
-    .not("email", "is", null);
-  const liveTeamEmails = new Set(
-    (teamUsers ?? []).map((u) => u.email!.toLowerCase()),
+  // Build participant signals — Read.ai payloads include email + name, not phone.
+  const signals: ParticipantSignal[] = (payload.participants ?? []).map((p) => ({
+    email: p.email?.toLowerCase() ?? null,
+    name: p.name ?? null,
+    phone: null,
+  }));
+
+  const match = await resolveCallParticipants(
+    { participants: signals, meeting_title: payload.title ?? null, source: "read_ai" },
+    db,
   );
 
-  // Resolve all participants up front
-  const resolved_participants = await resolveAllParticipants(participants, supabase);
+  const nah = match.participants.filter((p) => p.role === "nah_team");
+  const external = match.participants.filter((p) => p.role !== "nah_team");
+  const nahEmail = nah[0]?.email ?? null;
+  const firstExternal = external[0] ?? null;
 
-  const nahParticipants = participantEmails.filter((e) =>
-    liveTeamEmails.has(e)
-  );
-  const externalParticipants = participantEmails.filter(
-    (e) => !liveTeamEmails.has(e)
-  );
-
-  // INTERNAL — all participants are NAH team
-  if (externalParticipants.length === 0 && nahParticipants.length > 0) {
+  // INTERNAL — NAH-only
+  if (external.length === 0 && nah.length > 0) {
     return {
       call_type: "internal",
-      nah_participant_email: nahParticipants[0] ?? null,
+      nah_participant_email: nahEmail,
       external_participant_email: null,
       external_participant_name: null,
-      contact_id: null,
-      territory_ms_slug: null,
       coach_user_id: null,
       confidence: "high",
       classification_reason: "All participants are NAH team members",
-      resolved_participants,
+      match,
     };
   }
 
-  // GROUP — 3+ external participants (not just 3+ total — NAH team on a prospect call doesn't make it a group call)
-  if (externalParticipants.length >= 3) {
+  // GROUP — 3+ external
+  if (external.length >= 3) {
     return {
       call_type: "group",
-      nah_participant_email: nahParticipants[0] ?? null,
+      nah_participant_email: nahEmail,
       external_participant_email: null,
       external_participant_name: null,
-      contact_id: null,
-      territory_ms_slug: null,
       coach_user_id: null,
       confidence: "high",
-      classification_reason: `${externalParticipants.length} external participants — group call`,
-      resolved_participants,
+      classification_reason: `${external.length} external participants — group call`,
+      match,
     };
   }
 
-  // 1-2 external participants — prospect or coaching call
-  if (externalParticipants.length >= 1) {
-    const externalEmail = externalParticipants[0];
-    const externalParticipant = participants.find(
-      (p) => p.email?.toLowerCase() === externalEmail
-    );
-    const nahEmail = nahParticipants[0] ?? null;
+  // 1-2 external — prospect or coaching
+  if (firstExternal) {
+    const isCoach = !!nahEmail && COACH_EMAILS.includes(nahEmail);
+    const hasTerritoryOwner = !!match.territory_ms_slug;
 
-    // Try to match external to a contact
-    const { data: contact } = await supabase
-      .from("contacts")
-      .select("id, ghl_contact_id, first_name, last_name")
-      .ilike("email", externalEmail)
-      .maybeSingle();
-
-    const contactName = contact
-      ? [contact.first_name, contact.last_name].filter(Boolean).join(" ")
-      : null;
-
-    // Try to match to a franchise owner (territory_owners)
-    let ownerSlug: string | null = null;
-    if (contact?.ghl_contact_id) {
-      const { data: ownerLink } = await supabase
-        .from("territory_owners")
-        .select("ms_slug")
-        .eq("ghl_contact_id", contact.ghl_contact_id)
-        .is("end_date", null)
-        .maybeSingle();
-      ownerSlug = ownerLink?.ms_slug ?? null;
-    }
-
-    const isCoachCall = !!nahEmail && COACH_EMAILS.includes(nahEmail);
-    const isFranchiseOwner = !!ownerSlug;
-
-    // COACHING — NAH coach + franchise owner
-    if (isCoachCall && isFranchiseOwner) {
+    if (isCoach && hasTerritoryOwner) {
       let coachUserId: string | null = null;
       if (nahEmail) {
         const { data: coachUser } = await supabase
@@ -337,55 +213,45 @@ export async function classifyCall(
           .maybeSingle();
         coachUserId = coachUser?.id ?? null;
       }
-
       return {
         call_type: "coaching",
         nah_participant_email: nahEmail,
-        external_participant_email: externalEmail,
-        external_participant_name:
-          externalParticipant?.name ?? contactName ?? null,
-        contact_id: contact?.ghl_contact_id ?? null,
-        territory_ms_slug: ownerSlug,
+        external_participant_email: firstExternal.email,
+        external_participant_name: firstExternal.display_name,
         coach_user_id: coachUserId,
         confidence: "high",
-        classification_reason: `Coach (${nahEmail}) + franchise owner (${externalEmail})`,
-        resolved_participants,
+        classification_reason: `Coach (${nahEmail}) + franchise owner (${firstExternal.email})`,
+        match,
       };
     }
 
-    // PROSPECT — sales team + contact in pipeline (or unknown external)
-    const isSalesCall = !!nahEmail && SALES_EMAILS.includes(nahEmail);
-    if (isSalesCall || !isFranchiseOwner) {
+    const isSales = !!nahEmail && SALES_EMAILS.includes(nahEmail);
+    if (isSales || !hasTerritoryOwner) {
       return {
         call_type: "prospect",
         nah_participant_email: nahEmail,
-        external_participant_email: externalEmail,
-        external_participant_name:
-          externalParticipant?.name ?? contactName ?? null,
-        contact_id: contact?.ghl_contact_id ?? null,
-        territory_ms_slug: null,
+        external_participant_email: firstExternal.email,
+        external_participant_name: firstExternal.display_name,
         coach_user_id: null,
-        confidence: contact ? "high" : "medium",
-        classification_reason: contact
-          ? `Sales call — matched to contact ${contactName}`
-          : `Sales call — external email not in system (${externalEmail})`,
-        resolved_participants,
+        confidence: match.contact_id ? "high" : "medium",
+        classification_reason: match.contact_id
+          ? `Sales call — matched to contact ${firstExternal.display_name}`
+          : `Sales call — external email not in system (${firstExternal.email})`,
+        match,
       };
     }
   }
 
-  // UNKNOWN — cannot classify
+  // UNKNOWN
   return {
     call_type: "unknown",
-    nah_participant_email: nahParticipants[0] ?? null,
-    external_participant_email: externalParticipants[0] ?? null,
-    external_participant_name: null,
-    contact_id: null,
-    territory_ms_slug: null,
+    nah_participant_email: nahEmail,
+    external_participant_email: firstExternal?.email ?? null,
+    external_participant_name: firstExternal?.display_name ?? null,
     coach_user_id: null,
     confidence: "low",
     classification_reason: "Could not determine call type from participants",
-    resolved_participants,
+    match,
   };
 }
 

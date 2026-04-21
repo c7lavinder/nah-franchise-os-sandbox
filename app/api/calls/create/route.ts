@@ -1,18 +1,22 @@
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/calls/create — manual call entry
- * Creates a call record from user input (title, contact, call type, date, notes).
+ * POST /api/calls/create — manual call entry.
  *
- * When the user explicitly picks a call type from the dropdown, that choice
- * wins. When they leave it blank, the shared classifyCallType helper fills
- * in the best match based on the other inputs.
+ * When the rep explicitly picks a call type or a contact from the dropdown,
+ * that choice wins. When they leave a field blank, the shared resolver fills
+ * it in based on whatever signals we have.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { classifyCallType } from "@/lib/calls/classify-type";
 import { resolveCallTypeBySlug } from "@/lib/calls/resolve-call-type";
+import {
+  resolveCallParticipants,
+  createSupabaseResolverDb,
+  type ParticipantSignal,
+} from "@/lib/calls/resolve-participants";
 
 export async function POST(request: NextRequest) {
   const supabase = createServerClient();
@@ -44,15 +48,63 @@ export async function POST(request: NextRequest) {
 
   const durationSeconds = duration_minutes ? duration_minutes * 60 : null;
 
+  // ─── Resolve contact / territory ────────────────────────────────────────
+  let finalContactId: string | null = null;
+  let finalTerritorySlug: string | null = null;
+  let matchConfidence = 0;
+  let matchReason = "no signals matched";
+
+  if (contact_id) {
+    finalContactId = contact_id;
+    matchConfidence = 1.0;
+    matchReason = "manually selected by user";
+
+    // If the user picked a contact, still fetch their territory so downstream
+    // coaching logic works without the user having to enter it.
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("ghl_contact_id")
+      .eq("id", contact_id)
+      .maybeSingle();
+    if (contact?.ghl_contact_id) {
+      const { data: owner } = await supabase
+        .from("territory_owners")
+        .select("ms_slug")
+        .eq("ghl_contact_id", contact.ghl_contact_id)
+        .is("end_date", null)
+        .maybeSingle();
+      finalTerritorySlug = owner?.ms_slug ?? null;
+    }
+  } else {
+    // No user override — ask the resolver with what little we have.
+    const signals: ParticipantSignal[] = [];
+    if (hosted_by_user_id) {
+      const { data: hostUser } = await supabase
+        .from("users")
+        .select("email")
+        .eq("id", hosted_by_user_id)
+        .maybeSingle();
+      if (hostUser?.email) signals.push({ email: hostUser.email });
+    }
+    const resolverDb = createSupabaseResolverDb(supabase);
+    const match = await resolveCallParticipants(
+      { participants: signals, meeting_title: title.trim(), source: "manual" },
+      resolverDb,
+    );
+    finalContactId = match.contact_id;
+    finalTerritorySlug = match.territory_ms_slug;
+    matchConfidence = match.confidence;
+    matchReason = match.reason;
+  }
+
+  // ─── Resolve call type ──────────────────────────────────────────────────
   let finalCallTypeId: string | null = null;
   let classificationReason: string;
 
   if (call_type_id) {
-    // User override — respect the dropdown choice.
     finalCallTypeId = call_type_id;
     classificationReason = "manually selected by user";
   } else {
-    // Gather signals for the classifier.
     let hostEmail: string | null = null;
     if (hosted_by_user_id) {
       const { data: hostUser } = await supabase
@@ -63,30 +115,12 @@ export async function POST(request: NextRequest) {
       hostEmail = hostUser?.email ?? null;
     }
 
-    let hasTerritoryOwner = false;
-    if (contact_id) {
-      const { data: contact } = await supabase
-        .from("contacts")
-        .select("ghl_contact_id")
-        .eq("id", contact_id)
-        .maybeSingle();
-      if (contact?.ghl_contact_id) {
-        const { data: owner } = await supabase
-          .from("territory_owners")
-          .select("ms_slug")
-          .eq("ghl_contact_id", contact.ghl_contact_id)
-          .is("end_date", null)
-          .maybeSingle();
-        hasTerritoryOwner = !!owner;
-      }
-    }
-
     const classification = classifyCallType({
       title: title.trim(),
       nah_emails: hostEmail ? [hostEmail] : [],
       is_internal: false,
-      has_external_participant: !!contact_id,
-      has_territory_owner: hasTerritoryOwner,
+      has_external_participant: !!finalContactId,
+      has_territory_owner: !!finalTerritorySlug,
       source: "manual",
     });
     const resolved = await resolveCallTypeBySlug(supabase, classification.slug);
@@ -98,9 +132,12 @@ export async function POST(request: NextRequest) {
     .from("calls")
     .insert({
       title: title.trim(),
-      contact_id: contact_id || null,
+      contact_id: finalContactId,
+      territory_ms_slug: finalTerritorySlug,
       call_type_id: finalCallTypeId,
       classification_reason: classificationReason,
+      match_confidence: matchConfidence,
+      match_reason: matchReason,
       hosted_by_user_id: hosted_by_user_id || null,
       scheduled_at: scheduled_at || null,
       started_at: started_at || null,

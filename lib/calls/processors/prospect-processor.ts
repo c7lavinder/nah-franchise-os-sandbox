@@ -16,9 +16,9 @@ export async function processProspectCall(
 ): Promise<void> {
   const supabase = createServerClient();
 
-  // 1. Create or find contact if not matched
-  let contactId = classified.contact_id;
-  if (!contactId && classified.external_participant_email) {
+  // 1. Create a contact if the classifier couldn't match one.
+  let resolvedContactUuid = classified.match.contact_id;
+  if (!resolvedContactUuid && classified.external_participant_email) {
     const { data: newContact } = await supabase
       .from("contacts")
       .insert({
@@ -28,13 +28,13 @@ export async function processProspectCall(
         opportunity_source: "Read.ai Call",
         needs_review: true,
       })
-      .select("ghl_contact_id")
+      .select("id")
       .single();
-    contactId = newContact?.ghl_contact_id ?? null;
+    resolvedContactUuid = newContact?.id ?? null;
   }
 
-  // 2. Classify via shared helper
-  const nahEmails = (classified.resolved_participants ?? [])
+  // 2. Determine call type via the shared helper.
+  const nahEmails = classified.match.participants
     .filter((p) => p.role === "nah_team" && p.email)
     .map((p) => p.email as string);
   if (classified.nah_participant_email && !nahEmails.includes(classified.nah_participant_email)) {
@@ -45,14 +45,12 @@ export async function processProspectCall(
     nah_emails: nahEmails,
     is_internal: false,
     has_external_participant: true,
-    has_territory_owner: !!classified.territory_ms_slug,
+    has_territory_owner: !!classified.match.territory_ms_slug,
     source: "read_ai",
   });
-
-  // 3. Resolve slug → call_type row
   const callType = await resolveCallTypeBySlug(supabase, classification.slug);
 
-  // 4. Look up host user
+  // 3. Look up host user.
   let hostedByUserId: string | null = null;
   if (classified.nah_participant_email) {
     const { data: hostUser } = await supabase
@@ -63,24 +61,16 @@ export async function processProspectCall(
     hostedByUserId = hostUser?.id ?? null;
   }
 
-  // 5. Resolve contact to local UUID
-  let contactUuid: string | null = null;
-  if (contactId) {
-    const { data: localContact } = await supabase
-      .from("contacts")
-      .select("id")
-      .eq("ghl_contact_id", contactId)
-      .maybeSingle();
-    contactUuid = localContact?.id ?? null;
-  }
-
-  // 6. Create call record
+  // 4. Insert the call.
   const { data: callRecord } = await supabase
     .from("calls")
     .insert({
-      contact_id: contactUuid,
+      contact_id: resolvedContactUuid,
       call_type_id: callType.id,
       classification_reason: classification.reason,
+      match_confidence: classified.match.confidence,
+      match_reason: classified.match.reason,
+      territory_ms_slug: classified.match.territory_ms_slug,
       read_ai_session_id: payload.session_id,
       title: standardizeTitle(
         callType.name,
@@ -102,19 +92,19 @@ export async function processProspectCall(
 
   if (!callRecord) return;
 
-  // 7. Insert call_participants
-  await insertCallParticipants(callRecord.id, classified.resolved_participants ?? []);
+  // 5. Insert call_participants (the resolver already did the matching).
+  await insertCallParticipants(callRecord.id, classified.match.participants);
 
-  // 7b. Reconcile — link any unmatched participants to contacts/territories immediately
+  // 5b. Safety-net reconcile for contacts that appear after the call lands.
   await reconcileCall(callRecord.id);
 
-  // 8. Link call back to read_ai_sessions
+  // 6. Link call back to read_ai_sessions
   await supabase
     .from("read_ai_sessions")
     .update({ linked_call_id: callRecord.id })
     .eq("session_id", payload.session_id);
 
-  // 8. Store transcript in call_transcripts table
+  // 7. Store transcript
   const hasTranscript = (payload.transcript?.speaker_blocks?.length ?? 0) > 0 || (payload.transcript?.turns?.length ?? 0) > 0;
   if (hasTranscript) {
     await supabase.from("call_transcripts").insert({
@@ -125,7 +115,7 @@ export async function processProspectCall(
     });
   }
 
-  // 9. Trigger review pipeline (non-blocking)
+  // 8. Trigger review pipeline
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   try {
     await fetch(`${appUrl}/api/calls/${callRecord.id}/review-package`, {
@@ -133,10 +123,10 @@ export async function processProspectCall(
       headers: { "Content-Type": "application/json" },
     });
   } catch {
-    // Non-critical — review can be triggered manually
+    // Non-critical
   }
 
-  // 10. Trigger Scout generation (summary, coaching, next steps, data extractions)
+  // 9. Trigger Scout generation
   if (hasTranscript) {
     try {
       await fetch(`${appUrl}/api/calls/${callRecord.id}/generate`, {
@@ -144,7 +134,7 @@ export async function processProspectCall(
         headers: { "Content-Type": "application/json" },
       });
     } catch {
-      // Non-critical — generation can be triggered manually from the UI
+      // Non-critical
     }
   }
 }

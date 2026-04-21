@@ -16,21 +16,10 @@ export async function processCoachingCall(
 ): Promise<void> {
   const supabase = createServerClient();
 
-  if (!classified.territory_ms_slug) return;
+  if (!classified.match.territory_ms_slug) return;
 
-  // 1. Resolve contact to local UUID
-  let contactUuid: string | null = null;
-  if (classified.contact_id) {
-    const { data: localContact } = await supabase
-      .from("contacts")
-      .select("id")
-      .eq("ghl_contact_id", classified.contact_id)
-      .maybeSingle();
-    contactUuid = localContact?.id ?? null;
-  }
-
-  // 2. Classify via shared helper
-  const nahEmails = (classified.resolved_participants ?? [])
+  // 1. Classify call type
+  const nahEmails = classified.match.participants
     .filter((p) => p.role === "nah_team" && p.email)
     .map((p) => p.email as string);
   const classification = classifyCallType({
@@ -41,19 +30,19 @@ export async function processCoachingCall(
     has_territory_owner: true,
     source: "read_ai",
   });
-
-  // 3. Resolve slug → call_type row
   const callType = await resolveCallTypeBySlug(supabase, classification.slug);
 
-  // 3. Create call record
+  // 2. Insert call
   const { data: callRecord } = await supabase
     .from("calls")
     .insert({
-      contact_id: contactUuid,
-      territory_ms_slug: classified.territory_ms_slug,
+      contact_id: classified.match.contact_id,
+      territory_ms_slug: classified.match.territory_ms_slug,
       coach_user_id: classified.coach_user_id,
       call_type_id: callType.id,
       classification_reason: classification.reason,
+      match_confidence: classified.match.confidence,
+      match_reason: classified.match.reason,
       read_ai_session_id: payload.session_id,
       title: standardizeTitle(
         callType.name ?? "Coaching Call",
@@ -75,13 +64,13 @@ export async function processCoachingCall(
 
   if (!callRecord) return;
 
-  // 4. Insert call_participants
-  await insertCallParticipants(callRecord.id, classified.resolved_participants ?? []);
+  // 3. Insert call_participants
+  await insertCallParticipants(callRecord.id, classified.match.participants);
 
-  // 4b. Reconcile — link any unmatched participants to contacts/territories immediately
+  // 3b. Safety-net reconcile
   await reconcileCall(callRecord.id);
 
-  // 5. Link call back to read_ai_sessions
+  // 4. Link back to read_ai_sessions
   await supabase
     .from("read_ai_sessions")
     .update({ linked_call_id: callRecord.id })
@@ -98,7 +87,7 @@ export async function processCoachingCall(
     });
   }
 
-  // 6. Trigger review pipeline
+  // 6. Review pipeline
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   try {
     await fetch(`${appUrl}/api/calls/${callRecord.id}/review-package`, {
@@ -109,7 +98,7 @@ export async function processCoachingCall(
     // Non-critical
   }
 
-  // 7. Trigger Scout generation (summary, coaching, next steps, data extractions)
+  // 7. Scout generation
   if (hasTranscript) {
     try {
       await fetch(`${appUrl}/api/calls/${callRecord.id}/generate`, {
@@ -117,7 +106,7 @@ export async function processCoachingCall(
         headers: { "Content-Type": "application/json" },
       });
     } catch {
-      // Non-critical — generation can be triggered manually from the UI
+      // Non-critical
     }
   }
 }
