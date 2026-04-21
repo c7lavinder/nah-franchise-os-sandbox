@@ -1,7 +1,11 @@
 /**
  * Scorecard data fetchers for Daily HQ, Calls, and Pipeline pages.
  *
- * Week = rolling 7 days (now - 7 days to now).
+ * Rolling week = last 7 days (now - 7 days to now).
+ * Calendar week = Monday 00:00 through Sunday 23:59 of the current week.
+ *
+ * The Calls page tab "This Week" filters on calendar week, so the
+ * "Calls This Week" card must match to avoid a confusing count mismatch.
  */
 
 import { createServerClient } from "@/lib/supabase/server";
@@ -12,6 +16,19 @@ export function getWeekBounds(): { start: Date; end: Date } {
   start.setDate(now.getDate() - 7);
   start.setHours(0, 0, 0, 0);
   return { start, end: now };
+}
+
+export function getCalendarWeekBounds(): { start: Date; end: Date } {
+  const now = new Date();
+  const day = now.getDay(); // 0 = Sun, 1 = Mon, ...
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return { start: monday, end: sunday };
 }
 
 // ─────────────────────────────────────────────
@@ -75,16 +92,29 @@ const CALL_SUB_TASK_SLUGS = [
 
 export async function getCallsScorecard() {
   const supabase = createServerClient();
-  const { start, end } = getWeekBounds();
+  const calendarWeek = getCalendarWeekBounds();
+  const rolling = getWeekBounds();
 
-  // Calls completed in rolling 7 days (from calls table directly)
-  const { count: callsCompleted } = await supabase
+  // Calls "this week" — match the calls-page tab exactly: any call (any status)
+  // whose primary date (scheduled_at ?? started_at ?? created_at) falls in the
+  // current calendar week Mon–Sun. Supabase PostgREST can't filter on a
+  // COALESCE expression, so we fetch the minimal columns and count in JS.
+  const { data: weekCandidates } = await supabase
     .from("calls")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "completed")
-    .gte("started_at", start.toISOString())
-    .lte("started_at", end.toISOString())
-    .is("deleted_at", null);
+    .select("scheduled_at, started_at, created_at")
+    .is("deleted_at", null)
+    .or(
+      `and(scheduled_at.gte.${calendarWeek.start.toISOString()},scheduled_at.lte.${calendarWeek.end.toISOString()}),` +
+      `and(started_at.gte.${calendarWeek.start.toISOString()},started_at.lte.${calendarWeek.end.toISOString()}),` +
+      `and(created_at.gte.${calendarWeek.start.toISOString()},created_at.lte.${calendarWeek.end.toISOString()})`,
+    );
+
+  const callsCompleted = (weekCandidates ?? []).filter((c) => {
+    const d = c.scheduled_at ?? c.started_at ?? c.created_at;
+    if (!d) return false;
+    const dt = new Date(d);
+    return dt >= calendarWeek.start && dt <= calendarWeek.end;
+  }).length;
 
   // Calls scheduled (future scheduled_at or status = scheduled)
   const { count: callsScheduled } = await supabase
@@ -94,12 +124,13 @@ export async function getCallsScorecard() {
     .gte("scheduled_at", new Date().toISOString())
     .is("deleted_at", null);
 
-  // Avg coaching score from calls with ai generation in last 7 days
+  // Avg coaching score — rolling 7 days. Different metric from the tab count,
+  // so a different window is fine; keep the sub text honest.
   const { data: scoredCalls } = await supabase
     .from("calls")
     .select("coaching_score")
-    .gte("started_at", start.toISOString())
-    .lte("started_at", end.toISOString())
+    .gte("started_at", rolling.start.toISOString())
+    .lte("started_at", rolling.end.toISOString())
     .not("coaching_score", "is", null)
     .is("deleted_at", null);
 
@@ -110,7 +141,7 @@ export async function getCallsScorecard() {
   }
 
   return {
-    callsCompleted: { value: callsCompleted ?? 0, label: "Calls This Week", sub: "last 7 days" },
+    callsCompleted: { value: callsCompleted, label: "Calls This Week", sub: "Mon–Sun" },
     callsScheduled: { value: callsScheduled ?? 0, label: "Calls Scheduled", sub: "upcoming" },
     avgCallScore: { value: avgScore, label: "Avg Call Score", sub: "last 7 days" },
   };
