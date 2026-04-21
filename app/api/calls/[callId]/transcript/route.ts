@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { transcribeAudio } from "@/lib/calls/whisper";
+import { resolveJpsIdForCps } from "@/lib/journeys/sync";
 
 interface TranscriptBody {
   source: "manual_paste" | "upload" | "whisper";
@@ -80,8 +81,10 @@ export async function POST(
     // Auto-log to contact_sub_task_logs if call has sub_task + pipeline state
     if (call.sub_task_id && call.contact_pipeline_state_id) {
       const preview = fullText.length > 500 ? fullText.slice(0, 500) + "... [full transcript in call]" : fullText;
+      const jpsId = await resolveJpsIdForCps(supabase, call.contact_pipeline_state_id);
       await supabase.from("contact_sub_task_logs").insert({
         contact_pipeline_state_id: call.contact_pipeline_state_id,
+        journey_pipeline_state_id: jpsId,
         sub_task_id: call.sub_task_id,
         logger_user_id: call.hosted_by_user_id,
         source: "ai",

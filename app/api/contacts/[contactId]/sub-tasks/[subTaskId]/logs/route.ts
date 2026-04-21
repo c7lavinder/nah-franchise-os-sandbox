@@ -86,11 +86,30 @@ export async function POST(
     const loggerUserId = body.loggerUserId
       ?? (subTask.default_logger_type === "user" ? subTask.default_logger_user_id : null);
 
-    // Insert log
+    // Resolve the mirroring jps id so the log FK points at both sides. Picks
+    // the canonical NULL-territory row when present; otherwise any active jps
+    // row for this (journey, pipeline) pair. This keeps reads via jps FK
+    // working on contact-wide (non-territory) log writes.
+    const { data: journey } = await supabase
+      .from("journeys").select("id").eq("primary_contact_id", localContactId).maybeSingle();
+    let jpsId: string | null = null;
+    if (journey?.id) {
+      const { data: jpsRows } = await supabase
+        .from("journey_pipeline_state")
+        .select("id, territory_ms_slug")
+        .eq("journey_id", journey.id)
+        .eq("pipeline_id", stage.pipeline_id)
+        .eq("is_active", true);
+      const rows = jpsRows ?? [];
+      jpsId = (rows.find((r) => r.territory_ms_slug === null)?.id) ?? rows[0]?.id ?? null;
+    }
+
+    // Insert log — populate both FKs so readers on either side resolve it.
     const { data: newLog, error: logError } = await supabase
       .from("contact_sub_task_logs")
       .insert({
         contact_pipeline_state_id: pipelineState.id,
+        journey_pipeline_state_id: jpsId,
         sub_task_id: subTaskId,
         logger_user_id: loggerUserId,
         source: "manual",

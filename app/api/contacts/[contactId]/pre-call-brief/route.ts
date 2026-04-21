@@ -29,21 +29,22 @@ export async function GET(
       .eq("id", localId)
       .single();
 
-    // Pipeline state
-    const { data: cps } = await supabase
-      .from("contact_pipeline_state")
-      .select("id, current_stage_id, entered_current_stage_at, pipeline_stages (name)")
-      .eq("contact_id", localId)
+    // Pipeline state — Phase 4 read migration: jps via primary journey.
+    const { data: jps } = await supabase
+      .from("journey_pipeline_state")
+      .select("id, current_stage_id, entered_current_stage_at, pipeline_stages(name), journeys!inner(primary_contact_id)")
+      .eq("journeys.primary_contact_id", localId)
       .eq("is_active", true)
       .limit(1)
       .maybeSingle();
-    const stageName = cps ? ((cps.pipeline_stages as unknown as { name: string })?.name ?? "Unknown") : "No pipeline";
+    const stageName = jps ? ((jps.pipeline_stages as unknown as { name: string })?.name ?? "Unknown") : "No pipeline";
 
-    // Recent sub-task logs
+    // Recent sub-task logs — filter by jps FK (populated for every log since
+    // the 20260422300000 backfill).
     const { data: logs } = await supabase
       .from("contact_sub_task_logs")
       .select("content_text, content_type, created_at")
-      .eq("contact_pipeline_state_id", cps?.id ?? "")
+      .eq("journey_pipeline_state_id", jps?.id ?? "")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(10);

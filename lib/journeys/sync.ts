@@ -151,3 +151,36 @@ export async function resolveJourneyIdForContact(supabase: SB, contactId: string
     .maybeSingle();
   return data?.id ?? null;
 }
+
+/**
+ * Resolve the mirroring jps row id for a given cps row id so new
+ * contact_sub_task_logs can populate both the cps and jps FK columns.
+ * Picks the NULL-territory jps row when present (the "canonical" row for
+ * journey-level moves); otherwise the first active jps row for that
+ * (journey, pipeline). Returns null when no jps row exists.
+ */
+export async function resolveJpsIdForCps(supabase: SB, cpsId: string | null): Promise<string | null> {
+  if (!cpsId) return null;
+  const { data: cps } = await supabase
+    .from("contact_pipeline_state")
+    .select("contact_id, pipeline_id")
+    .eq("id", cpsId)
+    .maybeSingle();
+  if (!cps?.contact_id || !cps.pipeline_id) return null;
+
+  const { data: journey } = await supabase
+    .from("journeys")
+    .select("id")
+    .eq("primary_contact_id", cps.contact_id)
+    .maybeSingle();
+  if (!journey?.id) return null;
+
+  const { data: rows } = await supabase
+    .from("journey_pipeline_state")
+    .select("id, territory_ms_slug")
+    .eq("journey_id", journey.id)
+    .eq("pipeline_id", cps.pipeline_id)
+    .eq("is_active", true);
+  const list = rows ?? [];
+  return (list.find((r) => r.territory_ms_slug === null)?.id) ?? list[0]?.id ?? null;
+}

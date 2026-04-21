@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { checkAutoAdvance } from "@/lib/contacts/auto-advance";
+import { resolveJpsIdForCps } from "@/lib/journeys/sync";
 
 /** Map Trainual module/course names to sub-task names (case-insensitive matching) */
 const TRAINUAL_SUBTASK_MAP: Record<string, string> = {
@@ -161,8 +162,10 @@ export async function POST(request: NextRequest) {
   }
 
   // Log the sub-task completion
+  const jpsId = await resolveJpsIdForCps(supabase, pipelineState.id);
   await supabase.from("contact_sub_task_logs").insert({
     contact_pipeline_state_id: pipelineState.id,
+    journey_pipeline_state_id: jpsId,
     sub_task_id: subTask.id,
     logger_user_id: null,
     source: "api",

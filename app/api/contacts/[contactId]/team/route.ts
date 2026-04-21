@@ -21,11 +21,11 @@ export async function GET(
 
   const userIds = new Set<string>();
 
-  // Auto-derived: pipeline assigned users
+  // Auto-derived: pipeline assigned users — Phase 4 read migration via jps.
   const { data: states } = await supabase
-    .from("contact_pipeline_state")
-    .select("id, assigned_user_id")
-    .eq("contact_id", localId);
+    .from("journey_pipeline_state")
+    .select("id, assigned_user_id, journeys!inner(primary_contact_id)")
+    .eq("journeys.primary_contact_id", localId);
   for (const s of states ?? []) if (s.assigned_user_id) userIds.add(s.assigned_user_id);
 
   // Auto-derived: call hosts
@@ -36,13 +36,13 @@ export async function GET(
     .is("deleted_at", null);
   for (const c of calls ?? []) if (c.hosted_by_user_id) userIds.add(c.hosted_by_user_id);
 
-  // Auto-derived: sub-task loggers
-  const psIds = (states ?? []).map((s) => s.id);
-  if (psIds.length > 0) {
+  // Auto-derived: sub-task loggers — source via jps FK (populated on every log).
+  const jpsIds = (states ?? []).map((s) => s.id);
+  if (jpsIds.length > 0) {
     const { data: logs } = await supabase
       .from("contact_sub_task_logs")
       .select("logger_user_id")
-      .in("contact_pipeline_state_id", psIds)
+      .in("journey_pipeline_state_id", jpsIds)
       .is("deleted_at", null);
     for (const l of logs ?? []) if (l.logger_user_id) userIds.add(l.logger_user_id);
   }
