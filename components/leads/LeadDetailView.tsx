@@ -20,7 +20,7 @@ import RelatedPeopleCard from "@/components/contact/RelatedPeopleCard";
 import TeamCard from "@/components/contact/TeamCard";
 import TerritoryOwnershipSection from "@/components/contact/TerritoryOwnershipSection";
 import TerritoryDataTab from "@/components/contact/TerritoryDataTab";
-import EosTab from "@/components/leads/tabs/EosTab";
+import JourneyEosTab from "@/components/leads/tabs/JourneyEosTab";
 import SplitJourneyModal from "@/components/leads/SplitJourneyModal";
 import type { SplitTerritory } from "@/components/leads/SplitJourneyModal";
 import AddJourneyMemberModal from "@/components/leads/AddJourneyMemberModal";
@@ -284,6 +284,23 @@ export default function LeadDetailView({
       .flatMap((p) => p.territories ?? [])
       .find((t) => t.territory_name)?.territory_name ?? null;
 
+  // Collect unique awarded territories across every pipeline-state row so
+  // the EOS tab knows whether to show contact-scoped (pre-award) or
+  // territory-scoped (post-award) EOS, and which territories to pick from.
+  const awardedTerritories = (() => {
+    const seen = new Set<string>();
+    const out: { ms_slug: string; territory_name: string }[] = [];
+    for (const ps of pipelineStates) {
+      for (const t of ps.territories ?? []) {
+        if (!seen.has(t.ms_slug)) {
+          seen.add(t.ms_slug);
+          out.push({ ms_slug: t.ms_slug, territory_name: t.territory_name });
+        }
+      }
+    }
+    return out;
+  })();
+
   const activeMembers = members.filter((m) => m.contact_id);
   const showMemberTabs = Boolean(journeyId) && activeMembers.length >= 2;
   // Profile header stays visible on any journey page (even solo) so the
@@ -525,7 +542,14 @@ export default function LeadDetailView({
                 ) : activeTab === "territories" ? (
                   <TerritoryDataTab ghlContactId={contact?.id ?? null} />
                 ) : activeTab === "eos" ? (
-                  <EosTab contactId={contactId} carriedTerritoryName={carriedTerritoryName} />
+                  <JourneyEosTab
+                    contactId={contactId}
+                    carriedTerritoryName={carriedTerritoryName}
+                    awardedTerritories={awardedTerritories}
+                    focusedTerritorySlug={focusedTerritorySlug}
+                    onTerritoryChange={setFocusedTerritorySlug}
+                    primaryContactName={displayName}
+                  />
                 ) : null}
               </div>
             </div>
