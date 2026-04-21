@@ -11,7 +11,7 @@ import AddProspectModal from "@/components/pipeline/AddProspectModal";
  * Pipeline Page — Sprint 3 Rewire
  *
  * Top: OwnershipPath shows 6-stage Sales + 3-stage Follow-up (from Supabase)
- * Bottom: All Leads list from contact_pipeline_state (from Supabase)
+ * Bottom: All Leads list from journey_pipeline_state (from Supabase)
  *
  * Click a stage circle to filter the list to just that stage.
  */

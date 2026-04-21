@@ -421,14 +421,17 @@ async function loadCallContext(
       }
     }
 
-    // Load active prospects (in sales pipeline)
+    // Load active prospects (in sales pipeline) — source via jps + journey.
     const { data: prospectStates } = await supabase
-      .from("contact_pipeline_state")
-      .select("contact_id, current_stage_id")
+      .from("journey_pipeline_state")
+      .select("current_stage_id, journeys!inner(primary_contact_id)")
       .eq("is_active", true)
       .eq("pipeline_id", "a0000000-0000-0000-0000-000000000001"); // sales
 
-    const pContactIds = [...new Set((prospectStates ?? []).map((s) => s.contact_id))];
+    const pContactIds = [...new Set((prospectStates ?? []).map((s) => {
+      const j = s.journeys as unknown as { primary_contact_id: string } | null;
+      return j?.primary_contact_id ?? null;
+    }).filter(Boolean) as string[])];
     if (pContactIds.length > 0) {
       const { data: pContacts } = await supabase
         .from("contacts")
@@ -444,7 +447,9 @@ async function loadCallContext(
 
       const pContactStageMap = new Map<string, string>();
       for (const s of prospectStates ?? []) {
-        pContactStageMap.set(s.contact_id, pStageMap.get(s.current_stage_id) ?? "Unknown");
+        const j = s.journeys as unknown as { primary_contact_id: string } | null;
+        const cid = j?.primary_contact_id;
+        if (cid) pContactStageMap.set(cid, pStageMap.get(s.current_stage_id) ?? "Unknown");
       }
 
       for (const c of pContacts ?? []) {

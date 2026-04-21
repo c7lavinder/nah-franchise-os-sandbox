@@ -51,7 +51,7 @@ export interface PipelineSubTask {
 
 export interface SubTaskLog {
   id: string;
-  contact_pipeline_state_id: string;
+  journey_pipeline_state_id: string;
   sub_task_id: string;
   logger_user_id: string | null;
   source: "manual" | "api" | "ai";
@@ -68,7 +68,7 @@ export interface SubTaskLog {
 
 export interface StageHistoryEntry {
   id: string;
-  contact_pipeline_state_id: string;
+  journey_pipeline_state_id: string;
   from_stage_id: string | null;
   to_stage_id: string;
   moved_by_user_id: string | null;
@@ -193,7 +193,7 @@ export async function getSubTaskLogs(
   let query = supabase
     .from("contact_sub_task_logs")
     .select(`
-      id, contact_pipeline_state_id, sub_task_id, logger_user_id,
+      id, journey_pipeline_state_id, sub_task_id, logger_user_id,
       source, state_advance, content_type, content_text,
       content_file_url, content_link_url, metadata, created_at, deleted_at
     `)
@@ -244,7 +244,7 @@ export async function getStageHistory(journeyPipelineStateId: string): Promise<S
   const { data, error } = await supabase
     .from("pipeline_stage_history")
     .select(`
-      id, contact_pipeline_state_id, from_stage_id, to_stage_id,
+      id, journey_pipeline_state_id, from_stage_id, to_stage_id,
       moved_by_user_id, reason, was_skip, was_revert, was_auto, created_at
     `)
     .eq("journey_pipeline_state_id", journeyPipelineStateId)

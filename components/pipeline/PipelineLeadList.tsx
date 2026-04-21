@@ -3,7 +3,7 @@
 /**
  * PipelineLeadList — Sprint 3 rewire of the All Leads list.
  *
- * Pulls from contact_pipeline_state (Supabase) instead of GHL opportunities.
+ * Pulls from journey_pipeline_state (Supabase) instead of GHL opportunities.
  * Shows urgency colors per §1.14 (Fresh 0-5d / At Risk 5-10d / Losing 10+d).
  */
 
