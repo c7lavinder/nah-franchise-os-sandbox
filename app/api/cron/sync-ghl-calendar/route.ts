@@ -16,6 +16,7 @@ import {
   createSupabaseResolverDb,
   type ParticipantSignal,
 } from "@/lib/calls/resolve-participants";
+import { upsertCallJunctions } from "@/lib/calls/processors/upsert-call-junctions";
 
 // Sub-task slug mapping — only populated for prospect-sequence call types.
 const CALL_TYPE_TO_SUB_TASK: Record<string, string> = {
@@ -132,25 +133,10 @@ export async function GET(request: NextRequest) {
         ? Math.round((new Date(event.endTime).getTime() - new Date(event.startTime).getTime()) / 1000)
         : null;
 
-      // Find pipeline state for auto-log — Phase 4 final: source from jps
-      // via the contact's primary journey. Any active jps row is fine for
-      // the "which pipeline state is this call attached to" question; the
-      // log writer later picks the canonical (NULL-territory) row if needed.
-      let journeyPipelineStateId: string | null = null;
-      if (localContactId) {
-        const { data: journey } = await supabase
-          .from("journeys").select("id")
-          .eq("primary_contact_id", localContactId).maybeSingle();
-        if (journey?.id) {
-          const { data: rows } = await supabase
-            .from("journey_pipeline_state")
-            .select("id, territory_ms_slug")
-            .eq("journey_id", journey.id)
-            .eq("is_active", true);
-          const list = rows ?? [];
-          journeyPipelineStateId = (list.find((r) => r.territory_ms_slug === null)?.id) ?? list[0]?.id ?? null;
-        }
-      }
+      // Source jps directly from the shared resolver — same selection rule
+      // used by every other entry point (prefer territory match, then
+      // pre-award NULL-territory, then most-recent active).
+      const journeyPipelineStateId: string | null = match.journey_pipeline_state_id;
 
       // Check if exists
       const { data: existing } = await supabase
@@ -178,7 +164,6 @@ export async function GET(request: NextRequest) {
 
         const updatePayload: Record<string, unknown> = {
           sub_task_id: subTaskId,
-          journey_pipeline_state_id: journeyPipelineStateId,
           scheduled_at: event.startTime,
           started_at: status === "completed" ? event.startTime : null,
           ended_at: status === "completed" ? event.endTime : null,
@@ -192,33 +177,44 @@ export async function GET(request: NextRequest) {
           updatePayload.classification_reason = classification.reason;
           updatePayload.contact_id = localContactId;
           updatePayload.territory_ms_slug = match.territory_ms_slug;
+          updatePayload.journey_pipeline_state_id = journeyPipelineStateId;
           updatePayload.match_confidence = match.confidence;
           updatePayload.match_reason = match.reason;
         }
 
         await supabase.from("calls").update(updatePayload).eq("id", existing.id);
+        if (canOverwriteMatch) {
+          await upsertCallJunctions(supabase, existing.id, match);
+        }
         updated++;
       } else {
         // Insert
-        await supabase.from("calls").insert({
-          ghl_event_id: ghlEventId,
-          contact_id: localContactId,
-          territory_ms_slug: match.territory_ms_slug,
-          call_type_id: callTypeId,
-          classification_reason: classification.reason,
-          match_confidence: match.confidence,
-          match_reason: match.reason,
-          sub_task_id: subTaskId,
-          journey_pipeline_state_id: journeyPipelineStateId,
-          source: "ghl_calendar",
-          scheduled_at: event.startTime,
-          started_at: status === "completed" ? event.startTime : null,
-          ended_at: status === "completed" ? event.endTime : null,
-          duration_seconds: durationSeconds,
-          meeting_link: meetingLink,
-          hosted_by_user_id: hostedByUserId,
-          status,
-        });
+        const { data: inserted } = await supabase
+          .from("calls")
+          .insert({
+            ghl_event_id: ghlEventId,
+            contact_id: localContactId,
+            territory_ms_slug: match.territory_ms_slug,
+            call_type_id: callTypeId,
+            classification_reason: classification.reason,
+            match_confidence: match.confidence,
+            match_reason: match.reason,
+            sub_task_id: subTaskId,
+            journey_pipeline_state_id: journeyPipelineStateId,
+            source: "ghl_calendar",
+            scheduled_at: event.startTime,
+            started_at: status === "completed" ? event.startTime : null,
+            ended_at: status === "completed" ? event.endTime : null,
+            duration_seconds: durationSeconds,
+            meeting_link: meetingLink,
+            hosted_by_user_id: hostedByUserId,
+            status,
+          })
+          .select("id")
+          .single();
+        if (inserted?.id) {
+          await upsertCallJunctions(supabase, inserted.id, match);
+        }
         created++;
       }
     }

@@ -7,6 +7,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
 import { formatTranscript, standardizeTitle, isNAHTeamEmail } from "../classifier";
 import { insertCallParticipants } from "./insert-participants";
+import { upsertCallJunctions } from "./upsert-call-junctions";
 import { reconcileCall } from "./reconcile-call";
 import { classifyCallType } from "../classify-type";
 import { resolveCallTypeBySlug } from "../resolve-call-type";
@@ -48,6 +49,7 @@ export async function processGroupCall(
     .insert({
       contact_id: classified.match.contact_id,
       territory_ms_slug: classified.match.territory_ms_slug,
+      journey_pipeline_state_id: classified.match.journey_pipeline_state_id,
       call_type_id: callType.id,
       classification_reason: classification.reason,
       match_confidence: classified.match.confidence,
@@ -71,6 +73,7 @@ export async function processGroupCall(
   if (!callRecord) return;
 
   await insertCallParticipants(callRecord.id, classified.match.participants);
+  await upsertCallJunctions(supabase, callRecord.id, classified.match);
   await reconcileCall(callRecord.id);
 
   await supabase

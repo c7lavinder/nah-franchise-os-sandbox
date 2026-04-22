@@ -6,6 +6,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
 import { formatTranscript, standardizeTitle } from "../classifier";
 import { insertCallParticipants } from "./insert-participants";
+import { upsertCallJunctions } from "./upsert-call-junctions";
 import { reconcileCall } from "./reconcile-call";
 import { classifyCallType } from "../classify-type";
 import { resolveCallTypeBySlug } from "../resolve-call-type";
@@ -44,6 +45,7 @@ export async function processCoachingCall(
     .insert({
       contact_id: classified.match.contact_id,
       territory_ms_slug: classified.match.territory_ms_slug,
+      journey_pipeline_state_id: classified.match.journey_pipeline_state_id,
       coach_user_id: classified.coach_user_id,
       call_type_id: callType.id,
       classification_reason: classification.reason,
@@ -72,6 +74,9 @@ export async function processCoachingCall(
 
   // 3. Insert call_participants
   await insertCallParticipants(callRecord.id, classified.match.participants);
+
+  // 3a. Populate call_territories + call_journeys junctions.
+  await upsertCallJunctions(supabase, callRecord.id, classified.match);
 
   // 3b. Safety-net reconcile
   await reconcileCall(callRecord.id);

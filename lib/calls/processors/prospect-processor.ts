@@ -6,6 +6,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
 import { formatTranscript, standardizeTitle } from "../classifier";
 import { insertCallParticipants } from "./insert-participants";
+import { upsertCallJunctions } from "./upsert-call-junctions";
 import { reconcileCall } from "./reconcile-call";
 import { classifyCallType } from "../classify-type";
 import { resolveCallTypeBySlug } from "../resolve-call-type";
@@ -77,6 +78,7 @@ export async function processProspectCall(
       match_confidence: classified.match.confidence,
       match_reason: classified.match.reason,
       territory_ms_slug: classified.match.territory_ms_slug,
+      journey_pipeline_state_id: classified.match.journey_pipeline_state_id,
       read_ai_session_id: payload.session_id,
       title: standardizeTitle(
         callType.name,
@@ -100,6 +102,10 @@ export async function processProspectCall(
 
   // 5. Insert call_participants (the resolver already did the matching).
   await insertCallParticipants(callRecord.id, classified.match.participants);
+
+  // 5a. Populate call_territories + call_journeys junctions so every contact's
+  //     territory and journey is attached to the call, not just the primary.
+  await upsertCallJunctions(supabase, callRecord.id, classified.match);
 
   // 5b. Safety-net reconcile for contacts that appear after the call lands.
   await reconcileCall(callRecord.id);

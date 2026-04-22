@@ -31,6 +31,7 @@ export async function insertCallParticipants(
       role: p.role,
       display_name: p.display_name,
       email: p.email,
+      journey_pipeline_state_id: p.journey_pipeline_state_id ?? null,
     }));
 
   if (newRows.length > 0) {

@@ -17,6 +17,7 @@ import {
   createSupabaseResolverDb,
   type ParticipantSignal,
 } from "@/lib/calls/resolve-participants";
+import { upsertCallJunctions } from "@/lib/calls/processors/upsert-call-junctions";
 
 export async function POST(request: NextRequest) {
   const supabase = createServerClient();
@@ -48,11 +49,24 @@ export async function POST(request: NextRequest) {
 
   const durationSeconds = duration_minutes ? duration_minutes * 60 : null;
 
-  // ─── Resolve contact / territory ────────────────────────────────────────
+  // ─── Resolve contact / territory / journey ──────────────────────────────
+  const resolverDb = createSupabaseResolverDb(supabase);
   let finalContactId: string | null = null;
   let finalTerritorySlug: string | null = null;
+  let finalJourneyPipelineStateId: string | null = null;
   let matchConfidence = 0;
   let matchReason = "no signals matched";
+  // We need a ResolveResult-shaped object to feed upsertCallJunctions at the
+  // end; start empty and populate below.
+  let junctionMatch: import("@/lib/calls/resolve-participants").ResolveResult = {
+    contact_id: null,
+    territory_ms_slug: null,
+    journey_id: null,
+    journey_pipeline_state_id: null,
+    confidence: 0,
+    reason: "no signals matched",
+    participants: [],
+  };
 
   if (contact_id) {
     finalContactId = contact_id;
@@ -67,14 +81,21 @@ export async function POST(request: NextRequest) {
       .eq("id", contact_id)
       .maybeSingle();
     if (contact?.ghl_contact_id) {
-      const { data: owner } = await supabase
-        .from("territory_owners")
-        .select("ms_slug")
-        .eq("ghl_contact_id", contact.ghl_contact_id)
-        .is("end_date", null)
-        .maybeSingle();
-      finalTerritorySlug = owner?.ms_slug ?? null;
+      finalTerritorySlug = await resolverDb.getActiveTerritoryForContact(contact.ghl_contact_id);
     }
+    // Pick the journey using the same rule the resolver uses.
+    const journey = await resolverDb.getActiveJourneyForContact(contact_id, finalTerritorySlug);
+    finalJourneyPipelineStateId = journey?.journey_pipeline_state_id ?? null;
+
+    junctionMatch = {
+      contact_id: finalContactId,
+      territory_ms_slug: finalTerritorySlug,
+      journey_id: journey?.journey_id ?? null,
+      journey_pipeline_state_id: finalJourneyPipelineStateId,
+      confidence: matchConfidence,
+      reason: matchReason,
+      participants: [],
+    };
   } else {
     // No user override — ask the resolver with what little we have.
     const signals: ParticipantSignal[] = [];
@@ -86,15 +107,16 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
       if (hostUser?.email) signals.push({ email: hostUser.email });
     }
-    const resolverDb = createSupabaseResolverDb(supabase);
     const match = await resolveCallParticipants(
       { participants: signals, meeting_title: title.trim(), source: "manual" },
       resolverDb,
     );
     finalContactId = match.contact_id;
     finalTerritorySlug = match.territory_ms_slug;
+    finalJourneyPipelineStateId = match.journey_pipeline_state_id;
     matchConfidence = match.confidence;
     matchReason = match.reason;
+    junctionMatch = match;
   }
 
   // ─── Resolve call type ──────────────────────────────────────────────────
@@ -134,6 +156,7 @@ export async function POST(request: NextRequest) {
       title: title.trim(),
       contact_id: finalContactId,
       territory_ms_slug: finalTerritorySlug,
+      journey_pipeline_state_id: finalJourneyPipelineStateId,
       call_type_id: finalCallTypeId,
       classification_reason: classificationReason,
       match_confidence: matchConfidence,
@@ -152,6 +175,8 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  await upsertCallJunctions(supabase, call.id, junctionMatch);
 
   return NextResponse.json({ id: call.id, success: true });
 }

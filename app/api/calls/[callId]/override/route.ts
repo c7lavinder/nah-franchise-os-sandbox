@@ -18,6 +18,11 @@ export const dynamic = "force-dynamic";
  *                           [] clears them all
  *   primary_territory_ms_slug — which territory in the list is primary
  *                               (falls back to territories[0] or null)
+ *   journeys              — full list of journeys this call advances
+ *     [{ journey_id, journey_pipeline_state_id }]  replaces call_journeys
+ *     rows for this call; [] clears them all
+ *   primary_journey_pipeline_state_id — which jps in the list is primary
+ *                                       (falls back to journeys[0] or null)
  *
  * Access: admin, or the rep who owns the call (hosted_by_user_id).
  */
@@ -31,6 +36,11 @@ interface ParticipantUpdate {
   contact_id: string | null;
 }
 
+interface JourneyOverride {
+  journey_id: string;
+  journey_pipeline_state_id: string;
+}
+
 interface OverrideBody {
   call_type_id?: string | null;
   contact_id?: string | null;
@@ -38,6 +48,8 @@ interface OverrideBody {
   participants?: ParticipantUpdate[];
   territories?: string[];
   primary_territory_ms_slug?: string | null;
+  journeys?: JourneyOverride[];
+  primary_journey_pipeline_state_id?: string | null;
 }
 
 export async function POST(
@@ -74,6 +86,8 @@ export async function POST(
     participants,
     territories,
     primary_territory_ms_slug,
+    journeys,
+    primary_journey_pipeline_state_id,
   } = body;
 
   const hasCallTypeChange = call_type_id !== undefined;
@@ -81,13 +95,15 @@ export async function POST(
   const hasTerritoryChange = territory_ms_slug !== undefined;
   const hasParticipantUpdates = Array.isArray(participants) && participants.length > 0;
   const hasTerritoriesList = Array.isArray(territories);
+  const hasJourneysList = Array.isArray(journeys);
 
   if (
     !hasCallTypeChange &&
     !hasContactChange &&
     !hasTerritoryChange &&
     !hasParticipantUpdates &&
-    !hasTerritoriesList
+    !hasTerritoriesList &&
+    !hasJourneysList
   ) {
     return NextResponse.json({ error: "No override fields provided" }, { status: 400 });
   }
@@ -174,6 +190,44 @@ export async function POST(
     }
   }
 
+  // ── Multi-journey sync: same shape as territories. Replace the full set
+  //    in call_journeys; keep calls.journey_pipeline_state_id in sync with
+  //    the chosen primary.
+  let journeysWritten = 0;
+  let resolvedPrimaryJps: string | null | undefined = undefined;
+  if (hasJourneysList) {
+    // Dedupe by journey_pipeline_state_id.
+    const uniqueMap = new Map<string, JourneyOverride>();
+    for (const j of journeys ?? []) {
+      if (j?.journey_pipeline_state_id && j?.journey_id) {
+        uniqueMap.set(j.journey_pipeline_state_id, j);
+      }
+    }
+    const uniqueList = Array.from(uniqueMap.values());
+    resolvedPrimaryJps =
+      primary_journey_pipeline_state_id && uniqueMap.has(primary_journey_pipeline_state_id)
+        ? primary_journey_pipeline_state_id
+        : uniqueList[0]?.journey_pipeline_state_id ?? null;
+
+    const { error: delJErr } = await supabase
+      .from("call_journeys")
+      .delete()
+      .eq("call_id", callId);
+    if (delJErr) return NextResponse.json({ error: delJErr.message }, { status: 500 });
+
+    if (uniqueList.length > 0) {
+      const rows = uniqueList.map((j) => ({
+        call_id: callId,
+        journey_id: j.journey_id,
+        journey_pipeline_state_id: j.journey_pipeline_state_id,
+        is_primary: j.journey_pipeline_state_id === resolvedPrimaryJps,
+      }));
+      const { error: insJErr } = await supabase.from("call_journeys").insert(rows);
+      if (insJErr) return NextResponse.json({ error: insJErr.message }, { status: 500 });
+      journeysWritten = rows.length;
+    }
+  }
+
   // ── Call-level updates.
   const callUpdates: Record<string, unknown> = {};
 
@@ -182,10 +236,11 @@ export async function POST(
     callUpdates.classification_reason = audit;
   }
 
-  if (hasContactChange || hasTerritoryChange || hasParticipantUpdates || hasTerritoriesList) {
+  if (hasContactChange || hasTerritoryChange || hasParticipantUpdates || hasTerritoriesList || hasJourneysList) {
     if (hasContactChange) callUpdates.contact_id = contact_id;
     if (hasTerritoryChange) callUpdates.territory_ms_slug = territory_ms_slug;
     if (hasTerritoriesList) callUpdates.territory_ms_slug = resolvedPrimary;
+    if (hasJourneysList) callUpdates.journey_pipeline_state_id = resolvedPrimaryJps ?? null;
     // Any of these imply a human-confirmed match.
     callUpdates.match_confidence = 1.0;
     callUpdates.match_reason = audit;
@@ -203,6 +258,7 @@ export async function POST(
     success: true,
     participantsUpdated,
     territoriesWritten,
+    journeysWritten,
     callUpdates,
   });
 }
