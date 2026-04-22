@@ -629,6 +629,12 @@ export default function LeadDetailView({
                     focusedTerritorySlug={focusedTerritorySlug}
                     onTerritoryChange={setFocusedTerritorySlug}
                     primaryContactName={displayName}
+                    coreMembers={activeMembers
+                      .filter((m) => m.role === "primary" || m.role === "co_primary")
+                      .map((m) => ({
+                        contactId: m.contact_id,
+                        name: capitalizeName(`${m.first_name ?? ""} ${m.last_name ?? ""}`.trim()) || "Member",
+                      }))}
                   />
                 ) : null}
               </div>

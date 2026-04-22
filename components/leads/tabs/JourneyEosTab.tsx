@@ -3,20 +3,22 @@
 /**
  * JourneyEosTab — routes the EOS view for a journey:
  *
- *  • Pre-award (no active territories yet): render contact-scoped EOS. This
- *    is the prospect's personal goals/issues/todos captured during sales
- *    calls; still relevant before a territory is awarded.
+ *  • Pre-award (no active territories yet): render contact-scoped EOS for
+ *    each core member (personal goals / issues / todos captured during
+ *    sales calls).
  *
- *  • Post-award (≥1 active territory): render territory-scoped EOS for the
- *    focused territory. Once a territory is awarded, the business EOS lives
- *    on the territory (shared across partners/co-owners), not on the
- *    individual contact — which is what the restructure plan called for.
+ *  • Post-award (≥1 active territory): render BOTH personal EOS per core
+ *    member AND territory EOS per awarded territory. Personal facts
+ *    (credit, family, goals) live on the contact; operational facts
+ *    (rocks, scorecard, marketing spend) live on the territory — showing
+ *    both surfaces gives reps the full picture in one place.
  *
- *  • 2+ active territories (Phil with 3): render a picker row at the top so
- *    the rep can switch between each territory's operating system.
+ *  • 2+ core members (Ryan + Shannon): render a contact sub-tab strip
+ *    above Personal EOS so each member's personal EOS can be worked
+ *    independently.
  *
- * Falls back to contact EOS if the territory endpoint can't be loaded
- * (e.g. territory missing from territories table) so the tab never blanks.
+ *  • 2+ active territories (Phil with 3): render a territory sub-tab strip
+ *    above Territory EOS.
  */
 
 import { useEffect, useState } from "react";
@@ -28,6 +30,11 @@ interface JourneyTerritory {
   territory_name: string;
 }
 
+export interface CoreMember {
+  contactId: string;
+  name: string;
+}
+
 interface Props {
   contactId: string;
   carriedTerritoryName: string | null;
@@ -35,6 +42,9 @@ interface Props {
   focusedTerritorySlug: string | null;
   onTerritoryChange: (slug: string | null) => void;
   primaryContactName: string | null;
+  /** Core journey members (primary + co_primary). When ≥2, a contact
+   *  sub-tab strip is rendered above the Personal EOS section. */
+  coreMembers?: CoreMember[];
 }
 
 export default function JourneyEosTab({
@@ -44,81 +54,124 @@ export default function JourneyEosTab({
   focusedTerritorySlug,
   onTerritoryChange,
   primaryContactName,
+  coreMembers = [],
 }: Props) {
-  // Resolve the active territory. Prefer the externally-controlled slug; if
-  // it isn't one of the journey's awarded territories (or it's null), fall
-  // back to the first awarded one so the tab never renders empty.
-  const resolved = awardedTerritories.find((t) => t.ms_slug === focusedTerritorySlug)
+  // Ensure the primary contact is always in the list even if the parent
+  // didn't pass coreMembers (defensive for legacy callers).
+  const effectiveMembers: CoreMember[] = coreMembers.length > 0
+    ? coreMembers
+    : [{ contactId, name: primaryContactName ?? "Primary" }];
+
+  const [selectedContactId, setSelectedContactId] = useState<string>(
+    effectiveMembers[0]?.contactId ?? contactId,
+  );
+
+  // Keep the selected contact in sync if the member set changes (e.g. a
+  // new co-owner was just added mid-session).
+  useEffect(() => {
+    if (!effectiveMembers.find((m) => m.contactId === selectedContactId)) {
+      setSelectedContactId(effectiveMembers[0]?.contactId ?? contactId);
+    }
+  }, [effectiveMembers, selectedContactId, contactId]);
+
+  // Resolve the focused territory. Prefer the externally-controlled slug;
+  // fall back to the first awarded so the territory view never renders empty.
+  const resolvedTerritory = awardedTerritories.find((t) => t.ms_slug === focusedTerritorySlug)
     ?? awardedTerritories[0]
     ?? null;
 
-  // If the focused territory is out of sync with the awarded set (e.g. a
-  // stale URL param from a territory no longer awarded), nudge the parent
-  // to the valid fallback.
   useEffect(() => {
     if (awardedTerritories.length === 0) return;
-    if (!resolved) return;
-    if (focusedTerritorySlug && focusedTerritorySlug !== resolved.ms_slug) {
+    if (!resolvedTerritory) return;
+    if (focusedTerritorySlug && focusedTerritorySlug !== resolvedTerritory.ms_slug) {
       const stillAwarded = awardedTerritories.some((t) => t.ms_slug === focusedTerritorySlug);
-      if (!stillAwarded) onTerritoryChange(resolved.ms_slug);
+      if (!stillAwarded) onTerritoryChange(resolvedTerritory.ms_slug);
     }
-  }, [focusedTerritorySlug, resolved, awardedTerritories, onTerritoryChange]);
+  }, [focusedTerritorySlug, resolvedTerritory, awardedTerritories, onTerritoryChange]);
 
-  const hasMultiple = awardedTerritories.length >= 2;
+  const showContactTabs = effectiveMembers.length >= 2;
+  const showTerritoryTabs = awardedTerritories.length >= 2;
 
-  // Pre-award path: classic contact-scoped EOS (prospect goals/issues/todos).
-  if (awardedTerritories.length === 0) {
-    return <EosTab contactId={contactId} carriedTerritoryName={carriedTerritoryName} />;
+  // Reused pill-tab strip, consistent with the Territories/EOS patterns
+  // elsewhere. Kept local to avoid one-off styling drift.
+  function SubTabStrip({
+    items,
+    activeId,
+    onSelect,
+  }: {
+    items: { id: string; label: string }[];
+    activeId: string;
+    onSelect: (id: string) => void;
+  }) {
+    return (
+      <div className="flex items-center gap-1 flex-wrap">
+        {items.map((it) => {
+          const active = it.id === activeId;
+          return (
+            <button
+              key={it.id}
+              onClick={() => onSelect(it.id)}
+              className={`px-2.5 py-1 rounded-full text-caption font-medium transition-colors ${
+                active
+                  ? "bg-nah-orange text-white"
+                  : "bg-bg-hover text-text-tertiary hover:text-text-primary"
+              }`}
+            >
+              {it.label}
+            </button>
+          );
+        })}
+      </div>
+    );
   }
 
-  // Post-award: render BOTH contact EOS (personal — goals, issues, todos
-  // that follow the person) AND territory EOS (operational — rocks,
-  // scorecard, marketing spend per territory). Some fields are inherently
-  // contact-scoped (personal goals) and some are territory-scoped (per-
-  // territory spend); showing both surfaces gives reps the full picture.
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold text-text-tertiary tracking-wider">PERSONAL EOS</span>
-          <span className="text-[10px] text-text-tertiary">— goals &amp; issues that follow {primaryContactName ?? "the primary contact"}</span>
-        </div>
-        <EosTab contactId={contactId} carriedTerritoryName={carriedTerritoryName} />
-      </section>
-
-      <section className="space-y-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-semibold text-text-tertiary tracking-wider">TERRITORY EOS</span>
-          <span className="text-[10px] text-text-tertiary">— operational: rocks, scorecard, marketing spend, etc.</span>
-          {hasMultiple && resolved && (
-            <div className="flex items-center gap-1 ml-auto">
-              {awardedTerritories.map((t) => {
-                const isActive = t.ms_slug === resolved.ms_slug;
-                return (
-                  <button
-                    key={t.ms_slug}
-                    onClick={() => onTerritoryChange(t.ms_slug)}
-                    className={`px-2.5 py-1 rounded-full text-caption font-medium transition-colors ${
-                      isActive
-                        ? "bg-nah-orange text-white"
-                        : "bg-bg-hover text-text-tertiary hover:text-text-primary"
-                    }`}
-                  >
-                    {t.territory_name}
-                  </button>
-                );
-              })}
+          <span className="text-[10px] font-semibold text-text-tertiary tracking-wider">PERSONAL EOS</span>
+          <span className="text-[10px] text-text-tertiary">— goals &amp; issues that follow the person</span>
+          {showContactTabs && (
+            <div className="ml-auto">
+              <SubTabStrip
+                items={effectiveMembers.map((m) => ({ id: m.contactId, label: m.name }))}
+                activeId={selectedContactId}
+                onSelect={setSelectedContactId}
+              />
             </div>
           )}
         </div>
-        {resolved && (
-          <TerritoryEosTab
-            key={resolved.ms_slug}
-            msSlug={resolved.ms_slug}
-            carriedFromContactName={primaryContactName}
-          />
-        )}
+        <EosTab
+          key={selectedContactId}
+          contactId={selectedContactId}
+          carriedTerritoryName={carriedTerritoryName}
+        />
       </section>
+
+      {awardedTerritories.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-semibold text-text-tertiary tracking-wider">TERRITORY EOS</span>
+            <span className="text-[10px] text-text-tertiary">— operational: rocks, scorecard, marketing spend, etc.</span>
+            {showTerritoryTabs && resolvedTerritory && (
+              <div className="ml-auto">
+                <SubTabStrip
+                  items={awardedTerritories.map((t) => ({ id: t.ms_slug, label: t.territory_name }))}
+                  activeId={resolvedTerritory.ms_slug}
+                  onSelect={onTerritoryChange}
+                />
+              </div>
+            )}
+          </div>
+          {resolvedTerritory && (
+            <TerritoryEosTab
+              key={resolvedTerritory.ms_slug}
+              msSlug={resolvedTerritory.ms_slug}
+              carriedFromContactName={primaryContactName}
+            />
+          )}
+        </section>
+      )}
     </div>
   );
 }
