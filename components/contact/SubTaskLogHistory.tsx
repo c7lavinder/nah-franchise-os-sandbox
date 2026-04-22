@@ -5,10 +5,13 @@
  * Per §1.15: collapsed default, shows latest log + count badge. Click to expand.
  */
 
+import { useState } from "react";
+import { Trash2, Loader2 } from "lucide-react";
 import type { SubTaskLog } from "@/lib/contacts/pipeline-state";
 
 interface SubTaskLogHistoryProps {
   logs: SubTaskLog[];
+  onRefresh?: () => void;
 }
 
 const SOURCE_BADGE: Record<string, { label: string; color: string }> = {
@@ -17,14 +20,33 @@ const SOURCE_BADGE: Record<string, { label: string; color: string }> = {
   ai: { label: "AI", color: "bg-scout-purple/10 text-scout-purple" },
 };
 
-export default function SubTaskLogHistory({ logs }: SubTaskLogHistoryProps) {
+export default function SubTaskLogHistory({ logs, onRefresh }: SubTaskLogHistoryProps) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   if (logs.length === 0) return null;
+
+  async function handleDelete(logId: string) {
+    if (!confirm("Delete this log? This cannot be undone from the UI.")) return;
+    setDeletingId(logId);
+    try {
+      const res = await fetch(`/api/sub-task-logs/${logId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "Unknown error" }));
+        alert(`Failed to delete log: ${error}`);
+        return;
+      }
+      onRefresh?.();
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div className="ml-10 pl-3 border-l-2 border-border-default space-y-2 py-2">
       {logs.map((log) => {
         const source = SOURCE_BADGE[log.source] ?? SOURCE_BADGE.manual;
         const stateLabel = log.state_advance === "first" ? "1st" : log.state_advance === "second" ? "2nd" : "";
+        const isDeleting = deletingId === log.id;
 
         return (
           <div key={log.id} className="flex items-start gap-2 text-caption">
@@ -55,6 +77,19 @@ export default function SubTaskLogHistory({ logs }: SubTaskLogHistoryProps) {
               {log.logger_name && <span>{log.logger_name}</span>}
               <span>{new Date(log.created_at).toLocaleDateString()}</span>
             </div>
+
+            {/* Delete button */}
+            {onRefresh && (
+              <button
+                onClick={() => handleDelete(log.id)}
+                disabled={isDeleting}
+                className="p-0.5 text-text-tertiary hover:text-danger transition-colors flex-shrink-0 disabled:opacity-50"
+                title="Delete log"
+                aria-label="Delete log"
+              >
+                {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+              </button>
+            )}
           </div>
         );
       })}

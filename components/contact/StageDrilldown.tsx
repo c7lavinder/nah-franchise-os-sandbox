@@ -88,7 +88,7 @@ export default function StageDrilldown({
                           {isHistoryExpanded ? "Hide logs" : `View ${logs.length} log${logs.length !== 1 ? "s" : ""}`}
                         </button>
                       )}
-                      {isHistoryExpanded && <SubTaskLogHistory logs={logs} />}
+                      {isHistoryExpanded && <SubTaskLogHistory logs={logs} onRefresh={onRefresh} />}
                     </div>
                   );
                 })}
