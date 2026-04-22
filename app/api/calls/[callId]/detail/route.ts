@@ -53,6 +53,73 @@ export async function GET(
     if (t) territoryName = t.territory_name;
   }
 
+  // Full multi-territory list attached to this call.
+  const { data: ctRows } = await supabase
+    .from("call_territories")
+    .select("territory_ms_slug, is_primary")
+    .eq("call_id", callId)
+    .order("is_primary", { ascending: false });
+  const ctSlugs = (ctRows ?? []).map((r) => r.territory_ms_slug);
+  const ctNameMap = new Map<string, string>();
+  if (ctSlugs.length > 0) {
+    const { data: tRows } = await supabase
+      .from("territories")
+      .select("ms_slug, territory_name")
+      .in("ms_slug", ctSlugs);
+    for (const t of tRows ?? []) ctNameMap.set(t.ms_slug, t.territory_name);
+  }
+  const callTerritories = (ctRows ?? []).map((r) => ({
+    ms_slug: r.territory_ms_slug,
+    territory_name: ctNameMap.get(r.territory_ms_slug) ?? r.territory_ms_slug,
+    is_primary: r.is_primary,
+  }));
+
+  // Full multi-journey list attached to this call.
+  const { data: cjRows } = await supabase
+    .from("call_journeys")
+    .select("journey_id, journey_pipeline_state_id, is_primary")
+    .eq("call_id", callId)
+    .order("is_primary", { ascending: false });
+  const cjJourneyIds = Array.from(new Set((cjRows ?? []).map((r) => r.journey_id)));
+  const cjJpsIds = Array.from(new Set((cjRows ?? []).map((r) => r.journey_pipeline_state_id)));
+  const journeyNameMap = new Map<string, string>();
+  if (cjJourneyIds.length > 0) {
+    const { data: jRows } = await supabase
+      .from("journeys")
+      .select("id, name")
+      .in("id", cjJourneyIds);
+    for (const j of jRows ?? []) journeyNameMap.set(j.id, j.name);
+  }
+  const jpsDetailMap = new Map<string, { stage: string | null; territory_ms_slug: string | null }>();
+  if (cjJpsIds.length > 0) {
+    const { data: jpsRows } = await supabase
+      .from("journey_pipeline_state")
+      .select("id, territory_ms_slug, pipeline_stages(name)")
+      .in("id", cjJpsIds);
+    for (const r of (jpsRows ?? []) as unknown as {
+      id: string;
+      territory_ms_slug: string | null;
+      pipeline_stages: { name: string } | { name: string }[] | null;
+    }[]) {
+      const stageName = Array.isArray(r.pipeline_stages)
+        ? r.pipeline_stages[0]?.name ?? null
+        : r.pipeline_stages?.name ?? null;
+      jpsDetailMap.set(r.id, { stage: stageName, territory_ms_slug: r.territory_ms_slug });
+    }
+  }
+  const callJourneys = (cjRows ?? []).map((r) => {
+    const jps = jpsDetailMap.get(r.journey_pipeline_state_id);
+    return {
+      journey_id: r.journey_id,
+      journey_pipeline_state_id: r.journey_pipeline_state_id,
+      journey_name: journeyNameMap.get(r.journey_id) ?? "Journey",
+      stage_name: jps?.stage ?? null,
+      territory_ms_slug: jps?.territory_ms_slug ?? null,
+      territory_name: jps?.territory_ms_slug ? ctNameMap.get(jps.territory_ms_slug) ?? null : null,
+      is_primary: r.is_primary,
+    };
+  });
+
   let coachName = null;
   if (call.coach_user_id) {
     const { data: cu } = await supabase.from("users").select("full_name").eq("id", call.coach_user_id).single();
@@ -244,7 +311,7 @@ export async function GET(
   const contactPhone = primaryContactPhone ?? linkedContacts[0]?.phone ?? null;
 
   return NextResponse.json({
-    call: { ...call, contactName, contactEmail, contactPhone, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, linkedContacts, unknownParticipants, rawParticipants },
+    call: { ...call, contactName, contactEmail, contactPhone, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, linkedContacts, unknownParticipants, rawParticipants, callTerritories, callJourneys },
     transcript: transcriptText,
     transcriptSource: transcript?.source ?? (call.raw_transcript ? "read_ai" : null),
     grade,

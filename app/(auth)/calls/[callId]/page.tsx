@@ -36,6 +36,22 @@ interface CoachingData {
   next_call_prep: string;
 }
 
+interface CallTerritoryRef {
+  ms_slug: string;
+  territory_name: string;
+  is_primary: boolean;
+}
+
+interface CallJourneyRef {
+  journey_id: string;
+  journey_pipeline_state_id: string;
+  journey_name: string;
+  stage_name: string | null;
+  territory_ms_slug: string | null;
+  territory_name: string | null;
+  is_primary: boolean;
+}
+
 interface CallDetail {
   id: string;
   contactName: string | null;
@@ -72,6 +88,8 @@ interface CallDetail {
   linkedContacts: LinkedContact[];
   unknownParticipants: UnknownParticipant[];
   rawParticipants: RawParticipant[];
+  callTerritories: CallTerritoryRef[];
+  callJourneys: CallJourneyRef[];
 }
 
 interface ActionItem {
@@ -344,8 +362,55 @@ export default function CallDetailPage() {
             </div>
           ) : null}
 
-          {/* Territory cluster — only if set */}
-          {call.territory_ms_slug && (
+          {/* Journey cluster — every journey advanced by this call */}
+          {call.callJourneys && call.callJourneys.length > 0 && (
+            <>
+              <div className="w-px h-8 bg-border-default" />
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
+                  {call.callJourneys.length === 1 ? "Journey" : `Journeys (${call.callJourneys.length})`}
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {call.callJourneys.map((j) => (
+                    <Link
+                      key={j.journey_pipeline_state_id}
+                      href={`/journeys/${j.journey_id}`}
+                      className="inline-flex items-center gap-[5px] text-[12px] font-medium px-[9px] py-[3px] rounded-full bg-[#EEEDFE] text-[#3A2FAE] hover:bg-[#D7D4FB] transition-colors"
+                      title={j.stage_name ? `${j.journey_name} · ${j.stage_name}` : j.journey_name}
+                    >
+                      {j.journey_name}
+                      {j.stage_name && (
+                        <span className="text-[10px] font-normal opacity-70">· {j.stage_name}</span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Territory cluster — every territory attached to this call */}
+          {(call.callTerritories?.length ?? 0) > 0 ? (
+            <>
+              <div className="w-px h-8 bg-border-default" />
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
+                  {call.callTerritories.length === 1 ? "Territory" : `Territories (${call.callTerritories.length})`}
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {call.callTerritories.map((t) => (
+                    <Link
+                      key={t.ms_slug}
+                      href={`/territories/${t.ms_slug}`}
+                      className="inline-flex items-center gap-[5px] text-[12px] font-medium px-[9px] py-[3px] rounded-full bg-[#FAEEDA] text-[#633806] hover:bg-[#FAC775] transition-colors"
+                    >
+                      {t.territory_name}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : call.territory_ms_slug ? (
             <>
               <div className="w-px h-8 bg-border-default" />
               <div>
@@ -356,7 +421,7 @@ export default function CallDetailPage() {
                 </Link>
               </div>
             </>
-          )}
+          ) : null}
 
           {/* Unknown participants */}
           {call.unknownParticipants?.length > 0 && (
