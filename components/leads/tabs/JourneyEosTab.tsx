@@ -71,37 +71,54 @@ export default function JourneyEosTab({
     return <EosTab contactId={contactId} carriedTerritoryName={carriedTerritoryName} />;
   }
 
+  // Post-award: render BOTH contact EOS (personal — goals, issues, todos
+  // that follow the person) AND territory EOS (operational — rocks,
+  // scorecard, marketing spend per territory). Some fields are inherently
+  // contact-scoped (personal goals) and some are territory-scoped (per-
+  // territory spend); showing both surfaces gives reps the full picture.
   return (
-    <div className="space-y-4">
-      {hasMultiple && resolved && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[10px] font-semibold text-text-tertiary tracking-wider mr-1">TERRITORY EOS:</span>
-          {awardedTerritories.map((t) => {
-            const isActive = t.ms_slug === resolved.ms_slug;
-            return (
-              <button
-                key={t.ms_slug}
-                onClick={() => onTerritoryChange(t.ms_slug)}
-                className={`px-2.5 py-1 rounded-full text-caption font-medium transition-colors ${
-                  isActive
-                    ? "bg-nah-orange text-white"
-                    : "bg-bg-hover text-text-tertiary hover:text-text-primary"
-                }`}
-              >
-                {t.territory_name}
-              </button>
-            );
-          })}
+    <div className="space-y-6">
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-semibold text-text-tertiary tracking-wider">PERSONAL EOS</span>
+          <span className="text-[10px] text-text-tertiary">— goals &amp; issues that follow {primaryContactName ?? "the primary contact"}</span>
         </div>
-      )}
+        <EosTab contactId={contactId} carriedTerritoryName={carriedTerritoryName} />
+      </section>
 
-      {resolved && (
-        <TerritoryEosTab
-          key={resolved.ms_slug}
-          msSlug={resolved.ms_slug}
-          carriedFromContactName={primaryContactName}
-        />
-      )}
+      <section className="space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] font-semibold text-text-tertiary tracking-wider">TERRITORY EOS</span>
+          <span className="text-[10px] text-text-tertiary">— operational: rocks, scorecard, marketing spend, etc.</span>
+          {hasMultiple && resolved && (
+            <div className="flex items-center gap-1 ml-auto">
+              {awardedTerritories.map((t) => {
+                const isActive = t.ms_slug === resolved.ms_slug;
+                return (
+                  <button
+                    key={t.ms_slug}
+                    onClick={() => onTerritoryChange(t.ms_slug)}
+                    className={`px-2.5 py-1 rounded-full text-caption font-medium transition-colors ${
+                      isActive
+                        ? "bg-nah-orange text-white"
+                        : "bg-bg-hover text-text-tertiary hover:text-text-primary"
+                    }`}
+                  >
+                    {t.territory_name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {resolved && (
+          <TerritoryEosTab
+            key={resolved.ms_slug}
+            msSlug={resolved.ms_slug}
+            carriedFromContactName={primaryContactName}
+          />
+        )}
+      </section>
     </div>
   );
 }

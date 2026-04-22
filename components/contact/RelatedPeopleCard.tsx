@@ -63,10 +63,14 @@ interface RelatedPeopleCardProps {
    *  contact_related_people. The journey context also gates the Add flow
    *  onto the parent via onAddRequested. */
   journeyMembers?: JourneyMemberLite[];
+  /** Label to use for primary + co_primary members instead of the default
+   *  "Primary" / "Co-primary" text. Typically "Prospect" or "Franchisee"
+   *  derived from the journey's current pipeline stage. */
+  coreRoleLabel?: string;
   onAddRequested?: () => void;
 }
 
-export default function RelatedPeopleCard({ contactId, mainContact, journeyMembers, onAddRequested }: RelatedPeopleCardProps) {
+export default function RelatedPeopleCard({ contactId, mainContact, journeyMembers, coreRoleLabel, onAddRequested }: RelatedPeopleCardProps) {
   const { toast } = useToast();
   const [people, setPeople] = useState<RelatedPerson[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,15 +151,22 @@ export default function RelatedPeopleCard({ contactId, mainContact, journeyMembe
           {list.map((m) => {
             const name = capitalizeName(`${m.first_name ?? ""} ${m.last_name ?? ""}`.trim()) || "Unknown";
             const initials = name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-            const roleLabel = ROLE_LABELS[m.role] ?? m.role.replace(/_/g, " ");
-            const isPrimary = m.is_primary || m.role === "primary";
+            // Core roles (primary + co_primary) share one label derived from
+            // the journey's current stage — "Prospect" / "Franchisee". Other
+            // roles (spouse, attorney, etc.) display their specific role. No
+            // visual hierarchy between primary and co_primary; they read as
+            // co-equal deal members.
+            const isCore = m.role === "primary" || m.role === "co_primary";
+            const roleLabel = isCore
+              ? (coreRoleLabel ?? (ROLE_LABELS[m.role] ?? m.role))
+              : (ROLE_LABELS[m.role] ?? m.role.replace(/_/g, " "));
             return (
               <div key={m.contact_id} className="flex items-center gap-2.5 py-1.5">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0 ${isPrimary ? "bg-nah-orange/15 text-nah-orange" : "bg-nah-blue/10 text-nah-blue"}`}>{initials}</div>
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0 ${isCore ? "bg-nah-orange/15 text-nah-orange" : "bg-nah-blue/10 text-nah-blue"}`}>{initials}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-caption font-medium text-text-primary truncate">{name}</span>
-                    <span className={`text-[9px] px-1 py-0.5 rounded ${isPrimary ? "bg-nah-orange/10 text-nah-orange" : "bg-text-tertiary/10 text-text-tertiary"}`}>{roleLabel}</span>
+                    <span className={`text-[9px] px-1 py-0.5 rounded ${isCore ? "bg-nah-orange/10 text-nah-orange" : "bg-text-tertiary/10 text-text-tertiary"}`}>{roleLabel}</span>
                   </div>
                   <div className="flex items-center gap-2 text-[10px] text-text-tertiary">
                     {m.email && <span className="truncate">{m.email}</span>}

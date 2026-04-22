@@ -245,10 +245,20 @@ export default function PipelineLeadList({
                 ${i < visible.length - 1 ? "border-b border-border-default" : ""}
               `}
             >
-              {/* Name */}
-              <p className="text-body-sm text-text-primary font-medium truncate min-w-0">
-                {capitalizeName(contact.name)}
-              </p>
+              {/* Name + territory chip (runway/onboarding cards are
+                  territory-scoped; show the slug so reps can tell which
+                  card belongs to which territory for multi-territory
+                  franchisees). */}
+              <div className="flex items-center gap-1.5 min-w-0">
+                <p className="text-body-sm text-text-primary font-medium truncate">
+                  {capitalizeName(contact.name)}
+                </p>
+                {contact.territoryMsSlug && (
+                  <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-info/10 text-info">
+                    {contact.territoryMsSlug}
+                  </span>
+                )}
+              </div>
 
               {/* Urgency badge */}
               <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold text-center ${urg.bgColor} ${urg.color}`}>

@@ -329,6 +329,17 @@ export default function LeadDetailView({
 
   const activeMembers = members.filter((m) => m.contact_id);
   const showMemberTabs = Boolean(journeyId) && activeMembers.length >= 2;
+
+  // Journey type drives how we label a journey's core members (primary,
+  // co_primary). Runway/onboarding means they're a franchisee on this deal;
+  // sales/followup means they're still a prospect. Fallback to "prospect"
+  // when no active pipeline row is present yet so new intakes aren't blank.
+  const journeyType: "franchisee" | "prospect" = (() => {
+    const slugs = pipelineStates.map((p) => p.pipeline_slug);
+    if (slugs.includes("runway") || slugs.includes("onboarding")) return "franchisee";
+    return "prospect";
+  })();
+  const coreRoleLabel = journeyType === "franchisee" ? "Franchisee" : "Prospect";
   // Profile header stays visible on any journey page (even solo) so the
   // "Add contact" action always has a home — tabs only render when there
   // are 2+ members, but the action row renders whenever journeyId is set.
@@ -430,6 +441,7 @@ export default function LeadDetailView({
                       phone: m.phone ?? null,
                       is_primary: m.is_primary,
                     })) : undefined}
+                    coreRoleLabel={coreRoleLabel}
                     onAddRequested={journeyId ? () => setAddMemberOpen(true) : undefined}
                   />
                 </div>
@@ -484,6 +496,11 @@ export default function LeadDetailView({
                         {showMemberTabs && activeMembers.map((m) => {
                           const label = capitalizeName(`${m.first_name ?? ""} ${m.last_name ?? ""}`.trim()) || "Member";
                           const active = m.contact_id === profileContactId;
+                          // Core roles (primary + co_primary) display as the
+                          // journey's role in the current stage — no visual
+                          // hierarchy between the two. Other roles read as-is.
+                          const isCore = m.role === "primary" || m.role === "co_primary";
+                          const roleLabel = isCore ? coreRoleLabel : m.role.replace(/_/g, " ");
                           return (
                             <button
                               key={m.contact_id}
@@ -492,7 +509,7 @@ export default function LeadDetailView({
                             >
                               {label}
                               <span className="ml-1 text-[10px] text-text-tertiary">
-                                {m.role === "primary" ? "Primary" : m.role === "co_primary" ? "Co-primary" : m.role.replace(/_/g, " ")}
+                                {roleLabel}
                               </span>
                             </button>
                           );
@@ -649,6 +666,7 @@ export default function LeadDetailView({
           open={addMemberOpen}
           journeyId={journeyId}
           existingMemberIds={activeMembers.map((m) => m.contact_id)}
+          coreRoleLabel={coreRoleLabel}
           onClose={() => setAddMemberOpen(false)}
           onAdded={() => { router.refresh(); }}
         />

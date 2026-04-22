@@ -28,22 +28,30 @@ interface Props {
   open: boolean;
   journeyId: string;
   existingMemberIds: string[];
+  /** When set, the "co_primary" option displays as "Additional Prospect" or
+   *  "Additional Franchisee" so reps see the label that matches the
+   *  journey's current stage instead of the internal term. */
+  coreRoleLabel?: string;
   onClose: () => void;
   onAdded: () => void;
 }
 
-const ROLE_OPTIONS: { value: string; label: string }[] = [
-  { value: "co_primary", label: "Co-primary" },
-  { value: "spouse", label: "Spouse" },
-  { value: "family", label: "Family" },
-  { value: "business_partner", label: "Business partner" },
-  { value: "attorney", label: "Attorney" },
-  { value: "accountant", label: "Accountant" },
-  { value: "financial_advisor", label: "Financial advisor" },
-  { value: "other", label: "Other" },
-];
+function buildRoleOptions(coreRoleLabel?: string): { value: string; label: string }[] {
+  const coOwnerLabel = coreRoleLabel ? `Additional ${coreRoleLabel}` : "Co-owner";
+  return [
+    { value: "co_primary", label: coOwnerLabel },
+    { value: "spouse", label: "Spouse" },
+    { value: "family", label: "Family" },
+    { value: "business_partner", label: "Business partner" },
+    { value: "attorney", label: "Attorney" },
+    { value: "accountant", label: "Accountant" },
+    { value: "financial_advisor", label: "Financial advisor" },
+    { value: "other", label: "Other" },
+  ];
+}
 
-export default function AddJourneyMemberModal({ open, journeyId, existingMemberIds, onClose, onAdded }: Props) {
+export default function AddJourneyMemberModal({ open, journeyId, existingMemberIds, coreRoleLabel, onClose, onAdded }: Props) {
+  const ROLE_OPTIONS = buildRoleOptions(coreRoleLabel);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ContactOption[]>([]);
   const [selected, setSelected] = useState<ContactOption | null>(null);

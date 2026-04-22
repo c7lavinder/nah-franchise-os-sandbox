@@ -111,11 +111,10 @@ export async function getContactPipelineStates(contactId: string): Promise<Conta
       id, journey_id, pipeline_id, territory_ms_slug, current_stage_id, current_sub_task_id,
       current_sub_task_started_at, entered_pipeline_at, entered_current_stage_at,
       assigned_user_id, is_active, closed_reason, closed_at,
-      pipelines (name, slug)
+      pipelines (name, slug, sort_order)
     `)
     .eq("journey_id", journey.id)
-    .eq("is_active", true)
-    .order("entered_pipeline_at", { ascending: false });
+    .eq("is_active", true);
 
   if (error || !data) return [];
 
@@ -130,8 +129,17 @@ export async function getContactPipelineStates(contactId: string): Promise<Conta
     }
   }
 
-  return [...canonByPipeline.values()].map((row) => {
-    const pipeline = (row.pipelines as unknown) as { name: string; slug: string } | null;
+  // Return in pipeline sort_order (Sales → Onboarding → Runway → Territories
+  // → Follow-up) so the pipeline bar renders chips in the order the lifecycle
+  // actually flows rather than in reverse-entry order.
+  const rows = [...canonByPipeline.values()].sort((a, b) => {
+    const sa = (a.pipelines as unknown as { sort_order?: number } | null)?.sort_order ?? 99;
+    const sb = (b.pipelines as unknown as { sort_order?: number } | null)?.sort_order ?? 99;
+    return sa - sb;
+  });
+
+  return rows.map((row) => {
+    const pipeline = (row.pipelines as unknown) as { name: string; slug: string; sort_order?: number } | null;
     return {
       id: row.id,
       contact_id: contactId,
