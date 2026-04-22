@@ -261,6 +261,20 @@ export interface EosContactTodo {
   updated_at: string;
 }
 
+/** Contact EOS — habits (recurring practices that follow the person) */
+export type EosHabitCadence = "daily" | "weekly" | "biweekly" | "monthly" | "quarterly";
+export interface EosContactHabit {
+  id: string;
+  contact_id: string;
+  habit_text: string;
+  cadence: EosHabitCadence;
+  grade: EosHabitGrade | null;
+  sort_order: number;
+  source: EosSource;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Territory EOS — goals (3 rows per territory: houses, profit, qol) */
 export interface EosTerritoryGoal {
   id: string;

@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowLeft, Phone, Mail, Loader2, RefreshCw,
-  MessageSquare, Save, Award, ClipboardList, Calendar,
+  MessageSquare, Save, Award, ClipboardList, Calendar, User,
 } from "lucide-react";
 import { SMSPanel, EmailPanel, CallPanel, SchedulePanel } from "@/components/contact/ActionPanels";
 import { ProfileSection } from "@/components/profile";
@@ -381,6 +382,15 @@ export default function LeadDetailView({
       <div className="flex items-center gap-3 px-1 py-3 flex-shrink-0">
         <button onClick={() => router.back()} className="btn-ghost p-1.5"><ArrowLeft size={18} /></button>
         <h1 className="font-headline text-page-title text-text-primary truncate flex-1">{displayName}</h1>
+        {/* Person page link — opens the profile-tab member's contact page
+            (primary-by-default; updates when user switches member tabs). */}
+        <Link
+          href={`/contacts/${profileContactId}`}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-bg-hover text-text-secondary text-caption font-medium hover:text-text-primary hover:bg-bg-tertiary transition-colors shrink-0"
+          title="Open person profile"
+        >
+          <User size={12} /> Person
+        </Link>
         {contact && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button onClick={() => setActivePanel("call")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-success/10 text-success text-caption font-medium hover:bg-success/20 transition-colors"><Phone size={12} /> Call</button>

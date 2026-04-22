@@ -3,6 +3,7 @@
 import ContactEosGoals from "@/components/leads/eos/ContactEosGoals";
 import ContactEosIssues from "@/components/leads/eos/ContactEosIssues";
 import ContactEosTodos from "@/components/leads/eos/ContactEosTodos";
+import ContactEosHabits from "@/components/leads/eos/ContactEosHabits";
 
 interface Props {
   contactId: string;
@@ -20,6 +21,9 @@ export default function EosTab({ contactId, carriedTerritoryName }: Props) {
       </div>
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
         <ContactEosTodos contactId={contactId} carriedTerritoryName={carriedTerritoryName} />
+      </div>
+      <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
+        <ContactEosHabits contactId={contactId} />
       </div>
     </div>
   );
