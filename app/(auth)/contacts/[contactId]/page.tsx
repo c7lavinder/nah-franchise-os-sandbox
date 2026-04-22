@@ -109,10 +109,10 @@ export default async function ContactPage({
     || statesRaw.some((p) => p.pipelines?.slug === "runway" || p.pipelines?.slug === "onboarding");
   const role: "prospect" | "franchisee" = isFranchisee ? "franchisee" : "prospect";
 
-  // Grades (franchisee only). Territory-level — roll up across all
-  // territories owned by this contact's GHL id.
+  // Grades + per-territory inventory (franchisee only). Rolls up across
+  // every territory owned by this contact's GHL id.
   let grades: { year: number; quarter: number; self_grade: number | null; john_grade: number | null }[] = [];
-  let territories: { ms_slug: string; territory_name: string }[] = [];
+  let territoryInventory: TerritoryInventoryRow[] = [];
   if (isFranchisee && contact.ghl_contact_id) {
     const { data: ownerRows } = await supabase
       .from("territory_owners")
@@ -121,14 +121,31 @@ export default async function ContactPage({
       .is("end_date", null);
     const slugs = (ownerRows ?? []).map((r) => r.ms_slug);
     if (slugs.length > 0) {
-      const [tRes, gRes] = await Promise.all([
+      const [tRes, gRes, pRes] = await Promise.all([
         supabase.from("territories").select("ms_slug, territory_name").in("ms_slug", slugs),
         supabase.from("territory_owner_grades")
           .select("year, quarter, self_grade, john_grade, ms_slug")
           .in("ms_slug", slugs)
           .order("year", { ascending: false }).order("quarter", { ascending: false }),
+        supabase.from("territory_profile")
+          .select("ms_slug, houses_purchased_ytd, houses_sold_ytd, active_deals, lead_conversion_rate, avg_profit_per_flip")
+          .in("ms_slug", slugs),
       ]);
-      territories = (tRes.data ?? []) as { ms_slug: string; territory_name: string }[];
+      const tRows = (tRes.data ?? []) as { ms_slug: string; territory_name: string }[];
+      const pRows = (pRes.data ?? []) as { ms_slug: string; houses_purchased_ytd: number | null; houses_sold_ytd: number | null; active_deals: number | null; lead_conversion_rate: number | null; avg_profit_per_flip: number | null }[];
+      const nameBySlug = new Map(tRows.map((t) => [t.ms_slug, t.territory_name]));
+      territoryInventory = tRows.map((t) => {
+        const p = pRows.find((x) => x.ms_slug === t.ms_slug);
+        return {
+          ms_slug: t.ms_slug,
+          territory_name: nameBySlug.get(t.ms_slug) ?? t.ms_slug,
+          purchased_ytd: p?.houses_purchased_ytd ?? 0,
+          sold_ytd: p?.houses_sold_ytd ?? 0,
+          active_deals: p?.active_deals ?? 0,
+          conv_rate: p?.lead_conversion_rate ?? null,
+          avg_profit: p?.avg_profit_per_flip ?? null,
+        };
+      });
       grades = (gRes.data ?? []) as typeof grades;
     }
   }
@@ -136,21 +153,7 @@ export default async function ContactPage({
   const memberships = (memberRowsRes.data ?? []) as MembershipRow[];
   const displayName = capitalizeName(`${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim())
     || contact.email || "Unknown";
-
-  // Activity-snapshot inputs — latest call, open actions count, current stage
-  const lastCall = (callRowsRes.data ?? [])[0] as CallRow | undefined;
   const primaryState = statesRaw[0];
-  const daysInStage = primaryState?.entered_current_stage_at
-    ? Math.floor((Date.now() - new Date(primaryState.entered_current_stage_at).getTime()) / 86400000)
-    : null;
-  const daysSinceLastTouch = lastCall?.started_at
-    ? Math.floor((Date.now() - new Date(lastCall.started_at).getTime()) / 86400000)
-    : null;
-  const { count: openActions } = await supabase
-    .from("call_action_items")
-    .select("*", { count: "exact", head: true })
-    .eq("contact_id", contactId)
-    .eq("is_done", false);
 
   return (
     <RichContactPage
@@ -163,19 +166,23 @@ export default async function ContactPage({
         opportunity_source: contact.opportunity_source,
       }}
       activeJourney={{ id: activeJourney.id, name: activeJourney.name, slug: activeJourney.slug, status: activeJourney.status }}
-      allPrimaryJourneys={primaryJourneys}
       memberships={memberships}
-      territories={territories}
+      territoryInventory={territoryInventory}
       grades={grades}
-      snapshot={{
-        currentStage: primaryState?.pipeline_stages?.name ?? null,
-        currentPipelineSlug: primaryState?.pipelines?.slug ?? null,
-        daysInStage, daysSinceLastTouch,
-        lastCallGrade: lastCall?.grade ?? null,
-        openActions: openActions ?? 0,
-      }}
+      currentStage={primaryState?.pipeline_stages?.name ?? null}
+      currentPipelineSlug={primaryState?.pipelines?.slug ?? null}
     />
   );
+}
+
+interface TerritoryInventoryRow {
+  ms_slug: string;
+  territory_name: string;
+  purchased_ytd: number;
+  sold_ytd: number;
+  active_deals: number;
+  conv_rate: number | null;
+  avg_profit: number | null;
 }
 
 // ─── slim fallback (unchanged) ───────────────────────────────────────

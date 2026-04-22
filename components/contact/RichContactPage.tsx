@@ -2,22 +2,24 @@
 
 /**
  * RichContactPage — person-scoped landing for prospects + franchisees.
+ * Mirrors the territory-page structure:
  *
- * Sections (top to bottom):
- *   - Header (name, status, journey link)
- *   - Activity Snapshot (replaces territory-page "Operations")
- *   - Quarterly Grades (franchisee only)
- *   - Tabs: Profile / Personal EOS / Contacts / Deals
+ *   Header (name, role, current stage, journey link)
+ *   ─ Inventory panel (franchisee only — houses across all territories)
+ *   ─ Quarterly Grades (franchisee only)
+ *   ─ Tabs: Contacts (default) / Profile / Personal EOS
  *
- * Data comes pre-fetched from the parent server component.
+ * Prospects see only header + tabs (no inventory/grades — those are
+ * franchisee concepts). Current journey state reads in the header.
  */
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Activity, Award, Briefcase, Users, Goal, TrendingUp } from "lucide-react";
+import { ArrowLeft, Activity, Award, Users, Goal, TrendingUp } from "lucide-react";
 import EosTab from "@/components/leads/tabs/EosTab";
 import { ProfileSection } from "@/components/profile";
 import { PROFILE_FIELDS, getSortedCategories } from "@/lib/profile/field-registry";
+import { capitalizeName } from "@/lib/format/contact";
 
 interface JourneyLite {
   id: string;
@@ -37,13 +39,14 @@ interface GradeRow {
   self_grade: number | null;
   john_grade: number | null;
 }
-interface Snapshot {
-  currentStage: string | null;
-  currentPipelineSlug: string | null;
-  daysInStage: number | null;
-  daysSinceLastTouch: number | null;
-  lastCallGrade: string | null;
-  openActions: number;
+export interface TerritoryInventory {
+  ms_slug: string;
+  territory_name: string;
+  purchased_ytd: number;
+  sold_ytd: number;
+  active_deals: number;
+  conv_rate: number | null;
+  avg_profit: number | null;
 }
 
 interface Props {
@@ -58,21 +61,22 @@ interface Props {
     opportunity_source: string | null;
   };
   activeJourney: { id: string; name: string; slug: string | null; status: string };
-  allPrimaryJourneys: { id: string; name: string; slug: string | null; status: string }[];
   memberships: Membership[];
-  territories: { ms_slug: string; territory_name: string }[];
+  territoryInventory: TerritoryInventory[];
   grades: GradeRow[];
-  snapshot: Snapshot;
+  currentStage: string | null;
+  currentPipelineSlug: string | null;
 }
 
-type TabKey = "profile" | "eos" | "contacts" | "deals";
+type TabKey = "contacts" | "profile" | "eos";
 
 export default function RichContactPage({
-  contactId, displayName, role, activeJourney, allPrimaryJourneys, memberships, territories, grades, snapshot,
+  contactId, displayName, role, activeJourney, memberships, territoryInventory, grades, currentStage, currentPipelineSlug,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<TabKey>("profile");
+  const [activeTab, setActiveTab] = useState<TabKey>("contacts");
   const label = role === "franchisee" ? "Franchisee" : "Prospect";
   const journeyHref = activeJourney.slug ? `/journeys/${activeJourney.slug}` : `/journeys/${activeJourney.id}`;
+  const isFranchisee = role === "franchisee";
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
@@ -82,30 +86,34 @@ export default function RichContactPage({
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold text-text-primary">{displayName}</h1>
             <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-              role === "franchisee" ? "bg-success/10 text-success" : "bg-nah-blue/10 text-nah-blue"
+              isFranchisee ? "bg-success/10 text-success" : "bg-nah-blue/10 text-nah-blue"
             }`}>{label}</span>
             <Link href={journeyHref} className="text-caption text-nah-blue hover:underline">
               Open journey →
             </Link>
           </div>
-          <div className="text-body-sm text-text-tertiary mt-1">
-            {snapshot.currentStage && <>Currently in <span className="text-text-primary font-medium">{snapshot.currentStage}</span> ({snapshot.currentPipelineSlug})</>}
-          </div>
+          {currentStage && (
+            <div className="text-body-sm text-text-tertiary mt-1">
+              Currently in <span className="text-text-primary font-medium">{currentStage}</span>
+              {currentPipelineSlug && <span className="text-text-tertiary"> ({currentPipelineSlug})</span>}
+            </div>
+          )}
         </div>
       </div>
 
-      <ActivitySnapshotCard snapshot={snapshot} role={role} territories={territories} />
+      {isFranchisee && territoryInventory.length > 0 && (
+        <InventoryCard territories={territoryInventory} />
+      )}
 
-      {role === "franchisee" && grades.length > 0 && (
+      {isFranchisee && grades.length > 0 && (
         <GradesCard grades={grades} />
       )}
 
       <div className="flex gap-1 border-b border-border-default">
         {([
+          { key: "contacts" as const, label: "Contacts", icon: Users },
           { key: "profile" as const, label: "Profile", icon: Goal },
           { key: "eos" as const, label: "Personal EOS", icon: TrendingUp },
-          { key: "contacts" as const, label: "Contacts", icon: Users },
-          { key: "deals" as const, label: "Deals", icon: Briefcase },
         ]).map((tab) => {
           const Icon = tab.icon;
           return (
@@ -123,39 +131,81 @@ export default function RichContactPage({
         })}
       </div>
 
+      {activeTab === "contacts" && <ContactsNetworkPanel memberships={memberships} />}
       {activeTab === "profile" && <ContactProfilePanel contactId={contactId} />}
       {activeTab === "eos" && <EosTab contactId={contactId} carriedTerritoryName={null} />}
-      {activeTab === "contacts" && <ContactsNetworkPanel memberships={memberships} />}
-      {activeTab === "deals" && <DealsPanel allPrimaryJourneys={allPrimaryJourneys} memberships={memberships} />}
     </div>
   );
 }
 
-// ─── Activity Snapshot ───────────────────────────────────────────────
+// ─── Inventory (franchisee) ──────────────────────────────────────────
 
-function ActivitySnapshotCard({ snapshot, role, territories }: { snapshot: Snapshot; role: "prospect" | "franchisee"; territories: { ms_slug: string; territory_name: string }[] }) {
-  const headlineValue = snapshot.daysSinceLastTouch === null ? "—" : `${snapshot.daysSinceLastTouch}d`;
-  const headlineLabel = snapshot.daysSinceLastTouch === null ? "No calls logged" : "Days since last touch";
+function InventoryCard({ territories }: { territories: TerritoryInventory[] }) {
+  const totals = territories.reduce(
+    (acc, t) => ({
+      purchased: acc.purchased + (t.purchased_ytd ?? 0),
+      sold: acc.sold + (t.sold_ytd ?? 0),
+      active: acc.active + (t.active_deals ?? 0),
+    }),
+    { purchased: 0, sold: 0, active: 0 },
+  );
+  // Average conv rate / profit across territories that have values.
+  const convValues = territories.map((t) => t.conv_rate).filter((v): v is number => v !== null);
+  const profitValues = territories.map((t) => t.avg_profit).filter((v): v is number => v !== null);
+  const avgConv = convValues.length > 0 ? Math.round(convValues.reduce((a, b) => a + b, 0) / convValues.length) : null;
+  const avgProfit = profitValues.length > 0 ? profitValues.reduce((a, b) => a + b, 0) / profitValues.length : null;
 
   return (
     <div className="bg-bg-primary border border-border-default rounded-lg p-5">
       <div className="flex items-center gap-2 mb-4">
         <Activity size={18} className="text-info" />
-        <h2 className="text-body-sm font-semibold">Activity Snapshot</h2>
+        <h2 className="text-body-sm font-semibold">Inventory — across {territories.length} territor{territories.length === 1 ? "y" : "ies"}</h2>
       </div>
       <div className="text-center mb-4">
-        <div className="text-4xl font-bold text-text-primary">{headlineValue}</div>
-        <div className="text-caption text-text-tertiary">{headlineLabel}</div>
+        <div className="text-4xl font-bold text-text-primary">{totals.purchased}</div>
+        <div className="text-caption text-text-tertiary">Houses Purchased YTD</div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Days in stage" value={snapshot.daysInStage === null ? "—" : `${snapshot.daysInStage}`} />
-        <StatCard label="Last call grade" value={snapshot.lastCallGrade ?? "—"} />
-        <StatCard label="Open action items" value={`${snapshot.openActions}`} />
-        <StatCard
-          label={role === "franchisee" ? "Territories" : "Current stage"}
-          value={role === "franchisee" ? `${territories.length}` : snapshot.currentStage ?? "—"}
-        />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <StatCard label="Sold YTD" value={`${totals.sold}`} />
+        <StatCard label="Active Deals" value={`${totals.active}`} />
+        <StatCard label="Avg Conv. Rate" value={avgConv === null ? "—" : `${avgConv}%`} />
+        <StatCard label="Avg Profit/Flip" value={avgProfit === null ? "—" : `$${Math.round(avgProfit).toLocaleString()}`} />
       </div>
+      {territories.length > 1 && (
+        <div className="border-t border-border-default pt-3">
+          <div className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-2">PER TERRITORY</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-caption">
+              <thead>
+                <tr className="text-left text-text-tertiary">
+                  <th className="py-1 pr-3">Territory</th>
+                  <th className="py-1 px-2 text-right">Purch YTD</th>
+                  <th className="py-1 px-2 text-right">Sold YTD</th>
+                  <th className="py-1 px-2 text-right">Active</th>
+                  <th className="py-1 px-2 text-right">Conv%</th>
+                  <th className="py-1 px-2 text-right">Avg Profit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {territories.map((t) => (
+                  <tr key={t.ms_slug} className="border-t border-border-default/50">
+                    <td className="py-1 pr-3 font-medium">
+                      <Link href={`/territories/${t.ms_slug}`} className="text-nah-blue hover:underline" target="_blank" rel="noopener noreferrer">
+                        {t.territory_name}
+                      </Link>
+                    </td>
+                    <td className="py-1 px-2 text-right">{t.purchased_ytd}</td>
+                    <td className="py-1 px-2 text-right">{t.sold_ytd}</td>
+                    <td className="py-1 px-2 text-right">{t.active_deals}</td>
+                    <td className="py-1 px-2 text-right">{t.conv_rate === null ? "—" : `${t.conv_rate}%`}</td>
+                    <td className="py-1 px-2 text-right">{t.avg_profit === null ? "—" : `$${Math.round(t.avg_profit).toLocaleString()}`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -218,6 +268,53 @@ function GradesCard({ grades }: { grades: GradeRow[] }) {
   );
 }
 
+// ─── Contacts (cross-journey relationships, card-based) ──────────────
+
+function ContactsNetworkPanel({ memberships }: { memberships: Membership[] }) {
+  return (
+    <div className="bg-bg-primary border border-border-default rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Users size={14} className="text-text-tertiary" />
+        <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">
+          JOURNEYS THIS PERSON IS IN ({memberships.length})
+        </h3>
+      </div>
+      {memberships.length === 0 ? (
+        <p className="text-caption text-text-tertiary">No journey memberships.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {memberships.map((m) => {
+            const j = Array.isArray(m.journeys) ? m.journeys[0] : m.journeys;
+            if (!j) return null;
+            const href = j.slug ? `/journeys/${j.slug}` : `/journeys/${j.id}`;
+            return (
+              <Link
+                key={j.id}
+                href={href}
+                className="block bg-bg-secondary border border-border-default rounded-lg p-3 hover:border-nah-orange/60 transition-colors"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-body-sm font-medium text-text-primary truncate">{capitalizeName(j.name)}</span>
+                  <span className={`text-[10px] px-1.5 rounded shrink-0 ${
+                    j.status === "active" ? "bg-success/10 text-success"
+                    : j.status === "closed" ? "bg-text-tertiary/10 text-text-tertiary"
+                    : "bg-nah-blue/10 text-nah-blue"
+                  }`}>{j.status}</span>
+                </div>
+                <div className="flex items-center gap-2 text-caption text-text-tertiary">
+                  <span className="uppercase tracking-wider">{m.role.replace(/_/g, " ")}</span>
+                  <span>•</span>
+                  <span>Joined {new Date(m.joined_at).toLocaleDateString()}</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Profile tab ─────────────────────────────────────────────────────
 
 function ContactProfilePanel({ contactId }: { contactId: string }) {
@@ -275,92 +372,3 @@ function ContactProfilePanel({ contactId }: { contactId: string }) {
   );
 }
 
-// ─── Contacts / network panel ────────────────────────────────────────
-
-function ContactsNetworkPanel({ memberships }: { memberships: Membership[] }) {
-  // Dedupe by (name, role) across every journey this person is in. The goal
-  // is to show *who this person knows through NAH* — a card-based view of
-  // their cross-journey relationships.
-  return (
-    <div className="bg-bg-primary border border-border-default rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-4">
-        <Users size={14} className="text-text-tertiary" />
-        <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">
-          JOURNEYS THIS PERSON IS IN ({memberships.length})
-        </h3>
-      </div>
-      {memberships.length === 0 ? (
-        <p className="text-caption text-text-tertiary">No journey memberships.</p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {memberships.map((m) => {
-            const j = Array.isArray(m.journeys) ? m.journeys[0] : m.journeys;
-            if (!j) return null;
-            const href = j.slug ? `/journeys/${j.slug}` : `/journeys/${j.id}`;
-            return (
-              <Link
-                key={j.id}
-                href={href}
-                className="block bg-bg-secondary border border-border-default rounded-lg p-3 hover:border-nah-orange/60 transition-colors"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-body-sm font-medium text-text-primary truncate">{j.name}</span>
-                  <span className={`text-[10px] px-1.5 rounded shrink-0 ${
-                    j.status === "active" ? "bg-success/10 text-success"
-                    : j.status === "closed" ? "bg-text-tertiary/10 text-text-tertiary"
-                    : "bg-nah-blue/10 text-nah-blue"
-                  }`}>{j.status}</span>
-                </div>
-                <div className="flex items-center gap-2 text-caption text-text-tertiary">
-                  <span className="uppercase tracking-wider">{m.role.replace(/_/g, " ")}</span>
-                  <span>•</span>
-                  <span>Joined {new Date(m.joined_at).toLocaleDateString()}</span>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Deals panel ─────────────────────────────────────────────────────
-
-function DealsPanel({ allPrimaryJourneys }: { allPrimaryJourneys: { id: string; name: string; slug: string | null; status: string }[]; memberships: Membership[] }) {
-  const sorted = [...allPrimaryJourneys].sort((a, b) => {
-    // Active first, then closed / archived
-    if (a.status === "active" && b.status !== "active") return -1;
-    if (b.status === "active" && a.status !== "active") return 1;
-    return 0;
-  });
-  return (
-    <div className="bg-bg-primary border border-border-default rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-4">
-        <Briefcase size={14} className="text-text-tertiary" />
-        <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">
-          DEALS ({sorted.length})
-        </h3>
-      </div>
-      {sorted.length === 0 ? (
-        <p className="text-caption text-text-tertiary">No journeys yet.</p>
-      ) : (
-        <div className="space-y-2">
-          {sorted.map((j) => {
-            const href = j.slug ? `/journeys/${j.slug}` : `/journeys/${j.id}`;
-            return (
-              <Link key={j.id} href={href} className="flex items-center justify-between px-3 py-2 bg-bg-secondary border border-border-default rounded hover:border-nah-orange/60 transition-colors">
-                <span className="text-body-sm font-medium text-text-primary">{j.name}</span>
-                <span className={`text-[10px] px-1.5 rounded ${
-                  j.status === "active" ? "bg-success/10 text-success"
-                  : j.status === "closed" ? "bg-text-tertiary/10 text-text-tertiary"
-                  : "bg-nah-blue/10 text-nah-blue"
-                }`}>{j.status}</span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
