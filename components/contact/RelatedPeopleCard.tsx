@@ -1,8 +1,16 @@
 "use client";
 
 /**
- * RelatedPeopleCard — shows related people (spouse, attorney, etc.) for a contact.
- * Reusable across Overview and Messages tabs.
+ * RelatedPeopleCard — shows everyone attached to this journey.
+ *
+ * Two modes:
+ *  • Journey-aware (preferred): when `journeyMembers` is passed in, render
+ *    that list directly — one row per journey_contacts member, role label
+ *    derived from the member's role. The parent owns the Add flow (it has
+ *    the journey id and opens AddJourneyMemberModal).
+ *  • Legacy fallback: when no journey context is provided (slim /contacts
+ *    page), fetch contact_related_people from the old endpoint. Gradually
+ *    retired as /contacts-level pages migrate.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -22,8 +30,20 @@ interface RelatedPerson {
   is_primary_decision_maker: boolean;
 }
 
+export interface JourneyMemberLite {
+  contact_id: string;
+  role: string;
+  first_name: string | null;
+  last_name: string | null;
+  email?: string | null;
+  phone?: string | null;
+  is_primary?: boolean;
+}
+
 const ROLES = ["spouse", "family", "attorney", "accountant", "financial_advisor", "business_partner", "other"];
 const ROLE_LABELS: Record<string, string> = {
+  primary: "Primary",
+  co_primary: "Co-primary",
   spouse: "Spouse", family: "Family", attorney: "Attorney",
   accountant: "Accountant", financial_advisor: "Financial Advisor",
   business_partner: "Business Partner", other: "Other",
@@ -39,9 +59,14 @@ interface MainContact {
 interface RelatedPeopleCardProps {
   contactId: string;
   mainContact?: MainContact | null;
+  /** When provided, the card renders from journey_contacts instead of
+   *  contact_related_people. The journey context also gates the Add flow
+   *  onto the parent via onAddRequested. */
+  journeyMembers?: JourneyMemberLite[];
+  onAddRequested?: () => void;
 }
 
-export default function RelatedPeopleCard({ contactId, mainContact }: RelatedPeopleCardProps) {
+export default function RelatedPeopleCard({ contactId, mainContact, journeyMembers, onAddRequested }: RelatedPeopleCardProps) {
   const { toast } = useToast();
   const [people, setPeople] = useState<RelatedPerson[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +88,13 @@ export default function RelatedPeopleCard({ contactId, mainContact }: RelatedPeo
     setLoading(false);
   }, [contactId]);
 
-  useEffect(() => { void fetchPeople(); }, [fetchPeople]);
+  // Journey mode = the parent passed journey_contacts. No network call
+  // needed; loading state resolves immediately.
+  const journeyMode = Array.isArray(journeyMembers);
+  useEffect(() => {
+    if (journeyMode) { setLoading(false); return; }
+    void fetchPeople();
+  }, [journeyMode, fetchPeople]);
 
   async function handleAdd() {
     if (!formData.first_name.trim()) return;
@@ -90,6 +121,54 @@ export default function RelatedPeopleCard({ contactId, mainContact }: RelatedPeo
   }
 
   if (loading) return <div className="flex items-center justify-center py-4"><Loader2 size={16} className="animate-spin text-text-tertiary" /></div>;
+
+  // In journey mode render every journey_contacts member directly. The
+  // header count reflects the real membership list; the Add button bubbles
+  // up to the parent (which already owns AddJourneyMemberModal).
+  if (journeyMode) {
+    const list = journeyMembers ?? [];
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1.5">
+            <Users size={14} className="text-text-tertiary" />
+            <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">CONTACTS ({list.length})</h3>
+          </div>
+          {onAddRequested && (
+            <button onClick={onAddRequested} className="text-caption text-nah-blue hover:underline flex items-center gap-0.5">
+              <Plus size={11} /> Add
+            </button>
+          )}
+        </div>
+        {list.length === 0 && (
+          <p className="text-caption text-text-tertiary py-2">No contacts on this journey.</p>
+        )}
+        <div className="space-y-1.5">
+          {list.map((m) => {
+            const name = capitalizeName(`${m.first_name ?? ""} ${m.last_name ?? ""}`.trim()) || "Unknown";
+            const initials = name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+            const roleLabel = ROLE_LABELS[m.role] ?? m.role.replace(/_/g, " ");
+            const isPrimary = m.is_primary || m.role === "primary";
+            return (
+              <div key={m.contact_id} className="flex items-center gap-2.5 py-1.5">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0 ${isPrimary ? "bg-nah-orange/15 text-nah-orange" : "bg-nah-blue/10 text-nah-blue"}`}>{initials}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-caption font-medium text-text-primary truncate">{name}</span>
+                    <span className={`text-[9px] px-1 py-0.5 rounded ${isPrimary ? "bg-nah-orange/10 text-nah-orange" : "bg-text-tertiary/10 text-text-tertiary"}`}>{roleLabel}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-text-tertiary">
+                    {m.email && <span className="truncate">{m.email}</span>}
+                    {m.phone && <span>{formatPhone(m.phone)}</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

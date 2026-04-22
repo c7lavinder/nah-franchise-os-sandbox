@@ -23,12 +23,24 @@ const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE
 async function main(dryRun: boolean) {
   console.log(`Mode: ${dryRun ? "DRY RUN" : "LIVE"}`);
 
-  const { data: journeys, error } = await supabase
-    .from("journeys")
-    .select("id, name, slug, created_at")
-    .order("created_at", { ascending: true });
-  if (error) throw new Error(error.message);
-  if (!journeys) throw new Error("no journeys returned");
+  // Paginate — default PostgREST cap is 1000 rows and there are now 2.7k+
+  // journeys. Earlier run missed anything past the first page.
+  const journeys: { id: string; name: string | null; slug: string | null; created_at: string }[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from("journeys")
+      .select("id, name, slug, created_at")
+      .order("created_at", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+    journeys.push(...data);
+    if (data.length < pageSize) break;
+    offset += pageSize;
+  }
+  console.log(`Loaded ${journeys.length} journeys`);
 
   const taken = new Set<string>();
   for (const j of journeys) if (j.slug) taken.add(j.slug);

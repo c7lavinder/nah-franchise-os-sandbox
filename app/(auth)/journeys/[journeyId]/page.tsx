@@ -22,7 +22,10 @@ interface JourneyMemberRow {
   contact_id: string;
   role: string;
   joined_at: string;
-  contacts: { first_name: string | null; last_name: string | null } | { first_name: string | null; last_name: string | null }[] | null;
+  contacts:
+    | { first_name: string | null; last_name: string | null; email: string | null; phone: string | null }
+    | { first_name: string | null; last_name: string | null; email: string | null; phone: string | null }[]
+    | null;
 }
 
 export default async function JourneyPage({
@@ -42,7 +45,7 @@ export default async function JourneyPage({
   const lookupColumn = isUuid(journeyId) ? "id" : "slug";
   const { data: journey } = await supabase
     .from("journeys")
-    .select("id, slug, primary_contact_id, status")
+    .select("id, slug, name, primary_contact_id, status")
     .eq(lookupColumn, journeyId)
     .maybeSingle();
 
@@ -72,7 +75,7 @@ export default async function JourneyPage({
 
   const { data: memberRows } = await supabase
     .from("journey_contacts")
-    .select("contact_id, role, joined_at, contacts(first_name, last_name)")
+    .select("contact_id, role, joined_at, contacts(first_name, last_name, email, phone)")
     .eq("journey_id", journey.id)
     .is("left_at", null)
     .order("joined_at", { ascending: true });
@@ -85,6 +88,8 @@ export default async function JourneyPage({
       role: raw.role,
       first_name: contact?.first_name ?? null,
       last_name: contact?.last_name ?? null,
+      email: contact?.email ?? null,
+      phone: contact?.phone ?? null,
       is_primary: raw.contact_id === journey.primary_contact_id,
     };
   });
@@ -100,6 +105,8 @@ export default async function JourneyPage({
     <LeadDetailView
       contactId={ghlContactId}
       journeyId={journey.id}
+      primaryLocalContactId={journey.primary_contact_id}
+      journeyName={journey.name}
       initialTerritorySlug={territory ?? null}
       highlightMessageId={message ?? null}
       members={members}

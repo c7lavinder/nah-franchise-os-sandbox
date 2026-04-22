@@ -96,12 +96,22 @@ export interface JourneyMember {
   role: string;
   first_name: string | null;
   last_name: string | null;
+  email?: string | null;
+  phone?: string | null;
   is_primary: boolean;
 }
 
 interface LeadDetailViewProps {
   contactId: string;
   journeyId?: string;
+  /** Local UUID of the journey's primary contact. LeadDetailView compares in
+   *  local-UUID space for "is the currently-viewed profile the primary or an
+   *  alt member?", so we need this separate from the GHL-id `contactId`. */
+  primaryLocalContactId?: string | null;
+  /** Human-readable journey name (e.g. "Ryan Decker + Shannon Smylie").
+   *  Used in the page header for partnerships; solo journeys fall back to
+   *  the contact's GHL name. */
+  journeyName?: string | null;
   initialTerritorySlug?: string | null;
   highlightMessageId?: string | null;
   members?: JourneyMember[];
@@ -110,6 +120,8 @@ interface LeadDetailViewProps {
 export default function LeadDetailView({
   contactId,
   journeyId,
+  primaryLocalContactId,
+  journeyName,
   initialTerritorySlug,
   highlightMessageId,
   members = [],
@@ -154,16 +166,19 @@ export default function LeadDetailView({
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [focusedTerritorySlug, pathname, router, searchParams]);
 
-  // Profile tab supports editing any journey member. Defaults to the main
-  // contact and swaps when the user clicks a sub-tab.
-  const [profileContactId, setProfileContactId] = useState<string>(contactId);
+  // Profile tab supports editing any journey member. Defaults to the journey
+  // primary (local UUID) and swaps when the user clicks a sub-tab. We track
+  // in local-UUID space so member comparisons are consistent; the API routes
+  // already accept either form when we PATCH against profileContactId.
+  const effectivePrimaryLocalId = primaryLocalContactId ?? contactId;
+  const [profileContactId, setProfileContactId] = useState<string>(effectivePrimaryLocalId);
   const [profileContactData, setProfileContactData] = useState<LocalContact | null>(null);
   const [profileSavingKey, setProfileSavingKey] = useState<string | null>(null);
 
   // Keep internal profile contact in sync when the outer prop changes.
-  useEffect(() => { setProfileContactId(contactId); }, [contactId]);
+  useEffect(() => { setProfileContactId(effectivePrimaryLocalId); }, [effectivePrimaryLocalId]);
 
-  const isAltContact = profileContactId !== contactId;
+  const isAltContact = profileContactId !== effectivePrimaryLocalId;
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -262,9 +277,20 @@ export default function LeadDetailView({
     setSaving(false);
   }
 
-  const displayName = contact
-    ? capitalizeName(`${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim()) || "Unknown"
-    : "Loading...";
+  // Header title: prefer the journey name when it's a partnership (>=2 active
+  // members). For solo journeys the GHL contact name is simpler and reads
+  // better. Journey name falls back to the contact name if we don't have one.
+  const activeMemberCount = members.filter((m) => m.contact_id).length;
+  const displayName = (() => {
+    if (journeyId && journeyName && activeMemberCount >= 2) {
+      return capitalizeName(journeyName) || journeyName;
+    }
+    if (contact) {
+      return capitalizeName(`${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim()) || "Unknown";
+    }
+    if (journeyName) return capitalizeName(journeyName) || journeyName;
+    return "Loading...";
+  })();
   const hasPending = Object.keys(pendingChanges).length > 0;
   const selectedPipeline = pipelineStates.find((p) => p.id === selectedPipelineId);
   const drilldownStage = selectedPipeline?.stages.find((s) => s.id === drilldownStageId);
@@ -392,7 +418,20 @@ export default function LeadDetailView({
               {/* LEFT — Persistent: Team + Territory (visible on all tabs) */}
               <div className="lg:col-span-1 space-y-4">
                 <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                  <RelatedPeopleCard contactId={contactId} mainContact={localContact} />
+                  <RelatedPeopleCard
+                    contactId={contactId}
+                    mainContact={localContact}
+                    journeyMembers={journeyId ? activeMembers.map((m) => ({
+                      contact_id: m.contact_id,
+                      role: m.role,
+                      first_name: m.first_name,
+                      last_name: m.last_name,
+                      email: m.email ?? null,
+                      phone: m.phone ?? null,
+                      is_primary: m.is_primary,
+                    })) : undefined}
+                    onAddRequested={journeyId ? () => setAddMemberOpen(true) : undefined}
+                  />
                 </div>
                 <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
                   <TeamCard contactId={contactId} />
