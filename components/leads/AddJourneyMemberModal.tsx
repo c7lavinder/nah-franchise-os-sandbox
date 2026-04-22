@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { X, Search, Loader2, UserPlus } from "lucide-react";
-import AddProspectModal from "@/components/pipeline/AddProspectModal";
+import AddContactModal from "@/components/contact/AddContactModal";
 
 interface ContactOption {
   id: string;
@@ -203,22 +203,17 @@ export default function AddJourneyMemberModal({ open, journeyId, existingMemberI
         </div>
       </div>
 
-      <AddProspectModal
+      <AddContactModal
         open={showAddProspect}
+        journeyId={journeyId}
+        coreRoleLabel={coreRoleLabel}
         onClose={() => setShowAddProspect(false)}
-        onCreated={(contactId, displayName) => {
-          if (contactId) {
-            // Hydrate a minimal option so user can pick role + submit without a round-trip.
-            setSelected({
-              id: contactId,
-              first_name: null,
-              last_name: null,
-              name: displayName ?? "New contact",
-              email: null,
-              phone: null,
-            });
-          }
+        onCreated={() => {
+          // AddContactModal already links the new contact to the journey
+          // with the selected role. Just notify the parent and close.
           setShowAddProspect(false);
+          onAdded();
+          onClose();
         }}
       />
     </>

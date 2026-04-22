@@ -259,6 +259,26 @@ export default function LeadDetailView({
     return () => { cancelled = true; };
   }, [profileContactId, contactId]);
 
+  // Load extended profile values (Scout score, categories) for whichever
+  // core member is currently selected. Personal facts (credit, employment,
+  // family) live on the contact, so each core member sees their own data.
+  // Side members (spouse, attorney) don't render the extended sections.
+  useEffect(() => {
+    if (profileContactId === contactId) return; // already loaded by fetchAll
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/contacts/${profileContactId}/profile`);
+        if (!res.ok) return;
+        const d = await res.json();
+        if (cancelled) return;
+        setProfileValues(d.raw ?? {});
+        setPendingChanges({});
+      } catch { /* keep previous */ }
+    })();
+    return () => { cancelled = true; };
+  }, [profileContactId, contactId]);
+
   function handleFieldChange(fieldName: string, value: string) {
     setProfileValues((prev) => ({ ...prev, [fieldName]: value }));
     setPendingChanges((prev) => ({ ...prev, [fieldName]: value }));
@@ -268,7 +288,7 @@ export default function LeadDetailView({
     if (Object.keys(pendingChanges).length === 0) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/profile`, {
+      const res = await fetch(`/api/contacts/${profileContactId}/profile`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: pendingChanges }),
       });
@@ -329,6 +349,15 @@ export default function LeadDetailView({
 
   const activeMembers = members.filter((m) => m.contact_id);
   const showMemberTabs = Boolean(journeyId) && activeMembers.length >= 2;
+
+  // Role-based gating for the extended profile fields (Scout score, Auto
+  // Summary, category groups). "Core" roles — primary and co_primary —
+  // are franchisees/prospects in their own right and get the full profile.
+  // Side roles (family, spouse, attorney, accountant, financial_advisor,
+  // business_partner, other) only see contact info.
+  const profileMember = activeMembers.find((m) => m.contact_id === profileContactId);
+  const profileRole = profileMember?.role ?? "primary";
+  const isSideMember = profileRole !== "primary" && profileRole !== "co_primary";
 
   // Journey type drives how we label a journey's core members (primary,
   // co_primary). Runway/onboarding means they're a franchisee on this deal;
@@ -536,7 +565,7 @@ export default function LeadDetailView({
                     )}
                     <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
                       <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-3">
-                        {isAltContact ? "CONTACT INFORMATION" : "PROSPECT INFORMATION"}
+                        {isSideMember ? "CONTACT INFORMATION" : `${coreRoleLabel.toUpperCase()} INFORMATION`}
                       </h3>
                       <div className="grid grid-cols-2 gap-3 text-body-sm">
                         {[
@@ -572,28 +601,23 @@ export default function LeadDetailView({
                       </div>
                       {profileSavingKey && <p className="text-[10px] text-text-tertiary mt-2">Saving…</p>}
                     </div>
-                    {!isAltContact && profileValues["Auto Summary"] && (
+                    {!isSideMember && profileValues["Auto Summary"] && (
                       <div className="bg-scout-purple/5 border border-scout-purple/20 rounded-lg p-4">
                         <span className="text-caption font-medium text-scout-purple">Scout AI Summary</span>
                         <p className="text-body-sm text-text-primary mt-1">{profileValues["Auto Summary"]}</p>
                         {profileValues["Recommended Next Action"] && <p className="text-body-sm text-nah-orange font-medium mt-2">Next: {profileValues["Recommended Next Action"]}</p>}
                       </div>
                     )}
-                    {!isAltContact && profileValues["Scout Prospect Score"] && (
+                    {!isSideMember && profileValues["Scout Prospect Score"] && (
                       <div className="flex items-center gap-4 bg-bg-secondary border border-border-default rounded-lg p-4">
                         <div className="text-center"><div className="text-h1 text-nah-orange">{profileValues["Scout Prospect Score"]}</div><div className="text-caption text-text-tertiary">Prospect Score</div></div>
                         {profileValues["Predicted Close Probability"] && <div className="text-center"><div className="text-h1 text-success">{profileValues["Predicted Close Probability"]}%</div><div className="text-caption text-text-tertiary">Close Prob.</div></div>}
                       </div>
                     )}
-                    {!isAltContact && CATEGORIES.map((cat) => {
+                    {!isSideMember && CATEGORIES.map((cat) => {
                       const fields = PROFILE_FIELDS.filter((f) => f.category === cat);
                       return <ProfileSection key={cat} category={cat} fields={fields} values={profileValues} onFieldChange={handleFieldChange} saving={saving} />;
                     })}
-                    {isAltContact && (
-                      <p className="text-caption text-text-tertiary italic px-1">
-                        Extended profile fields live on the journey primary. Switch to the primary tab to edit them.
-                      </p>
-                    )}
                   </div>
                 ) : activeTab === "territories" ? (
                   <TerritoryDataTab ghlContactId={contact?.id ?? null} />
