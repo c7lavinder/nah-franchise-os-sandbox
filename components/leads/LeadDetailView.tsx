@@ -151,6 +151,10 @@ export default function LeadDetailView({
   const [focusedTerritorySlug, setFocusedTerritorySlug] = useState<string | null>(initialTerritorySlug ?? null);
   const [splitOpen, setSplitOpen] = useState(false);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [journeyNameOverride, setJourneyNameOverride] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [savingTitle, setSavingTitle] = useState(false);
 
   // Keep the URL's ?territory= param in sync with the focused territory so
   // sharing the page or using back/forward preserves the selection. Browser
@@ -301,16 +305,43 @@ export default function LeadDetailView({
   // members). For solo journeys the GHL contact name is simpler and reads
   // better. Journey name falls back to the contact name if we don't have one.
   const activeMemberCount = members.filter((m) => m.contact_id).length;
+  const effectiveJourneyName = journeyNameOverride ?? journeyName ?? null;
   const displayName = (() => {
-    if (journeyId && journeyName && activeMemberCount >= 2) {
-      return capitalizeName(journeyName) || journeyName;
+    if (journeyId && effectiveJourneyName && activeMemberCount >= 2) {
+      return capitalizeName(effectiveJourneyName) || effectiveJourneyName;
     }
     if (contact) {
       return capitalizeName(`${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim()) || "Unknown";
     }
-    if (journeyName) return capitalizeName(journeyName) || journeyName;
+    if (effectiveJourneyName) return capitalizeName(effectiveJourneyName) || effectiveJourneyName;
     return "Loading...";
   })();
+
+  async function saveJourneyTitle() {
+    const trimmed = titleDraft.trim();
+    if (!journeyId) { setEditingTitle(false); return; }
+    if (!trimmed) { setEditingTitle(false); return; }
+    if (trimmed === effectiveJourneyName) { setEditingTitle(false); return; }
+    setSavingTitle(true);
+    try {
+      const res = await fetch(`/api/journeys/${journeyId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: "Save failed" }));
+        toast(`Couldn't save: ${error}`);
+        return;
+      }
+      const { journey } = await res.json();
+      setJourneyNameOverride(journey?.name ?? trimmed);
+      setEditingTitle(false);
+      toast("Journey renamed");
+    } finally {
+      setSavingTitle(false);
+    }
+  }
   const hasPending = Object.keys(pendingChanges).length > 0;
   const selectedPipeline = pipelineStates.find((p) => p.id === selectedPipelineId);
   const drilldownStage = selectedPipeline?.stages.find((s) => s.id === drilldownStageId);
@@ -380,7 +411,33 @@ export default function LeadDetailView({
       {/* Header — name + action buttons only */}
       <div className="flex items-center gap-3 px-1 py-3 flex-shrink-0">
         <button onClick={() => router.back()} className="btn-ghost p-1.5"><ArrowLeft size={18} /></button>
-        <h1 className="font-headline text-page-title text-text-primary truncate flex-1">{displayName}</h1>
+        {journeyId && editingTitle ? (
+          <input
+            autoFocus
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={() => void saveJourneyTitle()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); void saveJourneyTitle(); }
+              else if (e.key === "Escape") { e.preventDefault(); setEditingTitle(false); }
+            }}
+            disabled={savingTitle}
+            maxLength={200}
+            className="font-headline text-page-title text-text-primary bg-transparent border-b border-nah-blue outline-none flex-1 min-w-0"
+          />
+        ) : (
+          <h1
+            onClick={() => {
+              if (!journeyId) return;
+              setTitleDraft(effectiveJourneyName ?? displayName);
+              setEditingTitle(true);
+            }}
+            title={journeyId ? "Click to rename" : undefined}
+            className={`font-headline text-page-title text-text-primary truncate flex-1 ${journeyId ? "cursor-text hover:underline decoration-dotted decoration-border-default underline-offset-4" : ""}`}
+          >
+            {displayName}
+          </h1>
+        )}
         {contact && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button onClick={() => setActivePanel("call")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-success/10 text-success text-caption font-medium hover:bg-success/20 transition-colors"><Phone size={12} /> Call</button>
