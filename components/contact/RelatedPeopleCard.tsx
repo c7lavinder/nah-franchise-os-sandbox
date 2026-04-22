@@ -160,12 +160,29 @@ export default function RelatedPeopleCard({ contactId, mainContact, journeyMembe
             const roleLabel = isCore
               ? (coreRoleLabel ?? (ROLE_LABELS[m.role] ?? m.role))
               : (ROLE_LABELS[m.role] ?? m.role.replace(/_/g, " "));
+            // Core members (prospects + franchisees) get a link to their
+            // person page — same pattern as territory ownership → territory
+            // page. Side members (spouse/attorney/etc.) don't have a rich
+            // person page, so their name stays plain text.
+            const nameNode = isCore ? (
+              <a
+                href={`/contacts/${m.contact_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-caption font-medium text-nah-blue hover:underline truncate"
+              >
+                {name}
+              </a>
+            ) : (
+              <span className="text-caption font-medium text-text-primary truncate">{name}</span>
+            );
+
             return (
               <div key={m.contact_id} className="flex items-center gap-2.5 py-1.5">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0 ${isCore ? "bg-nah-orange/15 text-nah-orange" : "bg-nah-blue/10 text-nah-blue"}`}>{initials}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-caption font-medium text-text-primary truncate">{name}</span>
+                    {nameNode}
                     <span className={`text-[9px] px-1 py-0.5 rounded ${isCore ? "bg-nah-orange/10 text-nah-orange" : "bg-text-tertiary/10 text-text-tertiary"}`}>{roleLabel}</span>
                   </div>
                   <div className="flex items-center gap-2 text-[10px] text-text-tertiary">
