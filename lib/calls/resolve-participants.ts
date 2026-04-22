@@ -53,15 +53,31 @@ export interface ResolvedCallParticipant {
   contact_id: string | null;
   contact_ghl_id: string | null;
   territory_ms_slug: string | null;
+  journey_id: string | null;
+  journey_pipeline_state_id: string | null;
   match_method: MatchMethod;
 }
 
 export interface ResolveResult {
   contact_id: string | null;
   territory_ms_slug: string | null;
+  journey_id: string | null;
+  journey_pipeline_state_id: string | null;
   confidence: number;
   reason: string;
   participants: ResolvedCallParticipant[];
+}
+
+/**
+ * A journey pick for a single contact.
+ *
+ * Journey is pipeline-invariant — the same journey carries a contact from
+ * sales through coaching through ownership, only the pipeline changes.
+ * So selection depends on (contact, territory), not on call_type.
+ */
+export interface JourneyPick {
+  journey_id: string;
+  journey_pipeline_state_id: string;
 }
 
 export interface ResolverDb {
@@ -69,6 +85,15 @@ export interface ResolverDb {
   findContactsByLast10Phone(last10: string): Promise<ContactMatch[]>;
   findContactsByNameTokens(firstToken: string, lastToken: string): Promise<ContactMatch[]>;
   getActiveTerritoryForContact(ghlContactId: string): Promise<string | null>;
+  /**
+   * Pick the journey_pipeline_state row that represents this contact's
+   * current stage on this call. See resolver JSDoc for priority rules.
+   * territoryMsSlug is the participant's own territory when known, null otherwise.
+   */
+  getActiveJourneyForContact(
+    contactId: string,
+    territoryMsSlug: string | null,
+  ): Promise<JourneyPick | null>;
   isTeamEmail(email: string): Promise<boolean>;
   findUserByEmail(email: string): Promise<{ id: string; full_name: string } | null>;
 }
@@ -145,6 +170,8 @@ export async function resolveCallParticipants(
         contact_id: null,
         contact_ghl_id: null,
         territory_ms_slug: null,
+        journey_id: null,
+        journey_pipeline_state_id: null,
         match_method: "email",
       });
       continue;
@@ -190,6 +217,7 @@ export async function resolveCallParticipants(
       const territory = participantWinner.ghl_contact_id
         ? await db.getActiveTerritoryForContact(participantWinner.ghl_contact_id)
         : null;
+      const journey = await db.getActiveJourneyForContact(participantWinner.id, territory);
       const role: ParticipantRole = territory ? "franchisee" : "prospect";
       const displayName = [participantWinner.first_name, participantWinner.last_name].filter(Boolean).join(" ").trim()
         || cleanDisplayName(email, p.name ?? null);
@@ -202,6 +230,8 @@ export async function resolveCallParticipants(
         contact_id: participantWinner.id,
         contact_ghl_id: participantWinner.ghl_contact_id,
         territory_ms_slug: territory,
+        journey_id: journey?.journey_id ?? null,
+        journey_pipeline_state_id: journey?.journey_pipeline_state_id ?? null,
         match_method: participantMethod,
       });
     } else {
@@ -214,6 +244,8 @@ export async function resolveCallParticipants(
         contact_id: null,
         contact_ghl_id: null,
         territory_ms_slug: null,
+        journey_id: null,
+        journey_pipeline_state_id: null,
         match_method: "none",
       });
     }
@@ -224,6 +256,8 @@ export async function resolveCallParticipants(
   // duplicate participants hitting the same contact don't inflate the count).
   let contact_id: string | null = null;
   let territory_ms_slug: string | null = null;
+  let journey_id: string | null = null;
+  let journey_pipeline_state_id: string | null = null;
   let confidence = 0;
   let reason = "no signals matched";
 
@@ -247,9 +281,19 @@ export async function resolveCallParticipants(
   if (contact_id) {
     const cp = perParticipant.find((p) => p.contact_id === contact_id);
     if (cp?.territory_ms_slug) territory_ms_slug = cp.territory_ms_slug;
+    if (cp?.journey_id) journey_id = cp.journey_id;
+    if (cp?.journey_pipeline_state_id) journey_pipeline_state_id = cp.journey_pipeline_state_id;
   }
 
-  return { contact_id, territory_ms_slug, confidence, reason, participants: perParticipant };
+  return {
+    contact_id,
+    territory_ms_slug,
+    journey_id,
+    journey_pipeline_state_id,
+    confidence,
+    reason,
+    participants: perParticipant,
+  };
 }
 
 function dedupeById(contacts: ContactMatch[]): ContactMatch[] {
@@ -300,6 +344,70 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
         .is("end_date", null)
         .maybeSingle();
       return data?.ms_slug ?? null;
+    },
+    async getActiveJourneyForContact(contactId, territoryMsSlug) {
+      // 1. Gather candidate active journeys: ones where the contact is the
+      //    primary, plus ones where they're an attached member. Prefer primary.
+      const { data: primaryJourneys } = await supabase
+        .from("journeys")
+        .select("id, updated_at")
+        .eq("primary_contact_id", contactId)
+        .eq("status", "active")
+        .order("updated_at", { ascending: false });
+
+      const { data: memberRows } = await supabase
+        .from("journey_contacts")
+        .select("journey_id, journeys!inner(id, updated_at, status)")
+        .eq("contact_id", contactId)
+        .is("left_at", null);
+
+      type JourneyRow = { id: string; updated_at: string; isPrimary: boolean };
+      const candidates: JourneyRow[] = [];
+      for (const j of primaryJourneys ?? []) {
+        candidates.push({ id: j.id, updated_at: j.updated_at, isPrimary: true });
+      }
+      for (const m of (memberRows ?? []) as unknown as {
+        journey_id: string;
+        journeys: { id: string; updated_at: string; status: string } | null;
+      }[]) {
+        if (!m.journeys || m.journeys.status !== "active") continue;
+        if (candidates.some((c) => c.id === m.journey_id)) continue;
+        candidates.push({
+          id: m.journey_id,
+          updated_at: m.journeys.updated_at,
+          isPrimary: false,
+        });
+      }
+      if (candidates.length === 0) return null;
+
+      // Primary-journey membership wins; tie-break most-recent updated_at.
+      candidates.sort((a, b) => {
+        if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+        return b.updated_at.localeCompare(a.updated_at);
+      });
+      const journey = candidates[0];
+
+      // 2. Pick the jps row. Prefer the one matching the call's territory; then
+      //    the pre-award NULL-territory row; then the most-recently-updated active.
+      const { data: jpsRows } = await supabase
+        .from("journey_pipeline_state")
+        .select("id, territory_ms_slug, updated_at, is_active")
+        .eq("journey_id", journey.id)
+        .eq("is_active", true);
+
+      if (!jpsRows || jpsRows.length === 0) return null;
+
+      const ranked = [...jpsRows].sort((a, b) => {
+        const aTerrMatch = territoryMsSlug !== null && a.territory_ms_slug === territoryMsSlug ? 1 : 0;
+        const bTerrMatch = territoryMsSlug !== null && b.territory_ms_slug === territoryMsSlug ? 1 : 0;
+        if (aTerrMatch !== bTerrMatch) return bTerrMatch - aTerrMatch;
+        const aNull = a.territory_ms_slug === null ? 1 : 0;
+        const bNull = b.territory_ms_slug === null ? 1 : 0;
+        if (aNull !== bNull) return bNull - aNull;
+        return b.updated_at.localeCompare(a.updated_at);
+      });
+
+      return { journey_id: journey.id, journey_pipeline_state_id: ranked[0].id };
     },
     async isTeamEmail(email) {
       const { data } = await supabase

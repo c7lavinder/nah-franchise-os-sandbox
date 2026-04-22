@@ -4,15 +4,39 @@ import {
   normalizePhone,
   normalizeName,
   type ContactMatch,
+  type JourneyPick,
   type ResolverDb,
   type ResolveInput,
 } from "./resolve-participants";
+
+/**
+ * Test fixtures for journey resolution.
+ *
+ * journeys: all active journeys keyed by id with their primary_contact_id.
+ * journeyMembers: contact_id -> journey_ids they're attached to (non-primary).
+ * jpsByJourney: journey_id -> rows to consider for jps selection.
+ */
+interface JourneyFixture {
+  id: string;
+  primaryContactId: string;
+  updatedAt: string;
+}
+interface JpsFixture {
+  id: string;
+  journeyId: string;
+  territoryMsSlug: string | null;
+  updatedAt: string;
+  isActive: boolean;
+}
 
 interface Fixture {
   contacts: ContactMatch[];
   teamEmails: Set<string>;
   teamUsers: Map<string, { id: string; full_name: string }>;
   territories: Map<string, string>; // ghl_contact_id -> ms_slug
+  journeys?: JourneyFixture[];
+  journeyMembers?: Map<string, string[]>; // contact_id -> journey_ids (non-primary)
+  jps?: JpsFixture[];
 }
 
 function makeDb(fx: Fixture): ResolverDb {
@@ -35,6 +59,43 @@ function makeDb(fx: Fixture): ResolverDb {
     },
     async getActiveTerritoryForContact(ghl) {
       return fx.territories.get(ghl) ?? null;
+    },
+    async getActiveJourneyForContact(contactId, territoryMsSlug): Promise<JourneyPick | null> {
+      const journeys = fx.journeys ?? [];
+      const members = fx.journeyMembers ?? new Map();
+      const jpsRows = (fx.jps ?? []).filter((r) => r.isActive);
+
+      type Cand = { id: string; updatedAt: string; isPrimary: boolean };
+      const cands: Cand[] = [];
+      for (const j of journeys) {
+        if (j.primaryContactId === contactId) {
+          cands.push({ id: j.id, updatedAt: j.updatedAt, isPrimary: true });
+        }
+      }
+      for (const jid of members.get(contactId) ?? []) {
+        if (cands.some((c) => c.id === jid)) continue;
+        const j = journeys.find((x) => x.id === jid);
+        if (!j) continue;
+        cands.push({ id: j.id, updatedAt: j.updatedAt, isPrimary: false });
+      }
+      if (cands.length === 0) return null;
+      cands.sort((a, b) => {
+        if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+        return b.updatedAt.localeCompare(a.updatedAt);
+      });
+      const chosen = cands[0];
+      const rows = jpsRows.filter((r) => r.journeyId === chosen.id);
+      if (rows.length === 0) return null;
+      rows.sort((a, b) => {
+        const aMatch = territoryMsSlug !== null && a.territoryMsSlug === territoryMsSlug ? 1 : 0;
+        const bMatch = territoryMsSlug !== null && b.territoryMsSlug === territoryMsSlug ? 1 : 0;
+        if (aMatch !== bMatch) return bMatch - aMatch;
+        const aNull = a.territoryMsSlug === null ? 1 : 0;
+        const bNull = b.territoryMsSlug === null ? 1 : 0;
+        if (aNull !== bNull) return bNull - aNull;
+        return b.updatedAt.localeCompare(a.updatedAt);
+      });
+      return { journey_id: chosen.id, journey_pipeline_state_id: rows[0].id };
     },
     async isTeamEmail(email) {
       return fx.teamEmails.has(email.toLowerCase());
@@ -376,5 +437,185 @@ describe("resolveCallParticipants", () => {
     );
     expect(r.contact_id).toBeNull();
     expect(r.participants[0].match_method).toBe("none");
+  });
+});
+
+describe("resolveCallParticipants — journey selection", () => {
+  it("picks the journey where the contact is the primary", async () => {
+    const db = makeDb({
+      contacts: [c({ id: "c1", email: "a@x.com" })],
+      teamEmails: new Set(),
+      teamUsers: new Map(),
+      territories: new Map(),
+      journeys: [
+        { id: "j-primary", primaryContactId: "c1", updatedAt: "2026-01-01T00:00:00Z" },
+        { id: "j-member", primaryContactId: "other", updatedAt: "2026-06-01T00:00:00Z" },
+      ],
+      journeyMembers: new Map([["c1", ["j-member"]]]),
+      jps: [
+        { id: "jps-primary", journeyId: "j-primary", territoryMsSlug: null, updatedAt: "2026-01-01T00:00:00Z", isActive: true },
+        { id: "jps-member", journeyId: "j-member", territoryMsSlug: null, updatedAt: "2026-06-01T00:00:00Z", isActive: true },
+      ],
+    });
+    const r = await resolveCallParticipants(
+      baseInput({ participants: [{ email: "a@x.com" }] }),
+      db,
+    );
+    expect(r.journey_id).toBe("j-primary");
+    expect(r.journey_pipeline_state_id).toBe("jps-primary");
+  });
+
+  it("within the chosen journey, prefers jps matching the call's territory", async () => {
+    const db = makeDb({
+      contacts: [c({ id: "fr1", ghl_contact_id: "ghl1", email: "owner@x.com" })],
+      teamEmails: new Set(),
+      teamUsers: new Map(),
+      territories: new Map([["ghl1", "tn-chat"]]),
+      journeys: [{ id: "j1", primaryContactId: "fr1", updatedAt: "2026-01-01T00:00:00Z" }],
+      journeyMembers: new Map(),
+      jps: [
+        { id: "jps-null", journeyId: "j1", territoryMsSlug: null, updatedAt: "2026-06-01T00:00:00Z", isActive: true },
+        { id: "jps-chat", journeyId: "j1", territoryMsSlug: "tn-chat", updatedAt: "2026-01-01T00:00:00Z", isActive: true },
+        { id: "jps-other", journeyId: "j1", territoryMsSlug: "tn-other", updatedAt: "2026-07-01T00:00:00Z", isActive: true },
+      ],
+    });
+    const r = await resolveCallParticipants(
+      baseInput({ participants: [{ email: "owner@x.com" }] }),
+      db,
+    );
+    expect(r.territory_ms_slug).toBe("tn-chat");
+    expect(r.journey_id).toBe("j1");
+    expect(r.journey_pipeline_state_id).toBe("jps-chat");
+  });
+
+  it("falls back to pre-award (NULL territory) jps when call has no territory", async () => {
+    const db = makeDb({
+      contacts: [c({ id: "c1", email: "a@x.com" })],
+      teamEmails: new Set(),
+      teamUsers: new Map(),
+      territories: new Map(),
+      journeys: [{ id: "j1", primaryContactId: "c1", updatedAt: "2026-01-01T00:00:00Z" }],
+      journeyMembers: new Map(),
+      jps: [
+        { id: "jps-tn", journeyId: "j1", territoryMsSlug: "tn-nash", updatedAt: "2026-06-01T00:00:00Z", isActive: true },
+        { id: "jps-null", journeyId: "j1", territoryMsSlug: null, updatedAt: "2026-01-01T00:00:00Z", isActive: true },
+      ],
+    });
+    const r = await resolveCallParticipants(
+      baseInput({ participants: [{ email: "a@x.com" }] }),
+      db,
+    );
+    expect(r.territory_ms_slug).toBeNull();
+    expect(r.journey_pipeline_state_id).toBe("jps-null");
+  });
+
+  it("tie-break: most recently updated active jps when no territory or null row", async () => {
+    const db = makeDb({
+      contacts: [c({ id: "c1", email: "a@x.com" })],
+      teamEmails: new Set(),
+      teamUsers: new Map(),
+      territories: new Map(),
+      journeys: [{ id: "j1", primaryContactId: "c1", updatedAt: "2026-01-01T00:00:00Z" }],
+      journeyMembers: new Map(),
+      jps: [
+        { id: "jps-old", journeyId: "j1", territoryMsSlug: "a", updatedAt: "2026-01-01T00:00:00Z", isActive: true },
+        { id: "jps-new", journeyId: "j1", territoryMsSlug: "b", updatedAt: "2026-06-01T00:00:00Z", isActive: true },
+      ],
+    });
+    const r = await resolveCallParticipants(
+      baseInput({ participants: [{ email: "a@x.com" }] }),
+      db,
+    );
+    expect(r.journey_pipeline_state_id).toBe("jps-new");
+  });
+
+  it("returns null journey when contact has no active journeys", async () => {
+    const db = makeDb({
+      contacts: [c({ id: "c1", email: "a@x.com" })],
+      teamEmails: new Set(),
+      teamUsers: new Map(),
+      territories: new Map(),
+      journeys: [],
+      journeyMembers: new Map(),
+      jps: [],
+    });
+    const r = await resolveCallParticipants(
+      baseInput({ participants: [{ email: "a@x.com" }] }),
+      db,
+    );
+    expect(r.contact_id).toBe("c1");
+    expect(r.journey_id).toBeNull();
+    expect(r.journey_pipeline_state_id).toBeNull();
+  });
+
+  it("group call: each participant gets their own journey pick", async () => {
+    const db = makeDb({
+      contacts: [
+        c({ id: "p1", email: "p1@x.com" }),
+        c({ id: "p2", email: "p2@x.com" }),
+      ],
+      teamEmails: new Set(),
+      teamUsers: new Map(),
+      territories: new Map(),
+      journeys: [
+        { id: "j-a", primaryContactId: "p1", updatedAt: "2026-01-01T00:00:00Z" },
+        { id: "j-b", primaryContactId: "p2", updatedAt: "2026-02-01T00:00:00Z" },
+      ],
+      journeyMembers: new Map(),
+      jps: [
+        { id: "jps-a", journeyId: "j-a", territoryMsSlug: null, updatedAt: "2026-01-01T00:00:00Z", isActive: true },
+        { id: "jps-b", journeyId: "j-b", territoryMsSlug: null, updatedAt: "2026-02-01T00:00:00Z", isActive: true },
+      ],
+    });
+    const r = await resolveCallParticipants(
+      baseInput({ participants: [{ email: "p1@x.com" }, { email: "p2@x.com" }] }),
+      db,
+    );
+    expect(r.participants).toHaveLength(2);
+    const p1 = r.participants.find((p) => p.contact_id === "p1");
+    const p2 = r.participants.find((p) => p.contact_id === "p2");
+    expect(p1?.journey_id).toBe("j-a");
+    expect(p1?.journey_pipeline_state_id).toBe("jps-a");
+    expect(p2?.journey_id).toBe("j-b");
+    expect(p2?.journey_pipeline_state_id).toBe("jps-b");
+  });
+
+  it("inactive jps rows are ignored", async () => {
+    const db = makeDb({
+      contacts: [c({ id: "c1", email: "a@x.com" })],
+      teamEmails: new Set(),
+      teamUsers: new Map(),
+      territories: new Map(),
+      journeys: [{ id: "j1", primaryContactId: "c1", updatedAt: "2026-01-01T00:00:00Z" }],
+      journeyMembers: new Map(),
+      jps: [
+        { id: "jps-inactive", journeyId: "j1", territoryMsSlug: null, updatedAt: "2026-06-01T00:00:00Z", isActive: false },
+        { id: "jps-active", journeyId: "j1", territoryMsSlug: "tn", updatedAt: "2026-01-01T00:00:00Z", isActive: true },
+      ],
+    });
+    const r = await resolveCallParticipants(
+      baseInput({ participants: [{ email: "a@x.com" }] }),
+      db,
+    );
+    expect(r.journey_pipeline_state_id).toBe("jps-active");
+  });
+
+  it("nah_team participants never get a journey", async () => {
+    const db = makeDb({
+      contacts: [],
+      teamEmails: new Set(["matt@newagainhouses.com"]),
+      teamUsers: new Map([["matt@newagainhouses.com", { id: "u1", full_name: "Matt" }]]),
+      territories: new Map(),
+      journeys: [],
+      journeyMembers: new Map(),
+      jps: [],
+    });
+    const r = await resolveCallParticipants(
+      baseInput({ participants: [{ email: "matt@newagainhouses.com" }] }),
+      db,
+    );
+    expect(r.participants[0].role).toBe("nah_team");
+    expect(r.participants[0].journey_id).toBeNull();
+    expect(r.participants[0].journey_pipeline_state_id).toBeNull();
   });
 });
