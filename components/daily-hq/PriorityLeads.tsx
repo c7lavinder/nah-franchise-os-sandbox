@@ -67,7 +67,7 @@ export default function PriorityLeads() {
           {leads.map((lead) => (
             <Link
               key={lead.contactId}
-              href={`/leads/${lead.contactId}`}
+              href={`/contacts/${lead.contactId}`}
               className="flex items-center gap-2 px-3 py-2 border-b border-border-default hover:bg-bg-hover transition-colors last:border-b-0"
             >
               {/* Score badge */}

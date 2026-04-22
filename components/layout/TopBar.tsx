@@ -155,7 +155,7 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
                       <AlertTriangle size={14} className={`mt-0.5 flex-shrink-0 ${severityColor(alert.severity)}`} />
                       <a
                         href={alert.ghl_contact_id
-                          ? `/leads/${alert.ghl_contact_id}`
+                          ? `/contacts/${alert.ghl_contact_id}`
                           : "/activity"}
                         className="flex-1 min-w-0"
                         onClick={() => setBellOpen(false)}

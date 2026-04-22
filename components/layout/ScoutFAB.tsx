@@ -34,8 +34,8 @@ export default function ScoutFAB() {
     if (pathname.startsWith("/pipeline")) ctx.page = "pipeline";
     else if (pathname.match(/\/calls\/[^/]+$/)) ctx.page = "call_detail";
     else if (pathname.startsWith("/calls")) ctx.page = "calls";
-    else if (pathname.match(/\/leads\/[^/]+$/)) { ctx.page = "lead_detail"; ctx.contactId = pathname.split("/").pop(); }
-    else if (pathname.startsWith("/leads")) ctx.page = "leads";
+    else if (pathname.match(/\/contacts\/[^/]+$/)) { ctx.page = "contact_detail"; ctx.contactId = pathname.split("/").pop(); }
+    else if (pathname.match(/\/journeys\/[^/]+$/)) { ctx.page = "journey_detail"; ctx.journeyId = pathname.split("/").pop(); }
     else if (pathname.match(/\/territories\/[^/]+$/)) { ctx.page = "territory"; ctx.territorySlug = pathname.split("/").pop(); }
     else if (pathname.startsWith("/territories")) ctx.page = "territory";
     else if (pathname.startsWith("/knowledge")) ctx.page = "knowledge";

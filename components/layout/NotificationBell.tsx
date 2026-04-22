@@ -88,7 +88,7 @@ export default function NotificationBell({ onNavClick, forceClose }: Notificatio
     setOpen(false);
     onNavClick?.();
     void markAsRead([n.id]);
-    router.push(`/leads/${n.contactId}?message=${n.sourceId}`);
+    router.push(`/contacts/${n.contactId}?message=${n.sourceId}`);
   }
 
   function handleMarkAllRead() {

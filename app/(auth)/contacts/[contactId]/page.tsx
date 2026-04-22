@@ -11,11 +11,13 @@
  */
 
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { ArrowLeft, Phone, Mail, MapPin, Calendar, Users } from "lucide-react";
+import { notFound, redirect } from "next/navigation";
+import { Phone, Mail, MapPin, Calendar, Users } from "lucide-react";
 import { createServerClient } from "@/lib/supabase/server";
+import { resolveContactId } from "@/lib/contacts/pipeline-state";
 import { capitalizeName, formatPhone } from "@/lib/format/contact";
 import RichContactPage from "@/components/contact/RichContactPage";
+import BackButton from "@/components/contact/BackButton";
 
 export const dynamic = "force-dynamic";
 
@@ -56,8 +58,18 @@ export default async function ContactPage({
 }: {
   params: Promise<{ contactId: string }>;
 }) {
-  const { contactId } = await params;
+  const { contactId: rawId } = await params;
   const supabase = createServerClient();
+
+  // Accept both a local contacts.id UUID and a GHL contact id so legacy
+  // /leads/<ghl_id> bookmarks + any GHL-side integrations keep working
+  // when they redirect here.
+  const localId = await resolveContactId(rawId);
+  if (!localId) notFound();
+  // Canonical URL is local UUID. If the caller passed a GHL ID, redirect
+  // so the browser URL bar settles on the canonical form.
+  if (localId !== rawId) redirect(`/contacts/${localId}`);
+  const contactId = localId;
 
   const { data: contact } = await supabase
     .from("contacts")
@@ -208,7 +220,7 @@ function renderSlim(
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="flex items-center gap-3">
-        <Link href="/contacts" className="btn-ghost p-1.5"><ArrowLeft size={18} /></Link>
+        <BackButton />
         <h1 className="font-headline text-page-title text-text-primary truncate flex-1">{displayName}</h1>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

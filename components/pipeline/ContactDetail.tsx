@@ -127,7 +127,7 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
             </div>
             <div className="flex items-center gap-1">
               <a
-                href={`/leads/${opportunity.contactId}`}
+                href={`/contacts/${opportunity.contactId}`}
                 className="p-1 text-text-tertiary hover:text-nah-orange transition-colors"
                 title="Open full profile"
               >

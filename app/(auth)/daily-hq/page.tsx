@@ -130,7 +130,7 @@ export default function DailyHQPage() {
             <span className="text-body-sm text-amber-800">
               <strong>{needsReviewCount}</strong> contact{needsReviewCount !== 1 ? "s" : ""} from calls need to be reviewed
             </span>
-            <a href="/leads?needs_review=true" className="text-caption text-amber-700 hover:underline ml-auto">Review &rarr;</a>
+            <a href="/pipeline?needs_review=true" className="text-caption text-amber-700 hover:underline ml-auto">Review &rarr;</a>
           </div>
         )}
       </div>

@@ -15,6 +15,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Activity, Award, Users, Goal, TrendingUp } from "lucide-react";
 import EosTab from "@/components/leads/tabs/EosTab";
 import { ProfileSection } from "@/components/profile";
@@ -73,6 +74,7 @@ type TabKey = "contacts" | "profile" | "eos";
 export default function RichContactPage({
   contactId, displayName, role, activeJourney, memberships, territoryInventory, grades, currentStage, currentPipelineSlug,
 }: Props) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>("contacts");
   const label = role === "franchisee" ? "Franchisee" : "Prospect";
   const journeyHref = activeJourney.slug ? `/journeys/${activeJourney.slug}` : `/journeys/${activeJourney.id}`;
@@ -81,7 +83,7 @@ export default function RichContactPage({
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
       <div className="flex items-start gap-4">
-        <Link href="/contacts" className="mt-1 text-text-tertiary hover:text-text-primary"><ArrowLeft size={20} /></Link>
+        <button onClick={() => router.back()} className="mt-1 text-text-tertiary hover:text-text-primary" aria-label="Back"><ArrowLeft size={20} /></button>
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold text-text-primary">{displayName}</h1>

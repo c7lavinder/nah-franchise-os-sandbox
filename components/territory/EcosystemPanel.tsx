@@ -125,7 +125,7 @@ export default function EcosystemPanel({ msSlug, owner }: Props) {
               </span>
             )}
             {owner?.ghlContactId && (
-              <a href={`/leads/${owner.ghlContactId}`} target="_blank" rel="noopener noreferrer"
+              <a href={`/contacts/${owner.ghlContactId}`} target="_blank" rel="noopener noreferrer"
                 className="text-[10px] text-nah-blue hover:underline mt-0.5">View profile</a>
             )}
           </div>

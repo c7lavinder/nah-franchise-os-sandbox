@@ -313,7 +313,7 @@ export default function CallDetailPage() {
               <div className="flex items-center gap-1.5">
                 {call.linkedContacts.map((c) =>
                   c.linked && c.id ? (
-                    <Link key={c.id} href={`/leads/${c.id}`}
+                    <Link key={c.id} href={`/contacts/${c.id}`}
                       className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#E6F1FB] text-[#0C447C] hover:bg-[#B5D4F4] transition-colors">
                       <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-medium bg-[#D4E8F9] text-[#185FA5]">
                         {initials(c.name)}
@@ -334,7 +334,7 @@ export default function CallDetailPage() {
           ) : call.contactName ? (
             <div>
               <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">Contact</div>
-              <Link href={`/leads/${call.contact_id}`}
+              <Link href={`/contacts/${call.contact_id}`}
                 className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#E6F1FB] text-[#0C447C] hover:bg-[#B5D4F4] transition-colors">
                 <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-medium bg-[#D4E8F9] text-[#185FA5]">
                   {initials(call.contactName)}
