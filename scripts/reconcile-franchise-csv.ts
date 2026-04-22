@@ -131,12 +131,15 @@ function standardizeName(raw: string): ParsedName {
  */
 function splitCoOwners(cell: string): { parsed: ParsedName; garbled: boolean }[] {
   if (!cell) return [];
-  // Garbled detector: same token repeated with no space ("MElida" pattern).
-  if (/[A-Z][a-z]+[A-Z][a-z]+/.test(cell) && !cell.includes(" ")) {
-    return [{ parsed: { first: cell, last: "", display: cell, note: null }, garbled: true }];
-  }
-  if (/^[A-Z][a-z]+ [A-Z][A-Za-z]*[A-Z][a-z]+/.test(cell)) {
-    return [{ parsed: { first: cell, last: "", display: cell, note: null }, garbled: true }];
+  // Garbled detector: a single-person cell with 4+ whitespace-delimited tokens
+  // and no comma (a real person's name is usually 2 tokens, occasionally 3).
+  // This catches "Elida MElida Maria Amador Marcia" while not false-matching
+  // comma-separated multiple people or names with honorifics.
+  if (!cell.includes(",")) {
+    const tokens = cell.split(/\s+/).filter(Boolean);
+    if (tokens.length >= 4) {
+      return [{ parsed: { first: tokens[0] ?? cell, last: "", display: cell, note: null }, garbled: true }];
+    }
   }
   const parts = cell.split(/,(?![^(]*\))/).map((s) => s.trim()).filter(Boolean);
   return parts.map((p) => ({ parsed: standardizeName(p), garbled: false }));
@@ -197,6 +200,30 @@ async function main() {
   const activeMemberSet = new Set<string>();
   for (const m of members) if (m.left_at === null) activeMemberSet.add(`${m.journey_id}:${m.contact_id}`);
 
+  // Journey-primary-by-member-email: handles the Ron/Nicki case where the
+  // CSV primary email points at a non-primary member of the journey.
+  const primaryByMemberEmail = new Map<string, Contact>();
+  for (const m of members) {
+    if (m.left_at !== null) continue;
+    const c = byContactId.get(m.contact_id);
+    if (!c || !c.email) continue;
+    const j = activeJourneys.find((jj) => jj.id === m.journey_id);
+    if (!j) continue;
+    const primary = byContactId.get(j.primary_contact_id);
+    if (!primary) continue;
+    primaryByMemberEmail.set(normEmail(c.email), primary);
+  }
+
+  // Journey member first-names (for garbled-co-owner first-name match).
+  const memberFirstNamesByJourney = new Map<string, Set<string>>();
+  for (const m of members) {
+    if (m.left_at !== null) continue;
+    const c = byContactId.get(m.contact_id);
+    if (!c?.first_name) continue;
+    if (!memberFirstNamesByJourney.has(m.journey_id)) memberFirstNamesByJourney.set(m.journey_id, new Set());
+    memberFirstNamesByJourney.get(m.journey_id)!.add(c.first_name.toLowerCase().trim());
+  }
+
   // --- Buckets ---
   const standardizationNeeded: { contactId: string; currentName: string; suggestedName: string; primaryEmail: string }[] = [];
   const missingCoOwners: {
@@ -222,14 +249,18 @@ async function main() {
   }
 
   for (const row of csvRows) {
-    // 1. Resolve primary contact
-    let primary: Contact | null = null;
-    const byEmailMatches = byEmail.get(normEmail(row.primaryEmail)) ?? [];
-    if (byEmailMatches.length === 1) primary = byEmailMatches[0];
-    else if (byEmailMatches.length > 1) {
-      primary = byEmailMatches[0]; // pick one, flag dupes below
-    } else {
-      // Fallback: exact name match
+    // 1. Resolve primary contact. Order:
+    //    a) exact email match → the journey's primary_contact_id (handles
+    //       the Ron/Nicki case where CSV email points at a co-member).
+    //    b) direct contact-by-email match.
+    //    c) fallback: exact name.
+    let primary: Contact | null = primaryByMemberEmail.get(normEmail(row.primaryEmail)) ?? null;
+    if (!primary) {
+      const byEmailMatches = byEmail.get(normEmail(row.primaryEmail)) ?? [];
+      if (byEmailMatches.length === 1) primary = byEmailMatches[0];
+      else if (byEmailMatches.length > 1) primary = byEmailMatches[0];
+    }
+    if (!primary) {
       const n = standardizeName(row.primaryName);
       const nameMatches = byNameNorm.get(nameKey(n.first, n.last)) ?? [];
       if (nameMatches.length === 1) primary = nameMatches[0];
@@ -239,13 +270,20 @@ async function main() {
       continue;
     }
 
-    // 2. Name standardization for primary
-    const currentName = fullName(primary);
+    // 2. Name standardization for primary. Skip when the CSV primary is
+    //    represented in the journey by a member other than the primary (we
+    //    already derived `primary` from the journey, so this only fires
+    //    when the DB primary is genuinely named differently from the CSV).
     const parsedPrimary = standardizeName(row.primaryName);
-    if (currentName && currentName !== parsedPrimary.display && parsedPrimary.display.length > 3) {
-      // Only flag when DB name literally differs (stripped nickname/role or trailing whitespace).
-      const currentTrim = currentName.replace(/\s+/g, " ").trim();
-      if (currentTrim !== parsedPrimary.display) {
+    const currentName = fullName(primary);
+    const currentTrim = currentName.replace(/\s+/g, " ").trim();
+    if (currentTrim && currentTrim !== parsedPrimary.display && parsedPrimary.display.length > 3) {
+      // If any journey member already has the CSV primary's name, skip —
+      // the relationship is already captured.
+      const targetJourney = journeysByPrimary.get(primary.id);
+      const firstNames = targetJourney ? memberFirstNamesByJourney.get(targetJourney.id) ?? new Set() : new Set();
+      const csvFirst = parsedPrimary.first.toLowerCase().trim();
+      if (!firstNames.has(csvFirst)) {
         standardizationNeeded.push({
           contactId: primary.id,
           currentName: currentTrim,
@@ -266,6 +304,12 @@ async function main() {
     const coOwners = splitCoOwners(row.coOwnerRaw);
     for (const { parsed, garbled } of coOwners) {
       if (garbled) {
+        // If any journey member has a first name matching the first token
+        // of the garbled cell, consider it already resolved — we've added
+        // the member under a cleaned-up name.
+        const firstToken = parsed.display.split(/\s+/)[0]?.toLowerCase().trim() ?? "";
+        const firstNames = memberFirstNamesByJourney.get(journey.id) ?? new Set();
+        if (firstToken && firstNames.has(firstToken)) continue;
         missingCoOwners.push({
           journeyId: journey.id, journeyName: journey.name, primaryName: fullName(primary),
           territorySlug: row.territorySlug, suggestedName: parsed.display,
