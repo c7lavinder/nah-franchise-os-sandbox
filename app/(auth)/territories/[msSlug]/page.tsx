@@ -10,10 +10,18 @@ import EcosystemPanel from "@/components/territory/EcosystemPanel";
 import TerritoryEosTab from "@/components/territories/tabs/EosTab";
 import MarketTab from "@/components/territories/tabs/MarketTab";
 
+interface OwnerOut {
+  ownerName: string | null;
+  ghlContactId: string | null;
+  role?: string;
+  start_date?: string | null;
+}
+
 interface TerritoryData {
   territory: { ms_slug: string; territory_name: string; status: string; region: string | null; awarded_date: string | null };
   profile: Record<string, unknown> | null;
-  currentOwner: { ownerName: string | null; ghlContactId: string | null; role?: string; start_date?: string } | null;
+  currentOwner: OwnerOut | null;
+  currentOwners?: OwnerOut[];
   grades: Array<{ year: number; quarter: number; self_grade: number | null; john_grade: number | null; houses_purchased: number | null; notes: string | null }>;
   franchiseOwner: { full_name: string; status: string } | null;
 }
@@ -61,7 +69,14 @@ export default function TerritoryProfilePage() {
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin" size={24} /></div>;
   if (!data) return <div className="p-6 text-text-secondary">Territory not found.</div>;
 
-  const { territory, profile, currentOwner, grades } = data;
+  const { territory, profile, currentOwner, currentOwners, grades } = data;
+  const ownerNames = (currentOwners && currentOwners.length > 0
+    ? currentOwners
+    : currentOwner ? [currentOwner] : []
+  ).map((o) => o.ownerName).filter(Boolean) as string[];
+  const carriedOwnerName = ownerNames.length > 1
+    ? ownerNames.join(" + ")
+    : ownerNames[0] ?? null;
   const p = profile as Record<string, number | string | null> | null;
   const housesYTD = (p?.houses_purchased_ytd as number) ?? 0;
   const isUnderTarget = housesYTD < 10 && territory.status === "active";
@@ -181,13 +196,13 @@ export default function TerritoryProfilePage() {
 
       {/* Tab Content */}
       {activeTab === "ecosystem" && (
-        <EcosystemPanel msSlug={msSlug} owner={currentOwner} />
+        <EcosystemPanel msSlug={msSlug} owner={currentOwner} owners={currentOwners ?? null} />
       )}
 
       {activeTab === "eos" && (
         <TerritoryEosTab
           msSlug={msSlug}
-          carriedFromContactName={currentOwner?.ownerName ?? null}
+          carriedFromContactName={carriedOwnerName}
         />
       )}
 

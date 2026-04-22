@@ -17,10 +17,17 @@ interface TerritoryListItem {
   status: string;
 }
 
+interface OwnerOut {
+  ownerName: string | null;
+  ghlContactId: string | null;
+  role?: string;
+}
+
 interface TerritoryFull {
   territory: { ms_slug: string; territory_name: string; status: string; region: string | null; awarded_date: string | null };
   profile: Record<string, number | string | null> | null;
-  currentOwner: { ownerName: string | null; ghlContactId: string | null } | null;
+  currentOwner: OwnerOut | null;
+  currentOwners?: OwnerOut[];
   grades: Array<{ year: number; quarter: number; self_grade: number | null; john_grade: number | null; houses_purchased: number | null }>;
 }
 
@@ -210,30 +217,43 @@ function ExpandedTerritory({ data, stakeholders }: { data: TerritoryFull; stakeh
       </div>
 
       {/* Ecosystem — read-only */}
-      {(stakeholders.length > 0 || data.currentOwner?.ownerName) && (
+      {(stakeholders.length > 0 || (data.currentOwners?.length ?? 0) > 0 || data.currentOwner?.ownerName) && (() => {
+        const ownerList: OwnerOut[] = (data.currentOwners && data.currentOwners.length > 0)
+          ? data.currentOwners
+          : data.currentOwner ? [data.currentOwner] : [];
+        return (
         <div className="bg-bg-primary border border-border-default rounded-lg p-5">
           <div className="flex items-center gap-2 mb-4">
             <Users size={18} className="text-scout-purple" />
             <h3 className="text-body-sm font-semibold">Ecosystem</h3>
           </div>
           <div className="flex flex-col items-center">
-            {/* Owner center node */}
-            {data.currentOwner?.ownerName && (
-              <div className="flex flex-col items-center mb-4">
-                <div className="w-16 h-16 rounded-full bg-nah-orange/10 border-2 border-nah-orange flex items-center justify-center">
-                  <span className="text-lg font-bold text-nah-orange">
-                    {data.currentOwner.ownerName.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
-                  </span>
-                </div>
-                <p className="text-body-sm font-semibold text-text-primary mt-1.5">{data.currentOwner.ownerName}</p>
-                <span className="text-[10px] font-medium text-nah-orange tracking-wider">OWNER</span>
+            {/* Owner center node(s) — side-by-side for co-owners */}
+            {ownerList.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-4 mb-4">
+                {ownerList.map((o, i) => {
+                  const name = o.ownerName ?? "—";
+                  const initials = name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+                  const isCoPrimary = o.role === "co_primary";
+                  return (
+                    <div key={`${o.ghlContactId ?? i}-${o.role ?? "owner"}`} className="flex flex-col items-center">
+                      <div className="w-16 h-16 rounded-full bg-nah-orange/10 border-2 border-nah-orange flex items-center justify-center">
+                        <span className="text-lg font-bold text-nah-orange">{initials}</span>
+                      </div>
+                      <p className="text-body-sm font-semibold text-text-primary mt-1.5">{name}</p>
+                      <span className="text-[10px] font-medium text-nah-orange tracking-wider">
+                        {isCoPrimary ? "CO-OWNER" : "OWNER"}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
             {/* Stakeholders by role */}
             {stakeholders.length > 0 && (
               <>
-                {data.currentOwner?.ownerName && <div className="w-0.5 h-4 bg-border-default -mt-1 mb-2" />}
+                {ownerList.length > 0 && <div className="w-0.5 h-4 bg-border-default -mt-1 mb-2" />}
                 <div className="flex flex-wrap justify-center gap-3">
                   {Object.entries(ROLE_STYLES).map(([roleKey, roleDef]) => {
                     const members = grouped.get(roleKey);
@@ -267,12 +287,13 @@ function ExpandedTerritory({ data, stakeholders }: { data: TerritoryFull; stakeh
               </>
             )}
 
-            {stakeholders.length === 0 && !data.currentOwner?.ownerName && (
+            {stakeholders.length === 0 && ownerList.length === 0 && (
               <p className="text-caption text-text-tertiary">No ecosystem data.</p>
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
     </>
   );
 }

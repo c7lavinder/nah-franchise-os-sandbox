@@ -27,7 +27,7 @@ interface Owner {
   ownerName: string | null;
   ghlContactId: string | null;
   role?: string;
-  start_date?: string;
+  start_date?: string | null;
 }
 
 const ROLES = [
@@ -45,9 +45,15 @@ const ROLE_MAP = new Map(ROLES.map((r) => [r.value, r]));
 interface Props {
   msSlug: string;
   owner: Owner | null;
+  /** All core owners (primary + co_primary). Falls back to [owner] for
+   *  backward-compat when callers haven't migrated yet. */
+  owners?: Owner[] | null;
 }
 
-export default function EcosystemPanel({ msSlug, owner }: Props) {
+export default function EcosystemPanel({ msSlug, owner, owners }: Props) {
+  const ownerList: Owner[] = (owners && owners.length > 0)
+    ? owners
+    : owner ? [owner] : [];
   const { toast } = useToast();
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,32 +109,48 @@ export default function EcosystemPanel({ msSlug, owner }: Props) {
     grouped.set(s.role, arr);
   }
 
-  const ownerName = owner?.ownerName ?? "No Owner";
-
   return (
     <div className="space-y-6">
-      {/* Ecosystem Circle — Owner at center, roles in orbit */}
+      {/* Ecosystem Circle — Owner(s) at center, roles in orbit */}
       <div className="relative bg-bg-primary border border-border-default rounded-xl p-6">
         <div className="flex flex-col items-center">
-          {/* Owner — center node */}
-          <div className="relative z-10 flex flex-col items-center mb-6">
-            <div className="w-20 h-20 rounded-full bg-nah-orange/10 border-2 border-nah-orange flex items-center justify-center shadow-lg">
-              <span className="text-xl font-bold text-nah-orange">
-                {ownerName.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
-              </span>
+          {/* Owner(s) — center node(s), side-by-side for co-owners */}
+          {ownerList.length === 0 ? (
+            <div className="relative z-10 flex flex-col items-center mb-6">
+              <div className="w-20 h-20 rounded-full bg-bg-secondary border-2 border-border-default flex items-center justify-center">
+                <span className="text-xl font-bold text-text-tertiary">—</span>
+              </div>
+              <p className="text-body-sm font-semibold text-text-tertiary mt-2">No Owner</p>
             </div>
-            <p className="text-body-sm font-semibold text-text-primary mt-2">{ownerName}</p>
-            <span className="text-[10px] font-medium text-nah-orange tracking-wider">OWNER</span>
-            {owner?.start_date && (
-              <span className="text-[10px] text-text-tertiary mt-0.5">
-                Since {new Date(owner.start_date + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
-              </span>
-            )}
-            {owner?.ghlContactId && (
-              <a href={`/contacts/${owner.ghlContactId}`} target="_blank" rel="noopener noreferrer"
-                className="text-[10px] text-nah-blue hover:underline mt-0.5">View profile</a>
-            )}
-          </div>
+          ) : (
+            <div className="relative z-10 flex flex-wrap justify-center gap-4 mb-6">
+              {ownerList.map((o, i) => {
+                const name = o.ownerName ?? "—";
+                const initials = name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+                const isCoPrimary = o.role === "co_primary";
+                return (
+                  <div key={`${o.ghlContactId ?? i}-${o.role ?? "owner"}`} className="flex flex-col items-center">
+                    <div className="w-20 h-20 rounded-full bg-nah-orange/10 border-2 border-nah-orange flex items-center justify-center shadow-lg">
+                      <span className="text-xl font-bold text-nah-orange">{initials}</span>
+                    </div>
+                    <p className="text-body-sm font-semibold text-text-primary mt-2">{name}</p>
+                    <span className="text-[10px] font-medium text-nah-orange tracking-wider">
+                      {isCoPrimary ? "CO-OWNER" : "OWNER"}
+                    </span>
+                    {o.start_date && (
+                      <span className="text-[10px] text-text-tertiary mt-0.5">
+                        Since {new Date(o.start_date + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                      </span>
+                    )}
+                    {o.ghlContactId && (
+                      <a href={`/contacts/${o.ghlContactId}`} target="_blank" rel="noopener noreferrer"
+                        className="text-[10px] text-nah-blue hover:underline mt-0.5">View profile</a>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Connector line */}
           {stakeholders.length > 0 && <div className="w-0.5 h-6 bg-border-default -mt-2 mb-2" />}
