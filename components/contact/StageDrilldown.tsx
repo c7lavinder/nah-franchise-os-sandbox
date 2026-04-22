@@ -145,8 +145,10 @@ export default function StageDrilldown({
           defaultLoggerUserId={logModalSubTask.default_logger_user_id ?? null}
           defaultLoggerName={users.find((u) => u.id === logModalSubTask.default_logger_user_id)?.name ?? null}
           users={users}
+          existingLogs={logsBySubTask.get(logModalSubTask.id) ?? []}
           onClose={() => setLogModalSubTask(null)}
           onSuccess={() => { setLogModalSubTask(null); onRefresh(); }}
+          onLogDeleted={onRefresh}
         />
       )}
     </div>

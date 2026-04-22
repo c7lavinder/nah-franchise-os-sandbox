@@ -83,11 +83,11 @@ export default function SubTaskLogHistory({ logs, onRefresh }: SubTaskLogHistory
               <button
                 onClick={() => handleDelete(log.id)}
                 disabled={isDeleting}
-                className="p-0.5 text-text-tertiary hover:text-danger transition-colors flex-shrink-0 disabled:opacity-50"
+                className="p-1 rounded text-danger hover:bg-danger/10 transition-colors flex-shrink-0 disabled:opacity-50 border border-transparent hover:border-danger/30"
                 title="Delete log"
                 aria-label="Delete log"
               >
-                {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
               </button>
             )}
           </div>

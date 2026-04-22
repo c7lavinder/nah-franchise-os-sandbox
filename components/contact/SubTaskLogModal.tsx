@@ -6,8 +6,9 @@
  */
 
 import { useState } from "react";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import type { SubTaskLog } from "@/lib/contacts/pipeline-state";
 
 interface SubTaskLogModalProps {
   contactId: string;
@@ -19,9 +20,17 @@ interface SubTaskLogModalProps {
   defaultLoggerUserId: string | null;
   defaultLoggerName: string | null;
   users: { id: string; name: string }[];
+  existingLogs?: SubTaskLog[];
   onClose: () => void;
   onSuccess: () => void;
+  onLogDeleted?: () => void;
 }
+
+const SOURCE_BADGE: Record<string, { label: string; color: string }> = {
+  manual: { label: "Manual", color: "bg-nah-blue/10 text-nah-blue" },
+  api: { label: "API", color: "bg-success/10 text-success" },
+  ai: { label: "AI", color: "bg-scout-purple/10 text-scout-purple" },
+};
 
 const CONTENT_TYPES = [
   { value: "note", label: "Note" },
@@ -44,8 +53,10 @@ export default function SubTaskLogModal({
   defaultLoggerUserId,
   defaultLoggerName,
   users,
+  existingLogs = [],
   onClose,
   onSuccess,
+  onLogDeleted,
 }: SubTaskLogModalProps) {
   const { toast } = useToast();
   const [stateAdvance, setStateAdvance] = useState<"first" | "second" | null>(
@@ -58,6 +69,28 @@ export default function SubTaskLogModal({
   const [loggerUserId, setLoggerUserId] = useState(defaultLoggerUserId ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDelete(logId: string) {
+    if (!confirm("Delete this log? This cannot be undone from the UI.")) return;
+    setDeletingId(logId);
+    try {
+      const res = await fetch(`/api/sub-task-logs/${logId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const { error: msg } = await res.json().catch(() => ({ error: "Delete failed" }));
+        toast(`Couldn't delete: ${msg}`);
+        return;
+      }
+      setDeletedIds((prev) => new Set(prev).add(logId));
+      toast("Log deleted");
+      onLogDeleted?.();
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  const visibleLogs = existingLogs.filter((l) => !l.deleted_at && !deletedIds.has(l.id));
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -100,6 +133,56 @@ export default function SubTaskLogModal({
           <h2 className="text-h2 text-text-primary">Log: {subTaskName}</h2>
           <button onClick={onClose} className="btn-ghost p-1"><X size={18} /></button>
         </div>
+
+        {/* Existing logs — newest first, with delete */}
+        {visibleLogs.length > 0 && (
+          <div className="mb-5">
+            <div className="text-caption text-text-tertiary mb-1.5">
+              Existing logs ({visibleLogs.length})
+            </div>
+            <div className="border border-border-default rounded-md divide-y divide-border-default max-h-40 overflow-y-auto">
+              {visibleLogs.map((log) => {
+                const source = SOURCE_BADGE[log.source] ?? SOURCE_BADGE.manual;
+                const stateLabel = log.state_advance === "first" ? "1st" : log.state_advance === "second" ? "2nd" : "";
+                const isDeleting = deletingId === log.id;
+                return (
+                  <div key={log.id} className="flex items-start gap-2 px-2.5 py-2 text-caption">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${source.color}`}>
+                      {source.label}
+                    </span>
+                    {stateLabel && (
+                      <span className="px-1 py-0.5 rounded text-[10px] font-bold bg-bg-secondary text-text-tertiary flex-shrink-0">
+                        {stateLabel}
+                      </span>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      {log.content_text && <p className="text-text-secondary truncate">{log.content_text}</p>}
+                      {!log.content_text && log.content_type !== "note" && (
+                        <p className="text-text-tertiary italic">{log.content_type}</p>
+                      )}
+                      <p className="text-[10px] text-text-tertiary">
+                        {log.logger_name && `${log.logger_name} · `}
+                        {new Date(log.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => void handleDelete(log.id)}
+                      disabled={isDeleting}
+                      className="p-1 rounded text-danger hover:bg-danger/10 border border-transparent hover:border-danger/30 transition-colors flex-shrink-0 disabled:opacity-50"
+                      title="Delete log"
+                      aria-label="Delete log"
+                    >
+                      {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Create new — heading so it's clear this is the add form */}
+        <div className="text-caption text-text-tertiary mb-2">Add new log</div>
 
         {/* State advance — two-state only */}
         {stateType === "two_state" && (
