@@ -31,7 +31,7 @@ export async function POST() {
   for (const callId of callIds) {
     const before = await supabase
       .from("calls")
-      .select("contact_id, territory_ms_slug")
+      .select("contact_id, territory_ms_slug, journey_pipeline_state_id")
       .eq("id", callId)
       .single();
 
@@ -39,13 +39,14 @@ export async function POST() {
 
     const after = await supabase
       .from("calls")
-      .select("contact_id, territory_ms_slug")
+      .select("contact_id, territory_ms_slug, journey_pipeline_state_id")
       .eq("id", callId)
       .single();
 
     if (
       before.data?.contact_id !== after.data?.contact_id ||
-      before.data?.territory_ms_slug !== after.data?.territory_ms_slug
+      before.data?.territory_ms_slug !== after.data?.territory_ms_slug ||
+      before.data?.journey_pipeline_state_id !== after.data?.journey_pipeline_state_id
     ) {
       callsUpdated++;
     }

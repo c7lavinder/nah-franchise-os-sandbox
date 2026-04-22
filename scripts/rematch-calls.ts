@@ -1,6 +1,7 @@
 /**
- * Backfill calls.contact_id / territory_ms_slug / match_confidence / match_reason
- * for rows that existed before the call-matching-consolidation sprint.
+ * Backfill calls.contact_id / territory_ms_slug / journey_pipeline_state_id /
+ * match_confidence / match_reason for rows that existed before the matching
+ * sprints, plus the call_territories + call_journeys junctions.
  *
  * Default mode is DRY RUN — prints old/new values and the reason, writes
  * nothing. Pass --live to apply the updates.
@@ -18,6 +19,7 @@ import {
   createSupabaseResolverDb,
   type ParticipantSignal,
 } from "../lib/calls/resolve-participants";
+import { upsertCallJunctions } from "../lib/calls/processors/upsert-call-junctions";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY!;
@@ -33,11 +35,16 @@ const LIVE = process.argv.includes("--live");
 async function main() {
   console.log(`Mode: ${LIVE ? "LIVE (writing)" : "DRY RUN (no writes)"}\n`);
 
-  // Scope: rows where match_confidence IS NULL (pre-sprint rows).
+  // Scope: rows where match_confidence IS NULL (pre-sprint) OR
+  // journey_pipeline_state_id IS NULL (pre-journey-sprint). The journey
+  // columns are newer, so some calls already have a contact/territory match
+  // but are still missing their journey link.
   const { data: calls, error } = await supabase
     .from("calls")
-    .select("id, title, contact_id, territory_ms_slug, match_confidence, match_reason, source")
-    .is("match_confidence", null)
+    .select(
+      "id, title, contact_id, territory_ms_slug, journey_pipeline_state_id, match_confidence, match_reason, source",
+    )
+    .or("match_confidence.is.null,journey_pipeline_state_id.is.null")
     .is("deleted_at", null)
     .order("created_at", { ascending: true });
 
@@ -82,6 +89,7 @@ async function main() {
     const changed =
       result.contact_id !== call.contact_id ||
       result.territory_ms_slug !== call.territory_ms_slug ||
+      result.journey_pipeline_state_id !== call.journey_pipeline_state_id ||
       call.match_confidence !== result.confidence;
 
     if (!changed && result.confidence === 0 && call.match_confidence === null) {
@@ -102,6 +110,7 @@ async function main() {
       `[${LIVE ? "write" : "dry"}] ${call.id} ` +
         `contact: ${call.contact_id ?? "null"} → ${result.contact_id ?? "null"} | ` +
         `territory: ${call.territory_ms_slug ?? "null"} → ${result.territory_ms_slug ?? "null"} | ` +
+        `jps: ${call.journey_pipeline_state_id ?? "null"} → ${result.journey_pipeline_state_id ?? "null"} | ` +
         `conf=${result.confidence} (${result.reason})`,
     );
 
@@ -111,11 +120,16 @@ async function main() {
         .update({
           contact_id: result.contact_id,
           territory_ms_slug: result.territory_ms_slug,
+          journey_pipeline_state_id: result.journey_pipeline_state_id,
           match_confidence: result.confidence,
           match_reason: result.reason,
         })
         .eq("id", call.id);
-      if (updateErr) console.error(`[error] ${call.id}: ${updateErr.message}`);
+      if (updateErr) {
+        console.error(`[error] ${call.id}: ${updateErr.message}`);
+        continue;
+      }
+      await upsertCallJunctions(supabase, call.id, result);
     }
   }
 
