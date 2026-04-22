@@ -90,7 +90,10 @@ export default function JourneyEosTab({
   }, [focusedTerritorySlug, resolvedTerritory, awardedTerritories, onTerritoryChange]);
 
   const showContactTabs = effectiveMembers.length >= 2;
-  const showTerritoryTabs = awardedTerritories.length >= 2;
+  // Territory strip is always shown when there's at least one awarded
+  // territory so the Territory EOS section reads as its own persistent
+  // home — not just a conditional add-on for multi-territory journeys.
+  const showTerritoryTabs = awardedTerritories.length >= 1;
 
   // Reused pill-tab strip, consistent with the Territories/EOS patterns
   // elsewhere. Kept local to avoid one-off styling drift.
@@ -141,10 +144,13 @@ export default function JourneyEosTab({
             </div>
           )}
         </div>
+        {/* Personal EOS is contact-scoped only — no carriedTerritoryName,
+            since personal goals/issues/todos follow the person, not the
+            territory. The territory-linked view lives below. */}
         <EosTab
           key={selectedContactId}
           contactId={selectedContactId}
-          carriedTerritoryName={carriedTerritoryName}
+          carriedTerritoryName={null}
         />
       </section>
 
