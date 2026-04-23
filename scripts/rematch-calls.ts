@@ -52,7 +52,9 @@ async function deriveCategory(
   const distinctIds = new Set(externals.map((p) => p.journey_id).filter((id): id is string => !!id));
   const count = distinctIds.size;
 
-  if (externals.length === 0 && nahCount > 0) return { category: "internal", distinctJourneys: 0 };
+  // INTERNAL — NAH team present, nobody on the call is in a journey.
+  // Covers team-only calls AND team + vendor/supplier/observer calls.
+  if (nahCount > 0 && count === 0) return { category: "internal", distinctJourneys: 0 };
   if (count >= 2) return { category: "group", distinctJourneys: count };
   if (count === 1 && externals.length > 0) {
     const journeyId = [...distinctIds][0];
@@ -61,6 +63,8 @@ async function deriveCategory(
     const onboarded = await db.hasJourneyReachedOnboarded(journeyId);
     return { category: onboarded ? "coaching" : "onboarding", distinctJourneys: 1 };
   }
+  // No team, no journey, but externals present — brand-new prospect where
+  // nothing is in the CRM yet.
   if (count === 0 && externals.length > 0) return { category: "prospect", distinctJourneys: 0 };
   return { category: "unknown", distinctJourneys: 0 };
 }

@@ -187,8 +187,11 @@ export async function classifyCall(
   );
   const distinctJourneyCount = distinctJourneyIds.size;
 
-  // INTERNAL — no externals, at least one team member.
-  if (external.length === 0 && nah.length > 0) {
+  // INTERNAL — NAH team present, no one on the call is in a journey.
+  // This catches team + vendor/supplier/data-provider calls where the
+  // "external" folks have no contact record (or one without a journey).
+  // An observer who isn't in a pipeline isn't the subject of the call.
+  if (nah.length > 0 && distinctJourneyCount === 0) {
     return {
       call_type: "internal",
       nah_participant_email: nahEmail,
@@ -196,7 +199,9 @@ export async function classifyCall(
       external_participant_name: null,
       coach_user_id: null,
       confidence: "high",
-      classification_reason: "All participants are NAH team members",
+      classification_reason: external.length === 0
+        ? "All participants are NAH team members"
+        : `NAH team + ${external.length} outsider(s) with no journey`,
       distinct_journey_count: 0,
       journey_reached_onboarded: false,
       match,
