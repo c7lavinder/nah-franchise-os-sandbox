@@ -5,7 +5,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
-import { formatTranscript, standardizeTitle, isNAHTeamEmail } from "../classifier";
+import { formatTranscript, standardizeTitle, isNAHTeamEmail, toClassifyCategory } from "../classifier";
 import { insertCallParticipants } from "./insert-participants";
 import { upsertCallJunctions } from "./upsert-call-junctions";
 import { reconcileCall } from "./reconcile-call";
@@ -34,6 +34,7 @@ export async function processGroupCall(
     is_internal: isInternal,
     has_external_participant: !isInternal,
     has_territory_owner: !!classified.match.territory_ms_slug,
+    category: toClassifyCategory(classified.call_type),
     source: "read_ai",
   });
   const callType = await resolveCallTypeBySlug(supabase, classification.slug);
@@ -44,12 +45,16 @@ export async function processGroupCall(
     .map((p) => p.name)
     .filter(Boolean) as string[];
 
+  // Group + Internal calls intentionally carry NO primary contact / territory
+  // / journey on the `calls` row — the junctions (call_participants,
+  // call_territories, call_journeys) hold the full multi-entity truth. This
+  // prevents "most-recent contact wins" from flipping the primary on rematch.
   const { data: callRecord } = await supabase
     .from("calls")
     .insert({
-      contact_id: classified.match.contact_id,
-      territory_ms_slug: classified.match.territory_ms_slug,
-      journey_pipeline_state_id: classified.match.journey_pipeline_state_id,
+      contact_id: null,
+      territory_ms_slug: null,
+      journey_pipeline_state_id: null,
       call_type_id: callType.id,
       classification_reason: classification.reason,
       match_confidence: classified.match.confidence,

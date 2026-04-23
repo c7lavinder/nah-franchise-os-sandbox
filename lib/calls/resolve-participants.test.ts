@@ -37,6 +37,8 @@ interface Fixture {
   journeys?: JourneyFixture[];
   journeyMembers?: Map<string, string[]>; // contact_id -> journey_ids (non-primary)
   jps?: JpsFixture[];
+  /** Journey ids that have reached the onboarded stage. */
+  reachedOnboarded?: Set<string>;
 }
 
 function makeDb(fx: Fixture): ResolverDb {
@@ -96,6 +98,9 @@ function makeDb(fx: Fixture): ResolverDb {
         return b.updatedAt.localeCompare(a.updatedAt);
       });
       return { journey_id: chosen.id, journey_pipeline_state_id: rows[0].id };
+    },
+    async hasJourneyReachedOnboarded(journeyId) {
+      return fx.reachedOnboarded?.has(journeyId) ?? false;
     },
     async isTeamEmail(email) {
       return fx.teamEmails.has(email.toLowerCase());

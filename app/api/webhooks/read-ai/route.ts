@@ -178,6 +178,12 @@ async function processReadAIWebhook(
       case "prospect":
         await processProspectCall(payload, classified);
         break;
+      case "onboarding":
+        // Onboarding reuses the coaching processor — same data shape
+        // (contact exists, journey exists, territory exists); only the
+        // call_types.slug differs, and that's derived downstream.
+        await processCoachingCall(payload, classified);
+        break;
       case "coaching":
         await processCoachingCall(payload, classified);
         break;

@@ -137,3 +137,56 @@ describe("classifyCallType", () => {
     }
   });
 });
+
+describe("classifyCallType — category-routed (Layer 1)", () => {
+  it("internal category → team_call regardless of other signals", () => {
+    const r = classifyCallType(base({ category: "internal", nah_emails: ["matt@x.com"] }));
+    expect(r.slug).toBe("team_call");
+  });
+
+  it("coaching category → coaching_call", () => {
+    const r = classifyCallType(base({ category: "coaching", has_territory_owner: true }));
+    expect(r.slug).toBe("coaching_call");
+  });
+
+  it("onboarding category → onboarding_call (new)", () => {
+    const r = classifyCallType(base({ category: "onboarding", has_territory_owner: true }));
+    expect(r.slug).toBe("onboarding_call");
+  });
+
+  it("group category → group_call", () => {
+    const r = classifyCallType(base({ category: "group" }));
+    expect(r.slug).toBe("group_call");
+  });
+
+  it("unknown category → unclassified", () => {
+    const r = classifyCallType(base({ category: "unknown" }));
+    expect(r.slug).toBe("unclassified");
+  });
+
+  it("sales category still subdivides — matt host → matt_call", () => {
+    const r = classifyCallType(base({ category: "sales", nah_emails: ["matt@x.com"] }));
+    expect(r.slug).toBe("matt_call");
+  });
+
+  it("sales category — matt + final title → matt_final_call", () => {
+    const r = classifyCallType(
+      base({ category: "sales", nah_emails: ["matt@x.com"], title: "Matt Final Award" }),
+    );
+    expect(r.slug).toBe("matt_final_call");
+  });
+
+  it("sales category with no signals → unclassified", () => {
+    const r = classifyCallType(base({ category: "sales" }));
+    expect(r.slug).toBe("unclassified");
+  });
+
+  it("category overrides legacy has_territory_owner inference", () => {
+    // has_territory_owner=true would pick coaching_call on the legacy path,
+    // but category=onboarding should steer to onboarding_call.
+    const r = classifyCallType(
+      base({ category: "onboarding", has_territory_owner: true }),
+    );
+    expect(r.slug).toBe("onboarding_call");
+  });
+});

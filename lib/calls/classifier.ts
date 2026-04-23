@@ -59,21 +59,6 @@ async function loadTeamEmails(): Promise<string[]> {
 // Synchronous check uses cache or fallback
 const NAH_TEAM_EMAILS = NAH_TEAM_EMAILS_FALLBACK;
 
-/** Coach emails — coaching calls when paired with franchise owner */
-const COACH_EMAILS = [
-  "chad@newagainhouses.com",
-  "john@newagainhouses.com",
-  "erin@newagainhouses.com",
-];
-
-/** Sales team — prospect calls when paired with non-owner external */
-const SALES_EMAILS = [
-  "matt@newagainhouses.com",
-  "sam@newagainhouses.com",
-  "mark@altacapitalmanagement.com",
-  "chad@newagainhouses.com",
-];
-
 export interface ReadAIParticipant {
   name?: string;
   email?: string;
@@ -115,20 +100,46 @@ export interface ReadAIWebhookPayload {
 // Backward-compat alias — use ResolvedCallParticipant from resolve-participants.ts directly in new code.
 export type ResolvedParticipant = ResolvedCallParticipant;
 
+/**
+ * The router category — drives processor selection and the default Layer-2
+ * call_types.slug. See docs/call-classification-audit.md for the decision
+ * tree. Derived from distinct_journey_count + journey-stage signals, NOT
+ * from host email or participant headcount.
+ */
+export type CallCategory =
+  | "prospect"    // Sales bucket — 1 journey with no territory, or 0 journeys + external
+  | "onboarding"  // 1 journey with territory, journey has NOT reached `onboarded`
+  | "coaching"   // 1 journey with territory, journey HAS reached `onboarded`
+  | "group"      // 2+ distinct journeys on the call
+  | "internal"   // zero external participants, 1+ NAH team
+  | "unknown";   // no signals — shouldn't happen once resolver runs but preserved
+
 export interface ClassifiedCall {
-  call_type: "prospect" | "coaching" | "group" | "internal" | "unknown";
+  call_type: CallCategory;
   nah_participant_email: string | null;
   external_participant_email: string | null;
   external_participant_name: string | null;
   coach_user_id: string | null;
   confidence: "high" | "medium" | "low";
   classification_reason: string;
+  /** Distinct active journeys attached to the call — drives category selection. */
+  distinct_journey_count: number;
+  /** True when exactly one journey is attached and it has reached `onboarded`. */
+  journey_reached_onboarded: boolean;
   /** Output of the shared participant resolver — contact/territory/participants/etc. */
   match: ResolveResult;
 }
 
 export function isNAHTeamEmail(email: string | null | undefined): boolean {
   return !!email && NAH_TEAM_EMAILS.includes(email.toLowerCase());
+}
+
+/** Map the router category to the Layer-2 classify-type category input. */
+export function toClassifyCategory(
+  callType: CallCategory,
+): "sales" | "onboarding" | "coaching" | "group" | "internal" | "unknown" {
+  if (callType === "prospect") return "sales";
+  return callType;
 }
 
 /** Build a standardized call title: "{Call Type} w/ {External Contact Names}" */
@@ -170,7 +181,13 @@ export async function classifyCall(
   const nahEmail = nah[0]?.email ?? null;
   const firstExternal = external[0] ?? null;
 
-  // INTERNAL — NAH-only
+  // Distinct journeys across all external participants — the key classification signal.
+  const distinctJourneyIds = new Set(
+    external.map((p) => p.journey_id).filter((id): id is string => !!id),
+  );
+  const distinctJourneyCount = distinctJourneyIds.size;
+
+  // INTERNAL — no externals, at least one team member.
   if (external.length === 0 && nah.length > 0) {
     return {
       call_type: "internal",
@@ -180,12 +197,16 @@ export async function classifyCall(
       coach_user_id: null,
       confidence: "high",
       classification_reason: "All participants are NAH team members",
+      distinct_journey_count: 0,
+      journey_reached_onboarded: false,
       match,
     };
   }
 
-  // GROUP — 3+ external
-  if (external.length >= 3) {
+  // GROUP — 2+ distinct journeys. Multi-journey calls never get a primary
+  // contact/territory/jps on the calls row; the junction tables hold every
+  // participant's full set.
+  if (distinctJourneyCount >= 2) {
     return {
       call_type: "group",
       nah_participant_email: nahEmail,
@@ -193,17 +214,37 @@ export async function classifyCall(
       external_participant_name: null,
       coach_user_id: null,
       confidence: "high",
-      classification_reason: `${external.length} external participants — group call`,
+      classification_reason: `${distinctJourneyCount} distinct journeys on the call — group`,
+      distinct_journey_count: distinctJourneyCount,
+      journey_reached_onboarded: false,
       match,
     };
   }
 
-  // 1-2 external — prospect or coaching
-  if (firstExternal) {
-    const isCoach = !!nahEmail && COACH_EMAILS.includes(nahEmail);
-    const hasTerritoryOwner = !!match.territory_ms_slug;
+  // 1-journey case — Sales / Onboarding / Coaching by stage.
+  if (distinctJourneyCount === 1 && firstExternal) {
+    const onlyJourneyId = [...distinctJourneyIds][0];
+    const hasTerritory = !!match.territory_ms_slug;
+    const reachedOnboarded = await db.hasJourneyReachedOnboarded(onlyJourneyId);
 
-    if (isCoach && hasTerritoryOwner) {
+    if (!hasTerritory) {
+      // Sales — no territory assigned to the journey yet.
+      return {
+        call_type: "prospect",
+        nah_participant_email: nahEmail,
+        external_participant_email: firstExternal.email,
+        external_participant_name: firstExternal.display_name,
+        coach_user_id: null,
+        confidence: "high",
+        classification_reason: `Sales — journey has no territory yet (${firstExternal.display_name})`,
+        distinct_journey_count: 1,
+        journey_reached_onboarded: false,
+        match,
+      };
+    }
+
+    if (reachedOnboarded) {
+      // Coaching — journey has graduated onboarding.
       let coachUserId: string | null = null;
       if (nahEmail) {
         const { data: coachUser } = await supabase
@@ -220,29 +261,49 @@ export async function classifyCall(
         external_participant_name: firstExternal.display_name,
         coach_user_id: coachUserId,
         confidence: "high",
-        classification_reason: `Coach (${nahEmail}) + franchise owner (${firstExternal.email})`,
+        classification_reason: `Coaching — journey has reached onboarded (${firstExternal.display_name})`,
+        distinct_journey_count: 1,
+        journey_reached_onboarded: true,
         match,
       };
     }
 
-    const isSales = !!nahEmail && SALES_EMAILS.includes(nahEmail);
-    if (isSales || !hasTerritoryOwner) {
-      return {
-        call_type: "prospect",
-        nah_participant_email: nahEmail,
-        external_participant_email: firstExternal.email,
-        external_participant_name: firstExternal.display_name,
-        coach_user_id: null,
-        confidence: match.contact_id ? "high" : "medium",
-        classification_reason: match.contact_id
-          ? `Sales call — matched to contact ${firstExternal.display_name}`
-          : `Sales call — external email not in system (${firstExternal.email})`,
-        match,
-      };
-    }
+    // Onboarding — journey has territory but hasn't reached onboarded yet.
+    return {
+      call_type: "onboarding",
+      nah_participant_email: nahEmail,
+      external_participant_email: firstExternal.email,
+      external_participant_name: firstExternal.display_name,
+      coach_user_id: null,
+      confidence: "high",
+      classification_reason: `Onboarding — journey has territory, not yet onboarded (${firstExternal.display_name})`,
+      distinct_journey_count: 1,
+      journey_reached_onboarded: false,
+      match,
+    };
   }
 
-  // UNKNOWN
+  // 0 journeys + external → brand-new prospect. Journey will be created later
+  // by the processor; for now classify as Sales so Layer 2 (title/host regex)
+  // can pick the correct sales sub-type.
+  if (distinctJourneyCount === 0 && firstExternal) {
+    return {
+      call_type: "prospect",
+      nah_participant_email: nahEmail,
+      external_participant_email: firstExternal.email,
+      external_participant_name: firstExternal.display_name,
+      coach_user_id: null,
+      confidence: match.contact_id ? "medium" : "low",
+      classification_reason: match.contact_id
+        ? `Sales — contact has no journey yet (${firstExternal.display_name})`
+        : `Sales — external not in system (${firstExternal.email})`,
+      distinct_journey_count: 0,
+      journey_reached_onboarded: false,
+      match,
+    };
+  }
+
+  // UNKNOWN — empty call with no team and no externals (shouldn't happen).
   return {
     call_type: "unknown",
     nah_participant_email: nahEmail,
@@ -251,6 +312,8 @@ export async function classifyCall(
     coach_user_id: null,
     confidence: "low",
     classification_reason: "Could not determine call type from participants",
+    distinct_journey_count: distinctJourneyCount,
+    journey_reached_onboarded: false,
     match,
   };
 }

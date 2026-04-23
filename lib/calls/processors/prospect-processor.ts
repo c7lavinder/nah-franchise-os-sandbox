@@ -4,7 +4,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import type { ReadAIWebhookPayload, ClassifiedCall } from "../classifier";
-import { formatTranscript, standardizeTitle } from "../classifier";
+import { formatTranscript, standardizeTitle, toClassifyCategory } from "../classifier";
 import { insertCallParticipants } from "./insert-participants";
 import { upsertCallJunctions } from "./upsert-call-junctions";
 import { reconcileCall } from "./reconcile-call";
@@ -53,6 +53,7 @@ export async function processProspectCall(
     is_internal: false,
     has_external_participant: true,
     has_territory_owner: !!classified.match.territory_ms_slug,
+    category: toClassifyCategory(classified.call_type),
     source: "read_ai",
   });
   const callType = await resolveCallTypeBySlug(supabase, classification.slug);

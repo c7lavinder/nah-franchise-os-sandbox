@@ -94,6 +94,13 @@ export interface ResolverDb {
     contactId: string,
     territoryMsSlug: string | null,
   ): Promise<JourneyPick | null>;
+  /**
+   * Has this journey completed onboarding? True when the journey has any
+   * jps row in the `onboarding` pipeline whose current_stage.slug is
+   * `onboarded`. Used by the classifier to distinguish Onboarding from
+   * Coaching calls when distinct_journey_count === 1.
+   */
+  hasJourneyReachedOnboarded(journeyId: string): Promise<boolean>;
   isTeamEmail(email: string): Promise<boolean>;
   findUserByEmail(email: string): Promise<{ id: string; full_name: string } | null>;
 }
@@ -408,6 +415,18 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
       });
 
       return { journey_id: journey.id, journey_pipeline_state_id: ranked[0].id };
+    },
+    async hasJourneyReachedOnboarded(journeyId) {
+      // Look for any jps row in the onboarding pipeline whose current
+      // stage is `onboarded`. One query pulls the jps + stage + pipeline.
+      const { data } = await supabase
+        .from("journey_pipeline_state")
+        .select("id, pipelines!inner(slug), pipeline_stages!inner(slug)")
+        .eq("journey_id", journeyId)
+        .eq("pipelines.slug", "onboarding")
+        .eq("pipeline_stages.slug", "onboarded")
+        .limit(1);
+      return (data ?? []).length > 0;
     },
     async isTeamEmail(email) {
       const { data } = await supabase
