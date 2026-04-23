@@ -73,12 +73,20 @@ interface TerritoryOption {
   territory_name: string;
 }
 
+interface JourneyPipelineStateOption {
+  id: string;
+  territory_ms_slug: string | null;
+  territory_name: string | null;
+  stage_name: string | null;
+}
+
 interface JourneyMembership {
   journey_id: string;
   journey_slug: string | null;
   journey_name: string;
   role: string;
   is_journey_primary: boolean;
+  pipeline_states: JourneyPipelineStateOption[];
 }
 
 export interface RawParticipant {
@@ -241,6 +249,9 @@ interface ParticipantState {
   /** Active journeys this contact is a member of. Surfaced inline so the rep
    *  can jump from a call's participant straight to the deal. */
   journeys: JourneyMembership[];
+  /** jps ids this call advances for this participant — default is the primary
+   *  journey's best-fit jps (territory match → null territory → first). */
+  selectedJps: string[];
 }
 
 function buildInitialState(participants: RawParticipant[]): ParticipantState[] {
@@ -259,6 +270,7 @@ function buildInitialState(participants: RawParticipant[]): ParticipantState[] {
       ownedTerritories: [],
       selectedTerritories: [],
       journeys: [],
+      selectedJps: [],
     }));
 }
 
@@ -290,6 +302,24 @@ async function fetchContactJourneys(contactId: string): Promise<JourneyMembershi
   } catch {
     return [];
   }
+}
+
+/**
+ * Pick the best jps for a journey given the call's selected territories —
+ * mirrors lib/calls/resolve-participants.ts#getActiveJourneyForContact.
+ * Prefer a jps whose territory is on the call → pre-award NULL territory
+ * → first available.
+ */
+function autoPickJps(journey: JourneyMembership, selectedTerritories: string[]): string | null {
+  const states = journey.pipeline_states;
+  if (states.length === 0) return null;
+  const matchByTerritory = states.find(
+    (s) => s.territory_ms_slug && selectedTerritories.includes(s.territory_ms_slug),
+  );
+  if (matchByTerritory) return matchByTerritory.id;
+  const nullTerritory = states.find((s) => s.territory_ms_slug === null);
+  if (nullTerritory) return nullTerritory.id;
+  return states[0].id;
 }
 
 interface PendingAdd {
@@ -336,7 +366,9 @@ function ReassignButton(props: Props & { token: string | null }) {
   const [rows, setRows] = useState<ParticipantState[]>([]);
   const [primaryContactId, setPrimaryContactId] = useState<string | null>(props.currentContactId);
   const [primaryTerritory, setPrimaryTerritory] = useState<string | null>(null);
+  const [primaryJps, setPrimaryJps] = useState<string | null>(null);
   const [initialSelection, setInitialSelection] = useState<{ list: string[]; primary: string | null }>({ list: [], primary: null });
+  const [initialJourneySelection, setInitialJourneySelection] = useState<{ list: string[]; primary: string | null }>({ list: [], primary: null });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingAdd, setPendingAdd] = useState<PendingAdd | null>(null);
@@ -355,10 +387,12 @@ function ReassignButton(props: Props & { token: string | null }) {
 
     void (async () => {
       const ctPromise = fetch(`/api/calls/${props.callId}/territories`);
+      const cjPromise = fetch(`/api/calls/${props.callId}/journeys`);
       const territoryPromises = initial.map((r) => r.contactId ? fetchContactTerritories(r.contactId) : Promise.resolve([]));
       const journeyPromises = initial.map((r) => r.contactId ? fetchContactJourneys(r.contactId) : Promise.resolve([]));
-      const [ctRes, territoryResults, journeyResults] = await Promise.all([
+      const [ctRes, cjRes, territoryResults, journeyResults] = await Promise.all([
         ctPromise,
+        cjPromise,
         Promise.all(territoryPromises),
         Promise.all(journeyPromises),
       ]);
@@ -374,16 +408,48 @@ function ReassignButton(props: Props & { token: string | null }) {
       }
       if (props.currentTerritorySlug) selectedSet.add(props.currentTerritorySlug);
 
+      // Pull the call's existing journey selection + primary jps.
+      let selectedJpsSet = new Set<string>();
+      let primaryJpsId: string | null = null;
+      if (cjRes.ok) {
+        const data = await cjRes.json();
+        const list = (data.journeys ?? []) as Array<{
+          journey_id: string; journey_pipeline_state_id: string; is_primary: boolean;
+        }>;
+        selectedJpsSet = new Set(list.map((j) => j.journey_pipeline_state_id));
+        primaryJpsId = list.find((j) => j.is_primary)?.journey_pipeline_state_id ?? null;
+      }
+
       // Merge each participant's owned territories + journey memberships into
       // their row. Default territory selection = (prior call selection ∩ owned)
       // if the call already has selections, otherwise all owned territories.
       const hasPriorSelection = selectedSet.size > 0;
+      const hasPriorJourneySelection = selectedJpsSet.size > 0;
       const merged = initial.map((r, i) => {
         const owned = territoryResults[i];
         const defaulted = hasPriorSelection
           ? owned.filter((t) => selectedSet.has(t.ms_slug)).map((t) => t.ms_slug)
           : owned.map((t) => t.ms_slug);
-        return { ...r, ownedTerritories: owned, selectedTerritories: defaulted, journeys: journeyResults[i] };
+        const journeys = journeyResults[i];
+        // Default jps selection = prior call selection ∩ contact's jps ids,
+        // else auto-pick best jps per membership using the same rule the
+        // resolver uses (territory match → null territory → first).
+        const availableJpsIds = journeys.flatMap((j) => j.pipeline_states.map((s) => s.id));
+        let defaultedJps: string[];
+        if (hasPriorJourneySelection) {
+          defaultedJps = availableJpsIds.filter((id) => selectedJpsSet.has(id));
+        } else {
+          defaultedJps = journeys
+            .map((j) => autoPickJps(j, defaulted))
+            .filter((id): id is string => !!id);
+        }
+        return {
+          ...r,
+          ownedTerritories: owned,
+          selectedTerritories: defaulted,
+          journeys,
+          selectedJps: defaultedJps,
+        };
       });
       setRows(merged);
 
@@ -395,6 +461,15 @@ function ReassignButton(props: Props & { token: string | null }) {
       const resolvedPrimary = primary && union.has(primary) ? primary : (unionList[0] ?? null);
       setPrimaryTerritory(resolvedPrimary);
       setInitialSelection({ list: [...unionList].sort(), primary: resolvedPrimary });
+
+      // Same for journeys.
+      const jpsUnion = new Set<string>();
+      for (const r of merged) for (const id of r.selectedJps) jpsUnion.add(id);
+      for (const id of selectedJpsSet) jpsUnion.add(id);
+      const jpsUnionList = [...jpsUnion];
+      const resolvedJpsPrimary = primaryJpsId && jpsUnion.has(primaryJpsId) ? primaryJpsId : (jpsUnionList[0] ?? null);
+      setPrimaryJps(resolvedJpsPrimary);
+      setInitialJourneySelection({ list: [...jpsUnionList].sort(), primary: resolvedJpsPrimary });
     })();
   }, [open, props.callId, props.participants, props.currentContactId, props.currentTerritorySlug]);
 
@@ -418,9 +493,52 @@ function ReassignButton(props: Props & { token: string | null }) {
     setPrimaryTerritory(unionSelected[0]?.ms_slug ?? null);
   }, [unionSelected, primaryTerritory]);
 
+  // Call-level union of selected journey pipeline states across every participant.
+  const unionSelectedJps = useMemo(() => {
+    type JpsLabel = {
+      id: string;
+      journey_id: string;
+      journey_name: string;
+      journey_slug: string | null;
+      territory_name: string | null;
+      stage_name: string | null;
+    };
+    const seen = new Map<string, JpsLabel>();
+    for (const r of rows) {
+      for (const jpsId of r.selectedJps) {
+        if (seen.has(jpsId)) continue;
+        for (const j of r.journeys) {
+          const s = j.pipeline_states.find((x) => x.id === jpsId);
+          if (!s) continue;
+          seen.set(jpsId, {
+            id: jpsId,
+            journey_id: j.journey_id,
+            journey_name: j.journey_name,
+            journey_slug: j.journey_slug,
+            territory_name: s.territory_name,
+            stage_name: s.stage_name,
+          });
+          break;
+        }
+      }
+    }
+    return [...seen.values()];
+  }, [rows]);
+
+  useEffect(() => {
+    if (primaryJps && unionSelectedJps.some((j) => j.id === primaryJps)) return;
+    setPrimaryJps(unionSelectedJps[0]?.id ?? null);
+  }, [unionSelectedJps, primaryJps]);
+
   function setParticipantTerritories(participantId: string, slugs: string[]) {
     setRows((prev) =>
       prev.map((r) => r.id === participantId ? { ...r, selectedTerritories: slugs } : r),
+    );
+  }
+
+  function setParticipantJps(participantId: string, jpsIds: string[]) {
+    setRows((prev) =>
+      prev.map((r) => r.id === participantId ? { ...r, selectedJps: jpsIds } : r),
     );
   }
 
@@ -442,6 +560,20 @@ function ReassignButton(props: Props & { token: string | null }) {
     if (listChanged || primaryChanged) {
       payload.territories = unionSlugs;
       payload.primary_territory_ms_slug = primaryTerritory;
+    }
+
+    const unionJpsIds = unionSelectedJps.map((j) => j.id);
+    const sortedJpsNow = [...unionJpsIds].sort();
+    const jpsListChanged =
+      sortedJpsNow.length !== initialJourneySelection.list.length ||
+      sortedJpsNow.some((id, i) => id !== initialJourneySelection.list[i]);
+    const jpsPrimaryChanged = primaryJps !== initialJourneySelection.primary;
+    if (jpsListChanged || jpsPrimaryChanged) {
+      payload.journeys = unionSelectedJps.map((j) => ({
+        journey_id: j.journey_id,
+        journey_pipeline_state_id: j.id,
+      }));
+      payload.primary_journey_pipeline_state_id = primaryJps;
     }
 
     if (Object.keys(payload).length === 0) { setOpen(false); return; }
@@ -507,7 +639,7 @@ function ReassignButton(props: Props & { token: string | null }) {
                       onContactChange={async (contactId, contactName, territory) => {
                         setRows((prev) =>
                           prev.map((r) =>
-                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [], journeys: [] } : r,
+                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [], journeys: [], selectedJps: [] } : r,
                           ),
                         );
                         if (contactId) {
@@ -515,18 +647,25 @@ function ReassignButton(props: Props & { token: string | null }) {
                             fetchContactTerritories(contactId),
                             fetchContactJourneys(contactId),
                           ]);
+                          const territorySlugs = owned.map((t) => t.ms_slug);
+                          const selectedJps = journeys
+                            .map((j) => autoPickJps(j, territorySlugs))
+                            .filter((id): id is string => !!id);
                           setRows((prev) =>
                             prev.map((r) =>
                               r.id === p.id
-                                ? { ...r, ownedTerritories: owned, selectedTerritories: owned.map((t) => t.ms_slug), journeys }
+                                ? { ...r, ownedTerritories: owned, selectedTerritories: territorySlugs, journeys, selectedJps }
                                 : r,
                             ),
                           );
                         }
                       }}
                       onTerritoriesChange={(slugs) => setParticipantTerritories(p.id, slugs)}
+                      onJpsChange={(ids) => setParticipantJps(p.id, ids)}
                       onPrimaryChange={() => setPrimaryContactId(p.contactId)}
                       onPrimaryTerritoryChange={(slug) => setPrimaryTerritory(slug)}
+                      onPrimaryJpsChange={(id) => setPrimaryJps(id)}
+                      callPrimaryJps={primaryJps}
                       onRequestAdd={(kind) =>
                         setPendingAdd({ participantId: p.id, kind, prefill: splitNameForPrefill(p) })
                       }
@@ -551,7 +690,7 @@ function ReassignButton(props: Props & { token: string | null }) {
                       onContactChange={async (contactId, contactName, territory) => {
                         setRows((prev) =>
                           prev.map((r) =>
-                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [], journeys: [] } : r,
+                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [], journeys: [], selectedJps: [] } : r,
                           ),
                         );
                         if (contactId) {
@@ -559,18 +698,25 @@ function ReassignButton(props: Props & { token: string | null }) {
                             fetchContactTerritories(contactId),
                             fetchContactJourneys(contactId),
                           ]);
+                          const territorySlugs = owned.map((t) => t.ms_slug);
+                          const selectedJps = journeys
+                            .map((j) => autoPickJps(j, territorySlugs))
+                            .filter((id): id is string => !!id);
                           setRows((prev) =>
                             prev.map((r) =>
                               r.id === p.id
-                                ? { ...r, ownedTerritories: owned, selectedTerritories: owned.map((t) => t.ms_slug), journeys }
+                                ? { ...r, ownedTerritories: owned, selectedTerritories: territorySlugs, journeys, selectedJps }
                                 : r,
                             ),
                           );
                         }
                       }}
                       onTerritoriesChange={(slugs) => setParticipantTerritories(p.id, slugs)}
+                      onJpsChange={(ids) => setParticipantJps(p.id, ids)}
                       onPrimaryChange={() => setPrimaryContactId(p.contactId)}
                       onPrimaryTerritoryChange={(slug) => setPrimaryTerritory(slug)}
+                      onPrimaryJpsChange={(id) => setPrimaryJps(id)}
+                      callPrimaryJps={primaryJps}
                       onRequestAdd={(kind) =>
                         setPendingAdd({ participantId: p.id, kind, prefill: splitNameForPrefill(p) })
                       }
@@ -646,10 +792,13 @@ interface RowProps {
   row: ParticipantState;
   isPrimary: boolean;
   callPrimaryTerritory: string | null;
+  callPrimaryJps: string | null;
   onContactChange: (contactId: string | null, contactName: string | null, territory: string | null) => void;
   onTerritoriesChange: (slugs: string[]) => void;
+  onJpsChange: (jpsIds: string[]) => void;
   onPrimaryChange: () => void;
   onPrimaryTerritoryChange: (slug: string) => void;
+  onPrimaryJpsChange: (jpsId: string) => void;
   onRequestAdd: (kind: "prospect" | "related") => void;
 }
 
@@ -657,10 +806,13 @@ function ParticipantRow({
   row,
   isPrimary,
   callPrimaryTerritory,
+  callPrimaryJps,
   onContactChange,
   onTerritoriesChange,
+  onJpsChange,
   onPrimaryChange,
   onPrimaryTerritoryChange,
+  onPrimaryJpsChange,
   onRequestAdd,
 }: RowProps) {
   const [editing, setEditing] = useState(false);
@@ -736,23 +888,63 @@ function ParticipantRow({
           </div>
 
           {row.journeys.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1 pl-2">
-              <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
-                Journey{row.journeys.length > 1 ? "s" : ""}
-              </span>
-              {row.journeys.map((j) => (
-                <a
-                  key={j.journey_id}
-                  href={`/journeys/${j.journey_slug ?? j.journey_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border border-border-default bg-bg-primary text-text-primary hover:border-nah-blue hover:text-nah-blue transition-colors"
-                  title={`Open ${j.journey_name} (${j.role}${j.is_journey_primary ? " — primary" : ""})`}
-                >
-                  <span>{j.journey_name}</span>
-                  <span className="text-text-tertiary">· {j.role.replace(/_/g, " ")}</span>
-                </a>
-              ))}
+            <div className="pl-3 border-l-2 border-border-default space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
+                  Journey{row.journeys.length > 1 ? "s" : ""} advanced
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {row.journeys.flatMap((j) =>
+                  j.pipeline_states.map((s) => {
+                    const checked = row.selectedJps.includes(s.id);
+                    const isJpsPrimary = checked && callPrimaryJps === s.id;
+                    const territoryLabel = s.territory_name ?? s.territory_ms_slug ?? "pre-award";
+                    const label = j.pipeline_states.length > 1
+                      ? `${j.journey_name} · ${territoryLabel}`
+                      : j.journey_name;
+                    return (
+                      <label
+                        key={s.id}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border cursor-pointer transition-colors ${
+                          checked
+                            ? isJpsPrimary
+                              ? "border-[#EAB308] bg-[#EAB308]/10 text-text-primary"
+                              : "border-[#3A2FAE] bg-[#EEEDFE] text-text-primary"
+                            : "border-border-default bg-bg-primary text-text-tertiary hover:text-text-primary"
+                        }`}
+                        title={s.stage_name ? `${label} · ${s.stage_name}` : label}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            const next = checked
+                              ? row.selectedJps.filter((id) => id !== s.id)
+                              : [...row.selectedJps, s.id];
+                            onJpsChange(next);
+                          }}
+                          className="sr-only"
+                        />
+                        {checked && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onPrimaryJpsChange(s.id); }}
+                            title={isJpsPrimary ? "Primary journey" : "Make primary"}
+                            className={isJpsPrimary ? "text-[#EAB308]" : "text-text-tertiary hover:text-text-primary"}
+                          >
+                            <Star size={10} fill={isJpsPrimary ? "currentColor" : "none"} />
+                          </button>
+                        )}
+                        <span>{label}</span>
+                        {s.stage_name && (
+                          <span className="text-text-tertiary">· {s.stage_name}</span>
+                        )}
+                      </label>
+                    );
+                  }),
+                )}
+              </div>
             </div>
           )}
 

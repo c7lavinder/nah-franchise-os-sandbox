@@ -1,0 +1,29 @@
+export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/calls/[callId]/journeys
+ *
+ * Returns every journey attached to a call with is_primary flag. Used by the
+ * reassignment modal to render the multi-journey picker. Mirrors the
+ * /territories endpoint.
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@/lib/supabase/server";
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ callId: string }> },
+) {
+  const { callId } = await params;
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("call_journeys")
+    .select("journey_id, journey_pipeline_state_id, is_primary")
+    .eq("call_id", callId)
+    .order("is_primary", { ascending: false });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ journeys: data ?? [] });
+}
