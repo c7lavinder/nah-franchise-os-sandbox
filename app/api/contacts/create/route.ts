@@ -23,6 +23,10 @@ interface CreateContactBody {
   state?: string;
   source?: string;
   subSource?: string;
+  /** Default true. Set false for contacts that shouldn't own a sales journey
+   *  (employees, contractors, spouses, attorneys — anyone we're adding via
+   *  the ecosystem flow). Only prospects/franchisees own journeys. */
+  createJourney?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -92,11 +96,14 @@ export async function POST(request: NextRequest) {
     // 3. Place in Sales pipeline → Engagement stage. Creates the journey
     // + primary membership via ensureJourneyForContact, then inserts a
     // single NULL-territory jps row (sales is journey-level).
-    const { data: salesPipeline } = await supabase
-      .from("pipelines")
-      .select("id")
-      .eq("slug", "sales")
-      .single();
+    //
+    // Skipped when createJourney is explicitly false — only prospects and
+    // franchisees own journeys. Employees, contractors, spouses, etc. are
+    // contacts without a sales pipeline of their own.
+    const shouldCreateJourney = body.createJourney !== false;
+    const { data: salesPipeline } = shouldCreateJourney
+      ? await supabase.from("pipelines").select("id").eq("slug", "sales").single()
+      : { data: null };
 
     if (salesPipeline) {
       const journeyId = await ensureJourneyForContact(supabase, contact.id);

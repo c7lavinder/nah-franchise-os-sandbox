@@ -200,6 +200,9 @@ export default function AddRelatedContactModal({
             lastName: lastName.trim(),
             email: email.trim() || undefined,
             phone: phone.trim() || undefined,
+            // Only prospects/franchisees own journeys — ecosystem contacts
+            // (employees, contractors, spouses, attorneys) do not.
+            createJourney: false,
           }),
         });
         const created = await createRes.json();
