@@ -14,9 +14,9 @@ import { resolveContactId } from "@/lib/contacts/pipeline-state";
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { contactId: string } }
+  { params }: { params: Promise<{ contactId: string }> }
 ) {
-  const { contactId: rawId } = params;
+  const { contactId: rawId } = await params;
 
   if (!rawId) {
     return NextResponse.json({ error: "contactId is required" }, { status: 400 });
@@ -94,8 +94,23 @@ export async function PATCH(
   }
   if (Object.keys(updates).length === 0) return NextResponse.json({ error: "No fields" }, { status: 400 });
 
-  const { error } = await supabase.from("contacts").update(updates).eq("id", localId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // If the caller is updating the primary email via this endpoint, route it
+  // through contact_emails so the multi-email table stays authoritative.
+  // The trigger on contact_emails keeps contacts.email in sync.
+  if (typeof updates.email === "string" && updates.email.trim().length > 0) {
+    const newEmail = (updates.email as string).trim();
+    await supabase.from("contact_emails").update({ is_primary: false })
+      .eq("contact_id", localId).eq("is_primary", true);
+    await supabase.from("contact_emails").upsert({
+      contact_id: localId, email: newEmail, is_primary: true, source: "manual",
+    }, { onConflict: "contact_id,email" });
+    delete updates.email;
+  }
+
+  if (Object.keys(updates).length > 0) {
+    const { error } = await supabase.from("contacts").update(updates).eq("id", localId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   // Sync GHL-relevant fields back to GHL
   const ghlFields: Record<string, string> = {};

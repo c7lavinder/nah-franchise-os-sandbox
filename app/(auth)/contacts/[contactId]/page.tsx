@@ -12,12 +12,13 @@
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Phone, Mail, MapPin, Calendar, Users } from "lucide-react";
+import { Phone, MapPin, Calendar, Users } from "lucide-react";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 import { capitalizeName, formatPhone } from "@/lib/format/contact";
 import RichContactPage from "@/components/contact/RichContactPage";
 import BackButton from "@/components/contact/BackButton";
+import ContactEmailsPanel from "@/components/contact/ContactEmailsPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -104,7 +105,7 @@ export default async function ContactPage({
 
   // Render slim view for non-primary contacts (spouses/advisors/strays).
   if (!isPrimary) {
-    return renderSlim(contact, memberRowsRes.data ?? [], callRowsRes.data ?? [], callTypesRes.data ?? []);
+    return renderSlim(contactId, contact, memberRowsRes.data ?? [], callRowsRes.data ?? [], callTypesRes.data ?? []);
   }
 
   // Rich view for prospects + franchisees. Classify by pipeline state —
@@ -200,6 +201,7 @@ interface TerritoryInventoryRow {
 // ─── slim fallback (unchanged) ───────────────────────────────────────
 
 function renderSlim(
+  contactId: string,
   contact: { first_name: string | null; last_name: string | null; email: string | null; phone: string | null; city: string | null; state: string | null; opportunity_source: string | null },
   memberRows: unknown[],
   callRows: unknown[],
@@ -232,7 +234,7 @@ function renderSlim(
                 <dt className="text-text-tertiary text-[10px]">Name</dt>
                 <dd className="text-text-primary">{displayName}</dd>
               </div>
-              {contact.email && <div><dt className="text-text-tertiary text-[10px] flex items-center gap-1"><Mail size={10} /> Email</dt><dd className="text-text-primary break-all">{contact.email}</dd></div>}
+              <ContactEmailsPanel contactId={contactId} initialPrimaryEmail={contact.email} />
               {contact.phone && <div><dt className="text-text-tertiary text-[10px] flex items-center gap-1"><Phone size={10} /> Phone</dt><dd className="text-text-primary">{formatPhone(contact.phone)}</dd></div>}
               {(contact.city || contact.state) && <div><dt className="text-text-tertiary text-[10px] flex items-center gap-1"><MapPin size={10} /> Location</dt><dd className="text-text-primary">{[capitalizeName(contact.city), contact.state?.toUpperCase()].filter(Boolean).join(", ")}</dd></div>}
               {contact.opportunity_source && <div><dt className="text-text-tertiary text-[10px]">Lead Source</dt><dd className="text-text-primary">{contact.opportunity_source}</dd></div>}

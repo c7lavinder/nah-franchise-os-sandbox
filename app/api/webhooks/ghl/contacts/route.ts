@@ -27,6 +27,8 @@ interface WebhookPayload {
   firstName?: string;
   lastName?: string;
   email?: string;
+  /** GHL v2 sometimes sends additionalEmails on the webhook payload. */
+  additionalEmails?: string[];
   phone?: string;
   address1?: string;
   city?: string;
@@ -62,6 +64,7 @@ export async function POST(request: NextRequest) {
       firstName: payload.firstName,
       lastName: payload.lastName,
       email: payload.email,
+      additionalEmails: payload.additionalEmails,
       phone: payload.phone,
       address1: payload.address1,
       city: payload.city,

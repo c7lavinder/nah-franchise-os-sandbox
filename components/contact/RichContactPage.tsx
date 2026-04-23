@@ -16,11 +16,12 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Activity, Award, Users, Goal, TrendingUp } from "lucide-react";
+import { ArrowLeft, Activity, Award, Users, Goal, TrendingUp, Phone, MapPin } from "lucide-react";
 import EosTab from "@/components/leads/tabs/EosTab";
 import { ProfileSection } from "@/components/profile";
 import { PROFILE_FIELDS, getSortedCategories } from "@/lib/profile/field-registry";
-import { capitalizeName } from "@/lib/format/contact";
+import { capitalizeName, formatPhone } from "@/lib/format/contact";
+import ContactEmailsPanel from "@/components/contact/ContactEmailsPanel";
 
 interface JourneyLite {
   id: string;
@@ -72,7 +73,7 @@ interface Props {
 type TabKey = "contacts" | "profile" | "eos";
 
 export default function RichContactPage({
-  contactId, displayName, role, activeJourney, memberships, territoryInventory, grades, currentStage, currentPipelineSlug,
+  contactId, displayName, role, contact, activeJourney, memberships, territoryInventory, grades, currentStage, currentPipelineSlug,
 }: Props) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>("contacts");
@@ -100,6 +101,21 @@ export default function RichContactPage({
               {currentPipelineSlug && <span className="text-text-tertiary"> ({currentPipelineSlug})</span>}
             </div>
           )}
+          <dl className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-2 text-body-sm">
+            <ContactEmailsPanel contactId={contactId} initialPrimaryEmail={contact.email} />
+            {contact.phone && (
+              <div>
+                <dt className="text-text-tertiary text-[10px] flex items-center gap-1"><Phone size={10} /> Phone</dt>
+                <dd className="text-text-primary">{formatPhone(contact.phone)}</dd>
+              </div>
+            )}
+            {(contact.city || contact.state) && (
+              <div>
+                <dt className="text-text-tertiary text-[10px] flex items-center gap-1"><MapPin size={10} /> Location</dt>
+                <dd className="text-text-primary">{[capitalizeName(contact.city ?? ""), contact.state?.toUpperCase()].filter(Boolean).join(", ")}</dd>
+              </div>
+            )}
+          </dl>
         </div>
       </div>
 

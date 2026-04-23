@@ -8,6 +8,8 @@ export interface GHLContact {
   lastName: string;
   email: string | null;
   phone: string | null;
+  /** Additional email addresses stored by GHL beyond the primary `email`. */
+  additionalEmails?: string[];
   tags: string[];
   source: string | null;
   dateAdded: string;
@@ -32,6 +34,8 @@ export interface GHLContactUpdatePayload {
   firstName?: string;
   lastName?: string;
   email?: string;
+  /** Array of non-primary emails on the GHL contact record. */
+  additionalEmails?: string[];
   phone?: string;
   tags?: string[];
   customFields?: GHLCustomField[];
