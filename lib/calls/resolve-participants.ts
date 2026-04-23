@@ -78,6 +78,11 @@ export interface ResolveResult {
 export interface JourneyPick {
   journey_id: string;
   journey_pipeline_state_id: string;
+  /** The territory attached to the chosen jps row (null if pre-award).
+   *  Used by the resolver when the contact isn't directly listed as a
+   *  territory_owner — e.g., a journey's driver/spouse who shares the
+   *  franchisee's journey but isn't the GHL owner of record. */
+  territory_ms_slug: string | null;
 }
 
 export interface ResolverDb {
@@ -95,12 +100,13 @@ export interface ResolverDb {
     territoryMsSlug: string | null,
   ): Promise<JourneyPick | null>;
   /**
-   * Has this journey completed onboarding? True when the journey has any
-   * jps row in the `onboarding` pipeline whose current_stage.slug is
-   * `onboarded`. Used by the classifier to distinguish Onboarding from
-   * Coaching calls when distinct_journey_count === 1.
+   * Has this journey entered the Runway pipeline (Path to Inventory)?
+   * True when the journey has any active jps row in the `runway` pipeline.
+   * This is the threshold between Onboarding and Coaching — once a
+   * franchisee is working Runway they're operational and their calls are
+   * Coaching.
    */
-  hasJourneyReachedOnboarded(journeyId: string): Promise<boolean>;
+  isJourneyInRunway(journeyId: string): Promise<boolean>;
   isTeamEmail(email: string): Promise<boolean>;
   findUserByEmail(email: string): Promise<{ id: string; full_name: string } | null>;
 }
@@ -221,10 +227,13 @@ export async function resolveCallParticipants(
     }
 
     if (participantWinner) {
-      const territory = participantWinner.ghl_contact_id
+      const ownedTerritory = participantWinner.ghl_contact_id
         ? await db.getActiveTerritoryForContact(participantWinner.ghl_contact_id)
         : null;
-      const journey = await db.getActiveJourneyForContact(participantWinner.id, territory);
+      const journey = await db.getActiveJourneyForContact(participantWinner.id, ownedTerritory);
+      // Contact isn't listed as owner but their journey's jps has a territory
+      // (common for journey drivers / spouses) — honor the journey's territory.
+      const territory = ownedTerritory ?? journey?.territory_ms_slug ?? null;
       const role: ParticipantRole = territory ? "franchisee" : "prospect";
       const displayName = [participantWinner.first_name, participantWinner.last_name].filter(Boolean).join(" ").trim()
         || cleanDisplayName(email, p.name ?? null);
@@ -404,27 +413,33 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
 
       if (!jpsRows || jpsRows.length === 0) return null;
 
+      // Ranking:
+      //   1. Prefer the jps whose territory matches the call's known territory.
+      //   2. Otherwise prefer most-recently-updated jps — this surfaces the
+      //      journey's current stage (onboarding/runway) instead of a stale
+      //      pre-award sales row that lingers after the journey advances.
       const ranked = [...jpsRows].sort((a, b) => {
         const aTerrMatch = territoryMsSlug !== null && a.territory_ms_slug === territoryMsSlug ? 1 : 0;
         const bTerrMatch = territoryMsSlug !== null && b.territory_ms_slug === territoryMsSlug ? 1 : 0;
         if (aTerrMatch !== bTerrMatch) return bTerrMatch - aTerrMatch;
-        const aNull = a.territory_ms_slug === null ? 1 : 0;
-        const bNull = b.territory_ms_slug === null ? 1 : 0;
-        if (aNull !== bNull) return bNull - aNull;
         return b.updated_at.localeCompare(a.updated_at);
       });
 
-      return { journey_id: journey.id, journey_pipeline_state_id: ranked[0].id };
+      return {
+        journey_id: journey.id,
+        journey_pipeline_state_id: ranked[0].id,
+        territory_ms_slug: ranked[0].territory_ms_slug ?? null,
+      };
     },
-    async hasJourneyReachedOnboarded(journeyId) {
-      // Look for any jps row in the onboarding pipeline whose current
-      // stage is `onboarded`. One query pulls the jps + stage + pipeline.
+    async isJourneyInRunway(journeyId) {
+      // True iff the journey has an active jps row in the `runway` pipeline
+      // (Path to Inventory). Entering runway = operational franchisee.
       const { data } = await supabase
         .from("journey_pipeline_state")
-        .select("id, pipelines!inner(slug), pipeline_stages!inner(slug)")
+        .select("id, pipelines!inner(slug)")
         .eq("journey_id", journeyId)
-        .eq("pipelines.slug", "onboarding")
-        .eq("pipeline_stages.slug", "onboarded")
+        .eq("pipelines.slug", "runway")
+        .eq("is_active", true)
         .limit(1);
       return (data ?? []).length > 0;
     },

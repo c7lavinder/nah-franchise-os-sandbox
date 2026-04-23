@@ -124,8 +124,10 @@ export interface ClassifiedCall {
   classification_reason: string;
   /** Distinct active journeys attached to the call — drives category selection. */
   distinct_journey_count: number;
-  /** True when exactly one journey is attached and it has reached `onboarded`. */
-  journey_reached_onboarded: boolean;
+  /** True when exactly one journey is attached and it has entered the
+   *  runway pipeline (Path to Inventory). Threshold between Onboarding
+   *  and Coaching. */
+  journey_in_runway: boolean;
   /** Output of the shared participant resolver — contact/territory/participants/etc. */
   match: ResolveResult;
 }
@@ -203,7 +205,7 @@ export async function classifyCall(
         ? "All participants are NAH team members"
         : `NAH team + ${external.length} outsider(s) with no journey`,
       distinct_journey_count: 0,
-      journey_reached_onboarded: false,
+      journey_in_runway: false,
       match,
     };
   }
@@ -221,7 +223,7 @@ export async function classifyCall(
       confidence: "high",
       classification_reason: `${distinctJourneyCount} distinct journeys on the call — group`,
       distinct_journey_count: distinctJourneyCount,
-      journey_reached_onboarded: false,
+      journey_in_runway: false,
       match,
     };
   }
@@ -230,7 +232,7 @@ export async function classifyCall(
   if (distinctJourneyCount === 1 && firstExternal) {
     const onlyJourneyId = [...distinctJourneyIds][0];
     const hasTerritory = !!match.territory_ms_slug;
-    const reachedOnboarded = await db.hasJourneyReachedOnboarded(onlyJourneyId);
+    const inRunway = await db.isJourneyInRunway(onlyJourneyId);
 
     if (!hasTerritory) {
       // Sales — no territory assigned to the journey yet.
@@ -243,13 +245,13 @@ export async function classifyCall(
         confidence: "high",
         classification_reason: `Sales — journey has no territory yet (${firstExternal.display_name})`,
         distinct_journey_count: 1,
-        journey_reached_onboarded: false,
+        journey_in_runway: false,
         match,
       };
     }
 
-    if (reachedOnboarded) {
-      // Coaching — journey has graduated onboarding.
+    if (inRunway) {
+      // Coaching — journey is working the runway pipeline.
       let coachUserId: string | null = null;
       if (nahEmail) {
         const { data: coachUser } = await supabase
@@ -266,14 +268,14 @@ export async function classifyCall(
         external_participant_name: firstExternal.display_name,
         coach_user_id: coachUserId,
         confidence: "high",
-        classification_reason: `Coaching — journey has reached onboarded (${firstExternal.display_name})`,
+        classification_reason: `Coaching — journey is working runway (${firstExternal.display_name})`,
         distinct_journey_count: 1,
-        journey_reached_onboarded: true,
+        journey_in_runway: true,
         match,
       };
     }
 
-    // Onboarding — journey has territory but hasn't reached onboarded yet.
+    // Onboarding — journey has territory but hasn't entered runway yet.
     return {
       call_type: "onboarding",
       nah_participant_email: nahEmail,
@@ -281,9 +283,9 @@ export async function classifyCall(
       external_participant_name: firstExternal.display_name,
       coach_user_id: null,
       confidence: "high",
-      classification_reason: `Onboarding — journey has territory, not yet onboarded (${firstExternal.display_name})`,
+      classification_reason: `Onboarding — journey has territory, not yet in runway (${firstExternal.display_name})`,
       distinct_journey_count: 1,
-      journey_reached_onboarded: false,
+      journey_in_runway: false,
       match,
     };
   }
@@ -303,7 +305,7 @@ export async function classifyCall(
         ? `Sales — contact has no journey yet (${firstExternal.display_name})`
         : `Sales — external not in system (${firstExternal.email})`,
       distinct_journey_count: 0,
-      journey_reached_onboarded: false,
+      journey_in_runway: false,
       match,
     };
   }
@@ -318,7 +320,7 @@ export async function classifyCall(
     confidence: "low",
     classification_reason: "Could not determine call type from participants",
     distinct_journey_count: distinctJourneyCount,
-    journey_reached_onboarded: false,
+    journey_in_runway: false,
     match,
   };
 }

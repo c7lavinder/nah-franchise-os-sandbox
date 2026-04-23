@@ -37,8 +37,8 @@ interface Fixture {
   journeys?: JourneyFixture[];
   journeyMembers?: Map<string, string[]>; // contact_id -> journey_ids (non-primary)
   jps?: JpsFixture[];
-  /** Journey ids that have reached the onboarded stage. */
-  reachedOnboarded?: Set<string>;
+  /** Journey ids that have an active jps in the runway pipeline. */
+  inRunway?: Set<string>;
 }
 
 function makeDb(fx: Fixture): ResolverDb {
@@ -92,15 +92,16 @@ function makeDb(fx: Fixture): ResolverDb {
         const aMatch = territoryMsSlug !== null && a.territoryMsSlug === territoryMsSlug ? 1 : 0;
         const bMatch = territoryMsSlug !== null && b.territoryMsSlug === territoryMsSlug ? 1 : 0;
         if (aMatch !== bMatch) return bMatch - aMatch;
-        const aNull = a.territoryMsSlug === null ? 1 : 0;
-        const bNull = b.territoryMsSlug === null ? 1 : 0;
-        if (aNull !== bNull) return bNull - aNull;
         return b.updatedAt.localeCompare(a.updatedAt);
       });
-      return { journey_id: chosen.id, journey_pipeline_state_id: rows[0].id };
+      return {
+        journey_id: chosen.id,
+        journey_pipeline_state_id: rows[0].id,
+        territory_ms_slug: rows[0].territoryMsSlug ?? null,
+      };
     },
-    async hasJourneyReachedOnboarded(journeyId) {
-      return fx.reachedOnboarded?.has(journeyId) ?? false;
+    async isJourneyInRunway(journeyId) {
+      return fx.inRunway?.has(journeyId) ?? false;
     },
     async isTeamEmail(email) {
       return fx.teamEmails.has(email.toLowerCase());
@@ -493,7 +494,10 @@ describe("resolveCallParticipants — journey selection", () => {
     expect(r.journey_pipeline_state_id).toBe("jps-chat");
   });
 
-  it("falls back to pre-award (NULL territory) jps when call has no territory", async () => {
+  it("with no territory hint, picks the most-recently-updated active jps (surfaces current stage, not stale pre-award)", async () => {
+    // Contact isn't a direct territory owner, but their journey has a stale
+    // sales/closed jps (null territory) alongside an active onboarding jps
+    // (with territory). We want the current stage to win, not the leftover.
     const db = makeDb({
       contacts: [c({ id: "c1", email: "a@x.com" })],
       teamEmails: new Set(),
@@ -502,16 +506,16 @@ describe("resolveCallParticipants — journey selection", () => {
       journeys: [{ id: "j1", primaryContactId: "c1", updatedAt: "2026-01-01T00:00:00Z" }],
       journeyMembers: new Map(),
       jps: [
-        { id: "jps-tn", journeyId: "j1", territoryMsSlug: "tn-nash", updatedAt: "2026-06-01T00:00:00Z", isActive: true },
-        { id: "jps-null", journeyId: "j1", territoryMsSlug: null, updatedAt: "2026-01-01T00:00:00Z", isActive: true },
+        { id: "jps-onboarding", journeyId: "j1", territoryMsSlug: "tn-nash", updatedAt: "2026-06-01T00:00:00Z", isActive: true },
+        { id: "jps-sales-closed", journeyId: "j1", territoryMsSlug: null, updatedAt: "2026-01-01T00:00:00Z", isActive: true },
       ],
     });
     const r = await resolveCallParticipants(
       baseInput({ participants: [{ email: "a@x.com" }] }),
       db,
     );
-    expect(r.territory_ms_slug).toBeNull();
-    expect(r.journey_pipeline_state_id).toBe("jps-null");
+    expect(r.territory_ms_slug).toBe("tn-nash");
+    expect(r.journey_pipeline_state_id).toBe("jps-onboarding");
   });
 
   it("tie-break: most recently updated active jps when no territory or null row", async () => {
@@ -603,6 +607,31 @@ describe("resolveCallParticipants — journey selection", () => {
       db,
     );
     expect(r.journey_pipeline_state_id).toBe("jps-active");
+  });
+
+  it("contact not listed as territory owner — jps territory wins (journey driver case)", async () => {
+    // Nicki-style: her ghl_contact_id isn't in territory_owners, but her
+    // journey's active jps carries a territory. The call should show that
+    // territory so the classifier doesn't call it Sales.
+    const db = makeDb({
+      contacts: [c({ id: "nicki", ghl_contact_id: "related_nicki", email: "ncates@x.com" })],
+      teamEmails: new Set(),
+      teamUsers: new Map(),
+      territories: new Map(), // Nicki isn't in territory_owners
+      journeys: [{ id: "j1", primaryContactId: "nicki", updatedAt: "2026-01-01T00:00:00Z" }],
+      journeyMembers: new Map(),
+      jps: [
+        { id: "jps-chs", journeyId: "j1", territoryMsSlug: "CHARSC", updatedAt: "2026-01-01T00:00:00Z", isActive: true },
+      ],
+    });
+    const r = await resolveCallParticipants(
+      baseInput({ participants: [{ email: "ncates@x.com" }] }),
+      db,
+    );
+    expect(r.contact_id).toBe("nicki");
+    expect(r.territory_ms_slug).toBe("CHARSC");
+    expect(r.journey_pipeline_state_id).toBe("jps-chs");
+    expect(r.participants[0].role).toBe("franchisee");
   });
 
   it("nah_team participants never get a journey", async () => {

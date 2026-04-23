@@ -60,8 +60,8 @@ async function deriveCategory(
     const journeyId = [...distinctIds][0];
     const hasTerritory = !!territoryMsSlug;
     if (!hasTerritory) return { category: "prospect", distinctJourneys: 1 };
-    const onboarded = await db.hasJourneyReachedOnboarded(journeyId);
-    return { category: onboarded ? "coaching" : "onboarding", distinctJourneys: 1 };
+    const inRunway = await db.isJourneyInRunway(journeyId);
+    return { category: inRunway ? "coaching" : "onboarding", distinctJourneys: 1 };
   }
   // No team, no journey, but externals present — brand-new prospect where
   // nothing is in the CRM yet.
