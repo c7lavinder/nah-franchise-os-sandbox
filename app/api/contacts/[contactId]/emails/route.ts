@@ -92,6 +92,19 @@ export async function POST(
       .eq("contact_id", localId).eq("is_primary", true);
   }
 
+  // Idempotent insert — if this email is already on the contact, return the
+  // existing row id instead of 409ing. Lets call-mapping flows auto-add
+  // participant emails without the client having to check first.
+  const { data: existing } = await supabase
+    .from("contact_emails")
+    .select("id")
+    .eq("contact_id", localId)
+    .eq("email", email)
+    .maybeSingle();
+  if (existing) {
+    return NextResponse.json({ id: existing.id, alreadyExisted: true });
+  }
+
   const { data, error } = await supabase
     .from("contact_emails")
     .insert({
@@ -99,7 +112,7 @@ export async function POST(
       email,
       is_primary: body.makePrimary ?? false,
       label: body.label ?? null,
-      source: "manual",
+      source: body.label === "auto" ? "manual" : "manual",
     })
     .select("id")
     .single();

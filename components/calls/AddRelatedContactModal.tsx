@@ -72,6 +72,10 @@ interface Props {
   /** The call's territories (from call_territories). Used to default the
    *  territory selector when the user picks a territory role. */
   callTerritorySlugs?: string[];
+  /** If the participant we're adding is already mapped to a contact, pass
+   *  it here — the modal will link that contact to the territory/relationship
+   *  instead of creating a duplicate contact record. */
+  existingContactId?: string | null;
   prefill?: Prefill;
   onClose: () => void;
   onCreated: (newContactId: string) => void;
@@ -84,6 +88,7 @@ export default function AddRelatedContactModal({
   primaryContactId,
   primaryContactName,
   callTerritorySlugs,
+  existingContactId,
   prefill,
   onClose,
   onCreated,
@@ -138,6 +143,14 @@ export default function AddRelatedContactModal({
     })();
   }, [open, callTerritorySlugs]);
 
+  // Lock body scroll while the modal is open.
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+
   // Keep the role select in-range when the user flips anchor.
   useEffect(() => {
     if (anchor === "territory" && !TERRITORY_ROLES.some((r) => r.value === role)) {
@@ -173,24 +186,30 @@ export default function AddRelatedContactModal({
 
     setSaving(true);
     try {
-      // 1. Create the contacts row.
-      const createRes = await fetch("/api/contacts/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          email: email.trim() || undefined,
-          phone: phone.trim() || undefined,
-        }),
-      });
-      const created = await createRes.json();
-      if (!createRes.ok || !created.contactId) {
-        setError(created.error ?? "Failed to create contact.");
-        setSaving(false);
-        return;
+      // 1. Resolve the contact id — reuse the already-mapped contact when
+      //    available (don't create duplicates), otherwise create fresh.
+      let newContactId: string;
+      if (existingContactId) {
+        newContactId = existingContactId;
+      } else {
+        const createRes = await fetch("/api/contacts/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            email: email.trim() || undefined,
+            phone: phone.trim() || undefined,
+          }),
+        });
+        const created = await createRes.json();
+        if (!createRes.ok || !created.contactId) {
+          setError(created.error ?? "Failed to create contact.");
+          setSaving(false);
+          return;
+        }
+        newContactId = created.contactId as string;
       }
-      const newContactId = created.contactId as string;
 
       // 2. Write the anchor row.
       if (anchor === "territory") {

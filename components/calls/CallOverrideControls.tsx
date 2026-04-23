@@ -304,6 +304,20 @@ async function fetchContactJourneys(contactId: string): Promise<JourneyMembershi
   }
 }
 
+async function attachEmailToContact(contactId: string, email: string): Promise<void> {
+  // Idempotent — the server returns existing id if the email is already on
+  // the contact, so mapping a participant always keeps contact_emails in sync.
+  try {
+    await fetch(`/api/contacts/${contactId}/emails`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, label: "auto" }),
+    });
+  } catch {
+    // Non-fatal — mapping still succeeds even if email sync fails.
+  }
+}
+
 /**
  * Pick the best jps for a journey given the call's selected territories —
  * mirrors lib/calls/resolve-participants.ts#getActiveJourneyForContact.
@@ -335,7 +349,9 @@ function splitNameForPrefill(participant: ParticipantState): {
   phone?: string;
 } {
   const result: { firstName?: string; lastName?: string; email?: string; phone?: string } = {};
-  if (participant.email && !participant.email.includes("@newagainhouses.com")) result.email = participant.email;
+  // Don't strip @newagainhouses.com emails — franchisee employees legitimately
+  // use nah-provisioned addresses and we want to carry them over.
+  if (participant.email) result.email = participant.email;
   if (participant.phone) result.phone = participant.phone;
 
   const name = participant.display_name?.includes("@") ? null : participant.display_name;
@@ -607,6 +623,25 @@ function ReassignButton(props: Props & { token: string | null }) {
   const orphans = rows.filter((r) => !r.contactId);
   const mapped = rows.filter((r) => !!r.contactId);
 
+  // Collapse rows that share a contact_id — show one card, list the other
+  // participant emails underneath. Keeps the star state unambiguous (one
+  // star per contact, not per participant row).
+  const mappedPrimaries: ParticipantState[] = [];
+  const mappedMateEmails = new Map<string, string[]>();
+  const seenContacts = new Set<string>();
+  for (const r of mapped) {
+    const cid = r.contactId!;
+    if (!seenContacts.has(cid)) {
+      seenContacts.add(cid);
+      mappedPrimaries.push(r);
+      mappedMateEmails.set(cid, []);
+    } else {
+      const emails = mappedMateEmails.get(cid) ?? [];
+      if (r.email && !emails.includes(r.email)) emails.push(r.email);
+      mappedMateEmails.set(cid, emails);
+    }
+  }
+
   return (
     <>
       <button
@@ -623,7 +658,7 @@ function ReassignButton(props: Props & { token: string | null }) {
       </button>
       {open && (
         <ModalShell title="Map call participants" onClose={() => setOpen(false)} wide>
-          <div className="space-y-4 max-h-[70vh] overflow-y-auto -mx-1 px-1">
+          <div className="space-y-4 -mx-1 px-1">
             {orphans.length > 0 && (
               <section>
                 <div className="text-[10px] uppercase tracking-wider text-danger font-medium mb-1.5">
@@ -643,6 +678,12 @@ function ReassignButton(props: Props & { token: string | null }) {
                           ),
                         );
                         if (contactId) {
+                          // Push the participant's email onto the contact so
+                          // the mapping leaves a breadcrumb even if the rep
+                          // never clicked into the contact profile.
+                          if (p.email) {
+                            void attachEmailToContact(contactId, p.email);
+                          }
                           const [owned, journeys] = await Promise.all([
                             fetchContactTerritories(contactId),
                             fetchContactJourneys(contactId),
@@ -675,25 +716,37 @@ function ReassignButton(props: Props & { token: string | null }) {
               </section>
             )}
 
-            {mapped.length > 0 && (
+            {mappedPrimaries.length > 0 && (
               <section>
                 <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1.5">
-                  Mapped ({mapped.length})
+                  Mapped ({mappedPrimaries.length})
                 </div>
                 <div className="space-y-1.5">
-                  {mapped.map((p) => (
+                  {mappedPrimaries.map((p) => (
                     <ParticipantRow
                       key={p.id}
                       row={p}
+                      extraMateEmails={mappedMateEmails.get(p.contactId!) ?? []}
                       isPrimary={primaryContactId === p.contactId}
                       callPrimaryTerritory={primaryTerritory}
                       onContactChange={async (contactId, contactName, territory) => {
+                        // Apply to every row sharing the old contactId so the
+                        // collapsed group moves together.
+                        const oldContactId = p.contactId;
+                        const emailsToAttach = rows
+                          .filter((r) => r.contactId === oldContactId && r.email)
+                          .map((r) => r.email!);
                         setRows((prev) =>
                           prev.map((r) =>
-                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [], journeys: [], selectedJps: [] } : r,
+                            r.contactId === oldContactId
+                              ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [], journeys: [], selectedJps: [] }
+                              : r,
                           ),
                         );
                         if (contactId) {
+                          for (const e of emailsToAttach) {
+                            void attachEmailToContact(contactId, e);
+                          }
                           const [owned, journeys] = await Promise.all([
                             fetchContactTerritories(contactId),
                             fetchContactJourneys(contactId),
@@ -704,15 +757,24 @@ function ReassignButton(props: Props & { token: string | null }) {
                             .filter((id): id is string => !!id);
                           setRows((prev) =>
                             prev.map((r) =>
-                              r.id === p.id
+                              r.contactId === contactId
                                 ? { ...r, ownedTerritories: owned, selectedTerritories: territorySlugs, journeys, selectedJps }
                                 : r,
                             ),
                           );
                         }
                       }}
-                      onTerritoriesChange={(slugs) => setParticipantTerritories(p.id, slugs)}
-                      onJpsChange={(ids) => setParticipantJps(p.id, ids)}
+                      onTerritoriesChange={(slugs) => {
+                        // Propagate to every row in this contact group.
+                        setRows((prev) =>
+                          prev.map((r) => r.contactId === p.contactId ? { ...r, selectedTerritories: slugs } : r),
+                        );
+                      }}
+                      onJpsChange={(ids) => {
+                        setRows((prev) =>
+                          prev.map((r) => r.contactId === p.contactId ? { ...r, selectedJps: ids } : r),
+                        );
+                      }}
                       onPrimaryChange={() => setPrimaryContactId(p.contactId)}
                       onPrimaryTerritoryChange={(slug) => setPrimaryTerritory(slug)}
                       onPrimaryJpsChange={(id) => setPrimaryJps(id)}
@@ -769,17 +831,40 @@ function ReassignButton(props: Props & { token: string | null }) {
           rows.find((r) => r.contactId === primaryContactId)?.contactName ?? null
         }
         callTerritorySlugs={unionSelected.map((t) => t.ms_slug)}
+        existingContactId={
+          pendingAdd
+            ? rows.find((r) => r.id === pendingAdd.participantId)?.contactId ?? null
+            : null
+        }
         prefill={pendingAdd?.kind === "related" ? pendingAdd.prefill : undefined}
         onClose={() => setPendingAdd(null)}
-        onCreated={(newContactId) => {
+        onCreated={async (newContactId) => {
           if (!pendingAdd) return;
           const id = pendingAdd.participantId;
           const pf = pendingAdd.prefill;
           const derivedName = [pf.firstName, pf.lastName].filter(Boolean).join(" ").trim() || null;
+          // Refresh owned territories + journeys so the stakeholder link we
+          // just created flows into the Reassign chips immediately.
+          const [owned, journeys] = await Promise.all([
+            fetchContactTerritories(newContactId),
+            fetchContactJourneys(newContactId),
+          ]);
+          const territorySlugs = owned.map((t) => t.ms_slug);
+          const selectedJps = journeys
+            .map((j) => autoPickJps(j, territorySlugs))
+            .filter((jpsId): jpsId is string => !!jpsId);
           setRows((prev) =>
             prev.map((r) =>
               r.id === id
-                ? { ...r, contactId: newContactId, contactName: derivedName ?? r.contactName ?? null }
+                ? {
+                    ...r,
+                    contactId: newContactId,
+                    contactName: derivedName ?? r.contactName ?? null,
+                    ownedTerritories: owned,
+                    selectedTerritories: territorySlugs,
+                    journeys,
+                    selectedJps,
+                  }
                 : r,
             ),
           );
@@ -794,6 +879,9 @@ function ReassignButton(props: Props & { token: string | null }) {
 
 interface RowProps {
   row: ParticipantState;
+  /** Other participant emails that were mapped to the same contact, shown
+   *  inline so the rep knows both invitation emails were grouped. */
+  extraMateEmails?: string[];
   isPrimary: boolean;
   callPrimaryTerritory: string | null;
   callPrimaryJps: string | null;
@@ -808,6 +896,7 @@ interface RowProps {
 
 function ParticipantRow({
   row,
+  extraMateEmails = [],
   isPrimary,
   callPrimaryTerritory,
   callPrimaryJps,
@@ -822,6 +911,7 @@ function ParticipantRow({
   const [editing, setEditing] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ContactOption[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Orphans (no contactId yet) are implicitly in search mode — the input is
@@ -854,6 +944,11 @@ function ParticipantRow({
           <div className="text-body-sm font-medium text-text-primary truncate">{participantLabel}</div>
           {row.email && row.display_name !== row.email && (
             <div className="text-caption text-text-tertiary truncate">{row.email}</div>
+          )}
+          {extraMateEmails.length > 0 && (
+            <div className="text-[10px] text-text-tertiary mt-0.5 truncate">
+              + {extraMateEmails.join(", ")} <span className="text-text-tertiary/70">(same contact)</span>
+            </div>
           )}
         </div>
         {row.contactId && (
@@ -1006,11 +1101,13 @@ function ParticipantRow({
           <div className="relative">
             <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary" />
             <input
+              ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search contacts by name…"
               autoFocus
+              onFocus={() => inputRef.current?.scrollIntoView({ block: "start", behavior: "smooth" })}
               className="w-full bg-bg-primary border border-border-default rounded-md pl-7 pr-8 py-1.5 text-caption text-text-primary placeholder:text-text-tertiary"
             />
             {editing && (
@@ -1140,6 +1237,15 @@ function DeleteButton({ callId, token }: { callId: string; token: string | null 
 
 // ─── Modal shell ──────────────────────────────────────────────────────────
 
+function useBodyScrollLock(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [active]);
+}
+
 function ModalShell({
   title,
   onClose,
@@ -1151,10 +1257,11 @@ function ModalShell({
   children: React.ReactNode;
   wide?: boolean;
 }) {
+  useBodyScrollLock(true);
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={onClose}>
       <div
-        className={`bg-surface-solid border border-border-default rounded-lg shadow-xl w-full ${wide ? "max-w-xl" : "max-w-md"} p-4`}
+        className={`bg-surface-solid border border-border-default rounded-lg shadow-xl w-full mx-4 ${wide ? "max-w-xl" : "max-w-md"} max-h-[90vh] overflow-y-auto p-4`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">

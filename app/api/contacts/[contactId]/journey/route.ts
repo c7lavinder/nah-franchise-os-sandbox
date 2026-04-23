@@ -65,6 +65,44 @@ export async function GET(
     }];
   });
 
+  // Stakeholder fallback — if the contact is linked to a territory's ecosystem
+  // (employee/contractor/agent), surface the active journey on that territory
+  // as a picker option. Gives the rep a way to say "Brett's call should be
+  // logged against Brian's journey, not a new one for Brett himself".
+  const { data: stakeRows } = await supabase
+    .from("territory_stakeholders")
+    .select("ms_slug, role")
+    .eq("contact_id", localContactId)
+    .eq("is_active", true);
+  const stakeholderSlugs = [...new Set((stakeRows ?? []).map((r) => r.ms_slug))];
+  const directJourneyIds = new Set(baseJourneys.map((j) => j.journey_id));
+
+  if (stakeholderSlugs.length > 0) {
+    const { data: jpsRows } = await supabase
+      .from("journey_pipeline_state")
+      .select("journey_id, journeys!inner(id, slug, name, primary_contact_id, status)")
+      .in("territory_ms_slug", stakeholderSlugs)
+      .eq("is_active", true);
+    const seen = new Set<string>();
+    for (const row of (jpsRows ?? []) as unknown as {
+      journey_id: string;
+      journeys: { id: string; slug: string | null; name: string; primary_contact_id: string; status: string } | null;
+    }[]) {
+      const j = row.journeys;
+      if (!j || j.status !== "active") continue;
+      if (directJourneyIds.has(j.id)) continue;
+      if (seen.has(j.id)) continue;
+      seen.add(j.id);
+      baseJourneys.push({
+        journey_id: j.id,
+        journey_slug: j.slug,
+        journey_name: j.name,
+        role: "stakeholder",
+        is_journey_primary: false,
+      });
+    }
+  }
+
   // Attach each journey's active jps rows so the picker can let the rep
   // target a specific (territory + pipeline) pairing on the call.
   let journeys: JourneyMembership[];
