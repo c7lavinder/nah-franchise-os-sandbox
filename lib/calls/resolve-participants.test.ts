@@ -39,6 +39,8 @@ interface Fixture {
   jps?: JpsFixture[];
   /** Journey ids that have an active jps in the runway pipeline. */
   inRunway?: Set<string>;
+  /** contact_id -> ms_slugs where they're an active territory stakeholder. */
+  stakeholderTerritories?: Map<string, string[]>;
 }
 
 function makeDb(fx: Fixture): ResolverDb {
@@ -98,6 +100,20 @@ function makeDb(fx: Fixture): ResolverDb {
         journey_id: chosen.id,
         journey_pipeline_state_id: rows[0].id,
         territory_ms_slug: rows[0].territoryMsSlug ?? null,
+      };
+    },
+    async getJourneyForStakeholderContact(contactId): Promise<JourneyPick | null> {
+      const slugs = fx.stakeholderTerritories?.get(contactId) ?? [];
+      if (slugs.length === 0) return null;
+      const rows = (fx.jps ?? [])
+        .filter((r) => r.isActive && r.territoryMsSlug && slugs.includes(r.territoryMsSlug))
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      const first = rows[0];
+      if (!first) return null;
+      return {
+        journey_id: first.journeyId,
+        journey_pipeline_state_id: first.id,
+        territory_ms_slug: first.territoryMsSlug ?? null,
       };
     },
     async isJourneyInRunway(journeyId) {
@@ -651,5 +667,60 @@ describe("resolveCallParticipants — journey selection", () => {
     expect(r.participants[0].role).toBe("nah_team");
     expect(r.participants[0].journey_id).toBeNull();
     expect(r.participants[0].journey_pipeline_state_id).toBeNull();
+  });
+
+  it("stakeholder fallback: contact not on the journey but in the territory ecosystem picks up the active journey", async () => {
+    // Brett-Boyd case: new employee of Brian-Boll's franchise. Brett has a
+    // contact record but no journey_contacts row. Linking him to the
+    // BLLNGS territory_stakeholders should be enough for his calls to
+    // classify against Brian's active journey.
+    const db = makeDb({
+      contacts: [c({ id: "brett", email: "brett@x.com" })],
+      teamEmails: new Set(),
+      teamUsers: new Map(),
+      territories: new Map(),
+      journeys: [{ id: "j-brian", primaryContactId: "brian", updatedAt: "2026-01-01T00:00:00Z" }],
+      journeyMembers: new Map(),
+      jps: [
+        { id: "jps-bllngs", journeyId: "j-brian", territoryMsSlug: "BLLNGS", updatedAt: "2026-04-01T00:00:00Z", isActive: true },
+      ],
+      stakeholderTerritories: new Map([["brett", ["BLLNGS"]]]),
+    });
+    const r = await resolveCallParticipants(
+      baseInput({ participants: [{ email: "brett@x.com" }] }),
+      db,
+    );
+    expect(r.contact_id).toBe("brett");
+    expect(r.journey_id).toBe("j-brian");
+    expect(r.journey_pipeline_state_id).toBe("jps-bllngs");
+    expect(r.territory_ms_slug).toBe("BLLNGS");
+    expect(r.participants[0].role).toBe("franchisee");
+  });
+
+  it("stakeholder fallback: does not fire when contact already has a direct journey", async () => {
+    // A co_primary on their own journey should not accidentally pick up
+    // a different territory's journey via stakeholder membership.
+    const db = makeDb({
+      contacts: [c({ id: "c1", email: "a@x.com" })],
+      teamEmails: new Set(),
+      teamUsers: new Map(),
+      territories: new Map(),
+      journeys: [
+        { id: "j-own", primaryContactId: "c1", updatedAt: "2026-06-01T00:00:00Z" },
+        { id: "j-other", primaryContactId: "other", updatedAt: "2026-01-01T00:00:00Z" },
+      ],
+      journeyMembers: new Map(),
+      jps: [
+        { id: "jps-own", journeyId: "j-own", territoryMsSlug: null, updatedAt: "2026-06-01T00:00:00Z", isActive: true },
+        { id: "jps-other", journeyId: "j-other", territoryMsSlug: "OTHER", updatedAt: "2026-01-01T00:00:00Z", isActive: true },
+      ],
+      stakeholderTerritories: new Map([["c1", ["OTHER"]]]),
+    });
+    const r = await resolveCallParticipants(
+      baseInput({ participants: [{ email: "a@x.com" }] }),
+      db,
+    );
+    expect(r.journey_id).toBe("j-own");
+    expect(r.journey_pipeline_state_id).toBe("jps-own");
   });
 });

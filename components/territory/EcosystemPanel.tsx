@@ -6,9 +6,10 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
-  Plus, Trash2, Loader2, User, Briefcase, Home, Scale,
-  Users, Wrench, Heart, HandshakeIcon, ChevronDown, X,
+  Plus, Trash2, Loader2, Briefcase, Home, Scale,
+  Users, Wrench, Heart, HandshakeIcon, ChevronDown, X, Badge,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -21,6 +22,7 @@ interface Stakeholder {
   company: string | null;
   role: string;
   notes: string | null;
+  contact_id: string | null;
 }
 
 interface Owner {
@@ -31,12 +33,13 @@ interface Owner {
 }
 
 const ROLES = [
-  { value: "agent", label: "Agent", icon: Briefcase, color: "bg-blue-100 text-blue-700 border-blue-200" },
+  { value: "employee", label: "Employee", icon: Badge, color: "bg-indigo-100 text-indigo-700 border-indigo-200" },
   { value: "contractor", label: "Contractor", icon: Wrench, color: "bg-amber-100 text-amber-700 border-amber-200" },
-  { value: "family", label: "Family", icon: Heart, color: "bg-pink-100 text-pink-700 border-pink-200" },
-  { value: "lawyer", label: "Lawyer", icon: Scale, color: "bg-purple-100 text-purple-700 border-purple-200" },
-  { value: "partner", label: "Partner", icon: HandshakeIcon, color: "bg-green-100 text-green-700 border-green-200" },
+  { value: "agent", label: "Agent", icon: Briefcase, color: "bg-blue-100 text-blue-700 border-blue-200" },
   { value: "lender", label: "Lender", icon: Home, color: "bg-teal-100 text-teal-700 border-teal-200" },
+  { value: "partner", label: "Partner", icon: HandshakeIcon, color: "bg-green-100 text-green-700 border-green-200" },
+  { value: "lawyer", label: "Lawyer", icon: Scale, color: "bg-purple-100 text-purple-700 border-purple-200" },
+  { value: "family", label: "Family", icon: Heart, color: "bg-pink-100 text-pink-700 border-pink-200" },
   { value: "other", label: "Other", icon: Users, color: "bg-gray-100 text-gray-600 border-gray-200" },
 ];
 
@@ -174,11 +177,16 @@ export default function EcosystemPanel({ msSlug, owner, owners }: Props) {
                       {members.map((s) => {
                         const name = [s.first_name, s.last_name].filter(Boolean).join(" ") || "—";
                         const initials = name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+                        const avatar = (
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold border transition-transform ${roleDef.color} ${s.contact_id ? "hover:scale-105 cursor-pointer" : ""}`}>
+                            {initials}
+                          </div>
+                        );
                         return (
                           <div key={s.id} className="group relative flex flex-col items-center">
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold border ${roleDef.color}`}>
-                              {initials}
-                            </div>
+                            {s.contact_id ? (
+                              <Link href={`/contacts/${s.contact_id}`}>{avatar}</Link>
+                            ) : avatar}
                             <p className="text-[10px] text-text-primary font-medium mt-1 max-w-[80px] truncate text-center">{name}</p>
                             {s.company && <p className="text-[9px] text-text-tertiary max-w-[80px] truncate text-center">{s.company}</p>}
                             {/* Delete on hover */}
@@ -222,7 +230,13 @@ export default function EcosystemPanel({ msSlug, owner, owners }: Props) {
             return (
               <div key={s.id} className="grid grid-cols-[1fr_100px_120px_120px_32px] gap-2 px-4 py-2.5 border-t border-border-default items-center hover:bg-bg-hover/30 transition-colors">
                 <div>
-                  <p className="text-body-sm font-medium text-text-primary">{name}</p>
+                  {s.contact_id ? (
+                    <Link href={`/contacts/${s.contact_id}`} className="text-body-sm font-medium text-text-primary hover:text-nah-blue hover:underline">
+                      {name}
+                    </Link>
+                  ) : (
+                    <p className="text-body-sm font-medium text-text-primary">{name}</p>
+                  )}
                   {s.company && <p className="text-[10px] text-text-tertiary">{s.company}</p>}
                   {s.notes && <p className="text-[10px] text-text-tertiary italic">{s.notes}</p>}
                 </div>

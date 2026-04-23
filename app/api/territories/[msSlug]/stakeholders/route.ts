@@ -23,14 +23,24 @@ export async function GET(
   return NextResponse.json({ stakeholders: data ?? [] });
 }
 
-/** POST — add a stakeholder */
+/** POST — add a stakeholder. Accepts contact_id to link back to the contacts
+ *  table, so the call classifier and contact pages can surface this person. */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ msSlug: string }> }
 ) {
   const { msSlug } = await params;
   const supabase = createServerClient();
-  const body = await request.json();
+  const body = await request.json() as {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    phone?: string;
+    company?: string;
+    role?: string;
+    notes?: string;
+    contact_id?: string | null;
+  };
 
   const { data, error } = await supabase
     .from("territory_stakeholders")
@@ -43,6 +53,7 @@ export async function POST(
       company: body.company || null,
       role: body.role || "other",
       notes: body.notes || null,
+      contact_id: body.contact_id ?? null,
     })
     .select("id")
     .single();

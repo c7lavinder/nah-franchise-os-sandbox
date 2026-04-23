@@ -100,6 +100,13 @@ export interface ResolverDb {
     territoryMsSlug: string | null,
   ): Promise<JourneyPick | null>;
   /**
+   * Fallback journey lookup for contacts linked to a territory's ecosystem
+   * (territory_stakeholders.contact_id) but not listed on the journey
+   * directly — employees, contractors, local agents. Returns the active
+   * journey on any territory where this contact is a stakeholder.
+   */
+  getJourneyForStakeholderContact(contactId: string): Promise<JourneyPick | null>;
+  /**
    * Has this journey entered the Runway pipeline (Path to Inventory)?
    * True when the journey has any active jps row in the `runway` pipeline.
    * This is the threshold between Onboarding and Coaching — once a
@@ -230,9 +237,16 @@ export async function resolveCallParticipants(
       const ownedTerritory = participantWinner.ghl_contact_id
         ? await db.getActiveTerritoryForContact(participantWinner.ghl_contact_id)
         : null;
-      const journey = await db.getActiveJourneyForContact(participantWinner.id, ownedTerritory);
+      let journey = await db.getActiveJourneyForContact(participantWinner.id, ownedTerritory);
+      // Stakeholder fallback — contact isn't on the journey directly but IS
+      // attached to a territory's ecosystem (employee/contractor/agent).
+      // Use the active journey on that territory so their calls classify
+      // against the right deal.
+      if (!journey) {
+        journey = await db.getJourneyForStakeholderContact(participantWinner.id);
+      }
       // Contact isn't listed as owner but their journey's jps has a territory
-      // (common for journey drivers / spouses) — honor the journey's territory.
+      // (common for journey drivers / spouses / stakeholders) — honor it.
       const territory = ownedTerritory ?? journey?.territory_ms_slug ?? null;
       const role: ParticipantRole = territory ? "franchisee" : "prospect";
       const displayName = [participantWinner.first_name, participantWinner.last_name].filter(Boolean).join(" ").trim()
@@ -429,6 +443,33 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
         journey_id: journey.id,
         journey_pipeline_state_id: ranked[0].id,
         territory_ms_slug: ranked[0].territory_ms_slug ?? null,
+      };
+    },
+    async getJourneyForStakeholderContact(contactId) {
+      // 1. Find territories where this contact is an active stakeholder.
+      const { data: stakeRows } = await supabase
+        .from("territory_stakeholders")
+        .select("ms_slug")
+        .eq("contact_id", contactId)
+        .eq("is_active", true);
+      const slugs = [...new Set((stakeRows ?? []).map((r) => r.ms_slug))];
+      if (slugs.length === 0) return null;
+
+      // 2. Find active journey_pipeline_state rows on any of those territories.
+      const { data: jpsRows } = await supabase
+        .from("journey_pipeline_state")
+        .select("id, journey_id, territory_ms_slug, updated_at")
+        .in("territory_ms_slug", slugs)
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      const jps = jpsRows?.[0];
+      if (!jps) return null;
+
+      return {
+        journey_id: jps.journey_id,
+        journey_pipeline_state_id: jps.id,
+        territory_ms_slug: jps.territory_ms_slug ?? null,
       };
     },
     async isJourneyInRunway(journeyId) {

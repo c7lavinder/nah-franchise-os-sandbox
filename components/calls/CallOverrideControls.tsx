@@ -765,6 +765,10 @@ function ReassignButton(props: Props & { token: string | null }) {
       <AddRelatedContactModal
         open={pendingAdd?.kind === "related"}
         primaryContactId={primaryContactId}
+        primaryContactName={
+          rows.find((r) => r.contactId === primaryContactId)?.contactName ?? null
+        }
+        callTerritorySlugs={unionSelected.map((t) => t.ms_slug)}
         prefill={pendingAdd?.kind === "related" ? pendingAdd.prefill : undefined}
         onClose={() => setPendingAdd(null)}
         onCreated={(newContactId) => {
@@ -1019,7 +1023,7 @@ function ParticipantRow({
             )}
           </div>
           {searchActive && query.length >= 2 && (
-            <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-bg-primary border border-border-default rounded-md shadow-lg max-h-60 overflow-y-auto">
+            <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-bg-primary border border-border-default rounded-md shadow-lg max-h-96 overflow-y-auto">
               {results.map((c) => (
                 <button
                   key={c.id}
@@ -1029,33 +1033,33 @@ function ParticipantRow({
                     setQuery("");
                     setResults([]);
                   }}
-                  className="w-full text-left px-3 py-1.5 text-caption hover:bg-bg-tertiary"
+                  className="w-full text-left px-3 py-2 text-body-sm hover:bg-bg-tertiary"
                 >
                   <div className="text-text-primary font-medium">{c.name}</div>
                   {(c.email || c.phone) && (
-                    <div className="text-text-tertiary truncate">
+                    <div className="text-caption text-text-tertiary truncate">
                       {c.email ?? ""}{c.email && c.phone ? " · " : ""}{c.phone ?? ""}
                     </div>
                   )}
                 </button>
               ))}
               {results.length === 0 && (
-                <div className="px-3 py-1.5 text-caption text-text-tertiary">No matches.</div>
+                <div className="px-3 py-2 text-caption text-text-tertiary">No matches.</div>
               )}
               <div className="border-t border-border-default">
                 <button
                   onClick={() => { onRequestAdd("prospect"); setEditing(false); setQuery(""); setResults([]); }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-caption text-nah-blue hover:bg-bg-tertiary"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-body-sm text-nah-blue hover:bg-bg-tertiary"
                 >
-                  <UserPlus size={12} />
+                  <UserPlus size={14} />
                   Add new prospect
                 </button>
                 <button
                   onClick={() => { onRequestAdd("related"); setEditing(false); setQuery(""); setResults([]); }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-caption text-nah-blue hover:bg-bg-tertiary"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-body-sm text-nah-blue hover:bg-bg-tertiary"
                 >
-                  <Users size={12} />
-                  Add related contact
+                  <Users size={14} />
+                  Add to ecosystem
                 </button>
               </div>
             </div>
