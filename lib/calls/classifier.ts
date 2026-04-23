@@ -181,7 +181,13 @@ export async function classifyCall(
   const nah = match.participants.filter((p) => p.role === "nah_team");
   const external = match.participants.filter((p) => p.role !== "nah_team");
   const nahEmail = nah[0]?.email ?? null;
-  const firstExternal = external[0] ?? null;
+  // Externals with a matched contact record (prospect/franchisee). Unknown-role
+  // externals have no contact match (vendors, observers, random attendees) and
+  // shouldn't drive classification away from internal.
+  const externalContacts = external.filter(
+    (p) => p.role === "prospect" || p.role === "franchisee",
+  );
+  const firstExternal = externalContacts[0] ?? external[0] ?? null;
 
   // Distinct journeys across all external participants — the key classification signal.
   const distinctJourneyIds = new Set(
@@ -189,11 +195,11 @@ export async function classifyCall(
   );
   const distinctJourneyCount = distinctJourneyIds.size;
 
-  // INTERNAL — NAH team present, no one on the call is in a journey.
-  // This catches team + vendor/supplier/data-provider calls where the
-  // "external" folks have no contact record (or one without a journey).
-  // An observer who isn't in a pipeline isn't the subject of the call.
-  if (nah.length > 0 && distinctJourneyCount === 0) {
+  // INTERNAL — NAH team present, no matched-contact externals on the call.
+  // Catches team-only calls and team + vendor/supplier/data-provider calls
+  // where the "external" folks have no contact record. Known prospects who
+  // aren't journeyed yet fall through to the 0-journey sales branch below.
+  if (nah.length > 0 && externalContacts.length === 0) {
     return {
       call_type: "internal",
       nah_participant_email: nahEmail,
@@ -203,7 +209,7 @@ export async function classifyCall(
       confidence: "high",
       classification_reason: external.length === 0
         ? "All participants are NAH team members"
-        : `NAH team + ${external.length} outsider(s) with no journey`,
+        : `NAH team + ${external.length} outsider(s) with no contact record`,
       distinct_journey_count: 0,
       journey_in_runway: false,
       match,
