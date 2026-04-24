@@ -168,16 +168,30 @@ export async function GET(request: NextRequest) {
     const externalContacts: string[] = [];
 
     if (participants.length > 0) {
+      // Dedupe: one chip per contact_id for mapped rows, one per email for
+      // unmapped. Keeps a contact invited under two emails from showing twice.
+      const seenContactIds = new Set<string>();
+      const seenExternalEmails = new Set<string>();
+      const seenTeamEmails = new Set<string>();
       for (const p of participants) {
         const lc = p.email?.toLowerCase() ?? "";
         const isTeam = p.role === "nah_team" || (lc && teamEmailSet.has(lc)) || !!p.user_id;
         if (isTeam) {
+          if (lc && seenTeamEmails.has(lc)) continue;
+          if (lc) seenTeamEmails.add(lc);
           const user = lc ? emailToUser.get(lc) : null;
           teamMembers.push({
             name: user?.name ?? p.display_name ?? lc.split("@")[0],
             color: user?.color ?? null,
           });
         } else {
+          if (p.contact_id) {
+            if (seenContactIds.has(p.contact_id)) continue;
+            seenContactIds.add(p.contact_id);
+          } else if (lc) {
+            if (seenExternalEmails.has(lc)) continue;
+            seenExternalEmails.add(lc);
+          }
           const name = p.display_name && !p.display_name.includes("@")
             ? p.display_name
             : (lc ? (contactEmailToName.get(lc) ?? null) : null)
