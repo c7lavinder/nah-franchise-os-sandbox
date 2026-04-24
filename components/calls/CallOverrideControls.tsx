@@ -71,6 +71,10 @@ interface ContactOption {
 interface TerritoryOption {
   ms_slug: string;
   territory_name: string;
+  /** 'owner' when the contact is a territory_owner (franchisee) or
+   *  'stakeholder' when they're linked via the territory ecosystem
+   *  (employee/contractor/agent/etc.). Drives chip styling. */
+  source?: "owner" | "stakeholder";
 }
 
 interface JourneyPipelineStateOption {
@@ -279,14 +283,19 @@ async function fetchContactTerritories(contactId: string): Promise<TerritoryOpti
     const res = await fetch(`/api/contacts/${contactId}/territories`);
     if (!res.ok) return [];
     const data = await res.json() as {
-      current?: Array<{ ms_slug: string; territories?: { territory_name?: string } | Array<{ territory_name?: string }> }>;
+      current?: Array<{
+        ms_slug: string;
+        source?: string;
+        territories?: { territory_name?: string } | Array<{ territory_name?: string }>;
+      }>;
     };
     return (data.current ?? []).map((row) => {
       const t = Array.isArray(row.territories) ? row.territories[0] : row.territories;
       return {
         ms_slug: row.ms_slug,
         territory_name: t?.territory_name ?? row.ms_slug,
-      };
+        source: row.source === "stakeholder" ? "stakeholder" : "owner",
+      } as TerritoryOption;
     });
   } catch {
     return [];
@@ -659,10 +668,17 @@ function ReassignButton(props: Props & { token: string | null }) {
       {open && (
         <ModalShell title="Map call participants" onClose={() => setOpen(false)} wide>
           <div className="space-y-4 -mx-1 px-1">
+            <div className="text-[11px] leading-relaxed text-text-tertiary bg-bg-tertiary rounded-md px-3 py-2">
+              Each participant brings their own territories and journeys to the call.
+              <br />
+              <span className="font-medium text-text-secondary">Territory</span> = where they&apos;re tied in (owner or ecosystem member).{" "}
+              <span className="font-medium text-text-secondary">Journey</span> = the franchise pipeline they&apos;re part of.
+              Pick which of each this call should link to.
+            </div>
             {orphans.length > 0 && (
               <section>
                 <div className="text-[10px] uppercase tracking-wider text-danger font-medium mb-1.5">
-                  Needs mapping ({orphans.length})
+                  Unmapped ({orphans.length})
                 </div>
                 <div className="space-y-1.5">
                   {orphans.map((p) => (
@@ -719,7 +735,7 @@ function ReassignButton(props: Props & { token: string | null }) {
             {mappedPrimaries.length > 0 && (
               <section>
                 <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1.5">
-                  Mapped ({mappedPrimaries.length})
+                  Mapped contacts ({mappedPrimaries.length})
                 </div>
                 <div className="space-y-1.5">
                   {mappedPrimaries.map((p) => (
@@ -974,8 +990,13 @@ function ParticipantRow({
             <button
               onClick={() => { setEditing(true); setQuery(""); setResults([]); }}
               className="text-caption text-nah-blue hover:underline"
+              title={
+                extraMateEmails.length > 0
+                  ? `Changes both emails (${extraMateEmails.length + 1} mapped)`
+                  : "Swap this participant's contact"
+              }
             >
-              Change
+              Change{extraMateEmails.length > 0 ? ` (both emails)` : ""}
             </button>
             <button
               onClick={() => onContactChange(null, null, null)}
@@ -990,8 +1011,9 @@ function ParticipantRow({
             <div className="pl-3 border-l-2 border-border-default space-y-1">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
-                  Journey{row.journeys.length > 1 ? "s" : ""} advanced
+                  Journey{row.journeys.length > 1 ? "s" : ""} on this call
                 </span>
+                <span className="text-[10px] text-text-tertiary/80">— tick to attach</span>
               </div>
               <div className="flex flex-wrap gap-1">
                 {row.journeys.flatMap((j) =>
@@ -1002,17 +1024,31 @@ function ParticipantRow({
                     const label = j.pipeline_states.length > 1
                       ? `${j.journey_name} · ${territoryLabel}`
                       : j.journey_name;
+                    // Source: direct (primary/co_primary/member on journey) vs stakeholder fallback.
+                    const isStakeholder = j.role === "stakeholder";
+                    const palette = isStakeholder
+                      ? {
+                          checked: "border-[#0E8F8F] bg-[#E0F7F7] text-text-primary",
+                          unchecked: "border-[#0E8F8F]/40 bg-bg-primary text-[#0E8F8F] hover:text-[#0A7070]",
+                        }
+                      : {
+                          checked: "border-[#3A2FAE] bg-[#EEEDFE] text-text-primary",
+                          unchecked: "border-border-default bg-bg-primary text-text-tertiary hover:text-text-primary",
+                        };
+                    const baseClass = checked
+                      ? isJpsPrimary
+                        ? "border-[#EAB308] bg-[#EAB308]/10 text-text-primary"
+                        : palette.checked
+                      : palette.unchecked;
                     return (
                       <label
                         key={s.id}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border cursor-pointer transition-colors ${
-                          checked
-                            ? isJpsPrimary
-                              ? "border-[#EAB308] bg-[#EAB308]/10 text-text-primary"
-                              : "border-[#3A2FAE] bg-[#EEEDFE] text-text-primary"
-                            : "border-border-default bg-bg-primary text-text-tertiary hover:text-text-primary"
-                        }`}
-                        title={s.stage_name ? `${label} · ${s.stage_name}` : label}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border cursor-pointer transition-colors ${baseClass}`}
+                        title={
+                          isStakeholder
+                            ? `${label} — via territory ecosystem${s.stage_name ? ` · ${s.stage_name}` : ""}`
+                            : (s.stage_name ? `${label} · ${s.stage_name}` : label)
+                        }
                       >
                         <input
                           type="checkbox"
@@ -1036,7 +1072,8 @@ function ParticipantRow({
                           </button>
                         )}
                         <span>{label}</span>
-                        {s.stage_name && (
+                        {isStakeholder && <span className="text-[9px] opacity-80">· via ecosystem</span>}
+                        {s.stage_name && !isStakeholder && (
                           <span className="text-text-tertiary">· {s.stage_name}</span>
                         )}
                       </label>
@@ -1049,23 +1086,36 @@ function ParticipantRow({
 
           {row.ownedTerritories.length > 0 && (
             <div className="pl-3 border-l-2 border-border-default space-y-1">
-              <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
-                Territories discussed
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
+                  Territor{row.ownedTerritories.length === 1 ? "y" : "ies"} on this call
+                </span>
+                <span className="text-[10px] text-text-tertiary/80">— tick to attach</span>
               </div>
               <div className="flex flex-wrap gap-1">
                 {row.ownedTerritories.map((t) => {
                   const checked = row.selectedTerritories.includes(t.ms_slug);
                   const isPrimary = checked && callPrimaryTerritory === t.ms_slug;
+                  const isStakeholder = t.source === "stakeholder";
+                  const palette = isStakeholder
+                    ? {
+                        checked: "border-[#0E8F8F] bg-[#E0F7F7] text-text-primary",
+                        unchecked: "border-[#0E8F8F]/40 bg-bg-primary text-[#0E8F8F] hover:text-[#0A7070]",
+                      }
+                    : {
+                        checked: "border-nah-orange bg-nah-orange/10 text-text-primary",
+                        unchecked: "border-border-default bg-bg-primary text-text-tertiary hover:text-text-primary",
+                      };
+                  const baseClass = checked
+                    ? isPrimary
+                      ? "border-[#EAB308] bg-[#EAB308]/10 text-text-primary"
+                      : palette.checked
+                    : palette.unchecked;
                   return (
                     <label
                       key={t.ms_slug}
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border cursor-pointer transition-colors ${
-                        checked
-                          ? isPrimary
-                            ? "border-[#EAB308] bg-[#EAB308]/10 text-text-primary"
-                            : "border-nah-orange bg-nah-orange/10 text-text-primary"
-                          : "border-border-default bg-bg-primary text-text-tertiary hover:text-text-primary"
-                      }`}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border cursor-pointer transition-colors ${baseClass}`}
+                      title={isStakeholder ? `${t.territory_name} — via ecosystem (employee/contractor/agent)` : `${t.territory_name} — owner`}
                     >
                       <input
                         type="checkbox"
@@ -1089,6 +1139,7 @@ function ParticipantRow({
                         </button>
                       )}
                       <span>{t.territory_name}</span>
+                      {isStakeholder && <span className="text-[9px] opacity-80">· via ecosystem</span>}
                     </label>
                   );
                 })}
