@@ -93,6 +93,14 @@ interface CallDetail {
   callTerritories: CallTerritoryRef[];
   callJourneys: CallJourneyRef[];
   partnershipPartners: PartnershipPartner[];
+  kb_intel_items: Array<{
+    category: string;
+    subcategory: string;
+    title: string;
+    content: string;
+    source_quote: string;
+    frequency_signal: "new" | "recurring" | "unknown";
+  }> | null;
 }
 
 interface ActionItem {
@@ -243,6 +251,7 @@ export default function CallDetailPage() {
             callId={call.id}
             hostedByUserId={call.hosted_by_user_id}
             currentCallTypeId={call.call_type_id}
+            currentCallTypeSlug={call.callTypeSlug}
             currentContactId={call.contact_id}
             currentTerritorySlug={call.territory_ms_slug}
             participants={call.rawParticipants ?? []}
@@ -331,9 +340,11 @@ export default function CallDetailPage() {
 
           {/* Contact cluster */}
           {call.linkedContacts?.length > 0 ? (
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">Contact</div>
-              <div className="flex items-center gap-1.5">
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
+                {call.linkedContacts.length === 1 ? "Contact" : `Contacts (${call.linkedContacts.length})`}
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {call.linkedContacts.map((c) =>
                   c.linked && c.id ? (
                     <Link key={c.id} href={`/contacts/${c.id}`}
@@ -468,6 +479,8 @@ export default function CallDetailPage() {
         linkedContacts={(call.linkedContacts ?? []).map((c) => ({ id: c.id, name: c.name }))}
         callTerritories={(call.callTerritories ?? []).map((t) => ({ ms_slug: t.ms_slug, territory_name: t.territory_name }))}
         participantNames={buildSpeakerNames(call)}
+        callTypeSlug={call.callTypeSlug}
+        kbIntelItems={call.kb_intel_items ?? []}
         onRefresh={() => void fetchDetail()}
       />
     </div>

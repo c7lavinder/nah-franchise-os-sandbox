@@ -149,6 +149,16 @@ export async function runPostCallAgent(callId: string): Promise<{
     }
   }
 
+  // 4a. Snapshot the KB items on the call row so the detail page can show
+  // "what this call added to the knowledge base" without re-running the agent.
+  // This is what the Knowledge Captured tab renders for group/internal calls.
+  if (kbIntelligence) {
+    await supabase
+      .from("calls")
+      .update({ kb_intel_items: kbIntelligence.items ?? [] })
+      .eq("id", callId);
+  }
+
   return {
     success: errors.length === 0,
     summary: summary?.summary ?? null,

@@ -125,6 +125,15 @@ function makeDb(fx: Fixture): ResolverDb {
     async findUserByEmail(email) {
       return fx.teamUsers.get(email.toLowerCase()) ?? null;
     },
+    async findUserByFullName(fullName) {
+      const target = fullName.toLowerCase().trim();
+      for (const [email, user] of fx.teamUsers) {
+        if (user.full_name.toLowerCase() === target) {
+          return { ...user, email };
+        }
+      }
+      return null;
+    },
   };
 }
 

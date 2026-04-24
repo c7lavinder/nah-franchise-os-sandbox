@@ -1,12 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, ListChecks, Database } from "lucide-react";
+import { FileText, ListChecks, Database, BookOpen } from "lucide-react";
 import CallOverviewTab from "./CallOverviewTab";
 import CallNextStepsTab from "./CallNextStepsTab";
 import CallDataTab from "./CallDataTab";
+import CallKnowledgeTab from "./CallKnowledgeTab";
 
-type Tab = "overview" | "next_steps" | "data";
+type Tab = "overview" | "next_steps" | "data" | "knowledge";
+
+export interface KBIntelItem {
+  category: string;
+  subcategory: string;
+  title: string;
+  content: string;
+  source_quote: string;
+  frequency_signal: "new" | "recurring" | "unknown";
+}
 
 interface CoachingData {
   score: number;
@@ -75,16 +85,34 @@ interface CallDetailTabsProps {
   linkedContacts: { id: string | null; name: string }[];
   callTerritories: { ms_slug: string; territory_name: string }[];
   participantNames: string[];
+  /** Group/cohort/internal calls hide Next Steps + Data tabs (per-contact
+   *  attribution is noisy on a 30+ person call) and show a Knowledge Captured
+   *  tab driven by these items instead. */
+  callTypeSlug: string | null;
+  kbIntelItems: KBIntelItem[];
   onRefresh: () => void;
 }
 
-const TABS: { key: Tab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+/** Group/internal calls — no per-contact tabs make sense, replace with KB. */
+function isGroupOrInternal(slug: string | null): boolean {
+  if (!slug) return false;
+  return slug === "internal" || slug === "team_call" || slug === "group_call" || slug === "cohort_call";
+}
+
+const INDIVIDUAL_TABS: { key: Tab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
   { key: "overview", label: "Overview", icon: FileText },
   { key: "next_steps", label: "Next Steps", icon: ListChecks },
   { key: "data", label: "Data", icon: Database },
 ];
 
+const GROUP_TABS: { key: Tab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+  { key: "overview", label: "Overview", icon: FileText },
+  { key: "knowledge", label: "Knowledge Captured", icon: BookOpen },
+];
+
 export default function CallDetailTabs(props: CallDetailTabsProps) {
+  const groupMode = isGroupOrInternal(props.callTypeSlug);
+  const tabs = groupMode ? GROUP_TABS : INDIVIDUAL_TABS;
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
   const hasGenerated = !!props.aiSummaryGeneratedAt;
@@ -95,7 +123,7 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
     <div>
       {/* Tab bar — sticky so it stays visible when scrolling */}
       <div className="bg-bg-primary flex border-b border-border-default mb-6 -mx-4 md:-mx-8 px-4 md:px-8">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
             <button
@@ -175,6 +203,15 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
           linkedContacts={props.linkedContacts}
           callTerritories={props.callTerritories}
           onRefresh={props.onRefresh}
+        />
+      )}
+
+      {activeTab === "knowledge" && (
+        <CallKnowledgeTab
+          items={props.kbIntelItems}
+          isGenerating={props.isGenerating}
+          hasTranscript={props.hasTranscript}
+          hasGenerated={hasGenerated}
         />
       )}
     </div>

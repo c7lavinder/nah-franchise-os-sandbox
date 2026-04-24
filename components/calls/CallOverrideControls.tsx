@@ -18,7 +18,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Tag, UserCog, X, Loader2, Search, Star, Trash2, UserPlus, Users } from "lucide-react";
+import { Tag, UserCog, X, Loader2, Search, Star, Trash2, UserPlus, Users, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import AddProspectModal from "@/components/pipeline/AddProspectModal";
 import AddRelatedContactModal from "@/components/calls/AddRelatedContactModal";
@@ -109,6 +109,10 @@ interface Props {
   callId: string;
   hostedByUserId: string | null;
   currentCallTypeId: string | null;
+  /** Group/cohort/internal calls don't have a meaningful "primary" — every
+   *  attendee is equal. The mapping modal uses this to skip auto-picking a
+   *  primary contact / territory / journey on these call types. */
+  currentCallTypeSlug: string | null;
   currentContactId: string | null;
   currentTerritorySlug: string | null;
   participants: RawParticipant[];
@@ -188,45 +192,48 @@ function ReclassifyButton(props: Props & { token: string | null }) {
         <Tag size={14} />
       </button>
       {open && (
-        <ModalShell title="Reclassify call" onClose={() => setOpen(false)}>
-          <div className="space-y-3">
-            <div className="max-h-80 overflow-y-auto space-y-3 -mx-1 px-1">
-              {groupByCategory(callTypes).map((group) => (
-                <div key={group.label}>
-                  <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1.5">
-                    {group.label}
-                  </div>
-                  <div className="grid grid-cols-1 gap-1">
-                    {group.items.map((ct) => {
-                      const active = selected === ct.id;
-                      return (
-                        <button
-                          key={ct.id}
-                          onClick={() => setSelected(ct.id)}
-                          className={`w-full text-left px-3 py-2 text-body-sm rounded-md border transition-colors ${
-                            active
-                              ? "border-nah-blue bg-[#E6F1FB] text-text-primary"
-                              : "border-border-default bg-bg-primary text-text-primary hover:bg-bg-tertiary"
-                          }`}
-                        >
-                          {ct.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-              {callTypes.length === 0 && (
-                <div className="text-caption text-text-tertiary py-4 text-center">Loading…</div>
-              )}
-            </div>
-            {error && <div className="text-caption text-danger">{error}</div>}
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-default -mx-4 px-4">
+        <ModalShell
+          title="Reclassify call"
+          onClose={() => setOpen(false)}
+          footer={
+            <>
+              {error && <div className="text-caption text-danger flex-1">{error}</div>}
               <button onClick={() => setOpen(false)} className="btn-ghost px-3 py-1.5 text-caption">Cancel</button>
               <button onClick={submit} disabled={saving || !selected} className="btn-primary px-3 py-1.5 text-caption disabled:opacity-50">
                 {saving ? <Loader2 size={12} className="animate-spin" /> : "Save"}
               </button>
-            </div>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            {groupByCategory(callTypes).map((group) => (
+              <div key={group.label}>
+                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1.5">
+                  {group.label}
+                </div>
+                <div className="grid grid-cols-1 gap-1">
+                  {group.items.map((ct) => {
+                    const active = selected === ct.id;
+                    return (
+                      <button
+                        key={ct.id}
+                        onClick={() => setSelected(ct.id)}
+                        className={`w-full text-left px-3 py-2 text-body-sm rounded-md border transition-colors ${
+                          active
+                            ? "border-nah-blue bg-[#E6F1FB] text-text-primary"
+                            : "border-border-default bg-bg-primary text-text-primary hover:bg-bg-tertiary"
+                        }`}
+                      >
+                        {ct.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {callTypes.length === 0 && (
+              <div className="text-caption text-text-tertiary py-4 text-center">Loading…</div>
+            )}
           </div>
         </ModalShell>
       )}
@@ -327,6 +334,27 @@ async function attachEmailToContact(contactId: string, email: string): Promise<v
   }
 }
 
+/** When a contact owns no territory in territory_owners, derive territory from
+ *  their journey's pipeline states. Common for journey drivers, spouses, or
+ *  ecosystem stakeholders whose name isn't on the territory directly. */
+function deriveTerritoriesFromJourneys(journeys: JourneyMembership[]): TerritoryOption[] {
+  const seen = new Set<string>();
+  const out: TerritoryOption[] = [];
+  for (const j of journeys) {
+    for (const s of j.pipeline_states) {
+      if (s.territory_ms_slug && !seen.has(s.territory_ms_slug)) {
+        seen.add(s.territory_ms_slug);
+        out.push({
+          ms_slug: s.territory_ms_slug,
+          territory_name: s.territory_name ?? s.territory_ms_slug,
+          source: "stakeholder",
+        });
+      }
+    }
+  }
+  return out;
+}
+
 /**
  * Pick the best jps for a journey given the call's selected territories —
  * mirrors lib/calls/resolve-participants.ts#getActiveJourneyForContact.
@@ -384,6 +412,59 @@ function splitNameForPrefill(participant: ParticipantState): {
     }
   }
   return result;
+}
+
+/** Group/cohort/internal calls have no meaningful "primary" — every attendee
+ *  is equal. Used to suppress auto-pick of primary contact/territory/journey. */
+function isGroupOrInternalSlug(slug: string | null): boolean {
+  if (!slug) return false;
+  return slug === "internal" || slug === "team_call" || slug === "group_call" || slug === "cohort_call";
+}
+
+/** Re-runs the participant resolver against the current team-emails + users +
+ *  contacts state. Used when team members or contacts were added after the
+ *  call was first processed and the rep wants stale "unknown" rows fixed
+ *  without manually mapping each one. */
+function ReclassifyParticipantsButton({ callId, onDone }: { callId: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  async function run() {
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await fetch(`/api/calls/${callId}/reclassify-participants`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const parts: string[] = [];
+        if (data.promotedToTeam) parts.push(`${data.promotedToTeam} → team`);
+        if (data.resolvedToContact) parts.push(`${data.resolvedToContact} matched to contact`);
+        setResult(data.updated ? `Updated ${data.updated} of ${data.total}${parts.length ? ` (${parts.join(", ")})` : ""}` : "Nothing to update");
+        onDone();
+      } else {
+        setResult(`Failed: ${data.error ?? res.statusText}`);
+      }
+    } catch (err) {
+      setResult(`Failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+    setBusy(false);
+  }
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md border border-border-default bg-bg-primary px-3 py-2">
+      <div className="text-[11px] text-text-tertiary leading-relaxed">
+        <span className="font-medium text-text-secondary">Re-check classifications.</span>{" "}
+        Re-runs the resolver against the current team list + contacts. Fixes stale &quot;unknown&quot; rows after team members or contacts are added.
+      </div>
+      <button
+        onClick={run}
+        disabled={busy}
+        className="btn-ghost px-2.5 py-1 text-caption flex items-center gap-1 flex-shrink-0 disabled:opacity-50"
+      >
+        {busy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+        Re-check
+      </button>
+      {result && <span className="text-[10px] text-text-tertiary">{result}</span>}
+    </div>
+  );
 }
 
 function ReassignButton(props: Props & { token: string | null }) {
@@ -451,11 +532,16 @@ function ReassignButton(props: Props & { token: string | null }) {
       const hasPriorSelection = selectedSet.size > 0;
       const hasPriorJourneySelection = selectedJpsSet.size > 0;
       const merged = initial.map((r, i) => {
-        const owned = territoryResults[i];
+        const ownedRaw = territoryResults[i];
+        const journeys = journeyResults[i];
+        // Journey-derived territory fallback: if the contact owns no territory
+        // directly (common for journey drivers, spouses, employees attached
+        // via the stakeholder model), pull territory_ms_slug off their journey
+        // pipeline states so the row still shows the right territory chip.
+        const owned = ownedRaw.length > 0 ? ownedRaw : deriveTerritoriesFromJourneys(journeys);
         const defaulted = hasPriorSelection
           ? owned.filter((t) => selectedSet.has(t.ms_slug)).map((t) => t.ms_slug)
           : owned.map((t) => t.ms_slug);
-        const journeys = journeyResults[i];
         // Default jps selection = prior call selection ∩ contact's jps ids,
         // else auto-pick best jps per membership using the same rule the
         // resolver uses (territory match → null territory → first).
@@ -479,24 +565,31 @@ function ReassignButton(props: Props & { token: string | null }) {
       setRows(merged);
 
       // Compute the call-level union for the initial snapshot (for change-detection on save).
+      // On group/cohort/internal calls there's no meaningful "primary" — every
+      // attendee is equal — so the auto-fallback to "first item in the list" is
+      // skipped. The user-saved primary is still respected if one was set.
+      const isGroup = isGroupOrInternalSlug(props.currentCallTypeSlug);
       const union = new Set<string>();
       for (const r of merged) for (const s of r.selectedTerritories) union.add(s);
-      for (const s of selectedSet) union.add(s); // include any call-level-only slugs not owned by a participant
+      for (const s of selectedSet) union.add(s);
       const unionList = [...union];
-      const resolvedPrimary = primary && union.has(primary) ? primary : (unionList[0] ?? null);
+      const resolvedPrimary = primary && union.has(primary)
+        ? primary
+        : (isGroup ? null : (unionList[0] ?? null));
       setPrimaryTerritory(resolvedPrimary);
       setInitialSelection({ list: [...unionList].sort(), primary: resolvedPrimary });
 
-      // Same for journeys.
       const jpsUnion = new Set<string>();
       for (const r of merged) for (const id of r.selectedJps) jpsUnion.add(id);
       for (const id of selectedJpsSet) jpsUnion.add(id);
       const jpsUnionList = [...jpsUnion];
-      const resolvedJpsPrimary = primaryJpsId && jpsUnion.has(primaryJpsId) ? primaryJpsId : (jpsUnionList[0] ?? null);
+      const resolvedJpsPrimary = primaryJpsId && jpsUnion.has(primaryJpsId)
+        ? primaryJpsId
+        : (isGroup ? null : (jpsUnionList[0] ?? null));
       setPrimaryJps(resolvedJpsPrimary);
       setInitialJourneySelection({ list: [...jpsUnionList].sort(), primary: resolvedJpsPrimary });
     })();
-  }, [open, props.callId, props.participants, props.currentContactId, props.currentTerritorySlug]);
+  }, [open, props.callId, props.participants, props.currentContactId, props.currentTerritorySlug, props.currentCallTypeSlug]);
 
   // Compute the current call-level union of selected territories across participants.
   const unionSelected = useMemo(() => {
@@ -666,8 +759,21 @@ function ReassignButton(props: Props & { token: string | null }) {
         )}
       </button>
       {open && (
-        <ModalShell title="Map call participants" onClose={() => setOpen(false)} wide>
-          <div className="space-y-4 -mx-1 px-1">
+        <ModalShell
+          title="Map call participants"
+          onClose={() => setOpen(false)}
+          wide
+          footer={
+            <>
+              {error && <div className="text-caption text-danger flex-1">{error}</div>}
+              <button onClick={() => setOpen(false)} className="btn-ghost px-3 py-1.5 text-caption">Cancel</button>
+              <button onClick={submit} disabled={saving} className="btn-primary px-3 py-1.5 text-caption disabled:opacity-50">
+                {saving ? <Loader2 size={12} className="animate-spin" /> : "Save"}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
             <div className="text-[11px] leading-relaxed text-text-tertiary bg-bg-tertiary rounded-md px-3 py-2">
               Each participant brings their own territories and journeys to the call.
               <br />
@@ -675,6 +781,8 @@ function ReassignButton(props: Props & { token: string | null }) {
               <span className="font-medium text-text-secondary">Journey</span> = the franchise pipeline they&apos;re part of.
               Pick which of each this call should link to.
             </div>
+            <ReclassifyParticipantsButton callId={props.callId} onDone={props.onChange} />
+
             {orphans.length > 0 && (
               <section>
                 <div className="text-[10px] uppercase tracking-wider text-danger font-medium mb-1.5">
@@ -700,10 +808,11 @@ function ReassignButton(props: Props & { token: string | null }) {
                           if (p.email) {
                             void attachEmailToContact(contactId, p.email);
                           }
-                          const [owned, journeys] = await Promise.all([
+                          const [ownedRaw, journeys] = await Promise.all([
                             fetchContactTerritories(contactId),
                             fetchContactJourneys(contactId),
                           ]);
+                          const owned = ownedRaw.length > 0 ? ownedRaw : deriveTerritoriesFromJourneys(journeys);
                           const territorySlugs = owned.map((t) => t.ms_slug);
                           const selectedJps = journeys
                             .map((j) => autoPickJps(j, territorySlugs))
@@ -763,10 +872,11 @@ function ReassignButton(props: Props & { token: string | null }) {
                           for (const e of emailsToAttach) {
                             void attachEmailToContact(contactId, e);
                           }
-                          const [owned, journeys] = await Promise.all([
+                          const [ownedRaw, journeys] = await Promise.all([
                             fetchContactTerritories(contactId),
                             fetchContactJourneys(contactId),
                           ]);
+                          const owned = ownedRaw.length > 0 ? ownedRaw : deriveTerritoriesFromJourneys(journeys);
                           const territorySlugs = owned.map((t) => t.ms_slug);
                           const selectedJps = journeys
                             .map((j) => autoPickJps(j, territorySlugs))
@@ -812,13 +922,6 @@ function ReassignButton(props: Props & { token: string | null }) {
             )}
           </div>
 
-          {error && <div className="text-caption text-danger mt-2">{error}</div>}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-border-default -mx-4 px-4 mt-3">
-            <button onClick={() => setOpen(false)} className="btn-ghost px-3 py-1.5 text-caption">Cancel</button>
-            <button onClick={submit} disabled={saving} className="btn-primary px-3 py-1.5 text-caption disabled:opacity-50">
-              {saving ? <Loader2 size={12} className="animate-spin" /> : "Save"}
-            </button>
-          </div>
         </ModalShell>
       )}
 
@@ -1175,7 +1278,6 @@ function ParticipantRow({
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search contacts by name…"
               autoFocus
-              onFocus={() => inputRef.current?.scrollIntoView({ block: "start", behavior: "smooth" })}
               className="w-full bg-bg-primary border border-border-default rounded-md pl-7 pr-8 py-1.5 text-caption text-text-primary placeholder:text-text-tertiary"
             />
             {editing && (
@@ -1319,24 +1421,35 @@ function ModalShell({
   onClose,
   children,
   wide = false,
+  footer,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   wide?: boolean;
+  /** Sticky footer (typically Cancel + Save) so the action stays visible
+   *  while the rep scrolls through participant cards. */
+  footer?: React.ReactNode;
 }) {
   useBodyScrollLock(true);
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={onClose}>
       <div
-        className={`bg-surface-solid border border-border-default rounded-lg shadow-xl w-full mx-4 ${wide ? "max-w-xl" : "max-w-md"} max-h-[90vh] overflow-y-auto p-4`}
+        className={`bg-surface-solid border border-border-default rounded-lg shadow-xl w-full mx-4 ${wide ? "max-w-xl" : "max-w-md"} max-h-[90vh] flex flex-col overflow-hidden`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border-default flex-shrink-0">
           <h3 className="text-body-sm font-medium text-text-primary">{title}</h3>
           <button onClick={onClose} className="btn-ghost p-1"><X size={14} /></button>
         </div>
-        {children}
+        <div className="flex-1 overflow-y-auto px-4 py-3">
+          {children}
+        </div>
+        {footer && (
+          <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border-default flex-shrink-0 bg-surface-solid">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

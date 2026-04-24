@@ -116,6 +116,10 @@ export interface ResolverDb {
   isJourneyInRunway(journeyId: string): Promise<boolean>;
   isTeamEmail(email: string): Promise<boolean>;
   findUserByEmail(email: string): Promise<{ id: string; full_name: string } | null>;
+  /** Match a NAH team member by display name (Rylyn Ricker, Sam Ferguson) when
+   *  Read.ai sent us a name with no email. Returns the user row when full_name
+   *  matches case-insensitively. */
+  findUserByFullName(fullName: string): Promise<{ id: string; email: string; full_name: string } | null>;
 }
 
 /** Digits-only, last 10 characters. Returns null if fewer than 10 digits. */
@@ -127,9 +131,25 @@ export function normalizePhone(raw: string | null | undefined): string | null {
 }
 
 /** Lowercase, strip punctuation, collapse whitespace. Returns null if empty. */
+/** Strip self-identification suffixes Read.ai picks up from Zoom display names.
+ *  Franchisees on group calls often label themselves like "Ken Tolbert
+ *  (Chattanooga, TN)" or "John Wright (Dir Franchise Success)" — those parens
+ *  break first/last token matching against the contacts table. We drop them
+ *  before normalization so name-only resolution still finds the contact. */
+function stripDisplayNameSuffixes(raw: string): string {
+  // Remove anything inside (parens), [brackets], or after a " - " / " — " dash
+  // (typical patterns: "Ken Tolbert (Chattanooga, TN)", "John Wright - Director").
+  return raw
+    .replace(/\s*\([^)]*\)\s*/g, " ")
+    .replace(/\s*\[[^\]]*\]\s*/g, " ")
+    .replace(/\s+[-–—]\s+.*$/, "")
+    .trim();
+}
+
 export function normalizeName(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  const cleaned = raw
+  const stripped = stripDisplayNameSuffixes(raw);
+  const cleaned = stripped
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
@@ -146,7 +166,13 @@ function pickMostRecent(contacts: ContactMatch[]): ContactMatch {
 }
 
 function cleanDisplayName(email: string | null, name: string | null): string {
-  if (name && !name.includes("@") && name.trim().length > 0) return name.trim();
+  if (name && !name.includes("@") && name.trim().length > 0) {
+    // Drop self-id suffixes ("Ken Tolbert (Chattanooga, TN)" → "Ken Tolbert")
+    // so the modal/header pills are clean.
+    const stripped = stripDisplayNameSuffixes(name).trim();
+    if (stripped.length > 0) return stripped;
+    return name.trim();
+  }
   if (email) {
     return email
       .split("@")[0]
@@ -195,6 +221,33 @@ export async function resolveCallParticipants(
         match_method: "email",
       });
       continue;
+    }
+
+    // No email but we got a name? Try to match a NAH team member by full_name.
+    // Read.ai sometimes ships dial-in/mobile participants without emails — on
+    // a group call that means Rylyn / Sam Ferguson / etc fall through to
+    // "unknown" without this fallback.
+    if (!email && p.name) {
+      const stripped = stripDisplayNameSuffixes(p.name).trim();
+      if (stripped.length >= 3) {
+        const user = await db.findUserByFullName(stripped);
+        if (user) {
+          perParticipant.push({
+            email: user.email,
+            phone: phoneDigits,
+            display_name: user.full_name,
+            role: "nah_team",
+            user_id: user.id,
+            contact_id: null,
+            contact_ghl_id: null,
+            territory_ms_slug: null,
+            journey_id: null,
+            journey_pipeline_state_id: null,
+            match_method: "name",
+          });
+          continue;
+        }
+      }
     }
 
     let participantWinner: ContactMatch | null = null;
@@ -498,6 +551,15 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
         .from("users")
         .select("id, full_name")
         .ilike("email", email)
+        .maybeSingle();
+      return data ?? null;
+    },
+    async findUserByFullName(fullName) {
+      const { data } = await supabase
+        .from("users")
+        .select("id, email, full_name")
+        .ilike("full_name", fullName)
+        .eq("is_active", true)
         .maybeSingle();
       return data ?? null;
     },
