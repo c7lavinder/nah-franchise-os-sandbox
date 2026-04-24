@@ -34,7 +34,10 @@ const MODELS = {
 
 // ── Public API ─────────────────────────────────────────────
 
-export async function runPostCallAgent(callId: string): Promise<{
+export async function runPostCallAgent(
+  callId: string,
+  options: { force?: boolean } = {},
+): Promise<{
   success: boolean;
   summary: string | null;
   coaching: CoachingResult | null;
@@ -70,13 +73,17 @@ export async function runPostCallAgent(callId: string): Promise<{
   const alreadyHasSummary = !!callRow?.ai_summary_generated_at;
   const alreadyHasExtractions = (existingExtractions ?? 0) > 0;
 
-  if (alreadyHasSummary && alreadyHasExtractions) {
+  // Force mode bypasses both idempotency and extraction-only mode — every
+  // section reruns. Used by the "Re-run analysis" button on the call detail
+  // page so the rep can refresh KB items / next steps / data extraction
+  // without manual SQL surgery.
+  if (alreadyHasSummary && alreadyHasExtractions && !options.force) {
     console.warn(`[post-call-agent] callId=${callId} already fully processed — skipping`);
     return { success: true, summary: "already_generated", coaching: null, actionsCount: 0, extractionsCount: 0, kbDocsUpdated: 0, errors: [] };
   }
 
   // 2. Run sections — if summary exists but extractions missing, only run extraction
-  const extractionOnly = alreadyHasSummary && !alreadyHasExtractions;
+  const extractionOnly = alreadyHasSummary && !alreadyHasExtractions && !options.force;
   if (extractionOnly) {
     console.warn(`[post-call-agent] callId=${callId} summary exists but extractions missing — running extraction only`);
   }

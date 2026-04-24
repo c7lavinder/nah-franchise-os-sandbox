@@ -212,6 +212,8 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
           isGenerating={props.isGenerating}
           hasTranscript={props.hasTranscript}
           hasGenerated={hasGenerated}
+          callId={props.callId}
+          onRefresh={props.onRefresh}
         />
       )}
     </div>

@@ -10,13 +10,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { runPostCallAgent } from "@/lib/agents/post-call/agent";
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ callId: string }> }
 ) {
   const { callId } = await params;
+  // ?force=true (or { force: true } body) bypasses the idempotency guard so
+  // existing calls can be re-analyzed (e.g. backfill kb_intel_items into older
+  // calls processed before that column existed).
+  const url = new URL(request.url);
+  const queryForce = url.searchParams.get("force") === "true";
+  let bodyForce = false;
+  try {
+    const body = await request.json();
+    bodyForce = body?.force === true;
+  } catch { /* no body — fine */ }
+  const force = queryForce || bodyForce;
 
   try {
-    const result = await runPostCallAgent(callId);
+    const result = await runPostCallAgent(callId, { force });
 
     // Any errors = 500 so callers know something failed
     if (!result.success || result.errors.length > 0) {

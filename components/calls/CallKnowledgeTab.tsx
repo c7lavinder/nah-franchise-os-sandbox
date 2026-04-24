@@ -1,6 +1,7 @@
 "use client";
 
-import { Loader2, BookOpen } from "lucide-react";
+import { useState } from "react";
+import { Loader2, BookOpen, RefreshCw } from "lucide-react";
 import type { KBIntelItem } from "./CallDetailTabs";
 
 interface CallKnowledgeTabProps {
@@ -8,6 +9,8 @@ interface CallKnowledgeTabProps {
   isGenerating: boolean;
   hasTranscript: boolean;
   hasGenerated: boolean;
+  callId: string;
+  onRefresh: () => void;
 }
 
 /** Group/cohort/internal calls don't have meaningful per-contact next steps or
@@ -50,7 +53,27 @@ function freqStyle(signal: KBIntelItem["frequency_signal"]): string {
   return "bg-bg-tertiary text-text-tertiary border-border-default";
 }
 
-export default function CallKnowledgeTab({ items, isGenerating, hasTranscript, hasGenerated }: CallKnowledgeTabProps) {
+export default function CallKnowledgeTab({ items, isGenerating, hasTranscript, hasGenerated, callId, onRefresh }: CallKnowledgeTabProps) {
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenError, setRegenError] = useState<string | null>(null);
+
+  async function regenerate() {
+    setRegenerating(true);
+    setRegenError(null);
+    try {
+      const res = await fetch(`/api/calls/${callId}/generate?force=true`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok && res.status !== 207) {
+        setRegenError(data.error ?? `Failed (${res.status})`);
+      } else {
+        onRefresh();
+      }
+    } catch (err) {
+      setRegenError(err instanceof Error ? err.message : "Unknown error");
+    }
+    setRegenerating(false);
+  }
+
   if (!hasTranscript) {
     return (
       <div className="text-center py-12">
@@ -80,7 +103,18 @@ export default function CallKnowledgeTab({ items, isGenerating, hasTranscript, h
       <div className="text-center py-12">
         <BookOpen size={20} className="text-text-tertiary mx-auto mb-2" />
         <p className="text-body-sm text-text-tertiary">No knowledge items captured from this call.</p>
-        <p className="text-caption text-text-tertiary mt-1">Quick check-ins and short calls often have nothing reusable to extract.</p>
+        <p className="text-caption text-text-tertiary mt-1">
+          This call was analyzed before per-call KB snapshots existed, OR it was a short check-in with nothing reusable.
+        </p>
+        <button
+          onClick={() => void regenerate()}
+          disabled={regenerating || !hasTranscript}
+          className="btn-primary px-3 py-1.5 text-caption mt-4 inline-flex items-center gap-1 disabled:opacity-50"
+        >
+          {regenerating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+          Re-run knowledge extraction
+        </button>
+        {regenError && <p className="text-caption text-danger mt-2">{regenError}</p>}
       </div>
     );
   }
@@ -114,7 +148,17 @@ export default function CallKnowledgeTab({ items, isGenerating, hasTranscript, h
               folded into Scout&apos;s knowledge graph for future calls.
             </p>
           </div>
+          <button
+            onClick={() => void regenerate()}
+            disabled={regenerating}
+            className="btn-ghost px-2.5 py-1 text-caption flex items-center gap-1 flex-shrink-0 disabled:opacity-50"
+            title="Re-run the post-call agent against the latest transcript"
+          >
+            {regenerating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            Re-run
+          </button>
         </div>
+        {regenError && <p className="text-caption text-danger mt-2">{regenError}</p>}
       </div>
 
       {sortedGroups.map(([label, list]) => (
