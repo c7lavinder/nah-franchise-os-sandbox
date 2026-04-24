@@ -4,20 +4,37 @@ import { useState } from "react";
 import { Check, Pencil, X, Loader2, AlertTriangle, Sparkles, Users } from "lucide-react";
 
 /**
- * Uniform confidence badge so every pending row shows the same shape.
- * Scout sometimes emits null confidence; we render those as 'high' so the UI
- * stays visually consistent across all rows in a section.
+ * Uniform confidence badge — every row gets one so the UI stays consistent.
+ * Null confidence renders as "high" (Scout rarely omits it, but we fall back
+ * rather than leave the card visually different).
  */
 function ConfidenceBadge({ confidence }: { confidence: string | null }) {
   const c = (confidence ?? "high").toLowerCase();
   const styles = c === "low"
-    ? "bg-danger/10 text-danger"
+    ? "bg-danger/10 text-danger border-danger/30"
     : c === "medium"
-    ? "bg-warning/10 text-warning"
-    : "bg-success/10 text-success";
+    ? "bg-warning/15 text-warning border-warning/40"
+    : "bg-success/15 text-success border-success/40";
   return (
-    <span className={`text-[9px] px-1 py-0.5 rounded flex-shrink-0 mt-1 uppercase tracking-wider font-medium ${styles}`}>
+    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border flex-shrink-0 uppercase tracking-wider font-semibold ${styles}`}>
       {c}
+    </span>
+  );
+}
+
+/** Target badge — always visible on every row so the rep knows where a push
+ *  will land (which contact or which territory). Color-coded: blue = contact,
+ *  orange = territory. */
+function TargetBadge({ kind, label }: { kind: "contact" | "territory" | "partnership"; label: string }) {
+  const styles = kind === "territory"
+    ? "bg-nah-orange/10 text-nah-orange border-nah-orange/30"
+    : kind === "partnership"
+    ? "bg-scout-purple/10 text-scout-purple border-scout-purple/30"
+    : "bg-nah-blue/10 text-nah-blue border-nah-blue/30";
+  const prefix = kind === "territory" ? "→ Territory" : kind === "partnership" ? "→ Partnership" : "→ Contact";
+  return (
+    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border flex-shrink-0 font-medium ${styles}`}>
+      {prefix}: {label}
     </span>
   );
 }
@@ -116,9 +133,21 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
 
   // Done state
   if (isDone) {
+    const doneIsTerritory = extraction.field_category.startsWith("territory") || extraction.field_category.startsWith("business_");
+    const doneTerritoryName = extraction.territory_ms_slug
+      ? callTerritories?.find((t) => t.ms_slug === extraction.territory_ms_slug)?.territory_name ?? extraction.territory_ms_slug
+      : null;
+    const doneContactName = extraction.contact_id
+      ? linkedContacts?.find((c) => c.id === extraction.contact_id)?.name
+        ?? partnerOptions?.find((p) => p.id === extraction.contact_id)?.name
+        ?? null
+      : null;
+    const doneTargetKind: "contact" | "territory" = doneIsTerritory ? "territory" : "contact";
+    const doneTargetLabel = doneIsTerritory ? (doneTerritoryName ?? "Unassigned") : (doneContactName ?? "Unassigned");
+
     return (
       <div className={`flex items-start gap-3 py-2 border-b border-border-default last:border-b-0 ${
-        extraction.dismissed ? "opacity-40" : "opacity-60"
+        extraction.dismissed ? "opacity-50" : "opacity-70"
       }`}>
         <div className="mt-0.5">
           {extraction.dismissed ? (
@@ -128,14 +157,18 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-caption text-text-tertiary capitalize">{label}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-caption text-text-tertiary capitalize">{label}</p>
+            <ConfidenceBadge confidence={extraction.confidence} />
+            <TargetBadge kind={doneTargetKind} label={doneTargetLabel} />
+          </div>
           {hasValue && (
-            <p className={`text-body-sm text-text-secondary ${extraction.dismissed ? "line-through" : ""}`}>
+            <p className={`text-body-sm text-text-secondary mt-0.5 ${extraction.dismissed ? "line-through" : ""}`}>
               {extraction.extracted_value}
             </p>
           )}
         </div>
-        <span className="text-[10px] text-text-tertiary flex-shrink-0">
+        <span className="text-[10px] text-text-tertiary flex-shrink-0 mt-1">
           {extraction.dismissed ? "Skipped" : "Saved"}
         </span>
       </div>
@@ -227,12 +260,29 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
     setAiLoading(false);
   }
 
+  // Target label shown in the top-row badge. Partnership rows use a neutral
+  // "Partnership" badge; the segmented picker below makes the actual choice.
+  const targetLabel = isTerritoryField
+    ? (territoryName ?? "Unassigned")
+    : showPartnerPicker
+    ? "pick below"
+    : (contactName ?? "Unassigned");
+  const targetKind: "contact" | "territory" | "partnership" = isTerritoryField
+    ? "territory"
+    : showPartnerPicker
+    ? "partnership"
+    : "contact";
+
   // Pending state — with Push/Edit/Skip
   return (
     <div className="py-2 border-b border-border-default last:border-b-0">
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-caption text-text-tertiary capitalize">{label}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-caption text-text-tertiary capitalize">{label}</p>
+            {!editing && <ConfidenceBadge confidence={extraction.confidence} />}
+            {!editing && <TargetBadge kind={targetKind} label={targetLabel} />}
+          </div>
           {editing ? (
             <div className="mt-1 space-y-2">
               <textarea
@@ -280,23 +330,7 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
           )}
         </div>
 
-        {/* Confidence badge — always shown for consistency. Defaults to 'high'
-            when Scout didn't emit one (rare, but keeps every row uniform). */}
-        {!editing && (
-          <ConfidenceBadge confidence={extraction.confidence} />
-        )}
       </div>
-
-      {/* Target label — always present so the rep knows where this row will go. */}
-      {!editing && (
-        <div className="mt-1 text-[10px] text-text-tertiary">
-          {isTerritoryField ? (
-            <span>Push to territory: <span className="text-text-secondary font-medium">{territoryName ?? "Unassigned"}</span></span>
-          ) : showPartnerPicker ? null : (
-            <span>Push to contact: <span className="text-text-secondary font-medium">{contactName ?? "Unassigned"}</span></span>
-          )}
-        </div>
-      )}
 
       {/* Partner target picker — shown only on contact fields for partnership journeys */}
       {!editing && showPartnerPicker && partnerOptions && (
