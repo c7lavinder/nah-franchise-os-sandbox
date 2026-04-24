@@ -859,8 +859,7 @@ function ReassignButton(props: Props & { token: string | null }) {
           const id = pendingAdd.participantId;
           const pf = pendingAdd.prefill;
           const derivedName = [pf.firstName, pf.lastName].filter(Boolean).join(" ").trim() || null;
-          // Refresh owned territories + journeys so the stakeholder link we
-          // just created flows into the Reassign chips immediately.
+          // Refresh the new participant's territories + journeys.
           const [owned, journeys] = await Promise.all([
             fetchContactTerritories(newContactId),
             fetchContactJourneys(newContactId),
@@ -869,20 +868,39 @@ function ReassignButton(props: Props & { token: string | null }) {
           const selectedJps = journeys
             .map((j) => autoPickJps(j, territorySlugs))
             .filter((jpsId): jpsId is string => !!jpsId);
+          // Also refetch every other mapped contact's journeys — the
+          // journey-partner flow may have renamed a shared journey (e.g.
+          // Kevin's row needs to update to "Kylie Kremer + Kevin Kremer"
+          // after Kylie was added as co-primary).
+          const otherContactIds = Array.from(new Set(
+            rows
+              .filter((r) => r.contactId && r.contactId !== newContactId && r.id !== id)
+              .map((r) => r.contactId as string),
+          ));
+          const refreshedJourneys = new Map<string, JourneyMembership[]>();
+          await Promise.all(
+            otherContactIds.map(async (cid) => {
+              refreshedJourneys.set(cid, await fetchContactJourneys(cid));
+            }),
+          );
           setRows((prev) =>
-            prev.map((r) =>
-              r.id === id
-                ? {
-                    ...r,
-                    contactId: newContactId,
-                    contactName: derivedName ?? r.contactName ?? null,
-                    ownedTerritories: owned,
-                    selectedTerritories: territorySlugs,
-                    journeys,
-                    selectedJps,
-                  }
-                : r,
-            ),
+            prev.map((r) => {
+              if (r.id === id) {
+                return {
+                  ...r,
+                  contactId: newContactId,
+                  contactName: derivedName ?? r.contactName ?? null,
+                  ownedTerritories: owned,
+                  selectedTerritories: territorySlugs,
+                  journeys,
+                  selectedJps,
+                };
+              }
+              if (r.contactId && refreshedJourneys.has(r.contactId)) {
+                return { ...r, journeys: refreshedJourneys.get(r.contactId)! };
+              }
+              return r;
+            }),
           );
           setPendingAdd(null);
         }}
@@ -1016,70 +1034,69 @@ function ParticipantRow({
                 <span className="text-[10px] text-text-tertiary/80">— tick to attach</span>
               </div>
               <div className="flex flex-wrap gap-1">
-                {row.journeys.flatMap((j) =>
-                  j.pipeline_states.map((s) => {
-                    const checked = row.selectedJps.includes(s.id);
-                    const isJpsPrimary = checked && callPrimaryJps === s.id;
-                    const territoryLabel = s.territory_name ?? s.territory_ms_slug ?? "pre-award";
-                    const label = j.pipeline_states.length > 1
-                      ? `${j.journey_name} · ${territoryLabel}`
-                      : j.journey_name;
-                    // Source: direct (primary/co_primary/member on journey) vs stakeholder fallback.
-                    const isStakeholder = j.role === "stakeholder";
-                    const palette = isStakeholder
-                      ? {
-                          checked: "border-[#0E8F8F] bg-[#E0F7F7] text-text-primary",
-                          unchecked: "border-[#0E8F8F]/40 bg-bg-primary text-[#0E8F8F] hover:text-[#0A7070]",
-                        }
-                      : {
-                          checked: "border-[#3A2FAE] bg-[#EEEDFE] text-text-primary",
-                          unchecked: "border-border-default bg-bg-primary text-text-tertiary hover:text-text-primary",
-                        };
-                    const baseClass = checked
-                      ? isJpsPrimary
-                        ? "border-[#EAB308] bg-[#EAB308]/10 text-text-primary"
-                        : palette.checked
-                      : palette.unchecked;
-                    return (
-                      <label
-                        key={s.id}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border cursor-pointer transition-colors ${baseClass}`}
-                        title={
-                          isStakeholder
-                            ? `${label} — via territory ecosystem${s.stage_name ? ` · ${s.stage_name}` : ""}`
-                            : (s.stage_name ? `${label} · ${s.stage_name}` : label)
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            const next = checked
-                              ? row.selectedJps.filter((id) => id !== s.id)
-                              : [...row.selectedJps, s.id];
-                            onJpsChange(next);
-                          }}
-                          className="sr-only"
-                        />
-                        {checked && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onPrimaryJpsChange(s.id); }}
-                            title={isJpsPrimary ? "Primary journey" : "Make primary"}
-                            className={isJpsPrimary ? "text-[#EAB308]" : "text-text-tertiary hover:text-text-primary"}
-                          >
-                            <Star size={10} fill={isJpsPrimary ? "currentColor" : "none"} />
-                          </button>
-                        )}
-                        <span>{label}</span>
-                        {isStakeholder && <span className="text-[9px] opacity-80">· via ecosystem</span>}
-                        {s.stage_name && !isStakeholder && (
-                          <span className="text-text-tertiary">· {s.stage_name}</span>
-                        )}
-                      </label>
-                    );
-                  }),
-                )}
+                {row.journeys.map((j) => {
+                  // One chip per journey (collapse multiple jps/pipelines into
+                  // one selection). On tick, save the best-fit jps using the
+                  // same rules the resolver uses (territory match → null
+                  // territory → first). On untick, drop every jps id from
+                  // this journey out of selectedJps.
+                  const journeyJpsIds = new Set(j.pipeline_states.map((s) => s.id));
+                  const pickedJpsId = autoPickJps(j, row.selectedTerritories);
+                  const selectedForJourney = row.selectedJps.find((id) => journeyJpsIds.has(id));
+                  const checked = !!selectedForJourney;
+                  const isJourneyPrimary = checked && selectedForJourney != null && callPrimaryJps === selectedForJourney;
+                  const isStakeholder = j.role === "stakeholder";
+                  const palette = isStakeholder
+                    ? {
+                        checked: "border-[#0E8F8F] bg-[#E0F7F7] text-text-primary",
+                        unchecked: "border-[#0E8F8F]/40 bg-bg-primary text-[#0E8F8F] hover:text-[#0A7070]",
+                      }
+                    : {
+                        checked: "border-[#3A2FAE] bg-[#EEEDFE] text-text-primary",
+                        unchecked: "border-border-default bg-bg-primary text-text-tertiary hover:text-text-primary",
+                      };
+                  const baseClass = checked
+                    ? isJourneyPrimary
+                      ? "border-[#EAB308] bg-[#EAB308]/10 text-text-primary"
+                      : palette.checked
+                    : palette.unchecked;
+                  return (
+                    <label
+                      key={j.journey_id}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border cursor-pointer transition-colors ${baseClass}`}
+                      title={
+                        isStakeholder
+                          ? `${j.journey_name} — via territory ecosystem`
+                          : j.journey_name
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          if (checked) {
+                            onJpsChange(row.selectedJps.filter((id) => !journeyJpsIds.has(id)));
+                          } else if (pickedJpsId) {
+                            onJpsChange([...row.selectedJps, pickedJpsId]);
+                          }
+                        }}
+                        className="sr-only"
+                      />
+                      {checked && selectedForJourney && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onPrimaryJpsChange(selectedForJourney); }}
+                          title={isJourneyPrimary ? "Primary journey" : "Make primary"}
+                          className={isJourneyPrimary ? "text-[#EAB308]" : "text-text-tertiary hover:text-text-primary"}
+                        >
+                          <Star size={10} fill={isJourneyPrimary ? "currentColor" : "none"} />
+                        </button>
+                      )}
+                      <span>{j.journey_name}</span>
+                      {isStakeholder && <span className="text-[9px] opacity-80">· via ecosystem</span>}
+                    </label>
+                  );
+                })}
               </div>
             </div>
           )}

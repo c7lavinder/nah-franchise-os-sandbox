@@ -107,7 +107,18 @@ export async function GET(
       jpsDetailMap.set(r.id, { stage: stageName, territory_ms_slug: r.territory_ms_slug });
     }
   }
-  const callJourneys = (cjRows ?? []).map((r) => {
+  // Dedupe by journey_id — a journey with multiple active jps rows (e.g.
+  // sales + follow-up) was rendering as two separate pills. Keep the
+  // primary row if present, otherwise the first.
+  type CjRow = { journey_id: string; journey_pipeline_state_id: string; is_primary: boolean };
+  const callJourneysByJourney = new Map<string, CjRow>();
+  for (const r of (cjRows ?? []) as CjRow[]) {
+    const existing = callJourneysByJourney.get(r.journey_id);
+    if (!existing || (r.is_primary && !existing.is_primary)) {
+      callJourneysByJourney.set(r.journey_id, r);
+    }
+  }
+  const callJourneys = Array.from(callJourneysByJourney.values()).map((r) => {
     const jps = jpsDetailMap.get(r.journey_pipeline_state_id);
     return {
       journey_id: r.journey_id,
