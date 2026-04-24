@@ -69,5 +69,30 @@ export async function POST(
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // If the new member joined as primary or co_primary, rebuild the journey
+  // name from every active primary/co_primary. Matches the "Ryan Decker +
+  // Shannon Smylie" convention used elsewhere in the product.
+  if (role === "primary" || role === "co_primary") {
+    const { data: corePrimaries } = await supabase
+      .from("journey_contacts")
+      .select("contact_id, role, contacts(first_name, last_name)")
+      .eq("journey_id", journeyId)
+      .is("left_at", null)
+      .in("role", ["primary", "co_primary"]);
+    const names: string[] = [];
+    for (const m of corePrimaries ?? []) {
+      const c = Array.isArray(m.contacts) ? m.contacts[0] : m.contacts;
+      const full = `${c?.first_name ?? ""} ${c?.last_name ?? ""}`.trim();
+      if (full && !names.includes(full)) names.push(full);
+    }
+    if (names.length > 0) {
+      await supabase
+        .from("journeys")
+        .update({ name: names.join(" + ") })
+        .eq("id", journeyId);
+    }
+  }
+
   return NextResponse.json({ member: inserted, already_existed: false });
 }

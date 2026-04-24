@@ -81,7 +81,17 @@ interface Props {
   onCreated: (newContactId: string) => void;
 }
 
-type Anchor = "territory" | "personal";
+type Anchor = "territory" | "journey" | "personal";
+
+/** Roles offered on the journey-partner anchor for the OPTIONAL
+ *  contact_related_people row. "None" skips writing the relationship row. */
+const JOURNEY_RELATIONSHIP_ROLES: Array<{ value: string; label: string }> = [
+  { value: "", label: "— none —" },
+  { value: "family", label: "Family" },
+  { value: "spouse", label: "Spouse" },
+  { value: "business_partner", label: "Business partner" },
+  { value: "other", label: "Other" },
+];
 
 export default function AddRelatedContactModal({
   open,
@@ -106,9 +116,12 @@ export default function AddRelatedContactModal({
   const [territories, setTerritories] = useState<TerritoryOption[]>([]);
   const [territorySlug, setTerritorySlug] = useState<string>("");
 
-  // Personal-anchored state
+  // Personal-anchored + journey-partner state (shared contact picker)
   const [targetContactId, setTargetContactId] = useState<string | null>(primaryContactId);
   const [targetContactName, setTargetContactName] = useState<string | null>(primaryContactName ?? null);
+  // Journey-partner: optional family relationship to ALSO write as a
+  // contact_related_people row alongside the journey_contacts co_primary.
+  const [journeyRelationship, setJourneyRelationship] = useState<string>("");
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +139,7 @@ export default function AddRelatedContactModal({
     setNotes("");
     setTargetContactId(primaryContactId);
     setTargetContactName(primaryContactName ?? null);
+    setJourneyRelationship("");
     setError(null);
   }, [open, prefill, primaryContactId, primaryContactName]);
 
@@ -181,6 +195,10 @@ export default function AddRelatedContactModal({
     }
     if (anchor === "personal" && !targetContactId) {
       setError("Pick the contact this person is related to.");
+      return;
+    }
+    if (anchor === "journey" && !targetContactId) {
+      setError("Pick the contact whose journey this person is partnering on.");
       return;
     }
 
@@ -239,6 +257,46 @@ export default function AddRelatedContactModal({
           setSaving(false);
           return;
         }
+      } else if (anchor === "journey") {
+        // Find the target contact's active direct journey.
+        const jRes = await fetch(`/api/contacts/${targetContactId}/journey`);
+        const jData = await jRes.json() as {
+          journeys?: Array<{ journey_id: string; journey_name: string; role: string }>;
+        };
+        const direct = (jData.journeys ?? []).find((j) => j.role !== "stakeholder");
+        if (!direct) {
+          setError(`${targetContactName ?? "That contact"} has no active journey to partner on.`);
+          setSaving(false);
+          return;
+        }
+        // Add new contact as co_primary; endpoint rebuilds the journey name.
+        const memberRes = await fetch(`/api/journeys/${direct.journey_id}/members`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contact_id: newContactId, role: "co_primary" }),
+        });
+        if (!memberRes.ok) {
+          const data = await memberRes.json().catch(() => ({}));
+          setError(data.error ?? "Contact created, but journey link failed.");
+          setSaving(false);
+          return;
+        }
+        // Optional — also record the family/spouse/business-partner relationship.
+        if (journeyRelationship) {
+          await fetch(`/api/contacts/${targetContactId}/related-people`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              first_name: firstName.trim(),
+              last_name: lastName.trim(),
+              email: email.trim() || null,
+              phone: phone.trim() || null,
+              role: journeyRelationship,
+              relationship_notes: notes.trim() || null,
+              linked_contact_id: newContactId,
+            }),
+          });
+        }
       } else {
         const linkRes = await fetch(`/api/contacts/${targetContactId}/related-people`, {
           method: "POST",
@@ -283,31 +341,40 @@ export default function AddRelatedContactModal({
         </div>
 
         {/* Anchor toggle */}
-        <div className="grid grid-cols-2 gap-2 p-0.5 bg-bg-secondary rounded-md">
+        <div className="grid grid-cols-3 gap-1 p-0.5 bg-bg-secondary rounded-md">
           <button
             type="button"
             onClick={() => setAnchor("territory")}
-            className={`px-2.5 py-1.5 text-caption rounded transition-colors ${
+            className={`px-2 py-1.5 text-[11px] rounded transition-colors ${
               anchor === "territory" ? "bg-bg-primary text-text-primary shadow-sm" : "text-text-tertiary hover:text-text-primary"
             }`}
           >
-            Works at a territory
+            Works at territory
+          </button>
+          <button
+            type="button"
+            onClick={() => setAnchor("journey")}
+            className={`px-2 py-1.5 text-[11px] rounded transition-colors ${
+              anchor === "journey" ? "bg-bg-primary text-text-primary shadow-sm" : "text-text-tertiary hover:text-text-primary"
+            }`}
+          >
+            Journey partner
           </button>
           <button
             type="button"
             onClick={() => setAnchor("personal")}
-            className={`px-2.5 py-1.5 text-caption rounded transition-colors ${
+            className={`px-2 py-1.5 text-[11px] rounded transition-colors ${
               anchor === "personal" ? "bg-bg-primary text-text-primary shadow-sm" : "text-text-tertiary hover:text-text-primary"
             }`}
           >
-            Personal to a contact
+            Personal to contact
           </button>
         </div>
 
         <p className="text-[10px] text-text-tertiary leading-relaxed">
-          {anchor === "territory"
-            ? "Employees, contractors, agents — anchored to the territory. Stays if ownership changes."
-            : "Spouse, family, attorney — anchored to a contact. Follows the contact."}
+          {anchor === "territory" && "Employees, contractors, agents — anchored to the territory. Stays when ownership changes."}
+          {anchor === "journey" && "Business partner on the franchise deal — added as 50/50 co-primary on the target's journey. Shows up on both the journey page and (once awarded) the territory's owners block."}
+          {anchor === "personal" && "Spouse, family, attorney — anchored to a specific contact. Doesn't survive a franchise sale."}
         </p>
 
         <div className="grid grid-cols-2 gap-2">
@@ -351,20 +418,22 @@ export default function AddRelatedContactModal({
           />
         </label>
 
-        <label className="space-y-1 block">
-          <span className="text-caption text-text-tertiary">Role *</span>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="w-full bg-bg-primary border border-border-default rounded-md px-2.5 py-1.5 text-body-sm text-text-primary"
-          >
-            {(anchor === "territory" ? TERRITORY_ROLES : PERSONAL_ROLES).map((r) => (
-              <option key={r.value} value={r.value}>{r.label}</option>
-            ))}
-          </select>
-        </label>
+        {anchor !== "journey" && (
+          <label className="space-y-1 block">
+            <span className="text-caption text-text-tertiary">Role *</span>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="w-full bg-bg-primary border border-border-default rounded-md px-2.5 py-1.5 text-body-sm text-text-primary"
+            >
+              {(anchor === "territory" ? TERRITORY_ROLES : PERSONAL_ROLES).map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
 
-        {anchor === "territory" ? (
+        {anchor === "territory" && (
           <>
             <label className="space-y-1 block">
               <span className="text-caption text-text-tertiary">Territory *</span>
@@ -391,7 +460,9 @@ export default function AddRelatedContactModal({
               />
             </label>
           </>
-        ) : (
+        )}
+
+        {anchor === "personal" && (
           <ContactPicker
             label="Related to contact *"
             selectedId={targetContactId}
@@ -401,6 +472,35 @@ export default function AddRelatedContactModal({
               setTargetContactName(name);
             }}
           />
+        )}
+
+        {anchor === "journey" && (
+          <>
+            <ContactPicker
+              label="Partner of *"
+              selectedId={targetContactId}
+              selectedName={targetContactName}
+              onChange={(id, name) => {
+                setTargetContactId(id);
+                setTargetContactName(name);
+              }}
+            />
+            <label className="space-y-1 block">
+              <span className="text-caption text-text-tertiary">
+                Family relationship (optional)
+                <span className="text-text-tertiary/70 ml-1">— also records a relationship row</span>
+              </span>
+              <select
+                value={journeyRelationship}
+                onChange={(e) => setJourneyRelationship(e.target.value)}
+                className="w-full bg-bg-primary border border-border-default rounded-md px-2.5 py-1.5 text-body-sm text-text-primary"
+              >
+                {JOURNEY_RELATIONSHIP_ROLES.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </label>
+          </>
         )}
 
         <label className="space-y-1 block">
