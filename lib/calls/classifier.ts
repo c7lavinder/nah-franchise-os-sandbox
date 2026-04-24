@@ -29,6 +29,10 @@ const NAH_TEAM_EMAILS_FALLBACK = [
   "nora-frandev@newagainhouses.com",
   "jeff@newagainhouses.com",
   "joekraus@newagainhouses.com",
+  "jess@newagainhouses.com",
+  "ray@newagainhouses.com",
+  // Ray Heath uses a Hiram Build address on some calls — same person, treat as NAH team.
+  "ray@hirambuild.com",
 ];
 
 // Dynamic team email list — loaded from users table on first use
