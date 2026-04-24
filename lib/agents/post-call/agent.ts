@@ -10,7 +10,7 @@
  */
 
 import { createServerClient } from "@/lib/supabase/server";
-import type { CallContext, SummaryResult, CoachingResult, NextStepsResult, ExtractionResult, PipelinePosition, RosterEntry } from "./types";
+import type { CallContext, SummaryResult, CoachingResult, NextStepsResult, ExtractionResult, PipelinePosition, RosterEntry, JourneyPartner } from "./types";
 import { retrieveFeedback } from "./feedback-retrieval";
 import { runSummary } from "./prompts/summary";
 import { runCoaching } from "./prompts/coaching";
@@ -464,6 +464,12 @@ async function loadCallContext(
     }
   }
 
+  // Load journey partners (primary + co_primary) for the call's journey.
+  // When length >= 2 this is a partnership journey (e.g. Kevin + Kylie Kremer)
+  // and Scout must pick target_contact_name per action so data lands on the
+  // right partner profile.
+  const journeyPartners = await loadJourneyPartners(supabase, call.contact_id);
+
   return {
     callId,
     transcript,
@@ -481,7 +487,92 @@ async function loadCallContext(
     callTerritories,
     roster,
     isTeamCall,
+    journeyPartners,
   };
+}
+
+/**
+ * Fetch every active primary + co_primary on the journey anchored by the call's
+ * primary contact. Returns empty array if the contact isn't on a journey or
+ * the journey has no extra members. Profile highlights are pulled from a small
+ * allowlist of contact_profile_fields so Scout can distinguish partners.
+ */
+async function loadJourneyPartners(
+  supabase: ReturnType<typeof createServerClient>,
+  callContactId: string | null,
+): Promise<JourneyPartner[]> {
+  if (!callContactId) return [];
+
+  // Resolve journey: first as primary, then as a member (co_primary/etc).
+  let journeyId: string | null = null;
+  const { data: journeyAsPrimary } = await supabase
+    .from("journeys")
+    .select("id")
+    .eq("primary_contact_id", callContactId)
+    .maybeSingle();
+  journeyId = journeyAsPrimary?.id ?? null;
+
+  if (!journeyId) {
+    const { data: membership } = await supabase
+      .from("journey_contacts")
+      .select("journey_id")
+      .eq("contact_id", callContactId)
+      .is("left_at", null)
+      .in("role", ["primary", "co_primary"])
+      .maybeSingle();
+    journeyId = membership?.journey_id ?? null;
+  }
+
+  if (!journeyId) return [];
+
+  const { data: members } = await supabase
+    .from("journey_contacts")
+    .select("contact_id, role, contacts ( first_name, last_name )")
+    .eq("journey_id", journeyId)
+    .is("left_at", null)
+    .in("role", ["primary", "co_primary"]);
+
+  if (!members || members.length === 0) return [];
+
+  const contactIds = members.map((m) => m.contact_id).filter(Boolean) as string[];
+
+  // Pull a small set of profile fields that help distinguish partners.
+  const HIGHLIGHT_KEYS = [
+    "background", "work_background", "professional_background",
+    "skills", "expertise", "role_in_partnership",
+    "license", "license_type", "years_experience",
+  ];
+  const { data: profileRows } = await supabase
+    .from("contact_profile_fields")
+    .select("contact_id, field_name, field_value")
+    .in("contact_id", contactIds)
+    .in("field_name", HIGHLIGHT_KEYS);
+
+  const highlightsByContact = new Map<string, string[]>();
+  for (const r of profileRows ?? []) {
+    if (r.field_value == null) continue;
+    const list = highlightsByContact.get(r.contact_id) ?? [];
+    // field_value is jsonb — a JSON-encoded scalar like `"construction"`.
+    const raw = typeof r.field_value === "string" ? r.field_value : JSON.stringify(r.field_value);
+    list.push(`${r.field_name}: ${raw}`);
+    highlightsByContact.set(r.contact_id, list);
+  }
+
+  const partners: JourneyPartner[] = [];
+  for (const m of members) {
+    if (!m.contact_id) continue;
+    const c = Array.isArray(m.contacts) ? m.contacts[0] : m.contacts;
+    const name = `${(c as { first_name: string } | null)?.first_name ?? ""} ${(c as { last_name: string } | null)?.last_name ?? ""}`.trim();
+    if (!name) continue;
+    const highlightList = highlightsByContact.get(m.contact_id) ?? [];
+    partners.push({
+      contactId: m.contact_id,
+      name,
+      role: (m.role as "primary" | "co_primary") ?? "primary",
+      profileHighlights: highlightList.length > 0 ? highlightList.join("; ") : null,
+    });
+  }
+  return partners;
 }
 
 // ── Territory resolution helpers ──────────────────────────
@@ -506,6 +597,58 @@ async function buildTerritoryMap(
 /** Resolve a territory name/slug to ms_slug. Exact match only — no fuzzy matching. */
 function resolveTerritory(name: string, map: Map<string, string>): string | null {
   return map.get(name.toLowerCase()) ?? null;
+}
+
+// ── Partner resolution helpers ────────────────────────────
+
+/**
+ * Build a lookup map of partner name → contact_id for the journey's active
+ * primary + co_primary members. Keys are case-insensitive and cover full name,
+ * last name, and first name so Scout's output matches regardless of format.
+ */
+async function buildPartnerNameMap(
+  supabase: ReturnType<typeof createServerClient>,
+  journeyId: string | null,
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (!journeyId) return map;
+
+  const { data: members } = await supabase
+    .from("journey_contacts")
+    .select("contact_id, contacts ( first_name, last_name )")
+    .eq("journey_id", journeyId)
+    .is("left_at", null)
+    .in("role", ["primary", "co_primary"]);
+
+  for (const m of members ?? []) {
+    if (!m.contact_id) continue;
+    const c = Array.isArray(m.contacts) ? m.contacts[0] : m.contacts;
+    const first = ((c as { first_name: string } | null)?.first_name ?? "").trim();
+    const last = ((c as { last_name: string } | null)?.last_name ?? "").trim();
+    const full = `${first} ${last}`.trim();
+    if (full) map.set(full.toLowerCase(), m.contact_id);
+    if (last) map.set(last.toLowerCase(), m.contact_id);
+    if (first) map.set(first.toLowerCase(), m.contact_id);
+  }
+  return map;
+}
+
+/**
+ * Pick the contact_id an action should target. Priority:
+ *   1. target_contact_name (partnership-aware picker from Scout)
+ *   2. contact_name         (legacy per-action tag)
+ *   3. fallbackContactId    (the call's primary contact)
+ */
+function resolveActionTarget(
+  action: { target_contact_name?: string; contact_name?: string },
+  partnerNameToId: Map<string, string>,
+  fallbackContactId: string | null,
+): string | null {
+  const tryLookup = (name: string | undefined): string | null => {
+    if (!name) return null;
+    return partnerNameToId.get(name.trim().toLowerCase()) ?? null;
+  };
+  return tryLookup(action.target_contact_name) ?? tryLookup(action.contact_name) ?? fallbackContactId;
 }
 
 // ── DB writer ──────────────────────────────────────────────
@@ -556,21 +699,29 @@ async function writeResults(
       .eq("source", "scout")
       .eq("status", "pending");
 
-    const rows = results.actions.actions.map((a) => ({
-      call_id: callId,
-      contact_id: contactId ?? null,
-      journey_id: primaryJourneyId,
-      category: a.category,
-      title: a.title,
-      description: a.description ?? null,
-      why: a.why ?? null,
-      contact_name: a.contact_name ?? null,
-      assigned_to_name: a.assigned_to_name ?? null,
-      metadata: a.metadata ?? null,
-      source: "scout",
-      ghl_action: a.ghl_action ?? false,
-      status: "pending",
-    }));
+    // Build a partner-name → contact_id map so target_contact_name (e.g.
+    // "Kylie Kremer") resolves to the right partner on the journey. Lookups
+    // are case-insensitive and match on full name, last name, or first name.
+    const partnerNameToId = await buildPartnerNameMap(supabase, primaryJourneyId);
+
+    const rows = results.actions.actions.map((a) => {
+      const resolvedContactId = resolveActionTarget(a, partnerNameToId, contactId);
+      return {
+        call_id: callId,
+        contact_id: resolvedContactId ?? null,
+        journey_id: primaryJourneyId,
+        category: a.category,
+        title: a.title,
+        description: a.description ?? null,
+        why: a.why ?? null,
+        contact_name: a.contact_name ?? null,
+        assigned_to_name: a.assigned_to_name ?? null,
+        metadata: a.metadata ?? null,
+        source: "scout",
+        ghl_action: a.ghl_action ?? false,
+        status: "pending",
+      };
+    });
 
     const { error: insertErr } = await supabase.from("call_action_items").insert(rows);
     if (insertErr) {
@@ -666,6 +817,14 @@ async function writeResults(
         const resolvedJourneyId =
           (resolvedContactId ? journeyByContact.get(resolvedContactId) : null) ?? primaryJourneyId;
 
+        // For partnership journeys Scout emits target_scope ('single'|'both').
+        // Only trust it on contact-category rows; territory rows route via
+        // target_territory and should never fan out to contacts.
+        const resolvedTargetScope =
+          e.field_category.startsWith("contact") && (e.target_scope === "single" || e.target_scope === "both")
+            ? e.target_scope
+            : null;
+
         return {
           call_id: callId,
           contact_id: resolvedContactId ?? null,
@@ -676,6 +835,7 @@ async function writeResults(
           confidence: e.confidence,
           source: "scout",
           territory_ms_slug: resolvedTerritorySlug,
+          target_scope: resolvedTargetScope,
         };
       })
       // Data-lake integrity: drop any row that couldn't be scoped to a

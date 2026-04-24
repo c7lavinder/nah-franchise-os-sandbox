@@ -1,7 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Pencil, X, Loader2, AlertTriangle, Sparkles } from "lucide-react";
+import { Check, Pencil, X, Loader2, AlertTriangle, Sparkles, Users } from "lucide-react";
+
+/**
+ * Uniform confidence badge so every pending row shows the same shape.
+ * Scout sometimes emits null confidence; we render those as 'high' so the UI
+ * stays visually consistent across all rows in a section.
+ */
+function ConfidenceBadge({ confidence }: { confidence: string | null }) {
+  const c = (confidence ?? "high").toLowerCase();
+  const styles = c === "low"
+    ? "bg-danger/10 text-danger"
+    : c === "medium"
+    ? "bg-warning/10 text-warning"
+    : "bg-success/10 text-success";
+  return (
+    <span className={`text-[9px] px-1 py-0.5 rounded flex-shrink-0 mt-1 uppercase tracking-wider font-medium ${styles}`}>
+      {c}
+    </span>
+  );
+}
 
 interface ExtractionData {
   id: string;
@@ -13,12 +32,23 @@ interface ExtractionData {
   confidence: string | null;
   saved_to_profile: boolean;
   dismissed: boolean;
+  territory_ms_slug: string | null;
+  target_scope: "single" | "both" | null;
 }
+
+interface PartnerOption { id: string; name: string }
+interface TerritoryOption { ms_slug: string; territory_name: string }
 
 interface CallDataFieldProps {
   extraction: ExtractionData;
+  partnerOptions?: PartnerOption[];
+  linkedContacts?: { id: string | null; name: string }[];
+  callTerritories?: TerritoryOption[];
   onAction: () => void;
 }
+
+/** For the segmented picker: one entry per single partner + a "Both" entry. */
+type TargetPick = { kind: "single"; contactId: string; label: string } | { kind: "both"; label: string };
 
 const FIELD_LABELS: Record<string, string> = {
   employment_status: "Employment Status",
@@ -43,7 +73,7 @@ const IMPORTANT_FIELDS = new Set([
   "market_interest",
 ]);
 
-export default function CallDataField({ extraction, onAction }: CallDataFieldProps) {
+export default function CallDataField({ extraction, partnerOptions, linkedContacts, callTerritories, onAction }: CallDataFieldProps) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(extraction.extracted_value ?? "");
   const [loading, setLoading] = useState<string | null>(null);
@@ -54,6 +84,35 @@ export default function CallDataField({ extraction, onAction }: CallDataFieldPro
   const hasValue = !!extraction.extracted_value;
   const isDone = extraction.saved_to_profile || extraction.dismissed;
   const isImportant = IMPORTANT_FIELDS.has(extraction.field_key);
+
+  // Target label — always show where this extraction is being pushed.
+  const isTerritoryField = extraction.field_category.startsWith("territory") || extraction.field_category.startsWith("business_");
+  const territoryName = extraction.territory_ms_slug
+    ? callTerritories?.find((t) => t.ms_slug === extraction.territory_ms_slug)?.territory_name ?? extraction.territory_ms_slug
+    : null;
+  const contactName = extraction.contact_id
+    ? linkedContacts?.find((c) => c.id === extraction.contact_id)?.name
+      ?? partnerOptions?.find((p) => p.id === extraction.contact_id)?.name
+      ?? null
+    : null;
+
+  // Partnership picker state — only shown on contact-category rows when the
+  // call's journey has 2+ partners (Kevin + Kylie, spouses, etc).
+  const isContactField = extraction.field_category.startsWith("contact");
+  const showPartnerPicker = isContactField && (partnerOptions?.length ?? 0) >= 2;
+  const initialPick: TargetPick = (() => {
+    if (extraction.target_scope === "both") return { kind: "both", label: "Both" };
+    if (extraction.contact_id) {
+      const match = partnerOptions?.find((p) => p.id === extraction.contact_id);
+      if (match) return { kind: "single", contactId: match.id, label: match.name };
+    }
+    // Default fallback: Scout didn't pick (or picked someone off-journey) —
+    // use the first partner so the row still has a concrete target.
+    const first = partnerOptions?.[0];
+    if (first) return { kind: "single", contactId: first.id, label: first.name };
+    return { kind: "both", label: "Both" };
+  })();
+  const [pick, setPick] = useState<TargetPick>(initialPick);
 
   // Done state
   if (isDone) {
@@ -105,7 +164,16 @@ export default function CallDataField({ extraction, onAction }: CallDataFieldPro
   async function handlePush() {
     setLoading("push");
     try {
-      const res = await fetch(`/api/calls/${extraction.call_id}/data/${extraction.id}/save`, { method: "POST" });
+      const body: Record<string, unknown> = {};
+      if (showPartnerPicker) {
+        body.target_scope = pick.kind;
+        if (pick.kind === "single") body.target_contact_id = pick.contactId;
+      }
+      const res = await fetch(`/api/calls/${extraction.call_id}/data/${extraction.id}/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       if (res.ok) onAction();
     } catch { /* silent */ }
     setLoading(null);
@@ -212,20 +280,61 @@ export default function CallDataField({ extraction, onAction }: CallDataFieldPro
           )}
         </div>
 
-        {/* Confidence badge */}
-        {!editing && extraction.confidence && extraction.confidence !== "high" && (
-          <span className={`text-[9px] px-1 py-0.5 rounded flex-shrink-0 mt-1 ${
-            extraction.confidence === "medium" ? "bg-warning/10 text-warning" : "bg-danger/10 text-danger"
-          }`}>
-            {extraction.confidence}
-          </span>
+        {/* Confidence badge — always shown for consistency. Defaults to 'high'
+            when Scout didn't emit one (rare, but keeps every row uniform). */}
+        {!editing && (
+          <ConfidenceBadge confidence={extraction.confidence} />
         )}
       </div>
+
+      {/* Target label — always present so the rep knows where this row will go. */}
+      {!editing && (
+        <div className="mt-1 text-[10px] text-text-tertiary">
+          {isTerritoryField ? (
+            <span>Push to territory: <span className="text-text-secondary font-medium">{territoryName ?? "Unassigned"}</span></span>
+          ) : showPartnerPicker ? null : (
+            <span>Push to contact: <span className="text-text-secondary font-medium">{contactName ?? "Unassigned"}</span></span>
+          )}
+        </div>
+      )}
+
+      {/* Partner target picker — shown only on contact fields for partnership journeys */}
+      {!editing && showPartnerPicker && partnerOptions && (
+        <div className="flex items-center gap-1 mt-2">
+          <span className="text-[10px] uppercase tracking-wider text-text-tertiary mr-1">Save to:</span>
+          {partnerOptions.map((p) => {
+            const selected = pick.kind === "single" && pick.contactId === p.id;
+            return (
+              <button
+                key={p.id}
+                onClick={() => setPick({ kind: "single", contactId: p.id, label: p.name })}
+                className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
+                  selected
+                    ? "bg-nah-blue text-white"
+                    : "bg-bg-tertiary text-text-tertiary hover:bg-nah-blue/10 hover:text-nah-blue"
+                }`}
+              >
+                {p.name.split(" ")[0]}
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setPick({ kind: "both", label: "Both" })}
+            className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors flex items-center gap-1 ${
+              pick.kind === "both"
+                ? "bg-nah-blue text-white"
+                : "bg-bg-tertiary text-text-tertiary hover:bg-nah-blue/10 hover:text-nah-blue"
+            }`}
+          >
+            <Users size={9} /> Both
+          </button>
+        </div>
+      )}
 
       {/* Action buttons — only when not editing */}
       {!editing && (
         <div className="flex items-center gap-2 mt-1.5 ml-0">
-          <button onClick={() => void handlePush()} disabled={loading !== null || !extraction.contact_id}
+          <button onClick={() => void handlePush()} disabled={loading !== null || (!showPartnerPicker && !extraction.contact_id)}
             className="btn-primary px-3 py-1 text-caption flex items-center gap-1">
             {loading === "push" ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
             Push to Profile

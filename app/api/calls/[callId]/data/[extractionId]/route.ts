@@ -55,19 +55,20 @@ export async function PATCH(
       .update({ extracted_value: newValue, saved_to_profile: true })
       .eq("id", extractionId);
 
-    // Save to profile
+    // Save to profile — schema uses field_name (jsonb value), last_updated_by
+    // constrained to 'api'|'ai'|'manual'|'system', last_updated_at.
     if (extraction.contact_id && newValue) {
       await supabase
         .from("contact_profile_fields")
         .upsert(
           {
             contact_id: extraction.contact_id,
-            field_key: extraction.field_key,
-            field_value: newValue,
-            source: "scout_extraction",
-            updated_at: new Date().toISOString(),
+            field_name: extraction.field_key,
+            field_value: JSON.stringify(newValue),
+            last_updated_by: "ai",
+            last_updated_at: new Date().toISOString(),
           },
-          { onConflict: "contact_id,field_key" }
+          { onConflict: "contact_id,field_name" }
         );
     }
 

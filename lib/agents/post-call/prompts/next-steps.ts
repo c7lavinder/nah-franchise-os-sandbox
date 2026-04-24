@@ -1,4 +1,4 @@
-import type { CallContext, NextStepsResult, PipelinePosition, RosterEntry } from "../types";
+import type { CallContext, NextStepsResult, PipelinePosition, RosterEntry, JourneyPartner } from "../types";
 import { callClaude, stripFences } from "../call-claude";
 
 const SYSTEM = "You are Scout, an AI assistant for NAH Franchise OS. You generate post-call action items for the franchise sales team.";
@@ -94,6 +94,8 @@ For pipeline move (e.g., move to nurture):
   "metadata": { "pipeline_action": "move_pipeline", "pipeline_from": "[current pipeline]", "pipeline_to": "[destination pipeline]", "stage_to": "[destination stage]" }
 }
 
+${buildPartnershipBlock(ctx.journeyPartners)}
+
 ## Required fields for EVERY action:
 {
   "category": "apt | comms | task | note | pipeline | data",
@@ -101,6 +103,7 @@ For pipeline move (e.g., move to nurture):
   "description": "1 sentence explaining the action",
   "why": "1 sentence explaining why this action matters",
   "contact_name": "Name of the contact this is for",
+  "target_contact_name": "For partnership journeys ONLY: the exact partner name from the Partnership block above. Omit otherwise.",
   "assigned_to_name": "NAH team member name",
   "ghl_action": true/false,
   "source": "scout",
@@ -140,6 +143,40 @@ Duration: ${ctx.durationSeconds ? Math.round(ctx.durationSeconds / 60) + " minut
 
 Transcript:
 ${ctx.transcript}`;
+}
+
+/**
+ * Build the partnership block — shown only when the journey has 2+ primaries
+ * (father/daughter, spouses, business partners, etc). Forces Scout to pick
+ * which partner each action should target so data + follow-up land on the
+ * correct contact record.
+ */
+function buildPartnershipBlock(partners: JourneyPartner[]): string {
+  if (!partners || partners.length < 2) return "";
+
+  const lines = [
+    "## PARTNERSHIP JOURNEY — TARGET PICKING IS REQUIRED",
+    "",
+    "This journey has multiple co-primary partners. For EVERY action you generate,",
+    "pick the correct partner in `target_contact_name` based on the action's topic:",
+    "",
+    "### Partners on this journey:",
+  ];
+  for (const p of partners) {
+    const role = p.role === "co_primary" ? "Co-primary" : "Primary";
+    const highlight = p.profileHighlights ? ` — ${p.profileHighlights}` : "";
+    lines.push(`- **${p.name}** (${role})${highlight}`);
+  }
+  lines.push(
+    "",
+    "### Rules for picking target_contact_name:",
+    "1. If the action topic clearly belongs to ONE partner's domain (e.g. construction for a contractor, real estate listings for a RE-licensed partner), pick that partner.",
+    "2. If the action applies to both (e.g. \"send FDD\", \"schedule onboarding call\"), pick the primary listed first above — the rep can reassign via the UI.",
+    "3. Never leave `target_contact_name` blank on a partnership journey.",
+    "4. For pipeline + note actions about the journey as a whole, pick the first partner listed.",
+    "",
+  );
+  return lines.join("\n");
 }
 
 /** Build team/group call instructions with roster */

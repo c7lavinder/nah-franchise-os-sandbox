@@ -44,6 +44,8 @@ interface Extraction {
   confidence: string | null;
   saved_to_profile: boolean;
   dismissed: boolean;
+  territory_ms_slug: string | null;
+  target_scope: "single" | "both" | null;
 }
 
 interface CallDetailTabsProps {
@@ -69,6 +71,9 @@ interface CallDetailTabsProps {
   contactName: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
+  partnerOptions: { id: string; name: string }[];
+  linkedContacts: { id: string | null; name: string }[];
+  callTerritories: { ms_slug: string; territory_name: string }[];
   participantNames: string[];
   onRefresh: () => void;
 }
@@ -153,6 +158,7 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
           contactName={props.contactName}
           contactEmail={props.contactEmail}
           contactPhone={props.contactPhone}
+          partnerOptions={props.partnerOptions}
           onRefresh={props.onRefresh}
         />
       )}
@@ -165,6 +171,9 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
           hasTranscript={props.hasTranscript}
           hasGenerated={hasGenerated}
           isGenerating={props.isGenerating}
+          partnerOptions={props.partnerOptions}
+          linkedContacts={props.linkedContacts}
+          callTerritories={props.callTerritories}
           onRefresh={props.onRefresh}
         />
       )}

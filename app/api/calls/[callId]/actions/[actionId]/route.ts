@@ -14,7 +14,7 @@ import { executeGHLAction } from "@/lib/ghl/actions/executor";
 import type { GHLActionCode } from "@/lib/ghl/permissions";
 
 interface PatchBody {
-  action: "push" | "edit_push" | "skip";
+  action: "push" | "edit_push" | "skip" | "reassign";
   payload?: Record<string, unknown>;
   edit_diff?: string;
 }
@@ -48,6 +48,27 @@ export async function PATCH(
   }
 
   const now = new Date().toISOString();
+
+  // --- REASSIGN ---
+  // Move the action to a different partner on the same journey (e.g. Kevin
+  // → Kylie on a partnership journey). Only contact_id + contact_name change;
+  // the rest of the action stays pending for the rep to push/edit/skip.
+  if (body.action === "reassign") {
+    const newContactId = body.payload?.contact_id;
+    const newContactName = body.payload?.contact_name;
+    if (!newContactId || typeof newContactId !== "string") {
+      return NextResponse.json({ error: "contact_id required" }, { status: 400 });
+    }
+    await supabase
+      .from("call_action_items")
+      .update({
+        contact_id: newContactId,
+        contact_name: typeof newContactName === "string" ? newContactName : null,
+        updated_at: now,
+      })
+      .eq("id", actionId);
+    return NextResponse.json({ success: true });
+  }
 
   // --- SKIP ---
   if (body.action === "skip") {
@@ -213,18 +234,19 @@ async function saveToProfile(
   fieldValue: string,
   callId: string,
 ) {
-  // Upsert to contact_profile_fields
+  // contact_profile_fields uses field_name (not field_key), jsonb value,
+  // last_updated_by constrained to 'api'|'ai'|'manual'|'system'.
   await supabase
     .from("contact_profile_fields")
     .upsert(
       {
         contact_id: contactId,
-        field_key: fieldKey,
-        field_value: fieldValue,
-        source: "scout_action",
-        updated_at: new Date().toISOString(),
+        field_name: fieldKey,
+        field_value: JSON.stringify(fieldValue),
+        last_updated_by: "ai",
+        last_updated_at: new Date().toISOString(),
       },
-      { onConflict: "contact_id,field_key" }
+      { onConflict: "contact_id,field_name" }
     );
 
   // Mark any matching data extractions as saved

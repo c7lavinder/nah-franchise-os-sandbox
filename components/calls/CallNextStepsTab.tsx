@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Loader2, Plus, Sparkles } from "lucide-react";
 import CallActionItem from "./CallActionItem";
-import type { ActionItemData } from "./CallActionItem";
+import type { ActionItemData, PartnerOption } from "./CallActionItem";
 
 interface TeamMember { id: string; name: string; email: string }
 
@@ -17,6 +17,7 @@ interface CallNextStepsTabProps {
   contactName: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
+  partnerOptions: PartnerOption[];
   onRefresh: () => void;
 }
 
@@ -158,6 +159,7 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
                   teamMembers={props.teamMembers}
                   contactEmail={props.contactEmail}
                   contactPhone={props.contactPhone}
+                  partnerOptions={props.partnerOptions}
                   onAction={props.onRefresh}
                 />
               ))}
@@ -180,7 +182,7 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-success/10 text-success font-medium">{pushedItems.length}</span>
           </div>
           {pushedItems.map((item) => (
-            <CallActionItem key={item.id} item={item} teamMembers={props.teamMembers} contactEmail={props.contactEmail} contactPhone={props.contactPhone} onAction={props.onRefresh} />
+            <CallActionItem key={item.id} item={item} teamMembers={props.teamMembers} contactEmail={props.contactEmail} contactPhone={props.contactPhone} partnerOptions={props.partnerOptions} onAction={props.onRefresh} />
           ))}
         </div>
       )}
@@ -193,7 +195,7 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-danger/10 text-danger font-medium">{skippedItems.length}</span>
           </div>
           {skippedItems.map((item) => (
-            <CallActionItem key={item.id} item={item} teamMembers={props.teamMembers} contactEmail={props.contactEmail} contactPhone={props.contactPhone} onAction={props.onRefresh} />
+            <CallActionItem key={item.id} item={item} teamMembers={props.teamMembers} contactEmail={props.contactEmail} contactPhone={props.contactPhone} partnerOptions={props.partnerOptions} onAction={props.onRefresh} />
           ))}
         </div>
       )}

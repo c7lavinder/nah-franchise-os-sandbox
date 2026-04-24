@@ -17,6 +17,21 @@ export interface RosterEntry {
   territory: string | null;
 }
 
+/**
+ * A primary or co_primary on the call's journey. When a journey has 2+ of these
+ * (e.g. Kevin + Kylie Kremer, a father/daughter partnership), Scout must pick
+ * the right target per action/extraction so next-steps + data land on the
+ * correct partner record.
+ */
+export interface JourneyPartner {
+  contactId: string;
+  name: string;
+  role: "primary" | "co_primary";
+  /** Short free-text summary of what this partner brings (e.g. "construction
+   *  background; contractor license"). Used to guide Scout's target picks. */
+  profileHighlights: string | null;
+}
+
 /** Shared context passed to all post-call prompt sections */
 export interface CallContext {
   callId: string;
@@ -42,6 +57,10 @@ export interface CallContext {
   roster: RosterEntry[];
   /** Whether this is a team/group/internal call (no specific contact focus) */
   isTeamCall: boolean;
+  /** Every primary + co_primary on the call's journey. Empty for non-partnership
+   *  journeys. When length >= 2, Scout must pick target_contact_name per action
+   *  so next-steps + data land on the correct partner record. */
+  journeyPartners: JourneyPartner[];
 }
 
 /** Result types for each section */
@@ -77,6 +96,10 @@ export interface ActionItem {
   ghl_action: boolean;
   source: string;
   metadata?: Record<string, unknown>;
+  /** For partnership journeys: the specific partner this action should target
+   *  (e.g. "Kevin Kremer" for construction items, "Kylie Kremer" for RE items).
+   *  Resolved to contact_id when written to call_action_items. */
+  target_contact_name?: string;
 }
 
 export interface NextStepsResult {
@@ -92,6 +115,11 @@ export interface ExtractionField {
   target_contact_name?: string;
   /** For territory data: which territory this applies to (name or slug) */
   target_territory?: string;
+  /** For contact-category extractions on partnership journeys:
+   *  'single' = only target_contact_name gets the value
+   *  'both'   = fan out to every primary + co_primary on the journey
+   *  Omitted on non-partnership journeys (legacy single-target behavior). */
+  target_scope?: "single" | "both";
 }
 
 export interface ExtractionResult {

@@ -28,11 +28,16 @@ interface TeamMember { id: string; name: string; email: string }
 
 interface ContactOption { id: string; name: string; email: string | null; phone: string | null }
 
+/** Partners on the call's journey — enables the reassign dropdown on the
+ *  action's contact pill when there are 2+ co-primaries (e.g. Kevin + Kylie). */
+export interface PartnerOption { id: string; name: string }
+
 interface CallActionItemProps {
   item: ActionItemData;
   teamMembers: TeamMember[];
   contactEmail: string | null;
   contactPhone: string | null;
+  partnerOptions?: PartnerOption[];
   onAction: () => void;
 }
 
@@ -49,7 +54,7 @@ function getCommIcon(channel: string) {
   return channel === "email" ? Mail : MessageSquare;
 }
 
-export default function CallActionItem({ item, teamMembers, contactEmail, contactPhone, onAction }: CallActionItemProps) {
+export default function CallActionItem({ item, teamMembers, contactEmail, contactPhone, partnerOptions, onAction }: CallActionItemProps) {
   const isDone = item.status !== "pending";
   const channel = (item.metadata?.comms_channel as string) ?? "sms";
   const Icon = item.category === "comms" ? getCommIcon(channel) : (CATEGORY_ICONS[item.category] ?? Check);
@@ -133,6 +138,22 @@ export default function CallActionItem({ item, teamMembers, contactEmail, contac
     setLoading(null);
   }
 
+  async function handleReassign(partner: PartnerOption) {
+    setLoading("reassign"); setError(null);
+    try {
+      const res = await fetch(`/api/calls/${item.call_id}/actions/${item.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reassign",
+          payload: { contact_id: partner.id, contact_name: partner.name },
+        }),
+      });
+      if (res.ok) { onAction(); }
+      else { const d = await res.json().catch(() => ({})); setError(d.error ?? "Failed"); }
+    } catch { setError("Network error"); }
+    setLoading(null);
+  }
+
   async function handleAiRewrite() {
     if (!aiInput.trim()) return;
     setAiLoading(true);
@@ -162,9 +183,13 @@ export default function CallActionItem({ item, teamMembers, contactEmail, contac
           <p className="text-body-sm font-medium text-text-primary truncate">{item.title}</p>
           <div className="flex items-center gap-2 mt-0.5">
             {item.contact_name && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-nah-blue/10 text-nah-blue flex items-center gap-0.5">
-                <User size={8} /> {item.contact_name}
-              </span>
+              <PartnerPill
+                contactId={item.contact_id}
+                contactName={item.contact_name}
+                partnerOptions={partnerOptions ?? []}
+                onReassign={(p) => void handleReassign(p)}
+                loading={loading === "reassign"}
+              />
             )}
             {summaryDetail && (
               <span className="text-[10px] text-text-tertiary truncate">{summaryDetail}</span>
@@ -236,6 +261,74 @@ export default function CallActionItem({ item, teamMembers, contactEmail, contac
         </div>
       )}
       {error && <p className="text-[10px] text-danger px-3 pb-2">{error}</p>}
+    </div>
+  );
+}
+
+// ── Partner reassignment pill ──
+
+/**
+ * The contact pill on each action row. For partnership journeys (2+ partners
+ * mapped to the call) it becomes a dropdown so the rep can reassign the action
+ * to the other partner with one click. For single-contact calls it renders as
+ * a plain read-only pill.
+ */
+function PartnerPill({ contactId, contactName, partnerOptions, onReassign, loading }: {
+  contactId: string | null;
+  contactName: string;
+  partnerOptions: PartnerOption[];
+  onReassign: (partner: PartnerOption) => void;
+  loading: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  const isPartnership = partnerOptions.length >= 2;
+  const others = partnerOptions.filter((p) => p.id !== contactId);
+
+  if (!isPartnership) {
+    return (
+      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-nah-blue/10 text-nah-blue flex items-center gap-0.5">
+        <User size={8} /> {contactName}
+      </span>
+    );
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        disabled={loading}
+        className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-nah-blue/10 text-nah-blue flex items-center gap-0.5 hover:bg-nah-blue/20 transition-colors"
+      >
+        {loading ? <Loader2 size={8} className="animate-spin" /> : <User size={8} />}
+        {contactName}
+        <ChevronDown size={8} />
+      </button>
+      {open && others.length > 0 && (
+        <div className="absolute z-30 mt-1 left-0 bg-white border border-border-default rounded-md shadow-lg min-w-[140px] overflow-hidden">
+          <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-text-tertiary border-b border-border-default">
+            Reassign to partner
+          </div>
+          {others.map((p) => (
+            <button
+              key={p.id}
+              onClick={(e) => { e.stopPropagation(); setOpen(false); onReassign(p); }}
+              className="w-full text-left px-2 py-1.5 text-[11px] text-text-primary hover:bg-bg-secondary transition-colors flex items-center gap-1"
+            >
+              <User size={10} /> {p.name}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

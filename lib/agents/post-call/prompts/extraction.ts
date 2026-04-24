@@ -1,4 +1,4 @@
-import type { CallContext, ExtractionResult, RosterEntry } from "../types";
+import type { CallContext, ExtractionResult, RosterEntry, JourneyPartner } from "../types";
 import { callClaude, stripFences } from "../call-claude";
 
 const SYSTEM = `You are Scout, the AI data extraction engine for NAH Franchise OS.
@@ -60,6 +60,12 @@ export function buildPrompt(ctx: CallContext): string {
     ? buildRosterBlock(ctx.roster)
     : "";
 
+  // Partnership block — only when the journey has 2+ primaries (Kevin + Kylie
+  // Kremer, spouses, etc). Forces per-extraction target picking.
+  const partnershipBlock = ctx.journeyPartners.length >= 2
+    ? buildPartnershipBlock(ctx.journeyPartners)
+    : "";
+
   return `Extract EVERY piece of structured data from this call transcript.
 Be exhaustive — a 1-hour call should yield 30-50+ data points.
 If a piece of information was discussed, even briefly, extract it.
@@ -71,6 +77,7 @@ When someone discusses a specific person or territory, tag extractions to them u
 target_contact_name and target_territory. Use the roster below to match names.
 ` : ""}${callTerritoryBlock}
 ${rosterBlock}
+${partnershipBlock}
 
 ## EXTRACTION RULES
 1. Extract for EVERY contact discussed, not just the primary contact.
@@ -254,7 +261,7 @@ Extract ANY of these when discussed:
 - buy_box_overlap, competitive_advantage
 
 ## OUTPUT FORMAT
-Return a JSON object:
+Return a JSON object. Include target_scope ONLY when the partnership block above is present — otherwise omit it.
 {
   "extractions": [
     {
@@ -263,7 +270,8 @@ Return a JSON object:
       "extracted_value": "$150,000",
       "confidence": "high",
       "target_contact_name": "Jacob Phillips",
-      "target_territory": null
+      "target_territory": null,
+      "target_scope": "both"
     },
     {
       "field_key": "coaching_notes",
@@ -313,6 +321,7 @@ Rules:
 - Do NOT include fields with null values — only extract what's there.
 - For target_contact_name: use the contact's name if specific to them. Null if general.
 - For target_territory: use the territory name if specific to a territory. Null if general.
+- For target_scope: include ONLY when the partnership block above is present; follow its single-vs-both rules strictly.
 - SPLIT compound facts into separate extractions — one fact per row.
 - Extract personal details from casual conversation (hobbies, sports, family, travel).
 - Every problem = issue, every commitment = todo, every 90-day goal = rock.
@@ -334,6 +343,59 @@ Team on call: ${ctx.teamMembers.join(", ") || "Unknown"}
 
 Transcript:
 ${ctx.transcript}`;
+}
+
+/**
+ * Build the partnership data-extraction block — shown only when the journey
+ * has 2+ primaries. Tells Scout how to split contact-category extractions
+ * between partners (e.g. Kevin + Kylie Kremer). Territory-category fields
+ * are unaffected — they still route to the territory via target_territory.
+ */
+function buildPartnershipBlock(partners: JourneyPartner[]): string {
+  if (!partners || partners.length < 2) return "";
+
+  const lines = [
+    "",
+    "## PARTNERSHIP JOURNEY — DATA TARGETING RULES",
+    "",
+    "This journey has multiple co-primary partners. For EVERY contact-category",
+    "extraction (field_category starts with 'contact'), you MUST set:",
+    "  - target_contact_name: the specific partner the fact applies to",
+    "  - target_scope: 'single' or 'both' (see rules below)",
+    "",
+    "### Partners on this journey:",
+  ];
+  for (const p of partners) {
+    const role = p.role === "co_primary" ? "Co-primary" : "Primary";
+    const highlight = p.profileHighlights ? ` — ${p.profileHighlights}` : "";
+    lines.push(`- **${p.name}** (${role})${highlight}`);
+  }
+
+  lines.push(
+    "",
+    "### target_scope = 'both' for SHARED facts (applies to the partnership as a whole):",
+    "  - capital_range, liquid_capital, net_worth_estimate, financing_type",
+    "  - timeline_intent, decision_timeline, availability_confirmed",
+    "  - market_interest, desired_territory, territory_type_preference, zip_codes_of_interest",
+    "  - family_situation (if they share a household), lead_source, referral_source",
+    "  - competitors_mentioned, fdd_questions, objections_raised",
+    "",
+    "### target_scope = 'single' for PARTNER-SPECIFIC facts:",
+    "  - employment_status, current_employer, current_role, years_in_current_role",
+    "  - skill_set_notes, prior_re_experience, prior_business_ownership",
+    "  - education_level, military_background, hobbies_interests",
+    "  - risk_tolerance, decision_style, stated_why, primary_motivation (when expressed individually)",
+    "  - personality traits, licenses, expertise, background",
+    "  - spouse_name, spouse_email, spouse_phone (these refer to ONE partner's spouse)",
+    "",
+    "### Rules:",
+    "1. EOS extractions (issues, todos, rocks under contact_eos) default to 'single' — attribute to whoever raised/owns them.",
+    "2. If you can't confidently attribute a contact fact to one partner, use 'both'.",
+    "3. target_scope is REQUIRED on every contact-category extraction when this block is present.",
+    "4. Territory-category extractions (field_category starts with 'territory') — ignore target_scope; route via target_territory as usual.",
+    "",
+  );
+  return lines.join("\n");
 }
 
 /** Build a compact roster block for team/group call prompts */

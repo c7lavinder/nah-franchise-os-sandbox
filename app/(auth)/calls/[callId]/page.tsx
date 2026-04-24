@@ -120,6 +120,8 @@ interface Extraction {
   confidence: string | null;
   saved_to_profile: boolean;
   dismissed: boolean;
+  territory_ms_slug: string | null;
+  target_scope: "single" | "both" | null;
 }
 
 export default function CallDetailPage() {
@@ -459,6 +461,9 @@ export default function CallDetailPage() {
         contactName={call.contactName}
         contactEmail={call.contactEmail}
         contactPhone={call.contactPhone}
+        partnerOptions={buildPartnerOptions(call)}
+        linkedContacts={(call.linkedContacts ?? []).map((c) => ({ id: c.id, name: c.name }))}
+        callTerritories={(call.callTerritories ?? []).map((t) => ({ ms_slug: t.ms_slug, territory_name: t.territory_name }))}
         participantNames={buildSpeakerNames(call)}
         onRefresh={() => void fetchDetail()}
       />
@@ -485,6 +490,23 @@ function getPlatformLabel(source: string | null): string {
  * Speaker 2 to the guest. Silent observers (like Rylyn on Chad's calls)
  * are NOT included — they were invited but aren't speaking.
  */
+/**
+ * Build the partner list used by the action-item reassign dropdown. When a
+ * call is mapped to 2+ contacts who both sit on the same journey (e.g. a
+ * Kevin + Kylie Kremer partnership), each action row becomes reassignable
+ * between them with one click.
+ */
+function buildPartnerOptions(call: CallDetail): { id: string; name: string }[] {
+  const seen = new Set<string>();
+  const out: { id: string; name: string }[] = [];
+  for (const c of call.linkedContacts ?? []) {
+    if (!c.id || !c.linked || seen.has(c.id)) continue;
+    seen.add(c.id);
+    out.push({ id: c.id, name: c.name });
+  }
+  return out;
+}
+
 function buildSpeakerNames(call: CallDetail): string[] {
   const names: string[] = [];
 

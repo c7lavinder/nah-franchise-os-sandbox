@@ -371,6 +371,15 @@ function ContactProfilePanel({ contactId }: { contactId: string }) {
 
   const categories = getSortedCategories();
 
+  // Any captured field_name that isn't defined in the registry shows up in a
+  // "Captured by Scout" fallback section so data pushed from call extractions
+  // doesn't silently disappear when the registry hasn't been expanded to
+  // include that key (e.g. primary_motivation, decision_style, fdd_questions).
+  const registryNames = new Set(PROFILE_FIELDS.map((f) => f.name));
+  const capturedExtras = Object.entries(values)
+    .filter(([name, v]) => v != null && v !== "" && !registryNames.has(name))
+    .sort(([a], [b]) => a.localeCompare(b));
+
   return (
     <div className="space-y-4">
       {Object.keys(pending).length > 0 && (
@@ -386,6 +395,25 @@ function ContactProfilePanel({ contactId }: { contactId: string }) {
         if (fields.length === 0) return null;
         return <ProfileSection key={cat} category={cat} fields={fields} values={values} onFieldChange={handleFieldChange} saving={saving} />;
       })}
+
+      {capturedExtras.length > 0 && (
+        <div className="border border-border-default rounded-lg overflow-hidden">
+          <div className="px-4 py-2 bg-bg-secondary border-b border-border-default">
+            <h3 className="text-body-sm font-medium text-text-primary">Captured by Scout</h3>
+            <p className="text-[10px] text-text-tertiary mt-0.5">Fields pushed from call extractions that aren&apos;t in the standard profile registry yet.</p>
+          </div>
+          <div className="divide-y divide-border-default">
+            {capturedExtras.map(([name, value]) => (
+              <div key={name} className="flex items-start justify-between gap-4 px-4 py-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-caption text-text-tertiary">{name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</p>
+                  <p className="text-body-sm text-text-primary">{String(value)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
