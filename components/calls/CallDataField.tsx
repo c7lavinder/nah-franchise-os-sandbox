@@ -22,19 +22,29 @@ function ConfidenceBadge({ confidence }: { confidence: string | null }) {
   );
 }
 
-/** Target badge — always visible on every row so the rep knows where a push
- *  will land (which contact or which territory). Color-coded: blue = contact,
- *  orange = territory. */
-function TargetBadge({ kind, label }: { kind: "contact" | "territory" | "partnership"; label: string }) {
+/** Target badge — clickable on pending rows so the rep can reassign a push to
+ *  a different contact or a territory with one click. Color-coded: blue =
+ *  contact, orange = territory, purple = both primaries on a partnership. */
+function TargetBadge({ kind, label, onClick, editable }: {
+  kind: "contact" | "territory" | "partnership";
+  label: string;
+  onClick?: () => void;
+  editable?: boolean;
+}) {
   const styles = kind === "territory"
     ? "bg-nah-orange/10 text-nah-orange border-nah-orange/30"
     : kind === "partnership"
     ? "bg-scout-purple/10 text-scout-purple border-scout-purple/30"
     : "bg-nah-blue/10 text-nah-blue border-nah-blue/30";
   const prefix = kind === "territory" ? "→ Territory" : kind === "partnership" ? "→ Partnership" : "→ Contact";
+  const interactive = editable ? "cursor-pointer hover:opacity-80" : "";
+  const suffix = editable ? " ▾" : "";
   return (
-    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border flex-shrink-0 font-medium ${styles}`}>
-      {prefix}: {label}
+    <span
+      onClick={onClick}
+      className={`text-[10px] px-1.5 py-0.5 rounded-full border flex-shrink-0 font-medium ${styles} ${interactive}`}
+    >
+      {prefix}: {label}{suffix}
     </span>
   );
 }
@@ -58,14 +68,22 @@ interface TerritoryOption { ms_slug: string; territory_name: string }
 
 interface CallDataFieldProps {
   extraction: ExtractionData;
+  /** Real journey co-primaries on this call (Kevin + Kylie style). When length
+   *  >= 2 the "Both primaries" option shows. Empty on plain group calls. */
   partnerOptions?: PartnerOption[];
   linkedContacts?: { id: string | null; name: string }[];
   callTerritories?: TerritoryOption[];
   onAction: () => void;
 }
 
-/** For the segmented picker: one entry per single partner + a "Both" entry. */
-type TargetPick = { kind: "single"; contactId: string; label: string } | { kind: "both"; label: string };
+/** Unified target model. A row is always pushed to ONE of three things:
+ *  - a specific contact (most contact-fields)
+ *  - a specific territory (operations/market data)
+ *  - both journey primaries (only when it's a real partnership journey) */
+type TargetPick =
+  | { kind: "contact"; contactId: string; label: string }
+  | { kind: "territory"; territorySlug: string; label: string }
+  | { kind: "both"; label: string };
 
 const FIELD_LABELS: Record<string, string> = {
   employment_status: "Employment Status",
@@ -113,23 +131,40 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
       ?? null
     : null;
 
-  // Partnership picker state — only shown on contact-category rows when the
-  // call's journey has 2+ partners (Kevin + Kylie, spouses, etc).
-  const isContactField = extraction.field_category.startsWith("contact");
-  const showPartnerPicker = isContactField && (partnerOptions?.length ?? 0) >= 2;
+  // Picker options: every contact + every territory on the call. Always
+  // editable so the rep can move a row that Scout mis-routed (e.g. move Brett-
+  // the-employee's operations comment from "Brett contact" to "Brian's
+  // territory"). Partnership "Both" only surfaces when partnerOptions is a
+  // real journey partnership (2+ co_primaries on the same journey).
+  const contactChoices = (linkedContacts ?? [])
+    .filter((c): c is { id: string; name: string } => !!c.id)
+    .filter((c, i, arr) => arr.findIndex((x) => x.id === c.id) === i);
+  const territoryChoices = callTerritories ?? [];
+  const hasPartnership = (partnerOptions?.length ?? 0) >= 2;
+
   const initialPick: TargetPick = (() => {
-    if (extraction.target_scope === "both") return { kind: "both", label: "Both" };
-    if (extraction.contact_id) {
-      const match = partnerOptions?.find((p) => p.id === extraction.contact_id);
-      if (match) return { kind: "single", contactId: match.id, label: match.name };
+    if (extraction.target_scope === "both" && hasPartnership) {
+      return { kind: "both", label: "Both primaries" };
     }
-    // Default fallback: Scout didn't pick (or picked someone off-journey) —
-    // use the first partner so the row still has a concrete target.
-    const first = partnerOptions?.[0];
-    if (first) return { kind: "single", contactId: first.id, label: first.name };
-    return { kind: "both", label: "Both" };
+    if (extraction.territory_ms_slug) {
+      const t = territoryChoices.find((t) => t.ms_slug === extraction.territory_ms_slug);
+      if (t) return { kind: "territory", territorySlug: t.ms_slug, label: t.territory_name };
+    }
+    if (extraction.contact_id) {
+      const c = contactChoices.find((c) => c.id === extraction.contact_id);
+      if (c) return { kind: "contact", contactId: c.id, label: c.name };
+    }
+    // Scout didn't route — default by field category.
+    if (isTerritoryField && territoryChoices[0]) {
+      return { kind: "territory", territorySlug: territoryChoices[0].ms_slug, label: territoryChoices[0].territory_name };
+    }
+    if (contactChoices[0]) {
+      return { kind: "contact", contactId: contactChoices[0].id, label: contactChoices[0].name };
+    }
+    return { kind: "contact", contactId: extraction.contact_id ?? "", label: "Unassigned" };
   })();
   const [pick, setPick] = useState<TargetPick>(initialPick);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   // Done state
   if (isDone) {
@@ -198,9 +233,16 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
     setLoading("push");
     try {
       const body: Record<string, unknown> = {};
-      if (showPartnerPicker) {
-        body.target_scope = pick.kind;
-        if (pick.kind === "single") body.target_contact_id = pick.contactId;
+      if (pick.kind === "contact") {
+        body.target_type = "contact";
+        body.target_contact_id = pick.contactId;
+        body.target_scope = "single";
+      } else if (pick.kind === "territory") {
+        body.target_type = "territory";
+        body.target_territory_slug = pick.territorySlug;
+      } else {
+        body.target_type = "contact";
+        body.target_scope = "both";
       }
       const res = await fetch(`/api/calls/${extraction.call_id}/data/${extraction.id}/save`, {
         method: "POST",
@@ -260,18 +302,11 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
     setAiLoading(false);
   }
 
-  // Target label shown in the top-row badge. Partnership rows use a neutral
-  // "Partnership" badge; the segmented picker below makes the actual choice.
-  const targetLabel = isTerritoryField
-    ? (territoryName ?? "Unassigned")
-    : showPartnerPicker
-    ? "pick below"
-    : (contactName ?? "Unassigned");
-  const targetKind: "contact" | "territory" | "partnership" = isTerritoryField
-    ? "territory"
-    : showPartnerPicker
-    ? "partnership"
-    : "contact";
+  // Target label reflects the current pick. Badge is clickable and opens the
+  // unified picker (contacts + territories + optional "Both primaries").
+  const targetKind: "contact" | "territory" | "partnership" =
+    pick.kind === "territory" ? "territory" : pick.kind === "both" ? "partnership" : "contact";
+  const targetLabel = pick.label;
 
   // Pending state — with Push/Edit/Skip
   return (
@@ -281,7 +316,14 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-caption text-text-tertiary capitalize">{label}</p>
             {!editing && <ConfidenceBadge confidence={extraction.confidence} />}
-            {!editing && <TargetBadge kind={targetKind} label={targetLabel} />}
+            {!editing && (
+              <TargetBadge
+                kind={targetKind}
+                label={targetLabel}
+                editable
+                onClick={() => setPickerOpen((v) => !v)}
+              />
+            )}
           </div>
           {editing ? (
             <div className="mt-1 space-y-2">
@@ -332,44 +374,81 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
 
       </div>
 
-      {/* Partner target picker — shown only on contact fields for partnership journeys */}
-      {!editing && showPartnerPicker && partnerOptions && (
-        <div className="flex items-center gap-1 mt-2">
-          <span className="text-[10px] uppercase tracking-wider text-text-tertiary mr-1">Save to:</span>
-          {partnerOptions.map((p) => {
-            const selected = pick.kind === "single" && pick.contactId === p.id;
-            return (
+      {/* Unified target picker — dropdown with every contact + every territory
+          on the call, plus "Both primaries" when the journey is a real
+          partnership (Kevin + Kylie). Rep can move any row freely. */}
+      {!editing && pickerOpen && (
+        <div className="mt-2 bg-white border border-border-default rounded-md p-2 space-y-1 shadow-sm">
+          {contactChoices.length > 0 && (
+            <>
+              <div className="text-[9px] font-semibold uppercase tracking-wider text-text-tertiary px-1 pb-0.5">Contacts</div>
+              <div className="flex flex-wrap gap-1">
+                {contactChoices.map((c) => {
+                  const selected = pick.kind === "contact" && pick.contactId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => { setPick({ kind: "contact", contactId: c.id, label: c.name }); setPickerOpen(false); }}
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
+                        selected ? "bg-nah-blue text-white" : "bg-nah-blue/10 text-nah-blue hover:bg-nah-blue/20"
+                      }`}
+                    >
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+          {territoryChoices.length > 0 && (
+            <>
+              <div className="text-[9px] font-semibold uppercase tracking-wider text-text-tertiary px-1 pt-1 pb-0.5">Territories</div>
+              <div className="flex flex-wrap gap-1">
+                {territoryChoices.map((t) => {
+                  const selected = pick.kind === "territory" && pick.territorySlug === t.ms_slug;
+                  return (
+                    <button
+                      key={t.ms_slug}
+                      onClick={() => { setPick({ kind: "territory", territorySlug: t.ms_slug, label: t.territory_name }); setPickerOpen(false); }}
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
+                        selected ? "bg-nah-orange text-white" : "bg-nah-orange/10 text-nah-orange hover:bg-nah-orange/20"
+                      }`}
+                    >
+                      {t.territory_name}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+          {hasPartnership && (
+            <>
+              <div className="text-[9px] font-semibold uppercase tracking-wider text-text-tertiary px-1 pt-1 pb-0.5">Partnership</div>
               <button
-                key={p.id}
-                onClick={() => setPick({ kind: "single", contactId: p.id, label: p.name })}
-                className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
-                  selected
-                    ? "bg-nah-blue text-white"
-                    : "bg-bg-tertiary text-text-tertiary hover:bg-nah-blue/10 hover:text-nah-blue"
+                onClick={() => { setPick({ kind: "both", label: "Both primaries" }); setPickerOpen(false); }}
+                className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors flex items-center gap-1 ${
+                  pick.kind === "both" ? "bg-scout-purple text-white" : "bg-scout-purple/10 text-scout-purple hover:bg-scout-purple/20"
                 }`}
               >
-                {p.name.split(" ")[0]}
+                <Users size={9} /> Both primaries
               </button>
-            );
-          })}
-          <button
-            onClick={() => setPick({ kind: "both", label: "Both" })}
-            className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors flex items-center gap-1 ${
-              pick.kind === "both"
-                ? "bg-nah-blue text-white"
-                : "bg-bg-tertiary text-text-tertiary hover:bg-nah-blue/10 hover:text-nah-blue"
-            }`}
-          >
-            <Users size={9} /> Both
-          </button>
+            </>
+          )}
         </div>
       )}
 
       {/* Action buttons — only when not editing */}
       {!editing && (
         <div className="flex items-center gap-2 mt-1.5 ml-0">
-          <button onClick={() => void handlePush()} disabled={loading !== null || (!showPartnerPicker && !extraction.contact_id)}
-            className="btn-primary px-3 py-1 text-caption flex items-center gap-1">
+          <button
+            onClick={() => void handlePush()}
+            disabled={
+              loading !== null ||
+              (pick.kind === "contact" && !pick.contactId) ||
+              (pick.kind === "territory" && !pick.territorySlug)
+            }
+            className="btn-primary px-3 py-1 text-caption flex items-center gap-1"
+          >
             {loading === "push" ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
             Push to Profile
           </button>

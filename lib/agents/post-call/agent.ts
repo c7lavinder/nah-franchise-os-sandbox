@@ -81,11 +81,26 @@ export async function runPostCallAgent(callId: string): Promise<{
     console.warn(`[post-call-agent] callId=${callId} summary exists but extractions missing — running extraction only`);
   }
 
+  // Skip per-contact/territory extraction on large-group + internal calls.
+  // On a cohort call with 10+ franchisees, attributing every data point to
+  // specific people is noisy and low-value — the KB intelligence run captures
+  // the useful signal (process changes, objections, best practices). Small
+  // group calls (2–5 externals) still run extraction so group coaching calls
+  // produce per-contact/territory data.
+  const externalCount = context.contactNames.length;
+  const isLargeGroupOrInternal =
+    context.callTypeSlug === "internal"
+    || context.callTypeSlug === "team_call"
+    || ((context.callTypeSlug === "group_call" || context.callTypeSlug === "cohort_call") && externalCount >= 6);
+  if (isLargeGroupOrInternal) {
+    console.warn(`[post-call-agent] callId=${callId} type=${context.callTypeSlug} externals=${externalCount} — skipping per-contact extraction`);
+  }
+
   const [summaryRes, coachingRes, actionsRes, extractionsRes, kbRes] = await Promise.allSettled([
     extractionOnly ? Promise.resolve(null) : runSummary(context, MODELS.summary),
     extractionOnly ? Promise.resolve(null) : runCoaching(context, MODELS.coaching),
     extractionOnly ? Promise.resolve(null) : runNextSteps(context, MODELS.nextSteps),
-    runExtraction(context, MODELS.extraction),
+    isLargeGroupOrInternal ? Promise.resolve(null) : runExtraction(context, MODELS.extraction),
     extractionOnly ? Promise.resolve(null) : runKBIntelligence(context, MODELS.kbIntelligence),
   ]);
 

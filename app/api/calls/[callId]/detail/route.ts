@@ -131,6 +131,40 @@ export async function GET(
     };
   });
 
+  // "Partnership partners" — only populated when a journey on this call has
+  // 2+ active primaries/co_primaries (Kevin + Kylie Kremer style). Used by the
+  // Data tab to show a "Both primaries" option. Empty on group calls where
+  // multiple attendees are on SEPARATE journeys (e.g. Brett + Michael).
+  const partnershipPartners: { id: string; name: string }[] = [];
+  const journeyIdsOnCall = Array.from(callJourneysByJourney.keys());
+  if (journeyIdsOnCall.length > 0) {
+    const { data: primariesRows } = await supabase
+      .from("journey_contacts")
+      .select("journey_id, contact_id, role, contacts ( first_name, last_name )")
+      .in("journey_id", journeyIdsOnCall)
+      .is("left_at", null)
+      .in("role", ["primary", "co_primary"]);
+    const byJourney = new Map<string, { id: string; name: string }[]>();
+    for (const r of primariesRows ?? []) {
+      if (!r.contact_id) continue;
+      const c = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
+      const first = (c as { first_name: string } | null)?.first_name ?? "";
+      const last = (c as { last_name: string } | null)?.last_name ?? "";
+      const name = `${first} ${last}`.trim();
+      if (!name) continue;
+      const list = byJourney.get(r.journey_id) ?? [];
+      list.push({ id: r.contact_id, name });
+      byJourney.set(r.journey_id, list);
+    }
+    for (const [, members] of byJourney) {
+      if (members.length >= 2) {
+        for (const m of members) {
+          if (!partnershipPartners.some((p) => p.id === m.id)) partnershipPartners.push(m);
+        }
+      }
+    }
+  }
+
   let coachName = null;
   if (call.coach_user_id) {
     const { data: cu } = await supabase.from("users").select("full_name").eq("id", call.coach_user_id).single();
@@ -359,7 +393,7 @@ export async function GET(
   const contactPhone = primaryContactPhone ?? linkedContacts[0]?.phone ?? null;
 
   return NextResponse.json({
-    call: { ...call, contactName, contactEmail, contactPhone, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, linkedContacts, unknownParticipants, rawParticipants, callTerritories, callJourneys },
+    call: { ...call, contactName, contactEmail, contactPhone, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, linkedContacts, unknownParticipants, rawParticipants, callTerritories, callJourneys, partnershipPartners },
     transcript: transcriptText,
     transcriptSource: transcript?.source ?? (call.raw_transcript ? "read_ai" : null),
     grade,

@@ -94,6 +94,14 @@ ${partnershipBlock}
 12. For coaching calls: extract EVERY metric discussed — deals in pipeline, houses purchased, profit numbers, timeline, contractor issues, lead counts.
 13. Extract relationship data: who referred whom, who knows whom, family members on the call.
 
+## CONTACT-vs-TERRITORY ROUTING (critical)
+Data points live on EITHER a contact OR a territory — never a journey.
+Pick the field_category that matches WHERE the fact belongs, not who said it:
+- **Operations talk = TERRITORY.** Deals in pipeline, offers sent, houses closed, rehab timelines, contractor availability, lead flow, marketing performance, permit processes, zoning quirks, local market metrics → field_category "territory" / "territory_market" / "business_financials" / "business_health" / "territory_eos". Set target_territory to the specific territory.
+- **Personal facts about a human = CONTACT.** Employment, background, skills, family, hobbies, personality, motivation, capital, timeline, decision style → field_category "contact" / "contact_eos". Set target_contact_name.
+- **Employees / non-owner participants speak for a territory, not for themselves.** When a franchisee's employee or contractor describes how operations run, those facts belong to the OWNER's TERRITORY — not the employee's contact. Only route to the employee's contact for strictly personal facts (their role, their background, their hobbies).
+- When in doubt between a contact field and a territory field, and the speaker is a franchisee discussing their own business, prefer TERRITORY.
+
 ## CONTACT FIELDS (field_category: "contact")
 Extract any of these that are mentioned or can be inferred:
 

@@ -52,6 +52,8 @@ interface CallJourneyRef {
   is_primary: boolean;
 }
 
+interface PartnershipPartner { id: string; name: string }
+
 interface CallDetail {
   id: string;
   contactName: string | null;
@@ -90,6 +92,7 @@ interface CallDetail {
   rawParticipants: RawParticipant[];
   callTerritories: CallTerritoryRef[];
   callJourneys: CallJourneyRef[];
+  partnershipPartners: PartnershipPartner[];
 }
 
 interface ActionItem {
@@ -491,20 +494,14 @@ function getPlatformLabel(source: string | null): string {
  * are NOT included — they were invited but aren't speaking.
  */
 /**
- * Build the partner list used by the action-item reassign dropdown. When a
- * call is mapped to 2+ contacts who both sit on the same journey (e.g. a
- * Kevin + Kylie Kremer partnership), each action row becomes reassignable
- * between them with one click.
+ * Partner options for the action-item reassign dropdown and the Data tab's
+ * "Both primaries" option. A "partnership" = 2+ active primaries/co_primaries
+ * on the SAME journey (Kevin + Kylie Kremer). Group calls with multiple
+ * attendees on SEPARATE journeys (Brett + Michael + Nicki) return [] so the
+ * UI doesn't falsely offer "Both."
  */
 function buildPartnerOptions(call: CallDetail): { id: string; name: string }[] {
-  const seen = new Set<string>();
-  const out: { id: string; name: string }[] = [];
-  for (const c of call.linkedContacts ?? []) {
-    if (!c.id || !c.linked || seen.has(c.id)) continue;
-    seen.add(c.id);
-    out.push({ id: c.id, name: c.name });
-  }
-  return out;
+  return (call.partnershipPartners ?? []).map((p) => ({ id: p.id, name: p.name }));
 }
 
 function buildSpeakerNames(call: CallDetail): string[] {
