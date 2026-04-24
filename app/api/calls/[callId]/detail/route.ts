@@ -190,23 +190,60 @@ export async function GET(
       return { id: p.user_id ?? "", name: u?.name ?? p.display_name ?? "Unknown", email: u?.email ?? p.email ?? "" };
     });
 
-  const linkedContacts = (participants ?? [])
-    .filter((p) => p.role === "prospect" || p.role === "franchisee")
-    .map((p) => {
-      const c = p.contact_id ? contactMap.get(p.contact_id) : null;
-      return {
+  // One pill per contact — multiple participant rows sharing a contact_id
+  // (e.g., Brett invited via both his personal and his NAH email) collapse
+  // into a single card. Unmapped rows (no contact_id) dedupe by email.
+  const linkedContacts: Array<{
+    id: string | null;
+    name: string;
+    email: string;
+    phone: string;
+    role: string;
+    linked: boolean;
+  }> = [];
+  const seenContactIds = new Set<string>();
+  const seenUnmappedEmails = new Set<string>();
+  for (const p of participants ?? []) {
+    if (p.role !== "prospect" && p.role !== "franchisee") continue;
+    if (p.contact_id) {
+      if (seenContactIds.has(p.contact_id)) continue;
+      seenContactIds.add(p.contact_id);
+      const c = contactMap.get(p.contact_id);
+      linkedContacts.push({
         id: p.contact_id,
         name: c?.name ?? p.display_name ?? "Unknown",
         email: c?.email ?? p.email ?? "",
         phone: c?.phone ?? "",
         role: p.role,
-        linked: !!p.contact_id,
-      };
-    });
+        linked: true,
+      });
+    } else {
+      const key = (p.email ?? "").toLowerCase();
+      if (key && seenUnmappedEmails.has(key)) continue;
+      if (key) seenUnmappedEmails.add(key);
+      linkedContacts.push({
+        id: null,
+        name: p.display_name ?? "Unknown",
+        email: p.email ?? "",
+        phone: "",
+        role: p.role,
+        linked: false,
+      });
+    }
+  }
 
-  const unknownParticipants = (participants ?? [])
-    .filter((p) => p.role === "unknown")
-    .map((p) => ({ name: p.display_name ?? p.email ?? "Unknown", email: p.email ?? "" }));
+  const unknownParticipants: Array<{ name: string; email: string }> = [];
+  const seenUnknownKeys = new Set<string>();
+  for (const p of participants ?? []) {
+    if (p.role !== "unknown") continue;
+    const key = (p.email ?? p.display_name ?? "").toLowerCase();
+    if (key && seenUnknownKeys.has(key)) continue;
+    if (key) seenUnknownKeys.add(key);
+    unknownParticipants.push({
+      name: p.display_name ?? p.email ?? "Unknown",
+      email: p.email ?? "",
+    });
+  }
 
   // Raw participant rows — used by the mapping UI, needs the row id and the
   // current contact/territory link for each participant.
