@@ -28,6 +28,7 @@ export {
   getCalendarFreeSlots,
   createAppointment,
   getAppointments,
+  getAllAppointments,
   getConversations,
   getConversationMessages,
   markConversationRead,

@@ -190,7 +190,7 @@ async function executeGetSchedule(
   input: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
   try {
-    const appointments = await ghl.getAppointments(
+    const appointments = await ghl.getAllAppointments(
       input.start_date as string,
       input.end_date as string
     );

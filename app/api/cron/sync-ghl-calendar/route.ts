@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { getAppointments } from "@/lib/ghl/client";
+import { getAllAppointments } from "@/lib/ghl/client";
 import { classifyCallType } from "@/lib/calls/classify-type";
 import {
   resolveCallParticipants,
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     const startTime = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
     const endTime = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const events = await getAppointments(startTime, endTime).catch(() => []);
+    const events = await getAllAppointments(startTime, endTime).catch(() => []);
 
     // Pre-fetch lookup data
     const { data: callTypes } = await supabase.from("call_types").select("id, slug");

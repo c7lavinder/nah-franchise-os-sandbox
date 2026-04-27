@@ -532,7 +532,12 @@ export async function getTasks(contactId: string): Promise<GHLTask[]> {
   return data.tasks;
 }
 
-/** Create a new task on a contact */
+/**
+ * Create a new task on a contact.
+ *
+ * GHL's task POST endpoint requires `completed` even on creation — omitting
+ * it returns 422. Default to false so the task starts open.
+ */
 export async function createTask(
   contactId: string,
   task: GHLTaskCreatePayload
@@ -541,7 +546,7 @@ export async function createTask(
     `/contacts/${contactId}/tasks`,
     {
       method: "POST",
-      body: JSON.stringify(task),
+      body: JSON.stringify({ completed: false, ...task }),
     }
   );
   return data.task;
@@ -600,14 +605,17 @@ export async function getCalendarFreeSlots(
 
 /**
  * Create an appointment / calendar event.
- * Per connection map: includes appointmentStatus and assignedUserId.
+ *
+ * GHL v2 expects POST /calendars/events/appointments (not /calendars/events,
+ * which is read-only for listing). Response shape varies — the API returns
+ * the appointment fields directly, sometimes wrapped under `appointment`.
  */
 export async function createAppointment(
   appointment: GHLAppointmentCreatePayload
 ): Promise<GHLAppointment> {
   const locationId = getLocationId();
-  const data = await ghlFetch<{ event: GHLAppointment }>(
-    `/calendars/events`,
+  const data = await ghlFetch<GHLAppointment | { appointment?: GHLAppointment; event?: GHLAppointment }>(
+    `/calendars/events/appointments`,
     {
       method: "POST",
       body: JSON.stringify({
@@ -617,22 +625,76 @@ export async function createAppointment(
       }),
     }
   );
-  return data.event;
+  if ("id" in data && data.id) return data as GHLAppointment;
+  const wrapped = data as { appointment?: GHLAppointment; event?: GHLAppointment };
+  if (wrapped.appointment?.id) return wrapped.appointment;
+  if (wrapped.event?.id) return wrapped.event;
+  throw new Error("createAppointment: unexpected response shape");
 }
 
-/** Get appointments within a time range */
+/**
+ * Get appointments within a time range.
+ *
+ * GHL requires:
+ *  - At least one of userId, calendarId, or groupId (else 422).
+ *  - startTime/endTime as unix millis, NOT ISO strings — passing ISO returns
+ *    HTTP 200 with an empty events array (silent failure).
+ *
+ * Callers that want "everything" must list calendars and merge per-calendar
+ * results (see getAllAppointments).
+ */
 export async function getAppointments(
   startTime: string,
   endTime: string,
-  calendarId?: string
+  filter: { calendarId?: string; userId?: string; groupId?: string } = {},
 ): Promise<GHLAppointment[]> {
   const locationId = getLocationId();
-  let url = `/calendars/events?locationId=${locationId}&startTime=${startTime}&endTime=${endTime}`;
-  if (calendarId) {
-    url += `&calendarId=${calendarId}`;
+  if (!filter.calendarId && !filter.userId && !filter.groupId) {
+    throw new Error("getAppointments requires one of calendarId, userId, or groupId");
   }
-  const data = await ghlFetch<{ events: GHLAppointment[] }>(url);
-  return data.events;
+  const startMs = Date.parse(startTime);
+  const endMs = Date.parse(endTime);
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+    throw new Error("getAppointments: startTime and endTime must be parseable date strings");
+  }
+  const params = new URLSearchParams({
+    locationId,
+    startTime: String(startMs),
+    endTime: String(endMs),
+  });
+  if (filter.calendarId) params.set("calendarId", filter.calendarId);
+  if (filter.userId) params.set("userId", filter.userId);
+  if (filter.groupId) params.set("groupId", filter.groupId);
+  const data = await ghlFetch<{ events: GHLAppointment[] }>(`/calendars/events?${params.toString()}`);
+  return data.events ?? [];
+}
+
+/**
+ * Fetch appointments across every calendar in the location for the given
+ * window. Used by Daily HQ TodayCalendar where we want a unified view.
+ * Dedupes by appointment id (events on shared calendars can show twice).
+ */
+export async function getAllAppointments(
+  startTime: string,
+  endTime: string,
+): Promise<GHLAppointment[]> {
+  const calendars = await getCalendars();
+  const seen = new Map<string, GHLAppointment>();
+  await Promise.all(
+    calendars.map(async (cal) => {
+      try {
+        const events = await getAppointments(startTime, endTime, { calendarId: cal.id });
+        for (const e of events) {
+          if (!seen.has(e.id)) seen.set(e.id, e);
+        }
+      } catch {
+        // Skip calendars we can't read (permission errors etc).
+      }
+    }),
+  );
+  return Array.from(seen.values()).sort(
+    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+  );
 }
 
 // ========================================

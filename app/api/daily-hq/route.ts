@@ -109,7 +109,7 @@ async function fetchUpcoming(): Promise<{ title: string; time: string; contactId
     const now = new Date();
     const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
 
-    const appointments = await ghl.getAppointments(
+    const appointments = await ghl.getAllAppointments(
       now.toISOString(),
       in48h.toISOString()
     );
