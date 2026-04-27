@@ -68,7 +68,8 @@ export default function DailyHQPage() {
         setAppointments(data.upcoming ?? []);
         setTasks(data.tasks ?? []);
       } else {
-        setSidebarError("Failed to load calendar and tasks");
+        const errBody = await res.json().catch(() => ({}));
+        setSidebarError(`Daily HQ ${res.status}: ${errBody.error ?? "unknown error"}`);
       }
     } catch (err) {
       setSidebarError(err instanceof Error ? err.message : "Failed to load calendar and tasks");
