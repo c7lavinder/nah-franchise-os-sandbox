@@ -59,15 +59,15 @@ export async function getAuthUser(authHeader: string | null): Promise<AuthUser |
 }
 
 /**
- * Requires authentication — returns the user or throws a Response error.
- * Use this in API routes: const user = await requireAuth(request);
+ * Requires authentication — returns the AuthUser or a 401 Response.
+ * Callers must check: if (user instanceof Response) return user;
  */
-export async function requireAuth(request: Request): Promise<AuthUser> {
+export async function requireAuth(request: Request): Promise<AuthUser | Response> {
   const authHeader = request.headers.get("Authorization");
   const user = await getAuthUser(authHeader);
 
   if (!user) {
-    throw new Response(JSON.stringify({ error: "Unauthorized" }), {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
     });

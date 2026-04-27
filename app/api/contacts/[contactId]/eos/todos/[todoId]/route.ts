@@ -9,7 +9,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ contactId: string; todoId: string }> }
 ) {
-  await requireAuth(request);
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const { todoId } = await params;
   const supabase = createServerClient();
   const body = await request.json() as {
@@ -37,7 +37,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ contactId: string; todoId: string }> }
 ) {
-  await requireAuth(request);
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const { todoId } = await params;
   const supabase = createServerClient();
 

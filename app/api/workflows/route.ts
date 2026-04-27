@@ -11,7 +11,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import type { WorkflowStatus, WorkflowInsert } from "@/lib/workflows/types";
 
 export async function GET(request: NextRequest) {
-  await requireAuth(request);
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const supabase = createServerClient();
     const { searchParams } = new URL(request.url);
@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const supabase = createServerClient();
     const body = await request.json();

@@ -11,6 +11,7 @@ import { createServerClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   if (user.role !== "admin") {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 });
   }

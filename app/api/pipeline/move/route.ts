@@ -141,6 +141,7 @@ async function validateMove(
 
 export async function PUT(request: NextRequest) {
   const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const body = (await request.json()) as MoveRequestBody;
 

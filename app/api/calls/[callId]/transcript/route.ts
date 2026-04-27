@@ -22,7 +22,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ callId: string }> }
 ) {
-  await requireAuth(request);
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const { callId } = await params;
   const body = await request.json() as TranscriptBody;
   const supabase = createServerClient();

@@ -10,7 +10,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ contactId: string }> }
 ) {
-  await requireAuth(request);
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const { contactId: rawId } = await params;
   const supabase = createServerClient();
   const localId = await resolveContactId(rawId);

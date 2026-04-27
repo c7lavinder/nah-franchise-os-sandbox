@@ -6,6 +6,7 @@ import { createServerClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   if (user.role !== "admin") {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 });
   }
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
 /** PATCH — update a user's editable fields */
 export async function PATCH(request: NextRequest) {
   const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   if (user.role !== "admin") {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 });
   }

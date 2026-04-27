@@ -74,7 +74,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ journeyId: string }> }
 ) {
-  await requireAuth(request);
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const { journeyId: rawId } = await params;
     const body = (await request.json()) as {

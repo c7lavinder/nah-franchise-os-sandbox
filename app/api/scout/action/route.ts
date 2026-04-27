@@ -87,6 +87,7 @@ interface ActionRequestBody {
 
 export async function POST(request: NextRequest) {
   const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const body = (await request.json()) as ActionRequestBody;
 

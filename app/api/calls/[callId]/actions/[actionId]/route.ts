@@ -32,7 +32,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ callId: string; actionId: string }> }
 ) {
-  await requireAuth(request);
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const { callId, actionId } = await params;
   const body = (await request.json()) as PatchBody;
   const supabase = createServerClient();

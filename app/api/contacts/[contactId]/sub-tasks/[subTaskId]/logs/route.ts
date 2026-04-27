@@ -31,7 +31,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ contactId: string; subTaskId: string }> }
 ) {
-  await requireAuth(request);
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const { contactId: rawContactId, subTaskId } = await params;
     const body = (await request.json()) as LogBody;

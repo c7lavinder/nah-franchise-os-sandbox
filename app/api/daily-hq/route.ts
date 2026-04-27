@@ -19,6 +19,7 @@ import type { InactivityAlert } from "@/types/database";
 
 export async function GET(request: NextRequest) {
   const user = await requireAuth(request);
+  if (user instanceof Response) return user;
 
   // Admin "view as" pattern: admins can pass ?targetUserId=X to see another
   // user's daily HQ. Non-admins always see their own data (param is ignored).

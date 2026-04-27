@@ -21,7 +21,7 @@ import {
 import { upsertCallJunctions } from "@/lib/calls/processors/upsert-call-junctions";
 
 export async function POST(request: NextRequest) {
-  await requireAuth(request);
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
 
   const body = await request.json();
