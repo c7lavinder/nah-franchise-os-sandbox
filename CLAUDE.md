@@ -141,6 +141,27 @@ It is our shared GHL knowledge base — verified API patterns, webhook payloads,
 
 ---
 
+## Auth Pattern — Tier 0b (in progress)
+
+All API routes are being retrofitted with `requireAuth` (see `docs/AUTH_AUDIT.md`).
+
+**Pattern for new routes:**
+```ts
+import { requireAuth } from "@/lib/auth";
+
+export async function POST(request: NextRequest) {
+  const user = await requireAuth(request);
+  // user.id, user.role, user.fullName, user.ghlUserId available
+  // ...
+}
+```
+
+**Critical rule:** `requireAuth` throws a Response on 401. Place it BEFORE any try/catch block, not inside one — otherwise the catch swallows the 401 and returns 500.
+
+**Frontend pattern:** Use `apiFetch` from `@/lib/auth/api-fetch` instead of `fetch` for all `/api/*` calls. It auto-attaches the JWT from localStorage.
+
+---
+
 ## Scout Tools — Workflow Intelligence
 
 In addition to the core tools (get_contact, search_contacts, get_pipeline, draft_message, draft_task, draft_stage_move, get_schedule, search_knowledge), Scout has workflow-specific tools:
