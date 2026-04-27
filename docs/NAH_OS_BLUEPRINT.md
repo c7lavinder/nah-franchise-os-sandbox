@@ -444,7 +444,7 @@ After Tier 0 + Sessions A/B/C land, this is the work order:
 ## 18. Status tracker (update as we go)
 
 ### Tier 0
-- [ ] **0a — git-guardrails install** — prompt ready, awaiting execution
+- [x] **0a — git-guardrails install** — done 2026-04-27, merged to main (Session 9)
 - [ ] **0b — Auth retrofit** — prompt ready
 - [ ] **0c — Data privacy audit** — prompt ready
 
@@ -475,6 +475,13 @@ After Tier 0 + Sessions A/B/C land, this is the work order:
 - ✅ 5 slash commands, 7 custom skills, 2 custom agents, 3 hooks
 - ✅ Engineering baseline: typed Supabase, CI on PR, smoke tests on critical paths
 - ✅ Drift prevention: front matter + 3 commands + auto-regen handoff
+- ✅ **Tier 0a hook (installed 2026-04-27):** hard-block PreToolUse hook for `git push`, `reset --hard`, `clean -fd`, `branch -D`, `checkout .`, `restore .` — `exit 2`, no approval prompt
+- ✅ **Session B permissions architecture (locked, not yet built):**
+  - Hard block (Tier 0a hook): force push, reset --hard, clean -fd, branch -D, rm -rf
+  - Ask via `permissions.ask`: regular git push, npm install of new deps
+  - Auto-allow via `permissions.allow`: status, log, diff, add, commit
+  - Tier 0a hook is the "hard block" piece of this larger architecture
+- ✅ **Solo-operator workflow (standing rule):** feature branch → push → merge to main → delete branch → wrap session. No PR review until CI gates land in Session B.
 
 ### Open questions / parking lot
 - 🟡 Vonage scope if revisited later — replace GHL messaging or supplement for call recording
