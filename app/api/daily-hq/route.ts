@@ -12,16 +12,18 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import type { InactivityAlert } from "@/types/database";
 
 export async function GET(request: NextRequest) {
-  const userId = request.nextUrl.searchParams.get("userId");
+  const user = await requireAuth(request);
 
-  if (!userId) {
-    return NextResponse.json({ error: "Missing userId" }, { status: 400 });
-  }
+  // Admin "view as" pattern: admins can pass ?targetUserId=X to see another
+  // user's daily HQ. Non-admins always see their own data (param is ignored).
+  const targetParam = request.nextUrl.searchParams.get("targetUserId");
+  const userId = (user.role === "admin" && targetParam) ? targetParam : user.id;
 
   // Fetch all data in parallel for speed
   const [alertsResult, pipelineResult, appointmentsResult, scorecardResult, tasksResult] =

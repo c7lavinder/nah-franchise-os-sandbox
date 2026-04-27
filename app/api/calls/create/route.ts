@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { classifyCallType } from "@/lib/calls/classify-type";
 import { resolveCallTypeBySlug } from "@/lib/calls/resolve-call-type";
@@ -20,6 +21,7 @@ import {
 import { upsertCallJunctions } from "@/lib/calls/processors/upsert-call-junctions";
 
 export async function POST(request: NextRequest) {
+  await requireAuth(request);
   const supabase = createServerClient();
 
   const body = await request.json();

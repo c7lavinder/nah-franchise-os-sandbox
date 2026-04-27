@@ -9,10 +9,10 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { runConversationTurn } from "@/lib/scout";
 import { loadUserMemory, mergeUserMemory } from "@/lib/scout/memory";
 import { createServerClient } from "@/lib/supabase/server";
-import type { UserRole } from "@/types/database";
 import type Anthropic from "@anthropic-ai/sdk";
 
 interface ChatRequestBody {
@@ -20,9 +20,6 @@ interface ChatRequestBody {
   sessionId: string | null;
   /** Existing conversation messages to continue from */
   history: Anthropic.Messages.MessageParam[];
-  userId: string;
-  userRole: UserRole;
-  userName: string;
   /** Page context for context-aware KB loading */
   pageContext?: {
     page: string;
@@ -34,12 +31,13 @@ interface ChatRequestBody {
 }
 
 export async function POST(request: NextRequest) {
+  const user = await requireAuth(request);
   try {
     const body = (await request.json()) as ChatRequestBody;
 
-    if (!body.message || !body.userId) {
+    if (!body.message) {
       return NextResponse.json(
-        { error: "Missing required fields: message, userId" },
+        { error: "Missing required field: message" },
         { status: 400 }
       );
     }
@@ -53,9 +51,9 @@ export async function POST(request: NextRequest) {
     // Run the full conversation turn with tool-call loop
     const result = await runConversationTurn({
       messages,
-      userId: body.userId,
-      userRole: body.userRole ?? "rep",
-      userName: body.userName ?? "User",
+      userId: user.id,
+      userRole: user.role,
+      userName: user.fullName,
       pageContext: body.pageContext,
     });
 
@@ -78,7 +76,7 @@ export async function POST(request: NextRequest) {
         const { data: newSession } = await supabase
           .from("sessions")
           .insert({
-            user_id: body.userId,
+            user_id: user.id,
             conversation_history: result.updatedMessages as unknown as Record<string, unknown>[],
             is_active: true,
           })
@@ -97,7 +95,7 @@ export async function POST(request: NextRequest) {
       try {
         const supabase = createServerClient();
         await supabase.from("scout_action_logs").insert({
-          user_id: body.userId,
+          user_id: user.id,
           session_id: sessionId ?? "00000000-0000-0000-0000-000000000000",
           action_type: result.draftedAction.type,
           action_status: "drafted",
@@ -113,10 +111,10 @@ export async function POST(request: NextRequest) {
     // Fire-and-forget: never blocks the response, never breaks the chat.
     const memoryMergePromise = (async () => {
       try {
-        const existingMemory = await loadUserMemory(body.userId);
+        const existingMemory = await loadUserMemory(user.id);
         await mergeUserMemory({
-          userId: body.userId,
-          userName: body.userName ?? "User",
+          userId: user.id,
+          userName: user.fullName,
           existingMemory,
           userMessage: body.message,
           assistantResponse: result.responseText,

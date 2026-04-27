@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 
 /** PUT — update a territory todo */
@@ -8,6 +9,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ msSlug: string; todoId: string }> }
 ) {
+  await requireAuth(request);
   const { todoId } = await params;
   const supabase = createServerClient();
   const body = await request.json() as {
@@ -32,9 +34,10 @@ export async function PUT(
 
 /** DELETE — remove a territory todo */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ msSlug: string; todoId: string }> }
 ) {
+  await requireAuth(request);
   const { todoId } = await params;
   const supabase = createServerClient();
 

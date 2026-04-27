@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { executeGHLAction } from "@/lib/ghl/actions/executor";
 import type { GHLActionCode } from "@/lib/ghl/permissions";
@@ -31,6 +32,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ callId: string; actionId: string }> }
 ) {
+  await requireAuth(request);
   const { callId, actionId } = await params;
   const body = (await request.json()) as PatchBody;
   const supabase = createServerClient();

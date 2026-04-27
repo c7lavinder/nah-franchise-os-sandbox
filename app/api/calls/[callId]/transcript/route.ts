@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { transcribeAudio } from "@/lib/calls/whisper";
 
@@ -21,6 +22,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ callId: string }> }
 ) {
+  await requireAuth(request);
   const { callId } = await params;
   const body = await request.json() as TranscriptBody;
   const supabase = createServerClient();

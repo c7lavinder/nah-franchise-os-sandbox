@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import {
@@ -85,12 +86,13 @@ interface ActionRequestBody {
 }
 
 export async function POST(request: NextRequest) {
+  const user = await requireAuth(request);
   try {
     const body = (await request.json()) as ActionRequestBody;
 
-    if (!body.action || !body.userId) {
+    if (!body.action) {
       return NextResponse.json(
-        { error: "Missing required fields: action, userId" },
+        { error: "Missing required field: action" },
         { status: 400 }
       );
     }
@@ -395,7 +397,7 @@ export async function POST(request: NextRequest) {
       const now = new Date().toISOString();
 
       await supabase.from("scout_action_logs").insert({
-        user_id: body.userId,
+        user_id: user.id,
         session_id: body.sessionId,
         action_type: action.type,
         action_status: errorMessage ? "failed" : "executed",

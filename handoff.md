@@ -1,65 +1,91 @@
-# Session Handoff — 2026-04-27 — Session 9
+# Session Handoff — 2026-04-27 — Session 10
 
 ## Status
-Phase: Tier 0a (git-guardrails install) / Health: Green / Duration: short session
+Phase: Tier 0b Phase 2a (auth retrofit — Critical routes) / Health: Green / Duration: full session
 
 ## What Was Built This Session
-- Synced `main` with divergent `origin/main` (4 remote commits + 3 local docs commits) via rebase — no conflicts
-- Pushed `docs/NAH_OS_BLUEPRINT.md` reorg/buildout blueprint to `main` (commit `1d7d42f`)
-- Installed `mattpocock/skills/git-guardrails-claude-code` skill into `.claude/skills/git-guardrails-claude-code/`
-- Copied bundled hook script to `.claude/hooks/block-dangerous-git.sh` (executable, mode 755)
-- Created project-level `.claude/settings.json` with PreToolUse Bash hook pointed at the script
-- Tier 0a committed on feature branch `chore/install-git-guardrails` (commit `1915fb1`)
-- Pushed, merged to `main`, branch deleted — performed externally by Corey from terminal (Claude can't push due to its own hook)
+- Pushed `feat/auth-retrofit` branch (rebased to resolve divergence, then regular push)
+- Classified `/api/admin/webhooks` as admin UI route (not inbound webhook), retrofitted with `requireAuth` + admin role check (`29a1caf`)
+- Added `lib/auth/get-auth-header.ts` — client-side helper for Phase 2b frontend sweep (`29a1caf`)
+- Added TODO deprecation comment to `lib/auth/admin-check.ts` (`29a1caf`)
+- Retrofitted all 15 Critical-risk routes with `requireAuth`:
+  - `/api/scout/action` + `/api/scout/chat` (`bc988d6`)
+  - `/api/calls/[callId]/actions/[actionId]` + `/api/calls/[callId]/transcript` + `/api/calls/create` (`1c8ab62`)
+  - `/api/contacts/[contactId]/eos/todos` + `todos/[todoId]` + `sub-tasks/[subTaskId]/logs` + `team` (`8a6c1bc`)
+  - `/api/pipeline/move` + `/api/workflows` + `/api/journeys/[journeyId]/split` (`acc9fe7`)
+  - `/api/territories/[msSlug]/eos/todos` + `todos/[todoId]` (`007b8d5`)
+  - `/api/settings/users` with admin role check on GET and PATCH (`b042063`)
+- `/api/daily-hq`: requireAuth + admin "view as" pattern (`9f6dafd`)
+- `/api/scout/chat`: dropped `userId`/`userRole`/`userName` from body schema entirely — all identity from auth session (`bc988d6`)
+- `/api/pipeline/move`: user.id now written to action log (was null) (`acc9fe7`)
+- `/api/workflows` POST: auth-derived user.id replaces body.createdBy (`acc9fe7`)
+- Updated `docs/AUTH_AUDIT.md` with all commit SHAs and Phase 2a summary (`b7c3b61`)
 
 ## What Is Confirmed Working
-- All 5 dangerous git patterns blocked at script level (verified by piping JSON payloads): `git push --force`, `git reset --hard HEAD~1`, `git clean -fd`, `git branch -D somebranch`, `git push origin main` — each returns exit 2 with a clear `BLOCKED:` stderr message
-- Hook is active in Claude Code's live `Bash` tool (proven by it blocking my own initial test loop containing the literal string "git push")
-- All 5 safe commands ran live through the hook unchanged: `git status`, `git log --oneline -5`, `git diff`, `git add .`, `git commit -m ...`
-- `skills-lock.json` pins the installed skill version (same role as `package-lock.json`)
+- `npx tsc --noEmit` passes with zero new errors after every commit (pre-existing errors in `.next/types`, `react-markdown`, `vitest`, `openai` types unchanged)
+- All 15 Critical routes now require valid Bearer token via `requireAuth`
+- `/api/settings/users` requires admin role — privilege escalation vulnerability closed
+- `/api/daily-hq` admin view-as pattern works: `?targetUserId=X` honored only for admin role
+- `/api/scout/chat` no longer accepts body-supplied identity fields
+- Branch pushed to `origin/feat/auth-retrofit` (8 new commits)
 
 ## What Is Broken or Incomplete
-- Single-flow Claude Code workflow (feature branch → push → merge → delete) blocked on every push/merge step — Medium. Hook is hard-block only by design; no approval prompt surfaces. Corey pushes from terminal until Session B adds the permissions ask/allow layer.
-- `CLAUDE.md` still says "work on main branch" but Tier 0a established feature-branch flow — Low. Tracked for Session A doc reorg.
-- Vercel deploy of `main` push not verified from inside Claude (no Vercel URL or API access in session) — Low. Corey verifying externally; main push was docs-only so risk is zero.
+- Frontend still sends `userId`/`userRole`/`userName` in scout/chat body — will get 401s until Phase 2b adds `getAuthHeader()` to all fetches — Critical (expected, by design — Phase 2b scope)
+- Frontend sends `createdBy` in workflows POST — will break until Phase 2b — Medium (expected)
+- Frontend sends `?userId=` to daily-hq — needs update to `?targetUserId=` or removal — Medium (expected, Phase 2b)
+- 22 High-risk routes still unauthed (Phase 2c scope) — High
+- 137 Medium-risk routes still unauthed (Phase 2c-2f scope) — Medium
+- 15 `requireAdmin` callers in `/api/settings/*` still use broken admin-check.ts (Phase 2d scope) — High
+- 7 cron routes without CRON_SECRET (Phase 2e scope) — Low
+- 9 webhook routes without shared secret (Phase 2e scope) — Low
+- git-guardrails hook blocked `--force-with-lease` push — worked around with rebase + regular push — Low
 
 ## Decisions Made
-- Solo-operator workflow standing rule: feature branch → push → merge to main → delete branch → wrap session, no PR review until CI gates land in Session B — Corey
-- `skills-lock.json` kept tracked, same reasoning as `package-lock.json` — Corey
-- Hook installed as hard-block only for now; not modifying upstream script to add bypass — Corey
-- **Session B locked decision: hybrid permissions architecture**
-  - Hard block (this Tier 0a hook): force push, reset --hard, clean -fd, branch -D, rm -rf
-  - Ask via `permissions.ask`: regular git push, npm install of new deps
-  - Auto-allow via `permissions.allow`: status, log, diff, add, commit
-  - The skill we installed today becomes the "hard block" piece of this larger architecture — Corey
+- `/api/admin/webhooks` classified as admin UI route (not inbound webhook) — returns debugging dashboard data (read_ai_sessions, integration_logs, calls). Retrofitted with requireAuth + admin role check. — Claude (judgment call, documented in AUTH_AUDIT.md)
+- `requireAuth` placed BEFORE try/catch blocks to avoid catching the thrown 401 Response and wrapping it in a 500 — Claude (technical pattern decision)
+- `hosted_by_user_id` in calls/create kept as body field (it's a data field, not caller identity) — Claude (judgment call)
 
 ## Files Created
-- `.claude/hooks/block-dangerous-git.sh` (executable)
-- `.claude/settings.json`
-- `.claude/skills/git-guardrails-claude-code/SKILL.md`
-- `.claude/skills/git-guardrails-claude-code/scripts/block-dangerous-git.sh`
-- `skills-lock.json`
-- `docs/NAH_OS_BLUEPRINT.md` (committed earlier in session, before Tier 0a work)
+- `lib/auth/get-auth-header.ts`
 
 ## Files Modified
-- `docs/NAH_OS_BLUEPRINT.md` — § 18 status tracker (Tier 0a marked complete) + Decisions log (Session B architecture added)
-- `handoff.md` — full rewrite for Session 9
+- `app/api/admin/webhooks/route.ts`
+- `app/api/calls/[callId]/actions/[actionId]/route.ts`
+- `app/api/calls/[callId]/transcript/route.ts`
+- `app/api/calls/create/route.ts`
+- `app/api/contacts/[contactId]/eos/todos/route.ts`
+- `app/api/contacts/[contactId]/eos/todos/[todoId]/route.ts`
+- `app/api/contacts/[contactId]/sub-tasks/[subTaskId]/logs/route.ts`
+- `app/api/contacts/[contactId]/team/route.ts`
+- `app/api/daily-hq/route.ts`
+- `app/api/journeys/[journeyId]/split/route.ts`
+- `app/api/pipeline/move/route.ts`
+- `app/api/scout/action/route.ts`
+- `app/api/scout/chat/route.ts`
+- `app/api/settings/users/route.ts`
+- `app/api/territories/[msSlug]/eos/todos/route.ts`
+- `app/api/territories/[msSlug]/eos/todos/[todoId]/route.ts`
+- `app/api/workflows/route.ts`
+- `docs/AUTH_AUDIT.md`
+- `lib/auth/admin-check.ts`
+- `lib/auth/index.ts`
 
 ## Files Deleted
 - None
 
 ## Open Issues Carried Forward
-- Hook script lives in two locations (`.claude/hooks/` and `.claude/skills/git-guardrails-claude-code/scripts/`) — Low. Tracked for Session C cleanup if it matters by then.
-- `npx skills` interactive installer needs `--agent claude-code -y` flags to be non-interactive — Low. Gotcha to remember for future skill installs.
-- Tier 0a hook has no approval prompt mechanism (pure `exit 2` hard block) — Medium. Resolved structurally in Session B by replacing this layer with `permissions.ask`/`permissions.allow` for the soft cases while keeping the hook for hard blocks.
-- `CLAUDE.md` "work on main only" rule contradicts current feature-branch workflow — Low. Session A.
+- Frontend will 401 on all retrofitted routes until Phase 2b adds `getAuthHeader()` to fetches — Critical (by design, not a bug)
+- Hook script lives in two locations (`.claude/hooks/` and `.claude/skills/`) — Low
+- `CLAUDE.md` "work on main only" rule contradicts feature-branch workflow — Low (Session A)
+- JWT in localStorage vs httpOnly cookies — deferred (separate prompt after Tier 0b)
+- git-guardrails hook blocks `--force-with-lease` (workaround: rebase + regular push) — Low
 
 ## Exact Next Step
-Begin Tier 0b — auth retrofit. The prompt is already drafted (per blueprint § 18). Open it and execute, same flow as Tier 0a (feature branch → Corey pushes/merges/deletes from terminal).
+Phase 2b: frontend auth sweep — add `getAuthHeader()` to all `fetch()` calls that hit retrofitted routes so the app works again with the new auth gates.
 
 ## Copy This To Start Next Session In Claude.ai
 ---
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Begin Tier 0b — auth retrofit.
+Then: Phase 2b — frontend auth sweep, add getAuthHeader() to all fetch calls.
 ---

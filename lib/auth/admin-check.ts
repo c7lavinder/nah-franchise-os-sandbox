@@ -1,3 +1,7 @@
+// TODO: DELETE THIS FILE — broken admin check, falls back to body-supplied userId
+// All callers being migrated to requireAuth + role check in Tier 0b Phase 2d
+// See docs/AUTH_AUDIT.md
+
 /**
  * Reusable admin check for settings API routes.
  * Tries Bearer auth first, falls back to userId in body.

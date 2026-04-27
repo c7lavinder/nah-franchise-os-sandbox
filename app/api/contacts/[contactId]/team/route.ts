@@ -7,13 +7,15 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ contactId: string }> }
 ) {
+  await requireAuth(request);
   const { contactId: rawId } = await params;
   const supabase = createServerClient();
   const localId = await resolveContactId(rawId);
@@ -84,6 +86,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ contactId: string }> }
 ) {
+  await requireAuth(request);
   const { contactId: rawId } = await params;
   const supabase = createServerClient();
   const localId = await resolveContactId(rawId);
@@ -104,6 +107,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ contactId: string }> }
 ) {
+  await requireAuth(request);
   const { contactId: rawId } = await params;
   const supabase = createServerClient();
   const localId = await resolveContactId(rawId);

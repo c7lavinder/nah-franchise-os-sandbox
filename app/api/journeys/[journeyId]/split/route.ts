@@ -45,6 +45,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { isUuid, slugifyBase } from "@/lib/journeys/slug";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -73,6 +74,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ journeyId: string }> }
 ) {
+  await requireAuth(request);
   try {
     const { journeyId: rawId } = await params;
     const body = (await request.json()) as {

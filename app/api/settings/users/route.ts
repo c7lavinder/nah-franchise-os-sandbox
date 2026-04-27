@@ -1,9 +1,14 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const user = await requireAuth(request);
+  if (user.role !== "admin") {
+    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  }
   const supabase = createServerClient();
 
   const { data, error } = await supabase
@@ -20,6 +25,10 @@ export async function GET() {
 
 /** PATCH — update a user's editable fields */
 export async function PATCH(request: NextRequest) {
+  const user = await requireAuth(request);
+  if (user.role !== "admin") {
+    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  }
   const supabase = createServerClient();
   const body = await request.json();
   const { id, ...fields } = body as Record<string, unknown>;

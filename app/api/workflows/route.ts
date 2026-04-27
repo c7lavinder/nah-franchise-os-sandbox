@@ -6,10 +6,12 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import type { WorkflowStatus, WorkflowInsert } from "@/lib/workflows/types";
 
 export async function GET(request: NextRequest) {
+  await requireAuth(request);
   try {
     const supabase = createServerClient();
     const { searchParams } = new URL(request.url);
@@ -42,15 +44,16 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const user = await requireAuth(request);
   try {
     const supabase = createServerClient();
     const body = await request.json();
 
-    const { name, description, workflowType, triggerType, triggerConfig, exitConditions, pauseConditions, createdBy } = body;
+    const { name, description, workflowType, triggerType, triggerConfig, exitConditions, pauseConditions } = body;
 
-    if (!name || !workflowType || !triggerType || !createdBy) {
+    if (!name || !workflowType || !triggerType) {
       return NextResponse.json(
-        { error: "name, workflowType, triggerType, and createdBy are required" },
+        { error: "name, workflowType, and triggerType are required" },
         { status: 400 }
       );
     }
@@ -68,7 +71,7 @@ export async function POST(request: NextRequest) {
       current_version_id: null,
       primary_metric_name: null,
       primary_metric_value: null,
-      created_by: createdBy,
+      created_by: user.id,
     };
 
     const { data: workflow, error } = await supabase
@@ -88,7 +91,7 @@ export async function POST(request: NextRequest) {
         workflow_id: workflow.id,
         version_number: 1,
         change_description: "Initial version",
-        created_by: createdBy,
+        created_by: user.id,
       });
 
     if (versionErr) {

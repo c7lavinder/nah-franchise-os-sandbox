@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 import { checkAutoAdvance } from "@/lib/contacts/auto-advance";
@@ -30,6 +31,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ contactId: string; subTaskId: string }> }
 ) {
+  await requireAuth(request);
   try {
     const { contactId: rawContactId, subTaskId } = await params;
     const body = (await request.json()) as LogBody;
