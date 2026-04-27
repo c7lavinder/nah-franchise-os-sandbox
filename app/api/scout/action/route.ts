@@ -26,6 +26,9 @@ import type {
   DraftedEosUpdatePayload,
   DraftedMarketDataUpdatePayload,
   DraftedJourneyActionPayload,
+  DraftedAppointmentPayload,
+  DraftedNotePayload,
+  DraftedTriggerWorkflowPayload,
 } from "@/types/scout";
 
 /** Update engagement tracking fields after an action touches a contact */
@@ -284,8 +287,34 @@ export async function POST(request: NextRequest) {
           break;
         }
         case "appointment": {
-          // Appointment drafts are not yet implemented in Phase 1
-          throw new Error("Appointment creation is coming in a future update");
+          const apptPayload = action.payload as DraftedAppointmentPayload;
+          if (!apptPayload.calendarId) throw new Error("calendarId required");
+          const result = await ghl.createAppointment({
+            calendarId: apptPayload.calendarId,
+            contactId: action.contactId,
+            title: apptPayload.title,
+            startTime: apptPayload.startTime,
+            endTime: apptPayload.endTime,
+            assignedUserId: apptPayload.assignedUserId,
+          });
+          ghlResponse = result as unknown as Record<string, unknown>;
+          break;
+        }
+        case "note": {
+          const notePayload = action.payload as DraftedNotePayload;
+          const result = await ghl.addNote(action.contactId, notePayload.body);
+          ghlResponse = result as unknown as Record<string, unknown>;
+          break;
+        }
+        case "trigger_workflow": {
+          const twPayload = action.payload as DraftedTriggerWorkflowPayload;
+          await ghl.triggerWorkflow(twPayload.workflowId, action.contactId);
+          ghlResponse = {
+            workflowId: twPayload.workflowId,
+            contactId: action.contactId,
+            triggered: true,
+          };
+          break;
         }
         case "journey_action": {
           const jaPayload = action.payload as DraftedJourneyActionPayload;

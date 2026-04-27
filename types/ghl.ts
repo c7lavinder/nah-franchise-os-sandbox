@@ -152,6 +152,26 @@ export interface GHLFreeSlot {
   endTime: string;
 }
 
+/** GHL Calendar (subset of fields the app uses for selection + display). */
+export interface GHLCalendar {
+  id: string;
+  name: string;
+  description?: string;
+  isActive?: boolean;
+  /** Calendar slug used in some GHL integrations */
+  slug?: string;
+  /** Group / team the calendar belongs to */
+  groupId?: string;
+  /** Default appointment duration in minutes */
+  slotDuration?: number;
+  /** Time zone the calendar runs on (e.g. "America/New_York") */
+  timezone?: string;
+  /** Calendar type — round_robin, class_booking, service, event, etc. */
+  calendarType?: string;
+  /** Assigned user IDs — if present, indicates whose calendar this is */
+  teamMembers?: { userId: string }[];
+}
+
 /** GHL Conversation (returned by search, contains conversationId) */
 export interface GHLConversation {
   id: string;

@@ -22,7 +22,10 @@ export type ScoutToolName =
   | "draft_profile_update"
   | "draft_eos_update"
   | "draft_market_data_update"
-  | "draft_journey_action";
+  | "draft_journey_action"
+  | "draft_appointment"
+  | "draft_note"
+  | "draft_trigger_workflow";
 
 /** Chat message role */
 export type ChatRole = "user" | "assistant";
@@ -46,7 +49,9 @@ export type DraftedActionType =
   | "profile_update"
   | "eos_update"
   | "market_data_update"
-  | "journey_action";
+  | "journey_action"
+  | "note"
+  | "trigger_workflow";
 
 /** Status of a drafted action in the UI */
 export type DraftedActionStatus = "pending" | "editing" | "confirmed" | "cancelled";
@@ -67,7 +72,9 @@ export interface DraftedAction {
     | DraftedProfileUpdatePayload
     | DraftedEosUpdatePayload
     | DraftedMarketDataUpdatePayload
-    | DraftedJourneyActionPayload;
+    | DraftedJourneyActionPayload
+    | DraftedNotePayload
+    | DraftedTriggerWorkflowPayload;
 }
 
 /** Payload for a drafted SMS or email message */
@@ -94,13 +101,22 @@ export interface DraftedStageMovePayload {
   reason?: string;
 }
 
-/** Payload for a drafted appointment */
+/** Payload for a drafted appointment / calendar event */
 export interface DraftedAppointmentPayload {
   actionType: "appointment";
-  title: string;
-  startTime: string;
-  endTime: string;
+  /** Selected calendar ID — Scout suggests one; user can edit before pushing */
   calendarId: string;
+  /** Display name of the suggested calendar */
+  calendarName?: string;
+  /** Why Scout picked this calendar (e.g. "matched 'Matt' in calendar name") */
+  calendarReason?: string;
+  title: string;
+  /** ISO 8601 start time */
+  startTime: string;
+  /** ISO 8601 end time */
+  endTime: string;
+  /** Optional GHL user to assign as the host */
+  assignedUserId?: string;
 }
 
 /** Payload for a drafted profile field update */
@@ -149,6 +165,27 @@ export interface DraftedJourneyActionPayload {
   enrollmentId?: string;
   /** Optional reason — required for exit */
   reason?: string;
+}
+
+/** Payload for a drafted GHL note on a contact */
+export interface DraftedNotePayload {
+  actionType: "note";
+  body: string;
+}
+
+/**
+ * Payload for a drafted GHL-native workflow trigger.
+ * Distinct from journey_action — this fires a GHL workflow (campaign,
+ * automation, drip) on a contact via `ghl.triggerWorkflow`. Used when
+ * Scout wants to start a marketing or onboarding sequence whose logic
+ * lives in GHL itself rather than in our workflow_enrollments table.
+ */
+export interface DraftedTriggerWorkflowPayload {
+  actionType: "trigger_workflow";
+  /** GHL workflow ID */
+  workflowId: string;
+  /** Display name from GHL */
+  workflowName?: string;
 }
 
 /** Request body sent to the Scout API */

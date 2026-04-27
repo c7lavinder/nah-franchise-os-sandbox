@@ -383,4 +383,58 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
       required: ["contact_id", "kind"],
     },
   },
+  {
+    name: "draft_appointment",
+    description:
+      "Draft a GHL calendar appointment for human review. Provide your best guess at the calendar based on what the user said " +
+      "(e.g., 'Matt's calendar' → match by name) — pass `calendar_hint` and the executor will resolve it to a real calendar ID. " +
+      "If you can't guess, leave calendar_hint blank and the executor picks the first active calendar. The user can edit the " +
+      "calendar via a searchable dropdown before pushing. Times are ISO 8601.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: { type: "string", description: "GHL contact ID the appointment is for" },
+        title: { type: "string", description: "Appointment title (e.g. 'Discovery Call')" },
+        start_time: { type: "string", description: "ISO 8601 start" },
+        end_time: { type: "string", description: "ISO 8601 end" },
+        calendar_hint: {
+          type: "string",
+          description:
+            "Optional: a name fragment to match against active calendars (e.g. 'Matt', 'Discovery'). Executor finds the best match.",
+        },
+        assigned_user_id: { type: "string", description: "Optional GHL user ID to host" },
+      },
+      required: ["contact_id", "title", "start_time", "end_time"],
+    },
+  },
+  {
+    name: "draft_note",
+    description:
+      "Draft a GHL note on a contact for human review. Notes are durable record on the contact's timeline. " +
+      "Use this for capturing call summaries, decisions, key facts that need to live in GHL.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: { type: "string", description: "GHL contact ID" },
+        body: { type: "string", description: "Note body" },
+      },
+      required: ["contact_id", "body"],
+    },
+  },
+  {
+    name: "draft_trigger_workflow",
+    description:
+      "Draft a GHL-native workflow trigger for a contact. This fires a workflow whose automation lives in GHL itself " +
+      "(drip campaigns, marketing sequences, onboarding flows). Different from draft_journey_action which manages our " +
+      "internal workflow_enrollments. Use this when the user wants to start a GHL-side automation.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: { type: "string", description: "GHL contact ID" },
+        workflow_id: { type: "string", description: "GHL workflow ID" },
+        workflow_name: { type: "string", description: "Optional display name from GHL" },
+      },
+      required: ["contact_id", "workflow_id"],
+    },
+  },
 ];

@@ -1,17 +1,21 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Bot, X, Send, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { DraftedActionCard } from "@/components/scout";
+import { parsePageContext } from "@/lib/scout/page-context";
+import type { DraftedAction } from "@/types/scout";
 import type Anthropic from "@anthropic-ai/sdk";
 
 interface ChatMsg {
   id: string;
   role: "user" | "assistant";
   content: string;
+  draftedAction?: DraftedAction;
 }
 
 /** Scout AI floating action button + inline chat drawer */
@@ -23,26 +27,11 @@ export default function ScoutFAB() {
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [executingActionId, setExecutingActionId] = useState<string | null>(null);
   const historyRef = useRef<Anthropic.Messages.MessageParam[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isScoutPage = pathname === "/scout";
-
-  // Derive page context from URL for context-aware KB loading
-  const pageContext = useCallback(() => {
-    const ctx: Record<string, string | undefined> = {};
-    if (pathname.startsWith("/pipeline")) ctx.page = "pipeline";
-    else if (pathname.match(/\/calls\/[^/]+$/)) ctx.page = "call_detail";
-    else if (pathname.startsWith("/calls")) ctx.page = "calls";
-    else if (pathname.match(/\/contacts\/[^/]+$/)) { ctx.page = "contact_detail"; ctx.contactId = pathname.split("/").pop(); }
-    else if (pathname.match(/\/journeys\/[^/]+$/)) { ctx.page = "journey_detail"; ctx.journeyId = pathname.split("/").pop(); }
-    else if (pathname.match(/\/territories\/[^/]+$/)) { ctx.page = "territory"; ctx.territorySlug = pathname.split("/").pop(); }
-    else if (pathname.startsWith("/territories")) ctx.page = "territory";
-    else if (pathname.startsWith("/knowledge")) ctx.page = "knowledge";
-    else if (pathname.startsWith("/settings")) ctx.page = "settings";
-    else ctx.page = "dashboard";
-    return ctx;
-  }, [pathname]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -76,7 +65,7 @@ export default function ScoutFAB() {
           userId: user?.id ?? "",
           userRole: user?.role ?? "rep",
           userName: user?.fullName ?? "User",
-          pageContext: pageContext(),
+          pageContext: parsePageContext(pathname),
         }),
       });
 
@@ -89,7 +78,12 @@ export default function ScoutFAB() {
       historyRef.current = data.history ?? [];
       if (data.sessionId) setSessionId(data.sessionId);
 
-      const scoutMsg: ChatMsg = { id: crypto.randomUUID(), role: "assistant", content: data.message };
+      const scoutMsg: ChatMsg = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: data.message,
+        draftedAction: data.draftedAction ?? undefined,
+      };
       setMessages((prev) => [...prev, scoutMsg]);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Failed to reach Scout";
@@ -98,6 +92,64 @@ export default function ScoutFAB() {
       setThinking(false);
       inputRef.current?.focus();
     }
+  }
+
+  /** Execute a confirmed drafted action — same flow as the dedicated /scout page. */
+  async function handleConfirmAction(action: DraftedAction) {
+    setExecutingActionId(action.id);
+    try {
+      const res = await fetch("/api/scout/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          userId: user?.id ?? "",
+          sessionId: sessionId ?? "no-session",
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(err.error ?? "Failed to execute action");
+      }
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.draftedAction?.id === action.id
+            ? { ...m, draftedAction: { ...m.draftedAction, status: "confirmed" as const } }
+            : m
+        )
+      );
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: `Done — ${action.type.replace(/_/g, " ")} executed.`,
+        },
+      ]);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "Failed";
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: `Failed to execute: ${errMsg}`,
+        },
+      ]);
+    } finally {
+      setExecutingActionId(null);
+    }
+  }
+
+  /** Cancel a drafted action — flips its status; the card stops showing buttons. */
+  function handleCancelAction(actionId: string) {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.draftedAction?.id === actionId
+          ? { ...m, draftedAction: { ...m.draftedAction, status: "cancelled" as const } }
+          : m
+      )
+    );
   }
 
   // Don't render on the dedicated Scout page
@@ -176,18 +228,30 @@ export default function ScoutFAB() {
             )}
 
             {messages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[85%] px-3 py-2 rounded-xl text-sm ${
-                  msg.role === "user"
-                    ? "bg-nah-blue text-white"
-                    : "text-text-primary"
-                }`}
-                  style={msg.role === "assistant" ? { background: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.6)" } : undefined}
-                >
-                  <div className="prose prose-sm max-w-none break-words [&>p]:m-0 [&>ul]:my-1 [&>ol]:my-1 [&>h1]:text-base [&>h2]:text-sm [&>h3]:text-sm">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+              <div key={msg.id}>
+                <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] px-3 py-2 rounded-xl text-sm ${
+                    msg.role === "user"
+                      ? "bg-nah-blue text-white"
+                      : "text-text-primary"
+                  }`}
+                    style={msg.role === "assistant" ? { background: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.6)" } : undefined}
+                  >
+                    <div className="prose prose-sm max-w-none break-words [&>p]:m-0 [&>ul]:my-1 [&>ol]:my-1 [&>h1]:text-base [&>h2]:text-sm [&>h3]:text-sm">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                    </div>
                   </div>
                 </div>
+                {msg.draftedAction && (
+                  <div className="mt-2">
+                    <DraftedActionCard
+                      action={msg.draftedAction}
+                      onConfirm={handleConfirmAction}
+                      onCancel={handleCancelAction}
+                      isExecuting={executingActionId === msg.draftedAction.id}
+                    />
+                  </div>
+                )}
               </div>
             ))}
 

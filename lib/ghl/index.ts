@@ -24,6 +24,7 @@ export {
   getTasks,
   createTask,
   updateTask,
+  getCalendars,
   getCalendarFreeSlots,
   createAppointment,
   getAppointments,

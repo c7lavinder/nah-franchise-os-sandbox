@@ -83,6 +83,12 @@ export async function executeTool(
       return executeDraftMarketDataUpdate(input);
     case "draft_journey_action":
       return executeDraftJourneyAction(input);
+    case "draft_appointment":
+      return executeDraftAppointment(input);
+    case "draft_note":
+      return executeDraftNote(input);
+    case "draft_trigger_workflow":
+      return executeDraftTriggerWorkflow(input);
     default: {
       const _exhaustive: never = toolName;
       return { data: `Unknown tool: ${_exhaustive}` };
@@ -1100,6 +1106,153 @@ async function executeDraftJourneyAction(
 
   return {
     data: `I've drafted a journey action: ${summary}. Please review below and confirm, edit, or cancel.`,
+    draftedAction,
+  };
+}
+
+async function executeDraftAppointment(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const contactId = input.contact_id as string;
+  const title = input.title as string;
+  const startTime = input.start_time as string;
+  const endTime = input.end_time as string;
+  const calendarHint = (input.calendar_hint as string | undefined)?.toLowerCase().trim();
+  const assignedUserId = input.assigned_user_id as string | undefined;
+
+  let contactName = "Unknown Contact";
+  try {
+    const contact = await ghl.getContact(contactId);
+    contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown Contact";
+  } catch {
+    // Fall back to UUID
+  }
+
+  // Resolve a calendar suggestion. The user can change it via the searchable
+  // dropdown on the confirm card before pushing.
+  let calendarId = "";
+  let calendarName: string | undefined;
+  let calendarReason: string | undefined;
+  try {
+    const calendars = (await ghl.getCalendars()).filter((c) => c.isActive !== false);
+    if (calendars.length === 0) {
+      return { data: "Error: No active calendars found in this GHL location." };
+    }
+
+    if (calendarHint) {
+      const match = calendars.find((c) => c.name.toLowerCase().includes(calendarHint));
+      if (match) {
+        calendarId = match.id;
+        calendarName = match.name;
+        calendarReason = `matched "${calendarHint}" in calendar name`;
+      }
+    }
+
+    if (!calendarId) {
+      // Default to first active — user can change in the dropdown
+      calendarId = calendars[0].id;
+      calendarName = calendars[0].name;
+      calendarReason = calendarHint
+        ? `no calendar matched "${calendarHint}", defaulted to first active`
+        : "defaulted to first active calendar";
+    }
+  } catch (err) {
+    return {
+      data: `Error fetching calendars: ${err instanceof Error ? err.message : "Unknown error"}`,
+    };
+  }
+
+  const draftedAction: DraftedAction = {
+    id: crypto.randomUUID(),
+    type: "appointment",
+    status: "pending",
+    contactId,
+    contactName,
+    payload: {
+      actionType: "appointment",
+      calendarId,
+      calendarName,
+      calendarReason,
+      title,
+      startTime,
+      endTime,
+      assignedUserId,
+    },
+  };
+
+  const when = `${new Date(startTime).toLocaleString()} – ${new Date(endTime).toLocaleString()}`;
+  return {
+    data: `I've drafted an appointment "${title}" with ${contactName} on ${calendarName ?? "the default calendar"} (${when}). You can change the calendar before confirming.`,
+    draftedAction,
+  };
+}
+
+async function executeDraftNote(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const contactId = input.contact_id as string;
+  const body = input.body as string;
+
+  if (!body?.trim()) {
+    return { data: "Error: Note body is required." };
+  }
+
+  let contactName = "Unknown Contact";
+  try {
+    const contact = await ghl.getContact(contactId);
+    contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown Contact";
+  } catch {
+    // Fall back
+  }
+
+  const draftedAction: DraftedAction = {
+    id: crypto.randomUUID(),
+    type: "note",
+    status: "pending",
+    contactId,
+    contactName,
+    payload: {
+      actionType: "note",
+      body,
+    },
+  };
+
+  return {
+    data: `I've drafted a note for ${contactName}. Please review below and confirm, edit, or cancel.`,
+    draftedAction,
+  };
+}
+
+async function executeDraftTriggerWorkflow(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const contactId = input.contact_id as string;
+  const workflowId = input.workflow_id as string;
+  const workflowName = input.workflow_name as string | undefined;
+
+  let contactName = "Unknown Contact";
+  try {
+    const contact = await ghl.getContact(contactId);
+    contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown Contact";
+  } catch {
+    // Fall back
+  }
+
+  const draftedAction: DraftedAction = {
+    id: crypto.randomUUID(),
+    type: "trigger_workflow",
+    status: "pending",
+    contactId,
+    contactName,
+    payload: {
+      actionType: "trigger_workflow",
+      workflowId,
+      workflowName,
+    },
+  };
+
+  return {
+    data: `I've drafted a GHL workflow trigger for ${contactName} → workflow ${workflowName ?? workflowId}. Please review and confirm, edit, or cancel.`,
     draftedAction,
   };
 }

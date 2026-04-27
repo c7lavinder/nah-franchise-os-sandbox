@@ -24,6 +24,7 @@ import type {
   GHLTaskUpdatePayload,
   GHLAppointment,
   GHLAppointmentCreatePayload,
+  GHLCalendar,
   GHLFreeSlot,
   GHLSendMessagePayload,
   GHLMessage,
@@ -565,6 +566,19 @@ export async function updateTask(
 // ========================================
 // APPOINTMENTS
 // ========================================
+
+/**
+ * List all calendars in the location.
+ * Used to populate calendar selection dropdowns and to let Scout
+ * suggest a calendar by name match.
+ */
+export async function getCalendars(): Promise<GHLCalendar[]> {
+  const locationId = getLocationId();
+  const data = await ghlFetch<{ calendars: GHLCalendar[] }>(
+    `/calendars/?locationId=${locationId}`
+  );
+  return data.calendars ?? [];
+}
 
 /**
  * Get free slots for a calendar.

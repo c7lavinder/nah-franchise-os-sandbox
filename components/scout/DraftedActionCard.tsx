@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   MessageSquare,
   CheckSquare,
@@ -11,6 +11,9 @@ import {
   Loader2,
   User,
   GitBranch,
+  Calendar,
+  StickyNote,
+  Zap,
 } from "lucide-react";
 import type {
   DraftedAction,
@@ -19,7 +22,16 @@ import type {
   DraftedStageMovePayload,
   DraftedProfileUpdatePayload,
   DraftedJourneyActionPayload,
+  DraftedAppointmentPayload,
+  DraftedNotePayload,
+  DraftedTriggerWorkflowPayload,
 } from "@/types/scout";
+
+interface CalendarOption {
+  id: string;
+  name: string;
+  description?: string;
+}
 
 interface DraftedActionCardProps {
   action: DraftedAction;
@@ -41,6 +53,12 @@ function ActionIcon({ type }: { type: DraftedAction["type"] }) {
       return <User size={16} className="text-scout-purple" />;
     case "journey_action":
       return <GitBranch size={16} className="text-scout-purple" />;
+    case "appointment":
+      return <Calendar size={16} className="text-scout-purple" />;
+    case "note":
+      return <StickyNote size={16} className="text-scout-purple" />;
+    case "trigger_workflow":
+      return <Zap size={16} className="text-scout-purple" />;
     default:
       return <MessageSquare size={16} className="text-scout-purple" />;
   }
@@ -78,6 +96,17 @@ function actionLabel(action: DraftedAction): string {
       const what = p.workflowName ?? p.workflowId ?? p.enrollmentId ?? "workflow";
       return `${verb} ${action.contactName} — ${what}`;
     }
+    case "appointment": {
+      const p = action.payload as DraftedAppointmentPayload;
+      return `Appointment "${p.title}" with ${action.contactName}`;
+    }
+    case "note": {
+      return `Note on ${action.contactName}`;
+    }
+    case "trigger_workflow": {
+      const p = action.payload as DraftedTriggerWorkflowPayload;
+      return `Trigger ${p.workflowName ?? p.workflowId} for ${action.contactName}`;
+    }
     default:
       return `Action for ${action.contactName}`;
   }
@@ -92,6 +121,29 @@ export default function DraftedActionCard({
 }: DraftedActionCardProps) {
   const [editing, setEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(getEditableContent(action));
+
+  // Calendar dropdown state — only used for appointment drafts
+  const [calendars, setCalendars] = useState<CalendarOption[] | null>(null);
+  const [calendarSearch, setCalendarSearch] = useState("");
+  const [calendarPickerOpen, setCalendarPickerOpen] = useState(false);
+
+  // Fetch calendars once when an appointment card mounts so the user can
+  // change Scout's suggestion before pushing.
+  useEffect(() => {
+    if (action.type !== "appointment" || calendars !== null) return;
+    let cancelled = false;
+    fetch("/api/ghl/calendars")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Failed to load calendars"))))
+      .then((data) => {
+        if (!cancelled) setCalendars((data.calendars ?? []) as CalendarOption[]);
+      })
+      .catch(() => {
+        if (!cancelled) setCalendars([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [action.type, calendars]);
 
   const isResolved = action.status === "confirmed" || action.status === "cancelled";
 
@@ -131,6 +183,79 @@ export default function DraftedActionCard({
           </div>
         )}
       </div>
+
+      {/* Appointment-specific: searchable calendar picker */}
+      {action.type === "appointment" && !isResolved && (
+        <div className="mb-3">
+          <label className="block text-caption text-text-tertiary mb-1">
+            Calendar
+          </label>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setCalendarPickerOpen((v) => !v)}
+              className="w-full text-left bg-bg-primary/50 border border-border-glass rounded-md px-3 py-2 text-body-sm flex items-center justify-between"
+            >
+              <span className="truncate">
+                {(action.payload as DraftedAppointmentPayload).calendarName ??
+                  (action.payload as DraftedAppointmentPayload).calendarId ??
+                  "Select calendar"}
+              </span>
+              <span className="text-text-tertiary text-caption ml-2">
+                {calendarPickerOpen ? "▴" : "▾"}
+              </span>
+            </button>
+            {calendarPickerOpen && (
+              <div className="absolute z-10 mt-1 w-full bg-surface-glass border border-border-glass rounded-md shadow-lg max-h-64 overflow-hidden flex flex-col">
+                <input
+                  type="text"
+                  value={calendarSearch}
+                  onChange={(e) => setCalendarSearch(e.target.value)}
+                  placeholder="Search calendars..."
+                  className="px-3 py-2 text-body-sm border-b border-border-glass bg-transparent outline-none"
+                  autoFocus
+                />
+                <div className="overflow-y-auto flex-1">
+                  {calendars === null ? (
+                    <div className="px-3 py-2 text-caption text-text-tertiary">Loading…</div>
+                  ) : calendars.length === 0 ? (
+                    <div className="px-3 py-2 text-caption text-text-tertiary">No calendars found</div>
+                  ) : (
+                    calendars
+                      .filter((c) =>
+                        !calendarSearch.trim()
+                          ? true
+                          : c.name.toLowerCase().includes(calendarSearch.toLowerCase().trim())
+                      )
+                      .map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            const p = action.payload as DraftedAppointmentPayload;
+                            p.calendarId = c.id;
+                            p.calendarName = c.name;
+                            p.calendarReason = "selected by user";
+                            setCalendarPickerOpen(false);
+                            setCalendarSearch("");
+                          }}
+                          className="w-full text-left px-3 py-2 text-body-sm hover:bg-scout-bubble-bg"
+                        >
+                          <div className="font-medium">{c.name}</div>
+                          {c.description && (
+                            <div className="text-caption text-text-tertiary truncate">
+                              {c.description}
+                            </div>
+                          )}
+                        </button>
+                      ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Action buttons — only show if not already resolved */}
       {!isResolved && (
@@ -214,6 +339,10 @@ function getEditableContent(action: DraftedAction): string {
       return (action.payload as DraftedProfileUpdatePayload).fields
         .map((f) => `${f.fieldName}: ${f.value}`)
         .join("\n");
+    case "note":
+      return (action.payload as DraftedNotePayload).body;
+    case "appointment":
+      return (action.payload as DraftedAppointmentPayload).title;
     default:
       return "";
   }
@@ -256,6 +385,25 @@ function getDisplayContent(action: DraftedAction): string {
       if (p.reason) lines.push(`Reason: ${p.reason}`);
       return lines.join("\n");
     }
+    case "appointment": {
+      const p = action.payload as DraftedAppointmentPayload;
+      const lines = [
+        `Title: ${p.title}`,
+        `Calendar: ${p.calendarName ?? p.calendarId}${p.calendarReason ? ` (${p.calendarReason})` : ""}`,
+        `Start: ${new Date(p.startTime).toLocaleString()}`,
+        `End: ${new Date(p.endTime).toLocaleString()}`,
+      ];
+      if (p.assignedUserId) lines.push(`Assigned to: ${p.assignedUserId}`);
+      return lines.join("\n");
+    }
+    case "note": {
+      const p = action.payload as DraftedNotePayload;
+      return p.body;
+    }
+    case "trigger_workflow": {
+      const p = action.payload as DraftedTriggerWorkflowPayload;
+      return `Workflow: ${p.workflowName ?? p.workflowId}\nID: ${p.workflowId}`;
+    }
     default:
       return JSON.stringify(action.payload, null, 2);
   }
@@ -288,5 +436,11 @@ function applyEdit(action: DraftedAction, newContent: string): void {
       }
       break;
     }
+    case "note":
+      (action.payload as DraftedNotePayload).body = newContent;
+      break;
+    case "appointment":
+      (action.payload as DraftedAppointmentPayload).title = newContent;
+      break;
   }
 }
