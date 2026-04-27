@@ -334,4 +334,224 @@ In rough priority order:
 
 ---
 
+## 8. Claude Code Tooling Stack
+
+> Read what's already there, then opinion-stress-test the proposed stack. Bias: pushback, not compliance. The most expensive mistake here would be installing 30 things and using 3.
+
+### 8.1 Current `.claude/` State
+
+- **`.claude/` directory** exists. It contains exactly one subdirectory: `.claude/commands/`.
+- **No `settings.json`, no `settings.local.json`** — no hooks, no permission rules, no env config.
+- **No `.claude/agents/`** — zero subagents.
+- **No `.claude/skills/`** — zero skills.
+- **No `.claude/hooks/`** — zero hooks.
+- **No `.claude/plugins/`** — nothing installed.
+
+**Existing slash commands** (4 total, in [.claude/commands/](.claude/commands/)):
+
+| Command | What it does | Health |
+|---------|---|---|
+| [`/audit`](.claude/commands/audit.md) (20 KB) | 9-section, 200+ line code-audit protocol covering structure, types, GHL boundary, Scout safety, errors, security, etc. | **Functional but heavy** — outputs walls of text. Rarely run end-to-end. |
+| [`/next`](.claude/commands/next.md) (12 KB) | Reads `docs/memory.md` + `docs/build-plan.md`, cross-references, recommends next task with copy-paste prompt. | **Broken in practice** — depends on `docs/memory.md` (severely stale, see §2) and `docs/build-plan.md` (also stale). Output will be wrong. |
+| [`/status`](.claude/commands/status.md) (1.4 KB) | Reads `memory.md`, prints fixed-format status report including phase, build health, recent decisions. | **Broken** — same root cause. Will report Phase 0 because that's what `memory.md` says. |
+| [`/wrap-session`](.claude/commands/wrap-session.md) (1 KB, simplified v2) | Defines the `handoff.md` structure for end-of-session writeup. | **Working** — this is the one that actually shipped value. handoff.md is the only fresh state doc in the repo. |
+
+**Duplicate `commands/` directory at repo root** — same 4 filenames. The root `commands/wrap-session.md` is the older 13-step v1 (4.3 KB) referencing memory.md heavily; `.claude/commands/wrap-session.md` is the v2 simplification. The other three (`audit.md`, `next.md`, `status.md`) are byte-identical duplicates. **This is a footgun**: if you edit one, the other doesn't update, and Claude Code reads from `.claude/commands/` (so the root copies are dead).
+
+**What we'd be overwriting / conflicting with:**
+- Nothing in `.claude/agents/` or `.claude/skills/` (those don't exist) — clean install.
+- The proposed `/wrap-session` skill collides with the existing `/wrap-session` slash command. Pick one mechanism. Slash command is fine — keep it.
+- The proposed `verify-master-plan` would functionally replace `/next` and `/status`. Plan to delete those when the new infrastructure exists, not before.
+- `docs/memory.md` and `docs/build-plan.md` need to be deleted or rebuilt before `/next` and `/status` (or any replacement) can produce correct output. The slash commands are downstream of the doc cleanup, not parallel to it.
+
+### 8.2 Stack Recommendations
+
+**Layer 1 — Public installs**
+
+| Item | Recommendation | Reason |
+|------|---|---|
+| **`obra/superpowers` full plugin** | **Modify — cherry-pick, don't install whole** | This is heavy: SessionStart hook + ~15 skills + mandatory brainstorm→plan→worktree→TDD→review flow. Big problems for *this* repo: (a) zero existing tests means TDD enforcement is friction, not signal; (b) single-operator team means subagent-driven-development overhead is overhead; (c) the Vercel-deploys-on-push-to-main flow is incompatible with `using-git-worktrees` as a default; (d) Scout's draft→review→confirm pattern is the project's sacred flow and adding another mandatory workflow on top will conflict in confusing ways. **Cherry-pick `code-reviewer` agent and `writing-plans` skill. Skip the rest.** |
+| **`mattpocock/skills/git-guardrails-claude-code`** | **Keep — install** | This is the highest-ROI install on the list. Today nothing prevents `git push --force` to main, and main = production via Vercel. One bad command = downtime. Pattern-matches §3 security gaps. |
+| **`mattpocock/skills/setup-pre-commit`** | **Keep — install** | Closes the CI gap from §3 (no type-check gate, no lint gate). Husky + lint-staged + Prettier + tsc + tests on commit catches the "pushed broken TS" class of bug. Note: tests gate is a no-op until tests exist (gap from §3). |
+| **`mattpocock/skills/grill-me`** | **Modify — install but rarely use** | Useful for designing new features (especially the Vonage/MasterSuite scoping calls flagged in §6). For day-to-day work it's overkill. Don't make it auto-trigger. |
+| **`mattpocock/skills/improve-codebase-architecture`** | **Drop — defer until ADR/CONTEXT exist** | This skill explicitly reads from `CONTEXT.md` and `docs/adr/`. Both files don't exist yet. Without them, the skill grades "missing infrastructure" instead of analyzing real architectural smells. Install after the doc reorg lands and 3-5 ADRs exist. |
+| **`mattpocock/skills/triage-issue`** | **Drop** | Workflow is "investigate bug → file GitHub issue with TDD plan." This repo doesn't use GitHub Issues (commits go straight to main). The TDD plan output dies on contact with reality (no test infra). Skip. |
+
+**Layer 2 — Custom NAH skills**
+
+| Skill | Recommendation | Notes |
+|-------|---|---|
+| `nah-context-load` | **Modify — make it a SessionStart hook reading handoff.md only** | Don't read MASTER_PLAN.md / sprints / pipeline state at session start. handoff.md is *the* state doc. Loading more = noise + slower context warmup. If user asks "where are we", *then* expand. |
+| `wrap-session-nah` | **Drop — keep slash command** | `/wrap-session` already exists, works, and is well-defined. Skill version is duplication. The "create session log if a major decision was made" addition belongs in a separate `/draft-adr` command, not bolted into wrap. |
+| `verify-master-plan` | **Keep — high value** | But: needs MASTER_PLAN.md to exist first. Build the doc, then build this skill. Not the reverse. |
+| `draft-review-confirm-check` | **Modify — make it a code-reviewer agent rule, not a skill** | Scout's tool-executor already enforces DRC structurally (`draft_*` tools return drafts, `/api/scout/action` executes after confirmation). A skill that re-checks this on Edit is belt-and-suspenders friction. Better: code-reviewer agent has a "Does this preserve DRC?" check in its rubric. |
+| `new-sprint-from-plan` | **Drop** | Already pushed back on `/sprints/` in §5a. One-person team doesn't need sprint files. ROADMAP.md with checkboxes does the job. |
+| `new-adr` | **Keep — high value** | The "Decisions Made" section of `docs/memory.md` has 50+ decisions that should have been ADRs. Pattern that's overdue. |
+| `migration-safety-check` | **Keep — highest-ROI custom skill** | Schema currently lives across `supabase/migrations/`, `lib/intelligence/schema.sql`, `lib/workflows/schema.sql`, plus setup scripts. Any of these could deploy a destructive ALTER. PreToolUse(Edit) on `*.sql` is exactly the right hook. |
+| `scout-prompt-review` | **Defer until prompt is externalized** | Today Scout's prompt is hardcoded in [lib/scout/client.ts:39](lib/scout/client.ts#L39). A "review the prompt" skill that triggers on `client.ts` edits will fire on unrelated changes. After §4 work moves prompt to DB or `prompts/` folder, build this skill against that path. |
+
+**Layer 3 — Hooks**
+
+| Hook | Recommendation | Notes |
+|------|---|---|
+| `SessionStart → nah-context-load` | **Keep, but trim** | Read handoff.md + last 5 `git log` lines. That's it. Don't read the whole `docs/` tree. |
+| `PreToolUse(Bash) → block dangerous commands` | **Keep — covered by git-guardrails install** | Don't custom-build; install the package. |
+| `PreToolUse(Edit) → migration-safety-check on *.sql` | **Keep — highest ROI custom hook** | Schema lives in 3+ places. This is the one hook that prevents a real production-data class of bug. |
+| `UserPromptSubmit → DRC reminder when prompt mentions Scout + verbs` | **Drop — friction noise** | Pattern-matching on prompts to inject reminders is the kind of "helpful nag" that becomes invisible after 10 sessions. The DRC pattern is enforced in code (tool-executor) and documented in CLAUDE.md (which is system-loaded). Adding a third reminder layer is diminishing returns + breaks flow. |
+
+**Layer 3 — Agents**
+
+| Agent | Recommendation | Skill or Agent? |
+|-------|---|---|
+| `code-reviewer` (Superpowers default, NAH-customized) | **Keep — use Superpowers' agent + add NAH rubric** | Agent. Reviews are parallelizable while you keep working. Add NAH rules: GHL boundary, DRC pattern, no hardcoded secrets, RLS-aware. |
+| `migration-reviewer` | **Keep** | Agent. Schema review benefits from running in parallel during migration write. Should check: idempotency, RLS policies on new tables, indexes, FK integrity, no breaking ALTER. |
+| `pr-summarizer` | **Defer until you start using PRs** | Today everything goes direct to main (per CLAUDE.md). PR summaries are output without input. Build when PR workflow exists. |
+| `prompt-reviewer` | **Skill, not agent — and defer** | Single-file analysis is linear. Skill is fine. Defer until prompt is externalized (§4). |
+
+**Layer 3 — Slash commands**
+
+| Command | Recommendation | Notes |
+|---------|---|---|
+| `/wrap-session` | **Keep — already exists** | The v2 in `.claude/commands/` is the right one. Delete the v1 in `commands/`. |
+| `/load-nah` | **Drop** | If SessionStart hook works, manual trigger is redundant. If it doesn't work, fix the hook. |
+| `/sprint-from-plan` | **Drop** | Per §5a — sprints are overkill for this team. |
+| `/verify-claims` | **Keep — highest-ROI custom command** | Drift defense. See 8.3 Q5 for the exact draft. |
+| `/draft-adr` | **Keep** | Use when a sticky decision happens. Replaces the "Decisions Made" graveyard in `docs/memory.md`. |
+| `/audit-docs` | **Keep, but replace `/audit`** | The existing `/audit` command (20 KB!) is over-engineered and rarely used. `/audit-docs` should be smaller and focused on doc-vs-code drift specifically. Delete the old `/audit` when replacement lands. |
+
+### 8.3 Specific Answers
+
+**1. Conflict check.** Yes, several:
+- Superpowers ships its own `SessionStart` hook ("You have Superpowers" injection). Proposed `nah-context-load` SessionStart hook will compete or stack — last-write-wins behavior is undefined. Pick one. If installing Superpowers full, drop the custom SessionStart and let Superpowers' code-reviewer + plan workflow handle it. If keeping NAH-only, skip Superpowers.
+- Superpowers' `using-git-worktrees` skill assumes work-on-branch-then-merge. NAH workflow is push-to-main → Vercel deploy. Worktrees + main-only means your worktree work never deploys. Friction.
+- Superpowers' `subagent-driven-development` runs subagents in parallel. The current handoff.md / wrap-session pattern assumes a single linear narrative per session. Subagents will fragment the narrative and break wrap-session's structure. Disable that skill if installing.
+- The existing `/audit` (200+ lines), `/wrap-session` (13 steps in v1), and `/next` (4-step cross-reference) are already heavy procedural commands. Layering Superpowers' methodology on top creates compound process — the user spends more time running protocols than building features. Watch for this.
+
+**2. Skill `description` drafts for the 3 most important.**
+
+Skill descriptions are how Claude Code decides whether to invoke. Specific phrasing > generic. Each one below uses the action verb + concrete trigger pattern style.
+
+- **`migration-safety-check`** — *"Use when editing or creating any `.sql` file under `supabase/migrations/`, `lib/*/schema.sql`, or any file matching `*migration*.ts`. Forces a checklist before write: (1) is this idempotent (`IF NOT EXISTS` or guard clauses)? (2) does it have a documented rollback path? (3) if it creates a table, are RLS policies defined? (4) if it adds a column with `NOT NULL`, is there a default or backfill? (5) does it touch a table with >10k rows in production? Output: ✓ for each + warnings. Skill returns BLOCK if any is unanswered."*
+
+- **`verify-claims`** — *"Use when the user asks to verify the docs, before publishing a doc change, or whenever the user mentions 'drift', 'is the doc current', or 'check claims'. Scans `README.md`, `CLAUDE.md`, `docs/master-plan.md`, `handoff.md` for claim-numbers (page count, table count, Scout tool count, model name, env var count) and verifies them against the code. Reports each claim as ✓ matches / ✗ stale / ⚠ ambiguous. Output is a bullet list under 20 lines, never auto-rewrites."*
+
+- **`nah-context-load`** — *"Use at session start (via SessionStart hook) or when the user asks 'where are we?', 'what's the status?', 'what did I last do?', or types `/load-nah`. Reads `handoff.md` and the last 5 git commit messages. Outputs a 5-line briefing: phase, last build, open issues, exact next step, today's date. Does not read MASTER_PLAN, build-plan, or sprints — those are too verbose for session start."*
+
+**3. Missing skills — pain points I'd add:**
+
+- **`ghl-boundary-check`** — when a file under `lib/` or `app/api/` is edited and adds a `fetch(...leadconnectorhq...)` or imports `@anthropic-ai/sdk` outside `lib/scout/`, flag it. CLAUDE.md says GHL must go through `lib/ghl/client.ts` and Claude must go through `lib/scout/client.ts`. Today there's no enforcement. Easy to violate, easy to detect.
+- **`scout-tool-add`** — adding a Scout tool requires three coordinated edits: define in [lib/scout/tools.ts](lib/scout/tools.ts), implement in [lib/scout/tool-executor.ts](lib/scout/tool-executor.ts), and (per CLAUDE.md) update the Scout Tools section in `CLAUDE.md`. Today these can drift (CLAUDE.md lists `workflow_ab_create` which doesn't exist in tools.ts — see §2). Skill: when `tools.ts` changes, prompt to verify the other two and offer the diff.
+- **`supabase-types-regen`** — when any `.sql` file changes, prompt: "Run `npx supabase gen types typescript`?" The untyped Supabase client is the largest type-safety hole (§3) and types-regen is the fix that nobody remembers to do.
+- **`deploy-readiness`** — pre-push checklist as an explicit skill: `npx tsc --noEmit` clean, no `console.log` in changed files, no hardcoded keys, env vars match `.env.example`, current branch is `main`. CLAUDE.md says "0 errors required before every push" but nothing checks. Skill makes the check actionable.
+- **`call-rubric-validator`** — once Phase 5 multi-call grading lands (gap #4/#5 in §6), call_logs.fields is a free-form JSONB. Skill validates structure by call_type before insert. Defer until Phase 5.
+
+**4. Hook annoyance risk.** Three of the proposed four are wins; one is friction.
+
+- **SessionStart → nah-context-load** — useful *if* it stays under 5 lines of output. Allow it.
+- **PreToolUse(Bash) blocking dangerous commands** — pure win. Already a real risk (production = main). git-guardrails covers it.
+- **PreToolUse(Edit) on migrations** — highest-value hook proposed. The `lib/intelligence/schema.sql` and `lib/workflows/schema.sql` files are the kind of thing Claude could "improve" with a destructive change and the user wouldn't notice until production data is gone. This hook is the safety net that's missing today.
+- **UserPromptSubmit DRC reminder** — friction noise. Don't install.
+
+**Patterns where a hook would have prevented a real problem in this repo:**
+- The webhook handler exists despite "no webhooks" rule (§1) — a `PreToolUse(Edit)` hook that flagged "you're editing a webhook handler but CLAUDE.md says no webhooks; resolve which is true" would have caught the contradiction at write time.
+- The duplicate `commands/` and `.claude/commands/` directories drifted (wrap-session.md differs) — a hook on either dir warning "the other dir has the same file with different content" would have caught this.
+- The two scoring systems (§1) — a hook that refused new top-level `lib/*/scoring.ts` files when one already exists would have stopped the duplication.
+
+**5. Agent vs skill (per agent):**
+
+- `code-reviewer` → **agent**. Review while you keep working. Parallelizable. Output is a structured report. Classic agent shape.
+- `migration-reviewer` → **agent**. Schema analysis benefits from focused, fresh-context review. Migrations are infrequent enough that the cost of spawning an agent is fine.
+- `pr-summarizer` → **skill**. Linear, single-output, end-of-task. Doesn't benefit from parallel exploration.
+- `prompt-reviewer` → **skill**. Single file, focused review, no codebase exploration needed once prompt is externalized.
+
+**6. If I could only have 3 slash commands.**
+
+1. **`/wrap-session`** — the only thing that's actually maintained the project state file (handoff.md). Keep.
+2. **`/verify-claims`** — addresses the single biggest doc-rot risk in this repo. Five docs claim things that aren't true. Run before publishing any doc change.
+3. **`/audit-docs`** — the cyclical version of `/verify-claims`. Run monthly to catch drift before docs become five-piece liabilities.
+
+I'd cut: `/load-nah` (SessionStart hook), `/sprint-from-plan` (sprints overkill), `/draft-adr` (rare enough that template-in-docs/adr/ works), `/next` and `/status` (broken until docs reorg).
+
+**7. Existing workflow honest read.**
+
+- **`/wrap-session` works** because it has a clean output target (handoff.md) and the structure is short enough to follow. The fact that handoff.md is the only fresh state doc in the repo is direct evidence.
+- **`/next` and `/status` rotted** because they read upstream from `docs/memory.md` and `docs/build-plan.md`, both of which have rotted catastrophically (§2). The commands are well-written, the inputs are dead. Until the inputs are fixed, the commands are worse than nothing — they confidently produce wrong output. **Burn `/next` and `/status` down. Rebuild after MASTER_PLAN.md exists, against MASTER_PLAN as the input source. Don't leave the broken versions in place.**
+- **`/audit` is too large to be invoked.** 20 KB of instructions, 9 sections, hundreds of checks. In practice, it gets run rarely if ever. The lesson: a slash command's value is bounded by how often it actually gets used. A 50-line `/quick-audit` would deliver more value than a 200-line `/audit` because it would actually run.
+- **The duplication between `commands/` and `.claude/commands/`** is the kind of thing that suggests organic growth without a deliberate decision. Pick one location (`.claude/commands/`), delete the other, and move on.
+
+**Warning based on observed usage:** the existing slash commands skew toward "do everything thoroughly" rather than "do the most important thing fast." Every new command added makes this worse — there's a temptation to add "and check X, and also Y, and also Z." Resist. The right move for new commands is one focused job each, output under 20 lines.
+
+**8. Superpowers fit.** Mixed at best. Honest read:
+
+- **What works**: code-reviewer agent (clean fit), writing-plans skill (good for new feature design), verification-before-completion (would catch the "shipped but untested" pattern from §3).
+- **What doesn't**: TDD enforcement (no tests exist, retrofit is months of work), git-worktrees (incompatible with main-only deploys), subagent-driven-development (single operator, no team coordination value), brainstorming-as-mandatory (Corey already brainstorms in chat — adding a procedural layer slows him down).
+- **Compounding bureaucracy risk**: this repo already has heavy procedural commands (`/audit` 20 KB, `/wrap-session` v1 13 steps, `/next` 4-step cross-reference). Adding Superpowers' mandatory workflows on top creates "process to manage process." Watch for this. The signal that you've over-installed: when the instruction-reading time exceeds the building time.
+
+**Recommendation: cherry-pick.** Install Superpowers but disable the methodology-enforcing pieces (no mandatory TDD, no mandatory worktrees, no mandatory brainstorm). Keep the agent + a few skills. If that's not how Superpowers can be installed (full plugin only), pass entirely.
+
+**9. Test coverage realistic path.**
+
+Current state: 0 tests, no test runner, no CI test gate. Superpowers' TDD enforcement on a zero-test codebase is pure friction.
+
+Realistic three-step path:
+1. **Add 5-10 contract tests** for the highest-stakes paths: GHL retry/auth ([lib/ghl/client.ts:188](lib/ghl/client.ts#L188)), Scout tool-call loop ([lib/scout/client.ts:241](lib/scout/client.ts#L241)), scoring engine ([lib/intelligence/scoring.ts:37](lib/intelligence/scoring.ts#L37)), webhook dedup ([app/api/webhooks/ghl/route.ts:78](app/api/webhooks/ghl/route.ts#L78)). Use vitest. ~1 day's work.
+2. **Add CI gate** that runs `npx tsc --noEmit` and `npm test` on PR. ~1 hour. (Setup-pre-commit will help locally; CI catches what local skipped.)
+3. **TDD new features only.** Don't retrofit. Going forward, "every new feature ships with at least one test" is a sustainable norm. "Every existing line gets a test" is not.
+
+After step 3, *then* Superpowers' TDD skill makes sense. Trying to enable it sooner means it screams about untested code on every edit, which trains the user to ignore it.
+
+**10. Phase 2 sequencing — too much for one session?**
+
+**Yes. Split.** Three sessions minimum:
+
+- **Session A — Doc reorg (this is its own bear).** Delete `SESSION_START.md`, `docs/memory.md`, `docs/PROGRESS.md`. Rewrite `README.md` and `docs/architecture.md` (or replace with `docs/system-shape.md`). Create `docs/master-plan.md` and `docs/runbook.md`. Move `lib/*/schema.sql` into numbered migrations. Estimated: 4-6 hours of focused work.
+- **Session B — Foundation tooling install.** git-guardrails, setup-pre-commit, generate Supabase types, add `.github/workflows/ci.yml`, add 5-10 contract tests. Estimated: 4-6 hours.
+- **Session C — Custom skills.** `migration-safety-check`, `verify-claims`, `nah-context-load`, `new-adr`, `ghl-boundary-check`, `scout-tool-add`, `deploy-readiness`. Plus delete `/next`, `/status`, `commands/` duplicate, and the old `/audit`. Estimated: 4-6 hours.
+
+Trying to do all three in one session means each gets the shallow version. The doc reorg alone is a session — the rest is built on top of it and doesn't make sense without it. Specifically: most custom skills depend on docs/master-plan.md existing as a reference target. Build the target first.
+
+**Hard rule**: don't install Superpowers in Session B. Decide in Session C, after the foundation is in place and you can see whether the methodology fits. Defer-to-decide is cheaper than uninstall.
+
+### 8.4 Final Recommendation
+
+**Install order (high → low confidence):**
+
+1. **`mattpocock/skills/git-guardrails-claude-code`** — install first. Highest ROI, smallest blast radius. Closes a real risk (production = main).
+2. **`mattpocock/skills/setup-pre-commit`** — install second. Pairs with #1 to give a real local quality gate before push.
+3. **Generate Supabase types** — `npx supabase gen types typescript`. Not a plugin; a one-shot fix to the largest type-safety hole.
+4. **`.github/workflows/ci.yml`** — `tsc --noEmit + npm test` on PR.
+5. **Hold on Superpowers.** Decide after Session A + Session B land. If by then you have 5+ tests, an ADR or two, and a working MASTER_PLAN, Superpowers might fit. If you don't, it won't.
+
+**Build order for custom items (depend → independent):**
+
+1. **`migration-safety-check` + PreToolUse(Edit) hook** — depends on numbered-migrations reorg from Session A. Highest-stakes custom.
+2. **`nah-context-load` + SessionStart hook** — depends on `handoff.md` staying authoritative (which it already is). Build second.
+3. **`verify-claims` skill + `/audit-docs` slash command** — depends on `docs/master-plan.md` existing as a reference target. Build after Session A.
+4. **`code-reviewer` agent (NAH-customized)** — depends on having ADRs and a clean MASTER_PLAN to review against. Build third.
+5. **`new-adr` skill** — independent. Build whenever the first sticky decision happens. Don't pre-build.
+6. **`ghl-boundary-check` skill** — independent. Build alongside #1.
+7. **`scout-tool-add` skill** — independent but lower-frequency. Build when next adding a Scout tool.
+8. **`deploy-readiness` skill** — independent. Build after CI is in place (overlaps with CI checks; reuse the same logic).
+9. **`migration-reviewer` agent** — independent. Build after #1's hook is proven.
+
+**Defer / skip:**
+
+- **Defer**: `prompt-reviewer` (until prompt is externalized), `improve-codebase-architecture` (until ADRs exist), `pr-summarizer` (until PR workflow exists), `call-rubric-validator` (until Phase 5).
+- **Skip entirely**: `/sprint-from-plan`, `wrap-session-nah` skill (slash command works), `/load-nah` slash command (SessionStart covers), UserPromptSubmit DRC reminder (friction noise), `triage-issue` (workflow doesn't fit).
+
+**What I'd add that wasn't proposed:**
+
+- **A single `.claude/settings.json`** — none exists today. Should at minimum: declare hook list, set permission allowlist for safe Bash commands (`git status`, `git log`, `git diff`, `npx tsc --noEmit`, `npm test`, `ls`, `cat`), document the env var contract. The `fewer-permission-prompts` skill the user has access to globally would be the right tool to bootstrap this.
+- **A `.claude/skills/README.md`** — index of installed skills, what each does, last-reviewed date. Skills rot like docs. An index forces awareness of what's installed.
+- **A "delete dead infrastructure" pass** — `commands/` (root duplicate dir), `data/` (unclear purpose), `migration/` (orphaned), `CT Contact Master - Sheet1.csv` (579 KB), `next-env.d.ts.tsbuildinfo`, the old `/audit` and `/next` and `/status`. Half a kilogram of dead weight in the repo. Single PR, big psychological clarity.
+- **An honest `CONTRIBUTING.md`** — what's the deploy flow (push to main → Vercel), what gates exist (tsc, soon CI), what doesn't (no PR review, no QA), what's the rollback path. Right now this is undocumented and lives in CLAUDE.md global preferences.
+
+**The single most important thing in this section, if you only do one thing**: **install git-guardrails, then split the rest into separate sessions.** Everything else can wait. Nothing else can recover from `git push --force` to main.
+
+---
+
+*Section 8 added 2026-04-27 in response to tooling-stack scoping question. Sources: read of [.claude/](.claude/), `obra/superpowers` README, `mattpocock/skills` README, [blog.fsck.com/2025/10/09/superpowers/](https://blog.fsck.com/2025/10/09/superpowers/).*
+
+---
+
 *Generated by Claude Code on 2026-04-27. Source: read-through of repo HEAD on `main` (commit 277d6b6).*
