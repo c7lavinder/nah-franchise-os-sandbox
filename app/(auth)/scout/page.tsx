@@ -74,9 +74,6 @@ export default function ScoutPage() {
           message: trimmed,
           sessionId,
           history: apiHistoryRef.current,
-          userId: user?.id ?? "",
-          userRole: user?.role ?? "rep",
-          userName: user?.fullName ?? "User",
           pageContext,
         }),
       });
@@ -139,7 +136,6 @@ export default function ScoutPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action,
-          userId: user?.id ?? "",
           sessionId: sessionId ?? "no-session",
         }),
       });

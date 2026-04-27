@@ -108,7 +108,6 @@ export default function WorkflowsPage() {
             triggerType: wf.trigger_type,
             triggerConfig: wf.trigger_config,
             exitConditions: wf.exit_conditions,
-            createdBy: user.id,
           }),
         });
         if (res.ok) void fetchWorkflows();

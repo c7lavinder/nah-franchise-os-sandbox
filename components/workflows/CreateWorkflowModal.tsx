@@ -82,7 +82,6 @@ export default function CreateWorkflowModal({ onClose, onCreate, userId }: Creat
           workflowType,
           triggerType,
           exitConditions: { maxDays },
-          createdBy: userId,
         }),
       });
 

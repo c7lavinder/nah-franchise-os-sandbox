@@ -62,8 +62,7 @@ export default function DailyHQPage() {
   const fetchSidebar = useCallback(async () => {
     setSidebarError(null);
     try {
-      const params = user?.id ? `?userId=${user.id}` : "";
-      const res = await apiFetch(`/api/daily-hq${params}`);
+      const res = await apiFetch("/api/daily-hq");
       if (res.ok) {
         const data = await res.json();
         setAppointments(data.upcoming ?? []);
