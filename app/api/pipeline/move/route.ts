@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -139,6 +140,7 @@ async function validateMove(
 }
 
 export async function PUT(request: NextRequest) {
+  const user = await requireAuth(request);
   try {
     const body = (await request.json()) as MoveRequestBody;
 
@@ -192,7 +194,7 @@ export async function PUT(request: NextRequest) {
     try {
       const supabase = createServerClient();
       await supabase.from("scout_action_logs").insert({
-        user_id: null,
+        user_id: user.id,
         session_id: null,
         action_type: "stage_move",
         action_status: "executed",
