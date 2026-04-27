@@ -1,0 +1,444 @@
+# API Auth Audit — Tier 0b Phase 1
+
+**Date:** 2026-04-27
+**Branch:** `feat/auth-retrofit`
+**Scope:** every `app/api/**/route.ts` (216 files)
+**Method:** automated grep for auth helpers + Explore subagent reading each file + manual spot-check on 5 routes (1 critical, 1 admin, 1 cron, 1 already-correct, 1 webhook)
+
+## Headline numbers
+
+- **Total routes:** 216
+- **Real auth (`requireAuth` or `getAuthUser` with 401-on-null):** 6
+- **Broken admin (`requireAdmin` with body-userId fallback):** 15
+- **Cron token already verified:** 9 (of 16 cron routes)
+- **Webhook signature already verified:** 1 (of 10 webhook routes)
+- **No auth at all:** 195
+
+By risk:
+- **Critical:** 15 — unauthed + accept user identity from body/query + mutate
+- **High:** 22 — unauthed + accept identity OR mutate sensitive data
+- **Medium:** 137 — unauthed reads/mutates without identity in request
+- **Low:** 42 — public by intent (login, health, track-pixel, webhooks/crons that have OR will have shared-secret protection)
+
+By plan:
+- `add-requireAuth`: 159
+- `replace-requireAdmin`: 15
+- `cron-token-add`: 7 (of 16 cron routes; 9 already protected)
+- `webhook-shared-secret-add`: 9 (of 10 webhook routes; 1 already protected via HMAC)
+- `keep-public`: 9
+- `none-already-correct`: 6
+
+> **CC's audit said "~70 API routes."** The reality is 216 — about 3× the original estimate. Time-budget for Phase 2 retrofit must account for this.
+
+---
+
+## How to read the table
+
+| Column | Meaning |
+|---|---|
+| Route | Path under `/api/`. Bracket segments are dynamic params. |
+| Methods | HTTP verbs exported. |
+| Currently authed? | Yes (real auth) / No / Broken-admin-only (uses `requireAdmin` which falls back to body `userId`). |
+| Identity Source | Where the route gets user identity today: `body`, `query`, `path`, `session`, `none`. |
+| R/M | Reads or Mutates state. |
+| Risk | Critical / High / Medium / Low. |
+| Plan | The retrofit action: `add-requireAuth`, `replace-requireAdmin`, `cron-token-add`, `cron-token-verified` (already protected), `webhook-shared-secret-add`, `webhook-signed-verified` (already protected), `keep-public`, `oauth-callback`, `none` (already correct). |
+
+---
+
+## /api/auth/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| auth/crm | GET | No | none | Reads | Low | keep-public |
+| auth/crm/callback | GET | No | query | Mutates | Low | oauth-callback |
+| auth/login | POST | No | body | Mutates | Low | keep-public |
+| auth/logout | POST | No | none | Reads | Low | keep-public |
+| auth/me | GET | Yes (getAuthUser+401) | session | Reads | Low | none |
+| auth/refresh | POST | No | none | Reads | Low | keep-public |
+
+## /api/calls/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| calls | GET | No | none | Reads | Medium | add-requireAuth |
+| calls/[callId] | GET | No | none | Reads | Medium | add-requireAuth |
+| calls/[callId]/actions | POST | No | none | Mutates | Medium | add-requireAuth |
+| calls/[callId]/actions/[actionId] | PATCH | No | body | Mutates | Critical | add-requireAuth |
+| calls/[callId]/actions/[actionId]/rewrite | POST | No | none | Reads | Medium | add-requireAuth |
+| calls/[callId]/actions/generate-single | POST | No | none | Mutates | Medium | add-requireAuth |
+| calls/[callId]/coach | POST | No | none | Reads | Medium | add-requireAuth |
+| calls/[callId]/data/[extractionId] | PATCH | No | none | Mutates | Medium | add-requireAuth |
+| calls/[callId]/data/[extractionId]/save | POST | No | none | Mutates | Medium | add-requireAuth |
+| calls/[callId]/delete | POST | Yes (getAuthUser+401) | session | Mutates | Low | none |
+| calls/[callId]/detail | GET | No | none | Reads | Medium | add-requireAuth |
+| calls/[callId]/feedback | POST | No | body | Mutates | High | add-requireAuth |
+| calls/[callId]/generate | POST | No | none | Reads | Medium | add-requireAuth |
+| calls/[callId]/grade | POST | No | none | Reads | Medium | add-requireAuth |
+| calls/[callId]/grade-rubric | POST | No | none | Reads | Medium | add-requireAuth |
+| calls/[callId]/journeys | GET | No | none | Reads | Medium | add-requireAuth |
+| calls/[callId]/override | POST | Yes (getAuthUser+401) | session | Mutates | Low | none |
+| calls/[callId]/reclassify-participants | POST | No | none | Mutates | Medium | add-requireAuth |
+| calls/[callId]/review-package | GET,POST | No | none | Reads | Medium | add-requireAuth |
+| calls/[callId]/territories | GET | No | none | Reads | Medium | add-requireAuth |
+| calls/[callId]/transcript | POST | No | body | Mutates | Critical | add-requireAuth |
+| calls/[callId]/upload | POST | No | none | Mutates | Medium | add-requireAuth |
+| calls/create | POST | No | body | Mutates | Critical | add-requireAuth |
+| calls/list | GET | No | query | Reads | High | add-requireAuth |
+| calls/reconcile | POST | No | none | Reads | Medium | add-requireAuth |
+| calls/reformat-transcripts | POST | No | none | Mutates | Medium | add-requireAuth |
+
+## /api/contacts/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| contacts/[contactId] | GET,PATCH | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/brief | POST | No | none | Reads | Medium | add-requireAuth |
+| contacts/[contactId]/emails | GET,POST | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/emails/[emailId] | DELETE,PATCH | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/eos | GET | No | none | Reads | Medium | add-requireAuth |
+| contacts/[contactId]/eos/goals | POST | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/eos/habits | GET,POST | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/eos/habits/[habitId] | DELETE,PUT | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/eos/issues | POST | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/eos/issues/[issueId] | DELETE,PUT | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/eos/todos | POST | No | body | Mutates | Critical | add-requireAuth |
+| contacts/[contactId]/eos/todos/[todoId] | DELETE,PUT | No | body | Mutates | Critical | add-requireAuth |
+| contacts/[contactId]/journey | GET | No | none | Reads | Medium | add-requireAuth |
+| contacts/[contactId]/merge | POST | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/messages | GET,POST | Yes (getAuthUser+401) | session | Mutates | Low | none |
+| contacts/[contactId]/messages/[messageId] | DELETE,PATCH | Yes (getAuthUser+401) | session | Mutates | Low | none |
+| contacts/[contactId]/notes | POST | No | none | Reads | Medium | add-requireAuth |
+| contacts/[contactId]/pipeline-state | GET | No | none | Reads | Medium | add-requireAuth |
+| contacts/[contactId]/pipelines/[pipelineId]/advance | POST | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/pipelines/[pipelineId]/drop | POST | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/pipelines/[pipelineId]/revert | POST | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/pipelines/resume-sales | POST | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/pre-call-brief | GET | No | none | Reads | Medium | add-requireAuth |
+| contacts/[contactId]/profile | GET,PUT | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/related-people | GET,POST | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/related-people/[personId] | DELETE,PATCH | No | none | Mutates | Medium | add-requireAuth |
+| contacts/[contactId]/schedule | POST | No | none | Reads | Medium | add-requireAuth |
+| contacts/[contactId]/score | POST | No | none | Reads | Medium | add-requireAuth |
+| contacts/[contactId]/scout-actions | GET | No | none | Reads | Medium | add-requireAuth |
+| contacts/[contactId]/send | POST | No | none | Reads | Medium | add-requireAuth |
+| contacts/[contactId]/sub-tasks/[subTaskId]/logs | POST | No | body | Mutates | Critical | add-requireAuth |
+| contacts/[contactId]/tasks | POST | No | none | Reads | Medium | add-requireAuth |
+| contacts/[contactId]/tasks/[taskId] | PUT | No | none | Reads | Medium | add-requireAuth |
+| contacts/[contactId]/team | DELETE,GET,POST | No | body | Mutates | Critical | add-requireAuth |
+| contacts/[contactId]/territories | GET | No | none | Reads | Medium | add-requireAuth |
+| contacts/[contactId]/territory-data | GET | No | none | Reads | Medium | add-requireAuth |
+| contacts/batch | GET,POST | No | none | Reads | Medium | add-requireAuth |
+| contacts/create | POST | No | none | Mutates | Medium | add-requireAuth |
+| contacts/search | GET | No | none | Reads | Medium | add-requireAuth |
+
+## /api/cron/*
+
+> **9 cron routes already verify `CRON_SECRET`** (verified by grep). Plan column distinguishes `cron-token-verified` (already protected, no change needed beyond docs) from `cron-token-add` (still needs the check).
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| cron/journals | GET,POST | Yes (CRON_SECRET) | none | Mutates | Low | cron-token-verified |
+| cron/pre-call-briefs | GET | Yes (CRON_SECRET) | none | Reads | Low | cron-token-verified |
+| cron/process-transcripts | GET | Yes (CRON_SECRET) | none | Reads | Low | cron-token-verified |
+| cron/reengagement-scan | GET | Yes (CRON_SECRET) | none | Reads | Low | cron-token-verified |
+| cron/research-contacts | GET | Yes (CRON_SECRET) | none | Reads | Low | cron-token-verified |
+| cron/research-territories | GET | Yes (CRON_SECRET) | none | Reads | Low | cron-token-verified |
+| cron/rubric-review | GET,POST | Yes (CRON_SECRET) | none | Mutates | Low | cron-token-verified |
+| cron/sync-ghl-calendar | GET | Yes (CRON_SECRET) | none | Mutates | Low | cron-token-verified |
+| cron/weekly-report | GET,POST | Yes (CRON_SECRET) | none | Mutates | Low | cron-token-verified |
+| cron/refresh-ghl-token | GET | No | none | Mutates | Low | cron-token-add |
+| cron/score-recalculate | POST | No | none | Reads | Low | cron-token-add |
+| cron/stale-leads | POST | No | none | Mutates | Low | cron-token-add |
+| cron/workflow-analysis | POST | No | none | Reads | Low | cron-token-add |
+| cron/workflow-delivery-sync | POST | No | none | Reads | Low | cron-token-add |
+| cron/workflow-notifications | POST | No | none | Reads | Low | cron-token-add |
+| cron/workflow-scheduler | POST | No | none | Reads | Low | cron-token-add |
+
+## /api/intelligence/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| intelligence/bootstrap | POST | No | none | Reads | Medium | add-requireAuth |
+| intelligence/call-logs | GET,POST | No | none | Mutates | Medium | add-requireAuth |
+| intelligence/franchisee | GET,POST | No | none | Mutates | Medium | add-requireAuth |
+| intelligence/franchisee/[franchiseeId] | GET,PATCH | No | none | Mutates | Medium | add-requireAuth |
+| intelligence/llm-logs | GET | No | query | Reads | High | add-requireAuth |
+| intelligence/market-signals | GET,POST | No | none | Mutates | Medium | add-requireAuth |
+| intelligence/objections | GET,POST | No | none | Mutates | Medium | add-requireAuth |
+| intelligence/onboarding | GET,POST | No | none | Reads | Medium | add-requireAuth |
+| intelligence/onboarding/[enrollmentId] | PATCH | No | none | Reads | Medium | add-requireAuth |
+| intelligence/profile | GET | No | none | Reads | Medium | add-requireAuth |
+| intelligence/scores | GET | No | none | Reads | Medium | add-requireAuth |
+| intelligence/transcript | POST | No | none | Reads | Medium | add-requireAuth |
+| intelligence/zorakle | POST | No | none | Mutates | Medium | add-requireAuth |
+
+## /api/workflows/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| workflows | GET,POST | No | body, query | Mutates | Critical | add-requireAuth |
+| workflows/[workflowId] | GET,PATCH | No | none | Mutates | Medium | add-requireAuth |
+| workflows/[workflowId]/ab-tests | GET,POST | No | body | Reads | High | add-requireAuth |
+| workflows/[workflowId]/ab-tests/[testId] | GET,PATCH | No | none | Reads | Medium | add-requireAuth |
+| workflows/[workflowId]/approvals | GET,POST | No | none | Reads | Medium | add-requireAuth |
+| workflows/[workflowId]/approvals/[approvalId] | GET,PATCH | No | none | Reads | Medium | add-requireAuth |
+| workflows/[workflowId]/rewrite | POST | No | none | Reads | Medium | add-requireAuth |
+| workflows/[workflowId]/steps | GET,POST | No | none | Mutates | Medium | add-requireAuth |
+| workflows/[workflowId]/steps/[stepId] | DELETE,PATCH | No | none | Mutates | Medium | add-requireAuth |
+| workflows/approvals | GET | No | none | Reads | Medium | add-requireAuth |
+| workflows/enrollments | GET,POST | No | none | Reads | Medium | add-requireAuth |
+| workflows/enrollments/[enrollmentId] | GET,PATCH | No | none | Reads | Medium | add-requireAuth |
+
+## /api/settings/*
+
+> Every `replace-requireAdmin` route below uses `lib/auth/admin-check.ts` which falls back to `bodyUserId` when no Bearer token is present. **A caller can post `{ userId: "<some admin's id>" }` with no auth header and pass the check.** All 15 should be migrated to `requireAuth(request)` + role check on the resolved user.
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| settings/agents | GET | No | none | Reads | Medium | add-requireAuth |
+| settings/agents/toggle | POST | No | none | Mutates | Medium | add-requireAuth |
+| settings/app-settings | GET,PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/call-types | GET,POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/call-types/[id] | DELETE,PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/call-types/[id]/rubric | GET,PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/cron-jobs | GET | No | none | Reads | Low | add-requireAuth |
+| settings/health | GET | No | none | Reads | Medium | add-requireAuth |
+| settings/integrations | GET | No | none | Reads | Medium | add-requireAuth |
+| settings/lead-sources | DELETE,GET,POST | No | none | Mutates | Medium | add-requireAuth |
+| settings/pipelines | GET | No | none | Reads | Medium | add-requireAuth |
+| settings/pipelines/[pipelineId] | PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/pipelines/[pipelineId]/stages | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/pipelines/[pipelineId]/stages/[stageId] | DELETE,PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/pipelines/[pipelineId]/stages/[stageId]/auto-advance | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/pipelines/[pipelineId]/stages/reorder | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/rubric-criteria/[id] | DELETE,PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/rubrics/[id]/criteria | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/rubrics/[id]/criteria/reorder | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/stages/[stageId]/sub-tasks | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/stages/[stageId]/sub-tasks/reorder | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/sub-tasks/[subTaskId] | DELETE,PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/users | GET,PATCH | No | body (`id`) | Mutates | Critical | add-requireAuth |
+
+## /api/agents/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| agents/contact-research/[contactId] | POST | No | none | Reads | Medium | add-requireAuth |
+| agents/post-call/run | POST | No | none | Reads | Medium | add-requireAuth |
+| agents/pre-call-brief/[callId] | POST | No | none | Reads | Medium | add-requireAuth |
+| agents/reengagement/[contactId] | POST | No | none | Reads | Medium | add-requireAuth |
+| agents/territory-market/[msSlug] | POST | No | none | Reads | Medium | add-requireAuth |
+
+## /api/scout/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| scout/action | POST | No | body | Mutates | Critical | add-requireAuth |
+| scout/chat | POST | No | body | Mutates | Critical | add-requireAuth |
+| scout/session | GET | No | query | Reads | High | add-requireAuth |
+
+## /api/pipeline/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| pipeline | GET | No | none | Reads | Medium | add-requireAuth |
+| pipeline/board | GET | No | none | Reads | Medium | add-requireAuth |
+| pipeline/contacts | GET | No | query | Reads | High | add-requireAuth |
+| pipeline/move | PUT | No | body | Mutates | Critical | add-requireAuth |
+| pipeline/stages | GET | No | none | Reads | Medium | add-requireAuth |
+| pipeline/territory-cards | GET | No | none | Reads | Medium | add-requireAuth |
+| pipeline/users | GET | No | none | Reads | Medium | add-requireAuth |
+
+## /api/inbox/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| inbox | GET | No | none | Reads | Medium | add-requireAuth |
+| inbox/[conversationId] | GET | No | none | Reads | Medium | add-requireAuth |
+| inbox/[conversationId]/read | PUT | No | none | Reads | Medium | add-requireAuth |
+| inbox/send | POST | No | none | Mutates | Medium | add-requireAuth |
+
+## /api/leads/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| leads | GET | No | none | Reads | Medium | add-requireAuth |
+| leads/priority | GET | No | none | Reads | Medium | add-requireAuth |
+| leads/score-all | POST | No | none | Reads | Medium | add-requireAuth |
+
+## /api/webhooks/*
+
+> **1 webhook already has HMAC signature verification** (`read-ai`, per-user signing key in env). The other 9 are open. `add` plan = implement `WEBHOOK_SHARED_SECRET` check.
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| webhooks/read-ai | POST | Yes (HMAC per-user signing key) | none | Mutates | Low | webhook-signed-verified |
+| webhooks/docusign | POST | No | none | Mutates | Low | webhook-shared-secret-add |
+| webhooks/form-submission | POST | No | none | Mutates | Low | webhook-shared-secret-add |
+| webhooks/ghl | POST | No | none | Mutates | Low | webhook-shared-secret-add |
+| webhooks/ghl-calendar | POST | No | none | Mutates | Low | webhook-shared-secret-add |
+| webhooks/ghl/contacts | POST | No | none | Reads | Low | webhook-shared-secret-add |
+| webhooks/google-meet | POST | No | none | Mutates | Low | webhook-shared-secret-add |
+| webhooks/payment | POST | No | none | Mutates | Low | webhook-shared-secret-add |
+| webhooks/trainual | POST | No | body | Mutates | Low | webhook-shared-secret-add |
+| webhooks/zorakle | POST | No | none | Mutates | Low | webhook-shared-secret-add |
+
+## /api/track/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| track/click/[logId] | GET | No | none | Mutates | Low | keep-public |
+| track/open/[logId] | GET | No | none | Mutates | Low | keep-public |
+
+## /api/ghl/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| ghl/calendars | GET | No | none | Reads | Medium | add-requireAuth |
+| ghl/sync | POST | No | none | Mutates | Medium | add-requireAuth |
+
+## /api/admin/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| admin/webhooks | GET | No | none | Reads | Medium | add-requireAuth |
+
+## /api/dashboard, /api/voice, /api/health, /api/daily-hq, /api/notifications, /api/accountability, /api/activity
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| dashboard | GET | No | none | Reads | Medium | add-requireAuth |
+| voice/transcribe | POST | No | none | Reads | Medium | add-requireAuth |
+| health | GET | No | none | Reads | Low | keep-public |
+| daily-hq | GET | No | query | Reads | High | add-requireAuth |
+| notifications | GET,PATCH | Yes (getAuthUser+401) | session | Mutates | Low | none |
+| accountability/run | POST | No | none | Reads | Medium | add-requireAuth |
+| activity | GET | No | none | Reads | Medium | add-requireAuth |
+
+## /api/territories/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| territories | GET | No | none | Reads | Medium | add-requireAuth |
+| territories/[msSlug] | GET | No | none | Reads | Medium | add-requireAuth |
+| territories/[msSlug]/eos | GET | No | none | Reads | Medium | add-requireAuth |
+| territories/[msSlug]/eos/budgets | POST | No | none | Mutates | Medium | add-requireAuth |
+| territories/[msSlug]/eos/budgets/[budgetId] | DELETE,PUT | No | none | Mutates | Medium | add-requireAuth |
+| territories/[msSlug]/eos/goals | POST | No | none | Mutates | Medium | add-requireAuth |
+| territories/[msSlug]/eos/habits/[habitId] | PUT | No | none | Mutates | Medium | add-requireAuth |
+| territories/[msSlug]/eos/issues | POST | No | none | Mutates | Medium | add-requireAuth |
+| territories/[msSlug]/eos/issues/[issueId] | DELETE,PUT | No | none | Mutates | Medium | add-requireAuth |
+| territories/[msSlug]/eos/lead-channels/[channelId] | POST | No | none | Mutates | Medium | add-requireAuth |
+| territories/[msSlug]/eos/rocks | POST | No | none | Mutates | Medium | add-requireAuth |
+| territories/[msSlug]/eos/rocks/[rockId] | DELETE,PUT | No | none | Mutates | Medium | add-requireAuth |
+| territories/[msSlug]/eos/scorecard/[metricKey] | PUT | No | none | Mutates | Medium | add-requireAuth |
+| territories/[msSlug]/eos/todos | POST | No | body | Mutates | Critical | add-requireAuth |
+| territories/[msSlug]/eos/todos/[todoId] | DELETE,PUT | No | body | Mutates | Critical | add-requireAuth |
+| territories/[msSlug]/market-data | GET,POST,PUT | No | none | Mutates | Medium | add-requireAuth |
+| territories/[msSlug]/ownership-history | GET | No | none | Reads | Medium | add-requireAuth |
+| territories/[msSlug]/stakeholders | DELETE,GET,POST | No | none | Mutates | Medium | add-requireAuth |
+| territories/[msSlug]/status | PATCH | No | none | Mutates | Medium | add-requireAuth |
+| territories/[msSlug]/transfer | POST | No | none | Mutates | Medium | add-requireAuth |
+
+## /api/journeys/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| journeys/[journeyId] | PATCH | No | none | Mutates | Medium | add-requireAuth |
+| journeys/[journeyId]/members | POST | No | none | Mutates | Medium | add-requireAuth |
+| journeys/[journeyId]/split | POST | No | body | Mutates | Critical | add-requireAuth |
+
+## /api/territory-owners/*, /api/zorakle/*, /api/knowledge/*, /api/scorecards/*, /api/research/*, /api/metrics/*, /api/suggestions/*, /api/sub-task-logs/*
+
+| Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
+|---|---|---|---|---|---|---|
+| territory-owners/assign | POST | No | none | Mutates | Medium | add-requireAuth |
+| territory-owners/transfer | POST | No | none | Mutates | Medium | add-requireAuth |
+| zorakle/owner/[msSlug] | GET | No | none | Reads | Medium | add-requireAuth |
+| zorakle/prospect/[contactId] | GET | No | none | Reads | Medium | add-requireAuth |
+| zorakle/prospect/sync | POST | No | none | Mutates | Medium | add-requireAuth |
+| knowledge | DELETE,GET,POST,PUT | No | none | Mutates | Medium | add-requireAuth |
+| scorecards/[page] | GET | No | none | Reads | Medium | add-requireAuth |
+| research/contact/[contactId] | POST | No | none | Reads | Medium | add-requireAuth |
+| research/territory/[msSlug] | POST | No | none | Reads | Medium | add-requireAuth |
+| metrics/north-star | GET | No | none | Reads | Medium | add-requireAuth |
+| suggestions | GET | No | none | Reads | Medium | add-requireAuth |
+| suggestions/push | POST | No | none | Reads | Medium | add-requireAuth |
+| suggestions/skip | POST | No | none | Reads | Medium | add-requireAuth |
+| sub-task-logs/[logId] | DELETE | No | none | Mutates | Medium | add-requireAuth |
+
+---
+
+## Critical findings (15 routes — fix first)
+
+Each accepts user identity from request body or query, has no auth, and mutates state. Anyone with the deployment URL can impersonate.
+
+1. `POST /api/calls/[callId]/actions/[actionId]` — body identity, mutates action state
+2. `POST /api/calls/[callId]/transcript` — body identity, mutates call record
+3. `POST /api/calls/create` — body `hosted_by_user_id`, creates call rows
+4. `POST /api/contacts/[contactId]/eos/todos` — body `owner_user_id`, creates todo
+5. `DELETE,PUT /api/contacts/[contactId]/eos/todos/[todoId]` — body identity
+6. `POST /api/contacts/[contactId]/sub-tasks/[subTaskId]/logs` — body `logger_user_id`
+7. `DELETE,GET,POST /api/contacts/[contactId]/team` — body identity, mutates team
+8. `POST /api/scout/action` — body `userId`, executes GHL actions on user's behalf
+9. `POST /api/scout/chat` — body `userId`/`userRole`/`userName`, role-spoofs Scout
+10. `PUT /api/pipeline/move` — body identity, moves opportunities between stages
+11. `GET,PATCH /api/settings/users` — body `id` selects user; PATCH writes role/active. **Anyone can promote anyone to admin.**
+12. `POST /api/territories/[msSlug]/eos/todos` — body `owner_user_id`
+13. `DELETE,PUT /api/territories/[msSlug]/eos/todos/[todoId]` — body identity
+14. `GET,POST /api/workflows` — body `createdBy`, creates workflows
+15. `POST /api/journeys/[journeyId]/split` — body identity, splits journey
+
+## High-risk findings (22 routes)
+
+Identity from query/body OR sensitive mutation without identity. Notable:
+- `GET /api/daily-hq?userId=<X>` — anyone reads any user's HQ
+- `GET /api/intelligence/llm-logs` — query filters expose LLM execution logs
+- `GET /api/calls/list` — query filters expose call list
+- `GET /api/pipeline/contacts` — query filters expose contacts
+- `GET /api/scout/session?userId=<X>` — anyone reads any user's Scout session
+- All 15 `/api/settings/*` routes using `requireAdmin` — anyone with no auth header can post `{ userId: "<admin's id>" }` and pass
+
+## Spot-check verification (5/216 routes manually inspected)
+
+| Route | Subagent classification | Verified result |
+|---|---|---|
+| `/api/scout/action` | Critical / body / no auth | ✅ Confirmed |
+| `/api/settings/users` | Critical / body / no auth | ✅ Confirmed (target field is `id`, not `userId`, but risk is identical) |
+| `/api/cron/journals` | cron-token-add | ❌ Already has `CRON_SECRET` check — corrected to `cron-token-verified` |
+| `/api/calls/[callId]/delete` | Yes (getAuthUser+401) | ✅ Confirmed (also enforces admin/owner check) |
+| `/api/webhooks/read-ai` | webhook-shared-secret-add | ❌ Already has HMAC per-user signing key — corrected to `webhook-signed-verified` |
+
+The 9 cron routes with existing `CRON_SECRET` checks were detected by separate grep and the table was corrected.
+
+## Things to flag for Corey before Phase 2 begins
+
+1. **Scope is 3× the original estimate.** CC's audit said ~70 routes; reality is 216. Time-budget for Phase 2 was "1 day hard stop" — that is not realistic for 159 `add-requireAuth` retrofits + 15 `replace-requireAdmin` + 7 cron-token + 9 webhook secret + tests + docs. Recommend either splitting Phase 2 into multiple sessions (one PR per route family is the natural slice) or accepting that this is a multi-day sprint.
+
+2. **`requireAdmin` source-file deletion.** All 15 `replace-requireAdmin` migrations should also delete `lib/auth/admin-check.ts` once the last call site is gone. The function's existence is a foot-gun — anyone could re-import it.
+
+3. **Frontend impact.** Routes that today take `userId` from body or query mostly do so because the frontend sends it. Removing those fields will break frontends until they're updated. The frontend already has the JWT in `localStorage` via `AuthContext` — needs a `getAuthHeader()` helper passed in fetches. Suggest adding that helper + sweep frontend fetches in Phase 2 or as a parallel sub-phase.
+
+4. **`daily-hq` GHL fetch + auth.** `daily-hq` accepts `?userId=` and uses it to look up `ghl_user_id`. Once we derive from session, we lose the ability to do "view as another user" admin-mode. CC mentioned cross-user admin views aren't built yet, but if they're planned, the right pattern is `?targetUserId=` only honored if `user.role === 'admin'`. Flagging now so we don't have to redo this later.
+
+5. **`scout/chat` request shape.** Today the body has `userId`, `userRole`, `userName`. After retrofit they all come from the session. The frontend currently constructs these from `useAuth()` context, so the change is "stop sending them, just send `message`/`history`/`pageContext`". Should be a quick frontend sweep.
+
+6. **OAuth flow at `/api/auth/crm/callback`.** GHL OAuth callback flow needs a separate read — does it verify state token, prevent CSRF on the callback, etc.? Currently classified `oauth-callback` (review). Would be a small Phase 2 sub-task.
+
+7. **Cron `refresh-ghl-token` is unprotected.** This is the route that refreshes our GHL OAuth token — if exploited, attacker triggers token refreshes which could DoS GHL or hit rate limits. Low risk but we should fix it.
+
+8. **`/api/webhooks/ghl` is open and dead-code-suspect.** `CC_INPUT.md` flagged that CLAUDE.md/memory says "no GHL webhooks." Either delete the route (and `ghl-calendar`, `ghl/contacts`) or wire them up properly with signature verification. Worth resolving the contradiction as part of Phase 2.
+
+9. **`/api/admin/webhooks` is unauthenticated.** Despite the name, it has no auth check. Either add `requireAuth` + admin role, or rename if it's actually for incoming webhooks (the file path is ambiguous).
+
+## Out of scope (per Tier 0b prompt)
+
+These were flagged but explicitly deferred:
+- JWT in localStorage → httpOnly cookies (separate prompt)
+- Per-rep row-level filtering on intelligence tables (separate ADR)
+- OAuth token storage cleanup in `app_settings` (separate cleanup pass)
+
+---
+
+**End of Phase 1 audit. Phase 2 begins after Corey approves this document.**
