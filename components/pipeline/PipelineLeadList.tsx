@@ -7,14 +7,16 @@
  * Shows urgency colors per §1.14 (Fresh 0-5d / At Risk 5-10d / Losing 10+d).
  */
 
-import { useState, useEffect, useCallback } from "react";
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { ChevronDown, ChevronRight, Loader2, MessageSquare, X } from "lucide-react";
 import Link from "next/link";
 import { capitalizeName, formatPhone } from "@/lib/format/contact";
+import BulkComposerModal, { type BulkContact } from "./BulkComposerModal";
 
 interface PipelineContact {
   stateId: string;
   contactId: string;
+  ghlContactId: string | null;
   journeyId?: string;
   journeySlug?: string | null;
   territoryMsSlug?: string | null;
@@ -117,6 +119,29 @@ export default function PipelineLeadList({
   const [error, setError] = useState<string | null>(null);
   const BATCH_SIZE = 5000;
 
+  // Bulk-select state — keyed by contactId. Cleared whenever the visible
+  // dataset changes meaningfully (new stage filter, new search) since
+  // selections from a previous view are usually no longer relevant.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+
+  useEffect(() => {
+    // Reset selection on stage/search change
+    setSelectedIds(new Set());
+  }, [selectedStageId, searchQuery]);
+
+  function toggleOne(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
   const fetchContacts = useCallback(async (append = false, currentOffset = 0) => {
     if (!append) { setLoading(true); setVisibleCount(PAGE_SIZE); }
     else setLoadingMore(true);
@@ -179,6 +204,19 @@ export default function PipelineLeadList({
   const visible = sorted.slice(0, visibleCount);
   const hasMoreLocal = sorted.length > visibleCount;
 
+  // Resolve selected ids back to contact summaries for the bulk modal.
+  const selectedBulkContacts: BulkContact[] = useMemo(() => {
+    return contacts
+      .filter((c) => selectedIds.has(c.contactId))
+      .map((c) => ({
+        contactId: c.contactId,
+        ghlContactId: c.ghlContactId,
+        name: capitalizeName(c.name),
+        email: c.email,
+        phone: c.phone,
+      }));
+  }, [contacts, selectedIds]);
+
   function toggleSort(field: SortField) {
     if (sortField === field) setSortAsc(!sortAsc);
     else { setSortField(field); setSortAsc(false); }
@@ -230,57 +268,67 @@ export default function PipelineLeadList({
 
           const sc = STAGE_COLORS[contact.stageSlug] ?? { bg: "bg-gray-100", text: "text-gray-600" };
           const srcStyle = contact.source ? getSourceStyle(contact.source) : null;
+          const isSelected = selectedIds.has(contact.contactId);
 
           return (
-            <Link
+            <div
               key={contact.stateId}
-              href={
-                contact.journeySlug || contact.journeyId
-                  ? `/journeys/${contact.journeySlug ?? contact.journeyId}${contact.territoryMsSlug ? `?territory=${contact.territoryMsSlug}` : ""}`
-                  : `/leads/${contact.contactId}`
-              }
               className={`
-                grid items-center gap-2 px-3 py-2.5 hover:bg-bg-hover transition-colors
-                grid-cols-[1fr_72px_110px_140px_16px]
+                grid items-center gap-2 pl-2 pr-3 py-2.5 hover:bg-bg-hover transition-colors
+                grid-cols-[20px_1fr_72px_110px_140px_16px]
+                ${isSelected ? "bg-nah-blue/5" : ""}
                 ${i < visible.length - 1 ? "border-b border-border-default" : ""}
               `}
             >
-              {/* Name + territory chip (runway/onboarding cards are
-                  territory-scoped; show the slug so reps can tell which
-                  card belongs to which territory for multi-territory
-                  franchisees). */}
-              <div className="flex items-center gap-1.5 min-w-0">
-                <p className="text-body-sm text-text-primary font-medium truncate">
-                  {capitalizeName(contact.name)}
-                </p>
-                {contact.territoryMsSlug && (
-                  <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-info/10 text-info">
-                    {contact.territoryMsSlug}
-                  </span>
-                )}
-              </div>
+              {/* Selection checkbox — its own click region so the row link still navigates */}
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => toggleOne(contact.contactId)}
+                onClick={(e) => e.stopPropagation()}
+                className="cursor-pointer"
+                aria-label={`Select ${contact.name}`}
+              />
 
-              {/* Urgency badge */}
-              <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold text-center ${urg.bgColor} ${urg.color}`}>
-                {urg.label}
-              </span>
+              {/* The rest of the row links to the detail page */}
+              <Link
+                href={
+                  contact.journeySlug || contact.journeyId
+                    ? `/journeys/${contact.journeySlug ?? contact.journeyId}${contact.territoryMsSlug ? `?territory=${contact.territoryMsSlug}` : ""}`
+                    : `/leads/${contact.contactId}`
+                }
+                className="contents"
+              >
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p className="text-body-sm text-text-primary font-medium truncate">
+                    {capitalizeName(contact.name)}
+                  </p>
+                  {contact.territoryMsSlug && (
+                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-info/10 text-info">
+                      {contact.territoryMsSlug}
+                    </span>
+                  )}
+                </div>
 
-              {/* Stage — colored label */}
-              <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center ${sc.bg} ${sc.text}`}>
-                {contact.stageName}
-              </span>
-
-              {/* Source — colored label */}
-              {srcStyle ? (
-                <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center hidden lg:block ${srcStyle.bg} ${srcStyle.text}`}>
-                  {contact.source}
+                <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold text-center ${urg.bgColor} ${urg.color}`}>
+                  {urg.label}
                 </span>
-              ) : (
-                <span className="hidden lg:block" />
-              )}
 
-              <ChevronRight size={12} className="text-text-tertiary" />
-            </Link>
+                <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center ${sc.bg} ${sc.text}`}>
+                  {contact.stageName}
+                </span>
+
+                {srcStyle ? (
+                  <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center hidden lg:block ${srcStyle.bg} ${srcStyle.text}`}>
+                    {contact.source}
+                  </span>
+                ) : (
+                  <span className="hidden lg:block" />
+                )}
+
+                <ChevronRight size={12} className="text-text-tertiary" />
+              </Link>
+            </div>
           );
         })}
       </div>
@@ -306,6 +354,38 @@ export default function PipelineLeadList({
           {loadingMore ? <Loader2 size={12} className="animate-spin" /> : <ChevronDown size={12} />}
           Load more ({totalCount - contacts.length} remaining)
         </button>
+      )}
+
+      {/* Bulk actions bar — sticky, only when something is selected */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-bg-primary border border-border-default rounded-xl shadow-2xl px-4 py-2.5">
+          <span className="text-body-sm font-medium text-text-primary">
+            {selectedIds.size} selected
+          </span>
+          <button
+            onClick={clearSelection}
+            className="text-text-tertiary hover:text-text-primary p-1"
+            aria-label="Clear selection"
+          >
+            <X size={14} />
+          </button>
+          <div className="w-px h-5 bg-border-default mx-1" />
+          <button
+            onClick={() => setBulkModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-nah-blue text-white text-body-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            <MessageSquare size={14} />
+            Bulk action…
+          </button>
+        </div>
+      )}
+
+      {bulkModalOpen && (
+        <BulkComposerModal
+          contacts={selectedBulkContacts}
+          onClose={() => setBulkModalOpen(false)}
+          onComplete={() => clearSelection()}
+        />
       )}
     </div>
   );

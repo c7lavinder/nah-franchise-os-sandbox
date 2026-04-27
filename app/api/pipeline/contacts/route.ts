@@ -40,6 +40,7 @@ const SELECT_FIELDS = `
     primary_contact_id,
     contacts!journeys_primary_contact_id_fkey (
       id,
+      ghl_contact_id,
       first_name,
       last_name,
       email,
@@ -152,7 +153,7 @@ export async function GET(request: NextRequest) {
 
     const now = Date.now();
 
-    type ContactRow = { id: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null; opportunity_source: string | null; city: string | null; state: string | null };
+    type ContactRow = { id: string; ghl_contact_id: string | null; first_name: string | null; last_name: string | null; email: string | null; phone: string | null; opportunity_source: string | null; city: string | null; state: string | null };
     type JourneyRow = { id: string; name: string; slug: string | null; primary_contact_id: string; contacts: ContactRow | ContactRow[] | null };
     type StageRow = { id: string; name: string; slug: string };
     type PipelineRow = { id: string; name: string; slug: string; sort_order: number };
@@ -228,6 +229,7 @@ export async function GET(request: NextRequest) {
       return {
         stateId: row.id as string,
         contactId: (contact?.id ?? journey?.primary_contact_id ?? "") as string,
+        ghlContactId: (contact?.ghl_contact_id ?? null) as string | null,
         journeyId: row.journey_id as string,
         journeySlug: journey?.slug ?? null,
         territoryMsSlug: (row.territory_ms_slug as string | null) ?? null,

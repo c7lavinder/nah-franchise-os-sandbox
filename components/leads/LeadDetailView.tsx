@@ -7,6 +7,7 @@ import {
   MessageSquare, Save, Award, ClipboardList, Calendar,
 } from "lucide-react";
 import { SMSPanel, EmailPanel, CallPanel, SchedulePanel } from "@/components/contact/ActionPanels";
+import MergeContactModal from "@/components/contact/MergeContactModal";
 import { ProfileSection } from "@/components/profile";
 import { PROFILE_FIELDS, getSortedCategories } from "@/lib/profile/field-registry";
 import type { FieldCategory } from "@/lib/profile/field-registry";
@@ -148,6 +149,7 @@ export default function LeadDetailView({
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [drilldownStageId, setDrilldownStageId] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<"sms" | "email" | "call" | "schedule" | null>(null);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [focusedTerritorySlug, setFocusedTerritorySlug] = useState<string | null>(initialTerritorySlug ?? null);
   const [splitOpen, setSplitOpen] = useState(false);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
@@ -444,6 +446,13 @@ export default function LeadDetailView({
             <button onClick={() => setActivePanel("sms")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-info/10 text-info text-caption font-medium hover:bg-info/20 transition-colors"><MessageSquare size={12} /> Text</button>
             <button onClick={() => setActivePanel("email")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-scout-purple/10 text-scout-purple text-caption font-medium hover:bg-scout-purple/20 transition-colors"><Mail size={12} /> Email</button>
             <button onClick={() => setActivePanel("schedule")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-nah-orange/10 text-nah-orange text-caption font-medium hover:bg-nah-orange/20 transition-colors"><Calendar size={12} /> Schedule</button>
+            <button
+              onClick={() => setMergeOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-warning/10 text-warning text-caption font-medium hover:bg-warning/20 transition-colors"
+              title="Merge this contact into another (mark as duplicate)"
+            >
+              Merge
+            </button>
           </div>
         )}
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -710,12 +719,32 @@ export default function LeadDetailView({
           onClose={() => setActivePanel(null)} onSent={() => { setActivePanel(null); void fetchAll(); }} />
       )}
       {activePanel === "call" && contact && (
-        <CallPanel contactName={displayName} contactPhone={contact.phone ?? localContact?.phone ?? null}
-          onClose={() => setActivePanel(null)} />
+        <CallPanel
+          contactId={contact.id}
+          contactName={displayName}
+          contactPhone={contact.phone ?? localContact?.phone ?? null}
+          onClose={() => setActivePanel(null)}
+          onLogged={() => void fetchAll()}
+        />
       )}
       {activePanel === "schedule" && contact && (
         <SchedulePanel contactId={contact.id} contactName={displayName} contactEmail={contact.email ?? localContact?.email ?? null}
           onClose={() => setActivePanel(null)} onScheduled={() => { setActivePanel(null); void fetchAll(); }} />
+      )}
+      {mergeOpen && contact && (
+        <MergeContactModal
+          duplicateContact={{
+            id: primaryLocalContactId ?? contact.id,
+            ghlContactId: contact.id,
+            name: displayName,
+          }}
+          onClose={() => setMergeOpen(false)}
+          onMerged={(keeperId) => {
+            setMergeOpen(false);
+            // Navigate to the keeper so the user can verify the merge.
+            router.push(`/leads/${keeperId}`);
+          }}
+        />
       )}
 
       {/* Split Journey modal — visible only when a journey has 2+ members */}

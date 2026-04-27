@@ -6,10 +6,10 @@
  * Follows Draft → Review → Confirm pattern per CLAUDE.md.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   X, Send, Loader2, Sparkles, Phone, MessageSquare,
-  Mail, Calendar, Clock, ChevronDown,
+  Mail, Calendar, Clock, ChevronDown, Check,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -364,67 +364,197 @@ export function EmailPanel({ contactId, contactName, contactEmail, onClose, onSe
 /* ------------------------------------------------------------------ */
 
 interface CallPanelProps {
+  contactId: string;
   contactName: string;
   contactPhone: string | null;
   onClose: () => void;
+  onLogged?: () => void;
 }
 
-export function CallPanel({ contactName, contactPhone, onClose }: CallPanelProps) {
-  const [fromNumber] = useState("+1 (888) NAH-FLIP");
-  const [toNumber, setToNumber] = useState(contactPhone ?? "");
-  const [calling, setCalling] = useState(false);
-  const [connected, setConnected] = useState(false);
+/**
+ * Log a call to GHL.
+ *
+ * The previous version simulated a connect with setTimeout. We don't
+ * have telephony provisioned (GHL doesn't expose a programmatic dial
+ * endpoint without Twilio + LC Phone numbers), so this is a record-
+ * keeping panel: the user dials from their own phone, then comes back
+ * here to log what happened. The log is written as a GHL note on the
+ * contact so it lives on the timeline. An optional follow-up task can
+ * be created in the same step.
+ */
+const CALL_OUTCOMES = [
+  { value: "connected", label: "Connected — full conversation" },
+  { value: "voicemail", label: "Voicemail left" },
+  { value: "no_answer", label: "No answer" },
+  { value: "busy", label: "Busy / call back" },
+  { value: "wrong_number", label: "Wrong number" },
+  { value: "bad_number", label: "Bad / disconnected number" },
+] as const;
 
-  const toOptions = contactPhone
-    ? [{ label: `${contactName} — ${contactPhone}`, value: contactPhone }]
-    : [{ label: "No phone number on file", value: "" }];
+type CallOutcome = (typeof CALL_OUTCOMES)[number]["value"];
 
-  function handleCall() {
-    if (!toNumber) return;
-    setCalling(true);
-    // Simulate GHL call initiation — in production this triggers GHL's call API
-    setTimeout(() => {
-      setConnected(true);
-      setCalling(false);
-    }, 2000);
+const FOLLOWUP_DEFAULTS: Record<CallOutcome, { title: string; daysOut: number } | null> = {
+  connected: null,
+  voicemail: { title: "Follow up after voicemail", daysOut: 2 },
+  no_answer: { title: "Retry call", daysOut: 1 },
+  busy: { title: "Retry call", daysOut: 1 },
+  wrong_number: null,
+  bad_number: null,
+};
+
+export function CallPanel({ contactId, contactName, contactPhone, onClose, onLogged }: CallPanelProps) {
+  const [outcome, setOutcome] = useState<CallOutcome>("connected");
+  const [durationMin, setDurationMin] = useState("5");
+  const [notes, setNotes] = useState("");
+  const [createFollowup, setCreateFollowup] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [logged, setLogged] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset follow-up checkbox when outcome changes to one without a default task
+  useEffect(() => {
+    setCreateFollowup(FOLLOWUP_DEFAULTS[outcome] !== null);
+  }, [outcome]);
+
+  async function handleLog() {
+    setError(null);
+    setSubmitting(true);
+
+    const outcomeLabel = CALL_OUTCOMES.find((o) => o.value === outcome)?.label ?? outcome;
+    const lines = [
+      `Outbound call — ${outcomeLabel}`,
+      `Phone: ${contactPhone ?? "(none on file)"}`,
+    ];
+    if (outcome === "connected" && durationMin) {
+      lines.push(`Duration: ~${durationMin} min`);
+    }
+    if (notes.trim()) {
+      lines.push("", notes.trim());
+    }
+    const noteBody = lines.join("\n");
+
+    try {
+      // 1. Always log a note
+      const noteRes = await fetch(`/api/contacts/${contactId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: noteBody }),
+      });
+      if (!noteRes.ok) {
+        const data = await noteRes.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(data.error ?? "Failed to log call");
+      }
+
+      // 2. Optionally create a follow-up task
+      const followup = FOLLOWUP_DEFAULTS[outcome];
+      if (createFollowup && followup) {
+        const due = new Date(Date.now() + followup.daysOut * 24 * 60 * 60 * 1000).toISOString();
+        await fetch(`/api/contacts/${contactId}/tasks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: followup.title,
+            dueDate: due,
+            body: `Auto-created from call log (${outcomeLabel})`,
+          }),
+        });
+      }
+
+      setLogged(true);
+      setTimeout(() => {
+        onLogged?.();
+        onClose();
+      }, 1000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to log call");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (logged) {
+    return (
+      <PanelOverlay title="Call Logged" icon={Phone} color="from-success to-green-700" onClose={onClose}>
+        <div className="flex flex-col items-center py-6 gap-2">
+          <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
+            <Check size={20} className="text-success" />
+          </div>
+          <p className="text-body-sm font-medium text-text-primary">Call logged to {contactName}</p>
+          <p className="text-caption text-text-tertiary">Saved as a note in GHL.</p>
+        </div>
+      </PanelOverlay>
+    );
   }
 
   return (
-    <PanelOverlay title="Call" icon={Phone} color="from-success to-green-700" onClose={onClose}>
-      <FieldSelect label="FROM" value={fromNumber} options={[{ label: fromNumber, value: fromNumber }]} onChange={() => {}} />
-      <FieldSelect label="TO" value={toNumber} options={toOptions} onChange={setToNumber} />
+    <PanelOverlay title="Log Call" icon={Phone} color="from-success to-green-700" onClose={onClose}>
+      <div className="bg-bg-secondary border border-border-default rounded-lg p-3 text-center">
+        <p className="text-caption text-text-secondary">
+          {contactName}{contactPhone ? ` — ${contactPhone}` : ""}
+        </p>
+        <p className="text-[10px] text-text-tertiary mt-1">
+          Dial from your phone, then come back to log the call.
+        </p>
+      </div>
 
-      {connected ? (
-        <div className="flex flex-col items-center py-6 gap-3">
-          <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center animate-pulse">
-            <Phone size={24} className="text-success" />
-          </div>
-          <p className="text-body-sm font-medium text-text-primary">Connected to {contactName}</p>
-          <p className="text-caption text-text-tertiary">Call in progress via GHL</p>
-          <button
-            onClick={onClose}
-            className="mt-2 px-6 py-2 rounded-lg bg-danger text-white font-medium text-body-sm hover:bg-red-700 transition-colors"
-          >
-            End Call
-          </button>
+      <FieldSelect
+        label="OUTCOME"
+        value={outcome}
+        options={CALL_OUTCOMES.map((o) => ({ label: o.label, value: o.value }))}
+        onChange={(v) => setOutcome(v as CallOutcome)}
+      />
+
+      {outcome === "connected" && (
+        <div>
+          <label className="text-[10px] font-medium text-text-tertiary tracking-wider block mb-1">DURATION (MINUTES)</label>
+          <input
+            type="number"
+            min="1"
+            value={durationMin}
+            onChange={(e) => setDurationMin(e.target.value)}
+            className="w-full bg-bg-secondary border border-border-default rounded-lg px-3 py-2 text-body-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-success"
+          />
         </div>
-      ) : (
-        <>
-          <div className="bg-bg-secondary border border-border-default rounded-lg p-4 text-center">
-            <p className="text-caption text-text-tertiary mb-1">Calls are initiated through GHL</p>
-            <p className="text-[10px] text-text-tertiary">The call will connect through your GHL phone system</p>
-          </div>
-
-          <button
-            onClick={handleCall}
-            disabled={calling || !toNumber}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-success text-white font-medium text-body-sm hover:bg-green-700 transition-colors disabled:opacity-40"
-          >
-            {calling ? <Loader2 size={14} className="animate-spin" /> : <Phone size={14} />}
-            {calling ? "Connecting..." : "Start Call"}
-          </button>
-        </>
       )}
+
+      <div>
+        <label className="text-[10px] font-medium text-text-tertiary tracking-wider block mb-1">NOTES (OPTIONAL)</label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+          placeholder="What was discussed, next steps, key info captured…"
+          className="w-full bg-bg-secondary border border-border-default rounded-lg px-3 py-2 text-body-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-success resize-y"
+        />
+      </div>
+
+      {FOLLOWUP_DEFAULTS[outcome] && (
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={createFollowup}
+            onChange={(e) => setCreateFollowup(e.target.checked)}
+            className="rounded border-border-default text-success focus:ring-success"
+          />
+          <span className="text-body-sm text-text-secondary">
+            Create follow-up task: &quot;{FOLLOWUP_DEFAULTS[outcome]?.title}&quot;
+            {" — due in "}{FOLLOWUP_DEFAULTS[outcome]?.daysOut}d
+          </span>
+        </label>
+      )}
+
+      {error && (
+        <p className="text-caption text-danger">{error}</p>
+      )}
+
+      <button
+        onClick={() => void handleLog()}
+        disabled={submitting}
+        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-success text-white font-medium text-body-sm hover:bg-green-700 transition-colors disabled:opacity-40"
+      >
+        {submitting ? <Loader2 size={14} className="animate-spin" /> : <Phone size={14} />}
+        {submitting ? "Logging…" : "Log Call"}
+      </button>
     </PanelOverlay>
   );
 }
@@ -441,8 +571,18 @@ interface SchedulePanelProps {
   onScheduled: () => void;
 }
 
+interface CalendarOption {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 export function SchedulePanel({ contactId, contactName, contactEmail, onClose, onScheduled }: SchedulePanelProps) {
-  const [calendarId] = useState("default");
+  const [calendars, setCalendars] = useState<CalendarOption[] | null>(null);
+  const [calendarId, setCalendarId] = useState<string>("");
+  const [calendarName, setCalendarName] = useState<string>("");
+  const [calendarSearch, setCalendarSearch] = useState("");
+  const [calendarPickerOpen, setCalendarPickerOpen] = useState(false);
   const [title, setTitle] = useState(`Meeting with ${contactName}`);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("10:00");
@@ -451,12 +591,31 @@ export function SchedulePanel({ contactId, contactName, contactEmail, onClose, o
   const [sendInvite, setSendInvite] = useState(true);
   const [scheduling, setScheduling] = useState(false);
   const [scheduled, setScheduled] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const calendarOptions = [
-    { label: "NAH Sales Calendar", value: "default" },
-    { label: "Discovery Calls", value: "discovery" },
-    { label: "FDD Review", value: "fdd" },
-  ];
+  // Fetch real calendars from GHL on mount. The previous version had a
+  // hardcoded "default" calendar ID that wasn't a real GHL calendar — the
+  // appointment POST would have failed in production.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/ghl/calendars")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Failed to load calendars"))))
+      .then((data) => {
+        if (cancelled) return;
+        const list = (data.calendars ?? []) as CalendarOption[];
+        setCalendars(list);
+        if (list.length > 0) {
+          setCalendarId(list[0].id);
+          setCalendarName(list[0].name);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCalendars([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const timezoneOptions = [
     { label: "Eastern (ET)", value: "America/New_York" },
@@ -474,6 +633,11 @@ export function SchedulePanel({ contactId, contactName, contactEmail, onClose, o
 
   async function handleSchedule() {
     if (!date || !time) return;
+    if (!calendarId) {
+      setError("Please pick a calendar.");
+      return;
+    }
+    setError(null);
     setScheduling(true);
 
     const startTime = new Date(`${date}T${time}:00`).toISOString();
@@ -489,8 +653,13 @@ export function SchedulePanel({ contactId, contactName, contactEmail, onClose, o
       if (res.ok) {
         setScheduled(true);
         setTimeout(() => { onScheduled(); onClose(); }, 1200);
+      } else {
+        const data = await res.json().catch(() => ({ error: "Unknown error" }));
+        setError(data.error ?? "Failed to schedule");
       }
-    } catch { /* keep panel open */ }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to schedule");
+    }
     setScheduling(false);
   }
 
@@ -509,7 +678,68 @@ export function SchedulePanel({ contactId, contactName, contactEmail, onClose, o
 
   return (
     <PanelOverlay title="Schedule Appointment" icon={Calendar} color="from-nah-orange to-orange-600" onClose={onClose}>
-      <FieldSelect label="CALENDAR" value={calendarId} options={calendarOptions} onChange={() => {}} />
+      {/* Calendar picker — searchable, populated from GHL */}
+      <div>
+        <label className="text-[10px] font-medium text-text-tertiary tracking-wider block mb-1">CALENDAR</label>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setCalendarPickerOpen((v) => !v)}
+            className="w-full bg-bg-secondary border border-border-default rounded-lg px-3 py-2 text-body-sm text-text-primary text-left flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-nah-orange"
+          >
+            <span className="truncate">
+              {calendarName || (calendars === null ? "Loading…" : "Select calendar")}
+            </span>
+            <ChevronDown size={14} className="text-text-tertiary" />
+          </button>
+          {calendarPickerOpen && (
+            <div className="absolute z-10 mt-1 w-full bg-bg-primary border border-border-default rounded-lg shadow-lg max-h-64 overflow-hidden flex flex-col">
+              <input
+                type="text"
+                value={calendarSearch}
+                onChange={(e) => setCalendarSearch(e.target.value)}
+                placeholder="Search calendars..."
+                className="px-3 py-2 text-body-sm border-b border-border-default bg-transparent outline-none"
+                autoFocus
+              />
+              <div className="overflow-y-auto flex-1">
+                {calendars === null ? (
+                  <div className="px-3 py-2 text-caption text-text-tertiary">Loading…</div>
+                ) : calendars.length === 0 ? (
+                  <div className="px-3 py-2 text-caption text-text-tertiary">No calendars found</div>
+                ) : (
+                  calendars
+                    .filter((c) =>
+                      !calendarSearch.trim()
+                        ? true
+                        : c.name.toLowerCase().includes(calendarSearch.toLowerCase().trim())
+                    )
+                    .map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setCalendarId(c.id);
+                          setCalendarName(c.name);
+                          setCalendarPickerOpen(false);
+                          setCalendarSearch("");
+                        }}
+                        className="w-full text-left px-3 py-2 text-body-sm hover:bg-bg-secondary"
+                      >
+                        <div className="font-medium">{c.name}</div>
+                        {c.description && (
+                          <div className="text-caption text-text-tertiary truncate">
+                            {c.description}
+                          </div>
+                        )}
+                      </button>
+                    ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Title */}
       <div>
@@ -567,9 +797,13 @@ export function SchedulePanel({ contactId, contactName, contactEmail, onClose, o
         </label>
       )}
 
+      {error && (
+        <p className="text-caption text-danger">{error}</p>
+      )}
+
       <button
         onClick={() => void handleSchedule()}
-        disabled={scheduling || !date || !time}
+        disabled={scheduling || !date || !time || !calendarId}
         className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-nah-orange text-white font-medium text-body-sm hover:bg-orange-600 transition-colors disabled:opacity-40"
       >
         {scheduling ? <Loader2 size={14} className="animate-spin" /> : <Calendar size={14} />}

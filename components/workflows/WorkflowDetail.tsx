@@ -6,7 +6,8 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { Users, Calendar, Target, TrendingUp, Clock, AlertTriangle } from "lucide-react";
+import { Users, Calendar, Target, TrendingUp, Clock, AlertTriangle, UserPlus } from "lucide-react";
+import ReenrollContactModal from "./ReenrollContactModal";
 import type { Workflow, WorkflowEnrollment } from "@/lib/workflows/types";
 
 /** Health score descriptions for plain-language display */
@@ -25,6 +26,7 @@ interface WorkflowDetailProps {
 export default function WorkflowDetail({ workflow }: WorkflowDetailProps) {
   const [enrollments, setEnrollments] = useState<WorkflowEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reenrollOpen, setReenrollOpen] = useState(false);
 
   const fetchEnrollments = useCallback(async () => {
     try {
@@ -101,9 +103,20 @@ export default function WorkflowDetail({ workflow }: WorkflowDetailProps) {
 
       {/* Active enrollments */}
       <div className="px-5 py-4 flex-1">
-        <p className="text-label-caps text-text-tertiary mb-3">
-          ACTIVE ENROLLMENTS ({enrollments.length})
-        </p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-label-caps text-text-tertiary">
+            ACTIVE ENROLLMENTS ({enrollments.length})
+          </p>
+          {workflow.current_version_id && (
+            <button
+              onClick={() => setReenrollOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-caption text-nah-blue hover:bg-nah-blue/5 transition-colors"
+            >
+              <UserPlus size={12} />
+              Enroll contact
+            </button>
+          )}
+        </div>
 
         {loading ? (
           <div className="space-y-2">
@@ -123,6 +136,19 @@ export default function WorkflowDetail({ workflow }: WorkflowDetailProps) {
           </div>
         )}
       </div>
+
+      {reenrollOpen && workflow.current_version_id && (
+        <ReenrollContactModal
+          workflowId={workflow.id}
+          workflowVersionId={workflow.current_version_id}
+          workflowName={workflow.name}
+          onClose={() => setReenrollOpen(false)}
+          onEnrolled={() => {
+            setReenrollOpen(false);
+            void fetchEnrollments();
+          }}
+        />
+      )}
     </div>
   );
 }
