@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 
 /** POST — create a territory todo */
@@ -8,6 +9,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ msSlug: string }> }
 ) {
+  await requireAuth(request);
   const { msSlug } = await params;
   const supabase = createServerClient();
   const body = await request.json() as {
