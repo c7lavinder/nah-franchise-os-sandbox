@@ -445,7 +445,8 @@ After Tier 0 + Sessions A/B/C land, this is the work order:
 
 ### Tier 0
 - [x] **0a — git-guardrails install** — done 2026-04-27, merged to main (Session 9)
-- [ ] **0b — Auth retrofit** — prompt ready
+- [ ] **0b — Auth retrofit** — IN PROGRESS
+  - Phase 2a complete — 15 Critical routes retrofitted, /api/admin/webhooks classified as admin UI, merged to main 2026-04-27 (Session 10). Phases 2b-2f queued.
 - [ ] **0c — Data privacy audit** — prompt ready
 
 ### Sessions A–C
