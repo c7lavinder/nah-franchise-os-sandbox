@@ -18,15 +18,8 @@ import { createServerClient } from "@/lib/supabase/server";
 import type { InactivityAlert } from "@/types/database";
 
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("Authorization");
-  console.log("[daily-hq] Auth header present:", !!authHeader, authHeader ? `Bearer ${authHeader.slice(7, 17)}...` : "none");
-
   const user = await requireAuth(request);
-  if (user instanceof Response) {
-    console.log("[daily-hq] requireAuth returned 401");
-    return user;
-  }
-  console.log("[daily-hq] Auth OK, user:", user.id, user.email);
+  if (user instanceof Response) return user;
 
   // Admin "view as" pattern: admins can pass ?targetUserId=X to see another
   // user's daily HQ. Non-admins always see their own data (param is ignored).
