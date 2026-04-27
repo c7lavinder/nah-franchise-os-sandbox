@@ -302,7 +302,7 @@ By plan:
 
 | Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
 |---|---|---|---|---|---|---|
-| admin/webhooks | GET | No | none | Reads | Medium | add-requireAuth |
+| admin/webhooks | GET | No | none | Reads | Medium | add-requireAuth + admin role (**Decision:** admin UI route — returns read_ai_sessions, integration_logs, calls for debugging dashboard. NOT an inbound webhook. Retrofitted with `requireAuth` + `role === 'admin'` check.) |
 
 ## /api/dashboard, /api/voice, /api/health, /api/daily-hq, /api/notifications, /api/accountability, /api/activity
 
