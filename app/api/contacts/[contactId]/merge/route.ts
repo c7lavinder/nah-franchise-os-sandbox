@@ -58,16 +58,31 @@ export async function POST(
 
   const steps: StepResult[] = [];
 
-  // Pull both rows once for GHL ops + naming
+  // Pull both rows once for GHL ops + naming + already-merged checks
   const { data: bothRows } = await supabase
     .from("contacts")
-    .select("id, ghl_contact_id, first_name, last_name, email")
+    .select("id, ghl_contact_id, first_name, last_name, email, merged_into_contact_id")
     .in("id", [dupLocalId, keepLocalId]);
 
   const dup = bothRows?.find((r) => r.id === dupLocalId);
   const keep = bothRows?.find((r) => r.id === keepLocalId);
   const dupName = `${dup?.first_name ?? ""} ${dup?.last_name ?? ""}`.trim() || dup?.email || "duplicate contact";
   const keepName = `${keep?.first_name ?? ""} ${keep?.last_name ?? ""}`.trim() || keep?.email || "kept contact";
+
+  // Refuse to merge if either side is already merged. Lets us avoid
+  // chains and lost-pointer surprises.
+  if (dup?.merged_into_contact_id) {
+    return NextResponse.json(
+      { error: `${dupName} is already merged into another contact.` },
+      { status: 409 },
+    );
+  }
+  if (keep?.merged_into_contact_id) {
+    return NextResponse.json(
+      { error: `${keepName} is itself a merged-out duplicate. Pick the canonical contact instead.` },
+      { status: 409 },
+    );
+  }
 
   // 1. Reassign calls
   try {
@@ -133,7 +148,180 @@ export async function POST(
     steps.push({ step: "journey_memberships", ok: false, detail: err instanceof Error ? err.message : "failed" });
   }
 
-  // 4. Mark the duplicate
+  // 4. Bulk reassign tables keyed by contact_id (UUID) with no
+  //    uniqueness constraint. Fan out so one bad table doesn't block
+  //    the rest; each row in the summary tells the user what moved.
+  const BULK_CONTACT_TABLES: { table: string; column?: string; label?: string }[] = [
+    { table: "call_logs" },
+    { table: "call_action_items" },
+    { table: "call_data_extractions" },
+    { table: "candidate_score_history" },
+    { table: "objection_registry" },
+    { table: "contact_team_members" },
+    { table: "contact_related_people" },
+    { table: "eos_contact_issues" },
+    { table: "eos_contact_todos" },
+    { table: "eos_contact_habits" },
+  ];
+  for (const t of BULK_CONTACT_TABLES) {
+    try {
+      const col = t.column ?? "contact_id";
+      const { data, error } = await supabase
+        .from(t.table)
+        .update({ [col]: keepLocalId })
+        .eq(col, dupLocalId)
+        .select("id");
+      if (error) throw new Error(error.message);
+      const moved = (data ?? []).length;
+      if (moved > 0) {
+        steps.push({ step: t.label ?? t.table, ok: true, detail: `${moved} reassigned` });
+      }
+    } catch (err) {
+      steps.push({
+        step: t.label ?? t.table,
+        ok: false,
+        detail: err instanceof Error ? err.message : "failed",
+      });
+    }
+  }
+
+  // 5. 1:1 tables — keeper wins. Only move the dup's row when keeper
+  //    has none, otherwise the unique-on-contact_id index would error.
+  const ONE_TO_ONE_TABLES = ["candidate_intelligence", "eos_contact_goals"];
+  for (const table of ONE_TO_ONE_TABLES) {
+    try {
+      const { data: keeperRow } = await supabase
+        .from(table).select("id").eq("contact_id", keepLocalId).maybeSingle();
+      if (keeperRow) {
+        steps.push({ step: table, ok: true, detail: "keeper kept (had own)" });
+        continue;
+      }
+      const { data, error } = await supabase
+        .from(table)
+        .update({ contact_id: keepLocalId })
+        .eq("contact_id", dupLocalId)
+        .select("id");
+      if (error) throw new Error(error.message);
+      const moved = (data ?? []).length;
+      if (moved > 0) {
+        steps.push({ step: table, ok: true, detail: `${moved} moved from duplicate` });
+      }
+    } catch (err) {
+      steps.push({
+        step: table,
+        ok: false,
+        detail: err instanceof Error ? err.message : "failed",
+      });
+    }
+  }
+
+  // 6. ghl_contact_id-keyed tables — only when both sides have GHL IDs.
+  if (dup?.ghl_contact_id && keep?.ghl_contact_id) {
+    // 6a. Scout action logs — bulk reassign (history record on keeper).
+    try {
+      const { data, error } = await supabase
+        .from("scout_action_logs")
+        .update({ ghl_contact_id: keep.ghl_contact_id })
+        .eq("ghl_contact_id", dup.ghl_contact_id)
+        .select("id");
+      if (error) throw new Error(error.message);
+      const moved = (data ?? []).length;
+      if (moved > 0) {
+        steps.push({ step: "scout_action_logs", ok: true, detail: `${moved} reassigned` });
+      }
+    } catch (err) {
+      steps.push({
+        step: "scout_action_logs",
+        ok: false,
+        detail: err instanceof Error ? err.message : "failed",
+      });
+    }
+
+    // 6b. Inactivity alerts — close the dup's open alerts (the contact
+    //     is going away, those alerts are no longer actionable). Leave
+    //     historical resolved alerts alone for audit.
+    try {
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from("inactivity_alerts")
+        .update({ is_resolved: true, resolved_at: now })
+        .eq("ghl_contact_id", dup.ghl_contact_id)
+        .eq("is_resolved", false)
+        .select("id");
+      if (error) throw new Error(error.message);
+      const closed = (data ?? []).length;
+      if (closed > 0) {
+        steps.push({ step: "inactivity_alerts", ok: true, detail: `${closed} resolved on duplicate` });
+      }
+    } catch (err) {
+      steps.push({
+        step: "inactivity_alerts",
+        ok: false,
+        detail: err instanceof Error ? err.message : "failed",
+      });
+    }
+
+    // 6c. Workflow enrollments — exit any active/paused on the duplicate.
+    //     We don't auto-enroll the keeper (avoids surprise duplicates if
+    //     the keeper already has its own enrollment in the same workflow).
+    try {
+      const { data, error } = await supabase
+        .from("workflow_enrollments")
+        .update({
+          status: "exited",
+          exit_reason: `merged into ${keepName}`,
+          completed_at: new Date().toISOString(),
+        })
+        .eq("ghl_contact_id", dup.ghl_contact_id)
+        .in("status", ["active", "paused"])
+        .select("id");
+      if (error) throw new Error(error.message);
+      const exited = (data ?? []).length;
+      if (exited > 0) {
+        steps.push({
+          step: "workflow_enrollments",
+          ok: true,
+          detail: `${exited} exited on duplicate`,
+        });
+      }
+    } catch (err) {
+      steps.push({
+        step: "workflow_enrollments",
+        ok: false,
+        detail: err instanceof Error ? err.message : "failed",
+      });
+    }
+
+    // 6d. Territory ownership — if the duplicate is an active owner of
+    //     any territory, transfer that ownership to the keeper. Surface
+    //     the count so the user can verify; this is a high-impact move.
+    try {
+      const { data, error } = await supabase
+        .from("territory_owners")
+        .update({ ghl_contact_id: keep.ghl_contact_id })
+        .eq("ghl_contact_id", dup.ghl_contact_id)
+        .is("end_date", null)
+        .select("ms_slug");
+      if (error) throw new Error(error.message);
+      const transferred = (data ?? []).length;
+      if (transferred > 0) {
+        const slugs = (data ?? []).map((r) => (r as { ms_slug: string }).ms_slug).join(", ");
+        steps.push({
+          step: "territory_owners",
+          ok: true,
+          detail: `${transferred} transferred (${slugs})`,
+        });
+      }
+    } catch (err) {
+      steps.push({
+        step: "territory_owners",
+        ok: false,
+        detail: err instanceof Error ? err.message : "failed",
+      });
+    }
+  }
+
+  // 7. Mark the duplicate (last so reassignments are committed first)
   try {
     const { error } = await supabase
       .from("contacts")
