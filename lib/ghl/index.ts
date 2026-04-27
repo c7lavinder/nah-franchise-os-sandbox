@@ -22,6 +22,7 @@ export {
   movePipelineStage,
   createOpportunity,
   getTasks,
+  searchTasks,
   createTask,
   updateTask,
   getCalendars,

@@ -91,6 +91,7 @@ export default function TaskPanel({ tasks, onTaskUpdated }: TaskPanelProps) {
             <div className="min-w-0 flex-1">
               <p className="text-body-sm text-text-primary truncate">{task.title}</p>
               <p className={`text-caption ${isOverdue(task.dueDate) ? "text-danger" : "text-text-tertiary"}`}>
+                {task.contactName ? `${task.contactName} · ` : ""}
                 {formatDue(task.dueDate)}
               </p>
             </div>

@@ -105,6 +105,8 @@ export interface GHLTask {
   dueDate: string;
   assignedTo: string | null;
   completed: boolean;
+  /** Populated by org-wide task search; absent on per-contact fetch. */
+  contactName?: string | null;
 }
 
 /** GHL Task creation payload */

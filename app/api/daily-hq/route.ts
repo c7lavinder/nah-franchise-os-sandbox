@@ -203,12 +203,19 @@ async function fetchScorecard(userId: string): Promise<{
   }
 }
 
-/** Fetch open tasks for this user from GHL contacts */
+/**
+ * Open tasks assigned to the current user via the org-wide task search.
+ * Replaces the old per-contact loop, which silently capped at the first
+ * 10 contacts of a user's opportunities and missed everything else.
+ */
 async function fetchTasks(userId: string): Promise<{
   id: string;
   title: string;
+  body: string | null;
   dueDate: string;
+  assignedTo: string | null;
   contactId: string;
+  contactName: string | null;
   completed: boolean;
 }[]> {
   try {
@@ -221,48 +228,25 @@ async function fetchTasks(userId: string): Promise<{
 
     if (!appUser?.ghl_user_id) return [];
 
-    // Get contacts assigned to this user, then pull their tasks
-    const opportunities = await ghl.searchOpportunities({
-      assignedTo: appUser.ghl_user_id,
-      status: "open",
-      limit: 50,
+    const tasks = await ghl.searchTasks({
+      assignedTo: [appUser.ghl_user_id],
+      completed: false,
+      limit: 100,
     });
 
-    const allTasks: {
-      id: string;
-      title: string;
-      dueDate: string;
-      contactId: string;
-      completed: boolean;
-    }[] = [];
-
-    // Pull tasks from the first 10 contacts to avoid rate limits
-    const contactIds = [...new Set(opportunities.map((o) => o.contactId))].slice(0, 10);
-
-    for (const contactId of contactIds) {
-      try {
-        const tasks = await ghl.getTasks(contactId);
-        for (const task of tasks) {
-          if (!task.completed) {
-            allTasks.push({
-              id: task.id,
-              title: task.title,
-              dueDate: task.dueDate,
-              contactId: task.contactId,
-              completed: task.completed,
-            });
-          }
-        }
-      } catch {
-        // Skip contacts where task fetch fails
-        continue;
-      }
-    }
-
-    // Sort by due date ascending
-    allTasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-
-    return allTasks.slice(0, 20);
+    return tasks
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        body: t.body,
+        dueDate: t.dueDate,
+        assignedTo: t.assignedTo,
+        contactId: t.contactId,
+        contactName: t.contactName,
+        completed: t.completed,
+      }))
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+      .slice(0, 20);
   } catch (err) {
     console.error("Failed to fetch tasks:", err);
     return [];

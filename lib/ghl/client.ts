@@ -533,6 +533,73 @@ export async function getTasks(contactId: string): Promise<GHLTask[]> {
 }
 
 /**
+ * Org-wide task search.
+ *
+ * Daily HQ used to iterate the first 10 contacts of a user's opportunities
+ * and call /contacts/:id/tasks per contact — capped Chad at ~10 contacts'
+ * worth of tasks (he has 858+ open). This endpoint returns all matching
+ * tasks in one call with enriched contactDetails and assignedToUserDetails.
+ *
+ * Notes on the endpoint:
+ *  - Uses POST /locations/{id}/tasks/search (returns 201 on success).
+ *  - Response uses `_id` not `id`; we normalize.
+ *  - Default page size ~25, max 100. Pass limit explicitly when needed.
+ */
+export interface GHLTaskSearchHit {
+  id: string;
+  title: string;
+  body: string | null;
+  dueDate: string;
+  assignedTo: string | null;
+  contactId: string;
+  completed: boolean;
+  contactName: string | null;
+}
+
+export async function searchTasks(filter: {
+  assignedTo?: string[];
+  completed?: boolean;
+  limit?: number;
+}): Promise<GHLTaskSearchHit[]> {
+  const locationId = getLocationId();
+  type RawHit = {
+    _id?: string;
+    id?: string;
+    title: string;
+    body?: string | null;
+    dueDate: string;
+    assignedTo?: string | null;
+    contactId: string;
+    completed: boolean;
+    contactDetails?: { firstName?: string; lastName?: string; name?: string } | null;
+  };
+  const data = await ghlFetch<{ tasks: RawHit[] }>(
+    `/locations/${locationId}/tasks/search`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        assignedTo: filter.assignedTo,
+        completed: filter.completed,
+        limit: filter.limit ?? 100,
+      }),
+    },
+  );
+  return (data.tasks ?? []).map((t): GHLTaskSearchHit => ({
+    id: (t._id ?? t.id) as string,
+    title: t.title,
+    body: t.body ?? null,
+    dueDate: t.dueDate,
+    assignedTo: t.assignedTo ?? null,
+    contactId: t.contactId,
+    completed: t.completed,
+    contactName: t.contactDetails
+      ? (t.contactDetails.name ??
+          ([t.contactDetails.firstName, t.contactDetails.lastName].filter(Boolean).join(" ") || null))
+      : null,
+  }));
+}
+
+/**
  * Create a new task on a contact.
  *
  * GHL's task POST endpoint requires `completed` even on creation — omitting
