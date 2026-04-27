@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * CreateWorkflowModal — modal for creating a new workflow.
@@ -72,7 +73,7 @@ export default function CreateWorkflowModal({ onClose, onCreate, userId }: Creat
     setError(null);
 
     try {
-      const res = await fetch("/api/workflows", {
+      const res = await apiFetch("/api/workflows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -93,7 +94,7 @@ export default function CreateWorkflowModal({ onClose, onCreate, userId }: Creat
       const data = await res.json();
 
       // Update primary metric
-      await fetch(`/api/workflows/${data.workflow.id}`, {
+      await apiFetch(`/api/workflows/${data.workflow.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ primary_metric_name: primaryMetric }),

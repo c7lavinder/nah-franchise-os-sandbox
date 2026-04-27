@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * IntelTab — AI-assisted intelligence data collection after a call.
@@ -113,7 +114,7 @@ export default function IntelTab({ contactId, contactName, profileUpdates, hasAi
     if (transcriptText.trim().length < 50) return;
     setAnalyzing(true);
     try {
-      const res = await fetch("/api/intelligence/transcript", {
+      const res = await apiFetch("/api/intelligence/transcript", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transcript: transcriptText, contactName }),

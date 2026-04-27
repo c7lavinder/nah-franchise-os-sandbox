@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useRef } from "react";
 import type { EosTerritoryScorecard } from "@/types/database";
@@ -26,7 +27,7 @@ export default function TerritoryEosScorecard({ msSlug, scorecard, onUpdate }: P
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setSaving(true);
-      await fetch(`/api/territories/${msSlug}/eos/scorecard/${metricKey}`, {
+      await apiFetch(`/api/territories/${msSlug}/eos/scorecard/${metricKey}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal_value: row.goal_value }),

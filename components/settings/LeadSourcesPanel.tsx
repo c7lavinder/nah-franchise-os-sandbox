@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * LeadSourcesPanel — manage Lead Sources + Sub Sources in Settings.
@@ -34,7 +35,7 @@ export default function LeadSourcesPanel() {
   const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
 
   async function fetchSources() {
-    const res = await fetch("/api/settings/lead-sources");
+    const res = await apiFetch("/api/settings/lead-sources");
     if (res.ok) {
       const d = await res.json();
       setSources(d.sources ?? []);
@@ -47,7 +48,7 @@ export default function LeadSourcesPanel() {
   async function handleAddSource() {
     if (!newSourceName.trim()) return;
     setAddingSource(true);
-    const res = await fetch("/api/settings/lead-sources", {
+    const res = await apiFetch("/api/settings/lead-sources", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: newSourceName.trim(), sort_order: sources.length + 1 }),
@@ -63,7 +64,7 @@ export default function LeadSourcesPanel() {
     if (!newSubName.trim()) return;
     setAddingSubFor(sourceId);
     const parent = sources.find((s) => s.id === sourceId);
-    const res = await fetch("/api/settings/lead-sources", {
+    const res = await apiFetch("/api/settings/lead-sources", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -80,7 +81,7 @@ export default function LeadSourcesPanel() {
   }
 
   async function handleDelete(id: string, type: "source" | "sub_source") {
-    const res = await fetch("/api/settings/lead-sources", {
+    const res = await apiFetch("/api/settings/lead-sources", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, type }),

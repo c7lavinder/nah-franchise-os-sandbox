@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * Visual Workflow Builder — View 2
@@ -30,8 +31,8 @@ export default function WorkflowBuilderPage() {
   const fetchData = useCallback(async () => {
     try {
       const [wfRes, stepsRes] = await Promise.all([
-        fetch(`/api/workflows/${workflowId}`),
-        fetch(`/api/workflows/${workflowId}/steps`),
+        apiFetch(`/api/workflows/${workflowId}`),
+        apiFetch(`/api/workflows/${workflowId}/steps`),
       ]);
 
       if (wfRes.ok) {
@@ -73,7 +74,7 @@ export default function WorkflowBuilderPage() {
     setAddingDay(null);
 
     try {
-      const res = await fetch(`/api/workflows/${workflowId}/steps`, {
+      const res = await apiFetch(`/api/workflows/${workflowId}/steps`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

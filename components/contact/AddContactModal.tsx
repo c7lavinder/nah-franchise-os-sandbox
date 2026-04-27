@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * AddContactModal — create a new contact and (optionally) add them to a
@@ -77,7 +78,7 @@ export default function AddContactModal({ open, journeyId, coreRoleLabel, defaul
     setSubmitting(true);
     try {
       // 1. Create the contact.
-      const res = await fetch("/api/contacts/create", {
+      const res = await apiFetch("/api/contacts/create", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           firstName: firstName.trim(), lastName: lastName.trim(),
@@ -100,7 +101,7 @@ export default function AddContactModal({ open, journeyId, coreRoleLabel, defaul
         // Map "realtor" to "other" since the journey_contacts role enum
         // doesn't include realtor yet — the label is still correct to display.
         const apiRole = role === "realtor" ? "other" : role;
-        const linkRes = await fetch(`/api/journeys/${journeyId}/members`, {
+        const linkRes = await apiFetch(`/api/journeys/${journeyId}/members`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ contact_id: contactId, role: apiRole }),
         });

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
@@ -190,10 +191,10 @@ export default function LeadDetailView({
     setLoading(true);
     try {
       const [contactRes, profileRes, pipelineStateRes, callsRes] = await Promise.all([
-        fetch(`/api/contacts/${contactId}`).catch(() => null),
-        fetch(`/api/contacts/${contactId}/profile`).catch(() => null),
-        fetch(`/api/contacts/${contactId}/pipeline-state`).catch(() => null),
-        fetch(`/api/calls/list?contact_id=${contactId}&limit=20`).catch(() => null),
+        apiFetch(`/api/contacts/${contactId}`).catch(() => null),
+        apiFetch(`/api/contacts/${contactId}/profile`).catch(() => null),
+        apiFetch(`/api/contacts/${contactId}/pipeline-state`).catch(() => null),
+        apiFetch(`/api/calls/list?contact_id=${contactId}&limit=20`).catch(() => null),
       ]);
 
       if (callsRes?.ok) { const d = await callsRes.json(); setContactCalls(d.calls ?? []); }
@@ -247,7 +248,7 @@ export default function LeadDetailView({
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(`/api/contacts/${profileContactId}/pipeline-state`);
+        const res = await apiFetch(`/api/contacts/${profileContactId}/pipeline-state`);
         if (!res.ok) return;
         const d = await res.json();
         if (cancelled || !d.contact) return;
@@ -274,7 +275,7 @@ export default function LeadDetailView({
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(`/api/contacts/${profileContactId}/profile`);
+        const res = await apiFetch(`/api/contacts/${profileContactId}/profile`);
         if (!res.ok) return;
         const d = await res.json();
         if (cancelled) return;
@@ -294,7 +295,7 @@ export default function LeadDetailView({
     if (Object.keys(pendingChanges).length === 0) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/contacts/${profileContactId}/profile`, {
+      const res = await apiFetch(`/api/contacts/${profileContactId}/profile`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: pendingChanges }),
       });
@@ -326,7 +327,7 @@ export default function LeadDetailView({
     if (trimmed === effectiveJourneyName) { setEditingTitle(false); return; }
     setSavingTitle(true);
     try {
-      const res = await fetch(`/api/journeys/${journeyId}`, {
+      const res = await apiFetch(`/api/journeys/${journeyId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: trimmed }),
@@ -649,7 +650,7 @@ export default function LeadDetailView({
                             value={f.val}
                             onSave={async (v) => {
                               setProfileSavingKey(f.key);
-                              const res = await fetch(`/api/contacts/${profileContactId}`, {
+                              const res = await apiFetch(`/api/contacts/${profileContactId}`, {
                                 method: "PATCH",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({ [f.key]: v || null }),

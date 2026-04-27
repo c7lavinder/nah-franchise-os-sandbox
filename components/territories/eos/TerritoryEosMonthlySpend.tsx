@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import { X } from "lucide-react";
@@ -20,7 +21,7 @@ export default function TerritoryEosMonthlySpend({ msSlug, budgets, onUpdate }: 
   async function addBudget() {
     if (!newDesc.trim()) return;
     setSaving(true);
-    const res = await fetch(`/api/territories/${msSlug}/eos/budgets`, {
+    const res = await apiFetch(`/api/territories/${msSlug}/eos/budgets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ description: newDesc.trim(), amount: 0 }),
@@ -36,7 +37,7 @@ export default function TerritoryEosMonthlySpend({ msSlug, budgets, onUpdate }: 
 
   async function updateAmount(id: string, amount: number) {
     setLocal((prev) => prev.map((b) => (b.id === id ? { ...b, amount } : b)));
-    await fetch(`/api/territories/${msSlug}/eos/budgets/${id}`, {
+    await apiFetch(`/api/territories/${msSlug}/eos/budgets/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ amount }),
@@ -45,7 +46,7 @@ export default function TerritoryEosMonthlySpend({ msSlug, budgets, onUpdate }: 
   }
 
   async function deleteBudget(id: string) {
-    await fetch(`/api/territories/${msSlug}/eos/budgets/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/territories/${msSlug}/eos/budgets/${id}`, { method: "DELETE" });
     setLocal((prev) => prev.filter((b) => b.id !== id));
     onUpdate();
   }

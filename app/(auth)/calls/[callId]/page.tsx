@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * Call Detail Page — 3-tab layout: Overview, Next Steps, Data.
@@ -150,7 +151,7 @@ export default function CallDetailPage() {
 
   const fetchDetail = useCallback(async () => {
     try {
-      const res = await fetch(`/api/calls/${callId}/detail`);
+      const res = await apiFetch(`/api/calls/${callId}/detail`);
       if (res.ok) {
         const data = await res.json();
         setCall(data.call);
@@ -198,7 +199,7 @@ export default function CallDetailPage() {
 
       if (data?.transcript && (needsSummary || needsCoaching)) {
         setIsGenerating(true);
-        fetch(`/api/calls/${callId}/generate`, { method: "POST" }).catch(() => {});
+        apiFetch(`/api/calls/${callId}/generate`, { method: "POST" }).catch(() => {});
         // Poll until both summary and coaching are present
         poll(60);
       }

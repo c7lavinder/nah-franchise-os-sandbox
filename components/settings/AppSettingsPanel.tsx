@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * AppSettingsPanel — pipeline thresholds, GHL sync, Scout model config,
@@ -45,8 +46,8 @@ export default function AppSettingsPanel({ variant }: { variant?: "data" | "full
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/settings/app-settings").then((r) => r.ok ? r.json() : null),
-      fetch("/api/settings/health").then((r) => r.ok ? r.json() : null),
+      apiFetch("/api/settings/app-settings").then((r) => r.ok ? r.json() : null),
+      apiFetch("/api/settings/health").then((r) => r.ok ? r.json() : null),
     ])
       .then(([settingsData, healthData]) => {
         if (settingsData?.settings) setSettings(settingsData.settings);
@@ -61,7 +62,7 @@ export default function AppSettingsPanel({ variant }: { variant?: "data" | "full
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/settings/app-settings", {
+      const res = await apiFetch("/api/settings/app-settings", {
         method: "PATCH",
         headers,
         body: JSON.stringify({ ...settings, userId: user?.id }),

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * PipelineLeadList — Sprint 3 rewire of the All Leads list.
@@ -154,7 +155,7 @@ export default function PipelineLeadList({
       if (selectedStageId) params.set("stage_id", selectedStageId);
       if (searchQuery) params.set("q", searchQuery);
 
-      const res = await fetch(`/api/pipeline/contacts?${params.toString()}`);
+      const res = await apiFetch(`/api/pipeline/contacts?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         const batch: PipelineContact[] = data.contacts ?? [];

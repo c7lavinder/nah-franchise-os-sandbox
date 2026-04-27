@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * Workflows Dashboard — View 1
@@ -48,8 +49,8 @@ export default function WorkflowsPage() {
       setError(null);
       const statusParam = statusFilter === "all" ? "" : `?status=${statusFilter}`;
       const [wfRes, appRes] = await Promise.all([
-        fetch(`/api/workflows${statusParam}`),
-        fetch("/api/workflows/approvals"),
+        apiFetch(`/api/workflows${statusParam}`),
+        apiFetch("/api/workflows/approvals"),
       ]);
       if (!wfRes.ok) throw new Error("Failed to load workflows");
       const wfData = await wfRes.json();
@@ -97,7 +98,7 @@ export default function WorkflowsPage() {
       try {
         const wf = workflows.find((w) => w.id === workflowId);
         if (!wf) return;
-        const res = await fetch("/api/workflows", {
+        const res = await apiFetch("/api/workflows", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -120,7 +121,7 @@ export default function WorkflowsPage() {
     if (!approvalType) return;
 
     try {
-      const res = await fetch(`/api/workflows/${workflowId}/approvals`, {
+      const res = await apiFetch(`/api/workflows/${workflowId}/approvals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -199,7 +200,7 @@ export default function WorkflowsPage() {
             approvals={pendingApprovals}
             onApprove={async (id) => {
               if (!user) return;
-              await fetch(`/api/workflows/${pendingApprovals.find((a) => a.id === id)?.workflow_id}/approvals/${id}`, {
+              await apiFetch(`/api/workflows/${pendingApprovals.find((a) => a.id === id)?.workflow_id}/approvals/${id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ action: "approve", approvedBy: user.id }),
@@ -208,7 +209,7 @@ export default function WorkflowsPage() {
             }}
             onReject={async (id) => {
               if (!user) return;
-              await fetch(`/api/workflows/${pendingApprovals.find((a) => a.id === id)?.workflow_id}/approvals/${id}`, {
+              await apiFetch(`/api/workflows/${pendingApprovals.find((a) => a.id === id)?.workflow_id}/approvals/${id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ action: "reject", approvedBy: user.id }),

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import { Loader2, BookOpen, RefreshCw } from "lucide-react";
@@ -61,7 +62,7 @@ export default function CallKnowledgeTab({ items, isGenerating, hasTranscript, h
     setRegenerating(true);
     setRegenError(null);
     try {
-      const res = await fetch(`/api/calls/${callId}/generate?force=true`, { method: "POST" });
+      const res = await apiFetch(`/api/calls/${callId}/generate?force=true`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok && res.status !== 207) {
         setRegenError(data.error ?? `Failed (${res.status})`);

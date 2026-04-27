@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * ZorakleForm — Log Zorakle assessment results for a candidate.
@@ -95,7 +96,7 @@ export default function ZorakleForm({ contactId, onSave, onCancel }: ZorakleForm
         fitScore: fitScore ? Number(fitScore) : null,
       };
 
-      const res = await fetch("/api/intelligence/zorakle", {
+      const res = await apiFetch("/api/intelligence/zorakle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import {
@@ -102,7 +103,7 @@ export default function PipelineBoard({ pipelines, searchQuery, onDataChange }: 
   async function handleConfirmMove(reason?: string) {
     if (!moveModal) return;
 
-    const response = await fetch("/api/pipeline/move", {
+    const response = await apiFetch("/api/pipeline/move", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useRef } from "react";
 import type { EosTerritoryGoal } from "@/types/database";
@@ -35,7 +36,7 @@ export default function TerritoryEosGoals({ msSlug, goals, onUpdate }: Props) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setSaving(true);
-      await fetch(`/api/territories/${msSlug}/eos/goals`, {
+      await apiFetch(`/api/territories/${msSlug}/eos/goals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

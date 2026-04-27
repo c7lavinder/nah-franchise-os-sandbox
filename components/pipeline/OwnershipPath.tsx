@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * OwnershipPath — pipeline visualization for all pipelines.
@@ -105,7 +106,7 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
 
   const fetchStages = useCallback(async () => {
     try {
-      const res = await fetch("/api/pipeline/stages");
+      const res = await apiFetch("/api/pipeline/stages");
       if (res.ok) {
         const data = await res.json();
         setPipelines(data.pipelines ?? []);

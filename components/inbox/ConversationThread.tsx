@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
@@ -33,7 +34,7 @@ export default function ConversationThread({ conversation, onMessageSent }: Conv
     async function fetchMessages() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/inbox/${conversation.id}?limit=50`);
+        const res = await apiFetch(`/api/inbox/${conversation.id}?limit=50`);
         if (res.ok) {
           const data = await res.json();
           setMessages(data.messages ?? []);
@@ -48,7 +49,7 @@ export default function ConversationThread({ conversation, onMessageSent }: Conv
     void fetchMessages();
 
     // Mark as read
-    void fetch(`/api/inbox/${conversation.id}/read`, { method: "PUT" });
+    void apiFetch(`/api/inbox/${conversation.id}/read`, { method: "PUT" });
   }, [conversation.id]);
 
   // Auto-scroll to bottom when messages load
@@ -119,7 +120,7 @@ export default function ConversationThread({ conversation, onMessageSent }: Conv
         onSent={() => {
           onMessageSent();
           // Refetch messages
-          fetch(`/api/inbox/${conversation.id}?limit=50`)
+          apiFetch(`/api/inbox/${conversation.id}?limit=50`)
             .then((r) => r.json())
             .then((d) => setMessages(d.messages ?? []))
             .catch(() => {});

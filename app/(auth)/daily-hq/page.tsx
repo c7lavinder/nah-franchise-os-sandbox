@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import { Bot, AlertTriangle } from "lucide-react";
@@ -43,7 +44,7 @@ export default function DailyHQPage() {
     try {
       const params = new URLSearchParams({ limit: "50" });
       if (inboxFilter === "unread") params.set("unread", "true");
-      const res = await fetch(`/api/inbox?${params.toString()}`);
+      const res = await apiFetch(`/api/inbox?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setConversations(data.conversations ?? []);
@@ -62,7 +63,7 @@ export default function DailyHQPage() {
     setSidebarError(null);
     try {
       const params = user?.id ? `?userId=${user.id}` : "";
-      const res = await fetch(`/api/daily-hq${params}`);
+      const res = await apiFetch(`/api/daily-hq${params}`);
       if (res.ok) {
         const data = await res.json();
         setAppointments(data.upcoming ?? []);
@@ -97,7 +98,7 @@ export default function DailyHQPage() {
   // Unmatched contacts from Read.ai calls
   const [needsReviewCount, setNeedsReviewCount] = useState(0);
   useEffect(() => {
-    fetch("/api/contacts/batch?needs_review=true&count_only=true")
+    apiFetch("/api/contacts/batch?needs_review=true&count_only=true")
       .then((r) => r.ok ? r.json() : { count: 0 })
       .then((d) => setNeedsReviewCount(d.count ?? 0))
       .catch(() => {});

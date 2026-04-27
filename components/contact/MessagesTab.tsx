@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * MessagesTab — chat-style activity messages with @-mention support.
@@ -60,7 +61,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
   const fetchMessages = useCallback(async () => {
     setLoadError(null);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/messages`);
+      const res = await apiFetch(`/api/contacts/${contactId}/messages`);
       if (res.ok) {
         const data = await res.json();
         setMessages(data.messages ?? []);
@@ -75,7 +76,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
 
   // Fetch users for @-mention (exclude self — can't notify yourself)
   useEffect(() => {
-    fetch("/api/pipeline/users")
+    apiFetch("/api/pipeline/users")
       .then((r) => (r.ok ? r.json() : { users: [] }))
       .then((d) => {
         const all: MentionUser[] = d.users ?? [];
@@ -153,7 +154,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
     setSendError(null);
 
     try {
-      const res = await fetch(`/api/contacts/${contactId}/messages`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
@@ -179,7 +180,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
   }
 
   async function handleDelete(messageId: string) {
-    const res = await fetch(`/api/contacts/${contactId}/messages/${messageId}`, {
+    const res = await apiFetch(`/api/contacts/${contactId}/messages/${messageId}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ userId: user?.id }),
@@ -190,7 +191,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
   async function handleEditSave(messageId: string) {
     if (!editBody.trim()) return;
     setEditSaving(true);
-    const res = await fetch(`/api/contacts/${contactId}/messages/${messageId}`, {
+    const res = await apiFetch(`/api/contacts/${contactId}/messages/${messageId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ body: editBody.trim(), userId: user?.id }),

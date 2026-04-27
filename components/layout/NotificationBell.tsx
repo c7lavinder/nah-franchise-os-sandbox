@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * NotificationBell — shows @-mention notification count + dropdown panel.
@@ -42,7 +43,7 @@ export default function NotificationBell({ onNavClick, forceClose }: Notificatio
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch("/api/notifications", { headers: authHeaders });
+      const res = await apiFetch("/api/notifications", { headers: authHeaders });
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.notifications ?? []);
@@ -76,7 +77,7 @@ export default function NotificationBell({ onNavClick, forceClose }: Notificatio
 
   async function markAsRead(ids: string[]) {
     if (ids.length === 0) return;
-    await fetch("/api/notifications", {
+    await apiFetch("/api/notifications", {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ ids }),

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * Onboarding Pipeline — Phase 4
@@ -23,7 +24,7 @@ export default function OnboardingPage() {
   const fetchData = useCallback(async () => {
     try {
       const typeParam = filter === "all" ? "" : `?type=${filter}`;
-      const res = await fetch(`/api/intelligence/onboarding${typeParam}`);
+      const res = await apiFetch(`/api/intelligence/onboarding${typeParam}`);
       if (res.ok) {
         const data = await res.json();
         setEnrollments(data.enrollments ?? []);

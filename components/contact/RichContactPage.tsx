@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * RichContactPage — person-scoped landing for prospects + franchisees.
@@ -343,7 +344,7 @@ function ContactProfilePanel({ contactId }: { contactId: string }) {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/contacts/${contactId}/profile`)
+    apiFetch(`/api/contacts/${contactId}/profile`)
       .then((r) => (r.ok ? r.json() : { raw: {} }))
       .then((d) => setValues(d.raw ?? {}))
       .catch(() => {})
@@ -359,7 +360,7 @@ function ContactProfilePanel({ contactId }: { contactId: string }) {
     if (Object.keys(pending).length === 0) return;
     setSaving(true);
     try {
-      await fetch(`/api/contacts/${contactId}/profile`, {
+      await apiFetch(`/api/contacts/${contactId}/profile`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: pending }),
       });

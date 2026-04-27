@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * CronCalendar — shows all scheduled cron jobs with their frequency,
@@ -51,7 +52,7 @@ export default function CronCalendar() {
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/settings/cron-jobs")
+    apiFetch("/api/settings/cron-jobs")
       .then((r) => r.ok ? r.json() : { schedules: [], logs: [] })
       .then((d) => {
         setSchedules(d.schedules ?? []);

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
@@ -23,7 +24,7 @@ export default function ContactEosGoals({ contactId, carriedTerritoryName }: Pro
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    fetch(`/api/contacts/${contactId}/eos`)
+    apiFetch(`/api/contacts/${contactId}/eos`)
       .then((r) => (r.ok ? r.json() : { goals: null }))
       .then((d) => setGoals(d.goals))
       .catch(() => {})
@@ -34,7 +35,7 @@ export default function ContactEosGoals({ contactId, carriedTerritoryName }: Pro
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       setSaving(true);
-      fetch(`/api/contacts/${contactId}/eos/goals`, {
+      apiFetch(`/api/contacts/${contactId}/eos/goals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

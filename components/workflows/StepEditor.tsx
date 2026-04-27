@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * StepEditor — right panel editor for workflow step content.
@@ -47,7 +48,7 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch(`/api/workflows/${workflowId}/steps/${step.id}`, {
+      const res = await apiFetch(`/api/workflows/${workflowId}/steps/${step.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -73,7 +74,7 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
   async function handleDelete() {
     if (!confirm("Delete this step? This cannot be undone.")) return;
     try {
-      const res = await fetch(`/api/workflows/${workflowId}/steps/${step.id}`, {
+      const res = await apiFetch(`/api/workflows/${workflowId}/steps/${step.id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -87,7 +88,7 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
   async function handleScoutAssist(action: "write" | "improve" | "shorten") {
     setRewriting(true);
     try {
-      const res = await fetch(`/api/workflows/${workflowId}/rewrite`, {
+      const res = await apiFetch(`/api/workflows/${workflowId}/rewrite`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * AddJourneyMemberModal — surfaced from the Profile tab header on a
@@ -70,7 +71,7 @@ export default function AddJourneyMemberModal({ open, journeyId, existingMemberI
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(query)}&limit=8`);
+        const res = await apiFetch(`/api/contacts/search?q=${encodeURIComponent(query)}&limit=8`);
         if (!res.ok) return;
         const data = await res.json();
         const raw = (data.results ?? data.contacts ?? []) as ContactOption[];
@@ -88,7 +89,7 @@ export default function AddJourneyMemberModal({ open, journeyId, existingMemberI
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/journeys/${journeyId}/members`, {
+      const res = await apiFetch(`/api/journeys/${journeyId}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contact_id: selected.id, role }),

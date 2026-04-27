@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import { Send, Loader2, MessageSquare, Mail } from "lucide-react";
@@ -30,7 +31,7 @@ export default function ReplyInput({ contactId, defaultChannel = "SMS", onSent }
         ? { type: "SMS", contactId, message: message.trim() }
         : { type: "Email", contactId, subject: subject.trim(), html: message.trim() };
 
-      const res = await fetch("/api/inbox/send", {
+      const res = await apiFetch("/api/inbox/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

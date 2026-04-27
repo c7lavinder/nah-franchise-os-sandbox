@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * RelatedPeopleCard — shows everyone attached to this journey.
@@ -83,7 +84,7 @@ export default function RelatedPeopleCard({ contactId, mainContact, journeyMembe
 
   const fetchPeople = useCallback(async () => {
     try {
-      const res = await fetch(`/api/contacts/${contactId}/related-people`);
+      const res = await apiFetch(`/api/contacts/${contactId}/related-people`);
       if (res.ok) {
         const data = await res.json();
         setPeople(data.people ?? []);
@@ -104,7 +105,7 @@ export default function RelatedPeopleCard({ contactId, mainContact, journeyMembe
     if (!formData.first_name.trim()) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/related-people`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/related-people`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -120,7 +121,7 @@ export default function RelatedPeopleCard({ contactId, mainContact, journeyMembe
   }
 
   async function handleDelete(id: string) {
-    const res = await fetch(`/api/contacts/${contactId}/related-people/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/contacts/${contactId}/related-people/${id}`, { method: "DELETE" });
     if (res.ok) { toast("Contact removed"); setDeleteId(null); await fetchPeople(); }
   }
 

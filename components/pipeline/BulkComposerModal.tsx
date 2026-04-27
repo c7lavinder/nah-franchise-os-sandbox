@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * BulkComposerModal — composes one SMS, email, task, or note and sends it
@@ -95,7 +96,7 @@ export default function BulkComposerModal({ contacts, initialKind = "sms", onClo
 
     try {
       if (kind === "sms" || kind === "email") {
-        const res = await fetch(`/api/contacts/${ghlId ?? c.contactId}/send`, {
+        const res = await apiFetch(`/api/contacts/${ghlId ?? c.contactId}/send`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
@@ -110,7 +111,7 @@ export default function BulkComposerModal({ contacts, initialKind = "sms", onClo
         }
       } else if (kind === "task") {
         const due = new Date(Date.now() + parseInt(taskDueDays || "0") * 24 * 60 * 60 * 1000).toISOString();
-        const res = await fetch(`/api/contacts/${ghlId}/tasks`, {
+        const res = await apiFetch(`/api/contacts/${ghlId}/tasks`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ title: taskTitle, dueDate: due, body }),
@@ -120,7 +121,7 @@ export default function BulkComposerModal({ contacts, initialKind = "sms", onClo
           throw new Error(data.error ?? "Failed");
         }
       } else if (kind === "note") {
-        const res = await fetch(`/api/contacts/${ghlId}/notes`, {
+        const res = await apiFetch(`/api/contacts/${ghlId}/notes`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ body }),

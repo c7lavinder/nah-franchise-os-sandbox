@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import { FileText, Plus, Loader2 } from "lucide-react";
@@ -27,7 +28,7 @@ export default function NotesSection({ contactId, notes, onNoteAdded }: NotesSec
     setError(null);
 
     try {
-      const res = await fetch(`/api/contacts/${contactId}/notes`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: newNote.trim() }),

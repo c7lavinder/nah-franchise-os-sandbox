@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import { Target, Loader2, AlertTriangle, ChevronRight, Brain } from "lucide-react";
@@ -39,7 +40,7 @@ export default function PriorityLeads() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/leads/priority")
+    apiFetch("/api/leads/priority")
       .then((r) => r.json())
       .then((data) => setLeads(data.leads ?? []))
       .catch(() => {})

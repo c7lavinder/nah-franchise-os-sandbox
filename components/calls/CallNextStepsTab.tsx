@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import { Loader2, Plus, Sparkles } from "lucide-react";
@@ -74,7 +75,7 @@ export default function CallNextStepsTab(props: CallNextStepsTabProps) {
     if (!aiInput.trim() || isAdding) return;
     setIsAdding(true);
     try {
-      const res = await fetch(`/api/calls/${props.callId}/actions/generate-single`, {
+      const res = await apiFetch(`/api/calls/${props.callId}/actions/generate-single`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ instruction: aiInput }),

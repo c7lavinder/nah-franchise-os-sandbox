@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { Sparkles, RefreshCw, Loader2 } from "lucide-react";
 
@@ -21,7 +22,7 @@ export default function CallGenerateButton({
 }: CallGenerateButtonProps) {
   async function handleGenerate() {
     try {
-      const res = await fetch(`/api/calls/${callId}/generate`, { method: "POST" });
+      const res = await apiFetch(`/api/calls/${callId}/generate`, { method: "POST" });
       if (res.ok) {
         onGenerateStart();
       } else {

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * StageActionButtons — Advance, Skip, Revert, Drop actions.
@@ -47,7 +48,7 @@ export default function StageActionButtons({
     setLoading(force ? "skip" : "advance");
     setError(null);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/pipelines/${pipelineId}/advance`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/pipelines/${pipelineId}/advance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ force, reason: reason || undefined, territory_ms_slug: territoryMsSlug ?? undefined }),
@@ -72,7 +73,7 @@ export default function StageActionButtons({
     setLoading("revert");
     setError(null);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/pipelines/${pipelineId}/revert`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/pipelines/${pipelineId}/revert`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason, territory_ms_slug: territoryMsSlug ?? undefined }),
@@ -100,7 +101,7 @@ export default function StageActionButtons({
     setLoading(`drop_${destination}`);
     setError(null);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/pipelines/${pipelineId}/drop`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/pipelines/${pipelineId}/drop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ destination, reason: reason || undefined, territory_ms_slug: territoryMsSlug ?? undefined }),

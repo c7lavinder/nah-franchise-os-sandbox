@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * Add a new contact to the ecosystem.
@@ -147,7 +148,7 @@ export default function AddRelatedContactModal({
   useEffect(() => {
     if (!open) return;
     void (async () => {
-      const res = await fetch("/api/territories?status=active");
+      const res = await apiFetch("/api/territories?status=active");
       if (!res.ok) return;
       const data = await res.json() as { territories?: TerritoryOption[] };
       const list = data.territories ?? [];
@@ -210,7 +211,7 @@ export default function AddRelatedContactModal({
       if (existingContactId) {
         newContactId = existingContactId;
       } else {
-        const createRes = await fetch("/api/contacts/create", {
+        const createRes = await apiFetch("/api/contacts/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -259,7 +260,7 @@ export default function AddRelatedContactModal({
         }
       } else if (anchor === "journey") {
         // Find the target contact's active direct journey.
-        const jRes = await fetch(`/api/contacts/${targetContactId}/journey`);
+        const jRes = await apiFetch(`/api/contacts/${targetContactId}/journey`);
         const jData = await jRes.json() as {
           journeys?: Array<{ journey_id: string; journey_name: string; role: string }>;
         };
@@ -270,7 +271,7 @@ export default function AddRelatedContactModal({
           return;
         }
         // Add new contact as co_primary; endpoint rebuilds the journey name.
-        const memberRes = await fetch(`/api/journeys/${direct.journey_id}/members`, {
+        const memberRes = await apiFetch(`/api/journeys/${direct.journey_id}/members`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ contact_id: newContactId, role: "co_primary" }),
@@ -283,7 +284,7 @@ export default function AddRelatedContactModal({
         }
         // Optional — also record the family/spouse/business-partner relationship.
         if (journeyRelationship) {
-          await fetch(`/api/contacts/${targetContactId}/related-people`, {
+          await apiFetch(`/api/contacts/${targetContactId}/related-people`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -298,7 +299,7 @@ export default function AddRelatedContactModal({
           });
         }
       } else {
-        const linkRes = await fetch(`/api/contacts/${targetContactId}/related-people`, {
+        const linkRes = await apiFetch(`/api/contacts/${targetContactId}/related-people`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -555,7 +556,7 @@ function ContactPicker({
     if (query.length < 2) { setResults([]); return; }
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(async () => {
-      const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(query)}&limit=8`);
+      const res = await apiFetch(`/api/contacts/search?q=${encodeURIComponent(query)}&limit=8`);
       if (res.ok) {
         const data = await res.json();
         setResults((data.results ?? data.contacts ?? []) as ContactOption[]);

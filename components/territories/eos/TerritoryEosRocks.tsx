@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import { X } from "lucide-react";
@@ -31,7 +32,7 @@ export default function TerritoryEosRocks({ msSlug, rocks, onUpdate }: Props) {
   async function addRock() {
     if (!newText.trim()) return;
     setSaving(true);
-    const res = await fetch(`/api/territories/${msSlug}/eos/rocks`, {
+    const res = await apiFetch(`/api/territories/${msSlug}/eos/rocks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rock_text: newText.trim(), quarter: currentQuarter, year: currentYear }),
@@ -51,7 +52,7 @@ export default function TerritoryEosRocks({ msSlug, rocks, onUpdate }: Props) {
     setLocal((prev) =>
       prev.map((r) => (r.id === rock.id ? { ...r, status: nextStatus } : r))
     );
-    await fetch(`/api/territories/${msSlug}/eos/rocks/${rock.id}`, {
+    await apiFetch(`/api/territories/${msSlug}/eos/rocks/${rock.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: nextStatus }),
@@ -60,7 +61,7 @@ export default function TerritoryEosRocks({ msSlug, rocks, onUpdate }: Props) {
   }
 
   async function deleteRock(id: string) {
-    await fetch(`/api/territories/${msSlug}/eos/rocks/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/territories/${msSlug}/eos/rocks/${id}`, { method: "DELETE" });
     setLocal((prev) => prev.filter((r) => r.id !== id));
     onUpdate();
   }

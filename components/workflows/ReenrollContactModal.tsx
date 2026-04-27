@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * ReenrollContactModal — pick a contact and (re-)enroll them in a workflow.
@@ -51,7 +52,7 @@ export default function ReenrollContactModal({
     setSearching(true);
     const handle = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(query.trim())}`);
+        const res = await apiFetch(`/api/contacts/search?q=${encodeURIComponent(query.trim())}`);
         if (res.ok) {
           const data = await res.json();
           if (!cancelled) setResults(data.contacts ?? []);
@@ -76,7 +77,7 @@ export default function ReenrollContactModal({
     setSubmitting(true);
     setSubmittedId(contact.id);
     try {
-      const res = await fetch("/api/workflows/enrollments", {
+      const res = await apiFetch("/api/workflows/enrollments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

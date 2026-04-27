@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -75,7 +76,7 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/contacts/${opportunity.contactId}`);
+      const res = await apiFetch(`/api/contacts/${opportunity.contactId}`);
       if (res.ok) {
         const data = await res.json();
         setContact(data.contact ?? null);

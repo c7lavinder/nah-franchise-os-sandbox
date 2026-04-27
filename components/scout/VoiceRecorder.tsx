@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useRef, useCallback } from "react";
 import { Mic, Square, Loader2 } from "lucide-react";
@@ -64,7 +65,7 @@ export default function VoiceRecorder({ onTranscription, disabled }: VoiceRecord
           const formData = new FormData();
           formData.append("audio", blob);
 
-          const response = await fetch("/api/voice/transcribe", {
+          const response = await apiFetch("/api/voice/transcribe", {
             method: "POST",
             body: formData,
           });

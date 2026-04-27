@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import type { EosTerritoryLeadChannel } from "@/types/database";
@@ -38,7 +39,7 @@ export default function TerritoryEosLeadChannels({ msSlug, channels, onUpdate }:
     setLocal((prev) =>
       prev.map((c) => (c.id === channel.id ? { ...c, is_active: !c.is_active } : c))
     );
-    await fetch(`/api/territories/${msSlug}/eos/lead-channels/${channel.id}`, {
+    await apiFetch(`/api/territories/${msSlug}/eos/lead-channels/${channel.id}`, {
       method: "POST",
     }).catch(() => {
       setLocal((prev) =>

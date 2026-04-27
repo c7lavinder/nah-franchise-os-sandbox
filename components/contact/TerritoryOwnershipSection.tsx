@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import { MapPin, Plus, ArrowRightLeft, Ban } from "lucide-react";
@@ -48,7 +49,7 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
 
   const fetchOwnership = useCallback(() => {
     setLoading(true);
-    fetch(`/api/contacts/${contactId}/territories`)
+    apiFetch(`/api/contacts/${contactId}/territories`)
       .then((r) => r.json())
       .then((d) => {
         setCurrent(d.current ?? []);
@@ -65,7 +66,7 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
   function handleAssignOpen() {
     setShowAssign(true);
     // Fetch available territories
-    fetch("/api/territories?status=active")
+    apiFetch("/api/territories?status=active")
       .then((r) => r.json())
       .then((d) => setTerritories(d.territories ?? []))
       .catch(() => {});
@@ -74,7 +75,7 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
   async function handleAssign() {
     if (!selectedSlug || !ghlContactId) return;
     setAssigning(true);
-    const res = await fetch("/api/territory-owners/assign", {
+    const res = await apiFetch("/api/territory-owners/assign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ms_slug: selectedSlug, ghl_contact_id: ghlContactId, role: assignRole }),
@@ -90,7 +91,7 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
   async function handleTransfer() {
     if (!transferSlug || !transferContactId) return;
     setTransferring(true);
-    const res = await fetch("/api/territory-owners/transfer", {
+    const res = await apiFetch("/api/territory-owners/transfer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -157,7 +158,7 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
               {active.territories?.status === "active" && (
                 <button
                   onClick={async () => {
-                    const res = await fetch(`/api/territories/${active.ms_slug}/status`, {
+                    const res = await apiFetch(`/api/territories/${active.ms_slug}/status`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ status: "inactive" }),

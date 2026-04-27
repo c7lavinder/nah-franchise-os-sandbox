@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * CallLogForm — Structured call log form for all 4 NAH call types.
@@ -315,7 +316,7 @@ export default function CallLogForm({
         notes: notes || null,
       };
 
-      const res = await fetch("/api/intelligence/call-logs", {
+      const res = await apiFetch("/api/intelligence/call-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

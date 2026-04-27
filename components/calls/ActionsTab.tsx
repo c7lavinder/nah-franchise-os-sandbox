@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import {
@@ -75,7 +76,7 @@ export default function ActionsTab({ actions, profileUpdates, contactId, callId 
 
     setExecuting(true);
     try {
-      const res = await fetch(`/api/calls/${callId}/actions`, {
+      const res = await apiFetch(`/api/calls/${callId}/actions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ actions: activeActions }),
@@ -103,7 +104,7 @@ export default function ActionsTab({ actions, profileUpdates, contactId, callId 
 
     setPushingProfile(true);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/profile`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: activeUpdates }),

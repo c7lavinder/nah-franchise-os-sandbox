@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -141,7 +142,7 @@ export default function LeadList({
 
     setEnriching(true);
     try {
-      const res = await fetch("/api/contacts/batch", {
+      const res = await apiFetch("/api/contacts/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contactIds: idsToFetch }),

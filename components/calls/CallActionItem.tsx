@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useRef } from "react";
 import {
@@ -115,7 +116,7 @@ export default function CallActionItem({ item, teamMembers, contactEmail, contac
   async function handlePush() {
     setLoading("push"); setError(null);
     try {
-      const res = await fetch(`/api/calls/${item.call_id}/actions/${item.id}`, {
+      const res = await apiFetch(`/api/calls/${item.call_id}/actions/${item.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "push", payload: fields }),
       });
@@ -128,7 +129,7 @@ export default function CallActionItem({ item, teamMembers, contactEmail, contac
   async function handleSkip() {
     setLoading("skip"); setError(null);
     try {
-      const res = await fetch(`/api/calls/${item.call_id}/actions/${item.id}`, {
+      const res = await apiFetch(`/api/calls/${item.call_id}/actions/${item.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "skip" }),
       });
@@ -141,7 +142,7 @@ export default function CallActionItem({ item, teamMembers, contactEmail, contac
   async function handleReassign(partner: PartnerOption) {
     setLoading("reassign"); setError(null);
     try {
-      const res = await fetch(`/api/calls/${item.call_id}/actions/${item.id}`, {
+      const res = await apiFetch(`/api/calls/${item.call_id}/actions/${item.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "reassign",
@@ -158,7 +159,7 @@ export default function CallActionItem({ item, teamMembers, contactEmail, contac
     if (!aiInput.trim()) return;
     setAiLoading(true);
     try {
-      const res = await fetch(`/api/calls/${item.call_id}/actions/${item.id}/rewrite`, {
+      const res = await apiFetch(`/api/calls/${item.call_id}/actions/${item.id}/rewrite`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ instruction: aiInput, currentFields: fields, category: item.category }),
       });
@@ -356,7 +357,7 @@ function ContactSearchDropdown({ value, detail, onSelect, placeholder }: {
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(query)}`);
+        const res = await apiFetch(`/api/contacts/search?q=${encodeURIComponent(query)}`);
         if (res.ok) {
           const data = await res.json();
           setResults(data.contacts ?? []);

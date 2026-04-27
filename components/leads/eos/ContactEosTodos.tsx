@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import { Loader2, X } from "lucide-react";
@@ -16,7 +17,7 @@ export default function ContactEosTodos({ contactId, carriedTerritoryName }: Pro
   const [newText, setNewText] = useState("");
 
   useEffect(() => {
-    fetch(`/api/contacts/${contactId}/eos`)
+    apiFetch(`/api/contacts/${contactId}/eos`)
       .then((r) => (r.ok ? r.json() : { todos: [] }))
       .then((d) => setTodos(d.todos ?? []))
       .catch(() => {})
@@ -25,7 +26,7 @@ export default function ContactEosTodos({ contactId, carriedTerritoryName }: Pro
 
   async function addTodo() {
     if (!newText.trim()) return;
-    const res = await fetch(`/api/contacts/${contactId}/eos/todos`, {
+    const res = await apiFetch(`/api/contacts/${contactId}/eos/todos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ todo_text: newText.trim() }),
@@ -38,7 +39,7 @@ export default function ContactEosTodos({ contactId, carriedTerritoryName }: Pro
   }
 
   async function toggleDone(todo: EosContactTodo) {
-    await fetch(`/api/contacts/${contactId}/eos/todos/${todo.id}`, {
+    await apiFetch(`/api/contacts/${contactId}/eos/todos/${todo.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_done: !todo.is_done }),
@@ -49,7 +50,7 @@ export default function ContactEosTodos({ contactId, carriedTerritoryName }: Pro
   }
 
   async function deleteTodo(id: string) {
-    await fetch(`/api/contacts/${contactId}/eos/todos/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/contacts/${contactId}/eos/todos/${id}`, { method: "DELETE" });
     setTodos((prev) => prev.filter((t) => t.id !== id));
   }
 

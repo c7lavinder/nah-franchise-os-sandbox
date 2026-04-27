@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import { Users, CheckCircle2, XCircle, Loader2, Shield, UserCog, Pencil, Save, X, Copy, Check, Eye, EyeOff, Key } from "lucide-react";
@@ -84,7 +85,7 @@ export default function UsersPanel() {
   const [saving, setSaving] = useState(false);
 
   const fetchReadAIKeys = useCallback(async () => {
-    const res = await fetch("/api/settings/read-ai-keys");
+    const res = await apiFetch("/api/settings/read-ai-keys");
     if (res.ok) {
       const d = await res.json();
       setReadAIKeys(d.keys ?? []);
@@ -92,7 +93,7 @@ export default function UsersPanel() {
   }, []);
 
   async function fetchUsers() {
-    const res = await fetch("/api/settings/users");
+    const res = await apiFetch("/api/settings/users");
     if (res.ok) {
       const d = await res.json();
       setUsers(d.users ?? []);
@@ -118,7 +119,7 @@ export default function UsersPanel() {
 
   async function saveEdit(id: string) {
     setSaving(true);
-    const res = await fetch("/api/settings/users", {
+    const res = await apiFetch("/api/settings/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, ...draft, ghl_user_id: draft.ghl_user_id || null, label_color: draft.label_color || null }),
@@ -132,7 +133,7 @@ export default function UsersPanel() {
   }
 
   async function toggleActive(u: UserRow) {
-    await fetch("/api/settings/users", {
+    await apiFetch("/api/settings/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: u.id, is_active: !u.is_active }),

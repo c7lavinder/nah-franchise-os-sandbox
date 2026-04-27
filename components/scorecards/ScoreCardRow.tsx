@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useEffect, useState } from "react";
 
@@ -19,7 +20,7 @@ export default function ScoreCardRow({ page }: ScoreCardRowProps) {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/scorecards/${page}`)
+    apiFetch(`/api/scorecards/${page}`)
       .then((res) => res.json())
       .then((data: Record<string, ScoreCardItem>) => {
         setCards(Object.values(data));

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * IntelligenceTab — main intelligence tab for the candidate profile panel.
@@ -135,7 +136,7 @@ export default function IntelligenceTab({ contactId, onLogCall }: IntelligenceTa
 
   const fetchProfile = useCallback(async () => {
     try {
-      const res = await fetch(`/api/intelligence/profile?contactId=${contactId}`);
+      const res = await apiFetch(`/api/intelligence/profile?contactId=${contactId}`);
       if (res.ok) {
         const json = (await res.json()) as IntelligenceProfileResponse;
         setData(json);

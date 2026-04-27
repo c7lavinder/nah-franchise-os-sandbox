@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import { Loader2, PhoneIncoming, PhoneOutgoing } from "lucide-react";
@@ -66,7 +67,7 @@ export default function CallDetail({ call }: CallDetailProps) {
       setLoading(true);
       setGrade(null);
       try {
-        const res = await fetch(`/api/calls/${call.id}`);
+        const res = await apiFetch(`/api/calls/${call.id}`);
         if (res.ok) {
           const data = await res.json();
           setDetail(data);
@@ -86,7 +87,7 @@ export default function CallDetail({ call }: CallDetailProps) {
     async function gradeCall(transcript: string) {
       setGrading(true);
       try {
-        const res = await fetch(`/api/calls/${call.id}/grade`, {
+        const res = await apiFetch(`/api/calls/${call.id}/grade`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

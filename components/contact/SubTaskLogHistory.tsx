@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * SubTaskLogHistory — expandable log history for a sub-task.
@@ -29,7 +30,7 @@ export default function SubTaskLogHistory({ logs, onRefresh }: SubTaskLogHistory
     if (!confirm("Delete this log? This cannot be undone from the UI.")) return;
     setDeletingId(logId);
     try {
-      const res = await fetch(`/api/sub-task-logs/${logId}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/sub-task-logs/${logId}`, { method: "DELETE" });
       if (!res.ok) {
         const { error } = await res.json().catch(() => ({ error: "Unknown error" }));
         alert(`Failed to delete log: ${error}`);

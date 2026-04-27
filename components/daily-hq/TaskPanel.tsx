@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import { CheckCircle2, Circle, Loader2, Plus, ClipboardList } from "lucide-react";
@@ -27,7 +28,7 @@ export default function TaskPanel({ tasks, onTaskUpdated }: TaskPanelProps) {
   async function toggleTask(task: GHLTask) {
     setTogglingId(task.id);
     try {
-      const res = await fetch(`/api/contacts/${task.contactId}/tasks/${task.id}`, {
+      const res = await apiFetch(`/api/contacts/${task.contactId}/tasks/${task.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ completed: !task.completed }),

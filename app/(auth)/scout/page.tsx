@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
@@ -66,7 +67,7 @@ export default function ScoutPage() {
       const fromPath = searchParams.get("from");
       const pageContext = parsePageContext(fromPath);
 
-      const response = await fetch("/api/scout/chat", {
+      const response = await apiFetch("/api/scout/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -133,7 +134,7 @@ export default function ScoutPage() {
     setExecutingActionId(action.id);
 
     try {
-      const response = await fetch("/api/scout/action", {
+      const response = await apiFetch("/api/scout/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

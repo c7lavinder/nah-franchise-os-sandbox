@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import { X } from "lucide-react";
@@ -17,7 +18,7 @@ export default function TerritoryEosIssues({ msSlug, issues, onUpdate }: Props) 
 
   async function addIssue() {
     if (!newText.trim()) return;
-    const res = await fetch(`/api/territories/${msSlug}/eos/issues`, {
+    const res = await apiFetch(`/api/territories/${msSlug}/eos/issues`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ issue_text: newText.trim() }),
@@ -31,7 +32,7 @@ export default function TerritoryEosIssues({ msSlug, issues, onUpdate }: Props) 
   }
 
   async function toggleDone(issue: EosTerritoryIssue) {
-    await fetch(`/api/territories/${msSlug}/eos/issues/${issue.id}`, {
+    await apiFetch(`/api/territories/${msSlug}/eos/issues/${issue.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_done: !issue.is_done }),
@@ -43,7 +44,7 @@ export default function TerritoryEosIssues({ msSlug, issues, onUpdate }: Props) 
   }
 
   async function deleteIssue(id: string) {
-    await fetch(`/api/territories/${msSlug}/eos/issues/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/territories/${msSlug}/eos/issues/${id}`, { method: "DELETE" });
     setLocal((prev) => prev.filter((i) => i.id !== id));
     onUpdate();
   }

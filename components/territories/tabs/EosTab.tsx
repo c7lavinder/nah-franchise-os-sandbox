@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import { Loader2, X } from "lucide-react";
@@ -46,7 +47,7 @@ export default function TerritoryEosTab({ msSlug, carriedFromContactName }: Prop
   const [showBanner, setShowBanner] = useState(false);
 
   const fetchData = useCallback(async () => {
-    const res = await fetch(`/api/territories/${msSlug}/eos`);
+    const res = await apiFetch(`/api/territories/${msSlug}/eos`);
     if (res.ok) {
       const d: EosData = await res.json();
       setData(d);

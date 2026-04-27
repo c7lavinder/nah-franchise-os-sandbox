@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
@@ -55,7 +56,7 @@ export default function ScoutFAB() {
     setThinking(true);
 
     try {
-      const res = await fetch("/api/scout/chat", {
+      const res = await apiFetch("/api/scout/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -98,7 +99,7 @@ export default function ScoutFAB() {
   async function handleConfirmAction(action: DraftedAction) {
     setExecutingActionId(action.id);
     try {
-      const res = await fetch("/api/scout/action", {
+      const res = await apiFetch("/api/scout/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

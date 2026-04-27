@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import { Bot, Play, Loader2 } from "lucide-react";
@@ -27,7 +28,7 @@ export default function AgentsPanel() {
   const [triggering, setTriggering] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/settings/agents")
+    apiFetch("/api/settings/agents")
       .then((r) => r.json())
       .then((d) => setAgents(d.agents ?? []))
       .catch(() => {
@@ -46,7 +47,7 @@ export default function AgentsPanel() {
   async function toggleAgent(name: string, enabled: boolean) {
     setAgents((prev) => prev.map((a) => a.name === name ? { ...a, enabled } : a));
     try {
-      await fetch("/api/settings/agents/toggle", {
+      await apiFetch("/api/settings/agents/toggle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ agentName: name, enabled }),

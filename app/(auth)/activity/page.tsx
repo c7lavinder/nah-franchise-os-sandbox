@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import { Activity, RefreshCw } from "lucide-react";
@@ -22,7 +23,7 @@ export default function ActivityPage() {
   const fetchActivity = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/activity?limit=100");
+      const res = await apiFetch("/api/activity?limit=100");
       if (res.ok) {
         const data = await res.json();
         setEvents(data.events ?? []);

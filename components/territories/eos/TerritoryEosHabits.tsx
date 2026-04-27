@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import type { EosTerritoryHabit, EosHabitGrade } from "@/types/database";
@@ -27,7 +28,7 @@ export default function TerritoryEosHabits({ msSlug, habits, onUpdate }: Props) 
     setLocal((prev) =>
       prev.map((h) => (h.id === habit.id ? { ...h, grade: newGrade } : h))
     );
-    await fetch(`/api/territories/${msSlug}/eos/habits/${habit.id}`, {
+    await apiFetch(`/api/territories/${msSlug}/eos/habits/${habit.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ grade: newGrade }),

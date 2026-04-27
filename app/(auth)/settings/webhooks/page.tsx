@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * Webhook Admin Page — /settings/webhooks
@@ -97,7 +98,7 @@ export default function WebhookAdminPage() {
   async function fetchData() {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/webhooks?limit=100");
+      const res = await apiFetch("/api/admin/webhooks?limit=100");
       if (res.ok) {
         const data = await res.json();
         setSessions(data.sessions ?? []);

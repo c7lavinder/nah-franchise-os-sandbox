@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * WorkflowDetail — right panel showing selected workflow details,
@@ -30,7 +31,7 @@ export default function WorkflowDetail({ workflow }: WorkflowDetailProps) {
 
   const fetchEnrollments = useCallback(async () => {
     try {
-      const res = await fetch(`/api/workflows/enrollments?workflowId=${workflow.id}&status=active,paused`);
+      const res = await apiFetch(`/api/workflows/enrollments?workflowId=${workflow.id}&status=active,paused`);
       if (res.ok) {
         const data = await res.json();
         setEnrollments(data.enrollments ?? []);

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * TerritoryDetailsCard + DealDetailsCard — persistent above tabs on contact page.
@@ -80,7 +81,7 @@ export function TerritoryDetailsCard({ contactId, fields, onUpdate }: Props) {
 
   async function save(field: string, value: string) {
     try {
-      const res = await fetch(`/api/contacts/${contactId}`, {
+      const res = await apiFetch(`/api/contacts/${contactId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [field]: value || null }),
@@ -108,7 +109,7 @@ export function DealDetailsCard({ contactId, fields, onUpdate }: Props) {
   const [leadSources, setLeadSources] = useState<LeadSourceOption[]>([]);
 
   useEffect(() => {
-    fetch("/api/settings/lead-sources")
+    apiFetch("/api/settings/lead-sources")
       .then((r) => r.json())
       .then((d) => setLeadSources(d.sources ?? []))
       .catch(() => {});
@@ -116,7 +117,7 @@ export function DealDetailsCard({ contactId, fields, onUpdate }: Props) {
 
   async function saveNum(field: string, value: string) {
     try {
-      const res = await fetch(`/api/contacts/${contactId}`, {
+      const res = await apiFetch(`/api/contacts/${contactId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [field]: value ? Number(value) : null }),
@@ -130,7 +131,7 @@ export function DealDetailsCard({ contactId, fields, onUpdate }: Props) {
 
   async function saveStr(field: string, value: string) {
     try {
-      const res = await fetch(`/api/contacts/${contactId}`, {
+      const res = await apiFetch(`/api/contacts/${contactId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [field]: value || null }),
@@ -144,7 +145,7 @@ export function DealDetailsCard({ contactId, fields, onUpdate }: Props) {
 
   async function saveMulti(updates: Record<string, string | null>) {
     try {
-      const res = await fetch(`/api/contacts/${contactId}`, {
+      const res = await apiFetch(`/api/contacts/${contactId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),

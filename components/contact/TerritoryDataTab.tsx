@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * TerritoryDataTab — shows territory data inline on the contact page territories tab.
@@ -63,7 +64,7 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
 
   useEffect(() => {
     if (!ghlContactId) { setLoading(false); return; }
-    fetch(`/api/contacts/${ghlContactId}/territory-data`)
+    apiFetch(`/api/contacts/${ghlContactId}/territory-data`)
       .then((r) => r.ok ? r.json() : { territories: [] })
       .then((d) => {
         const list = (d.territories ?? []).map((t: TerritoryListItem) => ({
@@ -83,8 +84,8 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
     setFullData(null);
     setStakeholders([]);
     const [tRes, sRes] = await Promise.all([
-      fetch(`/api/territories/${slug}`).catch(() => null),
-      fetch(`/api/territories/${slug}/stakeholders`).catch(() => null),
+      apiFetch(`/api/territories/${slug}`).catch(() => null),
+      apiFetch(`/api/territories/${slug}/stakeholders`).catch(() => null),
     ]);
     if (tRes?.ok) setFullData(await tRes.json());
     if (sRes?.ok) { const d = await sRes.json(); setStakeholders(d.stakeholders ?? []); }

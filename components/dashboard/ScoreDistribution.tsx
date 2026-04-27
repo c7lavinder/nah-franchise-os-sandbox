@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import { Brain, Loader2 } from "lucide-react";
@@ -61,9 +62,9 @@ export default function ScoreDistribution() {
       try {
         // Fetch all three tiers in parallel
         const [highRes, medRes, lowRes] = await Promise.all([
-          fetch("/api/intelligence/scores?tier=high"),
-          fetch("/api/intelligence/scores?tier=medium"),
-          fetch("/api/intelligence/scores?tier=low"),
+          apiFetch("/api/intelligence/scores?tier=high"),
+          apiFetch("/api/intelligence/scores?tier=medium"),
+          apiFetch("/api/intelligence/scores?tier=low"),
         ]);
 
         if (!highRes.ok || !medRes.ok || !lowRes.ok) {

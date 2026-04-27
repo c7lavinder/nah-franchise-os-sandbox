@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * SplitJourneyModal — two-way journey split dialog.
@@ -98,7 +99,7 @@ export default function SplitJourneyModal({
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/journeys/${journeyId}/split`, {
+      const res = await apiFetch(`/api/journeys/${journeyId}/split`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

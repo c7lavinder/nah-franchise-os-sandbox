@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * MergeContactModal — pick a keeper contact to merge the current contact INTO.
@@ -52,7 +53,7 @@ export default function MergeContactModal({ duplicateContact, onClose, onMerged 
     setSearching(true);
     const handle = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(query.trim())}`);
+        const res = await apiFetch(`/api/contacts/search?q=${encodeURIComponent(query.trim())}`);
         if (res.ok) {
           const data = await res.json();
           // Hide the duplicate itself from results — can't merge into yourself
@@ -77,7 +78,7 @@ export default function MergeContactModal({ duplicateContact, onClose, onMerged 
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/contacts/${duplicateContact.ghlContactId}/merge`, {
+      const res = await apiFetch(`/api/contacts/${duplicateContact.ghlContactId}/merge`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

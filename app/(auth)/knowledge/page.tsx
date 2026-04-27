@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
@@ -174,7 +175,7 @@ export default function KnowledgePage() {
   const fetchDocs = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/knowledge");
+      const res = await apiFetch("/api/knowledge");
       if (res.ok) {
         const data = await res.json();
         setDocs(data.documents ?? []);
@@ -250,7 +251,7 @@ export default function KnowledgePage() {
       const body = editingId
         ? { id: editingId, title: formTitle, category: formCategory, content: formContent, priority: formPriority }
         : { title: formTitle, category: formCategory, content: formContent, priority: formPriority };
-      await fetch("/api/knowledge", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      await apiFetch("/api/knowledge", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       cancelForm();
       await fetchDocs();
     } catch { /* silent */ }
@@ -258,7 +259,7 @@ export default function KnowledgePage() {
   }
 
   async function handleDelete(id: string) {
-    await fetch("/api/knowledge", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    await apiFetch("/api/knowledge", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
     if (activeDocId === id) { setActiveDocId(null); setView(activePillar ? "pillar" : "dashboard"); }
     await fetchDocs();
   }

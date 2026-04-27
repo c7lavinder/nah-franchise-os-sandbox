@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import {
@@ -132,7 +133,7 @@ export default function DraftedActionCard({
   useEffect(() => {
     if (action.type !== "appointment" || calendars !== null) return;
     let cancelled = false;
-    fetch("/api/ghl/calendars")
+    apiFetch("/api/ghl/calendars")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Failed to load calendars"))))
       .then((data) => {
         if (!cancelled) setCalendars((data.calendars ?? []) as CalendarOption[]);

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Plus, X, Search, Loader2, Phone, Monitor, AlertTriangle } from "lucide-react";
@@ -287,7 +288,7 @@ export default function CallsPage() {
   const fetchCalls = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/calls/list?limit=200");
+      const res = await apiFetch("/api/calls/list?limit=200");
       if (res.ok) {
         const data = await res.json();
         setCalls(data.calls ?? []);
@@ -301,8 +302,8 @@ export default function CallsPage() {
   useEffect(() => {
     if (!showManualEntry) return;
     Promise.all([
-      fetch("/api/settings/call-types").then((r) => r.ok ? r.json() : null),
-      fetch("/api/settings/users").then((r) => r.ok ? r.json() : null),
+      apiFetch("/api/settings/call-types").then((r) => r.ok ? r.json() : null),
+      apiFetch("/api/settings/users").then((r) => r.ok ? r.json() : null),
     ]).then(([ctData, uData]) => {
       if (ctData?.callTypes) setCallTypes(ctData.callTypes);
       if (uData?.users) setUsers(uData.users.filter((u: UserOption & { is_active: boolean }) => u.is_active !== false));
@@ -314,7 +315,7 @@ export default function CallsPage() {
     const timer = setTimeout(async () => {
       setContactSearching(true);
       try {
-        const res = await fetch(`/api/pipeline/contacts?q=${encodeURIComponent(contactSearch)}&limit=8`);
+        const res = await apiFetch(`/api/pipeline/contacts?q=${encodeURIComponent(contactSearch)}&limit=8`);
         if (res.ok) {
           const data = await res.json();
           setContactResults((data.contacts ?? []).map((c: { id: string; first_name: string | null; last_name: string | null }) => ({ id: c.id, first_name: c.first_name, last_name: c.last_name })));
@@ -329,7 +330,7 @@ export default function CallsPage() {
     if (!manualForm.title.trim()) return;
     setManualSaving(true);
     try {
-      const res = await fetch("/api/calls/create", {
+      const res = await apiFetch("/api/calls/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

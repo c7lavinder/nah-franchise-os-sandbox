@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * ContactEosHabits — recurring practices that follow the person across
@@ -59,7 +60,7 @@ export default function ContactEosHabits({ contactId }: Props) {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/contacts/${contactId}/eos/habits`)
+    apiFetch(`/api/contacts/${contactId}/eos/habits`)
       .then((r) => (r.ok ? r.json() : { habits: [] }))
       .then((d) => setHabits(d.habits ?? []))
       .catch(() => {})
@@ -69,7 +70,7 @@ export default function ContactEosHabits({ contactId }: Props) {
   async function addHabit() {
     const text = newText.trim();
     if (!text) return;
-    const res = await fetch(`/api/contacts/${contactId}/eos/habits`, {
+    const res = await apiFetch(`/api/contacts/${contactId}/eos/habits`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ habit_text: text, cadence: newCadence }),
@@ -84,7 +85,7 @@ export default function ContactEosHabits({ contactId }: Props) {
 
   async function updateHabit(id: string, patch: Partial<Pick<EosContactHabit, "habit_text" | "cadence" | "grade">>) {
     setHabits((prev) => prev.map((h) => (h.id === id ? { ...h, ...patch } : h)));
-    await fetch(`/api/contacts/${contactId}/eos/habits/${id}`, {
+    await apiFetch(`/api/contacts/${contactId}/eos/habits/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
@@ -92,7 +93,7 @@ export default function ContactEosHabits({ contactId }: Props) {
   }
 
   async function deleteHabit(id: string) {
-    await fetch(`/api/contacts/${contactId}/eos/habits/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/contacts/${contactId}/eos/habits/${id}`, { method: "DELETE" });
     setHabits((prev) => prev.filter((h) => h.id !== id));
   }
 

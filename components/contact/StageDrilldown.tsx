@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * StageDrilldown — sub-tasks + stage history when a stage is clicked.
@@ -38,7 +39,7 @@ export default function StageDrilldown({
 
   // Fetch users for logger select
   useEffect(() => {
-    fetch("/api/pipeline/users")
+    apiFetch("/api/pipeline/users")
       .then((r) => r.ok ? r.json() : { users: [] })
       .then((d) => setUsers(d.users ?? []))
       .catch(() => {});

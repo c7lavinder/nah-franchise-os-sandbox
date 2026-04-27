@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import { CheckCircle2, Circle, Loader2 } from "lucide-react";
@@ -24,7 +25,7 @@ export default function TaskList({ contactId, tasks, onTaskUpdated }: TaskListPr
   async function toggleTask(task: Task) {
     setTogglingId(task.id);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/tasks/${task.id}`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/tasks/${task.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ completed: !task.completed }),

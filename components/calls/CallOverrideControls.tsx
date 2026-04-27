@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * Reclassify + Reassign controls for the call detail page header.
@@ -150,7 +151,7 @@ function ReclassifyButton(props: Props & { token: string | null }) {
     setSelected(props.currentCallTypeId ?? "");
     setError(null);
     void (async () => {
-      const res = await fetch("/api/settings/call-types");
+      const res = await apiFetch("/api/settings/call-types");
       if (res.ok) {
         const data = await res.json();
         setCallTypes((data.callTypes ?? data ?? []) as CallType[]);
@@ -163,7 +164,7 @@ function ReclassifyButton(props: Props & { token: string | null }) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/calls/${props.callId}/override`, {
+      const res = await apiFetch(`/api/calls/${props.callId}/override`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -287,7 +288,7 @@ function buildInitialState(participants: RawParticipant[]): ParticipantState[] {
 
 async function fetchContactTerritories(contactId: string): Promise<TerritoryOption[]> {
   try {
-    const res = await fetch(`/api/contacts/${contactId}/territories`);
+    const res = await apiFetch(`/api/contacts/${contactId}/territories`);
     if (!res.ok) return [];
     const data = await res.json() as {
       current?: Array<{
@@ -311,7 +312,7 @@ async function fetchContactTerritories(contactId: string): Promise<TerritoryOpti
 
 async function fetchContactJourneys(contactId: string): Promise<JourneyMembership[]> {
   try {
-    const res = await fetch(`/api/contacts/${contactId}/journey`);
+    const res = await apiFetch(`/api/contacts/${contactId}/journey`);
     if (!res.ok) return [];
     const data = await res.json() as { journeys?: JourneyMembership[] };
     return data.journeys ?? [];
@@ -324,7 +325,7 @@ async function attachEmailToContact(contactId: string, email: string): Promise<v
   // Idempotent — the server returns existing id if the email is already on
   // the contact, so mapping a participant always keeps contact_emails in sync.
   try {
-    await fetch(`/api/contacts/${contactId}/emails`, {
+    await apiFetch(`/api/contacts/${contactId}/emails`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, label: "auto" }),
@@ -432,7 +433,7 @@ function ReclassifyParticipantsButton({ callId, onDone }: { callId: string; onDo
     setBusy(true);
     setResult(null);
     try {
-      const res = await fetch(`/api/calls/${callId}/reclassify-participants`, { method: "POST" });
+      const res = await apiFetch(`/api/calls/${callId}/reclassify-participants`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         const parts: string[] = [];
@@ -492,8 +493,8 @@ function ReassignButton(props: Props & { token: string | null }) {
     setPrimaryContactId(props.currentContactId);
 
     void (async () => {
-      const ctPromise = fetch(`/api/calls/${props.callId}/territories`);
-      const cjPromise = fetch(`/api/calls/${props.callId}/journeys`);
+      const ctPromise = apiFetch(`/api/calls/${props.callId}/territories`);
+      const cjPromise = apiFetch(`/api/calls/${props.callId}/journeys`);
       const territoryPromises = initial.map((r) => r.contactId ? fetchContactTerritories(r.contactId) : Promise.resolve([]));
       const journeyPromises = initial.map((r) => r.contactId ? fetchContactJourneys(r.contactId) : Promise.resolve([]));
       const [ctRes, cjRes, territoryResults, journeyResults] = await Promise.all([
@@ -699,7 +700,7 @@ function ReassignButton(props: Props & { token: string | null }) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/calls/${props.callId}/override`, {
+      const res = await apiFetch(`/api/calls/${props.callId}/override`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1061,7 +1062,7 @@ function ParticipantRow({
     if (query.length < 2) { setResults([]); return; }
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(async () => {
-      const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(query)}&limit=8`);
+      const res = await apiFetch(`/api/contacts/search?q=${encodeURIComponent(query)}&limit=8`);
       if (res.ok) {
         const data = await res.json();
         setResults((data.results ?? data.contacts ?? []) as ContactOption[]);
@@ -1349,7 +1350,7 @@ function DeleteButton({ callId, token }: { callId: string; token: string | null 
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/calls/${callId}/delete`, {
+      const res = await apiFetch(`/api/calls/${callId}/delete`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });

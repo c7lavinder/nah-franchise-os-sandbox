@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * Email list + add/remove/promote UI for a single contact.
@@ -34,7 +35,7 @@ export default function ContactEmailsPanel({ contactId, initialPrimaryEmail }: P
   const [error, setError] = useState<string | null>(null);
 
   async function load(): Promise<void> {
-    const res = await fetch(`/api/contacts/${contactId}/emails`, { cache: "no-store" });
+    const res = await apiFetch(`/api/contacts/${contactId}/emails`, { cache: "no-store" });
     if (!res.ok) { setError("Failed to load emails"); return; }
     const body = (await res.json()) as { emails: EmailRow[] };
     setRows(body.emails);
@@ -48,7 +49,7 @@ export default function ContactEmailsPanel({ contactId, initialPrimaryEmail }: P
     if (!email) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/emails`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/emails`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -69,7 +70,7 @@ export default function ContactEmailsPanel({ contactId, initialPrimaryEmail }: P
   async function handlePromote(emailId: string): Promise<void> {
     setBusy(true);
     try {
-      await fetch(`/api/contacts/${contactId}/emails/${emailId}`, {
+      await apiFetch(`/api/contacts/${contactId}/emails/${emailId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ makePrimary: true }),
@@ -84,7 +85,7 @@ export default function ContactEmailsPanel({ contactId, initialPrimaryEmail }: P
     if (!confirm("Remove this email from the contact?")) return;
     setBusy(true);
     try {
-      await fetch(`/api/contacts/${contactId}/emails/${emailId}`, { method: "DELETE" });
+      await apiFetch(`/api/contacts/${contactId}/emails/${emailId}`, { method: "DELETE" });
       await load();
     } finally {
       setBusy(false);

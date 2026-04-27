@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * ActionPanels — in-app SMS, Email, Call, and Schedule panels for contact page.
@@ -110,7 +111,7 @@ export function SMSPanel({ contactId, contactName, contactPhone, onClose, onSent
     if (!aiPrompt.trim()) return;
     setDrafting(true);
     try {
-      const res = await fetch("/api/scout/chat", {
+      const res = await apiFetch("/api/scout/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -132,7 +133,7 @@ export function SMSPanel({ contactId, contactName, contactPhone, onClose, onSent
     if (!message.trim() || !toNumber) return;
     setSending(true);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/send`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "SMS", message: message.trim() }),
@@ -239,7 +240,7 @@ export function EmailPanel({ contactId, contactName, contactEmail, onClose, onSe
     if (!aiPrompt.trim()) return;
     setDrafting(true);
     try {
-      const res = await fetch("/api/scout/chat", {
+      const res = await apiFetch("/api/scout/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -267,7 +268,7 @@ export function EmailPanel({ contactId, contactName, contactEmail, onClose, onSe
     if (!subject.trim() || !body.trim() || !toEmail) return;
     setSending(true);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/send`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -435,7 +436,7 @@ export function CallPanel({ contactId, contactName, contactPhone, onClose, onLog
 
     try {
       // 1. Always log a note
-      const noteRes = await fetch(`/api/contacts/${contactId}/notes`, {
+      const noteRes = await apiFetch(`/api/contacts/${contactId}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: noteBody }),
@@ -449,7 +450,7 @@ export function CallPanel({ contactId, contactName, contactPhone, onClose, onLog
       const followup = FOLLOWUP_DEFAULTS[outcome];
       if (createFollowup && followup) {
         const due = new Date(Date.now() + followup.daysOut * 24 * 60 * 60 * 1000).toISOString();
-        await fetch(`/api/contacts/${contactId}/tasks`, {
+        await apiFetch(`/api/contacts/${contactId}/tasks`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -598,7 +599,7 @@ export function SchedulePanel({ contactId, contactName, contactEmail, onClose, o
   // appointment POST would have failed in production.
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/ghl/calendars")
+    apiFetch("/api/ghl/calendars")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Failed to load calendars"))))
       .then((data) => {
         if (cancelled) return;
@@ -645,7 +646,7 @@ export function SchedulePanel({ contactId, contactName, contactEmail, onClose, o
     const endTime = new Date(endMs).toISOString();
 
     try {
-      const res = await fetch(`/api/contacts/${contactId}/schedule`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ calendarId, title, startTime, endTime, timezone }),

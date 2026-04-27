@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * ResumeSalesPrompt — shown when a contact is in Follow-up → Re-engaged.
@@ -21,7 +22,7 @@ export default function ResumeSalesPrompt({ contactId, onRefresh }: ResumeSalesP
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/pipelines/resume-sales`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/pipelines/resume-sales`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode }),

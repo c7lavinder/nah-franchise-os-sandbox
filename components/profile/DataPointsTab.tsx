@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import SuggestionCards from "./SuggestionCards";
@@ -30,7 +31,7 @@ export default function DataPointsTab({ contactId, territorySlug, entityType }: 
       ? `contact_id=${contactId}`
       : `territory_ms_slug=${territorySlug}`;
     try {
-      const res = await fetch(`/api/suggestions?${param}`);
+      const res = await apiFetch(`/api/suggestions?${param}`);
       if (res.ok) {
         const d = await res.json();
         setSuggestions(d.suggestions ?? []);
@@ -45,7 +46,7 @@ export default function DataPointsTab({ contactId, territorySlug, entityType }: 
 
   async function handlePush(id: string, value: string) {
     try {
-      await fetch("/api/suggestions/push", {
+      await apiFetch("/api/suggestions/push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ suggestionId: id, finalValue: value, reviewerId: "current-user" }),
@@ -56,7 +57,7 @@ export default function DataPointsTab({ contactId, territorySlug, entityType }: 
 
   async function handleSkip(id: string) {
     try {
-      await fetch("/api/suggestions/skip", {
+      await apiFetch("/api/suggestions/skip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ suggestionId: id, reviewerId: "current-user" }),

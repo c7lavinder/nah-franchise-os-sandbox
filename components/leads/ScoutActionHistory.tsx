@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import { Bot, MessageSquare, ArrowRight, ClipboardList, Loader2 } from "lucide-react";
@@ -44,7 +45,7 @@ export default function ScoutActionHistory({ contactId }: ScoutActionHistoryProp
     async function fetch() {
       setLoading(true);
       try {
-        const res = await globalThis.fetch(`/api/contacts/${contactId}/scout-actions`);
+        const res = await apiFetch(`/api/contacts/${contactId}/scout-actions`);
         if (res.ok) {
           const data = await res.json();
           setActions(data.actions ?? []);

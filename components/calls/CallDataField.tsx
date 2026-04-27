@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import { Check, Pencil, X, Loader2, AlertTriangle, Sparkles, Users } from "lucide-react";
@@ -244,7 +245,7 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
         body.target_type = "contact";
         body.target_scope = "both";
       }
-      const res = await fetch(`/api/calls/${extraction.call_id}/data/${extraction.id}/save`, {
+      const res = await apiFetch(`/api/calls/${extraction.call_id}/data/${extraction.id}/save`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -257,7 +258,7 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
   async function handleEditSave() {
     setLoading("edit");
     try {
-      const res = await fetch(`/api/calls/${extraction.call_id}/data/${extraction.id}`, {
+      const res = await apiFetch(`/api/calls/${extraction.call_id}/data/${extraction.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "edit_save", field_value: editValue }),
@@ -270,7 +271,7 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
   async function handleSkip() {
     setLoading("skip");
     try {
-      const res = await fetch(`/api/calls/${extraction.call_id}/data/${extraction.id}`, {
+      const res = await apiFetch(`/api/calls/${extraction.call_id}/data/${extraction.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "skip" }),
@@ -284,7 +285,7 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
     if (!aiInstruction.trim()) return;
     setAiLoading(true);
     try {
-      const res = await fetch(`/api/calls/${extraction.call_id}/actions/_/rewrite`, {
+      const res = await apiFetch(`/api/calls/${extraction.call_id}/actions/_/rewrite`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

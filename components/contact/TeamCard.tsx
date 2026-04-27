@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * TeamCard — internal NAH team members on a contact. Auto-derived + manual add/remove.
@@ -37,7 +38,7 @@ export default function TeamCard({ contactId }: TeamCardProps) {
 
   const fetchTeam = useCallback(async () => {
     try {
-      const res = await fetch(`/api/contacts/${contactId}/team`);
+      const res = await apiFetch(`/api/contacts/${contactId}/team`);
       if (res.ok) {
         const data = await res.json();
         setMembers(data.team ?? []);
@@ -49,7 +50,7 @@ export default function TeamCard({ contactId }: TeamCardProps) {
   useEffect(() => { void fetchTeam(); }, [fetchTeam]);
 
   useEffect(() => {
-    fetch("/api/pipeline/users")
+    apiFetch("/api/pipeline/users")
       .then((r) => (r.ok ? r.json() : { users: [] }))
       .then((d) => setAllUsers(d.users ?? []))
       .catch(() => {});
@@ -57,7 +58,7 @@ export default function TeamCard({ contactId }: TeamCardProps) {
 
   async function handleAdd(userId: string) {
     setShowAdd(false);
-    const res = await fetch(`/api/contacts/${contactId}/team`, {
+    const res = await apiFetch(`/api/contacts/${contactId}/team`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId }),
@@ -67,7 +68,7 @@ export default function TeamCard({ contactId }: TeamCardProps) {
 
   async function handleRemove(userId: string) {
     setRemoveId(null);
-    const res = await fetch(`/api/contacts/${contactId}/team`, {
+    const res = await apiFetch(`/api/contacts/${contactId}/team`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId }),

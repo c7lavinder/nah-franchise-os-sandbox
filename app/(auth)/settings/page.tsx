@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
@@ -55,8 +56,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/settings/integrations").then((r) => r.ok ? r.json() : null),
-      fetch("/api/settings/health").then((r) => r.ok ? r.json() : null),
+      apiFetch("/api/settings/integrations").then((r) => r.ok ? r.json() : null),
+      apiFetch("/api/settings/health").then((r) => r.ok ? r.json() : null),
     ]).then(([intData, healthData]) => {
       if (intData) setIntegrations(intData);
       if (healthData) setHealth(healthData);

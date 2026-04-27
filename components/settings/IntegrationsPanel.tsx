@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import {
@@ -62,7 +63,7 @@ export default function IntegrationsPanel() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/settings/integrations")
+    apiFetch("/api/settings/integrations")
       .then((r) => r.json())
       .then((d) => {
         // Map API connection status to the static integration list

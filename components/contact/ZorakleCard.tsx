@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import { Brain, ExternalLink, AlertTriangle, Zap, CheckCircle2 } from "lucide-react";
@@ -43,7 +44,7 @@ export default function ZorakleCard({ contactId }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/zorakle/prospect/${contactId}`)
+    apiFetch(`/api/zorakle/prospect/${contactId}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => setData(d?.profile ?? null))
       .catch(() => {})

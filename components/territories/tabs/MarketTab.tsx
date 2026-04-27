@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -64,7 +65,7 @@ function MarketSection({
 
   async function saveField(fieldName: string, value: string) {
     setSaving(true);
-    await fetch(`/api/territories/${msSlug}/market-data`, {
+    await apiFetch(`/api/territories/${msSlug}/market-data`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ field_name: fieldName, field_value: value || null, source: "manual" }),
@@ -263,7 +264,7 @@ export default function MarketTab({ msSlug }: Props) {
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
-    const res = await fetch(`/api/territories/${msSlug}/market-data`);
+    const res = await apiFetch(`/api/territories/${msSlug}/market-data`);
     if (res.ok) {
       const d = await res.json();
       setData(d.fields ?? {});

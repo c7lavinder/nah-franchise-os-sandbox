@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * CallTypesRubricEditor — admin UI for managing call types and their rubric criteria.
@@ -45,7 +46,7 @@ export default function CallTypesRubricEditor() {
   const bodyUserId = { userId: user?.id };
 
   const fetchCallTypes = useCallback(async () => {
-    const res = await fetch("/api/settings/call-types");
+    const res = await apiFetch("/api/settings/call-types");
     if (res.ok) {
       const data = await res.json();
       setCallTypes(data.callTypes ?? []);
@@ -57,7 +58,7 @@ export default function CallTypesRubricEditor() {
 
   async function fetchCriteria(callTypeId: string) {
     setLoadingCriteria(true);
-    const res = await fetch(`/api/settings/call-types/${callTypeId}/rubric`);
+    const res = await apiFetch(`/api/settings/call-types/${callTypeId}/rubric`);
     if (res.ok) {
       const data = await res.json();
       setCriteria(data.criteria ?? []);
@@ -123,7 +124,7 @@ export default function CallTypesRubricEditor() {
       placeholder: "e.g., Rapport, Discovery, Objection Handling",
       onSubmit: async (name) => {
         setPromptModal(null);
-        const res = await fetch(`/api/settings/call-types/${ctId}/rubric`);
+        const res = await apiFetch(`/api/settings/call-types/${ctId}/rubric`);
         if (!res.ok) return;
         const data = await res.json();
         if (!data.rubric?.id) { setError("No rubric found"); return; }
@@ -162,7 +163,7 @@ export default function CallTypesRubricEditor() {
     const [moved] = items.splice(fromIdx, 1);
     items.splice(targetIdx, 0, moved);
 
-    const res = await fetch(`/api/settings/call-types/${selectedId}/rubric`);
+    const res = await apiFetch(`/api/settings/call-types/${selectedId}/rubric`);
     if (!res.ok) return;
     const data = await res.json();
     if (!data.rubric?.id) return;

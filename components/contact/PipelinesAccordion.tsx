@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * PipelinesAccordion — Sprint 4A read-only Stages tab.
@@ -79,7 +80,7 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
     // Only show full spinner on initial load, not on refresh
     if (isInitialLoad) setLoading(true);
     try {
-      const res = await fetch(`/api/contacts/${contactId}/pipeline-state`);
+      const res = await apiFetch(`/api/contacts/${contactId}/pipeline-state`);
       if (res.ok) {
         const data = await res.json();
         const states = data.pipelineStates ?? [];

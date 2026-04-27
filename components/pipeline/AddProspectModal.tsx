@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import { X, Loader2 } from "lucide-react";
@@ -50,7 +51,7 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
     if (!open) return;
     void (async () => {
       try {
-        const res = await fetch("/api/settings/lead-sources");
+        const res = await apiFetch("/api/settings/lead-sources");
         if (res.ok) {
           const data = await res.json();
           setSources((data.sources as LeadSource[]).filter((s) => s.is_active));
@@ -108,7 +109,7 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/contacts/create", {
+      const res = await apiFetch("/api/contacts/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

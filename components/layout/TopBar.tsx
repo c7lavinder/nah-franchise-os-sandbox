@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -49,7 +50,7 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const res = await fetch("/api/notifications");
+      const res = await apiFetch("/api/notifications");
       if (res.ok) {
         const data = await res.json();
         setAlerts(data.alerts ?? []);
@@ -68,7 +69,7 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
 
   async function dismissAlert(id: string) {
     try {
-      await fetch("/api/notifications", {
+      await apiFetch("/api/notifications", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),

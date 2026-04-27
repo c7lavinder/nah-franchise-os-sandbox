@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import { Loader2, X } from "lucide-react";
@@ -16,7 +17,7 @@ export default function ContactEosIssues({ contactId, carriedTerritoryName }: Pr
   const [newText, setNewText] = useState("");
 
   useEffect(() => {
-    fetch(`/api/contacts/${contactId}/eos`)
+    apiFetch(`/api/contacts/${contactId}/eos`)
       .then((r) => (r.ok ? r.json() : { issues: [] }))
       .then((d) => setIssues(d.issues ?? []))
       .catch(() => {})
@@ -25,7 +26,7 @@ export default function ContactEosIssues({ contactId, carriedTerritoryName }: Pr
 
   async function addIssue() {
     if (!newText.trim()) return;
-    const res = await fetch(`/api/contacts/${contactId}/eos/issues`, {
+    const res = await apiFetch(`/api/contacts/${contactId}/eos/issues`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ issue_text: newText.trim() }),
@@ -38,7 +39,7 @@ export default function ContactEosIssues({ contactId, carriedTerritoryName }: Pr
   }
 
   async function toggleDone(issue: EosContactIssue) {
-    await fetch(`/api/contacts/${contactId}/eos/issues/${issue.id}`, {
+    await apiFetch(`/api/contacts/${contactId}/eos/issues/${issue.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_done: !issue.is_done }),
@@ -49,7 +50,7 @@ export default function ContactEosIssues({ contactId, carriedTerritoryName }: Pr
   }
 
   async function deleteIssue(id: string) {
-    await fetch(`/api/contacts/${contactId}/eos/issues/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/contacts/${contactId}/eos/issues/${id}`, { method: "DELETE" });
     setIssues((prev) => prev.filter((i) => i.id !== id));
   }
 

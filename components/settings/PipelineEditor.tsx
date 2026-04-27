@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * PipelineEditor — admin-only visual editor for pipeline templates.
@@ -69,7 +70,7 @@ export default function PipelineEditor() {
   const fetchPipelines = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch("/api/settings/pipelines");
+      const res = await apiFetch("/api/settings/pipelines");
       if (res.ok) {
         const data = await res.json();
         setPipelines(data.pipelines ?? []);

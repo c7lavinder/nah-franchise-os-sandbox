@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * EcosystemPanel — org-chart style visualization of territory stakeholders.
@@ -65,7 +66,7 @@ export default function EcosystemPanel({ msSlug, owner, owners }: Props) {
   const [form, setForm] = useState({ first_name: "", last_name: "", email: "", phone: "", company: "", role: "agent", notes: "" });
 
   const fetchStakeholders = useCallback(async () => {
-    const res = await fetch(`/api/territories/${msSlug}/stakeholders`);
+    const res = await apiFetch(`/api/territories/${msSlug}/stakeholders`);
     if (res.ok) {
       const d = await res.json();
       setStakeholders(d.stakeholders ?? []);
@@ -78,7 +79,7 @@ export default function EcosystemPanel({ msSlug, owner, owners }: Props) {
   async function handleAdd() {
     if (!form.first_name.trim() && !form.last_name.trim()) return;
     setSaving(true);
-    const res = await fetch(`/api/territories/${msSlug}/stakeholders`, {
+    const res = await apiFetch(`/api/territories/${msSlug}/stakeholders`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
@@ -93,7 +94,7 @@ export default function EcosystemPanel({ msSlug, owner, owners }: Props) {
   }
 
   async function handleRemove(id: string) {
-    const res = await fetch(`/api/territories/${msSlug}/stakeholders`, {
+    const res = await apiFetch(`/api/territories/${msSlug}/stakeholders`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),

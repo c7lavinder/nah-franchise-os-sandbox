@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * SubTaskLogModal — form to create a sub-task log entry.
@@ -76,7 +77,7 @@ export default function SubTaskLogModal({
     if (!confirm("Delete this log? This cannot be undone from the UI.")) return;
     setDeletingId(logId);
     try {
-      const res = await fetch(`/api/sub-task-logs/${logId}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/sub-task-logs/${logId}`, { method: "DELETE" });
       if (!res.ok) {
         const { error: msg } = await res.json().catch(() => ({ error: "Delete failed" }));
         toast(`Couldn't delete: ${msg}`);
@@ -97,7 +98,7 @@ export default function SubTaskLogModal({
     setError(null);
 
     try {
-      const res = await fetch(`/api/contacts/${contactId}/sub-tasks/${subTaskId}/logs`, {
+      const res = await apiFetch(`/api/contacts/${contactId}/sub-tasks/${subTaskId}/logs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

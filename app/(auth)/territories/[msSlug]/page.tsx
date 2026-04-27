@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -59,7 +60,7 @@ export default function TerritoryProfilePage() {
   const [activeTab, setActiveTab] = useState<"ecosystem" | "market" | "eos">("ecosystem");
 
   useEffect(() => {
-    fetch(`/api/territories/${msSlug}`)
+    apiFetch(`/api/territories/${msSlug}`)
       .then((r) => r.json())
       .then(setData)
       .catch(() => {})
