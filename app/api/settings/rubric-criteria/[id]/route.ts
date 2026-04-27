@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth/admin-check";
+import { requireAuth } from "@/lib/auth";
 
 export async function PATCH(
   request: NextRequest,
@@ -15,8 +15,9 @@ export async function PATCH(
     example_phrases_positive?: string[]; example_phrases_negative?: string[];
     kb_document_ids?: string[]; userId?: string;
   };
-  const admin = await requireAdmin(request.headers.get("Authorization"), body.userId);
-  if ("error" in admin) return NextResponse.json({ error: admin.error }, { status: admin.status });
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+  if (user.role !== "admin") return NextResponse.json({ error: "Admin access required" }, { status: 403 });
 
   const supabase = createServerClient();
   const updates: Record<string, unknown> = {};
@@ -40,8 +41,9 @@ export async function DELETE(
 ) {
   const { id } = await params;
   const body = await request.json().catch(() => ({})) as { userId?: string };
-  const admin = await requireAdmin(request.headers.get("Authorization"), body.userId);
-  if ("error" in admin) return NextResponse.json({ error: admin.error }, { status: admin.status });
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+  if (user.role !== "admin") return NextResponse.json({ error: "Admin access required" }, { status: 403 });
 
   const supabase = createServerClient();
   const { error } = await supabase.from("rubric_criteria").delete().eq("id", id);

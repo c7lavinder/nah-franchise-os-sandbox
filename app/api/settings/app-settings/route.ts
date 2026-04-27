@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth/admin-check";
+import { requireAuth } from "@/lib/auth";
 
 export async function GET() {
   const supabase = createServerClient();
@@ -24,8 +24,9 @@ export async function PATCH(request: NextRequest) {
     ghl_sync_queue_alert_threshold?: number;
     userId?: string;
   };
-  const admin = await requireAdmin(request.headers.get("Authorization"), body.userId);
-  if ("error" in admin) return NextResponse.json({ error: admin.error }, { status: admin.status });
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+  if (user.role !== "admin") return NextResponse.json({ error: "Admin access required" }, { status: 403 });
 
   const supabase = createServerClient();
   const updates: Record<string, unknown> = {};
@@ -33,7 +34,7 @@ export async function PATCH(request: NextRequest) {
   if (body.time_in_stage_red_days !== undefined) updates.time_in_stage_red_days = body.time_in_stage_red_days;
   if (body.ghl_sync_enabled !== undefined) updates.ghl_sync_enabled = body.ghl_sync_enabled;
   if (body.ghl_sync_queue_alert_threshold !== undefined) updates.ghl_sync_queue_alert_threshold = body.ghl_sync_queue_alert_threshold;
-  updates.updated_by_user_id = admin.userId;
+  updates.updated_by_user_id = user.id;
 
   const { error } = await supabase.from("pipeline_app_settings").update(updates).eq("id", 1);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

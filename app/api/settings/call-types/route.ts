@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth/admin-check";
+import { requireAuth } from "@/lib/auth";
 
 export async function GET() {
   const supabase = createServerClient();
@@ -16,8 +16,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json() as { name: string; slug?: string; description?: string; userId?: string };
-  const admin = await requireAdmin(request.headers.get("Authorization"), body.userId);
-  if ("error" in admin) return NextResponse.json({ error: admin.error }, { status: admin.status });
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+  if (user.role !== "admin") return NextResponse.json({ error: "Admin access required" }, { status: 403 });
 
   const supabase = createServerClient();
   const slug = body.slug ?? body.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
