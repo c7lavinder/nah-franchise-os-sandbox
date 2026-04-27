@@ -62,6 +62,9 @@ export default function DailyHQPage() {
   const fetchSidebar = useCallback(async () => {
     setSidebarError(null);
     try {
+      const token = localStorage.getItem("nah_auth_token");
+      const debugPrefix = `[token=${token ? token.slice(0, 8) + "..." : "MISSING"}]`;
+
       const res = await apiFetch("/api/daily-hq");
       if (res.ok) {
         const data = await res.json();
@@ -69,7 +72,7 @@ export default function DailyHQPage() {
         setTasks(data.tasks ?? []);
       } else {
         const errBody = await res.json().catch(() => ({}));
-        setSidebarError(`Daily HQ ${res.status}: ${errBody.error ?? "unknown error"}`);
+        setSidebarError(`${debugPrefix} ${res.status}: ${errBody.error ?? "unknown error"}`);
       }
     } catch (err) {
       setSidebarError(err instanceof Error ? err.message : "Failed to load calendar and tasks");
