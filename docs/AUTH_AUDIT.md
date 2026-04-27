@@ -192,33 +192,33 @@ By plan:
 
 ## /api/settings/*
 
-> Every `replace-requireAdmin` route below uses `lib/auth/admin-check.ts` which falls back to `bodyUserId` when no Bearer token is present. **A caller can post `{ userId: "<some admin's id>" }` with no auth header and pass the check.** All 15 should be migrated to `requireAuth(request)` + role check on the resolved user.
+> **Phase 2c complete** — all 15 `replace-requireAdmin` routes migrated to `requireAuth` + `user.role === 'admin'` check. `lib/auth/admin-check.ts` deleted. Broken body-userId fallback eliminated.
 
 | Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
 |---|---|---|---|---|---|---|
 | settings/agents | GET | No | none | Reads | Medium | add-requireAuth |
 | settings/agents/toggle | POST | No | none | Mutates | Medium | add-requireAuth |
-| settings/app-settings | GET,PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/call-types | GET,POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/call-types/[id] | DELETE,PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/call-types/[id]/rubric | GET,PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
+| settings/app-settings | GET,PATCH | ✅ Yes | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/call-types | GET,POST | ✅ Yes (POST) | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/call-types/[id] | DELETE,PATCH | ✅ Yes | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/call-types/[id]/rubric | GET,PATCH | ✅ Yes (PATCH) | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
 | settings/cron-jobs | GET | No | none | Reads | Low | add-requireAuth |
 | settings/health | GET | No | none | Reads | Medium | add-requireAuth |
 | settings/integrations | GET | No | none | Reads | Medium | add-requireAuth |
 | settings/lead-sources | DELETE,GET,POST | No | none | Mutates | Medium | add-requireAuth |
 | settings/pipelines | GET | No | none | Reads | Medium | add-requireAuth |
-| settings/pipelines/[pipelineId] | PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/pipelines/[pipelineId]/stages | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/pipelines/[pipelineId]/stages/[stageId] | DELETE,PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/pipelines/[pipelineId]/stages/[stageId]/auto-advance | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/pipelines/[pipelineId]/stages/reorder | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/rubric-criteria/[id] | DELETE,PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/rubrics/[id]/criteria | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/rubrics/[id]/criteria/reorder | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/stages/[stageId]/sub-tasks | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/stages/[stageId]/sub-tasks/reorder | POST | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/sub-tasks/[subTaskId] | DELETE,PATCH | Broken-admin-only | body | Mutates | High | replace-requireAdmin |
-| settings/users | GET,PATCH | No | body (`id`) | Mutates | Critical | add-requireAuth |
+| settings/pipelines/[pipelineId] | PATCH | ✅ Yes | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/pipelines/[pipelineId]/stages | POST | ✅ Yes | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/pipelines/[pipelineId]/stages/[stageId] | DELETE,PATCH | ✅ Yes | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/pipelines/[pipelineId]/stages/[stageId]/auto-advance | POST | ✅ Yes | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/pipelines/[pipelineId]/stages/reorder | POST | ✅ Yes | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/rubric-criteria/[id] | DELETE,PATCH | ✅ Yes | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/rubrics/[id]/criteria | POST | ✅ Yes | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/rubrics/[id]/criteria/reorder | POST | ✅ Yes | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/stages/[stageId]/sub-tasks | POST | ✅ Yes | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/stages/[stageId]/sub-tasks/reorder | POST | ✅ Yes | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/sub-tasks/[subTaskId] | DELETE,PATCH | ✅ Yes | session | Mutates | High | ✅ `477ceb3` — requireAuth + admin role |
+| settings/users | GET,PATCH | ✅ Yes | session | Mutates | Critical | ✅ `b042063` — requireAuth + admin role (Phase 2a) |
 
 ## /api/agents/*
 
@@ -465,8 +465,42 @@ These were flagged but explicitly deferred:
 ### What was NOT touched (deferred per scope)
 
 - Medium/Low risk routes (Phase 2c-2f)
-- `requireAdmin` callers in /api/settings/* (Phase 2d — those are High, not Critical)
+- `requireAdmin` callers in /api/settings/* (Phase 2c)
 - Cron routes (Phase 2e)
 - Webhook routes (Phase 2e)
 - Frontend code (Phase 2b)
-- admin-check.ts callers (Phase 2d)
+
+---
+
+## Phase 2b — Frontend auth sweep (completed)
+
+**Date:** 2026-04-27
+**Commits on main:** `ae5e393` through `46a57fb`
+
+### What was done
+
+- Created `lib/auth/api-fetch.ts` — thin `apiFetch` wrapper reads JWT from localStorage
+- Replaced `fetch("/api/...")` with `apiFetch("/api/...")` in 94 frontend files
+- Dropped body-supplied identity from Scout chat/action, Daily HQ, Workflows
+- Fixed requireAuth to return Response instead of throwing (Next.js route handlers don't catch thrown Responses)
+- Added JWT auto-refresh on 401 with retry
+- Added force-logout when refresh token is also expired
+
+---
+
+## Phase 2c — Replace broken admin-check.ts (completed)
+
+**Date:** 2026-04-27
+**Branch:** `feat/auth-admin-check-migration`
+
+### What was done
+
+- All 15 `replace-requireAdmin` routes migrated to `requireAuth` + `user.role === 'admin'`
+- `lib/auth/admin-check.ts` deleted — broken body-userId fallback eliminated
+- Smoke tested: admin (Matt) gets 200, non-admin (Chad) gets 403, no-auth gets 401
+
+### What remains
+
+- Medium risk routes: add-requireAuth (Phase 2d-2f)
+- Cron routes without CRON_SECRET (Phase 2e)
+- Webhook routes without shared secret (Phase 2e)
