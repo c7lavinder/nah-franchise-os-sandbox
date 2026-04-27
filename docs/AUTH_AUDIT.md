@@ -302,7 +302,7 @@ By plan:
 
 | Route | Methods | Currently Authed? | Identity Source | R/M | Risk | Plan |
 |---|---|---|---|---|---|---|
-| admin/webhooks | GET | No | none | Reads | Medium | add-requireAuth + admin role (**Decision:** admin UI route — returns read_ai_sessions, integration_logs, calls for debugging dashboard. NOT an inbound webhook. Retrofitted with `requireAuth` + `role === 'admin'` check.) |
+| admin/webhooks | GET | ✅ Yes | session | Reads | Medium | ✅ `29a1caf` — admin UI route (returns read_ai_sessions, integration_logs, calls for debugging dashboard). NOT an inbound webhook. Retrofitted with `requireAuth` + `role === 'admin'` check. |
 
 ## /api/dashboard, /api/voice, /api/health, /api/daily-hq, /api/notifications, /api/accountability, /api/activity
 
@@ -374,26 +374,26 @@ By plan:
 
 Each accepts user identity from request body or query, has no auth, and mutates state. Anyone with the deployment URL can impersonate.
 
-1. `POST /api/calls/[callId]/actions/[actionId]` — body identity, mutates action state
-2. `POST /api/calls/[callId]/transcript` — body identity, mutates call record
-3. `POST /api/calls/create` — body `hosted_by_user_id`, creates call rows
-4. `POST /api/contacts/[contactId]/eos/todos` — body `owner_user_id`, creates todo
-5. `DELETE,PUT /api/contacts/[contactId]/eos/todos/[todoId]` — body identity
-6. `POST /api/contacts/[contactId]/sub-tasks/[subTaskId]/logs` — body `logger_user_id`
-7. `DELETE,GET,POST /api/contacts/[contactId]/team` — body identity, mutates team
-8. `POST /api/scout/action` — body `userId`, executes GHL actions on user's behalf
-9. `POST /api/scout/chat` — body `userId`/`userRole`/`userName`, role-spoofs Scout
-10. `PUT /api/pipeline/move` — body identity, moves opportunities between stages
-11. `GET,PATCH /api/settings/users` — body `id` selects user; PATCH writes role/active. **Anyone can promote anyone to admin.**
-12. `POST /api/territories/[msSlug]/eos/todos` — body `owner_user_id`
-13. `DELETE,PUT /api/territories/[msSlug]/eos/todos/[todoId]` — body identity
-14. `GET,POST /api/workflows` — body `createdBy`, creates workflows
-15. `POST /api/journeys/[journeyId]/split` — body identity, splits journey
+1. ✅ `POST /api/calls/[callId]/actions/[actionId]` — `1c8ab62`
+2. ✅ `POST /api/calls/[callId]/transcript` — `1c8ab62`
+3. ✅ `POST /api/calls/create` — `1c8ab62`
+4. ✅ `POST /api/contacts/[contactId]/eos/todos` — `8a6c1bc`
+5. ✅ `DELETE,PUT /api/contacts/[contactId]/eos/todos/[todoId]` — `8a6c1bc`
+6. ✅ `POST /api/contacts/[contactId]/sub-tasks/[subTaskId]/logs` — `8a6c1bc`
+7. ✅ `DELETE,GET,POST /api/contacts/[contactId]/team` — `8a6c1bc`
+8. ✅ `POST /api/scout/action` — `bc988d6`
+9. ✅ `POST /api/scout/chat` — `bc988d6` (body userId/userRole/userName dropped entirely)
+10. ✅ `PUT /api/pipeline/move` — `acc9fe7` (user.id now written to action log)
+11. ✅ `GET,PATCH /api/settings/users` — `b042063` (admin role check on both GET and PATCH)
+12. ✅ `POST /api/territories/[msSlug]/eos/todos` — `007b8d5`
+13. ✅ `DELETE,PUT /api/territories/[msSlug]/eos/todos/[todoId]` — `007b8d5`
+14. ✅ `GET,POST /api/workflows` — `acc9fe7` (auth-derived user.id replaces body.createdBy)
+15. ✅ `POST /api/journeys/[journeyId]/split` — `acc9fe7`
 
 ## High-risk findings (22 routes)
 
 Identity from query/body OR sensitive mutation without identity. Notable:
-- `GET /api/daily-hq?userId=<X>` — anyone reads any user's HQ
+- ✅ `GET /api/daily-hq?userId=<X>` — retrofitted `9f6dafd` (requireAuth + admin view-as pattern with ?targetUserId)
 - `GET /api/intelligence/llm-logs` — query filters expose LLM execution logs
 - `GET /api/calls/list` — query filters expose call list
 - `GET /api/pipeline/contacts` — query filters expose contacts
@@ -442,3 +442,31 @@ These were flagged but explicitly deferred:
 ---
 
 **End of Phase 1 audit. Phase 2 begins after Corey approves this document.**
+
+---
+
+## Phase 2a — Critical route retrofit (completed)
+
+**Date:** 2026-04-27
+**Branch:** `feat/auth-retrofit`
+
+### What was done
+
+- All 15 Critical routes retrofitted with `requireAuth`
+- `/api/daily-hq`: auth + admin "view as" pattern (`?targetUserId=X` honored only for admins)
+- `/api/scout/chat`: body `userId`/`userRole`/`userName` dropped entirely — all identity from auth session
+- `/api/settings/users`: admin role check on both GET and PATCH (closes privilege escalation)
+- `/api/pipeline/move`: user.id now written to action log (was null)
+- `/api/workflows` POST: auth-derived user.id replaces body.createdBy
+- `/api/admin/webhooks`: classified as admin UI route, retrofitted with requireAuth + admin role
+- `lib/auth/get-auth-header.ts`: client-side helper added for Phase 2b frontend sweep
+- `lib/auth/admin-check.ts`: marked with TODO for deletion in Phase 2d
+
+### What was NOT touched (deferred per scope)
+
+- Medium/Low risk routes (Phase 2c-2f)
+- `requireAdmin` callers in /api/settings/* (Phase 2d — those are High, not Critical)
+- Cron routes (Phase 2e)
+- Webhook routes (Phase 2e)
+- Frontend code (Phase 2b)
+- admin-check.ts callers (Phase 2d)
