@@ -11,6 +11,12 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
+import {
+  enrollContact,
+  pauseEnrollment,
+  resumeEnrollment,
+  exitEnrollment,
+} from "@/lib/workflows/enrollment";
 import type {
   DraftedAction,
   DraftedMessagePayload,
@@ -19,6 +25,7 @@ import type {
   DraftedProfileUpdatePayload,
   DraftedEosUpdatePayload,
   DraftedMarketDataUpdatePayload,
+  DraftedJourneyActionPayload,
 } from "@/types/scout";
 
 /** Update engagement tracking fields after an action touches a contact */
@@ -279,6 +286,52 @@ export async function POST(request: NextRequest) {
         case "appointment": {
           // Appointment drafts are not yet implemented in Phase 1
           throw new Error("Appointment creation is coming in a future update");
+        }
+        case "journey_action": {
+          const jaPayload = action.payload as DraftedJourneyActionPayload;
+          if (jaPayload.kind === "enroll_workflow") {
+            if (!jaPayload.workflowId) throw new Error("workflowId required for enroll_workflow");
+            // Look up the current workflow version
+            const supabaseJa = createServerClient();
+            const { data: wf } = await supabaseJa
+              .from("workflows")
+              .select("current_version_id, name")
+              .eq("id", jaPayload.workflowId)
+              .single();
+            const versionId = (wf as { current_version_id: string | null } | null)?.current_version_id;
+            if (!versionId) throw new Error(`Workflow ${jaPayload.workflowId} has no current version`);
+            const result = await enrollContact({
+              workflowId: jaPayload.workflowId,
+              workflowVersionId: versionId,
+              ghlContactId: action.contactId,
+              contactName: action.contactName,
+            });
+            if (!result.success) throw new Error(result.error ?? "Enrollment failed");
+            ghlResponse = { enrollmentId: result.enrollment?.id };
+          } else if (jaPayload.kind === "pause_workflow") {
+            if (!jaPayload.enrollmentId) throw new Error("enrollmentId required");
+            const result = await pauseEnrollment(jaPayload.enrollmentId);
+            if (!result.success) throw new Error(result.error ?? "Pause failed");
+            ghlResponse = { enrollmentId: jaPayload.enrollmentId, status: "paused" };
+          } else if (jaPayload.kind === "resume_workflow") {
+            if (!jaPayload.enrollmentId) throw new Error("enrollmentId required");
+            const result = await resumeEnrollment(jaPayload.enrollmentId);
+            if (!result.success) throw new Error(result.error ?? "Resume failed");
+            ghlResponse = { enrollmentId: jaPayload.enrollmentId, status: "active" };
+          } else if (jaPayload.kind === "exit_workflow") {
+            if (!jaPayload.enrollmentId) throw new Error("enrollmentId required");
+            if (!jaPayload.reason) throw new Error("reason required for exit_workflow");
+            const result = await exitEnrollment({
+              enrollmentId: jaPayload.enrollmentId,
+              reason: jaPayload.reason,
+              goalAchieved: false,
+            });
+            if (!result.success) throw new Error(result.error ?? "Exit failed");
+            ghlResponse = { enrollmentId: jaPayload.enrollmentId, status: "exited" };
+          } else {
+            throw new Error(`Unknown journey action kind: ${jaPayload.kind}`);
+          }
+          break;
         }
         default: {
           throw new Error(`Unknown action type: ${action.type}`);

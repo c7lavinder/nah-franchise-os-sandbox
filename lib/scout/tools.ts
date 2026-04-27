@@ -1,39 +1,154 @@
-/** Scout tool definitions for Claude's tool-use API */
+/** Scout tool definitions for Claude's tool-use API.
+ *
+ * Surface design philosophy: prefer a small number of general-purpose
+ * data primitives (get_entity, query, aggregate) over a tool-per-question.
+ * Bespoke tools only exist when they encode meaningful business logic
+ * the LLM should not re-derive (next-action recommendation, KB search,
+ * workflow analysis, draft-confirm gates).
+ */
 
 import type { ScoutToolDefinition } from "@/types/scout";
 
-/** All tools available to Scout during conversations */
 export const SCOUT_TOOLS: ScoutToolDefinition[] = [
+  // ════════════════════════════════════════════════════════════════
+  // GENERAL DATA PRIMITIVES
+  // ════════════════════════════════════════════════════════════════
   {
-    name: "get_contact",
+    name: "get_entity",
     description:
-      "Fetch a single contact from GHL by their contact ID. Returns full contact details including name, email, phone, tags, source, and custom fields.",
+      "Fetch a rich profile for a single entity. Use this for any 'tell me about X' question. " +
+      "type='contact': GHL contact + intelligence score + flags + recommendations + last 5 calls + unresolved objections + active journeys. " +
+      "type='territory': territory record + active owners + market data + EOS (goals/scorecard/habits/rocks/issues/todos) + active journey states. " +
+      "type='journey': journey record + all attached contacts + all pipeline states (with days-in-stage) + workflow enrollments. " +
+      "type='opportunity': GHL opportunity + pipeline + stage + contact ID. " +
+      "Always prefer this over query() when you already know the entity ID.",
     input_schema: {
       type: "object",
       properties: {
-        contact_id: {
+        type: {
           type: "string",
-          description: "The GHL contact ID",
+          description: "Entity type",
+          enum: ["contact", "territory", "journey", "opportunity"],
+        },
+        id: {
+          type: "string",
+          description:
+            "Entity identifier — GHL contact ID for contact, ms_slug for territory, UUID for journey, opportunity ID for opportunity",
         },
       },
-      required: ["contact_id"],
+      required: ["type", "id"],
     },
   },
   {
+    name: "query",
+    description:
+      "Filter a collection of records and return matching rows. Use this for 'show me X where Y' questions. " +
+      "Supported entities: contacts, journeys, territories, opportunities, call_logs, alerts, objections, workflow_enrollments. " +
+      "filters is a JSON array of {field, op, value} objects. Ops: eq, ne, gt, gte, lt, lte, in, ilike, is_null, not_null. " +
+      "Each entity exposes its own filterable field set — if you use a wrong field, the error tells you what's allowed. " +
+      "Defaults: limit=25 (max 100), order by updated_at desc when present.",
+    input_schema: {
+      type: "object",
+      properties: {
+        entity: {
+          type: "string",
+          description: "Collection to query",
+          enum: [
+            "contacts",
+            "journeys",
+            "territories",
+            "opportunities",
+            "call_logs",
+            "alerts",
+            "objections",
+            "workflow_enrollments",
+          ],
+        },
+        filters: {
+          type: "string",
+          description:
+            'JSON array of filter objects. Example: [{"field":"status","op":"eq","value":"active"},{"field":"created_at","op":"gte","value":"2026-04-01"}]',
+        },
+        order_by: {
+          type: "string",
+          description: 'Optional. JSON object: {"field":"created_at","direction":"desc"}',
+        },
+        limit: {
+          type: "number",
+          description: "Max rows to return (default 25, max 100)",
+        },
+      },
+      required: ["entity"],
+    },
+  },
+  {
+    name: "aggregate",
+    description:
+      "Count, sum, avg, min, or max records — optionally grouped by a dimension. Use this for 'how many', 'what's the average', " +
+      "'breakdown by X' questions. Lead source mix, pipeline stage distribution, conversion counts, alert counts by severity, " +
+      "objection frequency by type — all flow through here. Period filter: pass {field, from, to} to bound by a date column.",
+    input_schema: {
+      type: "object",
+      properties: {
+        entity: {
+          type: "string",
+          description: "Collection to aggregate over",
+          enum: [
+            "contacts",
+            "journeys",
+            "territories",
+            "call_logs",
+            "alerts",
+            "objections",
+            "workflow_enrollments",
+          ],
+        },
+        metric: {
+          type: "string",
+          description: "Aggregation function",
+          enum: ["count", "avg", "sum", "min", "max"],
+        },
+        metric_field: {
+          type: "string",
+          description: "Required for non-count metrics — the numeric column to reduce",
+        },
+        group_by: {
+          type: "string",
+          description:
+            "Optional dimension to group by. Each entity exposes its own groupable set — wrong field returns the allowed list.",
+        },
+        filters: {
+          type: "string",
+          description: "Optional. JSON array of filter objects, same shape as query()",
+        },
+        period: {
+          type: "string",
+          description:
+            'Optional period filter. JSON object: {"field":"created_at","from":"2026-04-01","to":"2026-04-30"}',
+        },
+      },
+      required: ["entity", "metric"],
+    },
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  // SPECIALIZED READ TOOLS — kept because they encode business logic
+  // ════════════════════════════════════════════════════════════════
+  {
     name: "search_contacts",
     description:
-      "Search for contacts in GHL by name, email, or phone number. Returns a list of matching contacts.",
+      "Substring search across GHL contacts by name, email, or phone. Use when the user names a contact " +
+      "without giving an ID. Returns a small list of matches — pick the right one then call get_entity for full detail.",
     input_schema: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description:
-            "Search term — can be a name, email address, or phone number",
+          description: "Search term — name, email, or phone",
         },
         limit: {
           type: "number",
-          description: "Maximum number of results to return (default: 10)",
+          description: "Max results (default 10)",
         },
       },
       required: ["query"],
@@ -42,217 +157,45 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   {
     name: "get_pipeline",
     description:
-      "Get the current state of the franchise sales pipeline. Returns all opportunities (leads) organized by pipeline stage.",
+      "Get the structural definition of a pipeline (stages, names, IDs) plus its open opportunities. " +
+      "Use this when the user asks 'what's in my pipeline' at the structural level. For aggregate counts, prefer aggregate().",
     input_schema: {
       type: "object",
       properties: {
         pipeline_id: {
           type: "string",
-          description:
-            "The pipeline ID. If not provided, uses the default franchise sales pipeline.",
+          description: "Pipeline ID. Omit for the default franchise sales pipeline.",
         },
       },
       required: [],
     },
   },
   {
-    name: "get_profile",
-    description:
-      "Fetch the full candidate profile for a contact — returns all custom fields across 8 categories: territory, franchise fit, financial, trainual, validation, engagement, AI scout scores, and compliance. Use this to answer questions about a prospect's qualifications, status, financial readiness, or any specific profile detail.",
-    input_schema: {
-      type: "object",
-      properties: {
-        contact_id: {
-          type: "string",
-          description: "The GHL contact ID to fetch the profile for",
-        },
-      },
-      required: ["contact_id"],
-    },
-  },
-  {
     name: "get_next_action",
     description:
-      "Analyze a contact's full context — stage, profile, last activity, missing fields, overdue calls — and return a specific recommended next action. Use this when Chad asks 'What should I do next?' or 'What's the status on this lead?' or 'Who needs attention?'. Returns: current stage, days since last touch, missing profile gaps, overdue milestones, and a clear recommended next step.",
+      "Run the recommendation engine for one contact: stage analysis + missing profile fields + overdue milestones + " +
+      "intelligence flags + top score-improvement opportunity, ending in a single recommended next step. " +
+      "Use this when the user asks 'what should I do next with X' or 'who needs attention'.",
     input_schema: {
       type: "object",
       properties: {
         contact_id: {
           type: "string",
-          description: "The GHL contact ID to analyze",
+          description: "GHL contact ID",
         },
       },
       required: ["contact_id"],
-    },
-  },
-  {
-    name: "draft_message",
-    description:
-      "Draft an SMS or email message for a contact. The message will be presented to the user for review before sending. NEVER send without user confirmation.",
-    input_schema: {
-      type: "object",
-      properties: {
-        contact_id: {
-          type: "string",
-          description: "The GHL contact ID to send the message to",
-        },
-        channel: {
-          type: "string",
-          description: "The message channel",
-          enum: ["SMS", "Email"],
-        },
-        content: {
-          type: "string",
-          description: "The message content/body",
-        },
-        subject: {
-          type: "string",
-          description: "Email subject line (required for Email, ignored for SMS)",
-        },
-      },
-      required: ["contact_id", "channel", "content"],
-    },
-  },
-  {
-    name: "draft_task",
-    description:
-      "Draft a task for a contact. The task will be presented to the user for review before creation. NEVER create without user confirmation.",
-    input_schema: {
-      type: "object",
-      properties: {
-        contact_id: {
-          type: "string",
-          description: "The GHL contact ID to create the task for",
-        },
-        title: {
-          type: "string",
-          description: "The task title",
-        },
-        due_date: {
-          type: "string",
-          description: "The task due date in ISO 8601 format",
-        },
-        description: {
-          type: "string",
-          description: "Optional task description with additional details",
-        },
-      },
-      required: ["contact_id", "title", "due_date"],
-    },
-  },
-  {
-    name: "draft_stage_move",
-    description:
-      "Draft a pipeline stage change for a contact. The move will be presented to the user for review before execution. Pipeline rules and entry/exit criteria are enforced.",
-    input_schema: {
-      type: "object",
-      properties: {
-        contact_id: {
-          type: "string",
-          description: "The GHL contact ID to move",
-        },
-        new_stage: {
-          type: "string",
-          description: "The name of the target pipeline stage",
-        },
-        reason: {
-          type: "string",
-          description:
-            "Reason for the stage move. Required when moving to Lost/Nurture.",
-        },
-      },
-      required: ["contact_id", "new_stage"],
-    },
-  },
-  {
-    name: "draft_profile_update",
-    description:
-      "Draft updates to a contact's candidate profile fields. Use this when Chad tells you new information about a prospect during chat, like 'Ryan is planning to use an SBA loan' or 'She has 5 years of flipping experience'. The update will be presented to the user for review before saving. NEVER save without user confirmation.",
-    input_schema: {
-      type: "object",
-      properties: {
-        contact_id: {
-          type: "string",
-          description: "The GHL contact ID to update",
-        },
-        updates: {
-          type: "string",
-          description: "JSON array of field updates. Each item: {\"fieldName\": \"Capital Source\", \"value\": \"SBA Loan\", \"reason\": \"Chad mentioned Ryan is pursuing SBA\"}. Use exact field names from the profile schema.",
-        },
-      },
-      required: ["contact_id", "updates"],
-    },
-  },
-  {
-    name: "draft_eos_update",
-    description:
-      "Draft updates to a contact's or territory's EOS (Entrepreneurial Operating System) data. Use this when the user provides information about goals, issues, to-dos, rocks, habits, or scorecard metrics. For contacts: goals (income/lifestyle/QoL), issues, to-dos. For territories: goals, scorecard, habits, rocks, issues, to-dos, budgets. The update will be presented to the user for review before saving.",
-    input_schema: {
-      type: "object",
-      properties: {
-        entity_type: {
-          type: "string",
-          description: "Whether this update is for a 'contact' or a 'territory'",
-          enum: ["contact", "territory"],
-        },
-        entity_id: {
-          type: "string",
-          description: "The contact ID (UUID) or territory slug (e.g. 'CHLTNE')",
-        },
-        entity_name: {
-          type: "string",
-          description: "Display name of the contact or territory",
-        },
-        section: {
-          type: "string",
-          description: "Which EOS section to update: goals, issues, todos, scorecard, habits, rocks, budgets, lead_channels",
-        },
-        updates: {
-          type: "string",
-          description: "JSON array of updates. Each item: {\"fieldName\": \"income_goal\", \"value\": \"$200k year 1\", \"reason\": \"Discussed on coaching call\"}",
-        },
-      },
-      required: ["entity_type", "entity_id", "entity_name", "section", "updates"],
-    },
-  },
-  {
-    name: "draft_market_data_update",
-    description:
-      "Draft updates to a territory's market data fields (demographics, housing, real estate market, flip market, economy, construction, competition, financial). Use this when the user mentions market conditions, property values, flip stats, contractor costs, competition, or any territory-level market intelligence. The update will be presented to the user for review before saving.",
-    input_schema: {
-      type: "object",
-      properties: {
-        territory_slug: {
-          type: "string",
-          description: "The territory slug (e.g. 'CHLTNE')",
-        },
-        territory_name: {
-          type: "string",
-          description: "Display name of the territory",
-        },
-        updates: {
-          type: "string",
-          description: "JSON array of field updates. Each item: {\"fieldName\": \"median_home_value\", \"value\": \"285000\", \"reason\": \"Updated from latest Zillow data discussed\"}. Use field names from the market data registry.",
-        },
-      },
-      required: ["territory_slug", "territory_name", "updates"],
     },
   },
   {
     name: "get_schedule",
     description:
-      "Get upcoming appointments and scheduled events within a date range.",
+      "Get upcoming GHL appointments within a date range. Use for calendar / scheduling questions.",
     input_schema: {
       type: "object",
       properties: {
-        start_date: {
-          type: "string",
-          description: "Start of the date range in ISO 8601 format",
-        },
-        end_date: {
-          type: "string",
-          description: "End of the date range in ISO 8601 format",
-        },
+        start_date: { type: "string", description: "ISO 8601 start" },
+        end_date: { type: "string", description: "ISO 8601 end" },
       },
       required: ["start_date", "end_date"],
     },
@@ -260,13 +203,14 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   {
     name: "search_knowledge",
     description:
-      "Search the NAH franchise knowledge base for information about the brand, pipeline process, objection handling, competitors, or the FDD. Use this when the user asks questions about NAH or the franchise opportunity.",
+      "Keyword search the NAH knowledge base — brand, pipeline process, objection handling, competitors, FDD, playbooks. " +
+      "Use for 'how do we approach X' / 'what's our policy on Y' questions.",
     input_schema: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description: "Search query for the knowledge base",
+          description: "Search query",
         },
       },
       required: ["query"],
@@ -275,14 +219,12 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   {
     name: "workflow_analyze",
     description:
-      "Analyze a workflow's health and get Scout's assessment. Returns health score (A–F), key metrics, top issue, and count of underperforming steps.",
+      "Run health analysis on a marketing/onboarding workflow: health score (A-F), per-step metrics, top issue, " +
+      "list of underperforming steps. Use when the user asks about a specific workflow's performance.",
     input_schema: {
       type: "object",
       properties: {
-        workflow_id: {
-          type: "string",
-          description: "The workflow ID to analyze",
-        },
+        workflow_id: { type: "string", description: "Workflow ID" },
       },
       required: ["workflow_id"],
     },
@@ -290,51 +232,155 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   {
     name: "workflow_rewrite",
     description:
-      "Draft 3 rewrite variants for an underperforming workflow step. Returns a diagnosis of why the step is underperforming plus 3 alternative versions with different approaches.",
+      "Generate 3 rewrite variants for a single underperforming workflow step, with diagnosis. " +
+      "Use after workflow_analyze identifies a step worth improving.",
     input_schema: {
       type: "object",
       properties: {
-        step_id: {
-          type: "string",
-          description: "The workflow step ID to rewrite",
-        },
-        context: {
-          type: "string",
-          description:
-            "Optional additional context about why the step is underperforming or what to focus on",
-        },
+        step_id: { type: "string", description: "Workflow step ID" },
+        context: { type: "string", description: "Optional extra context for the rewrite" },
       },
       required: ["step_id"],
     },
   },
   {
-    name: "sequence_status",
+    name: "trainual_status",
     description:
-      "Check what day of a workflow sequence a prospect is on and what's due next. Returns workflow name, current day, enrollment status, and next step details for each active enrollment.",
+      "Read a prospect's Trainual completion %, last activity, framing-call status, and whether a nudge is needed. " +
+      "Bespoke because the nudge logic depends on framing-call + invite-sent gating that the LLM should not re-derive.",
     input_schema: {
       type: "object",
       properties: {
-        contact_id: {
-          type: "string",
-          description: "The GHL contact ID to check enrollment status for",
-        },
+        contact_id: { type: "string", description: "GHL contact ID" },
       },
       required: ["contact_id"],
     },
   },
+
+  // ════════════════════════════════════════════════════════════════
+  // DRAFT TOOLS — return DraftedAction for user confirmation
+  // ════════════════════════════════════════════════════════════════
   {
-    name: "trainual_status",
+    name: "draft_message",
     description:
-      "Check a prospect's Trainual completion percentage and last activity. Returns completion %, last activity date, and whether a nudge is needed.",
+      "Draft an SMS or email to a contact for human review. NEVER sends without confirmation.",
     input_schema: {
       type: "object",
       properties: {
-        contact_id: {
+        contact_id: { type: "string", description: "GHL contact ID" },
+        channel: { type: "string", description: "Channel", enum: ["SMS", "Email"] },
+        content: { type: "string", description: "Message body" },
+        subject: { type: "string", description: "Email subject (required for Email)" },
+      },
+      required: ["contact_id", "channel", "content"],
+    },
+  },
+  {
+    name: "draft_task",
+    description: "Draft a task for a contact for human review. NEVER creates without confirmation.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: { type: "string", description: "GHL contact ID" },
+        title: { type: "string", description: "Task title" },
+        due_date: { type: "string", description: "ISO 8601 due date" },
+        description: { type: "string", description: "Optional details" },
+      },
+      required: ["contact_id", "title", "due_date"],
+    },
+  },
+  {
+    name: "draft_stage_move",
+    description:
+      "Draft a pipeline stage change for review. Pipeline rules and entry/exit criteria are enforced server-side.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: { type: "string", description: "GHL contact ID" },
+        new_stage: { type: "string", description: "Target stage name" },
+        reason: { type: "string", description: "Required when moving to Lost or Nurture" },
+      },
+      required: ["contact_id", "new_stage"],
+    },
+  },
+  {
+    name: "draft_profile_update",
+    description:
+      "Draft updates to a contact's candidate profile fields (capital source, motivation, NDA status, etc). " +
+      "Use when the user shares new information about a prospect.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: { type: "string", description: "GHL contact ID" },
+        updates: {
           type: "string",
-          description: "The GHL contact ID to check Trainual status for",
+          description:
+            'JSON array of {fieldName, value, reason}. Example: [{"fieldName":"Capital Source","value":"SBA Loan","reason":"User said Ryan is pursuing SBA"}]',
         },
       },
-      required: ["contact_id"],
+      required: ["contact_id", "updates"],
+    },
+  },
+  {
+    name: "draft_eos_update",
+    description:
+      "Draft EOS updates for a contact (goals/issues/todos) or territory (goals/issues/todos/scorecard/habits/rocks/budgets/lead_channels).",
+    input_schema: {
+      type: "object",
+      properties: {
+        entity_type: { type: "string", description: "contact | territory", enum: ["contact", "territory"] },
+        entity_id: { type: "string", description: "Contact UUID or territory ms_slug" },
+        entity_name: { type: "string", description: "Display name" },
+        section: {
+          type: "string",
+          description:
+            "EOS section: goals, issues, todos, scorecard, habits, rocks, budgets, lead_channels",
+        },
+        updates: {
+          type: "string",
+          description: 'JSON array of {fieldName, value, reason}',
+        },
+      },
+      required: ["entity_type", "entity_id", "entity_name", "section", "updates"],
+    },
+  },
+  {
+    name: "draft_market_data_update",
+    description:
+      "Draft updates to a territory's market data fields (demographics, housing, real estate market, flip market, etc).",
+    input_schema: {
+      type: "object",
+      properties: {
+        territory_slug: { type: "string", description: "Territory ms_slug" },
+        territory_name: { type: "string", description: "Display name" },
+        updates: {
+          type: "string",
+          description: 'JSON array of {fieldName, value, reason}',
+        },
+      },
+      required: ["territory_slug", "territory_name", "updates"],
+    },
+  },
+  {
+    name: "draft_journey_action",
+    description:
+      "Draft a journey-level action for human review. Kinds: " +
+      "enroll_workflow (start a workflow for a contact), pause_workflow (pause an active enrollment), " +
+      "resume_workflow (resume a paused one), exit_workflow (exit with reason). NEVER executes without confirmation.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: { type: "string", description: "GHL contact ID" },
+        kind: {
+          type: "string",
+          description: "Action kind",
+          enum: ["enroll_workflow", "pause_workflow", "resume_workflow", "exit_workflow"],
+        },
+        workflow_id: { type: "string", description: "Required for enroll_workflow" },
+        enrollment_id: { type: "string", description: "Required for pause/resume/exit" },
+        reason: { type: "string", description: "Required for exit_workflow" },
+      },
+      required: ["contact_id", "kind"],
     },
   },
 ];

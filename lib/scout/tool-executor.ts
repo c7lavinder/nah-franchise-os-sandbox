@@ -11,12 +11,22 @@ import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { analyzeWorkflow } from "@/lib/workflows/health-scoring";
 import { generateRewrites } from "@/lib/workflows/rewrite-engine";
-import { getContactEnrollments } from "@/lib/workflows/enrollment";
 import { generateFlags } from "@/lib/intelligence/flags";
 import { getScoreRecommendations } from "@/lib/intelligence/recommendations";
-import type { CandidateIntelligence, CallLog, ObjectionRegistry } from "@/lib/intelligence/types";
-import type { WorkflowStep } from "@/lib/workflows/types";
-import type { ScoutToolName, DraftedAction } from "@/types/scout";
+import {
+  executeGetEntity,
+  executeQuery,
+  executeAggregate,
+  type EntityType,
+  type QueryEntity,
+  type FilterOp,
+} from "./data-tools";
+import type { CandidateIntelligence, ObjectionRegistry } from "@/lib/intelligence/types";
+import type {
+  ScoutToolName,
+  DraftedAction,
+  JourneyActionKind,
+} from "@/types/scout";
 
 /** The result of executing a tool — either data or a drafted action */
 export interface ToolExecutionResult {
@@ -32,20 +42,33 @@ export async function executeTool(
   input: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
   switch (toolName) {
-    case "get_contact":
-      return executeGetContact(input);
+    // General data primitives
+    case "get_entity":
+      return {
+        data: await executeGetEntity(input.type as EntityType, input.id as string),
+      };
+    case "query":
+      return { data: await executeQueryTool(input) };
+    case "aggregate":
+      return { data: await executeAggregateTool(input) };
+    // Specialized read tools
     case "search_contacts":
       return executeSearchContacts(input);
     case "get_pipeline":
       return executeGetPipeline(input);
-    case "get_profile":
-      return executeGetProfile(input);
     case "get_next_action":
       return executeGetNextAction(input);
     case "get_schedule":
       return executeGetSchedule(input);
     case "search_knowledge":
       return executeSearchKnowledge(input);
+    case "workflow_analyze":
+      return executeWorkflowAnalyze(input);
+    case "workflow_rewrite":
+      return executeWorkflowRewrite(input);
+    case "trainual_status":
+      return executeTrainualStatus(input);
+    // Draft tools
     case "draft_message":
       return executeDraftMessage(input);
     case "draft_task":
@@ -58,14 +81,8 @@ export async function executeTool(
       return executeDraftEosUpdate(input);
     case "draft_market_data_update":
       return executeDraftMarketDataUpdate(input);
-    case "workflow_analyze":
-      return executeWorkflowAnalyze(input);
-    case "workflow_rewrite":
-      return executeWorkflowRewrite(input);
-    case "sequence_status":
-      return executeSequenceStatus(input);
-    case "trainual_status":
-      return executeTrainualStatus(input);
+    case "draft_journey_action":
+      return executeDraftJourneyAction(input);
     default: {
       const _exhaustive: never = toolName;
       return { data: `Unknown tool: ${_exhaustive}` };
@@ -73,103 +90,49 @@ export async function executeTool(
   }
 }
 
+/** Parse query / aggregate input — Claude passes JSON strings for nested args */
+function parseJsonField<T>(raw: unknown, fallback: T): T {
+  if (raw === undefined || raw === null) return fallback;
+  if (typeof raw === "object") return raw as T;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+}
+
+async function executeQueryTool(input: Record<string, unknown>): Promise<string> {
+  return executeQuery({
+    entity: input.entity as QueryEntity,
+    filters: parseJsonField<FilterOp[]>(input.filters, []),
+    order_by: parseJsonField<{ field: string; direction: "asc" | "desc" } | undefined>(
+      input.order_by,
+      undefined
+    ),
+    limit: typeof input.limit === "number" ? input.limit : undefined,
+  });
+}
+
+async function executeAggregateTool(input: Record<string, unknown>): Promise<string> {
+  return executeAggregate({
+    entity: input.entity as QueryEntity,
+    metric: input.metric as "count" | "avg" | "sum" | "min" | "max",
+    metric_field: input.metric_field as string | undefined,
+    group_by: input.group_by as string | undefined,
+    filters: parseJsonField<FilterOp[]>(input.filters, []),
+    period: parseJsonField<{ field: string; from: string; to: string } | undefined>(
+      input.period,
+      undefined
+    ),
+  });
+}
+
 // ========================================
 // READ-ONLY TOOLS — execute immediately
 // ========================================
-
-async function executeGetContact(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
-  try {
-    const contactId = input.contact_id as string;
-    const contact = await ghl.getContact(contactId);
-
-    // Fetch intelligence profile, recent call logs, and unresolved objections in parallel
-    const supabase = createServerClient();
-    const [intelligenceResult, callLogsResult, objectionsResult] = await Promise.all([
-      supabase
-        .from("candidate_intelligence")
-        .select("*")
-        .eq("contact_id", contactId)
-        .single(),
-      supabase
-        .from("call_logs")
-        .select("*")
-        .eq("contact_id", contactId)
-        .order("logged_at", { ascending: false })
-        .limit(3),
-      supabase
-        .from("objection_registry")
-        .select("*")
-        .eq("contact_id", contactId)
-        .eq("resolved", false)
-        .order("created_at", { ascending: false }),
-    ]);
-
-    // Build the base response with GHL data
-    const responseData: Record<string, unknown> = { ...contact };
-
-    // Append intelligence profile if it exists
-    if (intelligenceResult.data) {
-      const profile = intelligenceResult.data as CandidateIntelligence;
-      const flags = generateFlags(profile);
-      const recommendations = getScoreRecommendations(profile);
-
-      responseData.intelligence = {
-        score: {
-          total: profile.current_score,
-          financial: profile.score_financial,
-          operational: profile.score_operational,
-          engagement: profile.score_engagement,
-          momentum: profile.score_momentum,
-        },
-        activeFlags: flags.map((f) => ({
-          text: f.text,
-          severity: f.severity,
-          category: f.category,
-        })),
-        discProfile: profile.disc_profile ?? "Unknown",
-        fundingPath: profile.funding_path ?? "Unknown",
-        urgency: profile.urgency ?? "Unknown",
-        liquidCapital: profile.liquid_capital,
-        trainualCompletion: profile.trainual_completion_pct,
-        topRecommendations: recommendations.slice(0, 3).map((r) => ({
-          action: r.action,
-          category: r.category,
-          potentialPoints: r.potentialPoints,
-          priority: r.priority,
-        })),
-      };
-    }
-
-    // Append recent call logs
-    if (callLogsResult.data && callLogsResult.data.length > 0) {
-      const typedLogs = callLogsResult.data as CallLog[];
-      responseData.recentCallLogs = typedLogs.map((log) => ({
-        callType: log.call_type,
-        calledAt: log.called_at,
-        repConfidence: log.rep_confidence,
-        redFlagsRaised: log.red_flags_raised,
-        notes: log.notes,
-      }));
-    }
-
-    // Append unresolved objections
-    if (objectionsResult.data && objectionsResult.data.length > 0) {
-      const typedObjections = objectionsResult.data as ObjectionRegistry[];
-      responseData.unresolvedObjections = typedObjections.map((obj) => ({
-        type: obj.objection_type,
-        detail: obj.objection_detail,
-        stage: obj.stage_at_time,
-        scoreImpact: obj.score_impact,
-      }));
-    }
-
-    return { data: JSON.stringify(responseData) };
-  } catch (err) {
-    return { data: `Error fetching contact: ${err instanceof Error ? err.message : "Unknown error"}` };
-  }
-}
 
 async function executeSearchContacts(
   input: Record<string, unknown>
@@ -315,63 +278,6 @@ async function executeSearchKnowledge(
     return { data: JSON.stringify(cleaned) };
   } catch (err) {
     return { data: `Error searching knowledge base: ${err instanceof Error ? err.message : "Unknown error"}` };
-  }
-}
-
-async function executeGetProfile(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
-  try {
-    const contactId = input.contact_id as string;
-    const contact = await ghl.getContact(contactId);
-    const contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown";
-
-    // Load field mapping from Supabase
-    const supabase = createServerClient();
-    const { data: fieldMappings } = await supabase
-      .from("ghl_custom_fields")
-      .select("field_name, ghl_field_id")
-      .eq("entity_type", "contact");
-
-    // Build reverse lookup: GHL field ID → field name
-    const idToName = new Map<string, string>();
-    if (fieldMappings) {
-      for (const m of fieldMappings) {
-        idToName.set(m.ghl_field_id, m.field_name);
-      }
-    }
-
-    // Extract custom field values by name
-    const profile: Record<string, string> = {};
-    for (const cf of contact.customFields) {
-      const name = idToName.get(cf.id);
-      if (name && cf.value) {
-        profile[name] = cf.value;
-      }
-    }
-
-    // Build a readable summary for Scout
-    const filledFields = Object.entries(profile)
-      .map(([name, value]) => `- ${name}: ${value}`)
-      .join("\n");
-
-    const summary = [
-      `Candidate Profile for ${contactName}`,
-      `Contact ID: ${contactId}`,
-      `Email: ${contact.email ?? "—"}`,
-      `Phone: ${contact.phone ?? "—"}`,
-      `Source: ${contact.source ?? "—"}`,
-      `Tags: ${contact.tags.length > 0 ? contact.tags.join(", ") : "None"}`,
-      `Date Added: ${contact.dateAdded}`,
-      "",
-      filledFields.length > 0
-        ? `Profile Fields (${Object.keys(profile).length} populated):\n${filledFields}`
-        : "No profile fields populated yet.",
-    ].join("\n");
-
-    return { data: summary };
-  } catch (err) {
-    return { data: `Error fetching profile: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
 }
 
@@ -768,86 +674,6 @@ async function executeWorkflowRewrite(
   }
 }
 
-async function executeSequenceStatus(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
-  try {
-    const contactId = input.contact_id as string;
-    const supabase = createServerClient();
-
-    // Get active/paused enrollments for this contact
-    const enrollments = await getContactEnrollments(contactId, [
-      "active",
-      "paused",
-    ]);
-
-    if (enrollments.length === 0) {
-      return {
-        data: "This contact is not currently enrolled in any workflow sequences.",
-      };
-    }
-
-    const lines: string[] = [
-      `SEQUENCE STATUS — ${enrollments.length} active enrollment(s)`,
-      ``,
-    ];
-
-    for (const enrollment of enrollments) {
-      // Fetch workflow name
-      const { data: workflow } = await supabase
-        .from("workflows")
-        .select("name, current_version_id")
-        .eq("id", enrollment.workflow_id)
-        .single();
-
-      const workflowName = workflow?.name ?? "Unknown Workflow";
-
-      // Fetch the next step — find the step for current_day or next day
-      let nextStepInfo = "No upcoming step found";
-      if (workflow?.current_version_id) {
-        const { data: nextStep } = await supabase
-          .from("workflow_steps")
-          .select("step_number, day_number, step_type, content, subject")
-          .eq("workflow_version_id", workflow.current_version_id)
-          .gte("day_number", enrollment.current_day)
-          .order("day_number", { ascending: true })
-          .order("step_number", { ascending: true })
-          .limit(1)
-          .single();
-
-        if (nextStep) {
-          const typedStep = nextStep as Pick<
-            WorkflowStep,
-            "step_number" | "day_number" | "step_type" | "content" | "subject"
-          >;
-          const preview = typedStep.content
-            ? typedStep.content.substring(0, 100) +
-              (typedStep.content.length > 100 ? "..." : "")
-            : "No content";
-          nextStepInfo = `Day ${typedStep.day_number}, Step ${typedStep.step_number} — ${typedStep.step_type.toUpperCase()}: ${preview}`;
-        }
-      }
-
-      lines.push(
-        `Workflow: ${workflowName}`,
-        `  Current Day: ${enrollment.current_day}`,
-        `  Status: ${enrollment.status}`,
-        `  Enrolled: ${enrollment.enrolled_at}`,
-        `  Last Step: ${enrollment.last_step_at ?? "None executed yet"}`,
-        `  Goal Achieved: ${enrollment.goal_achieved ? "Yes" : "Not yet"}`,
-        `  Next Step: ${nextStepInfo}`,
-        ``
-      );
-    }
-
-    return { data: lines.join("\n") };
-  } catch (err) {
-    return {
-      data: `Error fetching sequence status: ${err instanceof Error ? err.message : "Unknown error"}`,
-    };
-  }
-}
-
 async function executeTrainualStatus(
   input: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
@@ -1026,11 +852,24 @@ async function executeDraftStageMove(
   const reason = input.reason as string | undefined;
 
   let contactName = "Unknown Contact";
+  let currentStage = "Unknown";
+
   try {
-    const contact = await ghl.getContact(contactId);
-    contactName = `${contact.firstName} ${contact.lastName}`.trim();
+    const [contact, opportunities, pipelines] = await Promise.all([
+      ghl.getContact(contactId),
+      ghl.searchOpportunities({ status: "open" }),
+      ghl.getPipelines(),
+    ]);
+    contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown Contact";
+
+    const opportunity = opportunities.find((o) => o.contactId === contactId);
+    if (opportunity) {
+      const pipeline = pipelines.find((p) => p.id === opportunity.pipelineId);
+      const stage = pipeline?.stages.find((s) => s.id === opportunity.pipelineStageId);
+      if (stage?.name) currentStage = stage.name.trim();
+    }
   } catch {
-    // Use fallback name if fetch fails
+    // Use fallback values if fetch fails
   }
 
   const draftedAction: DraftedAction = {
@@ -1041,14 +880,14 @@ async function executeDraftStageMove(
     contactName,
     payload: {
       actionType: "stage_move",
-      currentStage: "Unknown", // Would need pipeline lookup to determine — shown as context in UI
+      currentStage,
       newStage,
       reason,
     },
   };
 
   return {
-    data: `I've drafted a pipeline move for ${contactName} to "${newStage}". Please review it below and confirm, edit, or cancel.`,
+    data: `I've drafted a pipeline move for ${contactName} from "${currentStage}" to "${newStage}". Please review it below and confirm, edit, or cancel.`,
     draftedAction,
   };
 }
@@ -1186,6 +1025,81 @@ async function executeDraftMarketDataUpdate(
 
   return {
     data: `I've drafted market data updates for ${territoryName}: ${fieldSummary}. Please review below and confirm, edit, or cancel.`,
+    draftedAction,
+  };
+}
+
+async function executeDraftJourneyAction(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const contactId = input.contact_id as string;
+  const kind = input.kind as JourneyActionKind;
+  const workflowId = input.workflow_id as string | undefined;
+  const enrollmentId = input.enrollment_id as string | undefined;
+  const reason = input.reason as string | undefined;
+
+  // Per-kind validation
+  if (kind === "enroll_workflow" && !workflowId) {
+    return { data: "Error: enroll_workflow requires a workflow_id." };
+  }
+  if ((kind === "pause_workflow" || kind === "resume_workflow" || kind === "exit_workflow") && !enrollmentId) {
+    return { data: `Error: ${kind} requires an enrollment_id.` };
+  }
+  if (kind === "exit_workflow" && !reason) {
+    return { data: "Error: exit_workflow requires a reason." };
+  }
+
+  // Resolve display names so the UI shows something useful
+  let contactName = "Unknown Contact";
+  try {
+    const contact = await ghl.getContact(contactId);
+    contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown Contact";
+  } catch {
+    // Fall back to UUID
+  }
+
+  let workflowName: string | undefined;
+  if (workflowId) {
+    try {
+      const supabase = createServerClient();
+      const { data } = await supabase
+        .from("workflows")
+        .select("name")
+        .eq("id", workflowId)
+        .single();
+      workflowName = (data as { name?: string } | null)?.name ?? undefined;
+    } catch {
+      // Optional
+    }
+  }
+
+  const summary =
+    kind === "enroll_workflow"
+      ? `enroll ${contactName} in workflow ${workflowName ?? workflowId}`
+      : kind === "pause_workflow"
+        ? `pause enrollment ${enrollmentId} for ${contactName}`
+        : kind === "resume_workflow"
+          ? `resume enrollment ${enrollmentId} for ${contactName}`
+          : `exit enrollment ${enrollmentId} for ${contactName} (reason: ${reason})`;
+
+  const draftedAction: DraftedAction = {
+    id: crypto.randomUUID(),
+    type: "journey_action",
+    status: "pending",
+    contactId,
+    contactName,
+    payload: {
+      actionType: "journey_action",
+      kind,
+      workflowId,
+      workflowName,
+      enrollmentId,
+      reason,
+    },
+  };
+
+  return {
+    data: `I've drafted a journey action: ${summary}. Please review below and confirm, edit, or cancel.`,
     draftedAction,
   };
 }

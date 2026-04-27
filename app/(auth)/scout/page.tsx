@@ -6,6 +6,7 @@ import { Bot, Send, Paperclip, Mic } from "lucide-react";
 import Image from "next/image";
 import { ScoutBubble, UserBubble, ThinkingIndicator, DraftedActionCard, VoiceRecorder } from "@/components/scout";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { parsePageContext } from "@/lib/scout/page-context";
 import type { ChatMessage, DraftedAction } from "@/types/scout";
 import type Anthropic from "@anthropic-ai/sdk";
 
@@ -62,6 +63,9 @@ export default function ScoutPage() {
     setIsThinking(true);
 
     try {
+      const fromPath = searchParams.get("from");
+      const pageContext = parsePageContext(fromPath);
+
       const response = await fetch("/api/scout/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -72,6 +76,7 @@ export default function ScoutPage() {
           userId: user?.id ?? "",
           userRole: user?.role ?? "rep",
           userName: user?.fullName ?? "User",
+          pageContext,
         }),
       });
 

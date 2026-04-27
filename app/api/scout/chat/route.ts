@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { runConversationTurn } from "@/lib/scout";
+import { loadUserMemory, mergeUserMemory } from "@/lib/scout/memory";
 import { createServerClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/types/database";
 import type Anthropic from "@anthropic-ai/sdk";
@@ -107,6 +108,25 @@ export async function POST(request: NextRequest) {
         console.error("Failed to log Scout action — continuing");
       }
     }
+
+    // Merge durable facts from this turn into the user's persistent memory.
+    // Fire-and-forget: never blocks the response, never breaks the chat.
+    const memoryMergePromise = (async () => {
+      try {
+        const existingMemory = await loadUserMemory(body.userId);
+        await mergeUserMemory({
+          userId: body.userId,
+          userName: body.userName ?? "User",
+          existingMemory,
+          userMessage: body.message,
+          assistantResponse: result.responseText,
+          draftedActionType: result.draftedAction?.type,
+        });
+      } catch {
+        // Memory merge is best-effort
+      }
+    })();
+    void memoryMergePromise;
 
     return NextResponse.json({
       message: result.responseText,

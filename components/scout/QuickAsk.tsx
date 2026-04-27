@@ -26,7 +26,9 @@ export default function QuickAsk({ context }: QuickAskProps) {
 
   function handleSubmit() {
     if (!query.trim()) return;
-    router.push(`/scout?ask=${encodeURIComponent(query.trim())}`);
+    const ask = encodeURIComponent(query.trim());
+    const from = context ? `&from=${encodeURIComponent(context)}` : "";
+    router.push(`/scout?ask=${ask}${from}`);
     setQuery("");
   }
 

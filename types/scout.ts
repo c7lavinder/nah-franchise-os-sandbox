@@ -2,23 +2,27 @@
 
 /** Scout tool names matching the Claude tool-use definitions */
 export type ScoutToolName =
-  | "get_contact"
+  // General-purpose data primitives (subsume the bespoke read tools)
+  | "get_entity"
+  | "query"
+  | "aggregate"
+  // Specialized read tools that are not just data fetches
   | "search_contacts"
   | "get_pipeline"
-  | "get_profile"
   | "get_next_action"
+  | "get_schedule"
+  | "search_knowledge"
+  | "workflow_analyze"
+  | "workflow_rewrite"
+  | "trainual_status"
+  // Draft tools — all gated by user confirmation
   | "draft_message"
   | "draft_task"
   | "draft_stage_move"
   | "draft_profile_update"
   | "draft_eos_update"
   | "draft_market_data_update"
-  | "get_schedule"
-  | "search_knowledge"
-  | "workflow_analyze"
-  | "workflow_rewrite"
-  | "sequence_status"
-  | "trainual_status";
+  | "draft_journey_action";
 
 /** Chat message role */
 export type ChatRole = "user" | "assistant";
@@ -34,7 +38,15 @@ export interface ChatMessage {
 }
 
 /** Types of actions Scout can draft for user confirmation */
-export type DraftedActionType = "message" | "task" | "stage_move" | "appointment" | "profile_update" | "eos_update" | "market_data_update";
+export type DraftedActionType =
+  | "message"
+  | "task"
+  | "stage_move"
+  | "appointment"
+  | "profile_update"
+  | "eos_update"
+  | "market_data_update"
+  | "journey_action";
 
 /** Status of a drafted action in the UI */
 export type DraftedActionStatus = "pending" | "editing" | "confirmed" | "cancelled";
@@ -47,7 +59,15 @@ export interface DraftedAction {
   contactId: string;
   contactName: string;
   /** The specific payload depends on the action type */
-  payload: DraftedMessagePayload | DraftedTaskPayload | DraftedStageMovePayload | DraftedAppointmentPayload | DraftedProfileUpdatePayload | DraftedEosUpdatePayload | DraftedMarketDataUpdatePayload;
+  payload:
+    | DraftedMessagePayload
+    | DraftedTaskPayload
+    | DraftedStageMovePayload
+    | DraftedAppointmentPayload
+    | DraftedProfileUpdatePayload
+    | DraftedEosUpdatePayload
+    | DraftedMarketDataUpdatePayload
+    | DraftedJourneyActionPayload;
 }
 
 /** Payload for a drafted SMS or email message */
@@ -105,6 +125,30 @@ export interface DraftedMarketDataUpdatePayload {
   territorySlug: string;
   territoryName: string;
   fields: { fieldName: string; value: string; reason: string }[];
+}
+
+/** Kinds of journey-level actions Scout can draft */
+export type JourneyActionKind =
+  | "enroll_workflow"
+  | "pause_workflow"
+  | "resume_workflow"
+  | "exit_workflow";
+
+/**
+ * Payload for a drafted journey action — workflow enrollment changes
+ * scoped to a contact (enroll, pause, resume, exit).
+ */
+export interface DraftedJourneyActionPayload {
+  actionType: "journey_action";
+  kind: JourneyActionKind;
+  /** Workflow ID — required for enroll_workflow */
+  workflowId?: string;
+  /** Workflow display name — for the UI */
+  workflowName?: string;
+  /** Enrollment ID — required for pause/resume/exit */
+  enrollmentId?: string;
+  /** Optional reason — required for exit */
+  reason?: string;
 }
 
 /** Request body sent to the Scout API */

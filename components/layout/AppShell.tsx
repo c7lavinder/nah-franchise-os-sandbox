@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
-import ScoutFAB from "./ScoutFAB";
 import { QuickAsk } from "@/components/scout";
 import type { UserRole } from "@/types/database";
 
@@ -72,8 +71,6 @@ export default function AppShell({
         </div>
       </main>
 
-      {/* Scout AI FAB — hidden on /scout page (handled by ScoutFAB) */}
-      <ScoutFAB />
     </div>
   );
 }

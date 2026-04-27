@@ -10,6 +10,7 @@ import {
   X,
   Loader2,
   User,
+  GitBranch,
 } from "lucide-react";
 import type {
   DraftedAction,
@@ -17,6 +18,7 @@ import type {
   DraftedTaskPayload,
   DraftedStageMovePayload,
   DraftedProfileUpdatePayload,
+  DraftedJourneyActionPayload,
 } from "@/types/scout";
 
 interface DraftedActionCardProps {
@@ -37,6 +39,8 @@ function ActionIcon({ type }: { type: DraftedAction["type"] }) {
       return <ArrowRightLeft size={16} className="text-scout-purple" />;
     case "profile_update":
       return <User size={16} className="text-scout-purple" />;
+    case "journey_action":
+      return <GitBranch size={16} className="text-scout-purple" />;
     default:
       return <MessageSquare size={16} className="text-scout-purple" />;
   }
@@ -60,6 +64,19 @@ function actionLabel(action: DraftedAction): string {
     case "profile_update": {
       const p = action.payload as DraftedProfileUpdatePayload;
       return `Update ${p.fields.length} profile field${p.fields.length !== 1 ? "s" : ""} for ${action.contactName}`;
+    }
+    case "journey_action": {
+      const p = action.payload as DraftedJourneyActionPayload;
+      const verb =
+        p.kind === "enroll_workflow"
+          ? "Enroll"
+          : p.kind === "pause_workflow"
+            ? "Pause"
+            : p.kind === "resume_workflow"
+              ? "Resume"
+              : "Exit";
+      const what = p.workflowName ?? p.workflowId ?? p.enrollmentId ?? "workflow";
+      return `${verb} ${action.contactName} — ${what}`;
     }
     default:
       return `Action for ${action.contactName}`;
@@ -230,6 +247,14 @@ function getDisplayContent(action: DraftedAction): string {
       return p.fields
         .map((f) => `${f.fieldName}: ${f.value}\n  (${f.reason})`)
         .join("\n\n");
+    }
+    case "journey_action": {
+      const p = action.payload as DraftedJourneyActionPayload;
+      const lines: string[] = [`Kind: ${p.kind}`];
+      if (p.workflowName ?? p.workflowId) lines.push(`Workflow: ${p.workflowName ?? p.workflowId}`);
+      if (p.enrollmentId) lines.push(`Enrollment: ${p.enrollmentId}`);
+      if (p.reason) lines.push(`Reason: ${p.reason}`);
+      return lines.join("\n");
     }
     default:
       return JSON.stringify(action.payload, null, 2);

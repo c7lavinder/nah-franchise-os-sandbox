@@ -13,12 +13,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { SCOUT_TOOLS } from "./tools";
 import { executeTool } from "./tool-executor";
 import { logLLMCall } from "./llm-logger";
+import { routeModel } from "./model-router";
+import { loadUserMemory, formatMemoryForPrompt } from "./memory";
 import { createServerClient } from "@/lib/supabase/server";
 import type { ScoutToolName, DraftedAction } from "@/types/scout";
 import type { UserRole } from "@/types/database";
-
-/** The Claude model used for standard Scout conversations — Haiku for cost efficiency */
-const SCOUT_MODEL = "claude-haiku-4-5-20251001";
 
 /** Maximum tokens for Scout's response */
 const MAX_TOKENS = 4096;
@@ -247,6 +246,29 @@ async function loadKnowledgeBase(pageContext?: ScoutConversationInput["pageConte
   }
 }
 
+/**
+ * Format the page context as a one-line directive in the system prompt.
+ * Lets Scout pre-fill contact_id / territory_slug without asking.
+ */
+function formatPageContextForPrompt(
+  ctx?: ScoutConversationInput["pageContext"]
+): string {
+  if (!ctx || !ctx.page || ctx.page === "other" || ctx.page === "scout") return "";
+
+  const bits: string[] = [
+    `PAGE CONTEXT: User is on the ${ctx.page} page when asking this question.`,
+  ];
+  if (ctx.contactId) {
+    bits.push(`Active contact: ${ctx.contactId} — pre-fill this as contact_id when drafting actions unless the user names someone else.`);
+  }
+  if (ctx.territorySlug) {
+    bits.push(`Active territory: ${ctx.territorySlug} — assume territory questions are about this slug unless told otherwise.`);
+  }
+  if (ctx.callType) bits.push(`Call type: ${ctx.callType}.`);
+  if (ctx.pipelineStage) bits.push(`Current pipeline stage: ${ctx.pipelineStage}.`);
+  return bits.join(" ");
+}
+
 /** Loads a quick pipeline snapshot for Scout's context — avoids needing a tool call for basic questions */
 async function loadPipelineSnapshot(): Promise<string> {
   try {
@@ -290,16 +312,22 @@ export async function runConversationTurn(
   const client = createAnthropicClient();
 
   // Load dynamic context from Supabase — KB is context-aware
-  const [knowledgeBase, pipelineSnapshot] = await Promise.all([
+  const [knowledgeBase, pipelineSnapshot, userMemory] = await Promise.all([
     loadKnowledgeBase(input.pageContext),
     loadPipelineSnapshot(),
+    loadUserMemory(input.userId),
   ]);
 
-  // Assemble system prompt with injected knowledge
+  // Format page context as a one-line directive Scout can use to pre-fill
+  const pageContextLine = formatPageContextForPrompt(input.pageContext);
+
+  // Assemble system prompt with injected knowledge + memory
   const systemPrompt = [
     SCOUT_IDENTITY,
     getRoleBehavior(input.userRole),
     `CURRENT USER: ${input.userName} (ID: ${input.userId}, Role: ${input.userRole})`,
+    pageContextLine,
+    formatMemoryForPrompt(userMemory),
     pipelineSnapshot,
     PROFILE_AND_SCORING_CONTEXT,
     knowledgeBase,
@@ -309,6 +337,10 @@ export async function runConversationTurn(
   let messages: Anthropic.Messages.MessageParam[] = [...input.messages];
   let draftedAction: DraftedAction | undefined;
   let iterations = 0;
+
+  // Pick a model for this whole turn — sticky across the tool-use loop.
+  const route = routeModel({ messages, userRole: input.userRole });
+  const SCOUT_MODEL = route.model;
 
   // Tool-call loop — keep calling Claude until we get a final text response
   while (iterations < MAX_TOOL_ITERATIONS) {
