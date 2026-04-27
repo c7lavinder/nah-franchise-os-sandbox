@@ -1,29 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git status)",
-      "Bash(git status *)",
-      "Bash(git log)",
-      "Bash(git log *)",
-      "Bash(git diff)",
-      "Bash(git diff *)",
-      "Bash(git add *)",
-      "Bash(git commit *)",
-      "Bash(git fetch)",
-      "Bash(git fetch *)",
-      "Bash(git branch)",
-      "Bash(git branch *)",
-      "Bash(git checkout *)",
-      "Bash(git stash *)"
-    ],
-    "ask": [
-      "Bash(git push *)",
-      "Bash(git pull *)",
-      "Bash(git merge *)",
-      "Bash(git rebase *)",
-      "Bash(git cherry-pick *)",
+      "Bash(git *)",
+      "Bash(npm install)",
       "Bash(npm install *)",
+      "Bash(npm uninstall)",
       "Bash(npm uninstall *)",
+      "Bash(npm ci)",
+      "Bash(npm ci *)",
       "Bash(npx *)"
     ]
   },

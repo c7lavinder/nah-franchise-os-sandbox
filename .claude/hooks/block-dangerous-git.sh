@@ -1,45 +1,79 @@
 #!/bin/bash
 
-# Hard-block layer for the hybrid permissions architecture (Session B).
-# Catches truly destructive commands; lets soft cases (plain `git push`,
-# `git merge`, etc.) fall through to permissions.ask in .claude/settings.json.
+# Hard-block layer for the solo-workflow permissions architecture.
+# Philosophy: git mistakes are recoverable (Vercel keeps deploy history,
+# refs survive in reflog). Data destruction and root-fs wipes are not.
+# Block only what cannot be undone; let the agent do all git work freely.
 #
 # Hook contract: exit 2 = block before permission rules are evaluated.
 
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command')
 
-DANGEROUS_PATTERNS=(
-  # Force push variants
-  "git push.*--force"
-  "--force.*git push"
-  "git push.*-f($|[[:space:]])"
-  "-f[[:space:]].*git push"
-  "--force-with-lease"
-  # Hard reset
-  "git reset --hard"
-  "reset --hard"
-  # Working-tree wipe
-  "git clean -fd"
-  "git clean -f"
-  "git checkout \."
-  "git restore \."
-  # Branch deletion (uppercase -D = force delete)
-  "git branch -D"
-  # Recursive force remove
-  "rm -rf"
-  "rm -fr"
-  "rm -Rf"
-  "rm -fR"
-  "rm.*--recursive.*--force"
-  "rm.*--force.*--recursive"
+# ---------------------------------------------------------------------------
+# 1. Filesystem destruction at system root, home, or env-var-expanded paths.
+#    Project-relative `rm -rf node_modules` etc. remains allowed.
+# ---------------------------------------------------------------------------
+FS_PATTERNS=(
+  'rm[[:space:]]+-[rRfFv]*[rRfF][rRfFv]*[[:space:]]+/'
+  'rm[[:space:]]+-[rRfFv]*[rRfF][rRfFv]*[[:space:]]+~'
+  'rm[[:space:]]+-[rRfFv]*[rRfF][rRfFv]*[[:space:]]+\$HOME'
+  'rm[[:space:]]+-[rRfFv]*[rRfF][rRfFv]*[[:space:]]+\*'
+  'rm[[:space:]]+--recursive[[:space:]]+--force[[:space:]]+/'
+  'rm[[:space:]]+--force[[:space:]]+--recursive[[:space:]]+/'
 )
 
-for pattern in "${DANGEROUS_PATTERNS[@]}"; do
+for pattern in "${FS_PATTERNS[@]}"; do
   if echo "$COMMAND" | grep -qE -e "$pattern"; then
-    echo "BLOCKED: '$COMMAND' matches dangerous pattern '$pattern'. Hard-block layer denies destructive operations even when the agent has permission to run regular variants. The user has prevented you from doing this." >&2
+    echo "BLOCKED: '$COMMAND' matches catastrophic filesystem pattern '$pattern'. Root/home-level rm is irreversible. The user has prevented you from doing this." >&2
     exit 2
   fi
 done
+
+# ---------------------------------------------------------------------------
+# 2. Supabase data destruction. Schema drops and TRUNCATEs are irreversible
+#    in production. Migrations should go through the supabase migration flow,
+#    not ad-hoc psql calls.
+# ---------------------------------------------------------------------------
+SQL_PATTERNS=(
+  'DROP[[:space:]]+DATABASE'
+  'DROP[[:space:]]+TABLE'
+  'DROP[[:space:]]+SCHEMA'
+  'TRUNCATE[[:space:]]+(TABLE[[:space:]]+)?[a-zA-Z_"]'
+)
+
+for pattern in "${SQL_PATTERNS[@]}"; do
+  if echo "$COMMAND" | grep -qiE -e "$pattern"; then
+    echo "BLOCKED: '$COMMAND' matches SQL data-destruction pattern '$pattern'. Schema drops and TRUNCATEs cannot be undone — use a Supabase migration instead. The user has prevented you from doing this." >&2
+    exit 2
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# 3. git push to anything other than 'origin'. Anti-mistake: prevents
+#    accidentally pushing to upstream/fork/wrong-account remotes. Plain
+#    `git push` and `git push origin ...` (with any flags, including --force)
+#    pass through.
+# ---------------------------------------------------------------------------
+if echo "$COMMAND" | grep -qE '\bgit[[:space:]]+push\b'; then
+  found_push=0
+  remote=""
+  for word in $COMMAND; do
+    if [[ $found_push -eq 1 ]]; then
+      case "$word" in
+        -*) continue ;;
+        *) remote="$word"; break ;;
+      esac
+    fi
+    if [[ "$word" == "push" ]]; then
+      found_push=1
+    fi
+  done
+
+  if [[ -n "$remote" && "$remote" != "origin" ]]; then
+    echo "BLOCKED: 'git push $remote ...' targets a non-origin remote. Solo workflow only pushes to origin. The user has prevented you from doing this." >&2
+    exit 2
+  fi
+fi
 
 exit 0
