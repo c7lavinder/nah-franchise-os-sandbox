@@ -1,4 +1,4 @@
-/** Database types matching the Supabase schema defined in architecture.md + workflows.md */
+/** Database types matching the Supabase schema in supabase/migrations/ — see docs/data-model.md */
 
 import type {
   Workflow,
