@@ -56,9 +56,15 @@ Goal: support hundreds of franchisees who each buy 10+ houses/year.
 | 0b — Auth retrofit (2a-2f) | Done | 2026-04-27 |
 | 0c — Data privacy audit + scrub | Done | 2026-04-27 |
 
-### Session A — Doc reorg (COMPLETE)
+### Session A — Doc reorg (COMPLETE 2026-04-27)
 
-Delete dead docs, consolidate migrations, create master-plan + system-shape + runbook + security + data-model + scout + scout-tools + integrations + team, write 10 ADRs, fix README + CLAUDE.md, create CONTRIBUTING.md.
+- Deleted 28 dead files (~8,300 lines of stale content)
+- Consolidated 2 schema SQL files into numbered migrations
+- Created 8 new docs (master-plan, system-shape, runbook, scout, scout-tools, integrations, team, data-model)
+- Rewrote README.md and CLAUDE.md, created CONTRIBUTING.md
+- Created 10 ADRs in docs/adr/
+- Reconciled .env.local.example (added 6 missing vars)
+- Archived blueprint to docs/archive/blueprint-v1.md
 
 ### Sessions B-C — Foundation buildout (QUEUED)
 
