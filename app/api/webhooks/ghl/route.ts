@@ -4,18 +4,20 @@ export const dynamic = "force-dynamic";
  * POST /api/webhooks/ghl
  *
  * Receives webhook events from GoHighLevel.
- * Handles: new contacts, incoming messages, opportunity stage changes.
+ * Handles: messages (inbound/outbound) and opportunity stage changes.
+ * ContactCreate events go to /api/webhooks/ghl/contacts instead.
  *
  * GHL webhook events include a type field that identifies the event.
  * See: ghl-masterclass/webhooks/webhook-index.md
  *
  * Setup: In GHL Settings > Webhooks, add this URL:
  *   https://your-domain.com/api/webhooks/ghl
- * Subscribe to: ContactCreate, InboundMessage, OpportunityStageUpdate
+ * Subscribe to: InboundMessage, OutboundMessage, OpportunityStageUpdate
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";import { createServerClient } from "@/lib/supabase/server";
+import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";
+import { createServerClient } from "@/lib/supabase/server";
 
 /** GHL webhook payload — shape varies by event type */
 interface GHLWebhookPayload {
@@ -26,12 +28,6 @@ interface GHLWebhookPayload {
   contact_id?: string;
   locationId?: string;
   location_id?: string;
-  // Contact events
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  phone?: string;
-  source?: string;
   // Message events
   body?: string;
   messageId?: string;
@@ -55,7 +51,7 @@ function getEventType(payload: GHLWebhookPayload): string {
   return (
     payload.type ??
     payload.event ??
-    (payload as Record<string, unknown>)["eventType"] as string ??
+    ((payload as Record<string, unknown>)["eventType"] as string) ??
     "unknown"
   ).toLowerCase();
 }
@@ -94,46 +90,15 @@ export async function POST(request: NextRequest) {
           setting_value: { processedAt: new Date().toISOString() },
           description: "Webhook dedup marker",
         });
-      } catch { /* ignore duplicate */ }
+      } catch {
+        /* ignore duplicate */
+      }
     }
 
     switch (true) {
-      // ─── New Contact Created ───
-      case eventType.includes("contact") && eventType.includes("create"): {
-        if (!contactId) break;
-
-        const contactName = [payload.firstName, payload.lastName]
-          .filter(Boolean)
-          .join(" ")
-          .trim() || "Unknown";
-
-        // Create a speed-to-lead alert — Chad needs to contact within 5 minutes
-        await supabase.from("inactivity_alerts").insert({
-          alert_type: "speed_to_lead",
-          severity: "critical",
-          ghl_contact_id: contactId,
-          message: `New lead: ${contactName}${payload.source ? ` (${payload.source})` : ""}. Contact within 5 minutes.`,
-          details: {
-            contactName,
-            source: payload.source ?? "Unknown",
-            email: payload.email,
-            phone: payload.phone,
-            receivedAt: new Date().toISOString(),
-          },
-        });
-
-        // Log the event in scout_action_logs
-        await supabase.from("scout_action_logs").insert({
-          action_type: "webhook_event",
-          action_status: "executed",
-          ghl_contact_id: contactId,
-          draft_content: { event: "contact_create", payload: { contactName, source: payload.source } },
-          final_content: { event: "contact_create" },
-          executed_at: new Date().toISOString(),
-        });
-
-        break;
-      }
+      // ─── ContactCreate handled by /api/webhooks/ghl/contacts ───
+      // That handler does: sync → pipeline state → speed-to-lead alert → action log.
+      // Configure GHL to send ContactCreate events to /api/webhooks/ghl/contacts.
 
       // ─── Outbound Message Delivery ───
       // Per ghl-masterclass: OutboundMessage webhook confirms SMS/Email delivery
@@ -184,10 +149,7 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (recentLog) {
-          await supabase
-            .from("workflow_step_logs")
-            .update({ responded: true })
-            .eq("id", recentLog.id);
+          await supabase.from("workflow_step_logs").update({ responded: true }).eq("id", recentLog.id);
         }
 
         // Log inbound message event
@@ -285,7 +247,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true, event: eventType });
   } catch (err) {
     // Still return 200 to prevent GHL from retrying
-    console.error("Webhook handler error:", err);
+    console.error("Webhook handler error:", err instanceof Error ? err.message : "Unknown error");
     return NextResponse.json({ received: true, error: "handler_error" });
   }
 }

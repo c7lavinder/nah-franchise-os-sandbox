@@ -1,6 +1,6 @@
 ---
 Last verified: 2026-04-28
-Source: session (Session C claude infra)
+Source: session (Tier 1 #7 form webhook)
 ---
 
 # Master Plan — NAH Franchise OS
@@ -85,7 +85,7 @@ Goal: support hundreds of franchisees who each buy 10+ houses/year.
 
 | #   | Gap                           | Effort    | Depends on                 |
 | --- | ----------------------------- | --------- | -------------------------- |
-| 7   | Form webhook config           | 1-2 days  | Session B CI               |
+| 7   | Form webhook config           | 1-2 days  | Done (2026-04-28)          |
 | 3   | Real users in GHL             | 3-5 days  | Auth retrofit (done)       |
 | 2   | Daily HQ per-user wiring      | 1 week    | #3                         |
 | 1   | LLM depth (Scout prompt, RAG) | 1-2 weeks | #3                         |
@@ -104,7 +104,7 @@ See `docs/adr/` for individual decision records. Key decisions:
 - Draft-Review-Confirm pattern is sacred (ADR-0003)
 - requireAuth returns Response, not throws (ADR-0008)
 - Schema lives in supabase/migrations/ only (ADR-0009)
-- WEBHOOK_SHARED_SECRET deferred until provider config (ADR-0005 notes)
+- WEBHOOK_SHARED_SECRET activated for GHL (Tier 1 #7); other providers pending config
 
 ---
 

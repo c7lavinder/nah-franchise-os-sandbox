@@ -3,18 +3,22 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/webhooks/ghl/contacts
  *
- * Receives GHL contact webhook events (ContactCreate, ContactUpdate).
- * Syncs the contact to the local contacts table and auto-creates a
- * Sales Pipeline entry at Engagement stage for new contacts.
+ * Canonical handler for GHL ContactCreate events.
+ * End-to-end flow: form fill → GHL webhook → contact synced → pipeline state → alert → action log.
  *
- * Per §1.18 of MASTER_PLAN.md:
- * - New contact in GHL → webhook → contact mirrored → Sales Pipeline entry at Stage 1
- * - Fields: name, address, contact info, source, notes
- * - Outreach sub-task starts empty
+ * Steps:
+ * 1. Sync contact to local DB via syncContactFromGhl (upsert)
+ * 2. Auto-create Sales Pipeline state at Stage 1 Engagement (idempotent)
+ * 3. Create speed-to-lead alert in inactivity_alerts
+ * 4. Log webhook_event in scout_action_logs
+ *
+ * Returns 200 on all paths to prevent GHL retries.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";import { syncContactFromGhl } from "@/lib/ghl/sync";
+import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";
+import { createServerClient } from "@/lib/supabase/server";
+import { syncContactFromGhl } from "@/lib/ghl/sync";
 import { autoCreatePipelineState } from "@/lib/ghl/auto-create-pipeline-state";
 import type { GHLContactForSync } from "@/lib/ghl/sync";
 
@@ -84,6 +88,32 @@ export async function POST(request: NextRequest) {
     // Step 2: Auto-create Sales Pipeline state row (idempotent)
     const stateId = await autoCreatePipelineState(localContactId);
 
+    // Step 3: Speed-to-lead alert + action log
+    const supabase = createServerClient();
+    const contactName = [payload.firstName, payload.lastName].filter(Boolean).join(" ").trim() || "Unknown";
+
+    await Promise.all([
+      supabase.from("inactivity_alerts").insert({
+        alert_type: "speed_to_lead",
+        severity: "critical",
+        ghl_contact_id: ghlContactId,
+        message: `New lead: ${contactName}${payload.source ? ` (${payload.source})` : ""}. Contact within 5 minutes.`,
+        details: {
+          contactName,
+          source: payload.source ?? "Unknown",
+          receivedAt: new Date().toISOString(),
+        },
+      }),
+      supabase.from("scout_action_logs").insert({
+        action_type: "webhook_event",
+        action_status: "executed",
+        ghl_contact_id: ghlContactId,
+        draft_content: { event: "contact_create", payload: { contactName, source: payload.source } },
+        final_content: { event: "contact_create" },
+        executed_at: new Date().toISOString(),
+      }),
+    ]);
+
     return NextResponse.json({
       received: true,
       contactId: localContactId,
@@ -91,10 +121,8 @@ export async function POST(request: NextRequest) {
       pipelineStateId: stateId,
     });
   } catch (err) {
-    console.error("GHL contacts webhook error:", err);
-    return NextResponse.json(
-      { error: "Internal webhook processing error" },
-      { status: 500 }
-    );
+    // Return 200 to prevent GHL retries — log error without PII
+    console.error("GHL contacts webhook error:", err instanceof Error ? err.message : "Unknown error");
+    return NextResponse.json({ received: true, error: "handler_error" });
   }
 }
