@@ -95,10 +95,7 @@ export interface ResolverDb {
    * current stage on this call. See resolver JSDoc for priority rules.
    * territoryMsSlug is the participant's own territory when known, null otherwise.
    */
-  getActiveJourneyForContact(
-    contactId: string,
-    territoryMsSlug: string | null,
-  ): Promise<JourneyPick | null>;
+  getActiveJourneyForContact(contactId: string, territoryMsSlug: string | null): Promise<JourneyPick | null>;
   /**
    * Fallback journey lookup for contacts linked to a territory's ecosystem
    * (territory_stakeholders.contact_id) but not listed on the journey
@@ -187,10 +184,7 @@ function fmtContactName(c: ContactMatch): string {
   return full || c.email || c.id;
 }
 
-export async function resolveCallParticipants(
-  input: ResolveInput,
-  db: ResolverDb,
-): Promise<ResolveResult> {
+export async function resolveCallParticipants(input: ResolveInput, db: ResolverDb): Promise<ResolveResult> {
   const perParticipant: ResolvedCallParticipant[] = [];
   // Every contact ever matched, bucketed by tier, across all participants.
   const hitsByTier: Record<"email" | "phone" | "name", ContactMatch[]> = {
@@ -302,8 +296,9 @@ export async function resolveCallParticipants(
       // (common for journey drivers / spouses / stakeholders) — honor it.
       const territory = ownedTerritory ?? journey?.territory_ms_slug ?? null;
       const role: ParticipantRole = territory ? "franchisee" : "prospect";
-      const displayName = [participantWinner.first_name, participantWinner.last_name].filter(Boolean).join(" ").trim()
-        || cleanDisplayName(email, p.name ?? null);
+      const displayName =
+        [participantWinner.first_name, participantWinner.last_name].filter(Boolean).join(" ").trim() ||
+        cleanDisplayName(email, p.name ?? null);
       perParticipant.push({
         email,
         phone: phoneDigits,
@@ -355,9 +350,10 @@ export async function resolveCallParticipants(
     const winner = pickMostRecent(unique);
     contact_id = winner.id;
     confidence = score;
-    reason = unique.length > 1
-      ? `${unique.length} contacts matched ${label}, picked most recent: ${fmtContactName(winner)}`
-      : `matched contact by ${label}: ${fmtContactName(winner)}`;
+    reason =
+      unique.length > 1
+        ? `${unique.length} contacts matched ${label}, picked most recent: ${fmtContactName(winner)}`
+        : `matched contact by ${label}: ${fmtContactName(winner)}`;
     break;
   }
 
@@ -538,21 +534,41 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
       return (data ?? []).length > 0;
     },
     async isTeamEmail(email) {
+      // Check primary email
       const { data } = await supabase
         .from("users")
         .select("id")
         .ilike("email", email)
         .eq("is_active", true)
         .maybeSingle();
-      return !!data;
-    },
-    async findUserByEmail(email) {
-      const { data } = await supabase
-        .from("users")
-        .select("id, full_name")
+      if (data) return true;
+      // Check aliases
+      const { data: alias } = await supabase
+        .from("user_email_aliases")
+        .select("user_id")
         .ilike("email", email)
         .maybeSingle();
-      return data ?? null;
+      return !!alias;
+    },
+    async findUserByEmail(email) {
+      // Check primary email
+      const { data } = await supabase.from("users").select("id, full_name").ilike("email", email).maybeSingle();
+      if (data) return data;
+      // Check aliases → look up the user
+      const { data: alias } = await supabase
+        .from("user_email_aliases")
+        .select("user_id")
+        .ilike("email", email)
+        .maybeSingle();
+      if (alias) {
+        const { data: user } = await supabase
+          .from("users")
+          .select("id, full_name")
+          .eq("id", alias.user_id)
+          .maybeSingle();
+        return user ?? null;
+      }
+      return null;
     },
     async findUserByFullName(fullName) {
       const { data } = await supabase
