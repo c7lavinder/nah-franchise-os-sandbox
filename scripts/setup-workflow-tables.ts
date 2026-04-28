@@ -93,7 +93,7 @@ async function runMigration() {
   console.log("=== Workflow Engine — Database Migration ===\n");
 
   // Read the SQL migration file
-  const sqlPath = resolve("lib/workflows/schema.sql");
+  const sqlPath = resolve("supabase/migrations/007_workflow_tables.sql");
   let sql: string;
   try {
     sql = readFileSync(sqlPath, "utf-8");
@@ -130,7 +130,7 @@ async function runMigration() {
   console.log("1. Open your Supabase dashboard:");
   console.log(`   ${SUPABASE_URL!.replace(".supabase.co", ".supabase.co").replace("https://", "https://supabase.com/dashboard/project/").replace(".supabase.co", "")}/sql/new`);
   console.log("");
-  console.log("2. Copy the contents of: lib/workflows/schema.sql");
+  console.log("2. Copy the contents of: supabase/migrations/007_workflow_tables.sql");
   console.log("");
   console.log("3. Paste into the SQL Editor and click 'Run'");
   console.log("");
