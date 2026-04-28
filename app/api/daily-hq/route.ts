@@ -24,24 +24,29 @@ export async function GET(request: NextRequest) {
   // Admin "view as" pattern: admins can pass ?targetUserId=X to see another
   // user's daily HQ. Non-admins always see their own data (param is ignored).
   const targetParam = request.nextUrl.searchParams.get("targetUserId");
-  const userId = (user.role === "admin" && targetParam) ? targetParam : user.id;
+  const userId = user.role === "admin" && targetParam ? targetParam : user.id;
+
+  // Look up the user's GHL user ID once for all fetchers that need it
+  const supabase = createServerClient();
+  const { data: appUser } = await supabase.from("users").select("ghl_user_id").eq("id", userId).single();
+  const ghlUserId = appUser?.ghl_user_id ?? null;
 
   // Fetch all data in parallel for speed
-  const [alertsResult, pipelineResult, appointmentsResult, scorecardResult, tasksResult] =
-    await Promise.allSettled([
-      fetchAlerts(userId),
-      fetchPipelineSnapshot(),
-      fetchUpcoming(),
-      fetchScorecard(userId),
-      fetchTasks(userId),
-    ]);
+  const [alertsResult, pipelineResult, appointmentsResult, scorecardResult, tasksResult] = await Promise.allSettled([
+    fetchAlerts(userId),
+    fetchPipelineSnapshot(userId),
+    fetchUpcoming(ghlUserId),
+    fetchScorecard(userId, ghlUserId),
+    fetchTasks(ghlUserId),
+  ]);
 
   const alerts = alertsResult.status === "fulfilled" ? alertsResult.value : [];
   const pipeline = pipelineResult.status === "fulfilled" ? pipelineResult.value : [];
   const upcoming = appointmentsResult.status === "fulfilled" ? appointmentsResult.value : [];
-  const scorecard = scorecardResult.status === "fulfilled"
-    ? scorecardResult.value
-    : { calls: 0, texts: 0, emails: 0, stageMoves: 0, newContacted: 0 };
+  const scorecard =
+    scorecardResult.status === "fulfilled"
+      ? scorecardResult.value
+      : { calls: 0, texts: 0, emails: 0, stageMoves: 0, newContacted: 0 };
   const tasks = tasksResult.status === "fulfilled" ? tasksResult.value : [];
 
   return NextResponse.json({
@@ -72,50 +77,62 @@ async function fetchAlerts(userId: string): Promise<InactivityAlert[]> {
   return (data ?? []) as InactivityAlert[];
 }
 
-/** Fetch pipeline snapshot — lead count per stage from GHL */
-async function fetchPipelineSnapshot(): Promise<{ stage: string; count: number }[]> {
+/** Fetch pipeline snapshot — lead count per stage from Supabase (source of truth) */
+async function fetchPipelineSnapshot(userId: string): Promise<{ stage: string; count: number; pipeline: string }[]> {
   try {
-    const pipelines = await ghl.getPipelines();
-    if (pipelines.length === 0) return [];
+    const supabase = createServerClient();
 
-    const pipeline = pipelines[0];
-    const opportunities = await ghl.searchOpportunities({
-      pipelineId: pipeline.id,
-      status: "open",
-    });
+    // Get active journey_pipeline_state rows with stage names
+    // For non-admin users, filter to their assigned contacts
+    const query = supabase
+      .from("journey_pipeline_state")
+      .select("pipeline_id, current_stage_id, pipelines!inner(name, slug), pipeline_stages!inner(name)")
+      .eq("is_active", true);
 
-    // Count opportunities per stage
-    const stageCounts = new Map<string, number>();
-    for (const stage of pipeline.stages) {
-      stageCounts.set(stage.name, 0);
+    const { data: appUser } = await supabase.from("users").select("role").eq("id", userId).single();
+
+    // Admins see all; non-admins see only their assigned pipeline states
+    if (appUser?.role !== "admin") {
+      query.eq("assigned_user_id", userId);
     }
-    for (const opp of opportunities) {
-      const stage = pipeline.stages.find((s) => s.id === opp.pipelineStageId);
-      if (stage) {
-        stageCounts.set(stage.name, (stageCounts.get(stage.name) ?? 0) + 1);
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("Failed to fetch pipeline snapshot:", error.message);
+      return [];
+    }
+
+    // Count per pipeline + stage
+    const counts = new Map<string, { stage: string; count: number; pipeline: string }>();
+    for (const row of data ?? []) {
+      const pipelineName = (row as any).pipelines?.name ?? "Unknown";
+      const stageName = (row as any).pipeline_stages?.name ?? "Unknown";
+      const key = `${pipelineName}:${stageName}`;
+      const existing = counts.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        counts.set(key, { stage: stageName, count: 1, pipeline: pipelineName });
       }
     }
 
-    return Array.from(stageCounts.entries()).map(([stage, count]) => ({
-      stage,
-      count,
-    }));
+    return Array.from(counts.values());
   } catch (err) {
-    console.error("Failed to fetch pipeline:", err);
+    console.error("Failed to fetch pipeline:", err instanceof Error ? err.message : err);
     return [];
   }
 }
 
-/** Fetch upcoming appointments for the next 48 hours from GHL */
-async function fetchUpcoming(): Promise<{ title: string; time: string; contactId: string }[]> {
+/** Fetch upcoming appointments for the next 48 hours from GHL, filtered to this user */
+async function fetchUpcoming(ghlUserId: string | null): Promise<{ title: string; time: string; contactId: string }[]> {
   try {
     const now = new Date();
     const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
 
-    const appointments = await ghl.getAllAppointments(
-      now.toISOString(),
-      in48h.toISOString()
-    );
+    // If user has a GHL ID, fetch only their appointments; otherwise fetch all (admin fallback)
+    const appointments = ghlUserId
+      ? await ghl.getAppointments(now.toISOString(), in48h.toISOString(), { userId: ghlUserId })
+      : await ghl.getAllAppointments(now.toISOString(), in48h.toISOString());
 
     return appointments.map((apt) => ({
       title: apt.title,
@@ -123,13 +140,16 @@ async function fetchUpcoming(): Promise<{ title: string; time: string; contactId
       contactId: apt.contactId,
     }));
   } catch (err) {
-    console.error("Failed to fetch appointments:", err);
+    console.error("Failed to fetch appointments:", err instanceof Error ? err.message : err);
     return [];
   }
 }
 
-/** Fetch today's activity counts from GHL for the scorecard */
-async function fetchScorecard(userId: string): Promise<{
+/** Fetch today's activity counts for the scorecard */
+async function fetchScorecard(
+  userId: string,
+  _ghlUserId: string | null
+): Promise<{
   calls: number;
   texts: number;
   emails: number;
@@ -137,19 +157,7 @@ async function fetchScorecard(userId: string): Promise<{
   newContacted: number;
 }> {
   try {
-    // Get the user's GHL user ID for filtering
     const supabase = createServerClient();
-    const { data: appUser } = await supabase
-      .from("users")
-      .select("ghl_user_id")
-      .eq("id", userId)
-      .single();
-
-    const ghlUserId = appUser?.ghl_user_id;
-
-    // Search all contacts to count today's activity
-    // GHL doesn't have a dedicated "activity" endpoint, so we count from
-    // opportunities updated today and scout_action_logs
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayISO = today.toISOString();
@@ -186,22 +194,17 @@ async function fetchScorecard(userId: string): Promise<{
       }
     }
 
-    // Count contacts first contacted today
-    let newContacted = 0;
-    if (ghlUserId) {
-      const opportunities = await ghl.searchOpportunities({
-        assignedTo: ghlUserId,
-        status: "open",
-      });
-      newContacted = opportunities.filter((opp) => {
-        const created = new Date(opp.createdAt);
-        return created >= today;
-      }).length;
-    }
+    // Count contacts that entered the sales pipeline today (from Supabase, not GHL)
+    const { count } = await supabase
+      .from("journey_pipeline_state")
+      .select("id", { count: "exact", head: true })
+      .eq("assigned_user_id", userId)
+      .eq("is_active", true)
+      .gte("entered_pipeline_at", todayISO);
 
-    return { calls, texts, emails, stageMoves, newContacted };
+    return { calls, texts, emails, stageMoves, newContacted: count ?? 0 };
   } catch (err) {
-    console.error("Failed to fetch scorecard:", err);
+    console.error("Failed to fetch scorecard:", err instanceof Error ? err.message : err);
     return { calls: 0, texts: 0, emails: 0, stageMoves: 0, newContacted: 0 };
   }
 }
@@ -211,28 +214,23 @@ async function fetchScorecard(userId: string): Promise<{
  * Replaces the old per-contact loop, which silently capped at the first
  * 10 contacts of a user's opportunities and missed everything else.
  */
-async function fetchTasks(userId: string): Promise<{
-  id: string;
-  title: string;
-  body: string | null;
-  dueDate: string;
-  assignedTo: string | null;
-  contactId: string;
-  contactName: string | null;
-  completed: boolean;
-}[]> {
+async function fetchTasks(ghlUserId: string | null): Promise<
+  {
+    id: string;
+    title: string;
+    body: string | null;
+    dueDate: string;
+    assignedTo: string | null;
+    contactId: string;
+    contactName: string | null;
+    completed: boolean;
+  }[]
+> {
   try {
-    const supabase = createServerClient();
-    const { data: appUser } = await supabase
-      .from("users")
-      .select("ghl_user_id")
-      .eq("id", userId)
-      .single();
-
-    if (!appUser?.ghl_user_id) return [];
+    if (!ghlUserId) return [];
 
     const tasks = await ghl.searchTasks({
-      assignedTo: [appUser.ghl_user_id],
+      assignedTo: [ghlUserId],
       completed: false,
       limit: 100,
     });
@@ -251,7 +249,7 @@ async function fetchTasks(userId: string): Promise<{
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
       .slice(0, 20);
   } catch (err) {
-    console.error("Failed to fetch tasks:", err);
+    console.error("Failed to fetch tasks:", err instanceof Error ? err.message : err);
     return [];
   }
 }
