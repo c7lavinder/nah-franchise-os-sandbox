@@ -229,3 +229,54 @@ Old commit SHAs may remain accessible via GitHub's API cache for up to 90 days. 
 - New commits will naturally roll the cache
 - Contact GitHub Support to expedite if needed
 - The repo is private, limiting exposure
+
+---
+
+## Phase 3 — Working Tree Cleanup (executed)
+
+**Date:** 2026-04-27
+
+### Actions taken
+
+| Action | File | Result |
+|---|---|---|
+| Deleted from disk | `CT Contact Master - Sheet1.csv` | Was gitignored but still on disk. Removed. |
+| git rm | `data/corey-zorakle-integration-spec.md` | Obsolete internal spec |
+| git rm | `migration/pipeline-update-log.md` | Superseded by `supabase/migrations/` |
+| .gitignore | Added `*.csv`, `*.xlsx`, `*.xls`, `data/`, `exports/`, `secrets/` | Wildcard protection |
+
+### Customer data import NOT needed
+
+The CT Contact Master and FT Updated CSVs were CRM exports used as import reference data. The actual contact data already lives in Supabase (`contacts` table, synced via GHL integration). No re-import required.
+
+---
+
+## Phase 4 — Verification (passed)
+
+| Check | Result |
+|---|---|
+| `git ls-files \| grep -iE "\.(csv\|xlsx\|env)$"` | Clean — zero matches |
+| `git log --all --name-only \| grep -iE "\.(csv\|xlsx)$"` | Clean — zero matches |
+| `npx tsc --noEmit` | Clean — zero new errors |
+| `.gitignore` covers `*.csv`, `data/`, `.env*` | Verified via `git check-ignore -v` |
+
+---
+
+## Phase 5 — Policy (documented)
+
+Data handling policy added to `docs/security.md`:
+- Never commit customer data, credentials, or personal info
+- .gitignore wildcard protection is non-negotiable
+- New team member onboarding: out-of-band credential sharing only
+- Leak response procedure: stop, don't delete, coordinate scrub, rotate
+
+---
+
+## TIER 0c COMPLETE
+
+All existential data privacy risks addressed:
+- 2,786 customer records scrubbed from git history
+- Zero hardcoded secrets (no rotation needed)
+- .gitignore tightened with wildcard protection
+- Orphaned data directories cleaned
+- Data handling policy documented

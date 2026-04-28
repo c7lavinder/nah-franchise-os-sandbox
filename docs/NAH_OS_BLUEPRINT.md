@@ -453,7 +453,14 @@ After Tier 0 + Sessions A/B/C land, this is the work order:
   - Phase 2e: 7 cron + 9 webhook routes hardened, CRON_SECRET in Vercel (Session 13)
   - Phase 2f: 133 Medium routes retrofitted, 5 smoke tests, docs/security.md (Session 14)
   - Deferred: WEBHOOK_SHARED_SECRET activation (needs provider config first)
-- [ ] **0c — Data privacy audit** — prompt ready
+- [x] **0c — Data privacy audit** — COMPLETE 2026-04-27
+  - Phase 1: working tree scan — 2 critical PII files tracked, 0 hardcoded secrets
+  - Phase 2: history scan — CT Contact Master (565KB) + FT Updated (567KB) in history
+  - Phase 2.5: git-filter-repo scrub — 6 files erased from all history, force-pushed
+  - Phase 3: working tree cleanup — orphaned data/ and migration/ deleted, .gitignore tightened
+  - Caveat: GitHub API cache may retain old SHAs for up to 90 days (private repo)
+
+**TIER 0 COMPLETE** — all existential risks addressed.
 
 ### Sessions A–C
 - [ ] **A — Doc reorg + cleanup** — prompt to draft after 0c lands

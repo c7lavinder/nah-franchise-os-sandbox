@@ -148,3 +148,43 @@ Vercel Cron automatically passes `Authorization: Bearer ${CRON_SECRET}` when the
 3. If admin-only, add the role check after `requireAuth`
 4. Frontend: use `apiFetch` instead of `fetch` for the corresponding client call
 5. Add the route to `docs/AUTH_AUDIT.md` with its classification
+
+---
+
+## Data handling policy
+
+### Never commit
+
+- **Customer data** (contacts, leads, transcripts, assessment scores) — lives in Supabase only
+- **Credentials, API keys, tokens** — env vars only (`.env.local` locally, Vercel env vars in production)
+- **Personal info** about team members beyond name and work email
+- **CRM exports** (CSV, XLSX, XLS) — `.gitignore` now blocks all CSV/XLSX at repo level
+
+### .gitignore is non-negotiable
+
+The repo `.gitignore` blocks:
+- `*.csv`, `*.xlsx`, `*.xls` — all tabular data files
+- `data/`, `exports/` — data directories
+- `.env`, `.env.local`, `.env.*.local`, `.env.production` — all env files
+- `*.pem`, `*.key`, `secrets/` — credential files
+
+When in doubt, gitignore first. It's easier to un-ignore a file than to scrub it from history.
+
+### Onboarding a new team member
+
+1. Verify `.env.local.example` is current
+2. Provide `.env.local` values out-of-band (1Password, secure share — never email or Slack)
+3. Do not add personal data to the repo
+4. Have them verify `git check-ignore .env.local` returns a match
+
+### Discovered a leak?
+
+1. **Stop committing immediately**
+2. Do NOT just delete the file — git history retains it permanently
+3. Tag Corey and coordinate a `git-filter-repo` history scrub
+4. Rotate any leaked credentials (API keys, tokens, passwords)
+5. See `docs/PRIVACY_AUDIT.md` Phase 2.5 for the scrub procedure
+
+### History scrub completed (2026-04-27)
+
+Six data files (2,786 customer records) were scrubbed from all git history using `git-filter-repo`. Backup preserved at `../nah-franchise-os-sandbox-PRESCRUB-BACKUP-20260427`. GitHub API cache may retain old commit SHAs for up to 90 days (private repo, limited exposure).
