@@ -83,15 +83,19 @@ Goal: support hundreds of franchisees who each buy 10+ houses/year.
 
 ### Tier 1 — Feature gaps
 
-| #   | Gap                           | Effort    | Depends on                 |
-| --- | ----------------------------- | --------- | -------------------------- |
-| 7   | Form webhook config           | 1-2 days  | Done (2026-04-28)          |
-| 3   | Real users in GHL             | 3-5 days  | Auth retrofit (done)       |
-| 2   | Daily HQ per-user wiring      | 1 week    | #3                         |
-| 1   | LLM depth (Scout prompt, RAG) | 1-2 weeks | #3                         |
-| 4   | Multi-contact calls           | 2 weeks   | Independent                |
-| 5   | Per-call-type grading         | 1-2 weeks | #4                         |
-| 6   | MasterSuite                   | 3-4 weeks | Scoping conversation first |
+> **GHL role (confirmed 2026-04-28):** Chad does not use the GHL UI directly. NAH OS is the daily driver. GHL is a backend system NAH OS pushes to (contacts, tasks, calendar, notes, comms). See `docs/INTEGRATION_MAP.md`.
+
+| #   | Gap                            | Effort    | Status / Depends on           |
+| --- | ------------------------------ | --------- | ----------------------------- |
+| 2   | Daily HQ per-user wiring       | 1 week    | Next up — Chad's daily driver |
+| 3   | Real users in GHL              | 3-5 days  | Auth retrofit (done)          |
+| 1   | LLM depth (Scout prompt, RAG)  | 1-2 weeks | #3                            |
+| 4   | Multi-contact calls            | 2 weeks   | Independent                   |
+| 5   | Per-call-type grading          | 1-2 weeks | #4                            |
+| 6   | MasterSuite                    | 3-4 weeks | Scoping conversation first    |
+| 7   | Form webhook / prospect intake | —         | SHELVED (see note below)      |
+
+**Tier 1 #7 — SHELVED.** Marketing site (newagainhouses.com) backend is not editable by our team. Form intake will require either marketing site access OR a different ingestion path (e.g., public API endpoint, Zapier, or manual entry — which is the current workflow). Revisit when marketing site access is available. Ed25519 signature verification code is ready in `lib/auth/ghl-webhook-verify.ts` for when GHL webhooks are needed.
 
 ---
 
@@ -104,7 +108,9 @@ See `docs/adr/` for individual decision records. Key decisions:
 - Draft-Review-Confirm pattern is sacred (ADR-0003)
 - requireAuth returns Response, not throws (ADR-0008)
 - Schema lives in supabase/migrations/ only (ADR-0009)
-- WEBHOOK_SHARED_SECRET activated for GHL (Tier 1 #7); other providers pending config
+- GHL is a backend comms channel — NAH OS pushes to it, not the reverse (confirmed 2026-04-28)
+- Ed25519 signature verification ready for GHL webhooks when needed; shared-secret for non-GHL providers
+- Tier 1 #7 (form webhook) shelved — marketing site backend not editable
 
 ---
 
