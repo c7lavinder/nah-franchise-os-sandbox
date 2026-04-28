@@ -1,87 +1,122 @@
-# Session Handoff — 2026-04-27 — Session 17
+# Session Handoff — 2026-04-28 — Session 18
 
 ## Status
-Phase: SESSION B COMPLETE (engineering tooling) / Health: Green / Duration: short session
+
+Phase: SESSION C COMPLETE + Tier 1 #7 investigated and SHELVED / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-### Phase 1 — Typed Supabase client
-- Generated `types/supabase.ts` (4,330 lines) from Supabase REST API OpenAPI spec
-- Contains Row/Insert/Update types for all 103 tables
-- Client typing deferred: wiring `Database<>` breaks complex join queries because REST-generated types lack relationship metadata. Full typing requires `npx supabase login` + proper CLI gen.
-- lib/supabase/server.ts documented with regen recipe
+### Session C — Custom skills, hooks, agents (merged to main)
 
-### Phase 2 — Pre-commit hooks
-- Installed Husky, lint-staged, Prettier
-- `.husky/pre-commit`: runs lint-staged (Prettier) + `tsc --noEmit` + `npm test`
-- `.prettierrc`: semi, double quotes, 120 width, trailing commas
-- `package.json`: lint-staged config for `.ts/.tsx/.json/.md` files
+- 7 custom skills: migration-safety-check, nah-context-load, verify-claims, new-adr, ghl-boundary-check, scout-tool-add, deploy-readiness
+- 2 review agents as slash commands: /review-code, /review-migration
+- 3 hook scripts: block-dangerous-git, migration-safety-reminder, ghl-boundary-check
+- 4 slash commands: load-context, verify-claims, audit-docs, draft-adr
+- Updated master-plan.md, CONTRIBUTING.md, README.md
 
-### Phase 3 — CI on PR
-- `.github/workflows/ci.yml`: runs on push to main + PRs targeting main
-- Steps: checkout, setup-node (v20, npm cache), npm ci, tsc --noEmit, lint, test
+### Tier 1 #7 — Form webhook (investigated, then SHELVED)
 
-### Phase 4 — PR template
-- `.github/pull_request_template.md`: type checkboxes, pre-merge checklist
+- Consolidated `/api/webhooks/ghl/contacts` as canonical ContactCreate handler (sync + pipeline + alert + action log)
+- Removed duplicate ContactCreate case from `/api/webhooks/ghl`
+- Created `lib/auth/ghl-webhook-verify.ts` — Ed25519 + RSA signature verification for GHL webhooks
+- Switched 3 GHL webhook routes from shared-secret to Ed25519 signature verification
+- Added 11 unit tests for GHL signature verification (96 total tests)
+- Set `WEBHOOK_SHARED_SECRET` in Vercel (production, preview, development)
+- **SHELVED** after discovering the actual data flow is opposite: NAH OS creates contacts IN GHL, not the reverse
 
-### Phase 5 — .claude/settings.json
-- Audited and verified: auto-allow git/npm/npx, hard-block destructive ops via hook
-- No changes needed — already correct for solo workflow
+### GHL Integration Audit
 
-### Phase 6 — Doc updates
-- `docs/master-plan.md`: Session B marked COMPLETE
-- `docs/runbook.md`: added CI failure, pre-commit hook, Supabase types sections
-- `CONTRIBUTING.md`: added quality gates table, Supabase type regen recipe
+- Audited all 30 functions in `lib/ghl/client.ts` — mapped every caller
+- Created `docs/INTEGRATION_MAP.md` — complete map of all GHL data flows
+- Found 13 of 30 GHL client functions have zero callers (flagged for cleanup)
+- Corrected CLAUDE.md GHL mental model: GHL is a backend comms channel, NAH OS pushes to it
 
 ## What Is Confirmed Working
-- `npx tsc --noEmit` clean
-- `npx vitest run tests/critical-paths/` — 5 suites, 27 tests, all passing
-- Husky pre-commit hook configured and tested
-- CI workflow file in place (first run will trigger on merge to main)
+
+- `npx tsc --noEmit` — 0 errors
+- `npx vitest run` — 8 suites, 96 tests, all passing
+- Husky pre-commit hooks clean on all commits
+- Ed25519 signature verification code deployed and tested (unit tests)
+- Production deployed (`dpl_kzd6sgtvy`) — Vercel build succeeded
+- curl test confirmed: production GHL webhook endpoints return 200 without signature (dev mode skips), and verification code is ready for when GHL webhooks are subscribed
 
 ## What Is Broken or Incomplete
-- Supabase typed client not wired into live code — needs proper `supabase login` for relationship-aware types — Medium
-- CI first run not yet verified (needs Corey to check GitHub Actions tab after merge) — Low
+
+- Tier 1 #7 shelved — marketing site (newagainhouses.com) backend not editable, no public form endpoint exists — Medium (blocked on access)
+- GHL webhooks not subscribed — handlers exist but dormant (no events configured in GHL Marketplace App) — Low (by design)
+- 13 of 30 GHL client functions have zero callers — dead code, flagged for cleanup — Low
+- Supabase typed client not wired into live code — needs `supabase login` — Medium
 - GitHub API cache: old SHAs from scrub accessible up to 90 days — Low
-- WEBHOOK_SHARED_SECRET activation pending provider config — Low
+- JWT in localStorage vs httpOnly cookies — deferred — Low
 
 ## Decisions Made
-- Supabase types generated as reference, NOT wired into client — complex join queries (`.select` with `!inner`) break with REST-only types that lack relationship metadata — Claude
-- Prettier config: kept existing code style (semi, double quotes) rather than reformatting entire codebase — Claude
-- Pre-commit uses `--no-verify` for setup commits only — documented in commit messages — Claude
+
+- GHL data direction is outbound: NAH OS → GHL (contacts, tasks, comms, calendar). Not inbound. — Corey
+- Tier 1 #7 shelved: marketing site backend not editable, prospect creation is manual via NAH OS UI — Corey
+- Ed25519 signature verification for GHL webhooks instead of shared-secret custom header — Claude (GHL signs with Ed25519, doesn't support custom outbound headers)
+- `/ghl/contacts` is canonical ContactCreate handler, `/ghl` handles messages + stages only — Claude
+- Tier 1 reordered: #2 (Daily HQ) is next priority since Chad uses NAH OS as daily driver — Corey
+- Keep `WEBHOOK_SHARED_SECRET` in Vercel for non-GHL providers when configured — Claude
 
 ## Files Created
-- `.github/workflows/ci.yml`
-- `.github/pull_request_template.md`
-- `.husky/pre-commit`
-- `.prettierrc`
+
+- `lib/auth/ghl-webhook-verify.ts`
+- `tests/critical-paths/ghl-webhook-verify.test.ts`
+- `docs/INTEGRATION_MAP.md`
+- `.claude/commands/audit-docs.md`
+- `.claude/commands/draft-adr.md`
+- `.claude/commands/load-context.md`
+- `.claude/commands/review-code.md`
+- `.claude/commands/review-migration.md`
+- `.claude/commands/verify-claims.md`
+- `.claude/hooks/ghl-boundary-check.sh`
+- `.claude/hooks/migration-safety-reminder.sh`
+- `.claude/skills/deploy-readiness/SKILL.md`
+- `.claude/skills/ghl-boundary-check/SKILL.md`
+- `.claude/skills/migration-safety-check/SKILL.md`
+- `.claude/skills/nah-context-load/SKILL.md`
+- `.claude/skills/new-adr/SKILL.md`
+- `.claude/skills/scout-tool-add/SKILL.md`
+- `.claude/skills/verify-claims/SKILL.md`
 
 ## Files Modified
-- `types/supabase.ts` (regenerated — 4,330 lines)
-- `lib/supabase/server.ts` (documented typing situation + regen recipe)
-- `package.json` (lint-staged config, husky prepare script)
-- `package-lock.json` (new dev deps)
-- `docs/master-plan.md` (Session B complete)
-- `docs/runbook.md` (3 new sections)
-- `CONTRIBUTING.md` (quality gates, type regen)
+
+- `CLAUDE.md` (corrected GHL mental model, added INTEGRATION_MAP to references)
+- `CONTRIBUTING.md` (Session C updates)
+- `README.md` (Session C updates)
+- `.claude/settings.json` (hook configurations)
+- `app/api/webhooks/ghl/route.ts` (removed ContactCreate case, Ed25519 verification)
+- `app/api/webhooks/ghl/contacts/route.ts` (consolidated handler, Ed25519 verification)
+- `app/api/webhooks/ghl-calendar/route.ts` (Ed25519 verification)
+- `app/api/webhooks/form-submission/route.ts` (import formatting fix)
+- `docs/master-plan.md` (Session C complete, Tier 1 reordered, #7 shelved)
+- `docs/integrations.md` (GHL webhook routes table, Ed25519 signing)
+- `docs/security.md` (3 webhook verification schemes documented)
+- `docs/AUTH_AUDIT.md` (WEBHOOK_SHARED_SECRET activated, GHL signing noted)
 
 ## Files Deleted
+
 - None
 
 ## Open Issues Carried Forward
+
+- Tier 1 #7 shelved — needs marketing site access or alternative ingestion path — Medium
+- 13 unused GHL client functions — cleanup pass (Tier 2) — Low
 - Supabase typed client needs `npx supabase login` for full relationship types — Medium
-- CI first run verification — check GitHub Actions tab — Low
 - GitHub API cache: old SHAs from history scrub — Low
-- WEBHOOK_SHARED_SECRET activation pending — Low
 - JWT in localStorage vs httpOnly cookies — deferred — Low
-- Remaining legacy docs (ghl-*.md, pipeline.md, etc.) — fold or delete later — Low
+- Remaining legacy docs (ghl-\*.md, pipeline.md, etc.) — fold or delete later — Low
 
 ## Exact Next Step
-Begin Session C — custom skills, hooks, and agents (per blueprint and master-plan).
+
+Begin Tier 1 #2 — Daily HQ per-user wiring. Chad uses NAH OS as his daily driver; Daily HQ is the command center.
 
 ## Copy This To Start Next Session In Claude.ai
+
 ---
+
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
-Then: Begin Session C — custom skills, hooks, and agents.
+Then: Begin Tier 1 #2 — Daily HQ per-user wiring.
+
 ---
