@@ -14,6 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { logSuggestionFeedback } from "@/lib/learning/feedback-logger";
 import { setContactProfileField } from "@/lib/profile/profile-fields";
 
@@ -21,6 +22,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ callId: string }> }
 ) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const { callId } = await params;
 
   let body: {

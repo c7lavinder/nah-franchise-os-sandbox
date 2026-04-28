@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import {
   getTestsForWorkflow,
   createABTest,
@@ -13,9 +14,10 @@ import {
 import type { ABTestType } from "@/lib/workflows/types";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ workflowId: string }> }
 ) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const { workflowId } = await params;
 
@@ -35,20 +37,20 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ workflowId: string }> }
 ) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { workflowId } = await params;
     const body = await request.json();
 
-    // Validate required fields
-    const { testType, minSampleSize, createdBy } = body as {
+    const { testType, minSampleSize } = body as {
       testType?: string;
       minSampleSize?: number;
-      createdBy?: string;
     };
 
-    if (!testType || !minSampleSize || !createdBy) {
+    if (!testType || !minSampleSize) {
       return NextResponse.json(
-        { error: "Missing required fields: testType, minSampleSize, createdBy" },
+        { error: "Missing required fields: testType, minSampleSize" },
         { status: 400 }
       );
     }
@@ -68,7 +70,7 @@ export async function POST(
       variantAVersionId: body.variantAVersionId as string | undefined,
       variantBVersionId: body.variantBVersionId as string | undefined,
       minSampleSize,
-      createdBy,
+      createdBy: user.id,
     });
 
     if (!result.success) {

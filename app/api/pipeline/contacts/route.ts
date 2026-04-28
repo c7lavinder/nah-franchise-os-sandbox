@@ -17,6 +17,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 
 const PAGE_SIZE = 1000;
@@ -64,6 +65,7 @@ const SELECT_FIELDS = `
 `;
 
 export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const { searchParams } = new URL(request.url);
     const stageId = searchParams.get("stage_id");

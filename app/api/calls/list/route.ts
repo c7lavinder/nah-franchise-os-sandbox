@@ -7,9 +7,11 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
   const callTypeId = searchParams.get("call_type_id");
