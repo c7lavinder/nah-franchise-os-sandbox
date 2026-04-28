@@ -13,6 +13,7 @@ import {
   FileSignature,
   BookOpen,
   Settings,
+  Shield,
   LogOut,
   ChevronUp,
 } from "lucide-react";
@@ -30,10 +31,30 @@ interface NavItem {
 
 /** Main nav — core pages, visible to all authenticated roles */
 const NAV_ITEMS: NavItem[] = [
-  { label: "Scout AI", href: "/scout", icon: Bot, roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"] },
-  { label: "Daily HQ", href: "/daily-hq", icon: LayoutDashboard, roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"] },
-  { label: "Pipeline", href: "/pipeline", icon: GitBranch, roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"] },
-  { label: "Calls", href: "/calls", icon: Phone, roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"] },
+  {
+    label: "Scout AI",
+    href: "/scout",
+    icon: Bot,
+    roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"],
+  },
+  {
+    label: "Daily HQ",
+    href: "/daily-hq",
+    icon: LayoutDashboard,
+    roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"],
+  },
+  {
+    label: "Pipeline",
+    href: "/pipeline",
+    icon: GitBranch,
+    roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"],
+  },
+  {
+    label: "Calls",
+    href: "/calls",
+    icon: Phone,
+    roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"],
+  },
 ];
 
 interface SidebarProps {
@@ -65,7 +86,10 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
   return (
     <aside
       onMouseEnter={() => setSidebarHovered(true)}
-      onMouseLeave={() => { setProfileOpen(false); setSidebarHovered(false); }}
+      onMouseLeave={() => {
+        setProfileOpen(false);
+        setSidebarHovered(false);
+      }}
       className="group fixed left-0 top-0 bottom-0 z-[100] w-[80px] hover:w-[280px] overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
       style={{
         background: "rgba(255, 255, 255, 0.6)",
@@ -92,7 +116,9 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
               height={44}
               style={{ objectFit: "contain" }}
             />
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-nah-orange/15 text-nah-orange tracking-wider">BETA</span>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-nah-orange/15 text-nah-orange tracking-wider">
+              BETA
+            </span>
           </div>
         </div>
 
@@ -140,7 +166,9 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
             </div>
             <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap flex-1 text-left">
               <p className="text-sm font-semibold text-text-primary">{user?.fullName ?? "User"}</p>
-              <p className="text-xs text-text-secondary capitalize">{user?.role === "leadership" || user?.role === "admin" ? "Admin" : (user?.role ?? "rep")}</p>
+              <p className="text-xs text-text-secondary capitalize">
+                {user?.role === "leadership" || user?.role === "admin" ? "Admin" : (user?.role ?? "rep")}
+              </p>
             </div>
             <ChevronUp
               size={14}
@@ -165,18 +193,25 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
               <div className="flex items-center gap-3 px-4 py-3 text-text-tertiary cursor-not-allowed">
                 <Workflow size={16} />
                 <span className="text-sm font-medium">Workflows</span>
-                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-text-tertiary/10 text-text-tertiary">Soon</span>
+                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-text-tertiary/10 text-text-tertiary">
+                  Soon
+                </span>
               </div>
               {/* Signing Software — Coming Soon placeholder */}
               <div className="flex items-center gap-3 px-4 py-3 text-text-tertiary cursor-not-allowed">
                 <FileSignature size={16} />
                 <span className="text-sm font-medium">Signing</span>
-                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-text-tertiary/10 text-text-tertiary">Soon</span>
+                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-text-tertiary/10 text-text-tertiary">
+                  Soon
+                </span>
               </div>
               <div style={{ borderTop: "1px solid rgba(0,0,0,0.04)" }} />
               <Link
                 href="/knowledge"
-                onClick={() => { setProfileOpen(false); onNavClick?.(); }}
+                onClick={() => {
+                  setProfileOpen(false);
+                  onNavClick?.();
+                }}
                 className="flex items-center gap-3 px-4 py-3 text-text-secondary hover:bg-[rgba(0,161,225,0.05)] hover:text-nah-blue transition-colors"
               >
                 <BookOpen size={16} />
@@ -184,15 +219,34 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
               </Link>
               <Link
                 href="/settings"
-                onClick={() => { setProfileOpen(false); onNavClick?.(); }}
+                onClick={() => {
+                  setProfileOpen(false);
+                  onNavClick?.();
+                }}
                 className="flex items-center gap-3 px-4 py-3 text-text-secondary hover:bg-[rgba(0,161,225,0.05)] hover:text-nah-blue transition-colors"
               >
                 <Settings size={16} />
                 <span className="text-sm font-medium">Settings</span>
               </Link>
+              {user?.role === "admin" && (
+                <Link
+                  href="/audit"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    onNavClick?.();
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 text-text-secondary hover:bg-[rgba(0,161,225,0.05)] hover:text-nah-blue transition-colors"
+                >
+                  <Shield size={16} />
+                  <span className="text-sm font-medium">Audit</span>
+                </Link>
+              )}
               <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }} />
               <button
-                onClick={() => { setProfileOpen(false); handleLogout(); }}
+                onClick={() => {
+                  setProfileOpen(false);
+                  handleLogout();
+                }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-danger hover:bg-[rgba(239,68,68,0.05)] transition-colors"
               >
                 <LogOut size={16} />

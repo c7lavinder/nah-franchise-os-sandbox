@@ -15,6 +15,7 @@ function getPageTitle(pathname: string): string {
     "/dashboard": "Dashboard",
     "/knowledge": "Knowledge Base",
     "/settings": "Settings",
+    "/audit": "Audit",
     "/workflows": "Workflows",
     "/onboarding": "Onboarding",
   };
@@ -34,11 +35,7 @@ function getPageTitle(pathname: string): string {
  * Redirects to /login if not authenticated.
  * Wraps pages in the AppShell (sidebar + top bar).
  */
-export default function AuthLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -64,11 +61,7 @@ export default function AuthLayout({
 
   return (
     <ToastProvider>
-      <AppShell
-        pageTitle={getPageTitle(pathname)}
-        userName={user.fullName}
-        userRole={user.role}
-      >
+      <AppShell pageTitle={getPageTitle(pathname)} userName={user.fullName} userRole={user.role}>
         {children}
       </AppShell>
     </ToastProvider>
