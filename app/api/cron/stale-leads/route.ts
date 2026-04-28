@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * Skips leads that already have an open (unresolved) alert of the same type.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import type { GHLOpportunity } from "@/types/ghl";
@@ -31,7 +31,12 @@ interface AlertToCreate {
   message: string;
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}` && process.env.NODE_ENV !== "development") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const supabase = createServerClient();
 

@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  * Intended to run every 4 hours via cron.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   notifyStepsPendingConfirmation,
   notifyUnhealthyWorkflows,
@@ -21,7 +21,12 @@ import {
 /** Default: flag enrollments with no activity for 5+ days */
 const STALE_ENROLLMENT_DAYS = 5;
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}` && process.env.NODE_ENV !== "development") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const [confirmationResult, healthResult, staleResult] = await Promise.all([
       notifyStepsPendingConfirmation(),

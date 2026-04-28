@@ -8,12 +8,17 @@ export const dynamic = "force-dynamic";
  * so we refresh proactively to avoid stale tokens when no one uses the app.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 
 const TOKEN_URL = "https://services.leadconnectorhq.com/oauth/token";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}` && process.env.NODE_ENV !== "development") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const supabase = createServerClient();
 
   // Get current refresh token

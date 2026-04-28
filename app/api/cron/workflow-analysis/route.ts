@@ -9,10 +9,15 @@ export const dynamic = "force-dynamic";
  * Intended to run once daily via cron (e.g., 6:00 AM).
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { analyzeAllWorkflows } from "@/lib/workflows/health-scoring";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}` && process.env.NODE_ENV !== "development") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const startTime = Date.now();
     const analyses = await analyzeAllWorkflows();

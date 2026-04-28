@@ -14,10 +14,15 @@ export const dynamic = "force-dynamic";
  * 2. syncStageEnrollments — checks pipeline stages for auto-enrollment triggers
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { syncDeliveryData, syncStageEnrollments } from "@/lib/workflows/delivery-sync";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}` && process.env.NODE_ENV !== "development") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const startTime = Date.now();
 

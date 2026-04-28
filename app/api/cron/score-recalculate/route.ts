@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * Returns count of profiles updated.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { updateCandidateScore } from "@/lib/intelligence/scoring";
 import { updateCandidateFlags } from "@/lib/intelligence/flags";
@@ -22,7 +22,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}` && process.env.NODE_ENV !== "development") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const supabase = createServerClient();
 
