@@ -196,9 +196,36 @@ data/zorakle-master-final.json
 
 ---
 
-**STOP — awaiting Corey decision:**
-- **Option A:** Run history scrub now (Phase 2.5), then Phase 3 working-tree cleanup
-- **Option B:** Run Phase 3 working-tree cleanup first, scrub later
-- **Option C:** Different sequence
+---
 
-**Recommendation:** Option A — scrub first, then clean working tree. The scrub rewrites all commit hashes, so any Phase 3 commits made before the scrub would be orphaned. Cleaner to scrub first.
+## Phase 2.5 — History Scrub (executed)
+
+**Date:** 2026-04-27
+**Tool:** `git-filter-repo` (a40bce548d2c)
+**Backup:** `/Users/coreylavinder/nah-franchise-os-sandbox-PRESCRUB-BACKUP-20260427`
+
+### Files scrubbed from all history
+
+| File | Pre-scrub size | Result |
+|---|---|---|
+| `CT Contact Master - Sheet1.csv` | 565 KB | 0 commits — gone |
+| `FT Updated 4.7 - Sheet1.csv` | 567 KB | 0 commits — gone |
+| `data/owner-master-index-full.csv` | 3.6 KB | 0 commits — gone |
+| `data/.import-progress.json` | 22 KB | 0 commits — gone |
+| `data/.creation-date-progress.json` | 15 KB | 0 commits — gone |
+| `data/zorakle-master-final.json` | 35 KB | 0 commits — gone |
+
+### Post-scrub verification
+
+- Zero CSV files in any commit: confirmed
+- Largest blobs are now `package-lock.json` (326 KB) — expected
+- All commit SHAs rewritten (542 commits reprocessed in 0.65s)
+- Force-pushed to GitHub: `50a8091...346b1ff main -> main`
+- Stale remote branches deleted: `feat/call-mapping-v2`, `phase-a-housekeeping`, `sprint-0-bug-fixes`, `sprint-1-supabase-schema`
+
+### GitHub cache caveat
+
+Old commit SHAs may remain accessible via GitHub's API cache for up to 90 days. This is a GitHub platform limitation. Mitigation:
+- New commits will naturally roll the cache
+- Contact GitHub Support to expedite if needed
+- The repo is private, limiting exposure
