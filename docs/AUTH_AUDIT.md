@@ -545,6 +545,31 @@ All 16 cron routes now protected (9 were already protected).
 webhooks/read-ai left alone (already has per-user HMAC verification).
 All 10 webhook routes now protected.
 
-### What remains
+---
 
-- ~137 Medium risk routes: add-requireAuth (Phase 2f — optional, lower priority)
+## Phase 2f — Medium-risk routes + tests + docs (completed)
+
+**Date:** 2026-04-27
+**Commit:** `4d6411b`
+
+- All 133 remaining Medium-risk routes retrofitted with requireAuth
+- 7 Low-risk "keep-public" routes verified as correctly classified
+- 5 critical-path smoke tests added (27 tests, all passing)
+- `docs/security.md` created — full auth model reference
+- CRON_SECRET added to Vercel production + development via CLI
+
+### WEBHOOK_SHARED_SECRET — DEFERRED
+
+Not yet set in Vercel. Setting it would break all incoming webhooks until each provider is configured with the matching secret. Providers needing config:
+- GHL (3 webhook types), DocuSign, Trainual, Zorakle, Google Meet, form-submission, payment
+
+Verification code is in place and will activate automatically once the env var is set.
+
+### Final tally
+
+- **216 total API routes**
+- **209 protected** (requireAuth, admin role check, CRON_SECRET, or HMAC/shared-secret)
+- **7 intentionally public** (login, logout, refresh, OAuth, health, tracking pixels)
+- **0 unprotected**
+
+### TIER 0b COMPLETE

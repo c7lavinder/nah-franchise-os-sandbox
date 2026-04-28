@@ -445,13 +445,14 @@ After Tier 0 + Sessions A/B/C land, this is the work order:
 
 ### Tier 0
 - [x] **0a — git-guardrails install** — done 2026-04-27, merged to main (Session 9)
-- [ ] **0b — Auth retrofit** — NEAR COMPLETE
-  - Phase 2a complete — 15 Critical routes retrofitted (Session 10)
-  - Phase 2b complete — frontend auth sweep, 94 files + JWT auto-refresh + force-logout (Session 11)
-  - Phase 2c complete — 15 broken requireAdmin callers migrated, admin-check.ts deleted (Session 12)
-  - Phase 2d complete — 6 remaining High-risk routes retrofitted (Session 13)
-  - Phase 2e complete — 7 cron routes + 9 webhook routes hardened (Session 13)
-  - Phase 2f optional — ~137 Medium routes (lower priority, can proceed to Tier 0c)
+- [x] **0b — Auth retrofit** — COMPLETE 2026-04-27
+  - Phase 2a: 15 Critical routes retrofitted (Session 10)
+  - Phase 2b: frontend auth sweep, 94 files + JWT auto-refresh + force-logout (Session 11)
+  - Phase 2c: 15 broken requireAdmin callers migrated, admin-check.ts deleted (Session 12)
+  - Phase 2d: 6 remaining High-risk routes retrofitted (Session 13)
+  - Phase 2e: 7 cron + 9 webhook routes hardened, CRON_SECRET in Vercel (Session 13)
+  - Phase 2f: 133 Medium routes retrofitted, 5 smoke tests, docs/security.md (Session 14)
+  - Deferred: WEBHOOK_SHARED_SECRET activation (needs provider config first)
 - [ ] **0c — Data privacy audit** — prompt ready
 
 ### Sessions A–C
