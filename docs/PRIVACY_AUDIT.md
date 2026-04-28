@@ -93,4 +93,112 @@ Current `.gitignore` has:
 
 ---
 
-**STOP — awaiting Corey approval before Phase 2 (git history scan) and Phase 3 (execution).**
+---
+
+## Phase 2 — Git History Findings
+
+**Date:** 2026-04-27
+**Method:** `git log --all --diff-filter=A`, blob size analysis, per-branch tree scan
+
+### Key result: No .env or credential files ever committed
+
+- Only `.env.local.example` (with placeholder values) was ever committed.
+- No `.env`, `.env.local`, `.env.production` ever tracked.
+- No `sk-ant-*`, `sk-proj-*`, or real API keys found in any committed source file.
+- Seed SQL migrations contain no real secrets — only config values and schema DDL.
+
+**No credential rotation needed.** This is a significant positive finding.
+
+### Files in history but not in current tree
+
+| File | First committed | Deleted in | Size in history | PII risk |
+|---|---|---|---|---|
+| `CT Contact Master - Sheet1.csv` | `186d19e` (2026-03-25) | `3bb15a1` (2026-03-25) | 565 KB | CRITICAL — 1,389 real contacts with names, emails, phones, addresses |
+
+Committed and deleted on the same day. Gitignored via `CT Contact Master*` afterward. But the 565 KB blob is permanently in git history.
+
+### Files in history AND current tree (PII-heavy)
+
+| File | First committed | Total commits | Size | PII risk |
+|---|---|---|---|---|
+| `FT Updated 4.7 - Sheet1.csv` | `6e89005` (2026-04-07) | 1 | 567 KB | CRITICAL — 1,397 prospects: names, emails, phones, addresses, deal sizes |
+| `data/owner-master-index-full.csv` | `4589ca1` (2026-04-09) | 1 | 3.6 KB | MEDIUM — 80 territory owners, 10 with real email addresses |
+| `data/zorakle-master-final.json` | `4589ca1` (2026-04-09) | 1 | 35 KB | LOW — personality assessment scores, no direct PII |
+| `data/.import-progress.json` | committed | 1 | 22 KB | LOW — CRM IDs only |
+| `data/.creation-date-progress.json` | committed | 1 | 15 KB | LOW — CRM IDs only |
+
+### Branches containing sensitive files
+
+| Branch | Sensitive files |
+|---|---|
+| `main` | `FT Updated 4.7 - Sheet1.csv`, `data/owner-master-index-full.csv` |
+| `origin/main` | same |
+| `origin/feat/call-mapping-v2` (stale) | same |
+| `chore/data-privacy-audit` (current) | same |
+
+### Largest blobs in repo history
+
+The **two largest objects** in the entire git repository are customer data files:
+1. `FT Updated 4.7 - Sheet1.csv` — 567 KB
+2. `CT Contact Master - Sheet1.csv` — 565 KB
+
+Everything else is `package-lock.json` (expected).
+
+---
+
+## Recommended History Scrub
+
+### Verdict: YES — scrub recommended
+
+**Reasoning:**
+- Two customer data files totaling 1,132 KB with 2,786 real prospect records (names, emails, phones, addresses) are permanently in git history.
+- Even after `git rm` from the working tree, anyone who clones the repo or has a local copy can recover the full files from history.
+- The repo is on GitHub (private, but shared with future contributors).
+- No credential rotation needed (no secrets were ever committed), so the scrub scope is limited to data files only.
+
+### Tool recommendation: `git filter-repo`
+
+`git filter-repo` (modern, maintained, recommended by Git project) over BFG Repo-Cleaner (legacy, unmaintained). Install: `pip install git-filter-repo` or `brew install git-filter-repo`.
+
+### Scope — files to scrub
+
+```
+CT Contact Master - Sheet1.csv
+FT Updated 4.7 - Sheet1.csv
+data/owner-master-index-full.csv
+data/.import-progress.json
+data/.creation-date-progress.json
+data/zorakle-master-final.json
+```
+
+### Estimated effort
+
+- **Scrub execution:** ~5 minutes (small repo, few objects)
+- **Coordination:** Force-push to GitHub. Only Corey has a clone, so no team coordination needed.
+- **Post-scrub:** Everyone (just Corey) must `rm -rf` their local clone and re-clone fresh. Existing local branches will be orphaned.
+
+### Steps (will execute only with Corey approval)
+
+1. Install `git-filter-repo` if not present
+2. Run `git filter-repo --invert-paths --path "CT Contact Master - Sheet1.csv" --path "FT Updated 4.7 - Sheet1.csv" --path "data/owner-master-index-full.csv" --path "data/.import-progress.json" --path "data/.creation-date-progress.json" --path "data/zorakle-master-final.json"`
+3. Force-push all branches: `git push origin --force --all`
+4. Delete stale remote branches: `origin/feat/call-mapping-v2`, `origin/phase-a-housekeeping`, `origin/sprint-0-bug-fixes`, `origin/sprint-1-supabase-schema`
+5. GitHub: Settings → Actions → delete any cached artifacts
+6. Verify: `git rev-list --objects --all | git cat-file --batch-check` — confirm blobs are gone
+7. Re-clone fresh locally
+
+### What does NOT need scrubbing
+
+- No `.env` files were ever committed — no credential rotation needed
+- SQL migrations are schema-only (no customer data)
+- `data/corey-zorakle-integration-spec.md` — internal spec, not PII (can delete from working tree in Phase 3 without history scrub)
+- `migration/pipeline-update-log.md` — dev notes, not PII (same)
+
+---
+
+**STOP — awaiting Corey decision:**
+- **Option A:** Run history scrub now (Phase 2.5), then Phase 3 working-tree cleanup
+- **Option B:** Run Phase 3 working-tree cleanup first, scrub later
+- **Option C:** Different sequence
+
+**Recommendation:** Option A — scrub first, then clean working tree. The scrub rewrites all commit hashes, so any Phase 3 commits made before the scrub would be orphaned. Cleaner to scrub first.
