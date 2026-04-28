@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getDailyHQScorecard, getCallsScorecard, getPipelineScorecard } from "@/lib/scorecards";
+import { requireAuth } from "@/lib/auth";import { getDailyHQScorecard, getCallsScorecard, getPipelineScorecard } from "@/lib/scorecards";
 
 type Params = { params: Promise<{ page: string }> };
 

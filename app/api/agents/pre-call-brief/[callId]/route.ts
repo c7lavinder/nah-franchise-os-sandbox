@@ -7,10 +7,10 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { runPreCallBriefAgent } from "@/lib/agents/pre-call-brief";
+import { requireAuth } from "@/lib/auth";import { runPreCallBriefAgent } from "@/lib/agents/pre-call-brief";
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ callId: string }> }
 ) {
   const { callId } = await params;

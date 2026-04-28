@@ -14,12 +14,13 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import {
+import { requireAuth } from "@/lib/auth";import {
   bootstrapContactProfile,
   bootstrapAllActiveLeads,
 } from "@/lib/intelligence/bootstrap";
 
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const { searchParams } = new URL(request.url);
     const contactId = searchParams.get("contactId");

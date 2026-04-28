@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import type { GHLSendMessagePayload } from "@/types/ghl";
 
@@ -80,6 +80,7 @@ async function updateTouchFields(contactId: string, channel: "SMS" | "Email") {
 }
 
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const body = (await request.json()) as SendRequest;
 

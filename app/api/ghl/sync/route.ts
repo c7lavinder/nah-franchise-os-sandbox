@@ -22,8 +22,8 @@ export const dynamic = "force-dynamic";
  * - 100ms delay between upserts to respect GHL rate limits
  */
 
-import { NextResponse } from "next/server";
-import * as ghl from "@/lib/ghl";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 
 /** Delay helper for rate limiting between upserts */
@@ -52,7 +52,8 @@ interface ValidationWarning {
   message: string;
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
   const results: Record<string, SectionResult> = {};
   const errors: SyncError[] = [];

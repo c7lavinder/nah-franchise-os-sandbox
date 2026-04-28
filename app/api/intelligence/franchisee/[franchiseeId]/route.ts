@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 
 /** Allowed fields for PATCH updates */
 const UPDATABLE_FIELDS = new Set([
@@ -35,7 +35,7 @@ const UPDATABLE_FIELDS = new Set([
 ]);
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ franchiseeId: string }> }
 ) {
   try {

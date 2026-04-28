@@ -8,10 +8,11 @@ export const dynamic = "force-dynamic";
  * user can edit the calendar before pushing the appointment.
  */
 
-import { NextResponse } from "next/server";
-import * as ghl from "@/lib/ghl";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const calendars = await ghl.getCalendars();
     // Trim to UI-relevant fields and exclude inactive calendars by default.

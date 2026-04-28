@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 
 /** PUT — toggle is_done on a territory issue */
 export async function PUT(
@@ -23,7 +23,7 @@ export async function PUT(
 
 /** DELETE — remove a territory issue */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ msSlug: string; issueId: string }> }
 ) {
   const { issueId } = await params;

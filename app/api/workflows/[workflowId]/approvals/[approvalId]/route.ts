@@ -6,10 +6,10 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getApproval, approveRequest, rejectRequest } from "@/lib/workflows/approvals";
+import { requireAuth } from "@/lib/auth";import { getApproval, approveRequest, rejectRequest } from "@/lib/workflows/approvals";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ workflowId: string; approvalId: string }> }
 ) {
   try {

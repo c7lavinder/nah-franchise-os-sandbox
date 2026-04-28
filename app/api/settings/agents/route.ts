@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 
 const AGENT_DEFS = [
   { name: "post-call", label: "Post-Call Agent", trigger: "Read.ai webhook (auto), Generate button (manual)" },
@@ -11,7 +11,8 @@ const AGENT_DEFS = [
   { name: "reengagement-signal", label: "Re-engagement Signal", trigger: "Monthly cron (1st of month)" },
 ];
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 

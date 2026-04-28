@@ -7,10 +7,11 @@ export const dynamic = "force-dynamic";
  * In production, this would be called by Railway Cron or a scheduled task.
  */
 
-import { NextResponse } from "next/server";
-import { runAllChecks } from "@/lib/accountability/engine";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";import { runAllChecks } from "@/lib/accountability/engine";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const results = await runAllChecks();
     console.log(`Accountability engine: ${results.total} alerts generated`, results.results);

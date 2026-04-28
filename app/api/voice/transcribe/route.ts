@@ -9,8 +9,9 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-
+import { requireAuth } from "@/lib/auth";
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const formData = await request.formData();
     const audioFile = formData.get("audio");

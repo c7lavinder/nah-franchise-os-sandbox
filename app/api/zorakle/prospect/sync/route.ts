@@ -6,10 +6,11 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 import { computeFitScore, computeRiskFlag } from "@/lib/zorakle";
 
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   // API key check
   const apiKey = request.headers.get("x-api-key");
   const expected = process.env.INTERNAL_API_KEY;

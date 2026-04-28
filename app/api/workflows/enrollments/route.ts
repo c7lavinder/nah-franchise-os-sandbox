@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import {
+import { requireAuth } from "@/lib/auth";import {
   enrollContact,
   getWorkflowEnrollments,
   getContactEnrollments,
@@ -14,6 +14,7 @@ import {
 import type { EnrollmentStatus } from "@/lib/workflows/types";
 
 export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const { searchParams } = new URL(request.url);
     const workflowId = searchParams.get("workflowId");
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const body = await request.json();
     const { workflowId, workflowVersionId, ghlContactId, contactName } = body;

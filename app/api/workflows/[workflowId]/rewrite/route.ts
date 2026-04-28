@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { generateRewrites } from "@/lib/workflows/rewrite-engine";
+import { requireAuth } from "@/lib/auth";import { generateRewrites } from "@/lib/workflows/rewrite-engine";
 
 export async function POST(
   request: NextRequest,

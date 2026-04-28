@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import {
+import { requireAuth } from "@/lib/auth";import {
   getTest,
   startTest,
   recordResult,
@@ -17,7 +17,7 @@ import {
 import type { ABTestWinner } from "@/lib/workflows/types";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ workflowId: string; testId: string }> }
 ) {
   try {

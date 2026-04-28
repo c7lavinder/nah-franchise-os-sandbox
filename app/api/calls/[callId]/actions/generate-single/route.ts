@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { requireAuth } from "@/lib/auth";import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase/server";
 import { stripFences } from "@/lib/agents/post-call/call-claude";
 import { retrieveFeedback } from "@/lib/agents/post-call/feedback-retrieval";

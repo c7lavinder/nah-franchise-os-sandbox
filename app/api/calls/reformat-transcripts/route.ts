@@ -8,12 +8,13 @@ export const dynamic = "force-dynamic";
  * Safe to run repeatedly — overwrites raw_transcript with corrected version.
  */
 
-import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 import { formatTranscript } from "@/lib/calls/classifier";
 import type { ReadAIParticipant, ReadAITranscriptTurn } from "@/lib/calls/classifier";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
 
   // Get all calls with their Read.ai session data

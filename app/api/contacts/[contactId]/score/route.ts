@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { calculateLeadScore, buildScoringInput } from "@/lib/profile/lead-scoring";
 

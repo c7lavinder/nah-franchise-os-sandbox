@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { requireAuth } from "@/lib/auth";import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase/server";
 
 const MODEL = "claude-sonnet-4-5-20250514";

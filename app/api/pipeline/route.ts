@@ -8,10 +8,11 @@ export const dynamic = "force-dynamic";
  * Falls back gracefully if GHL is unavailable.
  */
 
-import { NextResponse } from "next/server";
-import * as ghl from "@/lib/ghl";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const allPipelines = await ghl.getPipelines();
 

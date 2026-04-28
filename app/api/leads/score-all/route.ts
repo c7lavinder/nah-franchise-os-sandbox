@@ -8,12 +8,13 @@ export const dynamic = "force-dynamic";
  * Returns summary: total scored, score distribution by tier.
  */
 
-import { NextResponse } from "next/server";
-import * as ghl from "@/lib/ghl";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { calculateLeadScore, buildScoringInput } from "@/lib/profile/lead-scoring";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     // Get NAH pipelines + open opportunities
     const allPipelines = await ghl.getPipelines();

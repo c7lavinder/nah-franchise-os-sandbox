@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 
 interface TransferBody {
   ms_slug: string;
@@ -16,6 +16,7 @@ interface TransferBody {
 }
 
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const body = (await request.json()) as TransferBody;
 
   if (!body.ms_slug || !body.new_ghl_contact_id) {

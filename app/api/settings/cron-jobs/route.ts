@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
  * from cron_job_log and integration_logs tables.
  */
 
-import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 
 /** All cron jobs defined in vercel.json + their metadata */
 const CRON_DEFINITIONS = [
@@ -78,7 +78,8 @@ const CRON_DEFINITIONS = [
   },
 ];
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 

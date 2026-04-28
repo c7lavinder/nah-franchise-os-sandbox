@@ -8,10 +8,10 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { callId: string } }
 ) {
   try {

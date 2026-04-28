@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { advanceOnboardingStage } from "@/lib/intelligence/onboarding";
+import { requireAuth } from "@/lib/auth";import { advanceOnboardingStage } from "@/lib/intelligence/onboarding";
 
 export async function PATCH(
   request: NextRequest,

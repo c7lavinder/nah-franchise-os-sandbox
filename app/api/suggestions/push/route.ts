@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { pushSuggestion } from "@/lib/scout-learning";
+import { requireAuth } from "@/lib/auth";import { pushSuggestion } from "@/lib/scout-learning";
 
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const body = await request.json() as { suggestionId: string; finalValue: string; reviewerId: string };
   if (!body.suggestionId || !body.finalValue) {
     return NextResponse.json({ error: "suggestionId and finalValue required" }, { status: 400 });

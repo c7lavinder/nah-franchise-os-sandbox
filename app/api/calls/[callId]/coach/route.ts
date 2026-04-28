@@ -1,10 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { coachCall } from "@/lib/calls/coach";
+import { requireAuth } from "@/lib/auth";import { coachCall } from "@/lib/calls/coach";
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ callId: string }> }
 ) {
   const { callId } = await params;

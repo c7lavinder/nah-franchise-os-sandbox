@@ -1,11 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 
 /** GET — list all stakeholders for a territory */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ msSlug: string }> }
 ) {
   const { msSlug } = await params;
@@ -64,6 +64,7 @@ export async function POST(
 
 /** DELETE — remove a stakeholder */
 export async function DELETE(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
   const { id } = await request.json();
 

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { PROFILE_FIELDS } from "@/lib/profile/field-registry";
 
@@ -39,7 +39,7 @@ async function getFieldMapping(): Promise<Map<string, GHLFieldMapping>> {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ contactId: string }> }
 ) {
   try {

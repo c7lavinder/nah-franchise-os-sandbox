@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { calculateLeadScore, buildScoringInput } from "@/lib/profile/lead-scoring";
 
@@ -79,6 +79,7 @@ function extractSource(tags: string[]): string | null {
 }
 
 export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const { searchParams } = new URL(request.url);
   const needsReview = searchParams.get("needs_review");
   const countOnly = searchParams.get("count_only");
@@ -96,6 +97,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const body = (await request.json()) as BatchRequestBody;
 

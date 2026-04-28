@@ -6,10 +6,10 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { runReengagementSignal } from "@/lib/agents/reengagement-signal";
+import { requireAuth } from "@/lib/auth";import { runReengagementSignal } from "@/lib/agents/reengagement-signal";
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ contactId: string }> }
 ) {
   const { contactId } = await params;

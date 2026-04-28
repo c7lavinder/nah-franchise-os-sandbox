@@ -6,10 +6,10 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { runTerritoryMarketResearch } from "@/lib/agents/territory-market";
+import { requireAuth } from "@/lib/auth";import { runTerritoryMarketResearch } from "@/lib/agents/territory-market";
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ msSlug: string }> }
 ) {
   const { msSlug } = await params;

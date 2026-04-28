@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
 
 /** Message types that represent real communication */
 const REAL_MESSAGE_TYPES = new Set([
@@ -23,6 +23,7 @@ const REAL_MESSAGE_TYPES = new Set([
 ]);
 
 export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") ?? "50", 10);

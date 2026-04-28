@@ -11,9 +11,10 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { analyzeTranscript } from "@/lib/intelligence/transcript-analyzer";
+import { requireAuth } from "@/lib/auth";import { analyzeTranscript } from "@/lib/intelligence/transcript-analyzer";
 
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const body = await request.json();
     const { transcript, contactName } = body;

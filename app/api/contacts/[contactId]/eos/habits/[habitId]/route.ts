@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 
 /** PUT — update habit (grade / cadence / text) */
 export async function PUT(
@@ -34,7 +34,7 @@ export async function PUT(
 
 /** DELETE — remove habit */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ contactId: string; habitId: string }> }
 ) {
   const { habitId } = await params;

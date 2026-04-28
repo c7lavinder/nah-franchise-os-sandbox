@@ -13,7 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 
 interface ContactRow {
   first_name: string | null;
@@ -38,7 +38,7 @@ interface OwnerOut {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ msSlug: string }> },
 ) {
   const { msSlug } = await params;

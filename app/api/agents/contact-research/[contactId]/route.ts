@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { runContactResearch } from "@/lib/agents/contact-research";
+import { requireAuth } from "@/lib/auth";import { runContactResearch } from "@/lib/agents/contact-research";
 
 export async function POST(
   request: NextRequest,

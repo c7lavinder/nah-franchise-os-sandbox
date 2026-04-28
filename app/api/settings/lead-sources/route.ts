@@ -1,10 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 
 /** GET — list all lead sources with their sub-sources */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
 
   const { data: sources } = await supabase
@@ -27,6 +28,7 @@ export async function GET() {
 
 /** POST — create a new lead source or sub-source */
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
   const body = await request.json();
 
@@ -53,6 +55,7 @@ export async function POST(request: NextRequest) {
 
 /** DELETE — remove a lead source or sub-source */
 export async function DELETE(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
   const { id, type } = await request.json();
 

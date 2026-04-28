@@ -7,7 +7,7 @@ export const maxDuration = 300;
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { runPostCallAgent } from "@/lib/agents/post-call/agent";
+import { requireAuth } from "@/lib/auth";import { runPostCallAgent } from "@/lib/agents/post-call/agent";
 
 export async function POST(
   request: NextRequest,

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { calculateLeadScore, buildScoringInput } from "@/lib/profile/lead-scoring";
 import type { GHLContact, GHLOpportunity } from "@/types/ghl";
@@ -27,6 +27,7 @@ interface LeadRow {
 }
 
 export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
     const statusFilter = request.nextUrl.searchParams.get("status") ?? "all";

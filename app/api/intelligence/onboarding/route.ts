@@ -6,12 +6,13 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import {
+import { requireAuth } from "@/lib/auth";import {
   createOnboardingEnrollment,
   getOnboardingEnrollments,
 } from "@/lib/intelligence/onboarding";
 
 export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type") as "onboarding" | "coaching" | null;
@@ -29,6 +30,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const body = await request.json();
     const { contactId, franchiseeName } = body;

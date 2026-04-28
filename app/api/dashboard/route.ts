@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
 import type { GHLOpportunity } from "@/types/ghl";
 
 type DashboardPeriod = "week" | "month" | "quarter" | "year";
@@ -32,6 +32,7 @@ function getPeriodStart(period: DashboardPeriod): string {
 }
 
 export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const rawPeriod = request.nextUrl.searchParams.get("period") ?? "month";
     const period: DashboardPeriod = VALID_PERIODS.has(rawPeriod)

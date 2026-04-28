@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeSuggestionOutcome } from "@/lib/scout-learning";
+import { requireAuth } from "@/lib/auth";import { writeSuggestionOutcome } from "@/lib/scout-learning";
 import { createServerClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const body = await request.json() as { suggestionId: string; reviewerId: string };
   if (!body.suggestionId) {
     return NextResponse.json({ error: "suggestionId required" }, { status: 400 });

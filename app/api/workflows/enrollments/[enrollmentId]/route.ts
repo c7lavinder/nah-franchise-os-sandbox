@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import {
+import { requireAuth } from "@/lib/auth";import {
   getEnrollment,
   pauseEnrollment,
   resumeEnrollment,
@@ -15,7 +15,7 @@ import {
 } from "@/lib/workflows/enrollment";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ enrollmentId: string }> }
 ) {
   try {

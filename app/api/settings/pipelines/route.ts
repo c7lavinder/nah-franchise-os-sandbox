@@ -4,10 +4,11 @@ export const dynamic = "force-dynamic";
  * GET /api/settings/pipelines — list all pipelines with nested stages + sub-tasks
  */
 
-import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
 
   const { data: pipelines, error } = await supabase

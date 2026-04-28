@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 import { runTerritoryMarketResearch } from "@/lib/agents/territory-market";
 
 interface AssignBody {
@@ -15,6 +15,7 @@ interface AssignBody {
 }
 
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const body = (await request.json()) as AssignBody;
 
   if (!body.ms_slug || !body.ghl_contact_id) {

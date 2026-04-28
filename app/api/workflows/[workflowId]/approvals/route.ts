@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getApprovalsForWorkflow, submitForApproval } from "@/lib/workflows/approvals";
+import { requireAuth } from "@/lib/auth";import { getApprovalsForWorkflow, submitForApproval } from "@/lib/workflows/approvals";
 import type { ApprovalType } from "@/lib/workflows/types";
 
 const VALID_APPROVAL_TYPES: ApprovalType[] = [
@@ -19,7 +19,7 @@ const VALID_APPROVAL_TYPES: ApprovalType[] = [
 ];
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ workflowId: string }> }
 ) {
   try {

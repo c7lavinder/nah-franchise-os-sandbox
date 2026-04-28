@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 import { updateCandidateScore } from "@/lib/intelligence/scoring";
 import { updateCandidateFlags } from "@/lib/intelligence/flags";
 import type { DiscProfile } from "@/lib/intelligence/types";
@@ -25,6 +25,7 @@ interface ZoraklePayload {
 const VALID_DISC: DiscProfile[] = ["D", "I", "S", "C"];
 
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const body = (await request.json()) as ZoraklePayload;
 

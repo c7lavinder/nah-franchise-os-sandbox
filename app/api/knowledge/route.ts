@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
 import type { KnowledgeCategory } from "@/types/database";
 
 const VALID_CATEGORIES: KnowledgeCategory[] = [
@@ -26,7 +26,8 @@ const VALID_CATEGORIES: KnowledgeCategory[] = [
   "brand", "operations", "business_planning", "governance", "contact-notes",
 ];
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("knowledge_documents")
@@ -42,6 +43,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
 
   const body = await request.json();
@@ -90,6 +92,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
 
   const body = await request.json();
@@ -138,6 +141,7 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   const supabase = createServerClient();
 
   const body = await request.json();

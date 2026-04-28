@@ -4,10 +4,11 @@ export const dynamic = "force-dynamic";
  * GET /api/workflows/approvals — list all pending approval requests
  */
 
-import { NextResponse } from "next/server";
-import { getPendingApprovals } from "@/lib/workflows/approvals";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";import { getPendingApprovals } from "@/lib/workflows/approvals";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
   try {
     const approvals = await getPendingApprovals();
     return NextResponse.json({ approvals });

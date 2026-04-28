@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createAppointment } from "@/lib/ghl/client";
+import { requireAuth } from "@/lib/auth";import { createAppointment } from "@/lib/ghl/client";
 
 export async function POST(
   request: NextRequest,
