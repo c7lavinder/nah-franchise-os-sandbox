@@ -392,13 +392,15 @@ Each accepts user identity from request body or query, has no auth, and mutates 
 
 ## High-risk findings (22 routes)
 
-Identity from query/body OR sensitive mutation without identity. Notable:
-- ✅ `GET /api/daily-hq?userId=<X>` — retrofitted `9f6dafd` (requireAuth + admin view-as pattern with ?targetUserId)
-- `GET /api/intelligence/llm-logs` — query filters expose LLM execution logs
-- `GET /api/calls/list` — query filters expose call list
-- `GET /api/pipeline/contacts` — query filters expose contacts
-- `GET /api/scout/session?userId=<X>` — anyone reads any user's Scout session
-- All 15 `/api/settings/*` routes using `requireAdmin` — anyone with no auth header can post `{ userId: "<admin's id>" }` and pass
+All 22 High-risk routes now protected:
+- ✅ `GET /api/daily-hq` — `9f6dafd` (Phase 2a, admin view-as pattern)
+- ✅ `GET /api/intelligence/llm-logs` — `c9882f9` (Phase 2d)
+- ✅ `GET /api/calls/list` — `c9882f9` (Phase 2d)
+- ✅ `POST /api/calls/[callId]/feedback` — `c9882f9` (Phase 2d)
+- ✅ `GET /api/pipeline/contacts` — `c9882f9` (Phase 2d)
+- ✅ `GET /api/scout/session` — `c9882f9` (Phase 2d, userId derived from auth)
+- ✅ `GET,POST /api/workflows/[workflowId]/ab-tests` — `c9882f9` (Phase 2d, createdBy from auth)
+- ✅ All 15 `/api/settings/*` routes — `477ceb3` (Phase 2c, requireAdmin replaced)
 
 ## Spot-check verification (5/216 routes manually inspected)
 
@@ -501,6 +503,48 @@ These were flagged but explicitly deferred:
 
 ### What remains
 
-- Medium risk routes: add-requireAuth (Phase 2d-2f)
-- Cron routes without CRON_SECRET (Phase 2e)
-- Webhook routes without shared secret (Phase 2e)
+- Medium risk routes: add-requireAuth (Phase 2f)
+
+---
+
+## Phase 2d — Remaining High-risk routes (completed)
+
+**Date:** 2026-04-27
+**Commit:** `c9882f9`
+
+6 remaining High-risk routes retrofitted with requireAuth:
+- calls/[callId]/feedback (POST)
+- calls/list (GET)
+- intelligence/llm-logs (GET)
+- scout/session (GET — userId now derived from auth, not query param)
+- pipeline/contacts (GET)
+- workflows/[workflowId]/ab-tests (GET, POST — createdBy from auth)
+
+---
+
+## Phase 2e — Cron + webhook hardening (completed)
+
+**Date:** 2026-04-27
+
+### Cron routes — `1706d67`
+
+7 unprotected cron routes now verify CRON_SECRET Bearer token:
+- cron/stale-leads, cron/workflow-scheduler, cron/workflow-analysis
+- cron/workflow-notifications, cron/workflow-delivery-sync
+- cron/score-recalculate, cron/refresh-ghl-token
+
+All 16 cron routes now protected (9 were already protected).
+
+### Webhook routes — `7b92fbd`
+
+9 unprotected webhook routes now verify WEBHOOK_SHARED_SECRET:
+- webhooks/docusign, webhooks/form-submission, webhooks/ghl
+- webhooks/ghl-calendar, webhooks/ghl/contacts, webhooks/google-meet
+- webhooks/payment, webhooks/trainual, webhooks/zorakle
+
+webhooks/read-ai left alone (already has per-user HMAC verification).
+All 10 webhook routes now protected.
+
+### What remains
+
+- ~137 Medium risk routes: add-requireAuth (Phase 2f — optional, lower priority)
