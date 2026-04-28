@@ -66,12 +66,19 @@ Goal: support hundreds of franchisees who each buy 10+ houses/year.
 - Reconciled .env.local.example (added 6 missing vars)
 - Archived blueprint to docs/archive/blueprint-v1.md
 
-### Sessions B-C — Foundation buildout (QUEUED)
+### Session B — Foundation tooling (COMPLETE 2026-04-27)
+
+- Generated Supabase schema types (4,330 lines — reference only, full client typing needs Supabase login)
+- Husky pre-commit hooks: lint-staged (Prettier) + tsc --noEmit + npm test
+- GitHub Actions CI: tsc + lint + test on push/PR to main
+- PR template with pre-merge checklist
+- .claude/settings.json verified and documented
+
+### Session C — Custom skills + hooks + agents (QUEUED)
 
 | Session | Scope |
 |---|---|
-| B — Foundation tooling | CI/CD, pre-commit hooks, typed Supabase client, Husky, GitHub Actions |
-| C — Custom skills + hooks + agents | 7 skills, 2 agents, 3 hooks per blueprint |
+| C | 7 skills, 2 agents, 3 hooks per blueprint |
 
 ### Tier 1 — Feature gaps
 

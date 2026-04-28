@@ -40,13 +40,30 @@ Current team is solo (Corey + Claude Code). Workflow:
 
 1. Create feature branch (for multi-file changes)
 2. Commit scoped changes with conventional commit messages
-3. Run `npx tsc --noEmit` — must pass before push
-4. Push to origin
+3. **Pre-commit hook auto-runs:** lint-staged (Prettier) + tsc --noEmit + npm test
+4. Push to origin — **CI auto-runs:** tsc + lint + test (GitHub Actions)
 5. Merge to main (fast-forward)
 6. Delete branch (local + remote)
 7. Vercel auto-deploys from main in ~3 minutes
 
 For single-file fixes, commit directly to main is acceptable.
+
+### Quality gates (enforced automatically)
+
+| Gate | Where | What |
+|---|---|---|
+| Prettier format | Pre-commit (lint-staged) | Formats staged .ts/.tsx/.json/.md |
+| TypeScript check | Pre-commit + CI | `npx tsc --noEmit` |
+| Tests | Pre-commit + CI | `npm test` (27 critical-path tests) |
+| Lint | CI only | `npm run lint` (next lint) |
+
+### Supabase type regeneration
+
+When `supabase/migrations/*` changes, regenerate types:
+```bash
+npx supabase login                    # one-time
+npx supabase gen types typescript --project-id llnrvophuvrqcqducgrr > types/supabase.ts
+```
 
 ---
 

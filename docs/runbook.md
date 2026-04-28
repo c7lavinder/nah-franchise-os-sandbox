@@ -127,3 +127,47 @@ What to do when things break.
 3. Click the "..." menu → "Promote to Production"
 4. The old deployment goes live immediately (no rebuild needed)
 5. Fix the issue locally, then push a fix to main
+
+---
+
+## CI failed on PR
+
+**Symptoms:** GitHub Actions check shows red X on a push or PR.
+
+**Diagnosis:**
+1. Click "Details" on the failed check in GitHub
+2. Check which step failed: tsc, lint, or test
+3. Most common: TypeScript error introduced in the commit
+
+**Fix:**
+- TypeScript error: fix locally, commit, push again
+- Lint error: run `npm run lint` locally to see the exact issue, fix, push
+- Test failure: run `npm test` locally to reproduce, fix the test or the code
+
+---
+
+## Pre-commit hook blocking commit
+
+**Symptoms:** `git commit` fails with Prettier, tsc, or test errors.
+
+**Diagnosis:** The Husky pre-commit hook runs 3 checks: lint-staged (Prettier), tsc --noEmit, and npm test. Any failure blocks the commit.
+
+**Fix:**
+- Prettier issues: the hook auto-fixes formatting. Re-stage and commit again.
+- tsc errors: fix the TypeScript error first
+- Test failure: fix the failing test or the code that broke it
+- **Emergency bypass:** `git commit --no-verify` (use with extreme caution — CI will still catch it)
+
+---
+
+## Supabase types out of sync
+
+**Symptoms:** TypeScript errors after migration changes, or .from('table') returns wrong types.
+
+**Fix:**
+```bash
+npx supabase login                    # one-time
+npx supabase gen types typescript --project-id llnrvophuvrqcqducgrr > types/supabase.ts
+```
+
+Note: the typed client is currently in reference-only mode. Full client typing requires relationship metadata that only the proper `supabase gen types` CLI produces (needs Supabase login).
