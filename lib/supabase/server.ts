@@ -1,9 +1,11 @@
 /**
  * Supabase server client for API routes (uses service role key, bypasses RLS).
  *
- * NOTE: Using untyped client until schema is deployed and we generate types
- * with `supabase gen types typescript`. The Database type in types/database.ts
- * documents the expected schema for reference.
+ * NOTE: Client is intentionally untyped. Full typing requires `npx supabase login`
+ * + `npx supabase gen types typescript --project-id llnrvophuvrqcqducgrr > types/supabase.ts`
+ * which generates relationship metadata for join queries. The current types/supabase.ts
+ * is a schema reference generated from the REST API (no relationship info).
+ * See types/supabase.ts for table-level type reference.
  */
 
 import { createClient } from "@supabase/supabase-js";
