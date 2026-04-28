@@ -10,6 +10,7 @@ Source: code (Tier 0b auth retrofit)
 All API routes require authentication via Supabase Auth JWTs, except intentionally public routes (see below).
 
 **Server-side pattern:**
+
 ```ts
 import { requireAuth } from "@/lib/auth";
 
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
 **Critical rule:** `requireAuth` returns a `Response` (not throws). Callers must check `if (user instanceof Response) return user;`.
 
 **Client-side pattern:**
+
 ```ts
 import { apiFetch } from "@/lib/auth/api-fetch";
 
@@ -38,6 +40,7 @@ const res = await apiFetch("/api/foo");
 ## Authorization
 
 **Admin role check:**
+
 ```ts
 const user = await requireAuth(request);
 if (user instanceof Response) return user;
@@ -49,9 +52,10 @@ if (user.role !== "admin") {
 All `/api/settings/*` admin routes use this pattern.
 
 **Admin "view as" pattern** (used in `/api/daily-hq`):
+
 ```ts
 const targetParam = request.nextUrl.searchParams.get("targetUserId");
-const userId = (user.role === "admin" && targetParam) ? targetParam : user.id;
+const userId = user.role === "admin" && targetParam ? targetParam : user.id;
 ```
 
 Admins can pass `?targetUserId=X` to view another user's data. Non-admins always see their own data (param silently ignored).
@@ -62,41 +66,56 @@ Admins can pass `?targetUserId=X` to view another user's data. Non-admins always
 
 ## Intentionally public routes
 
-| Route | Reason |
-|---|---|
-| `/api/auth/login` | Login endpoint |
-| `/api/auth/logout` | Logout |
-| `/api/auth/refresh` | Token refresh (called before auth is established) |
-| `/api/auth/crm` | GHL OAuth initiation |
-| `/api/auth/crm/callback` | GHL OAuth callback |
-| `/api/health` | Health check |
-| `/api/track/click/[logId]` | Email tracking pixel |
-| `/api/track/open/[logId]` | Email tracking pixel |
+| Route                      | Reason                                            |
+| -------------------------- | ------------------------------------------------- |
+| `/api/auth/login`          | Login endpoint                                    |
+| `/api/auth/logout`         | Logout                                            |
+| `/api/auth/refresh`        | Token refresh (called before auth is established) |
+| `/api/auth/crm`            | GHL OAuth initiation                              |
+| `/api/auth/crm/callback`   | GHL OAuth callback                                |
+| `/api/health`              | Health check                                      |
+| `/api/track/click/[logId]` | Email tracking pixel                              |
+| `/api/track/open/[logId]`  | Email tracking pixel                              |
 
 ---
 
 ## Webhook protection
 
-**Read.ai:** Per-user HMAC verification using `createHmac("sha256", signingKey)`. Signing keys stored in env vars as `READ_AI_WEBHOOK_SIGNING_KEY_{EMAIL_PREFIX}`.
+Three verification schemes are used depending on the provider:
 
-**All other webhooks (9 routes):** Shared-secret verification via `lib/auth/webhook-verify.ts`. Checks `x-webhook-secret` header or `?secret=` query param against `WEBHOOK_SHARED_SECRET` env var.
+### GHL webhooks (3 routes) — Ed25519 signature
 
-**DEFERRED:** `WEBHOOK_SHARED_SECRET` is not yet set in Vercel. Setting it without configuring the matching secret in each webhook provider would break all incoming webhooks. Providers that need configuration before activation:
-- GHL (webhooks/ghl, ghl-calendar, ghl/contacts)
-- DocuSign (webhooks/docusign)
-- Trainual (webhooks/trainual)
-- Zorakle (webhooks/zorakle)
-- Google Meet (webhooks/google-meet)
-- Form submission (webhooks/form-submission)
-- Payment (webhooks/payment)
+GHL signs every outbound webhook with an Ed25519 key pair. Our handler verifies using GHL's published public key via `lib/auth/ghl-webhook-verify.ts`.
 
-Verification is skipped in development mode and when the env var is not set.
+| Header            | Algorithm  | Status                         |
+| ----------------- | ---------- | ------------------------------ |
+| `X-GHL-Signature` | Ed25519    | Current, preferred             |
+| `X-WH-Signature`  | RSA-SHA256 | Legacy, deprecated July 1 2026 |
+
+Routes: `/api/webhooks/ghl`, `/api/webhooks/ghl/contacts`, `/api/webhooks/ghl-calendar`
+
+No shared secret or custom header needed — GHL handles signing automatically. Skipped in development mode.
+
+### Read.ai webhook (1 route) — HMAC-SHA256
+
+Per-user HMAC verification using `createHmac("sha256", signingKey)`. Signing keys stored in env vars as `READ_AI_WEBHOOK_SIGNING_KEY_{EMAIL_PREFIX}` or in the `read_ai_webhook_keys` table.
+
+Route: `/api/webhooks/read-ai`
+
+### Other webhooks (6 routes) — Shared secret
+
+Shared-secret verification via `lib/auth/webhook-verify.ts`. Checks `x-webhook-secret` header or `?secret=` query param against `WEBHOOK_SHARED_SECRET` env var.
+
+Routes: `/api/webhooks/docusign`, `trainual`, `zorakle`, `google-meet`, `form-submission`, `payment`
+
+`WEBHOOK_SHARED_SECRET` is set in Vercel (production, preview, development). Verification activates on next deploy. Each provider must be configured with the matching secret before their webhooks will pass. Skipped in development mode and when the env var is not set.
 
 ---
 
 ## Cron protection
 
 All 16 cron routes verify `CRON_SECRET` Bearer token:
+
 ```ts
 const authHeader = request.headers.get("authorization");
 const cronSecret = process.env.CRON_SECRET;
@@ -122,13 +141,13 @@ Vercel Cron automatically passes `Authorization: Bearer ${CRON_SECRET}` when the
 
 ## Known gaps (parked)
 
-| Gap | Status | Notes |
-|---|---|---|
-| JWT in localStorage | Deferred | Should migrate to httpOnly cookies. Current approach is standard for SPAs but vulnerable to XSS. |
-| Service role key bypasses RLS | Accepted | All API routes use the service role key. Authorization is enforced at the application layer (requireAuth + role checks), not via Supabase RLS. |
-| Per-rep row-level filtering | Deferred | Currently all authenticated users can read all data. Future: restrict reps to their assigned contacts/territories only. Separate ADR needed. |
-| WEBHOOK_SHARED_SECRET activation | Deferred | Env var exists in code but not set in Vercel. Must configure each webhook provider first. |
-| OAuth token storage | Deferred | GHL OAuth tokens stored as JSON-stringified values in `app_settings` table. Cleanup pass planned. |
+| Gap                              | Status   | Notes                                                                                                                                          |
+| -------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| JWT in localStorage              | Deferred | Should migrate to httpOnly cookies. Current approach is standard for SPAs but vulnerable to XSS.                                               |
+| Service role key bypasses RLS    | Accepted | All API routes use the service role key. Authorization is enforced at the application layer (requireAuth + role checks), not via Supabase RLS. |
+| Per-rep row-level filtering      | Deferred | Currently all authenticated users can read all data. Future: restrict reps to their assigned contacts/territories only. Separate ADR needed.   |
+| WEBHOOK_SHARED_SECRET activation | Partial  | Set in Vercel. GHL routes use Ed25519 instead (Tier 1 #7). Non-GHL providers still need provider-side config.                                  |
+| OAuth token storage              | Deferred | GHL OAuth tokens stored as JSON-stringified values in `app_settings` table. Cleanup pass planned.                                              |
 
 ---
 
@@ -136,6 +155,7 @@ Vercel Cron automatically passes `Authorization: Bearer ${CRON_SECRET}` when the
 
 1. Create the route file in `app/api/your-route/route.ts`
 2. Add `requireAuth` at the top of each handler:
+
    ```ts
    import { requireAuth } from "@/lib/auth";
 
@@ -145,6 +165,7 @@ Vercel Cron automatically passes `Authorization: Bearer ${CRON_SECRET}` when the
      // ... route logic using user.id, user.role
    }
    ```
+
 3. If admin-only, add the role check after `requireAuth`
 4. Frontend: use `apiFetch` instead of `fetch` for the corresponding client call
 5. Add the route to `docs/AUTH_AUDIT.md` with its classification
@@ -163,6 +184,7 @@ Vercel Cron automatically passes `Authorization: Bearer ${CRON_SECRET}` when the
 ### .gitignore is non-negotiable
 
 The repo `.gitignore` blocks:
+
 - `*.csv`, `*.xlsx`, `*.xls` — all tabular data files
 - `data/`, `exports/` — data directories
 - `.env`, `.env.local`, `.env.*.local`, `.env.production` — all env files

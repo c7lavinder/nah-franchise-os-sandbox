@@ -17,9 +17,11 @@ Source: code
 | Refresh     | `cron/refresh-ghl-token` runs every 12h. Tokens expire in 24h, refresh tokens are single-use. |
 | Rate limits | 150-200ms between calls. Retry with exponential backoff on 429.                               |
 | Env vars    | `GHL_API_KEY` (PIT), `GHL_CLIENT_ID`, `GHL_CLIENT_SECRET`, `GHL_LOCATION_ID`                  |
-| Webhooks    | 3 routes (see table below). Verified via `WEBHOOK_SHARED_SECRET` (`x-webhook-secret` header). |
+| Webhooks    | 3 routes (see table below). Verified via Ed25519 signature (`X-GHL-Signature` header).        |
 
 ### GHL Webhook Routes
+
+Webhooks are configured in the **GHL Marketplace App** (Advanced Settings → Webhooks). GHL signs every outbound webhook with Ed25519 — no custom header or shared secret needed. Verification via `lib/auth/ghl-webhook-verify.ts`.
 
 | Route                        | Events                                                  | Purpose                                                              |
 | ---------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------- |

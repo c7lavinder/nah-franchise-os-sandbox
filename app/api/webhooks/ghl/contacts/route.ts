@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";
+import { requireGhlSignature } from "@/lib/auth/ghl-webhook-verify";
 import { createServerClient } from "@/lib/supabase/server";
 import { syncContactFromGhl } from "@/lib/ghl/sync";
 import { autoCreatePipelineState } from "@/lib/ghl/auto-create-pipeline-state";
@@ -46,10 +46,11 @@ interface WebhookPayload {
 }
 
 export async function POST(request: NextRequest) {
-  const webhookAuthError = verifyWebhookSecret(request);
-  if (webhookAuthError) return webhookAuthError;
+  const rawBody = await request.text();
+  const sigError = requireGhlSignature(rawBody, request.headers);
+  if (sigError) return sigError;
   try {
-    const payload = (await request.json()) as WebhookPayload;
+    const payload = JSON.parse(rawBody) as WebhookPayload;
 
     // Sprint 2: extract contact ID — GHL sends it in various fields
     const ghlContactId = payload.id ?? payload.contactId ?? payload.contact_id;

@@ -10,13 +10,13 @@ export const dynamic = "force-dynamic";
  * GHL webhook events include a type field that identifies the event.
  * See: ghl-masterclass/webhooks/webhook-index.md
  *
- * Setup: In GHL Settings > Webhooks, add this URL:
- *   https://your-domain.com/api/webhooks/ghl
+ * Setup: In GHL Marketplace App > Advanced > Webhooks, enable events.
+ * Auth: Verified via X-GHL-Signature (Ed25519) sent by GHL on every webhook.
  * Subscribe to: InboundMessage, OutboundMessage, OpportunityStageUpdate
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";
+import { requireGhlSignature } from "@/lib/auth/ghl-webhook-verify";
 import { createServerClient } from "@/lib/supabase/server";
 
 /** GHL webhook payload — shape varies by event type */
@@ -62,10 +62,11 @@ function getContactId(payload: GHLWebhookPayload): string | null {
 }
 
 export async function POST(request: NextRequest) {
-  const webhookAuthError = verifyWebhookSecret(request);
-  if (webhookAuthError) return webhookAuthError;
+  const rawBody = await request.text();
+  const sigError = requireGhlSignature(rawBody, request.headers);
+  if (sigError) return sigError;
   try {
-    const payload = (await request.json()) as GHLWebhookPayload;
+    const payload = JSON.parse(rawBody) as GHLWebhookPayload;
     const eventType = getEventType(payload);
     const contactId = getContactId(payload);
 

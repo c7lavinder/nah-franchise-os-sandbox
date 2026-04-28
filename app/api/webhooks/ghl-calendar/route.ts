@@ -18,7 +18,8 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";import { createServerClient } from "@/lib/supabase/server";
+import { requireGhlSignature } from "@/lib/auth/ghl-webhook-verify";
+import { createServerClient } from "@/lib/supabase/server";
 
 interface GHLCalendarWebhookPayload {
   appointmentId: string;
@@ -40,9 +41,10 @@ const appointmentTypeMap: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
-  const webhookAuthError = verifyWebhookSecret(request);
-  if (webhookAuthError) return webhookAuthError;
-  const body = await request.json() as GHLCalendarWebhookPayload;
+  const rawBody = await request.text();
+  const sigError = requireGhlSignature(rawBody, request.headers);
+  if (sigError) return sigError;
+  const body = JSON.parse(rawBody) as GHLCalendarWebhookPayload;
   const supabase = createServerClient();
 
   // Log + process async
