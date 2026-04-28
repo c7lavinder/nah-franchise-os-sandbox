@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";import { createServerClient } from "@/lib/supabase/server";
 
 interface PaymentWebhookPayload {
   paymentType: string;
@@ -22,6 +22,8 @@ interface PaymentWebhookPayload {
 }
 
 export async function POST(request: NextRequest) {
+  const webhookAuthError = verifyWebhookSecret(request);
+  if (webhookAuthError) return webhookAuthError;
   const body = await request.json() as PaymentWebhookPayload;
   const supabase = createServerClient();
 

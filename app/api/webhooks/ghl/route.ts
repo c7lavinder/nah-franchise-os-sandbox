@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";import { createServerClient } from "@/lib/supabase/server";
 
 /** GHL webhook payload — shape varies by event type */
 interface GHLWebhookPayload {
@@ -66,6 +66,8 @@ function getContactId(payload: GHLWebhookPayload): string | null {
 }
 
 export async function POST(request: NextRequest) {
+  const webhookAuthError = verifyWebhookSecret(request);
+  if (webhookAuthError) return webhookAuthError;
   try {
     const payload = (await request.json()) as GHLWebhookPayload;
     const eventType = getEventType(payload);

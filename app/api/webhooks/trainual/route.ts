@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";import { createServerClient } from "@/lib/supabase/server";
 import { checkAutoAdvance } from "@/lib/contacts/auto-advance";
 
 /** Map Trainual module/course names to sub-task names (case-insensitive matching) */
@@ -34,6 +34,8 @@ interface TrainualPayload {
 }
 
 export async function POST(request: NextRequest) {
+  const webhookAuthError = verifyWebhookSecret(request);
+  if (webhookAuthError) return webhookAuthError;
   const body = (await request.json()) as TrainualPayload;
   const supabase = createServerClient();
 

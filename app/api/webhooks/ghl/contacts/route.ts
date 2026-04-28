@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { syncContactFromGhl } from "@/lib/ghl/sync";
+import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";import { syncContactFromGhl } from "@/lib/ghl/sync";
 import { autoCreatePipelineState } from "@/lib/ghl/auto-create-pipeline-state";
 import type { GHLContactForSync } from "@/lib/ghl/sync";
 
@@ -42,6 +42,8 @@ interface WebhookPayload {
 }
 
 export async function POST(request: NextRequest) {
+  const webhookAuthError = verifyWebhookSecret(request);
+  if (webhookAuthError) return webhookAuthError;
   try {
     const payload = (await request.json()) as WebhookPayload;
 
