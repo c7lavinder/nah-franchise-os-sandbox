@@ -1,6 +1,6 @@
 ---
-Last verified: 2026-04-27
-Source: session (Session A doc reorg)
+Last verified: 2026-04-28
+Source: session (Session C claude infra)
 ---
 
 # Master Plan — NAH Franchise OS
@@ -50,11 +50,11 @@ Goal: support hundreds of franchisees who each buy 10+ houses/year.
 
 ### Tier 0 — Existential fixes (COMPLETE)
 
-| Phase | Status | Date |
-|---|---|---|
-| 0a — Git guardrails | Done | 2026-04-27 |
-| 0b — Auth retrofit (2a-2f) | Done | 2026-04-27 |
-| 0c — Data privacy audit + scrub | Done | 2026-04-27 |
+| Phase                           | Status | Date       |
+| ------------------------------- | ------ | ---------- |
+| 0a — Git guardrails             | Done   | 2026-04-27 |
+| 0b — Auth retrofit (2a-2f)      | Done   | 2026-04-27 |
+| 0c — Data privacy audit + scrub | Done   | 2026-04-27 |
 
 ### Session A — Doc reorg (COMPLETE 2026-04-27)
 
@@ -74,23 +74,24 @@ Goal: support hundreds of franchisees who each buy 10+ houses/year.
 - PR template with pre-merge checklist
 - .claude/settings.json verified and documented
 
-### Session C — Custom skills + hooks + agents (QUEUED)
+### Session C — Custom skills + hooks + agents (COMPLETE 2026-04-28)
 
-| Session | Scope |
-|---|---|
-| C | 7 skills, 2 agents, 3 hooks per blueprint |
+- 8 skills (7 new + git-guardrails): migration-safety-check, nah-context-load, verify-claims, new-adr, ghl-boundary-check, scout-tool-add, deploy-readiness
+- 2 review agents as slash commands: /review-code (NAH rubric), /review-migration (SQL review)
+- 3 hook scripts: block-dangerous-git (Bash), migration-safety-reminder (Edit), ghl-boundary-check (Edit)
+- 7 slash commands: wrap-session, load-context, verify-claims, audit-docs, draft-adr, review-code, review-migration
 
 ### Tier 1 — Feature gaps
 
-| # | Gap | Effort | Depends on |
-|---|---|---|---|
-| 7 | Form webhook config | 1-2 days | Session B CI |
-| 3 | Real users in GHL | 3-5 days | Auth retrofit (done) |
-| 2 | Daily HQ per-user wiring | 1 week | #3 |
-| 1 | LLM depth (Scout prompt, RAG) | 1-2 weeks | #3 |
-| 4 | Multi-contact calls | 2 weeks | Independent |
-| 5 | Per-call-type grading | 1-2 weeks | #4 |
-| 6 | MasterSuite | 3-4 weeks | Scoping conversation first |
+| #   | Gap                           | Effort    | Depends on                 |
+| --- | ----------------------------- | --------- | -------------------------- |
+| 7   | Form webhook config           | 1-2 days  | Session B CI               |
+| 3   | Real users in GHL             | 3-5 days  | Auth retrofit (done)       |
+| 2   | Daily HQ per-user wiring      | 1 week    | #3                         |
+| 1   | LLM depth (Scout prompt, RAG) | 1-2 weeks | #3                         |
+| 4   | Multi-contact calls           | 2 weeks   | Independent                |
+| 5   | Per-call-type grading         | 1-2 weeks | #4                         |
+| 6   | MasterSuite                   | 3-4 weeks | Scoping conversation first |
 
 ---
 

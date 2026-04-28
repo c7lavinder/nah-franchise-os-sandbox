@@ -7,13 +7,13 @@ Powered by **Scout** — an AI sales coach that helps reps manage leads, stay ac
 
 ## Stack
 
-| Layer | Tech |
-|---|---|
-| Framework | Next.js 14 (App Router, TypeScript strict) |
-| Database | Supabase (PostgreSQL + Auth) |
-| AI | Anthropic Claude Haiku 4.5 (Scout), OpenAI Whisper (transcription) |
-| CRM | GoHighLevel (GHL) via OAuth + PIT key |
-| Hosting | Vercel (auto-deploy from main) |
+| Layer     | Tech                                                               |
+| --------- | ------------------------------------------------------------------ |
+| Framework | Next.js 14 (App Router, TypeScript strict)                         |
+| Database  | Supabase (PostgreSQL + Auth)                                       |
+| AI        | Anthropic Claude Haiku 4.5 (Scout), OpenAI Whisper (transcription) |
+| CRM       | GoHighLevel (GHL) via OAuth + PIT key                              |
+| Hosting   | Vercel (auto-deploy from main)                                     |
 
 ---
 
@@ -79,4 +79,5 @@ lib/intelligence/ Intelligence/scoring engine
 supabase/migrations/  Schema source of truth
 tests/critical-paths/ 27 smoke tests
 docs/             All documentation
+.claude/          Claude Code skills, hooks, and slash commands
 ```
