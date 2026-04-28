@@ -1,39 +1,49 @@
-# dependencies
-/node_modules
+# Customer data — NEVER commit
+*.csv
+*.xlsx
+*.xls
+data/
+exports/
+
+# Secrets — NEVER commit
+.env
+.env.local
+.env.*.local
+.env.production
+*.pem
+*.key
+secrets/
+
+# Dependencies
+node_modules/
 /.pnp
 .pnp.js
 
-# testing
-/coverage
-
-# next.js
-/.next/
+# Next.js
+.next/
 /out/
-
-# production
 /build
 
-# misc
-.DS_Store
-*.pem
+# Vercel
+.vercel
 
-# debug
+# Testing
+/coverage
+
+# Debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
-.env*.local
-.env
-
-# vercel
-.vercel
-
-# non-project artifacts
-/commands/Commands Memory/
-
-# typescript
+# TypeScript
 *.tsbuildinfo
 next-env.d.ts
-CT Contact Master*
+
+# OS
+.DS_Store
+
+# Supabase
 supabase/.temp/
+
+# Legacy
+/commands/Commands Memory/
