@@ -1,7 +1,8 @@
 import type { CallContext, NextStepsResult, PipelinePosition, RosterEntry, JourneyPartner } from "../types";
 import { callClaude, stripFences } from "../call-claude";
 
-const SYSTEM = "You are Scout, an AI assistant for NAH Franchise OS. You generate post-call action items for the franchise sales team.";
+const SYSTEM =
+  "You are Scout, an AI assistant for NAH Franchise OS. You generate post-call action items for the franchise sales team.";
 
 export function buildPrompt(ctx: CallContext): string {
   return `Generate post-call action items for the sales team. Return a JSON array.
@@ -132,11 +133,16 @@ certain actions, keep suggesting those.
 ${ctx.feedbackBlock}
 
 ${ctx.isTeamCall ? buildTeamCallBlock(ctx.roster) : ""}
+${!ctx.isTeamCall && ctx.contactNames.length > 1 ? buildMultiContactActionsBlock(ctx.contactNames) : ""}
 
 Return only a valid JSON array. No preamble, no markdown fences.
 
 Call Type: ${ctx.callType ?? "Unknown"}
-Contact: ${ctx.contactName ?? "Unknown"}
+${
+  ctx.contactNames.length > 1
+    ? `Contacts on call: ${ctx.contactNames.join(", ")}`
+    : `Contact: ${ctx.contactName ?? "Unknown"}`
+}
 Team on call: ${ctx.teamMembers.join(", ") || "Unknown"}
 Call date: ${ctx.callDate ?? "Unknown"}
 Duration: ${ctx.durationSeconds ? Math.round(ctx.durationSeconds / 60) + " minutes" : "Unknown"}
@@ -171,12 +177,35 @@ function buildPartnershipBlock(partners: JourneyPartner[]): string {
     "",
     "### Rules for picking target_contact_name:",
     "1. If the action topic clearly belongs to ONE partner's domain (e.g. construction for a contractor, real estate listings for a RE-licensed partner), pick that partner.",
-    "2. If the action applies to both (e.g. \"send FDD\", \"schedule onboarding call\"), pick the primary listed first above — the rep can reassign via the UI.",
+    '2. If the action applies to both (e.g. "send FDD", "schedule onboarding call"), pick the primary listed first above — the rep can reassign via the UI.',
     "3. Never leave `target_contact_name` blank on a partnership journey.",
     "4. For pipeline + note actions about the journey as a whole, pick the first partner listed.",
-    "",
+    ""
   );
   return lines.join("\n");
+}
+
+/**
+ * Build multi-contact action instructions for calls with 2+ external contacts
+ * that are NOT partnerships (separate journeys, e.g., coaching Dona + Todd).
+ */
+function buildMultiContactActionsBlock(contactNames: string[]): string {
+  return `
+## MULTI-CONTACT CALL — GENERATE ACTIONS FOR EACH CONTACT
+
+**This call has ${contactNames.length} contacts. Generate actions for EACH one.**
+
+Contacts: ${contactNames.join(", ")}
+
+Rules:
+1. EACH contact needs at least a "note" action to log their portion of the call.
+2. EACH contact needs their own pipeline action (if applicable).
+3. Set contact_name to the correct person for every action.
+4. If a follow-up task is discussed for Contact A, don't assign it to Contact B.
+5. Generate up to 10 actions total (not 6) since there are multiple contacts.
+6. Appointments or tasks that are specific to one person → tag to that person.
+7. You are FAILING if any contact gets zero actions — each person discussed gets at least note + pipeline.
+`;
 }
 
 /** Build team/group call instructions with roster */
@@ -274,7 +303,9 @@ export function parseResult(rawText: string): NextStepsResult | null {
         const arr = JSON.parse(arrayMatch[0]);
         if (Array.isArray(arr)) return { actions: arr };
       }
-    } catch { /* fallthrough */ }
+    } catch {
+      /* fallthrough */
+    }
 
     console.error("[next-steps] parseResult: JSON parse failed", err instanceof Error ? err.message : err);
     return null;

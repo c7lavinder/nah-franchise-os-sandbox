@@ -24,30 +24,34 @@ Common mistakes that cause under-extraction:
 - Missing EOS items: every problem mentioned = issue, every commitment = todo, every goal = rock`;
 
 export function buildPrompt(ctx: CallContext): string {
-  const contactBlock = ctx.contactNames.length > 0
-    ? `Contacts on call: ${ctx.contactNames.join(", ")}`
-    : `Contact: ${ctx.contactName ?? "Unknown"}`;
+  const contactBlock =
+    ctx.contactNames.length > 0
+      ? `Contacts on call: ${ctx.contactNames.join(", ")}`
+      : `Contact: ${ctx.contactName ?? "Unknown"}`;
 
   // Determine if this is a prospect or franchisee based on pipeline position
-  const isProspect = ctx.pipelinePositions.length === 0
-    || ctx.pipelinePositions.some((p) => p.pipelineSlug === "sales" || p.pipelineSlug === "followup");
-  const isFranchisee = ctx.pipelinePositions.some((p) =>
-    p.pipelineSlug === "onboarding" || p.pipelineSlug === "runway"
+  const isProspect =
+    ctx.pipelinePositions.length === 0 ||
+    ctx.pipelinePositions.some((p) => p.pipelineSlug === "sales" || p.pipelineSlug === "followup");
+  const isFranchisee = ctx.pipelinePositions.some(
+    (p) => p.pipelineSlug === "onboarding" || p.pipelineSlug === "runway"
   );
 
-  const territoryBlock = ctx.territoryNames.length > 0
-    ? `Territories owned: ${ctx.territoryNames.join(", ")} (franchisee — extract territory operations/coaching data)`
-    : isProspect
-      ? "No territory yet — this is a PROSPECT. Extract territory preferences (desired areas) but NOT territory operations data."
-      : "No territories linked yet — extract any territory names mentioned.";
+  const territoryBlock =
+    ctx.territoryNames.length > 0
+      ? `Territories owned: ${ctx.territoryNames.join(", ")} (franchisee — extract territory operations/coaching data)`
+      : isProspect
+        ? "No territory yet — this is a PROSPECT. Extract territory preferences (desired areas) but NOT territory operations data."
+        : "No territories linked yet — extract any territory names mentioned.";
 
   // When a call is explicitly mapped to multiple territories, instruct the LLM
   // to route each territory-specific extraction to the right one.
-  const callTerritoryBlock = ctx.callTerritories.length > 1
-    ? `\n**THIS CALL SPANS MULTIPLE TERRITORIES.** For every territory-specific data point (population, ARV, deals, contractors, market metrics, rocks, issues, todos), set target_territory to one of these EXACT names:\n${ctx.callTerritories.map((t) => `  - ${t.territory_name}${t.is_primary ? " (primary)" : ""}`).join("\n")}\nDo not leave target_territory null when the context makes clear which territory is being discussed. Listen for territory-specific cues ("in Cincinnati we...", "over in Dayton...") and attribute the extraction accordingly. If ambiguous, use the primary territory.`
-    : ctx.callTerritories.length === 1
-      ? `\nCall is mapped to territory: ${ctx.callTerritories[0].territory_name}. Use this exact name in target_territory for any territory-specific extraction.`
-      : "";
+  const callTerritoryBlock =
+    ctx.callTerritories.length > 1
+      ? `\n**THIS CALL SPANS MULTIPLE TERRITORIES.** For every territory-specific data point (population, ARV, deals, contractors, market metrics, rocks, issues, todos), set target_territory to one of these EXACT names:\n${ctx.callTerritories.map((t) => `  - ${t.territory_name}${t.is_primary ? " (primary)" : ""}`).join("\n")}\nDo not leave target_territory null when the context makes clear which territory is being discussed. Listen for territory-specific cues ("in Cincinnati we...", "over in Dayton...") and attribute the extraction accordingly. If ambiguous, use the primary territory.`
+      : ctx.callTerritories.length === 1
+        ? `\nCall is mapped to territory: ${ctx.callTerritories[0].territory_name}. Use this exact name in target_territory for any territory-specific extraction.`
+        : "";
 
   const contactTypeNote = isProspect
     ? `\n**IMPORTANT: This contact is a PROSPECT (not yet a franchisee).** Focus on contact fields: financial capacity, motivation, timeline, territory preferences, competitive intel, family situation. Do NOT extract territory operations/coaching fields — they have no territory yet. Territory preference fields (desired_territory, market_area, territory_type_preference) ARE relevant.`
@@ -56,26 +60,34 @@ export function buildPrompt(ctx: CallContext): string {
       : "";
 
   // Build roster block for team/group calls
-  const rosterBlock = ctx.isTeamCall && ctx.roster.length > 0
-    ? buildRosterBlock(ctx.roster)
-    : "";
+  const rosterBlock = ctx.isTeamCall && ctx.roster.length > 0 ? buildRosterBlock(ctx.roster) : "";
 
   // Partnership block — only when the journey has 2+ primaries (Kevin + Kylie
   // Kremer, spouses, etc). Forces per-extraction target picking.
-  const partnershipBlock = ctx.journeyPartners.length >= 2
-    ? buildPartnershipBlock(ctx.journeyPartners)
-    : "";
+  const partnershipBlock = ctx.journeyPartners.length >= 2 ? buildPartnershipBlock(ctx.journeyPartners) : "";
+
+  // Multi-contact block — when 2+ external contacts are on a non-team call
+  // (e.g., coaching call with Dona + Todd), force per-contact extraction.
+  const multiContactBlock =
+    !ctx.isTeamCall && ctx.contactNames.length > 1 && ctx.journeyPartners.length < 2
+      ? buildMultiContactBlock(ctx.contactNames)
+      : "";
 
   return `Extract EVERY piece of structured data from this call transcript.
 Be exhaustive — a 1-hour call should yield 30-50+ data points.
 If a piece of information was discussed, even briefly, extract it.
 ${contactTypeNote}
-${ctx.isTeamCall ? `
+${
+  ctx.isTeamCall
+    ? `
 **THIS IS A TEAM/GROUP CALL.** Multiple contacts and territories may be discussed.
 Listen for EVERY mention of a contact, franchisee, prospect, or territory by name.
 When someone discusses a specific person or territory, tag extractions to them using
 target_contact_name and target_territory. Use the roster below to match names.
-` : ""}${callTerritoryBlock}
+`
+    : ""
+}${callTerritoryBlock}
+${multiContactBlock}
 ${rosterBlock}
 ${partnershipBlock}
 
@@ -401,9 +413,37 @@ function buildPartnershipBlock(partners: JourneyPartner[]): string {
     "2. If you can't confidently attribute a contact fact to one partner, use 'both'.",
     "3. target_scope is REQUIRED on every contact-category extraction when this block is present.",
     "4. Territory-category extractions (field_category starts with 'territory') — ignore target_scope; route via target_territory as usual.",
-    "",
+    ""
   );
   return lines.join("\n");
+}
+
+/**
+ * Build an explicit multi-contact extraction block for calls with 2+ external
+ * contacts that are NOT partnerships (different journeys, e.g., coaching Dona + Todd).
+ * Forces the LLM to extract data for EACH contact, not just the primary speaker.
+ */
+function buildMultiContactBlock(contactNames: string[]): string {
+  return `
+## MULTI-CONTACT CALL — EXTRACT FOR EVERY PERSON
+
+**This call has ${contactNames.length} contacts. You MUST extract data for EACH one individually.**
+
+Contacts on this call:
+${contactNames.map((n) => `- **${n}**`).join("\n")}
+
+**CRITICAL RULES:**
+1. For EVERY extraction, set target_contact_name to the specific contact it applies to.
+2. Do NOT default everything to one person — actively listen for what each contact says.
+3. If Contact A discusses their territory operations, those extractions go to Contact A.
+4. If Contact B shares personal info (goals, challenges, family), those go to Contact B.
+5. Even if one person talks more, look for ANY mention of the other contacts' situations.
+6. When the coach asks "how about you, [name]?" or "[name], what's your update?" — everything after belongs to that person.
+7. If both contacts are discussed equally, you should have roughly equal extractions for each.
+8. If a fact applies to both contacts equally, create SEPARATE extractions for each (same field_key, different target_contact_name).
+9. Territory extractions: if each contact has a different territory, route territory data to the correct owner via target_territory.
+10. You are FAILING if any contact has fewer than 5 extractions — go back and re-read what they discussed.
+`;
 }
 
 /** Build a compact roster block for team/group call prompts */
@@ -426,7 +466,8 @@ function buildRosterBlock(roster: RosterEntry[]): string {
 
   if (prospects.length > 0) {
     lines.push("\n**Prospects:**");
-    for (const p of prospects.slice(0, 50)) { // Cap at 50 for token budget
+    for (const p of prospects.slice(0, 50)) {
+      // Cap at 50 for token budget
       const stage = p.pipelineStage ? ` (${p.pipelineStage})` : "";
       lines.push(`- ${p.name}${stage}`);
     }
@@ -456,7 +497,9 @@ export function parseResult(rawText: string): ExtractionResult | null {
           return { extractions: filtered };
         }
       }
-    } catch { /* fallthrough */ }
+    } catch {
+      /* fallthrough */
+    }
 
     console.error("[extraction] parseResult: JSON parse failed");
     return null;
