@@ -119,5 +119,9 @@ OUTPUT a new memory blob — bullet list, ${MEMORY_MAX_CHARS} chars max, sorted 
 /** Format memory for inclusion in the system prompt. Empty string if none. */
 export function formatMemoryForPrompt(memory: string): string {
   if (!memory.trim()) return "";
-  return `USER MEMORY — durable facts from prior conversations with this user. Treat as background knowledge; verify with tools before acting on anything contact- or data-specific:\n\n${memory}`;
+  return `USER MEMORY — durable facts from prior conversations with this user.
+
+CRITICAL RULE: Memory is BACKGROUND CONTEXT, not a data source. When asked broad questions ("who should I focus on?", "who are you excited about?", "what's the pipeline look like?"), you MUST query real data using tools (query, aggregate, get_pipeline, search_contacts) rather than defaulting to contacts mentioned in memory. Memory tells you what the user CARES about — data tells you what's actually happening. Always lead with data, supplement with memory context.
+
+${memory}`;
 }
