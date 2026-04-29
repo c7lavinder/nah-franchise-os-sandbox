@@ -192,6 +192,26 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     },
   },
   {
+    name: "get_contact_insights",
+    description:
+      "Get analytical insights across contacts — who has momentum, who's at risk, who's most engaged. " +
+      "Use for broad questions like 'who should I focus on?', 'who are you excited about?', 'who's stalling?', " +
+      "'top performers', 'at-risk franchisees'. Returns contacts ranked by the requested metric with call data and pipeline context.",
+    input_schema: {
+      type: "object",
+      properties: {
+        lens: {
+          type: "string",
+          description: "What to analyze",
+          enum: ["momentum", "at_risk", "most_engaged", "stalling", "top_performers", "recent_calls"],
+        },
+        days: { type: "number", description: "Lookback period in days (default 90)" },
+        limit: { type: "number", description: "Max results (default 10)" },
+      },
+      required: ["lens"],
+    },
+  },
+  {
     name: "search_knowledge",
     description:
       "Keyword search the NAH knowledge base — brand, pipeline process, objection handling, competitors, FDD, playbooks. " +

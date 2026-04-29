@@ -21,8 +21,8 @@ export type ScoutModelTier = "haiku" | "sonnet" | "opus";
 
 export const SCOUT_MODELS = {
   haiku: "claude-haiku-4-5-20251001",
-  sonnet: "claude-sonnet-4-6-20250514",
-  opus: "claude-opus-4-6-20250514",
+  sonnet: "claude-sonnet-4-6",
+  opus: "claude-opus-4-6",
 } as const;
 
 /** Patterns that escalate a turn to Opus — strategic, multi-entity, planning */

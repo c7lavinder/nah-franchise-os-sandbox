@@ -56,6 +56,8 @@ export async function executeTool(
       return executeGetNextAction(input);
     case "get_schedule":
       return executeGetSchedule(input);
+    case "get_contact_insights":
+      return executeGetContactInsights(input);
     case "search_knowledge":
       return executeSearchKnowledge(input);
     case "workflow_analyze":
@@ -271,6 +273,164 @@ async function executeGetSchedule(input: Record<string, unknown>): Promise<ToolE
     return { data: JSON.stringify(appointments) };
   } catch (err) {
     return { data: `Error fetching schedule: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+async function executeGetContactInsights(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  try {
+    const supabase = createServerClient();
+    const lens = input.lens as string;
+    const days = (input.days as number) ?? 90;
+    const limit = (input.limit as number) ?? 10;
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+    // Base: contacts with their pipeline state, intelligence, and call activity
+    if (lens === "recent_calls") {
+      const { data } = await supabase
+        .from("calls")
+        .select(
+          "id, title, started_at, duration_seconds, coaching_score, summary, ai_summary, contacts!inner(first_name, last_name, ghl_contact_id)"
+        )
+        .not("contact_id", "is", null)
+        .gte("started_at", cutoff)
+        .order("started_at", { ascending: false })
+        .limit(limit);
+
+      const results = (data ?? []).map((c: any) => ({
+        contact: `${c.contacts?.first_name ?? ""} ${c.contacts?.last_name ?? ""}`.trim(),
+        ghlId: c.contacts?.ghl_contact_id,
+        title: c.title,
+        date: c.started_at,
+        duration: c.duration_seconds ? `${Math.round(c.duration_seconds / 60)}min` : null,
+        score: c.coaching_score,
+        summary: c.ai_summary ?? c.summary ?? null,
+      }));
+      return { data: JSON.stringify(results) };
+    }
+
+    // For all other lenses: aggregate call data per contact
+    const { data: callStats } = await supabase.rpc("get_contact_call_stats" as any, {} as any).select("*");
+
+    // Fallback: manual aggregation if RPC doesn't exist
+    const { data: calls } = await supabase
+      .from("calls")
+      .select(
+        "contact_id, started_at, coaching_score, ai_summary, contacts!inner(id, first_name, last_name, ghl_contact_id, scout_lead_score, territory_interest, capital_availability)"
+      )
+      .not("contact_id", "is", null)
+      .gte("started_at", cutoff);
+
+    // Aggregate per contact
+    type ContactAgg = {
+      name: string;
+      ghlId: string;
+      callCount: number;
+      lastCall: string;
+      avgScore: number;
+      scores: number[];
+      summaries: string[];
+      leadScore: number | null;
+      territory: string | null;
+      capital: string | null;
+    };
+    const contactMap = new Map<string, ContactAgg>();
+
+    for (const call of calls ?? []) {
+      const c = call.contacts as any;
+      const id = call.contact_id;
+      if (!id) continue;
+
+      const existing: ContactAgg = contactMap.get(id) ?? {
+        name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim(),
+        ghlId: c.ghl_contact_id ?? "",
+        callCount: 0,
+        lastCall: "",
+        avgScore: 0,
+        scores: [] as number[],
+        summaries: [] as string[],
+        leadScore: c.scout_lead_score,
+        territory: c.territory_interest,
+        capital: c.capital_availability,
+      };
+
+      existing.callCount++;
+      if (!existing.lastCall || call.started_at > existing.lastCall) existing.lastCall = call.started_at;
+      if (call.coaching_score) existing.scores.push(call.coaching_score as number);
+      if (call.ai_summary) existing.summaries.push((call.ai_summary as string).slice(0, 150));
+      contactMap.set(id, existing);
+    }
+
+    // Get pipeline state for each
+    const contactIds = Array.from(contactMap.keys());
+    const { data: jpsRows } = await supabase
+      .from("journey_pipeline_state")
+      .select("journey_id, pipeline_stages!inner(name), pipelines!inner(name)")
+      .eq("is_active", true)
+      .in(
+        "journey_id",
+        (
+          await supabase.from("journeys").select("id, primary_contact_id").in("primary_contact_id", contactIds)
+        ).data?.map((j: any) => j.id) ?? []
+      );
+
+    // Map journey → contact for pipeline info
+    const { data: journeys } = await supabase
+      .from("journeys")
+      .select("id, primary_contact_id")
+      .in("primary_contact_id", contactIds);
+
+    const contactStage = new Map<string, string>();
+    for (const j of journeys ?? []) {
+      const jps = (jpsRows ?? []).find((r: any) => r.journey_id === j.id);
+      if (jps) contactStage.set(j.primary_contact_id, (jps as any).pipeline_stages?.name ?? "Unknown");
+    }
+
+    // Build results and sort by lens
+    let entries = Array.from(contactMap.entries()).map(([id, c]) => ({
+      ...c,
+      avgScore: c.scores.length ? Math.round(c.scores.reduce((a, b) => a + b, 0) / c.scores.length) : 0,
+      stage: contactStage.get(id) ?? "Unknown",
+      latestSummary: c.summaries[c.summaries.length - 1] ?? null,
+    }));
+
+    switch (lens) {
+      case "momentum":
+        entries.sort((a, b) => b.avgScore + b.callCount * 5 - (a.avgScore + a.callCount * 5));
+        break;
+      case "at_risk":
+        entries.sort((a, b) => a.avgScore - b.avgScore);
+        entries = entries.filter((e) => e.avgScore < 40 || e.callCount <= 1);
+        break;
+      case "most_engaged":
+        entries.sort((a, b) => b.callCount - a.callCount);
+        break;
+      case "stalling":
+        entries.sort((a, b) => new Date(a.lastCall).getTime() - new Date(b.lastCall).getTime());
+        break;
+      case "top_performers":
+        entries.sort((a, b) => b.avgScore - a.avgScore);
+        entries = entries.filter((e) => e.avgScore >= 40);
+        break;
+      default:
+        entries.sort((a, b) => b.callCount - a.callCount);
+    }
+
+    const results = entries.slice(0, limit).map((e) => ({
+      name: e.name,
+      ghlId: e.ghlId,
+      stage: e.stage,
+      calls: e.callCount,
+      lastCall: e.lastCall?.slice(0, 10),
+      avgCoachingScore: e.avgScore,
+      leadScore: e.leadScore,
+      territory: e.territory,
+      capital: e.capital,
+      latestCallSummary: e.latestSummary,
+    }));
+
+    return { data: JSON.stringify(results) };
+  } catch (err) {
+    return { data: `Error getting insights: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
 }
 
