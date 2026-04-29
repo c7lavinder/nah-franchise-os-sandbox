@@ -58,6 +58,10 @@ export async function executeTool(
       return executeGetSchedule(input);
     case "get_contact_insights":
       return executeGetContactInsights(input);
+    case "get_tasks":
+      return executeGetTasks(input);
+    case "complete_task":
+      return executeCompleteTask(input);
     case "search_knowledge":
       return executeSearchKnowledge(input);
     case "workflow_analyze":
@@ -303,6 +307,76 @@ async function executeGetSchedule(input: Record<string, unknown>): Promise<ToolE
     return { data: JSON.stringify(appointments) };
   } catch (err) {
     return { data: `Error fetching schedule: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+async function executeGetTasks(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  try {
+    const contactId = input.contact_id as string;
+    const tasks = await ghl.getTasks(contactId);
+
+    if (tasks.length === 0) {
+      return { data: `No tasks found for this contact.` };
+    }
+
+    const formatted = tasks.map((t: any) => ({
+      id: t.id ?? t._id,
+      title: t.title,
+      body: t.body ?? null,
+      dueDate: t.dueDate,
+      completed: t.completed ?? false,
+      assignedTo: t.assignedTo ?? null,
+    }));
+
+    const open = formatted.filter((t: any) => !t.completed);
+    const done = formatted.filter((t: any) => t.completed);
+
+    return {
+      data: JSON.stringify({
+        open: open.length,
+        completed: done.length,
+        tasks: open.length > 0 ? open : formatted.slice(0, 10),
+      }),
+    };
+  } catch (err) {
+    return { data: `Error fetching tasks: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+async function executeCompleteTask(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  try {
+    const contactId = input.contact_id as string;
+    let taskId = input.task_id as string | undefined;
+
+    // If no task_id provided, find the only open task
+    if (!taskId) {
+      const tasks = await ghl.getTasks(contactId);
+      const openTasks = tasks.filter((t: any) => !t.completed);
+
+      if (openTasks.length === 0) {
+        return { data: "No open tasks found for this contact." };
+      }
+      if (openTasks.length === 1) {
+        taskId = (openTasks[0] as any).id ?? (openTasks[0] as any)._id;
+      } else {
+        // Multiple open tasks — list them for the user to pick
+        const list = openTasks
+          .map((t: any, i: number) => `${i + 1}. "${t.title}" (due: ${t.dueDate?.slice(0, 10) ?? "no date"})`)
+          .join("\n");
+        return { data: `Multiple open tasks found. Which one?\n\n${list}` };
+      }
+    }
+
+    if (!taskId) {
+      return { data: "Could not determine which task to complete." };
+    }
+
+    await ghl.updateTask(contactId, taskId, { completed: true });
+    const contactName = await getContactName(contactId);
+
+    return { data: `Task completed for ${contactName}.` };
+  } catch (err) {
+    return { data: `Error completing task: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
 }
 

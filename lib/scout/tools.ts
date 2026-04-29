@@ -286,8 +286,38 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     },
   },
   {
+    name: "get_tasks",
+    description:
+      "Get open tasks for a contact from GHL. Returns task title, due date, assigned user, and status. " +
+      "Use when the user asks about tasks, to-dos, or what's pending for a contact.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: { type: "string", description: "GHL contact ID" },
+      },
+      required: ["contact_id"],
+    },
+  },
+  {
+    name: "complete_task",
+    description:
+      "Mark a GHL task as complete. Use when the user says 'check off', 'complete', 'done', or 'mark as done' for a task. " +
+      "If there is only one open task for the contact, complete it without asking which one.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: { type: "string", description: "GHL contact ID" },
+        task_id: {
+          type: "string",
+          description: "GHL task ID — if known. If not provided, completes the only open task.",
+        },
+      },
+      required: ["contact_id"],
+    },
+  },
+  {
     name: "draft_task",
-    description: "Draft a task for a contact for human review. NEVER creates without confirmation.",
+    description: "Draft a NEW task for a contact for human review. NEVER creates without confirmation.",
     input_schema: {
       type: "object",
       properties: {
