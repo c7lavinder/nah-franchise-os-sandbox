@@ -20,10 +20,10 @@ import type { ScoutToolName, DraftedAction } from "@/types/scout";
 import type { UserRole } from "@/types/database";
 
 /** Maximum tokens for Scout's response */
-const MAX_TOKENS = 4096;
+const MAX_TOKENS = 8192;
 
 /** Maximum tool-call iterations to prevent infinite loops */
-const MAX_TOOL_ITERATIONS = 10;
+const MAX_TOOL_ITERATIONS = 15;
 
 /** Creates an Anthropic client instance */
 function createAnthropicClient(): Anthropic {
@@ -250,53 +250,106 @@ async function loadKnowledgeBase(pageContext?: ScoutConversationInput["pageConte
  * Format the page context as a one-line directive in the system prompt.
  * Lets Scout pre-fill contact_id / territory_slug without asking.
  */
-function formatPageContextForPrompt(
-  ctx?: ScoutConversationInput["pageContext"]
-): string {
+function formatPageContextForPrompt(ctx?: ScoutConversationInput["pageContext"]): string {
   if (!ctx || !ctx.page || ctx.page === "other" || ctx.page === "scout") return "";
 
-  const bits: string[] = [
-    `PAGE CONTEXT: User is on the ${ctx.page} page when asking this question.`,
-  ];
+  const bits: string[] = [`PAGE CONTEXT: User is on the ${ctx.page} page when asking this question.`];
   if (ctx.contactId) {
-    bits.push(`Active contact: ${ctx.contactId} — pre-fill this as contact_id when drafting actions unless the user names someone else.`);
+    bits.push(
+      `Active contact: ${ctx.contactId} — pre-fill this as contact_id when drafting actions unless the user names someone else.`
+    );
   }
   if (ctx.territorySlug) {
-    bits.push(`Active territory: ${ctx.territorySlug} — assume territory questions are about this slug unless told otherwise.`);
+    bits.push(
+      `Active territory: ${ctx.territorySlug} — assume territory questions are about this slug unless told otherwise.`
+    );
   }
   if (ctx.callType) bits.push(`Call type: ${ctx.callType}.`);
   if (ctx.pipelineStage) bits.push(`Current pipeline stage: ${ctx.pipelineStage}.`);
   return bits.join(" ");
 }
 
-/** Loads a quick pipeline snapshot for Scout's context — avoids needing a tool call for basic questions */
-async function loadPipelineSnapshot(): Promise<string> {
+/** Loads a rich data snapshot for Scout's context — pipeline, alerts, user activity */
+async function loadPipelineSnapshot(userId: string): Promise<string> {
   try {
     const supabase = createServerClient();
 
-    // Get alert counts by severity
-    const { count: criticalCount } = await supabase
-      .from("inactivity_alerts")
-      .select("id", { count: "exact", head: true })
-      .eq("is_resolved", false)
-      .eq("severity", "critical");
+    const [alertsResult, pipelineResult, contactsResult, activityResult] = await Promise.allSettled([
+      // Alerts
+      (async () => {
+        const { count: critical } = await supabase
+          .from("inactivity_alerts")
+          .select("id", { count: "exact", head: true })
+          .eq("is_resolved", false)
+          .eq("severity", "critical");
+        const { count: total } = await supabase
+          .from("inactivity_alerts")
+          .select("id", { count: "exact", head: true })
+          .eq("is_resolved", false);
+        return { critical: critical ?? 0, total: total ?? 0 };
+      })(),
 
-    const { count: highCount } = await supabase
-      .from("inactivity_alerts")
-      .select("id", { count: "exact", head: true })
-      .eq("is_resolved", false)
-      .eq("severity", "high");
+      // Pipeline stage counts (from Supabase — source of truth)
+      (async () => {
+        const { data } = await supabase
+          .from("journey_pipeline_state")
+          .select("pipelines!inner(name), pipeline_stages!inner(name)")
+          .eq("is_active", true);
+        const counts = new Map<string, number>();
+        for (const row of data ?? []) {
+          const pipeline = (row as any).pipelines?.name ?? "Unknown";
+          const stage = (row as any).pipeline_stages?.name ?? "Unknown";
+          const key = `${pipeline} → ${stage}`;
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+        return Array.from(counts.entries())
+          .map(([key, count]) => `  ${key}: ${count}`)
+          .join("\n");
+      })(),
 
-    const { count: totalAlerts } = await supabase
-      .from("inactivity_alerts")
-      .select("id", { count: "exact", head: true })
-      .eq("is_resolved", false);
+      // This user's active contacts count
+      (async () => {
+        const { count } = await supabase
+          .from("journey_pipeline_state")
+          .select("id", { count: "exact", head: true })
+          .eq("assigned_user_id", userId)
+          .eq("is_active", true);
+        return count ?? 0;
+      })(),
 
-    const alertLine = (totalAlerts ?? 0) > 0
-      ? `Open alerts: ${totalAlerts} (${criticalCount ?? 0} critical, ${highCount ?? 0} high)`
-      : "No open alerts.";
+      // Today's activity for this user
+      (async () => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const { count } = await supabase
+          .from("scout_action_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("action_status", "executed")
+          .gte("created_at", today.toISOString());
+        return count ?? 0;
+      })(),
+    ]);
 
-    return `TODAY'S SNAPSHOT (${new Date().toLocaleDateString()}):\n${alertLine}\nUse get_pipeline, get_profile, or get_next_action tools for detailed data.`;
+    const alerts = alertsResult.status === "fulfilled" ? alertsResult.value : { critical: 0, total: 0 };
+    const pipeline = pipelineResult.status === "fulfilled" ? pipelineResult.value : "";
+    const userContacts = contactsResult.status === "fulfilled" ? contactsResult.value : 0;
+    const todayActions = activityResult.status === "fulfilled" ? activityResult.value : 0;
+
+    const lines = [
+      `TODAY'S SNAPSHOT (${new Date().toLocaleDateString()}):`,
+      alerts.total > 0 ? `Alerts: ${alerts.total} open (${alerts.critical} critical)` : "No open alerts.",
+      `Your active contacts: ${userContacts}`,
+      `Your actions today: ${todayActions}`,
+    ];
+
+    if (pipeline) {
+      lines.push("", "Pipeline (all active leads):", pipeline);
+    }
+
+    lines.push("", "Use get_pipeline, get_profile, get_next_action, query, or aggregate tools for detailed data.");
+
+    return lines.join("\n");
   } catch {
     return "";
   }
@@ -306,15 +359,13 @@ async function loadPipelineSnapshot(): Promise<string> {
  * Runs a full conversation turn with the tool-call loop.
  * This is the main entry point used by the /api/scout/chat route.
  */
-export async function runConversationTurn(
-  input: ScoutConversationInput
-): Promise<ScoutConversationOutput> {
+export async function runConversationTurn(input: ScoutConversationInput): Promise<ScoutConversationOutput> {
   const client = createAnthropicClient();
 
   // Load dynamic context from Supabase — KB is context-aware
   const [knowledgeBase, pipelineSnapshot, userMemory] = await Promise.all([
     loadKnowledgeBase(input.pageContext),
-    loadPipelineSnapshot(),
+    loadPipelineSnapshot(input.userId),
     loadUserMemory(input.userId),
   ]);
 
@@ -332,7 +383,9 @@ export async function runConversationTurn(
     PROFILE_AND_SCORING_CONTEXT,
     knowledgeBase,
     SCOUT_RULES,
-  ].filter(Boolean).join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   let messages: Anthropic.Messages.MessageParam[] = [...input.messages];
   let draftedAction: DraftedAction | undefined;
@@ -374,7 +427,9 @@ export async function runConversationTurn(
         error: errorMsg,
         iteration: iterations,
         caller: "scout_chat",
-      }).catch(() => { /* swallow — logging must never block */ });
+      }).catch(() => {
+        /* swallow — logging must never block */
+      });
       throw err;
     }
 
@@ -400,7 +455,9 @@ export async function runConversationTurn(
       latencyMs,
       iteration: iterations,
       caller: "scout_chat",
-    }).catch(() => { /* swallow — logging must never block */ });
+    }).catch(() => {
+      /* swallow — logging must never block */
+    });
 
     // Check if Claude wants to use tools
     if (response.stop_reason === "tool_use") {
@@ -412,10 +469,7 @@ export async function runConversationTurn(
 
       for (const block of response.content) {
         if (block.type === "tool_use") {
-          const result = await executeTool(
-            block.name as ScoutToolName,
-            block.input as Record<string, unknown>
-          );
+          const result = await executeTool(block.name as ScoutToolName, block.input as Record<string, unknown>);
 
           toolResults.push({
             type: "tool_result",
@@ -439,9 +493,7 @@ export async function runConversationTurn(
     // Add it to messages and extract the text
     messages.push({ role: "assistant", content: response.content });
 
-    const textBlock = response.content.find(
-      (block): block is Anthropic.Messages.TextBlock => block.type === "text"
-    );
+    const textBlock = response.content.find((block): block is Anthropic.Messages.TextBlock => block.type === "text");
 
     return {
       responseText: textBlock?.text ?? "I wasn't able to generate a response. Please try again.",
@@ -457,4 +509,3 @@ export async function runConversationTurn(
     updatedMessages: messages,
   };
 }
-

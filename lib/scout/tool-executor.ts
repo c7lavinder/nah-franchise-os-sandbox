@@ -22,11 +22,7 @@ import {
   type FilterOp,
 } from "./data-tools";
 import type { CandidateIntelligence, ObjectionRegistry } from "@/lib/intelligence/types";
-import type {
-  ScoutToolName,
-  DraftedAction,
-  JourneyActionKind,
-} from "@/types/scout";
+import type { ScoutToolName, DraftedAction, JourneyActionKind } from "@/types/scout";
 
 /** The result of executing a tool — either data or a drafted action */
 export interface ToolExecutionResult {
@@ -89,6 +85,8 @@ export async function executeTool(
       return executeDraftNote(input);
     case "draft_trigger_workflow":
       return executeDraftTriggerWorkflow(input);
+    case "draft_knowledge_doc":
+      return executeDraftKnowledgeDoc(input);
     default: {
       const _exhaustive: never = toolName;
       return { data: `Unknown tool: ${_exhaustive}` };
@@ -114,10 +112,7 @@ async function executeQueryTool(input: Record<string, unknown>): Promise<string>
   return executeQuery({
     entity: input.entity as QueryEntity,
     filters: parseJsonField<FilterOp[]>(input.filters, []),
-    order_by: parseJsonField<{ field: string; direction: "asc" | "desc" } | undefined>(
-      input.order_by,
-      undefined
-    ),
+    order_by: parseJsonField<{ field: string; direction: "asc" | "desc" } | undefined>(input.order_by, undefined),
     limit: typeof input.limit === "number" ? input.limit : undefined,
   });
 }
@@ -129,10 +124,7 @@ async function executeAggregateTool(input: Record<string, unknown>): Promise<str
     metric_field: input.metric_field as string | undefined,
     group_by: input.group_by as string | undefined,
     filters: parseJsonField<FilterOp[]>(input.filters, []),
-    period: parseJsonField<{ field: string; from: string; to: string } | undefined>(
-      input.period,
-      undefined
-    ),
+    period: parseJsonField<{ field: string; from: string; to: string } | undefined>(input.period, undefined),
   });
 }
 
@@ -140,9 +132,7 @@ async function executeAggregateTool(input: Record<string, unknown>): Promise<str
 // READ-ONLY TOOLS — execute immediately
 // ========================================
 
-async function executeSearchContacts(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeSearchContacts(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
     const contacts = await ghl.searchContacts({
       query: input.query as string,
@@ -154,9 +144,7 @@ async function executeSearchContacts(
   }
 }
 
-async function executeGetPipeline(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeGetPipeline(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
     const pipelines = await ghl.getPipelines();
     // If a specific pipeline was requested, filter to that one
@@ -186,23 +174,16 @@ async function executeGetPipeline(
   }
 }
 
-async function executeGetSchedule(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeGetSchedule(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
-    const appointments = await ghl.getAllAppointments(
-      input.start_date as string,
-      input.end_date as string
-    );
+    const appointments = await ghl.getAllAppointments(input.start_date as string, input.end_date as string);
     return { data: JSON.stringify(appointments) };
   } catch (err) {
     return { data: `Error fetching schedule: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
 }
 
-async function executeSearchKnowledge(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeSearchKnowledge(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
     const supabase = createServerClient();
     const query = (input.query as string).toLowerCase();
@@ -219,7 +200,16 @@ async function executeSearchKnowledge(
       return { data: `Error searching knowledge base: ${error.message}` };
     }
 
-    const docs = rawDocs as { id: string; title: string; category: string; content: string; priority: number; retrieval_count: number | null }[] | null;
+    const docs = rawDocs as
+      | {
+          id: string;
+          title: string;
+          category: string;
+          content: string;
+          priority: number;
+          retrieval_count: number | null;
+        }[]
+      | null;
     if (!docs || docs.length === 0) {
       return { data: "No knowledge base documents found." };
     }
@@ -287,17 +277,12 @@ async function executeSearchKnowledge(
   }
 }
 
-async function executeGetNextAction(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeGetNextAction(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
     const contactId = input.contact_id as string;
 
     // Fetch contact + profile + pipeline data in parallel
-    const [contact, pipelinesData] = await Promise.all([
-      ghl.getContact(contactId),
-      ghl.getPipelines(),
-    ]);
+    const [contact, pipelinesData] = await Promise.all([ghl.getContact(contactId), ghl.getPipelines()]);
 
     const contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown";
 
@@ -338,9 +323,7 @@ async function executeGetNextAction(
       if (match) {
         const stage = pipeline.stages.find((s) => s.id === match.pipelineStageId);
         currentStage = stage?.name?.trim() ?? "Unknown";
-        daysInStage = Math.floor(
-          (Date.now() - new Date(match.updatedAt).getTime()) / (1000 * 60 * 60 * 24)
-        );
+        daysInStage = Math.floor((Date.now() - new Date(match.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
         opportunityStatus = match.status;
         break;
       }
@@ -353,9 +336,7 @@ async function executeGetNextAction(
       : null;
 
     // Calculate days since added
-    const daysSinceAdded = Math.floor(
-      (Date.now() - new Date(contact.dateAdded).getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const daysSinceAdded = Math.floor((Date.now() - new Date(contact.dateAdded).getTime()) / (1000 * 60 * 60 * 24));
 
     // Identify missing critical profile fields by stage
     const missingFields: string[] = [];
@@ -425,7 +406,8 @@ async function executeGetNextAction(
     // Build recommended next action
     let recommendation = "";
     if (opportunityStatus === "lost") {
-      recommendation = "This lead is marked as Lost. Consider moving to Nurture if there's future potential, or leave as Lost.";
+      recommendation =
+        "This lead is marked as Lost. Consider moving to Nurture if there's future potential, or leave as Lost.";
     } else if (isVeryStale) {
       recommendation = `No contact in ${daysSinceTouch} days — this lead is going cold. Reach out today with a personal call or text.`;
     } else if (overdue.length > 0) {
@@ -473,11 +455,7 @@ async function executeGetNextAction(
 
     // ─── Intelligence Context ───
     const [intelligenceResult, objectionsResult] = await Promise.all([
-      supabase
-        .from("candidate_intelligence")
-        .select("*")
-        .eq("contact_id", contactId)
-        .single(),
+      supabase.from("candidate_intelligence").select("*").eq("contact_id", contactId).single(),
       supabase
         .from("objection_registry")
         .select("*")
@@ -521,7 +499,9 @@ async function executeGetNextAction(
       const typedObjections = objectionsResult.data as ObjectionRegistry[];
       lines.push(``, `UNRESOLVED OBJECTIONS (${typedObjections.length}):`);
       for (const obj of typedObjections) {
-        lines.push(`  - ${obj.objection_type}: ${obj.objection_detail ?? "No detail recorded"} (stage: ${obj.stage_at_time})`);
+        lines.push(
+          `  - ${obj.objection_type}: ${obj.objection_detail ?? "No detail recorded"} (stage: ${obj.stage_at_time})`
+        );
       }
     }
 
@@ -539,28 +519,41 @@ async function executeGetNextAction(
 function getStageNumber(stageName: string): number {
   const map: Record<string, number> = {
     // New 6-stage Sales pipeline (canonical)
-    "Engagement": 1,
-    "Qualification": 2,
-    "Discovery": 3,
-    "Compliance": 4,
-    "Awarding": 5,
-    "Closed": 6,
+    Engagement: 1,
+    Qualification: 2,
+    Discovery: 3,
+    Compliance: 4,
+    Awarding: 5,
+    Closed: 6,
     // Follow-up pipeline
     "Follow-up": 7,
-    "Nurture": 8,
+    Nurture: 8,
     "Re-engaged": 9,
     // Legacy GHL names → closest new stage
-    "New Lead": 1, "Contacted": 1,
-    "Qualified": 2, "Guided Path to Ownership": 2,
-    "Matt Call": 3, "Matt Call (Discovery)": 3, "Discovery Call": 3,
-    "Sam Call": 3, "Sam Call (Validation)": 3, "Validation Call": 3,
-    "Compliance Gate": 4, "Compliance Check": 4,
-    "Application": 5, "Application + Approval": 5,
-    "FDD Issued": 4, "Signed FDD Receipt": 4,
-    "Mark Call": 4, "Mark Call (Capital/Lending)": 4,
-    "Award + Agreement": 5, "Matt Final": 5, "Matt Final/Documents Submitted": 5,
-    "Funds Received": 6, "Closed Won": 6,
-    "Lost": 10,
+    "New Lead": 1,
+    Contacted: 1,
+    Qualified: 2,
+    "Guided Path to Ownership": 2,
+    "Matt Call": 3,
+    "Matt Call (Discovery)": 3,
+    "Discovery Call": 3,
+    "Sam Call": 3,
+    "Sam Call (Validation)": 3,
+    "Validation Call": 3,
+    "Compliance Gate": 4,
+    "Compliance Check": 4,
+    Application: 5,
+    "Application + Approval": 5,
+    "FDD Issued": 4,
+    "Signed FDD Receipt": 4,
+    "Mark Call": 4,
+    "Mark Call (Capital/Lending)": 4,
+    "Award + Agreement": 5,
+    "Matt Final": 5,
+    "Matt Final/Documents Submitted": 5,
+    "Funds Received": 6,
+    "Closed Won": 6,
+    Lost: 10,
   };
   return map[stageName] ?? 0;
 }
@@ -569,16 +562,26 @@ function getStageNumber(stageName: string): number {
 function getStageRecommendation(stage: string, profile: Record<string, string>): string {
   const num = getStageNumber(stage);
   switch (num) {
-    case 1: return "Engagement stage — make outreach, schedule intro call, send PTO materials.";
-    case 2: return "Qualification stage — complete NDA, schedule Matt Call, run Zorakle assessment.";
-    case 3: return "Discovery stage — complete Sam Call, PFS, background check, Mark Call.";
-    case 4: return "Compliance stage — issue FDD, schedule FDD review call, territory call, FA info gathering.";
-    case 5: return "Awarding stage — Matt Final Call, send Franchise Award Letter, complete FA and FF.";
-    case 6: return "Closed — franchisee awarded! Trigger onboarding pipeline.";
-    case 7: return "Follow-up — touch every 7-14 days. Draft a personal check-in.";
-    case 8: return "Nurture — monthly personal touch from Chad + automated content.";
-    case 9: return "Re-engaged! Contact within 2 hours — they already know NAH and chose to come back.";
-    default: return "Review this lead's profile and determine the appropriate next step.";
+    case 1:
+      return "Engagement stage — make outreach, schedule intro call, send PTO materials.";
+    case 2:
+      return "Qualification stage — complete NDA, schedule Matt Call, run Zorakle assessment.";
+    case 3:
+      return "Discovery stage — complete Sam Call, PFS, background check, Mark Call.";
+    case 4:
+      return "Compliance stage — issue FDD, schedule FDD review call, territory call, FA info gathering.";
+    case 5:
+      return "Awarding stage — Matt Final Call, send Franchise Award Letter, complete FA and FF.";
+    case 6:
+      return "Closed — franchisee awarded! Trigger onboarding pipeline.";
+    case 7:
+      return "Follow-up — touch every 7-14 days. Draft a personal check-in.";
+    case 8:
+      return "Nurture — monthly personal touch from Chad + automated content.";
+    case 9:
+      return "Re-engaged! Contact within 2 hours — they already know NAH and chose to come back.";
+    default:
+      return "Review this lead's profile and determine the appropriate next step.";
   }
 }
 
@@ -586,19 +589,13 @@ function getStageRecommendation(stage: string, profile: Record<string, string>):
 // WORKFLOW INTELLIGENCE TOOLS — read-only
 // ========================================
 
-async function executeWorkflowAnalyze(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeWorkflowAnalyze(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
     const workflowId = input.workflow_id as string;
     const supabase = createServerClient();
 
     // Fetch the workflow name
-    const { data: workflow } = await supabase
-      .from("workflows")
-      .select("name")
-      .eq("id", workflowId)
-      .single();
+    const { data: workflow } = await supabase.from("workflows").select("name").eq("id", workflowId).single();
 
     const workflowName = workflow?.name ?? "Unknown Workflow";
     const analysis = await analyzeWorkflow(workflowId, workflowName);
@@ -612,9 +609,7 @@ async function executeWorkflowAnalyze(
       ``,
       `Health Score: ${analysis.score}`,
       ``,
-      metricsLines.length > 0
-        ? `Metrics:\n${metricsLines.join("\n")}`
-        : `Metrics: No data yet`,
+      metricsLines.length > 0 ? `Metrics:\n${metricsLines.join("\n")}` : `Metrics: No data yet`,
       ``,
       `Top Issue: ${analysis.topIssue ?? "None — workflow is performing well"}`,
       `Underperforming Steps: ${analysis.underperformingSteps.length}`,
@@ -637,9 +632,7 @@ async function executeWorkflowAnalyze(
   }
 }
 
-async function executeWorkflowRewrite(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeWorkflowRewrite(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
     const stepId = input.step_id as string;
     const context = input.context as string | undefined;
@@ -661,11 +654,7 @@ async function executeWorkflowRewrite(
 
     for (let i = 0; i < result.variants.length; i++) {
       const v = result.variants[i];
-      lines.push(
-        ``,
-        `--- Variant ${i + 1}: ${v.approach} ---`,
-        `Rationale: ${v.rationale}`
-      );
+      lines.push(``, `--- Variant ${i + 1}: ${v.approach} ---`, `Rationale: ${v.rationale}`);
       if (v.subject) {
         lines.push(`Subject: ${v.subject}`);
       }
@@ -680,15 +669,11 @@ async function executeWorkflowRewrite(
   }
 }
 
-async function executeTrainualStatus(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeTrainualStatus(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
     const contactId = input.contact_id as string;
     const contact = await ghl.getContact(contactId);
-    const contactName =
-      `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() ||
-      "Unknown";
+    const contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown";
 
     // Load field mapping to resolve custom field IDs to names
     const supabase = createServerClient();
@@ -726,23 +711,18 @@ async function executeTrainualStatus(
     if (!trainualInviteSent || trainualInviteSent === "No") {
       nudgeReason = "Trainual invite has not been sent yet.";
       if (framingCallLogged !== "Yes") {
-        nudgeReason +=
-          " Framing call must be logged before sending the Trainual invite.";
+        nudgeReason += " Framing call must be logged before sending the Trainual invite.";
       } else {
         nudgeNeeded = true;
         nudgeReason += " Framing call is done — send the invite now.";
       }
     } else if (!completionPct || parseFloat(completionPct) === 0) {
       nudgeNeeded = true;
-      nudgeReason =
-        "Trainual invite was sent but the prospect has not started it yet.";
+      nudgeReason = "Trainual invite was sent but the prospect has not started it yet.";
     } else if (parseFloat(completionPct) < 100) {
       // Check if activity is stale (more than 7 days)
       if (lastActivity) {
-        const daysSinceActivity = Math.floor(
-          (Date.now() - new Date(lastActivity).getTime()) /
-            (1000 * 60 * 60 * 24)
-        );
+        const daysSinceActivity = Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24));
         if (daysSinceActivity > 7) {
           nudgeNeeded = true;
           nudgeReason = `Trainual is ${completionPct}% complete but no activity in ${daysSinceActivity} days.`;
@@ -777,9 +757,7 @@ async function executeTrainualStatus(
 // DRAFT TOOLS — return drafts for user confirmation
 // ========================================
 
-async function executeDraftMessage(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeDraftMessage(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   const contactId = input.contact_id as string;
   const channel = input.channel as "SMS" | "Email";
   const content = input.content as string;
@@ -814,9 +792,7 @@ async function executeDraftMessage(
   };
 }
 
-async function executeDraftTask(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeDraftTask(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   const contactId = input.contact_id as string;
   const title = input.title as string;
   const dueDate = input.due_date as string;
@@ -850,9 +826,7 @@ async function executeDraftTask(
   };
 }
 
-async function executeDraftStageMove(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeDraftStageMove(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   const contactId = input.contact_id as string;
   const newStage = input.new_stage as string;
   const reason = input.reason as string | undefined;
@@ -898,9 +872,7 @@ async function executeDraftStageMove(
   };
 }
 
-async function executeDraftProfileUpdate(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeDraftProfileUpdate(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   const contactId = input.contact_id as string;
   const updatesRaw = input.updates as string;
 
@@ -924,9 +896,7 @@ async function executeDraftProfileUpdate(
     return { data: "Error: No profile updates provided." };
   }
 
-  const fieldSummary = updates
-    .map((u) => `${u.fieldName} → "${u.value}"`)
-    .join(", ");
+  const fieldSummary = updates.map((u) => `${u.fieldName} → "${u.value}"`).join(", ");
 
   const draftedAction: DraftedAction = {
     id: crypto.randomUUID(),
@@ -946,9 +916,7 @@ async function executeDraftProfileUpdate(
   };
 }
 
-async function executeDraftEosUpdate(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeDraftEosUpdate(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   const entityType = input.entity_type as "contact" | "territory";
   const entityId = input.entity_id as string;
   const entityName = input.entity_name as string;
@@ -966,9 +934,7 @@ async function executeDraftEosUpdate(
     return { data: "Error: No EOS updates provided." };
   }
 
-  const fieldSummary = updates
-    .map((u) => `${u.fieldName} → "${u.value}"`)
-    .join(", ");
+  const fieldSummary = updates.map((u) => `${u.fieldName} → "${u.value}"`).join(", ");
 
   const label = entityType === "contact" ? `contact ${entityName}` : `territory ${entityName}`;
 
@@ -993,9 +959,7 @@ async function executeDraftEosUpdate(
   };
 }
 
-async function executeDraftMarketDataUpdate(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeDraftMarketDataUpdate(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   const territorySlug = input.territory_slug as string;
   const territoryName = input.territory_name as string;
   const updatesRaw = input.updates as string;
@@ -1011,9 +975,7 @@ async function executeDraftMarketDataUpdate(
     return { data: "Error: No market data updates provided." };
   }
 
-  const fieldSummary = updates
-    .map((u) => `${u.fieldName} → "${u.value}"`)
-    .join(", ");
+  const fieldSummary = updates.map((u) => `${u.fieldName} → "${u.value}"`).join(", ");
 
   const draftedAction: DraftedAction = {
     id: crypto.randomUUID(),
@@ -1035,9 +997,7 @@ async function executeDraftMarketDataUpdate(
   };
 }
 
-async function executeDraftJourneyAction(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeDraftJourneyAction(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   const contactId = input.contact_id as string;
   const kind = input.kind as JourneyActionKind;
   const workflowId = input.workflow_id as string | undefined;
@@ -1068,11 +1028,7 @@ async function executeDraftJourneyAction(
   if (workflowId) {
     try {
       const supabase = createServerClient();
-      const { data } = await supabase
-        .from("workflows")
-        .select("name")
-        .eq("id", workflowId)
-        .single();
+      const { data } = await supabase.from("workflows").select("name").eq("id", workflowId).single();
       workflowName = (data as { name?: string } | null)?.name ?? undefined;
     } catch {
       // Optional
@@ -1110,9 +1066,7 @@ async function executeDraftJourneyAction(
   };
 }
 
-async function executeDraftAppointment(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeDraftAppointment(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   const contactId = input.contact_id as string;
   const title = input.title as string;
   const startTime = input.start_time as string;
@@ -1187,9 +1141,7 @@ async function executeDraftAppointment(
   };
 }
 
-async function executeDraftNote(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeDraftNote(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   const contactId = input.contact_id as string;
   const body = input.body as string;
 
@@ -1223,9 +1175,7 @@ async function executeDraftNote(
   };
 }
 
-async function executeDraftTriggerWorkflow(
-  input: Record<string, unknown>
-): Promise<ToolExecutionResult> {
+async function executeDraftTriggerWorkflow(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   const contactId = input.contact_id as string;
   const workflowId = input.workflow_id as string;
   const workflowName = input.workflow_name as string | undefined;
@@ -1254,5 +1204,27 @@ async function executeDraftTriggerWorkflow(
   return {
     data: `I've drafted a GHL workflow trigger for ${contactName} → workflow ${workflowName ?? workflowId}. Please review and confirm, edit, or cancel.`,
     draftedAction,
+  };
+}
+
+async function executeDraftKnowledgeDoc(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  const title = input.title as string;
+  const category = input.category as string;
+  const content = input.content as string;
+
+  // Knowledge docs are submitted for admin review — not added directly.
+  // Non-admins can suggest, but only admins can approve and add to the KB.
+  const supabase = createServerClient();
+
+  await supabase.from("integration_logs").insert({
+    integration_name: "scout_knowledge_suggestion",
+    event_type: "knowledge_doc_drafted",
+    status: "pending_review",
+    payload_summary: `Suggested KB doc: "${title}" [${category}]`,
+    metadata: { title, category, content_preview: content.slice(0, 200) },
+  });
+
+  return {
+    data: `I've drafted a knowledge base document: "${title}" [${category}]. This has been submitted for admin review. An admin will need to approve it before it's added to the shared knowledge base that all users benefit from.\n\nContent preview:\n${content.slice(0, 300)}${content.length > 300 ? "..." : ""}`,
   };
 }

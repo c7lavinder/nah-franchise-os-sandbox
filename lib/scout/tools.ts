@@ -93,15 +93,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
         entity: {
           type: "string",
           description: "Collection to aggregate over",
-          enum: [
-            "contacts",
-            "journeys",
-            "territories",
-            "call_logs",
-            "alerts",
-            "objections",
-            "workflow_enrollments",
-          ],
+          enum: ["contacts", "journeys", "territories", "call_logs", "alerts", "objections", "workflow_enrollments"],
         },
         metric: {
           type: "string",
@@ -189,8 +181,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   },
   {
     name: "get_schedule",
-    description:
-      "Get upcoming GHL appointments within a date range. Use for calendar / scheduling questions.",
+    description: "Get upcoming GHL appointments within a date range. Use for calendar / scheduling questions.",
     input_schema: {
       type: "object",
       properties: {
@@ -262,8 +253,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   // ════════════════════════════════════════════════════════════════
   {
     name: "draft_message",
-    description:
-      "Draft an SMS or email to a contact for human review. NEVER sends without confirmation.",
+    description: "Draft an SMS or email to a contact for human review. NEVER sends without confirmation.",
     input_schema: {
       type: "object",
       properties: {
@@ -333,12 +323,11 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
         entity_name: { type: "string", description: "Display name" },
         section: {
           type: "string",
-          description:
-            "EOS section: goals, issues, todos, scorecard, habits, rocks, budgets, lead_channels",
+          description: "EOS section: goals, issues, todos, scorecard, habits, rocks, budgets, lead_channels",
         },
         updates: {
           type: "string",
-          description: 'JSON array of {fieldName, value, reason}',
+          description: "JSON array of {fieldName, value, reason}",
         },
       },
       required: ["entity_type", "entity_id", "entity_name", "section", "updates"],
@@ -355,7 +344,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
         territory_name: { type: "string", description: "Display name" },
         updates: {
           type: "string",
-          description: 'JSON array of {fieldName, value, reason}',
+          description: "JSON array of {fieldName, value, reason}",
         },
       },
       required: ["territory_slug", "territory_name", "updates"],
@@ -435,6 +424,48 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
         workflow_name: { type: "string", description: "Optional display name from GHL" },
       },
       required: ["contact_id", "workflow_id"],
+    },
+  },
+  {
+    name: "draft_knowledge_doc",
+    description:
+      "Suggest a new knowledge base document. Use this when a user discovers a proven tactic, " +
+      "objection response, playbook, or process that should be shared with the entire team. " +
+      "The suggestion is submitted for ADMIN REVIEW — only admins can approve and add documents to the shared knowledge base. " +
+      "Any user can suggest, but the content must be reviewed before it reaches the team. " +
+      "Examples: 'Save this objection response as a playbook', 'Add this to our knowledge base', 'The team should know this'.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Document title (e.g., 'Handling the Spouse Objection')" },
+        category: {
+          type: "string",
+          description: "Category for the document",
+          enum: [
+            "objections",
+            "coaching",
+            "pipeline",
+            "conversion_playbook",
+            "territory",
+            "deal_execution",
+            "fdd",
+            "competitors",
+            "ideal_candidate",
+            "marketing",
+            "business_planning",
+            "governance",
+            "operations",
+            "brand",
+            "industry",
+            "franchisee_playbook",
+          ],
+        },
+        content: {
+          type: "string",
+          description: "The full document content — tactics, scripts, processes, or insights to share",
+        },
+      },
+      required: ["title", "category", "content"],
     },
   },
 ];

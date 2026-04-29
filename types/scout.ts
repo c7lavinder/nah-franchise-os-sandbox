@@ -25,7 +25,8 @@ export type ScoutToolName =
   | "draft_journey_action"
   | "draft_appointment"
   | "draft_note"
-  | "draft_trigger_workflow";
+  | "draft_trigger_workflow"
+  | "draft_knowledge_doc";
 
 /** Chat message role */
 export type ChatRole = "user" | "assistant";
@@ -144,11 +145,7 @@ export interface DraftedMarketDataUpdatePayload {
 }
 
 /** Kinds of journey-level actions Scout can draft */
-export type JourneyActionKind =
-  | "enroll_workflow"
-  | "pause_workflow"
-  | "resume_workflow"
-  | "exit_workflow";
+export type JourneyActionKind = "enroll_workflow" | "pause_workflow" | "resume_workflow" | "exit_workflow";
 
 /**
  * Payload for a drafted journey action — workflow enrollment changes
@@ -208,11 +205,14 @@ export interface ScoutToolDefinition {
   description: string;
   input_schema: {
     type: "object";
-    properties: Record<string, {
-      type: string;
-      description: string;
-      enum?: string[];
-    }>;
+    properties: Record<
+      string,
+      {
+        type: string;
+        description: string;
+        enum?: string[];
+      }
+    >;
     required: string[];
   };
 }
