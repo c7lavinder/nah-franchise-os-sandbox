@@ -152,11 +152,40 @@ async function executeAggregateTool(input: Record<string, unknown>): Promise<str
 
 async function executeSearchContacts(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
-    const contacts = await ghl.searchContacts({
-      query: input.query as string,
-      limit: input.limit as number | undefined,
-    });
-    return { data: JSON.stringify(contacts) };
+    const supabase = createServerClient();
+    const query = (input.query as string).trim();
+    const limit = (input.limit as number) ?? 10;
+
+    // Search Supabase contacts by name, email, or phone
+    const { data, error } = await supabase
+      .from("contacts")
+      .select(
+        "id, ghl_contact_id, first_name, last_name, email, phone, city, state, opportunity_source, territory_interest, capital_availability, scout_lead_score"
+      )
+      .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
+      .limit(limit);
+
+    if (error) {
+      return { data: `Error searching contacts: ${error.message}` };
+    }
+
+    // Format for Scout — include key profile fields so it has context
+    const results = (data ?? []).map((c) => ({
+      id: c.ghl_contact_id ?? c.id,
+      localId: c.id,
+      firstName: c.first_name,
+      lastName: c.last_name,
+      email: c.email,
+      phone: c.phone,
+      city: c.city,
+      state: c.state,
+      source: c.opportunity_source,
+      territoryInterest: c.territory_interest,
+      capitalAvailability: c.capital_availability,
+      leadScore: c.scout_lead_score,
+    }));
+
+    return { data: JSON.stringify(results) };
   } catch (err) {
     return { data: `Error searching contacts: ${err instanceof Error ? err.message : "Unknown error"}` };
   }

@@ -21,8 +21,8 @@ export type ScoutModelTier = "haiku" | "sonnet" | "opus";
 
 export const SCOUT_MODELS = {
   haiku: "claude-haiku-4-5-20251001",
-  sonnet: "claude-sonnet-4-6-20250929",
-  opus: "claude-opus-4-7-20251101",
+  sonnet: "claude-sonnet-4-6-20250514",
+  opus: "claude-opus-4-6-20250514",
 } as const;
 
 /** Patterns that escalate a turn to Opus — strategic, multi-entity, planning */
@@ -89,11 +89,7 @@ function applyRoleFloor(tier: ScoutModelTier, role: UserRole): ScoutModelTier {
  * Apply a length-based escalation — long conversations or messages with
  * lots of context need stronger models to track everything.
  */
-function applyLengthEscalation(
-  tier: ScoutModelTier,
-  messageLen: number,
-  historyLen: number
-): ScoutModelTier {
+function applyLengthEscalation(tier: ScoutModelTier, messageLen: number, historyLen: number): ScoutModelTier {
   // Very long single messages (>800 chars) → at least Sonnet
   if (messageLen > 800 && tier === "haiku") return "sonnet";
   // Deep conversations (>15 turns) → at least Sonnet
@@ -141,8 +137,7 @@ export function routeModel({ messages, userRole }: RouteInput): RouteResult {
 
   const reasonBits: string[] = [`pattern→${baseTier}`];
   if (withRole !== baseTier) reasonBits.push(`role(${userRole})→${withRole}`);
-  if (final !== withRole)
-    reasonBits.push(`length(msg=${text.length},hist=${messages.length})→${final}`);
+  if (final !== withRole) reasonBits.push(`length(msg=${text.length},hist=${messages.length})→${final}`);
 
   return {
     tier: final,
