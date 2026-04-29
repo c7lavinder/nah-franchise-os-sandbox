@@ -146,29 +146,73 @@ async function executeSearchContacts(input: Record<string, unknown>): Promise<To
 
 async function executeGetPipeline(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
-    const pipelines = await ghl.getPipelines();
-    // If a specific pipeline was requested, filter to that one
+    const supabase = createServerClient();
+
+    // Get pipelines from Supabase (source of truth)
+    let pipelineQuery = supabase.from("pipelines").select("id, name, slug").order("name");
+
     if (input.pipeline_id) {
-      const pipeline = pipelines.find((p) => p.id === input.pipeline_id);
-      if (!pipeline) {
-        return { data: `Pipeline with ID ${input.pipeline_id} not found.` };
+      pipelineQuery = pipelineQuery.eq("id", input.pipeline_id);
+    }
+
+    const { data: pipelines, error: pError } = await pipelineQuery;
+    if (pError || !pipelines?.length) {
+      return { data: input.pipeline_id ? `Pipeline not found.` : "No pipelines configured." };
+    }
+
+    // For each pipeline, get stages and active lead counts
+    const results = [];
+    for (const pipeline of pipelines) {
+      const { data: stages } = await supabase
+        .from("pipeline_stages")
+        .select("id, name, slug, sort_order, is_terminal")
+        .eq("pipeline_id", pipeline.id)
+        .order("sort_order");
+
+      // Count active leads per stage
+      const { data: jpsRows } = await supabase
+        .from("journey_pipeline_state")
+        .select("current_stage_id, assigned_user_id, contacts!inner(first_name, last_name, ghl_contact_id)")
+        .eq("pipeline_id", pipeline.id)
+        .eq("is_active", true);
+
+      const stageCounts = new Map<string, { count: number; contacts: { name: string; ghlId: string }[] }>();
+      for (const stage of stages ?? []) {
+        stageCounts.set(stage.id, { count: 0, contacts: [] });
       }
-      // Also fetch opportunities for this pipeline
-      const opportunities = await ghl.searchOpportunities({
-        pipelineId: pipeline.id,
-        status: "open",
+
+      for (const row of jpsRows ?? []) {
+        const entry = stageCounts.get(row.current_stage_id);
+        if (entry) {
+          entry.count++;
+          const c = row.contacts as any;
+          if (c) {
+            entry.contacts.push({
+              name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown",
+              ghlId: c.ghl_contact_id ?? "",
+            });
+          }
+        }
+      }
+
+      const stagesWithCounts = (stages ?? []).map((s) => ({
+        name: s.name,
+        slug: s.slug,
+        sortOrder: s.sort_order,
+        isTerminal: s.is_terminal,
+        activeLeads: stageCounts.get(s.id)?.count ?? 0,
+        contacts: (stageCounts.get(s.id)?.contacts ?? []).slice(0, 10),
+      }));
+
+      results.push({
+        pipeline: pipeline.name,
+        slug: pipeline.slug,
+        stages: stagesWithCounts,
+        totalActive: jpsRows?.length ?? 0,
       });
-      return { data: JSON.stringify({ pipeline, opportunities }) };
     }
-    // Return first pipeline with its opportunities
-    if (pipelines.length > 0) {
-      const opportunities = await ghl.searchOpportunities({
-        pipelineId: pipelines[0].id,
-        status: "open",
-      });
-      return { data: JSON.stringify({ pipeline: pipelines[0], opportunities }) };
-    }
-    return { data: JSON.stringify({ pipelines, opportunities: [] }) };
+
+    return { data: JSON.stringify(results.length === 1 ? results[0] : results) };
   } catch (err) {
     return { data: `Error fetching pipeline: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
@@ -280,136 +324,99 @@ async function executeSearchKnowledge(input: Record<string, unknown>): Promise<T
 async function executeGetNextAction(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
     const contactId = input.contact_id as string;
-
-    // Fetch contact + profile + pipeline data in parallel
-    const [contact, pipelinesData] = await Promise.all([ghl.getContact(contactId), ghl.getPipelines()]);
-
-    const contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown";
-
-    // Load field mapping for profile
     const supabase = createServerClient();
-    const { data: fieldMappings } = await supabase
-      .from("ghl_custom_fields")
-      .select("field_name, ghl_field_id")
-      .eq("entity_type", "contact");
 
-    const idToName = new Map<string, string>();
-    if (fieldMappings) {
-      for (const m of fieldMappings) {
-        idToName.set(m.ghl_field_id, m.field_name);
-      }
+    // Fetch contact from Supabase (source of truth) — includes all profile fields
+    const { data: contact, error: cErr } = await supabase
+      .from("contacts")
+      .select("*")
+      .eq("ghl_contact_id", contactId)
+      .single();
+
+    if (cErr || !contact) {
+      // Try by UUID
+      const { data: contactById } = await supabase.from("contacts").select("*").eq("id", contactId).single();
+      if (!contactById) return { data: `Contact ${contactId} not found.` };
+      Object.assign(contact ?? {}, contactById);
     }
 
-    // Extract profile values
-    const profile: Record<string, string> = {};
-    for (const cf of contact.customFields) {
-      const name = idToName.get(cf.id);
-      if (name && cf.value) {
-        profile[name] = cf.value;
-      }
-    }
+    const c = contact as any;
+    const contactName = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown";
 
-    // Find this contact's opportunity in NAH pipelines
-    const nahPipelines = pipelinesData.filter((p) => p.name.startsWith("NAH Franchise Sales"));
+    // Find pipeline state from Supabase
+    const { data: jpsRows } = await supabase
+      .from("journey_pipeline_state")
+      .select(
+        "current_stage_id, entered_current_stage_at, is_active, closed_reason, pipeline_stages!inner(name, sort_order), pipelines!inner(name, slug)"
+      )
+      .eq("is_active", true)
+      .in(
+        "journey_id",
+        (await supabase.from("journeys").select("id").eq("primary_contact_id", c.id)).data?.map((j: any) => j.id) ?? []
+      );
+
     let currentStage = "Unknown";
     let daysInStage = 0;
-    let opportunityStatus = "unknown";
+    let pipelineName = "Unknown";
+    let stageNum = 0;
 
-    for (const pipeline of nahPipelines) {
-      const opps = await ghl.searchOpportunities({
-        pipelineId: pipeline.id,
-      });
-      const match = opps.find((o) => o.contactId === contactId);
-      if (match) {
-        const stage = pipeline.stages.find((s) => s.id === match.pipelineStageId);
-        currentStage = stage?.name?.trim() ?? "Unknown";
-        daysInStage = Math.floor((Date.now() - new Date(match.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
-        opportunityStatus = match.status;
-        break;
+    if (jpsRows && jpsRows.length > 0) {
+      const jps = jpsRows[0] as any;
+      currentStage = jps.pipeline_stages?.name ?? "Unknown";
+      pipelineName = jps.pipelines?.name ?? "Unknown";
+      stageNum = getStageNumber(currentStage);
+      if (jps.entered_current_stage_at) {
+        daysInStage = Math.floor(
+          (Date.now() - new Date(jps.entered_current_stage_at).getTime()) / (1000 * 60 * 60 * 24)
+        );
       }
     }
 
-    // Calculate days since last touch
-    const lastTouchStr = profile["Last Touch Date"];
-    const daysSinceTouch = lastTouchStr
-      ? Math.floor((Date.now() - new Date(lastTouchStr).getTime()) / (1000 * 60 * 60 * 24))
+    // Days since added
+    const daysSinceAdded = c.created_at
+      ? Math.floor((Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+
+    // Days since last synced (proxy for last touch)
+    const daysSinceTouch = c.last_synced_at
+      ? Math.floor((Date.now() - new Date(c.last_synced_at).getTime()) / (1000 * 60 * 60 * 24))
       : null;
 
-    // Calculate days since added
-    const daysSinceAdded = Math.floor((Date.now() - new Date(contact.dateAdded).getTime()) / (1000 * 60 * 60 * 24));
-
-    // Identify missing critical profile fields by stage
+    // Missing profile fields check
     const missingFields: string[] = [];
 
-    // Fields that should be filled by Qualified stage
     const qualificationFields: [string, string][] = [
-      ["Territory Interest", "Where do they want their territory?"],
-      ["Capital Availability", "Have they confirmed capital?"],
-      ["Business Ownership Experience", "Prior business ownership?"],
-      ["Primary Goal", "What's their primary goal?"],
-      ["Motivation Clarity", "How strong is their motivation?"],
+      ["territory_interest", "Where do they want their territory?"],
+      ["capital_availability", "Have they confirmed capital?"],
+      ["business_ownership_experience", "Prior business ownership?"],
+      ["motivation_clarity", "How strong is their motivation?"],
     ];
 
-    // Fields for later stages
-    const financialFields: [string, string][] = [
-      ["Capital Source", "How are they funding it?"],
-      ["Financing Pre-Qualified", "Are they pre-qualified for financing?"],
-    ];
+    const complianceFields: [string, string][] = [["nda_status", "NDA signed?"]];
 
-    const complianceFields: [string, string][] = [
-      ["Spouse Aware", "Is their spouse aware?"],
-      ["NDA Status", "NDA signed?"],
-    ];
-
-    // Check qualification fields (relevant from Stage 3+)
-    const stageNum = getStageNumber(currentStage);
     if (stageNum >= 3) {
       for (const [field, question] of qualificationFields) {
-        if (!profile[field]) missingFields.push(`${field} — ${question}`);
+        if (!c[field]) missingFields.push(`${field} — ${question}`);
       }
-    }
-    if (stageNum >= 5) {
-      for (const [field, question] of financialFields) {
-        if (!profile[field]) missingFields.push(`${field} — ${question}`);
-      }
-    }
-    if (stageNum >= 3) {
       for (const [field, question] of complianceFields) {
-        if (!profile[field]) missingFields.push(`${field} — ${question}`);
+        if (!c[field]) missingFields.push(`${field} — ${question}`);
       }
     }
 
-    // Identify overdue milestones
+    // Overdue milestones
     const overdue: string[] = [];
-    const mattDone = profile["Matt Call Done"];
-    const samDone = profile["Sam Call Done"];
-    const markDone = profile["Mark Call Done"];
-    const framingDone = profile["Framing Call Logged"];
-
-    if (stageNum >= 2 && framingDone !== "Yes") {
+    if (stageNum >= 2 && !c.framing_call_logged) {
       overdue.push("Framing call not logged — must happen before Trainual invite");
-    }
-    if (stageNum >= 4 && (!mattDone || mattDone.startsWith("No"))) {
-      overdue.push("Matt Call (Discovery) not completed");
-    }
-    if (stageNum >= 6 && (!samDone || samDone.startsWith("No"))) {
-      overdue.push("Sam Call (Validation) not completed");
-    }
-    if (stageNum >= 9 && (!markDone || markDone.startsWith("No"))) {
-      overdue.push("Mark Call (Capital/Lending) not completed");
     }
 
     // Stale lead check
     const isStale = daysSinceTouch !== null && daysSinceTouch > 3;
     const isVeryStale = daysSinceTouch !== null && daysSinceTouch > 7;
 
-    // Build recommended next action
+    // Build recommendation
     let recommendation = "";
-    if (opportunityStatus === "lost") {
-      recommendation =
-        "This lead is marked as Lost. Consider moving to Nurture if there's future potential, or leave as Lost.";
-    } else if (isVeryStale) {
-      recommendation = `No contact in ${daysSinceTouch} days — this lead is going cold. Reach out today with a personal call or text.`;
+    if (isVeryStale) {
+      recommendation = `No contact in ${daysSinceTouch} days — this lead is going cold. Reach out today.`;
     } else if (overdue.length > 0) {
       recommendation = `Overdue: ${overdue[0]}. Schedule or complete this before moving forward.`;
     } else if (missingFields.length > 0) {
@@ -417,21 +424,23 @@ async function executeGetNextAction(input: Record<string, unknown>): Promise<Too
     } else if (isStale) {
       recommendation = `Last touch was ${daysSinceTouch} days ago. Follow up to keep momentum.`;
     } else {
-      recommendation = getStageRecommendation(currentStage, profile);
+      recommendation = getStageRecommendation(currentStage, {});
     }
 
-    // Build the full analysis
+    // Build analysis
     const lines = [
       `NEXT ACTION ANALYSIS — ${contactName}`,
       ``,
       `CURRENT STATE:`,
+      `  Pipeline: ${pipelineName}`,
       `  Stage: ${currentStage} (${daysInStage}d in stage)`,
-      `  Status: ${opportunityStatus}`,
       `  Days since added: ${daysSinceAdded}`,
-      `  Last touch: ${daysSinceTouch !== null ? `${daysSinceTouch} days ago via ${profile["Last Touch Channel"] ?? "unknown"}` : "No touch recorded"}`,
-      `  Lead score: ${profile["Scout Lead Score"] ?? "Not scored"}`,
-      `  Sentiment: ${profile["Sentiment Trend"] ?? "Unknown"}`,
-      `  Trainual: ${profile["Trainual Completion Percent"] ? `${profile["Trainual Completion Percent"]}% complete` : "Not tracked"}`,
+      `  Lead score: ${c.scout_lead_score ?? "Not scored"}`,
+      `  Territory interest: ${c.territory_interest ?? "Not set"}`,
+      `  Capital: ${c.capital_availability ?? "Unknown"}`,
+      `  Timeline: ${c.investment_timeline ?? "Unknown"}`,
+      `  Trainual: ${c.trainual_completion_pct ? `${c.trainual_completion_pct}%` : "Not tracked"}`,
+      `  NDA: ${c.nda_status ?? "Not set"}`,
     ];
 
     if (missingFields.length > 0) {
