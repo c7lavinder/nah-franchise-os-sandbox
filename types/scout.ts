@@ -29,7 +29,8 @@ export type ScoutToolName =
   | "draft_appointment"
   | "draft_note"
   | "draft_trigger_workflow"
-  | "draft_knowledge_doc";
+  | "draft_knowledge_doc"
+  | "draft_sub_task_log";
 
 /** Chat message role */
 export type ChatRole = "user" | "assistant";
@@ -55,7 +56,8 @@ export type DraftedActionType =
   | "market_data_update"
   | "journey_action"
   | "note"
-  | "trigger_workflow";
+  | "trigger_workflow"
+  | "sub_task_log";
 
 /** Status of a drafted action in the UI */
 export type DraftedActionStatus = "pending" | "editing" | "confirmed" | "cancelled";
@@ -78,7 +80,8 @@ export interface DraftedAction {
     | DraftedMarketDataUpdatePayload
     | DraftedJourneyActionPayload
     | DraftedNotePayload
-    | DraftedTriggerWorkflowPayload;
+    | DraftedTriggerWorkflowPayload
+    | DraftedSubTaskLogPayload;
 }
 
 /** Payload for a drafted SMS or email message */
@@ -87,6 +90,14 @@ export interface DraftedMessagePayload {
   channel: "SMS" | "Email";
   content: string;
   subject?: string;
+  /** Destination phone number (SMS) or email address (Email) */
+  toAddress?: string;
+  /** Sender phone number (SMS) or email address (Email) */
+  fromAddress?: string;
+  /** Sender display name (UI only) */
+  fromName?: string;
+  /** ISO 8601 scheduled send time — null means send immediately */
+  scheduledAt?: string | null;
 }
 
 /** Payload for a drafted task */
@@ -95,12 +106,24 @@ export interface DraftedTaskPayload {
   title: string;
   description?: string;
   dueDate: string;
+  /** GHL user ID of the person assigned to this task */
+  assignedTo?: string;
+  /** Display name for the assigned user (UI only) */
+  assignedToName?: string;
 }
 
 /** Payload for a drafted pipeline stage move */
 export interface DraftedStageMovePayload {
   actionType: "stage_move";
+  /** Current pipeline name (display) */
+  currentPipeline?: string;
+  /** Current pipeline ID */
+  currentPipelineId?: string;
   currentStage: string;
+  /** Target pipeline name — if different, this is a cross-pipeline move */
+  newPipeline?: string;
+  /** Target pipeline ID */
+  newPipelineId?: string;
   newStage: string;
   reason?: string;
 }
@@ -186,6 +209,37 @@ export interface DraftedTriggerWorkflowPayload {
   workflowId: string;
   /** Display name from GHL */
   workflowName?: string;
+}
+
+/** Payload for a drafted sub-task log entry */
+export interface DraftedSubTaskLogPayload {
+  actionType: "sub_task_log";
+  /** Sub-task ID */
+  subTaskId: string;
+  /** Sub-task display name (e.g., "NDA", "Matt Call") */
+  subTaskName: string;
+  /** Pipeline stage name for context */
+  stageName?: string;
+  /** "single" or "two_state" — drives stateAdvance field visibility */
+  stateType: "single" | "two_state";
+  /** First state label (e.g., "sent", "scheduled") */
+  firstStateLabel?: string;
+  /** Second state label (e.g., "signed", "completed") */
+  secondStateLabel?: string;
+  /** "first" or "second" for two_state, null for single */
+  stateAdvance: "first" | "second" | null;
+  /** Content type of the log entry */
+  contentType: "note" | "file" | "link" | "transcript" | "appointment" | "email" | "sms" | "call";
+  /** Text content for the log */
+  contentText?: string;
+  /** File URL for the log */
+  contentFileUrl?: string;
+  /** Link URL for the log */
+  contentLinkUrl?: string;
+  /** GHL user ID of the logger */
+  loggerUserId?: string;
+  /** Logger display name (UI only) */
+  loggerName?: string;
 }
 
 /** Request body sent to the Scout API */

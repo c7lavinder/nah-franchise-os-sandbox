@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AppShell } from "@/components/layout";
 import { ToastProvider } from "@/components/ui/Toast";
+import DraftedActionProvider from "@/components/scout/DraftedActionProvider";
 
 /** Map pathname to page title for the top bar */
 function getPageTitle(pathname: string): string {
@@ -61,9 +62,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <ToastProvider>
-      <AppShell pageTitle={getPageTitle(pathname)} userName={user.fullName} userRole={user.role}>
-        {children}
-      </AppShell>
+      <DraftedActionProvider>
+        <AppShell pageTitle={getPageTitle(pathname)} userName={user.fullName} userRole={user.role}>
+          {children}
+        </AppShell>
+      </DraftedActionProvider>
     </ToastProvider>
   );
 }

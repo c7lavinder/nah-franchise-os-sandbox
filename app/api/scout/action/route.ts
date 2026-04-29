@@ -12,12 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
-import {
-  enrollContact,
-  pauseEnrollment,
-  resumeEnrollment,
-  exitEnrollment,
-} from "@/lib/workflows/enrollment";
+import { enrollContact, pauseEnrollment, resumeEnrollment, exitEnrollment } from "@/lib/workflows/enrollment";
 import type {
   DraftedAction,
   DraftedMessagePayload,
@@ -30,6 +25,7 @@ import type {
   DraftedAppointmentPayload,
   DraftedNotePayload,
   DraftedTriggerWorkflowPayload,
+  DraftedSubTaskLogPayload,
 } from "@/types/scout";
 
 /** Update engagement tracking fields after an action touches a contact */
@@ -92,10 +88,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as ActionRequestBody;
 
     if (!body.action) {
-      return NextResponse.json(
-        { error: "Missing required field: action" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing required field: action" }, { status: 400 });
     }
 
     const { action } = body;
@@ -106,19 +99,20 @@ export async function POST(request: NextRequest) {
       switch (action.type) {
         case "message": {
           const payload = action.payload as DraftedMessagePayload;
-          const result = payload.channel === "Email"
-            ? await ghl.sendMessage({
-                type: "Email",
-                contactId: action.contactId,
-                html: payload.content,
-                subject: payload.subject ?? "NAH Franchise",
-                emailFrom: process.env.GHL_SENDING_EMAIL ?? "chad@newagainhouses.com",
-              })
-            : await ghl.sendMessage({
-                type: "SMS",
-                contactId: action.contactId,
-                message: payload.content,
-              });
+          const result =
+            payload.channel === "Email"
+              ? await ghl.sendMessage({
+                  type: "Email",
+                  contactId: action.contactId,
+                  html: payload.content,
+                  subject: payload.subject ?? "NAH Franchise",
+                  emailFrom: process.env.GHL_SENDING_EMAIL ?? "chad@newagainhouses.com",
+                })
+              : await ghl.sendMessage({
+                  type: "SMS",
+                  contactId: action.contactId,
+                  message: payload.content,
+                });
           ghlResponse = result as unknown as Record<string, unknown>;
           break;
         }
@@ -128,44 +122,74 @@ export async function POST(request: NextRequest) {
             title: payload.title,
             body: payload.description,
             dueDate: payload.dueDate,
+            assignedTo: payload.assignedTo,
           });
           ghlResponse = result as unknown as Record<string, unknown>;
           break;
         }
         case "stage_move": {
           const payload = action.payload as DraftedStageMovePayload;
-          // For stage moves, we need the opportunity ID — not the contact ID.
-          // Search for the open opportunity for this contact.
+          // Search for the open opportunity for this contact
           const opportunities = await ghl.searchOpportunities({
             status: "open",
           });
-          const opportunity = opportunities.find(
-            (opp) => opp.contactId === action.contactId
-          );
+          const opportunity = opportunities.find((opp) => opp.contactId === action.contactId);
           if (!opportunity) {
-            throw new Error(
-              `No open opportunity found for contact ${action.contactId}`
-            );
+            throw new Error(`No open opportunity found for contact ${action.contactId}`);
           }
-          // Find the target stage ID — need to look up from pipeline stages
-          const pipelines = await ghl.getPipelines();
-          const pipeline = pipelines.find(
-            (p) => p.id === opportunity.pipelineId
-          );
-          const targetStage = pipeline?.stages.find(
-            (s) =>
-              s.name.toLowerCase() === payload.newStage.toLowerCase()
-          );
+
+          // Find the target stage — search all pipelines to support cross-pipeline moves
+          const allPipelines = await ghl.getPipelines();
+          let targetStage: { id: string; name: string } | undefined;
+          let targetPipelineId: string | undefined;
+
+          // If a specific target pipeline is set, search that one first
+          if (payload.newPipelineId) {
+            const targetPl = allPipelines.find((p) => p.id === payload.newPipelineId);
+            targetStage = targetPl?.stages.find((s) => s.name.toLowerCase() === payload.newStage.toLowerCase());
+            if (targetStage) targetPipelineId = targetPl?.id;
+          }
+
+          // Fall back to searching current pipeline, then all pipelines
           if (!targetStage) {
-            throw new Error(
-              `Pipeline stage "${payload.newStage}" not found`
-            );
+            const currentPl = allPipelines.find((p) => p.id === opportunity.pipelineId);
+            targetStage = currentPl?.stages.find((s) => s.name.toLowerCase() === payload.newStage.toLowerCase());
+            if (targetStage) {
+              targetPipelineId = currentPl?.id;
+            } else {
+              // Cross-pipeline: search all pipelines for the stage name
+              for (const pl of allPipelines) {
+                const match = pl.stages.find((s) => s.name.toLowerCase() === payload.newStage.toLowerCase());
+                if (match) {
+                  targetStage = match;
+                  targetPipelineId = pl.id;
+                  break;
+                }
+              }
+            }
           }
-          const result = await ghl.movePipelineStage(
-            opportunity.id,
-            targetStage.id
-          );
-          ghlResponse = result as unknown as Record<string, unknown>;
+
+          if (!targetStage) {
+            throw new Error(`Pipeline stage "${payload.newStage}" not found in any pipeline`);
+          }
+
+          // If moving to a different pipeline, create a new opportunity there
+          if (targetPipelineId && targetPipelineId !== opportunity.pipelineId) {
+            // Close the old opportunity
+            await ghl.movePipelineStage(opportunity.id, opportunity.pipelineStageId);
+            // Create new opportunity in target pipeline at target stage
+            const newOpp = await ghl.createOpportunity({
+              pipelineId: targetPipelineId,
+              pipelineStageId: targetStage.id,
+              contactId: action.contactId,
+              name: opportunity.name ?? `${action.contactName} - Pipeline Move`,
+              status: "open",
+            });
+            ghlResponse = newOpp as unknown as Record<string, unknown>;
+          } else {
+            const result = await ghl.movePipelineStage(opportunity.id, targetStage.id);
+            ghlResponse = result as unknown as Record<string, unknown>;
+          }
           break;
         }
         case "profile_update": {
@@ -194,7 +218,10 @@ export async function POST(request: NextRequest) {
           if (eosPayload.entityType === "contact") {
             // Contact EOS updates
             if (eosPayload.section === "goals") {
-              const goalUpdates: Record<string, unknown> = { contact_id: eosPayload.entityId, updated_at: new Date().toISOString() };
+              const goalUpdates: Record<string, unknown> = {
+                contact_id: eosPayload.entityId,
+                updated_at: new Date().toISOString(),
+              };
               for (const u of eosPayload.updates) {
                 goalUpdates[u.fieldName] = u.value;
               }
@@ -221,12 +248,15 @@ export async function POST(request: NextRequest) {
             const slug = eosPayload.entityId;
             if (eosPayload.section === "goals") {
               for (const u of eosPayload.updates) {
-                await supabaseEos.from("eos_territory_goals").upsert({
-                  territory_slug: slug,
-                  goal_type: u.fieldName,
-                  current_year_goal: u.value,
-                  updated_at: new Date().toISOString(),
-                }, { onConflict: "territory_slug,goal_type" });
+                await supabaseEos.from("eos_territory_goals").upsert(
+                  {
+                    territory_slug: slug,
+                    goal_type: u.fieldName,
+                    current_year_goal: u.value,
+                    updated_at: new Date().toISOString(),
+                  },
+                  { onConflict: "territory_slug,goal_type" }
+                );
               }
             } else if (eosPayload.section === "issues") {
               for (const u of eosPayload.updates) {
@@ -256,17 +286,25 @@ export async function POST(request: NextRequest) {
               }
             } else if (eosPayload.section === "scorecard") {
               for (const u of eosPayload.updates) {
-                await supabaseEos.from("eos_territory_scorecard").update({
-                  goal_value: u.value,
-                  updated_at: new Date().toISOString(),
-                }).eq("territory_slug", slug).eq("metric_key", u.fieldName);
+                await supabaseEos
+                  .from("eos_territory_scorecard")
+                  .update({
+                    goal_value: u.value,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("territory_slug", slug)
+                  .eq("metric_key", u.fieldName);
               }
             } else if (eosPayload.section === "habits") {
               for (const u of eosPayload.updates) {
-                await supabaseEos.from("eos_territory_habits").update({
-                  grade: u.value,
-                  updated_at: new Date().toISOString(),
-                }).eq("territory_slug", slug).eq("habit_key", u.fieldName);
+                await supabaseEos
+                  .from("eos_territory_habits")
+                  .update({
+                    grade: u.value,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("territory_slug", slug)
+                  .eq("habit_key", u.fieldName);
               }
             }
           }
@@ -278,13 +316,16 @@ export async function POST(request: NextRequest) {
           const supabaseMd = createServerClient();
 
           for (const u of mdPayload.fields) {
-            await supabaseMd.from("territory_market_data").upsert({
-              territory_slug: mdPayload.territorySlug,
-              field_name: u.fieldName,
-              field_value: u.value,
-              source: "scout",
-              updated_at: new Date().toISOString(),
-            }, { onConflict: "territory_slug,field_name" });
+            await supabaseMd.from("territory_market_data").upsert(
+              {
+                territory_slug: mdPayload.territorySlug,
+                field_name: u.fieldName,
+                field_value: u.value,
+                source: "scout",
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "territory_slug,field_name" }
+            );
           }
           ghlResponse = { updated: mdPayload.fields.length };
           break;
@@ -365,6 +406,48 @@ export async function POST(request: NextRequest) {
           }
           break;
         }
+        case "sub_task_log": {
+          const stlPayload = action.payload as DraftedSubTaskLogPayload;
+          const stlSupabase = createServerClient();
+
+          // Resolve contact to local Supabase ID
+          const { data: stlContact } = await stlSupabase
+            .from("contacts")
+            .select("id")
+            .or(`ghl_contact_id.eq.${action.contactId},id.eq.${action.contactId}`)
+            .limit(1)
+            .single();
+
+          if (!stlContact) throw new Error("Contact not found");
+
+          // Call the sub-task log API internally
+          const logRes = await fetch(
+            `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/contacts/${stlContact.id}/sub-tasks/${stlPayload.subTaskId}/logs`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: request.headers.get("Authorization") ?? "",
+              },
+              body: JSON.stringify({
+                contentType: stlPayload.contentType,
+                contentText: stlPayload.contentText,
+                contentFileUrl: stlPayload.contentFileUrl,
+                contentLinkUrl: stlPayload.contentLinkUrl,
+                stateAdvance: stlPayload.stateAdvance,
+                loggerUserId: stlPayload.loggerUserId,
+              }),
+            }
+          );
+
+          if (!logRes.ok) {
+            const errBody = await logRes.json().catch(() => ({ error: "Unknown" }));
+            throw new Error(errBody.error ?? "Failed to create sub-task log");
+          }
+
+          ghlResponse = await logRes.json();
+          break;
+        }
         default: {
           throw new Error(`Unknown action type: ${action.type}`);
         }
@@ -386,7 +469,13 @@ export async function POST(request: NextRequest) {
           .update({ is_resolved: true, resolved_at: new Date().toISOString() })
           .eq("ghl_contact_id", action.contactId)
           .eq("is_resolved", false)
-          .in("alert_type", ["stale_active", "stale_active_high", "stale_followup", "stale_reengaged", "speed_to_lead"]);
+          .in("alert_type", [
+            "stale_active",
+            "stale_active_high",
+            "stale_followup",
+            "stale_reengaged",
+            "speed_to_lead",
+          ]);
       } catch {
         // Non-critical
       }
@@ -415,10 +504,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (errorMessage) {
-      return NextResponse.json(
-        { error: errorMessage, success: false },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: errorMessage, success: false }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -427,9 +513,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("Action execution error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Unexpected error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Unexpected error" }, { status: 500 });
   }
 }

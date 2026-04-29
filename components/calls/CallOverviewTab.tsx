@@ -47,6 +47,15 @@ interface CallOverviewTabProps {
   source: string | null;
   isGenerating: boolean;
   participantNames: string[];
+  rubricGrade: {
+    id: string;
+    overall_grade: string;
+    overall_score: number;
+    criterion_scores: { criterionId: string; name: string; grade: string; score: number; rationale: string }[] | null;
+    strengths: string[] | null;
+    improvements: string[] | null;
+    suggested_next_action: string | null;
+  } | null;
   onRefresh: () => void;
 }
 
@@ -59,12 +68,30 @@ function getState(props: CallOverviewTabProps): GenState {
   return "ready";
 }
 
+function gradeColor(grade: string): string {
+  switch (grade) {
+    case "A":
+      return "text-success";
+    case "B":
+      return "text-nah-blue";
+    case "C":
+      return "text-warning";
+    case "D":
+      return "text-[#EF9F27]";
+    default:
+      return "text-danger";
+  }
+}
+
 function ScoreCircle({ score }: { score: number }) {
   const color =
-    score >= 80 ? "text-success border-success/30 bg-success/5" :
-    score >= 60 ? "text-nah-blue border-nah-blue/30 bg-nah-blue/5" :
-    score >= 40 ? "text-warning border-warning/30 bg-warning/5" :
-    "text-danger border-danger/30 bg-danger/5";
+    score >= 80
+      ? "text-success border-success/30 bg-success/5"
+      : score >= 60
+        ? "text-nah-blue border-nah-blue/30 bg-nah-blue/5"
+        : score >= 40
+          ? "text-warning border-warning/30 bg-warning/5"
+          : "text-danger border-danger/30 bg-danger/5";
 
   return (
     <div className={`w-16 h-16 rounded-full border-2 flex items-center justify-center ${color}`}>
@@ -81,7 +108,7 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
 
   const parsedTranscript = useMemo(
     () => parseTranscriptLines(props.rawTranscript ?? "", props.participantNames),
-    [props.rawTranscript, props.participantNames],
+    [props.rawTranscript, props.participantNames]
   );
 
   const visibleTranscript = showAllTranscript ? parsedTranscript : parsedTranscript.slice(0, 5);
@@ -116,9 +143,13 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
                   className="flex items-center gap-1 text-[11px] text-nah-blue hover:text-nah-blue/80 font-medium transition-colors"
                 >
                   {showFullSummary ? (
-                    <>Hide full summary <ChevronUp size={12} /></>
+                    <>
+                      Hide full summary <ChevronUp size={12} />
+                    </>
                   ) : (
-                    <>Read full summary <ChevronDown size={12} /></>
+                    <>
+                      Read full summary <ChevronDown size={12} />
+                    </>
                   )}
                 </button>
                 {showFullSummary && (
@@ -134,7 +165,8 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
             <div className="flex items-center mt-2">
               {props.aiSummaryGeneratedAt && (
                 <p className="text-[10px] text-text-tertiary">
-                  Scout &middot; {new Date(props.aiSummaryGeneratedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                  Scout &middot;{" "}
+                  {new Date(props.aiSummaryGeneratedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
                 </p>
               )}
             </div>
@@ -150,9 +182,7 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
             Preparing analysis...
           </div>
         ) : (
-          <p className="text-body-sm text-text-tertiary italic">
-            Waiting for transcript from Read.ai.
-          </p>
+          <p className="text-body-sm text-text-tertiary italic">Waiting for transcript from Read.ai.</p>
         )}
       </div>
 
@@ -167,7 +197,8 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
                 <p className="text-body-sm font-medium text-text-primary">{props.coachingData.label}</p>
                 {props.coachingGeneratedAt && (
                   <p className="text-[10px] text-text-tertiary">
-                    Scout &middot; {new Date(props.coachingGeneratedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                    Scout &middot;{" "}
+                    {new Date(props.coachingGeneratedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
                   </p>
                 )}
               </div>
@@ -206,12 +237,19 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
                   </p>
                   {props.coachingData.went_well?.map((item, i) => (
                     <div key={i} className="flex items-start gap-2 mb-2 last:mb-0">
-                      <div className="w-[5px] h-[5px] rounded-full mt-[5px] flex-shrink-0" style={{ background: "#3B6D11" }} />
-                      <span className="text-[12px] leading-relaxed" style={{ color: "#27500A" }}>{item}</span>
+                      <div
+                        className="w-[5px] h-[5px] rounded-full mt-[5px] flex-shrink-0"
+                        style={{ background: "#3B6D11" }}
+                      />
+                      <span className="text-[12px] leading-relaxed" style={{ color: "#27500A" }}>
+                        {item}
+                      </span>
                     </div>
                   ))}
                   {(!props.coachingData.went_well || props.coachingData.went_well.length === 0) && (
-                    <span className="text-[12px]" style={{ color: "#3B6D11", opacity: 0.5 }}>&mdash;</span>
+                    <span className="text-[12px]" style={{ color: "#3B6D11", opacity: 0.5 }}>
+                      &mdash;
+                    </span>
                   )}
                 </div>
 
@@ -222,12 +260,19 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
                   </p>
                   {props.coachingData.watch_out?.map((item, i) => (
                     <div key={i} className="flex items-start gap-2 mb-2 last:mb-0">
-                      <div className="w-[5px] h-[5px] rounded-full mt-[5px] flex-shrink-0" style={{ background: "#854F0B" }} />
-                      <span className="text-[12px] leading-relaxed" style={{ color: "#633806" }}>{item}</span>
+                      <div
+                        className="w-[5px] h-[5px] rounded-full mt-[5px] flex-shrink-0"
+                        style={{ background: "#854F0B" }}
+                      />
+                      <span className="text-[12px] leading-relaxed" style={{ color: "#633806" }}>
+                        {item}
+                      </span>
                     </div>
                   ))}
                   {(!props.coachingData.watch_out || props.coachingData.watch_out.length === 0) && (
-                    <span className="text-[12px]" style={{ color: "#854F0B", opacity: 0.5 }}>&mdash;</span>
+                    <span className="text-[12px]" style={{ color: "#854F0B", opacity: 0.5 }}>
+                      &mdash;
+                    </span>
                   )}
                 </div>
               </div>
@@ -239,12 +284,15 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
                 <p className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{ color: "#185FA5" }}>
                   For next call
                 </p>
-                <div className="text-[12px] leading-relaxed p-3" style={{
-                  borderLeft: "3px solid #378ADD",
-                  background: "#E6F1FB",
-                  color: "#0C447C",
-                  borderRadius: "0 8px 8px 0",
-                }}>
+                <div
+                  className="text-[12px] leading-relaxed p-3"
+                  style={{
+                    borderLeft: "3px solid #378ADD",
+                    background: "#E6F1FB",
+                    color: "#0C447C",
+                    borderRadius: "0 8px 8px 0",
+                  }}
+                >
                   {props.coachingData.next_call_prep}
                 </div>
               </div>
@@ -256,13 +304,9 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
             Scout is generating coaching insights...
           </div>
         ) : !props.hasTranscript ? (
-          <p className="text-body-sm text-text-tertiary italic">
-            Waiting for transcript from Read.ai.
-          </p>
+          <p className="text-body-sm text-text-tertiary italic">Waiting for transcript from Read.ai.</p>
         ) : props.aiSummaryGeneratedAt ? (
-          <p className="text-body-sm text-text-tertiary">
-            Coaching data was not generated for this call.
-          </p>
+          <p className="text-body-sm text-text-tertiary">Coaching data was not generated for this call.</p>
         ) : (
           <div className="flex items-center gap-2 text-body-sm text-text-tertiary">
             <Loader2 size={14} className="animate-spin" />
@@ -271,14 +315,112 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
         )}
       </div>
 
+      {/* Section B2 — Rubric Grade (per-criterion breakdown) */}
+      {props.rubricGrade && props.rubricGrade.criterion_scores && props.rubricGrade.criterion_scores.length > 0 && (
+        <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-overline text-text-tertiary tracking-wider">RUBRIC GRADE</h3>
+            <div className="flex items-center gap-2">
+              <span className={`text-lg font-bold ${gradeColor(props.rubricGrade.overall_grade)}`}>
+                {props.rubricGrade.overall_grade}
+              </span>
+              <span className="text-caption text-text-tertiary">({props.rubricGrade.overall_score}/100)</span>
+            </div>
+          </div>
+
+          {/* Per-criterion scores */}
+          <div className="space-y-3 mb-4">
+            {props.rubricGrade.criterion_scores.map((cs) => {
+              const pct = cs.score;
+              const barColor =
+                pct >= 80 ? "bg-success" : pct >= 60 ? "bg-nah-blue" : pct >= 40 ? "bg-warning" : "bg-danger";
+              return (
+                <div key={cs.criterionId}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-body-sm font-medium text-text-primary">{cs.name}</span>
+                    <span className={`text-body-sm font-bold ${gradeColor(cs.grade)}`}>
+                      {cs.grade} ({cs.score})
+                    </span>
+                  </div>
+                  <div className="h-[5px] bg-bg-tertiary rounded-full overflow-hidden mb-1">
+                    <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="text-caption text-text-tertiary">{cs.rationale}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Strengths + Improvements */}
+          {props.rubricGrade.strengths?.length || props.rubricGrade.improvements?.length ? (
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              {props.rubricGrade.strengths && props.rubricGrade.strengths.length > 0 && (
+                <div className="rounded-lg p-3" style={{ background: "#EAF3DE", border: "0.5px solid #97C459" }}>
+                  <p className="text-[10px] font-medium uppercase tracking-wider mb-2" style={{ color: "#3B6D11" }}>
+                    Strengths
+                  </p>
+                  {props.rubricGrade.strengths.map((s, i) => (
+                    <div key={i} className="flex items-start gap-2 mb-1 last:mb-0">
+                      <div
+                        className="w-[5px] h-[5px] rounded-full mt-[5px] flex-shrink-0"
+                        style={{ background: "#3B6D11" }}
+                      />
+                      <span className="text-[12px] leading-relaxed" style={{ color: "#27500A" }}>
+                        {s}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {props.rubricGrade.improvements && props.rubricGrade.improvements.length > 0 && (
+                <div className="rounded-lg p-3" style={{ background: "#FAEEDA", border: "0.5px solid #EF9F27" }}>
+                  <p className="text-[10px] font-medium uppercase tracking-wider mb-2" style={{ color: "#854F0B" }}>
+                    Improvements
+                  </p>
+                  {props.rubricGrade.improvements.map((s, i) => (
+                    <div key={i} className="flex items-start gap-2 mb-1 last:mb-0">
+                      <div
+                        className="w-[5px] h-[5px] rounded-full mt-[5px] flex-shrink-0"
+                        style={{ background: "#854F0B" }}
+                      />
+                      <span className="text-[12px] leading-relaxed" style={{ color: "#633806" }}>
+                        {s}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {/* Suggested next action */}
+          {props.rubricGrade.suggested_next_action && (
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{ color: "#185FA5" }}>
+                Suggested next action
+              </p>
+              <div
+                className="text-[12px] leading-relaxed p-3"
+                style={{
+                  borderLeft: "3px solid #378ADD",
+                  background: "#E6F1FB",
+                  color: "#0C447C",
+                  borderRadius: "0 8px 8px 0",
+                }}
+              >
+                {props.rubricGrade.suggested_next_action}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Section C — Transcript */}
       <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <h3 className="text-overline text-text-tertiary tracking-wider">TRANSCRIPT</h3>
-            {props.source === "read_ai" && (
-              <span className="text-[10px] text-text-tertiary">From Read.ai</span>
-            )}
+            {props.source === "read_ai" && <span className="text-[10px] text-text-tertiary">From Read.ai</span>}
           </div>
           {parsedTranscript.length > 0 && (
             <button
@@ -303,9 +445,13 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
                 className="mt-3 flex items-center gap-1 text-[11px] text-nah-blue hover:text-nah-blue/80 font-medium transition-colors"
               >
                 {showAllTranscript ? (
-                  <>Show less <ChevronUp size={12} /></>
+                  <>
+                    Show less <ChevronUp size={12} />
+                  </>
                 ) : (
-                  <>Show all {parsedTranscript.length} turns <ChevronDown size={12} /></>
+                  <>
+                    Show all {parsedTranscript.length} turns <ChevronDown size={12} />
+                  </>
                 )}
               </button>
             )}
@@ -329,7 +475,11 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
                 {props.durationSeconds && <span>{Math.round(props.durationSeconds / 60)} min</span>}
                 {props.startedAt && (
                   <span>
-                    {new Date(props.startedAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                    {new Date(props.startedAt).toLocaleDateString([], {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
                   </span>
                 )}
               </div>
@@ -389,7 +539,10 @@ function TranscriptCard({ line, isNahTeam }: { line: TranscriptLine; isNahTeam: 
 
 // ── Transcript helpers ──────────────────────────
 
-interface TranscriptLine { speaker: string; text: string }
+interface TranscriptLine {
+  speaker: string;
+  text: string;
+}
 
 /** Parse raw transcript text into speaker + text lines, cleaning up Read.ai speaker labels.
  *  Merges consecutive turns from the same speaker into one block.
@@ -472,7 +625,10 @@ function buildDisplaySpeakerMap(rawLabels: string[], participantNames: string[])
   // Handle labels without Speaker N
   for (const label of rawLabels) {
     if (map.has(label)) continue;
-    if (label === "UNKNOWN_SPEAKER") { map.set(label, "Unknown"); continue; }
+    if (label === "UNKNOWN_SPEAKER") {
+      map.set(label, "Unknown");
+      continue;
+    }
     map.set(label, cleanSpeakerLabel(label));
   }
 

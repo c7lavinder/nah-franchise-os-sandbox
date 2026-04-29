@@ -518,4 +518,31 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
       required: ["title", "category", "content"],
     },
   },
+  {
+    name: "draft_sub_task_log",
+    description:
+      "Draft a sub-task log entry for human review. Sub-tasks are milestones within a pipeline stage " +
+      "(e.g., NDA sent/signed, Matt Call scheduled/completed). Use when the user says something like " +
+      "'mark the NDA as sent', 'log the Matt call as completed', 'update the PFS status'. " +
+      "The sub-task state progresses through first/second states for two_state tasks, or a single completion for single-state tasks.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: { type: "string", description: "GHL contact ID or Supabase contact ID" },
+        sub_task_id: { type: "string", description: "Sub-task UUID" },
+        state_advance: {
+          type: "string",
+          description: "For two_state sub-tasks: 'first' or 'second'. Omit for single-state tasks.",
+          enum: ["first", "second"],
+        },
+        content_type: {
+          type: "string",
+          description: "Type of content to attach",
+          enum: ["note", "file", "link"],
+        },
+        content_text: { type: "string", description: "Optional note text to attach to the log" },
+      },
+      required: ["contact_id", "sub_task_id"],
+    },
+  },
 ];

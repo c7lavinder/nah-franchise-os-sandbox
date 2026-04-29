@@ -10,7 +10,16 @@
  */
 
 import { createServerClient } from "@/lib/supabase/server";
-import type { CallContext, SummaryResult, CoachingResult, NextStepsResult, ExtractionResult, PipelinePosition, RosterEntry, JourneyPartner } from "./types";
+import type {
+  CallContext,
+  SummaryResult,
+  CoachingResult,
+  NextStepsResult,
+  ExtractionResult,
+  PipelinePosition,
+  RosterEntry,
+  JourneyPartner,
+} from "./types";
 import { retrieveFeedback } from "./feedback-retrieval";
 import { runSummary } from "./prompts/summary";
 import { runCoaching } from "./prompts/coaching";
@@ -18,6 +27,7 @@ import { runNextSteps } from "./prompts/next-steps";
 import { runExtraction } from "./prompts/extraction";
 import { runKBIntelligence } from "./prompts/kb-intelligence";
 import { updateKnowledgeBase } from "./kb-updater";
+import { gradeCall, type GradeResult } from "@/lib/calls/grader";
 
 // ── Model routing ──────────────────────────────────────────
 // Change model per section here. One line per section.
@@ -36,7 +46,7 @@ const MODELS = {
 
 export async function runPostCallAgent(
   callId: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean } = {}
 ): Promise<{
   success: boolean;
   summary: string | null;
@@ -51,19 +61,31 @@ export async function runPostCallAgent(
   // 1. Load context
   const context = await loadCallContext(callId, supabase);
   if (!context) {
-    return { success: false, summary: null, coaching: null, actionsCount: 0, extractionsCount: 0, kbDocsUpdated: 0, errors: ["Call not found"] };
+    return {
+      success: false,
+      summary: null,
+      coaching: null,
+      actionsCount: 0,
+      extractionsCount: 0,
+      kbDocsUpdated: 0,
+      errors: ["Call not found"],
+    };
   }
   if (!context.transcript) {
-    return { success: false, summary: null, coaching: null, actionsCount: 0, extractionsCount: 0, kbDocsUpdated: 0, errors: ["No transcript available"] };
+    return {
+      success: false,
+      summary: null,
+      coaching: null,
+      actionsCount: 0,
+      extractionsCount: 0,
+      kbDocsUpdated: 0,
+      errors: ["No transcript available"],
+    };
   }
 
   // Idempotency guard: if summary already generated, check if extractions also exist.
   // If extractions are missing, run extraction only. If everything exists, skip entirely.
-  const { data: callRow } = await supabase
-    .from("calls")
-    .select("ai_summary_generated_at")
-    .eq("id", callId)
-    .single();
+  const { data: callRow } = await supabase.from("calls").select("ai_summary_generated_at").eq("id", callId).single();
 
   const { count: existingExtractions } = await supabase
     .from("call_data_extractions")
@@ -79,7 +101,15 @@ export async function runPostCallAgent(
   // without manual SQL surgery.
   if (alreadyHasSummary && alreadyHasExtractions && !options.force) {
     console.warn(`[post-call-agent] callId=${callId} already fully processed — skipping`);
-    return { success: true, summary: "already_generated", coaching: null, actionsCount: 0, extractionsCount: 0, kbDocsUpdated: 0, errors: [] };
+    return {
+      success: true,
+      summary: "already_generated",
+      coaching: null,
+      actionsCount: 0,
+      extractionsCount: 0,
+      kbDocsUpdated: 0,
+      errors: [],
+    };
   }
 
   // 2. Run sections — if summary exists but extractions missing, only run extraction
@@ -96,19 +126,31 @@ export async function runPostCallAgent(
   // produce per-contact/territory data.
   const externalCount = context.contactNames.length;
   const isLargeGroupOrInternal =
-    context.callTypeSlug === "internal"
-    || context.callTypeSlug === "team_call"
-    || ((context.callTypeSlug === "group_call" || context.callTypeSlug === "cohort_call") && externalCount >= 6);
+    context.callTypeSlug === "internal" ||
+    context.callTypeSlug === "team_call" ||
+    ((context.callTypeSlug === "group_call" || context.callTypeSlug === "cohort_call") && externalCount >= 6);
   if (isLargeGroupOrInternal) {
-    console.warn(`[post-call-agent] callId=${callId} type=${context.callTypeSlug} externals=${externalCount} — skipping per-contact extraction`);
+    console.warn(
+      `[post-call-agent] callId=${callId} type=${context.callTypeSlug} externals=${externalCount} — skipping per-contact extraction`
+    );
   }
 
-  const [summaryRes, coachingRes, actionsRes, extractionsRes, kbRes] = await Promise.allSettled([
+  const [summaryRes, coachingRes, actionsRes, extractionsRes, kbRes, gradeRes] = await Promise.allSettled([
     extractionOnly ? Promise.resolve(null) : runSummary(context, MODELS.summary),
     extractionOnly ? Promise.resolve(null) : runCoaching(context, MODELS.coaching),
     extractionOnly ? Promise.resolve(null) : runNextSteps(context, MODELS.nextSteps),
     isLargeGroupOrInternal ? Promise.resolve(null) : runExtraction(context, MODELS.extraction),
     extractionOnly ? Promise.resolve(null) : runKBIntelligence(context, MODELS.kbIntelligence),
+    // Rubric-based grading — runs in parallel, saves to call_grades table.
+    // Gracefully skips if no rubric criteria configured for this call type.
+    extractionOnly
+      ? Promise.resolve(null)
+      : gradeCall(callId).catch((err) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          // "Rubric not configured" is expected for call types without criteria — not an error
+          if (msg.includes("not configured")) return null;
+          throw err;
+        }),
   ]);
 
   const summary = summaryRes.status === "fulfilled" ? summaryRes.value : null;
@@ -116,6 +158,7 @@ export async function runPostCallAgent(
   const actions = actionsRes.status === "fulfilled" ? actionsRes.value : null;
   const extractions = extractionsRes.status === "fulfilled" ? extractionsRes.value : null;
   const kbIntelligence = kbRes.status === "fulfilled" ? kbRes.value : null;
+  const rubricGrade = gradeRes.status === "fulfilled" ? (gradeRes.value as GradeResult | null) : null;
 
   // Collect errors for diagnostics — skip intentionally null sections (extraction-only mode)
   const errors: string[] = [];
@@ -128,9 +171,12 @@ export async function runPostCallAgent(
     else if (!actions) errors.push("actions: returned null (parse failure)");
     if (kbRes.status === "rejected") errors.push(`kb-intelligence: ${String(kbRes.reason)}`);
     else if (!kbIntelligence) errors.push("kb-intelligence: returned null (parse failure)");
+    if (gradeRes.status === "rejected") errors.push(`rubric-grade: ${String(gradeRes.reason)}`);
   }
   if (extractionsRes.status === "rejected") errors.push(`extractions: ${String(extractionsRes.reason)}`);
   else if (!extractions) errors.push("extractions: returned null (parse failure)");
+  // rubricGrade null is OK — means call type has no criteria configured yet
+  void rubricGrade; // used only for logging
 
   if (errors.length > 0) {
     console.error(`[post-call-agent] ${callId} errors:`, errors.join("; "));
@@ -148,7 +194,7 @@ export async function runPostCallAgent(
         callId,
         context.callDate,
         context.contactName,
-        context.callType,
+        context.callType
       );
       kbDocsUpdated = kbResult.docsUpdated;
     } catch (err) {
@@ -181,7 +227,7 @@ export async function runPostCallAgent(
 
 async function loadCallContext(
   callId: string,
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: ReturnType<typeof createServerClient>
 ): Promise<CallContext | null> {
   const { data: call } = await supabase
     .from("calls")
@@ -206,12 +252,11 @@ async function loadCallContext(
   let callType: string | null = null;
   let callTypeSlug: string | null = null;
   if (call.call_type_id) {
-    const { data: ct } = await supabase
-      .from("call_types")
-      .select("name, slug")
-      .eq("id", call.call_type_id)
-      .single();
-    if (ct) { callType = ct.name; callTypeSlug = ct.slug; }
+    const { data: ct } = await supabase.from("call_types").select("name, slug").eq("id", call.call_type_id).single();
+    if (ct) {
+      callType = ct.name;
+      callTypeSlug = ct.slug;
+    }
   }
 
   // Resolve contact name
@@ -244,7 +289,11 @@ async function loadCallContext(
   const contactNames: string[] = [];
   for (const cp of contactParticipants ?? []) {
     if (cp.contact_id) {
-      const { data: c } = await supabase.from("contacts").select("first_name, last_name").eq("id", cp.contact_id).single();
+      const { data: c } = await supabase
+        .from("contacts")
+        .select("first_name, last_name")
+        .eq("id", cp.contact_id)
+        .single();
       if (c) contactNames.push(`${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || cp.display_name || "Unknown");
     } else if (cp.display_name) {
       contactNames.push(cp.display_name);
@@ -263,8 +312,11 @@ async function loadCallContext(
     const { data: owners } = await supabase
       .from("territory_owners")
       .select("ms_slug, territories ( territory_name )")
-      .in("ghl_contact_id",
-        (await supabase.from("contacts").select("ghl_contact_id").in("id", contactIds)).data?.map((c) => c.ghl_contact_id).filter(Boolean) ?? []
+      .in(
+        "ghl_contact_id",
+        (await supabase.from("contacts").select("ghl_contact_id").in("id", contactIds)).data
+          ?.map((c) => c.ghl_contact_id)
+          .filter(Boolean) ?? []
       )
       .is("end_date", null);
     for (const o of owners ?? []) {
@@ -299,13 +351,16 @@ async function loadCallContext(
   const pipelinePositions: PipelinePosition[] = [];
   if (call.contact_id) {
     const { data: journey } = await supabase
-      .from("journeys").select("id")
-      .eq("primary_contact_id", call.contact_id).maybeSingle();
+      .from("journeys")
+      .select("id")
+      .eq("primary_contact_id", call.contact_id)
+      .maybeSingle();
 
     if (journey?.id) {
       const { data: states } = await supabase
         .from("journey_pipeline_state")
-        .select(`
+        .select(
+          `
           id,
           pipeline_id,
           territory_ms_slug,
@@ -313,7 +368,8 @@ async function loadCallContext(
           current_sub_task_id,
           pipelines ( slug, name ),
           pipeline_stages ( slug, name )
-        `)
+        `
+        )
         .eq("journey_id", journey.id)
         .eq("is_active", true);
 
@@ -322,7 +378,10 @@ async function loadCallContext(
       const canonByPipeline = new Map<string, StateRow>();
       for (const st of states ?? []) {
         const existing = canonByPipeline.get(st.pipeline_id);
-        if (!existing) { canonByPipeline.set(st.pipeline_id, st); continue; }
+        if (!existing) {
+          canonByPipeline.set(st.pipeline_id, st);
+          continue;
+        }
         if (st.territory_ms_slug === null && existing.territory_ms_slug !== null) {
           canonByPipeline.set(st.pipeline_id, st);
         }
@@ -377,9 +436,12 @@ async function loadCallContext(
   });
 
   // Determine if team/group call (no specific external contact focus)
-  const isTeamCall = callTypeSlug === "team_call" || callTypeSlug === "internal"
-    || callTypeSlug === "group_call" || callTypeSlug === "cohort_call"
-    || (contactNames.length === 0 && teamMembers.length >= 2);
+  const isTeamCall =
+    callTypeSlug === "team_call" ||
+    callTypeSlug === "internal" ||
+    callTypeSlug === "group_call" ||
+    callTypeSlug === "cohort_call" ||
+    (contactNames.length === 0 && teamMembers.length >= 2);
 
   // For team/group calls: load a lightweight roster of all active contacts + territories
   // so the LLM can match names mentioned in the transcript
@@ -396,10 +458,16 @@ async function loadCallContext(
         "a0000000-0000-0000-0000-000000000004", // runway
       ]);
 
-    const fContactIds = [...new Set((franchiseeStates ?? []).map((s) => {
-      const j = s.journeys as unknown as { primary_contact_id: string } | null;
-      return j?.primary_contact_id ?? null;
-    }).filter(Boolean) as string[])];
+    const fContactIds = [
+      ...new Set(
+        (franchiseeStates ?? [])
+          .map((s) => {
+            const j = s.journeys as unknown as { primary_contact_id: string } | null;
+            return j?.primary_contact_id ?? null;
+          })
+          .filter(Boolean) as string[]
+      ),
+    ];
     if (fContactIds.length > 0) {
       const { data: fContacts } = await supabase
         .from("contacts")
@@ -413,10 +481,7 @@ async function loadCallContext(
         .is("end_date", null);
 
       // Map contact_id → ghl_contact_id
-      const { data: fGhlMap } = await supabase
-        .from("contacts")
-        .select("id, ghl_contact_id")
-        .in("id", fContactIds);
+      const { data: fGhlMap } = await supabase.from("contacts").select("id, ghl_contact_id").in("id", fContactIds);
       const idToGhl = new Map((fGhlMap ?? []).map((c) => [c.id, c.ghl_contact_id]));
 
       // Map ghl_contact_id → territory name
@@ -428,10 +493,7 @@ async function loadCallContext(
 
       // Get pipeline stage names
       const stageIds = [...new Set((franchiseeStates ?? []).map((s) => s.current_stage_id))];
-      const { data: stageRows } = await supabase
-        .from("pipeline_stages")
-        .select("id, name")
-        .in("id", stageIds);
+      const { data: stageRows } = await supabase.from("pipeline_stages").select("id, name").in("id", stageIds);
       const stageMap = new Map((stageRows ?? []).map((s) => [s.id, s.name]));
 
       const contactStageMap = new Map<string, string>();
@@ -460,10 +522,16 @@ async function loadCallContext(
       .eq("is_active", true)
       .eq("pipeline_id", "a0000000-0000-0000-0000-000000000001"); // sales
 
-    const pContactIds = [...new Set((prospectStates ?? []).map((s) => {
-      const j = s.journeys as unknown as { primary_contact_id: string } | null;
-      return j?.primary_contact_id ?? null;
-    }).filter(Boolean) as string[])];
+    const pContactIds = [
+      ...new Set(
+        (prospectStates ?? [])
+          .map((s) => {
+            const j = s.journeys as unknown as { primary_contact_id: string } | null;
+            return j?.primary_contact_id ?? null;
+          })
+          .filter(Boolean) as string[]
+      ),
+    ];
     if (pContactIds.length > 0) {
       const { data: pContacts } = await supabase
         .from("contacts")
@@ -471,10 +539,7 @@ async function loadCallContext(
         .in("id", pContactIds.slice(0, 100)); // Cap at 100 for token budget
 
       const pStageIds = [...new Set((prospectStates ?? []).map((s) => s.current_stage_id))];
-      const { data: pStageRows } = await supabase
-        .from("pipeline_stages")
-        .select("id, name")
-        .in("id", pStageIds);
+      const { data: pStageRows } = await supabase.from("pipeline_stages").select("id, name").in("id", pStageIds);
       const pStageMap = new Map((pStageRows ?? []).map((s) => [s.id, s.name]));
 
       const pContactStageMap = new Map<string, string>();
@@ -531,7 +596,7 @@ async function loadCallContext(
  */
 async function loadJourneyPartners(
   supabase: ReturnType<typeof createServerClient>,
-  callContactId: string | null,
+  callContactId: string | null
 ): Promise<JourneyPartner[]> {
   if (!callContactId) return [];
 
@@ -570,9 +635,15 @@ async function loadJourneyPartners(
 
   // Pull a small set of profile fields that help distinguish partners.
   const HIGHLIGHT_KEYS = [
-    "background", "work_background", "professional_background",
-    "skills", "expertise", "role_in_partnership",
-    "license", "license_type", "years_experience",
+    "background",
+    "work_background",
+    "professional_background",
+    "skills",
+    "expertise",
+    "role_in_partnership",
+    "license",
+    "license_type",
+    "years_experience",
   ];
   const { data: profileRows } = await supabase
     .from("contact_profile_fields")
@@ -594,7 +665,8 @@ async function loadJourneyPartners(
   for (const m of members) {
     if (!m.contact_id) continue;
     const c = Array.isArray(m.contacts) ? m.contacts[0] : m.contacts;
-    const name = `${(c as { first_name: string } | null)?.first_name ?? ""} ${(c as { last_name: string } | null)?.last_name ?? ""}`.trim();
+    const name =
+      `${(c as { first_name: string } | null)?.first_name ?? ""} ${(c as { last_name: string } | null)?.last_name ?? ""}`.trim();
     if (!name) continue;
     const highlightList = highlightsByContact.get(m.contact_id) ?? [];
     partners.push({
@@ -610,12 +682,8 @@ async function loadJourneyPartners(
 // ── Territory resolution helpers ──────────────────────────
 
 /** Build a map of territory_name (lowercase) → ms_slug and ms_slug (lowercase) → ms_slug */
-async function buildTerritoryMap(
-  supabase: ReturnType<typeof createServerClient>
-): Promise<Map<string, string>> {
-  const { data: territories } = await supabase
-    .from("territories")
-    .select("ms_slug, territory_name");
+async function buildTerritoryMap(supabase: ReturnType<typeof createServerClient>): Promise<Map<string, string>> {
+  const { data: territories } = await supabase.from("territories").select("ms_slug, territory_name");
 
   const map = new Map<string, string>();
   for (const t of territories ?? []) {
@@ -640,7 +708,7 @@ function resolveTerritory(name: string, map: Map<string, string>): string | null
  */
 async function buildPartnerNameMap(
   supabase: ReturnType<typeof createServerClient>,
-  journeyId: string | null,
+  journeyId: string | null
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   if (!journeyId) return map;
@@ -674,7 +742,7 @@ async function buildPartnerNameMap(
 function resolveActionTarget(
   action: { target_contact_name?: string; contact_name?: string },
   partnerNameToId: Map<string, string>,
-  fallbackContactId: string | null,
+  fallbackContactId: string | null
 ): string | null {
   const tryLookup = (name: string | undefined): string | null => {
     if (!name) return null;
@@ -696,7 +764,7 @@ async function writeResults(
   callId: string,
   contactId: string | null,
   results: AgentResults,
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: ReturnType<typeof createServerClient>
 ): Promise<void> {
   const now = new Date().toISOString();
 
@@ -719,7 +787,8 @@ async function writeResults(
   // Resolve the journey for the call's primary contact (Phase 2 tagging).
   // Cached once and reused across action items + extractions.
   const primaryJourneyId = contactId
-    ? (await supabase.from("journeys").select("id").eq("primary_contact_id", contactId).maybeSingle()).data?.id ?? null
+    ? ((await supabase.from("journeys").select("id").eq("primary_contact_id", contactId).maybeSingle()).data?.id ??
+      null)
     : null;
 
   // Action items → call_action_items
@@ -787,7 +856,10 @@ async function writeResults(
     // Also resolve full names from contacts table
     const pContactIds = (callParticipants ?? []).map((p) => p.contact_id).filter(Boolean) as string[];
     if (pContactIds.length > 0) {
-      const { data: contacts } = await supabase.from("contacts").select("id, first_name, last_name").in("id", pContactIds);
+      const { data: contacts } = await supabase
+        .from("contacts")
+        .select("id, first_name, last_name")
+        .in("id", pContactIds);
       for (const c of contacts ?? []) {
         const fullName = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim().toLowerCase();
         if (fullName) nameToContactId.set(fullName, c.id);
@@ -796,7 +868,16 @@ async function writeResults(
     }
 
     // Ensure field_category is valid per DB constraint
-    const validCategories = new Set(["contact", "contact_eos", "territory", "territory_eos", "territory_market", "market", "business_financials", "business_health"]);
+    const validCategories = new Set([
+      "contact",
+      "contact_eos",
+      "territory",
+      "territory_eos",
+      "territory_market",
+      "market",
+      "business_financials",
+      "business_health",
+    ]);
 
     // Build a territory name/slug → slug map, scoped to this call's mapped
     // territories first so the LLM's names always resolve to valid slugs.
@@ -806,8 +887,7 @@ async function writeResults(
       .select("territory_ms_slug, is_primary, territories ( territory_name )")
       .eq("call_id", callId)
       .order("is_primary", { ascending: false });
-    const callTerritoryPrimary =
-      (callTerritoryRows ?? []).find((r) => r.is_primary)?.territory_ms_slug ?? null;
+    const callTerritoryPrimary = (callTerritoryRows ?? []).find((r) => r.is_primary)?.territory_ms_slug ?? null;
 
     // Journey cache — resolve once per contact_id used in extractions.
     const contactIdsInPlay = new Set<string>();

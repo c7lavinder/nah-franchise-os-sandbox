@@ -14,9 +14,23 @@ import { ArrowLeft, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import CallDetailTabs from "@/components/calls/CallDetailTabs";
 import CallOverrideControls from "@/components/calls/CallOverrideControls";
 
-interface TeamMember { id: string; name: string; email: string }
-interface LinkedContact { id: string | null; name: string; email: string; phone: string; role: string; linked: boolean }
-interface UnknownParticipant { name: string; email: string }
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+}
+interface LinkedContact {
+  id: string | null;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  linked: boolean;
+}
+interface UnknownParticipant {
+  name: string;
+  email: string;
+}
 interface RawParticipant {
   id: string;
   email: string | null;
@@ -53,7 +67,10 @@ interface CallJourneyRef {
   is_primary: boolean;
 }
 
-interface PartnershipPartner { id: string; name: string }
+interface PartnershipPartner {
+  id: string;
+  name: string;
+}
 
 interface CallDetail {
   id: string;
@@ -122,6 +139,17 @@ interface ActionItem {
   metadata: Record<string, unknown> | null;
 }
 
+interface RubricGrade {
+  id: string;
+  overall_grade: string;
+  overall_score: number;
+  criterion_scores: { criterionId: string; name: string; grade: string; score: number; rationale: string }[] | null;
+  strengths: string[] | null;
+  improvements: string[] | null;
+  suggested_next_action: string | null;
+  rubric_id: string | null;
+}
+
 interface Extraction {
   id: string;
   call_id: string;
@@ -146,6 +174,7 @@ export default function CallDetailPage() {
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [dataExtractions, setDataExtractions] = useState<Extraction[]>([]);
   const [profileFieldCount, setProfileFieldCount] = useState(0);
+  const [rubricGrade, setRubricGrade] = useState<RubricGrade | null>(null);
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -159,9 +188,12 @@ export default function CallDetailPage() {
         setActionItems(data.actionItems ?? []);
         setDataExtractions(data.dataExtractions ?? []);
         setProfileFieldCount(data.profileFieldCount ?? 0);
+        setRubricGrade(data.grade ?? null);
         return data;
       }
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
     setLoading(false);
     return null;
   }, [callId]);
@@ -210,7 +242,6 @@ export default function CallDetailPage() {
     };
   }, [fetchDetail, callId]);
 
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -229,12 +260,12 @@ export default function CallDetailPage() {
   const badCallReasons: string[] = [];
   if (call.status === "missed") badCallReasons.push("Marked missed");
   if (call.status === "completed" && !hasTranscript) badCallReasons.push("No transcript");
-  if (call.status === "completed" && transcript && transcript.length < 500) badCallReasons.push("Transcript too short to analyze");
-  if (call.duration_seconds != null && call.duration_seconds > 0 && call.duration_seconds < 120) badCallReasons.push("Call under 2 minutes");
+  if (call.status === "completed" && transcript && transcript.length < 500)
+    badCallReasons.push("Transcript too short to analyze");
+  if (call.duration_seconds != null && call.duration_seconds > 0 && call.duration_seconds < 120)
+    badCallReasons.push("Call under 2 minutes");
 
-  const unmappedCount = (call.rawParticipants ?? []).filter(
-    (p) => p.role !== "nah_team" && !p.contact_id,
-  ).length;
+  const unmappedCount = (call.rawParticipants ?? []).filter((p) => p.role !== "nah_team" && !p.contact_id).length;
 
   return (
     <div>
@@ -245,9 +276,7 @@ export default function CallDetailPage() {
           <button onClick={() => router.back()} className="btn-ghost p-1.5">
             <ArrowLeft size={18} />
           </button>
-          <h1 className="font-headline text-page-title text-text-primary truncate flex-1">
-            {call.title ?? "Call"}
-          </h1>
+          <h1 className="font-headline text-page-title text-text-primary truncate flex-1">{call.title ?? "Call"}</h1>
           <CallOverrideControls
             callId={call.id}
             hostedByUserId={call.hosted_by_user_id}
@@ -270,12 +299,17 @@ export default function CallDetailPage() {
               {call.callTypeName}
             </span>
           )}
-          <span className={`px-[9px] py-[3px] rounded-full font-medium capitalize ${
-            call.status === "completed" ? "bg-success/10 text-success" :
-            call.status === "scheduled" ? "bg-info/10 text-info" :
-            call.status === "missed" ? "bg-danger/10 text-danger" :
-            "bg-[#F1EFE8] text-[#5F5E5A]"
-          }`}>
+          <span
+            className={`px-[9px] py-[3px] rounded-full font-medium capitalize ${
+              call.status === "completed"
+                ? "bg-success/10 text-success"
+                : call.status === "scheduled"
+                  ? "bg-info/10 text-info"
+                  : call.status === "missed"
+                    ? "bg-danger/10 text-danger"
+                    : "bg-[#F1EFE8] text-[#5F5E5A]"
+            }`}
+          >
             {call.status}
           </span>
 
@@ -284,7 +318,10 @@ export default function CallDetailPage() {
           <span className="text-text-tertiary font-normal">
             {(call.started_at ?? call.scheduled_at)
               ? new Date(call.started_at ?? call.scheduled_at!).toLocaleString([], {
-                  month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
                 })
               : "—"}
             {call.duration_seconds ? ` · ${Math.round(call.duration_seconds / 60)} min` : ""}
@@ -323,7 +360,10 @@ export default function CallDetailPage() {
               <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">Team</div>
               <div className="flex items-center gap-1.5">
                 {call.teamMembers.map((m) => (
-                  <div key={m.id} className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#F1EFE8] text-[#444441]">
+                  <div
+                    key={m.id}
+                    className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#F1EFE8] text-[#444441]"
+                  >
                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-medium bg-[#EEEDFE] text-[#534AB7]">
                       {initials(m.name)}
                     </div>
@@ -335,7 +375,7 @@ export default function CallDetailPage() {
           )}
 
           {/* Divider */}
-          {(call.teamMembers?.length > 0 && (call.linkedContacts?.length > 0 || call.contactName)) && (
+          {call.teamMembers?.length > 0 && (call.linkedContacts?.length > 0 || call.contactName) && (
             <div className="w-px h-8 bg-border-default" />
           )}
 
@@ -348,17 +388,22 @@ export default function CallDetailPage() {
               <div className="flex items-center gap-1.5 flex-wrap">
                 {call.linkedContacts.map((c) =>
                   c.linked && c.id ? (
-                    <Link key={c.id} href={`/contacts/${c.id}`}
-                      className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#E6F1FB] text-[#0C447C] hover:bg-[#B5D4F4] transition-colors">
+                    <Link
+                      key={c.id}
+                      href={`/contacts/${c.id}`}
+                      className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#E6F1FB] text-[#0C447C] hover:bg-[#B5D4F4] transition-colors"
+                    >
                       <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-medium bg-[#D4E8F9] text-[#185FA5]">
                         {initials(c.name)}
                       </div>
                       {c.name}
                     </Link>
                   ) : (
-                    <div key={c.email}
+                    <div
+                      key={c.email}
                       className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#FAEEDA] text-[#633806]"
-                      title={`${c.email} — not in system`}>
+                      title={`${c.email} — not in system`}
+                    >
                       <AlertTriangle size={12} />
                       {c.name}
                     </div>
@@ -369,8 +414,10 @@ export default function CallDetailPage() {
           ) : call.contactName ? (
             <div>
               <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">Contact</div>
-              <Link href={`/contacts/${call.contact_id}`}
-                className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#E6F1FB] text-[#0C447C] hover:bg-[#B5D4F4] transition-colors">
+              <Link
+                href={`/contacts/${call.contact_id}`}
+                className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#E6F1FB] text-[#0C447C] hover:bg-[#B5D4F4] transition-colors"
+              >
                 <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-medium bg-[#D4E8F9] text-[#185FA5]">
                   {initials(call.contactName)}
                 </div>
@@ -396,9 +443,7 @@ export default function CallDetailPage() {
                       title={j.stage_name ? `${j.journey_name} · ${j.stage_name}` : j.journey_name}
                     >
                       {j.journey_name}
-                      {j.stage_name && (
-                        <span className="text-[10px] font-normal opacity-70">· {j.stage_name}</span>
-                      )}
+                      {j.stage_name && <span className="text-[10px] font-normal opacity-70">· {j.stage_name}</span>}
                     </Link>
                   ))}
                 </div>
@@ -431,9 +476,13 @@ export default function CallDetailPage() {
             <>
               <div className="w-px h-8 bg-border-default" />
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">Territory</div>
-                <Link href={`/territories/${call.territory_ms_slug}`}
-                  className="inline-flex items-center gap-[5px] text-[12px] font-medium px-[9px] py-[3px] rounded-full bg-[#FAEEDA] text-[#633806] hover:bg-[#FAC775] transition-colors">
+                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
+                  Territory
+                </div>
+                <Link
+                  href={`/territories/${call.territory_ms_slug}`}
+                  className="inline-flex items-center gap-[5px] text-[12px] font-medium px-[9px] py-[3px] rounded-full bg-[#FAEEDA] text-[#633806] hover:bg-[#FAC775] transition-colors"
+                >
                   {call.territoryName ?? call.territory_ms_slug}
                 </Link>
               </div>
@@ -478,10 +527,14 @@ export default function CallDetailPage() {
         contactPhone={call.contactPhone}
         partnerOptions={buildPartnerOptions(call)}
         linkedContacts={(call.linkedContacts ?? []).map((c) => ({ id: c.id, name: c.name }))}
-        callTerritories={(call.callTerritories ?? []).map((t) => ({ ms_slug: t.ms_slug, territory_name: t.territory_name }))}
+        callTerritories={(call.callTerritories ?? []).map((t) => ({
+          ms_slug: t.ms_slug,
+          territory_name: t.territory_name,
+        }))}
         participantNames={buildSpeakerNames(call)}
         callTypeSlug={call.callTypeSlug}
         kbIntelItems={call.kb_intel_items ?? []}
+        rubricGrade={rubricGrade}
         onRefresh={() => void fetchDetail()}
       />
     </div>
@@ -522,15 +575,11 @@ function buildSpeakerNames(call: CallDetail): string[] {
   const names: string[] = [];
 
   // Speaker 1 = the host (NAH team member who ran the call)
-  const host = call.hostName
-    ?? call.teamMembers?.[0]?.name
-    ?? null;
+  const host = call.hostName ?? call.teamMembers?.[0]?.name ?? null;
   if (host) names.push(host);
 
   // Speaker 2 = the contact/prospect on the call
-  const contact = call.linkedContacts?.[0]?.name
-    ?? call.contactName
-    ?? null;
+  const contact = call.linkedContacts?.[0]?.name ?? call.contactName ?? null;
   if (contact) names.push(contact);
 
   return names;

@@ -93,6 +93,8 @@ export async function executeTool(
       return executeDraftTriggerWorkflow(input);
     case "draft_knowledge_doc":
       return executeDraftKnowledgeDoc(input);
+    case "draft_sub_task_log":
+      return executeDraftSubTaskLog(input);
     default: {
       const _exhaustive: never = toolName;
       return { data: `Unknown tool: ${_exhaustive}` };
@@ -102,20 +104,45 @@ export async function executeTool(
 
 /** Look up a contact name from Supabase by GHL ID or UUID. Avoids GHL API call. */
 async function getContactName(contactId: string): Promise<string> {
+  const info = await getContactInfo(contactId);
+  return info.name;
+}
+
+/** Look up contact name + phone + email from Supabase. */
+async function getContactInfo(
+  contactId: string
+): Promise<{ name: string; phone: string | null; email: string | null }> {
   try {
     const supabase = createServerClient();
-    // Try GHL ID first, then UUID
     const { data } = await supabase
       .from("contacts")
-      .select("first_name, last_name")
+      .select("first_name, last_name, phone, email")
       .or(`ghl_contact_id.eq.${contactId},id.eq.${contactId}`)
       .limit(1)
       .single();
-    if (data) return `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim() || "Unknown Contact";
+    if (data) {
+      return {
+        name: `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim() || "Unknown Contact",
+        phone: data.phone ?? null,
+        email: data.email ?? null,
+      };
+    }
   } catch {
     /* fall through */
   }
-  return "Unknown Contact";
+  return { name: "Unknown Contact", phone: null, email: null };
+}
+
+/** Look up current user's name from their GHL ID */
+async function getUserName(ghlUserId: string | null): Promise<string | null> {
+  if (!ghlUserId) return null;
+  try {
+    const supabase = createServerClient();
+    const { data } = await supabase.from("users").select("full_name").eq("ghl_user_id", ghlUserId).single();
+    return data?.full_name ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Parse query / aggregate input — Claude passes JSON strings for nested args */
@@ -1088,32 +1115,36 @@ async function executeDraftMessage(input: Record<string, unknown>): Promise<Tool
   const channel = input.channel as "SMS" | "Email";
   const content = input.content as string;
   const subject = input.subject as string | undefined;
+  const currentUserGhlId = input._current_user_ghl_id as string | null;
 
-  // Try to fetch the contact name for display
-  let contactName = "Unknown Contact";
-  try {
-    const contact = await ghl.getContact(contactId);
-    contactName = `${contact.firstName} ${contact.lastName}`.trim();
-  } catch {
-    // Use fallback name if fetch fails
-  }
+  const contactInfo = await getContactInfo(contactId);
+  const senderName = await getUserName(currentUserGhlId);
+
+  // Pre-populate from/to based on channel
+  const toAddress = channel === "SMS" ? contactInfo.phone : contactInfo.email;
+  const fromAddress =
+    channel === "SMS" ? "+1 (888) NAH-FLIP" : (process.env.GHL_SENDING_EMAIL ?? "notifications@newagainhouses.com");
 
   const draftedAction: DraftedAction = {
     id: crypto.randomUUID(),
     type: "message",
     status: "pending",
     contactId,
-    contactName,
+    contactName: contactInfo.name,
     payload: {
       actionType: "message",
       channel,
       content,
-      subject,
+      subject: subject ?? (channel === "Email" ? "New Again Houses" : undefined),
+      toAddress: toAddress ?? undefined,
+      fromAddress,
+      fromName: senderName ?? undefined,
+      scheduledAt: null,
     },
   };
 
   return {
-    data: `I've drafted a ${channel} message to ${contactName}. Please review it below and confirm, edit, or cancel.`,
+    data: `I've drafted a ${channel} message to ${contactInfo.name}. Please review it below and confirm, edit, or cancel.`,
     draftedAction,
   };
 }
@@ -1123,14 +1154,10 @@ async function executeDraftTask(input: Record<string, unknown>): Promise<ToolExe
   const title = input.title as string;
   const dueDate = input.due_date as string;
   const description = input.description as string | undefined;
+  const currentUserGhlId = input._current_user_ghl_id as string | null;
 
-  let contactName = "Unknown Contact";
-  try {
-    const contact = await ghl.getContact(contactId);
-    contactName = `${contact.firstName} ${contact.lastName}`.trim();
-  } catch {
-    // Use fallback name if fetch fails
-  }
+  const contactName = await getContactName(contactId);
+  const assignedToName = await getUserName(currentUserGhlId);
 
   const draftedAction: DraftedAction = {
     id: crypto.randomUUID(),
@@ -1143,6 +1170,8 @@ async function executeDraftTask(input: Record<string, unknown>): Promise<ToolExe
       title,
       description,
       dueDate,
+      assignedTo: currentUserGhlId ?? undefined,
+      assignedToName: assignedToName ?? undefined,
     },
   };
 
@@ -1159,10 +1188,11 @@ async function executeDraftStageMove(input: Record<string, unknown>): Promise<To
 
   const contactName = await getContactName(contactId);
   let currentStage = "Unknown";
+  let currentPipeline = "Unknown";
+  let currentPipelineId: string | undefined;
 
   try {
     const supabase = createServerClient();
-    // Look up current stage from Supabase journey_pipeline_state
     const { data: contact } = await supabase
       .from("contacts")
       .select("id")
@@ -1173,7 +1203,7 @@ async function executeDraftStageMove(input: Record<string, unknown>): Promise<To
     if (contact) {
       const { data: jps } = await supabase
         .from("journey_pipeline_state")
-        .select("pipeline_stages!inner(name)")
+        .select("pipeline_stages!inner(name), pipelines!inner(id, name)")
         .eq("is_active", true)
         .in(
           "journey_id",
@@ -1186,6 +1216,8 @@ async function executeDraftStageMove(input: Record<string, unknown>): Promise<To
 
       if (jps) {
         currentStage = (jps as any).pipeline_stages?.name ?? "Unknown";
+        currentPipeline = (jps as any).pipelines?.name ?? "Unknown";
+        currentPipelineId = (jps as any).pipelines?.id ?? undefined;
       }
     }
   } catch {
@@ -1200,7 +1232,12 @@ async function executeDraftStageMove(input: Record<string, unknown>): Promise<To
     contactName,
     payload: {
       actionType: "stage_move",
+      currentPipeline,
+      currentPipelineId,
       currentStage,
+      // Default target pipeline = same as current (user can change via dropdown)
+      newPipeline: currentPipeline,
+      newPipelineId: currentPipelineId,
       newStage,
       reason,
     },
@@ -1216,13 +1253,7 @@ async function executeDraftProfileUpdate(input: Record<string, unknown>): Promis
   const contactId = input.contact_id as string;
   const updatesRaw = input.updates as string;
 
-  let contactName = "Unknown Contact";
-  try {
-    const contact = await ghl.getContact(contactId);
-    contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown Contact";
-  } catch {
-    // Use fallback
-  }
+  const contactName = await getContactName(contactId);
 
   // Parse the updates JSON string
   let updates: { fieldName: string; value: string; reason: string }[];
@@ -1413,14 +1444,12 @@ async function executeDraftAppointment(input: Record<string, unknown>): Promise<
   const endTime = input.end_time as string;
   const calendarHint = (input.calendar_hint as string | undefined)?.toLowerCase().trim();
   const assignedUserId = input.assigned_user_id as string | undefined;
+  const currentUserGhlId = input._current_user_ghl_id as string | null;
 
-  let contactName = "Unknown Contact";
-  try {
-    const contact = await ghl.getContact(contactId);
-    contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown Contact";
-  } catch {
-    // Fall back to UUID
-  }
+  const contactName = await getContactName(contactId);
+
+  // Default assignedUserId to current user if not specified
+  const resolvedAssignedUserId = assignedUserId ?? currentUserGhlId ?? undefined;
 
   // Resolve a calendar suggestion. The user can change it via the searchable
   // dropdown on the confirm card before pushing.
@@ -1470,7 +1499,7 @@ async function executeDraftAppointment(input: Record<string, unknown>): Promise<
       title,
       startTime,
       endTime,
-      assignedUserId,
+      assignedUserId: resolvedAssignedUserId,
     },
   };
 
@@ -1489,13 +1518,7 @@ async function executeDraftNote(input: Record<string, unknown>): Promise<ToolExe
     return { data: "Error: Note body is required." };
   }
 
-  let contactName = "Unknown Contact";
-  try {
-    const contact = await ghl.getContact(contactId);
-    contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown Contact";
-  } catch {
-    // Fall back
-  }
+  const contactName = await getContactName(contactId);
 
   const draftedAction: DraftedAction = {
     id: crypto.randomUUID(),
@@ -1566,5 +1589,61 @@ async function executeDraftKnowledgeDoc(input: Record<string, unknown>): Promise
 
   return {
     data: `I've drafted a knowledge base document: "${title}" [${category}]. This has been submitted for admin review. An admin will need to approve it before it's added to the shared knowledge base that all users benefit from.\n\nContent preview:\n${content.slice(0, 300)}${content.length > 300 ? "..." : ""}`,
+  };
+}
+
+async function executeDraftSubTaskLog(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  const contactId = input.contact_id as string;
+  const subTaskId = input.sub_task_id as string;
+  const stateAdvance = (input.state_advance as string | undefined) ?? null;
+  const contentType = (input.content_type as string) ?? "note";
+  const contentText = input.content_text as string | undefined;
+
+  const contactName = await getContactName(contactId);
+
+  // Look up sub-task details for the card
+  const supabase = createServerClient();
+  const { data: subTask } = await supabase
+    .from("pipeline_sub_tasks")
+    .select("id, name, state_type, first_state_label, second_state_label, stage_id, pipeline_stages!inner(name)")
+    .eq("id", subTaskId)
+    .single();
+
+  if (!subTask) {
+    return { data: `Sub-task not found: ${subTaskId}` };
+  }
+
+  const stageName = (subTask as any).pipeline_stages?.name ?? "Unknown";
+
+  const draftedAction: DraftedAction = {
+    id: crypto.randomUUID(),
+    type: "sub_task_log",
+    status: "pending",
+    contactId,
+    contactName,
+    payload: {
+      actionType: "sub_task_log",
+      subTaskId,
+      subTaskName: subTask.name,
+      stageName,
+      stateType: subTask.state_type as "single" | "two_state",
+      firstStateLabel: subTask.first_state_label ?? undefined,
+      secondStateLabel: subTask.second_state_label ?? undefined,
+      stateAdvance: stateAdvance as "first" | "second" | null,
+      contentType: contentType as "note" | "file" | "link",
+      contentText,
+    },
+  };
+
+  const stateLabel =
+    stateAdvance === "first"
+      ? (subTask.first_state_label ?? "first state")
+      : stateAdvance === "second"
+        ? (subTask.second_state_label ?? "second state")
+        : "completed";
+
+  return {
+    data: `I've drafted a sub-task log for ${contactName}: "${subTask.name}" → ${stateLabel}. Please review and confirm.`,
+    draftedAction,
   };
 }
