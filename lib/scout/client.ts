@@ -363,6 +363,15 @@ async function loadPipelineSnapshot(userId: string): Promise<string> {
 export async function runConversationTurn(input: ScoutConversationInput): Promise<ScoutConversationOutput> {
   const client = createAnthropicClient();
 
+  // Look up the user's GHL ID for tool context
+  const supabaseForUser = createServerClient();
+  const { data: currentUser } = await supabaseForUser
+    .from("users")
+    .select("ghl_user_id")
+    .eq("id", input.userId)
+    .single();
+  const ghlUserId = currentUser?.ghl_user_id ?? null;
+
   // Load dynamic context from Supabase — KB is context-aware
   const [knowledgeBase, pipelineSnapshot, userMemory] = await Promise.all([
     loadKnowledgeBase(input.pageContext),
@@ -470,7 +479,13 @@ export async function runConversationTurn(input: ScoutConversationInput): Promis
 
       for (const block of response.content) {
         if (block.type === "tool_use") {
-          const result = await executeTool(block.name as ScoutToolName, block.input as Record<string, unknown>);
+          // Inject user context into tool input so tools can filter by current user
+          const toolInput = {
+            ...(block.input as Record<string, unknown>),
+            _current_user_id: input.userId,
+            _current_user_ghl_id: ghlUserId,
+          };
+          const result = await executeTool(block.name as ScoutToolName, toolInput);
 
           toolResults.push({
             type: "tool_result",

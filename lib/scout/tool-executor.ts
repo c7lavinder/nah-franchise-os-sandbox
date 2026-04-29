@@ -313,6 +313,7 @@ async function executeGetSchedule(input: Record<string, unknown>): Promise<ToolE
 async function executeGetTasks(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
     const contactId = input.contact_id as string;
+    const currentUserGhlId = input._current_user_ghl_id as string | null;
     const tasks = await ghl.getTasks(contactId);
 
     if (tasks.length === 0) {
@@ -328,14 +329,17 @@ async function executeGetTasks(input: Record<string, unknown>): Promise<ToolExec
       assignedTo: t.assignedTo ?? null,
     }));
 
-    const open = formatted.filter((t: any) => !t.completed);
-    const done = formatted.filter((t: any) => t.completed);
+    // Filter to current user's tasks if we know who they are
+    const userTasks = currentUserGhlId ? formatted.filter((t: any) => t.assignedTo === currentUserGhlId) : formatted;
+
+    const open = userTasks.filter((t: any) => !t.completed);
+    const done = userTasks.filter((t: any) => t.completed);
 
     return {
       data: JSON.stringify({
         open: open.length,
         completed: done.length,
-        tasks: open.length > 0 ? open : formatted.slice(0, 10),
+        tasks: open.length > 0 ? open : userTasks.slice(0, 10),
       }),
     };
   } catch (err) {
@@ -346,12 +350,14 @@ async function executeGetTasks(input: Record<string, unknown>): Promise<ToolExec
 async function executeCompleteTask(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
     const contactId = input.contact_id as string;
+    const currentUserGhlId = input._current_user_ghl_id as string | null;
     let taskId = input.task_id as string | undefined;
 
-    // If no task_id provided, find the only open task
+    // If no task_id provided, find the only open task assigned to current user
     if (!taskId) {
       const tasks = await ghl.getTasks(contactId);
-      const openTasks = tasks.filter((t: any) => !t.completed);
+      const allOpen = tasks.filter((t: any) => !t.completed);
+      const openTasks = currentUserGhlId ? allOpen.filter((t: any) => t.assignedTo === currentUserGhlId) : allOpen;
 
       if (openTasks.length === 0) {
         return { data: "No open tasks found for this contact." };
