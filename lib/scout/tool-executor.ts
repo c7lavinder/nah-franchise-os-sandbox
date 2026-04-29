@@ -94,6 +94,24 @@ export async function executeTool(
   }
 }
 
+/** Look up a contact name from Supabase by GHL ID or UUID. Avoids GHL API call. */
+async function getContactName(contactId: string): Promise<string> {
+  try {
+    const supabase = createServerClient();
+    // Try GHL ID first, then UUID
+    const { data } = await supabase
+      .from("contacts")
+      .select("first_name, last_name")
+      .or(`ghl_contact_id.eq.${contactId},id.eq.${contactId}`)
+      .limit(1)
+      .single();
+    if (data) return `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim() || "Unknown Contact";
+  } catch {
+    /* fall through */
+  }
+  return "Unknown Contact";
+}
+
 /** Parse query / aggregate input — Claude passes JSON strings for nested args */
 function parseJsonField<T>(raw: unknown, fallback: T): T {
   if (raw === undefined || raw === null) return fallback;
@@ -840,25 +858,39 @@ async function executeDraftStageMove(input: Record<string, unknown>): Promise<To
   const newStage = input.new_stage as string;
   const reason = input.reason as string | undefined;
 
-  let contactName = "Unknown Contact";
+  const contactName = await getContactName(contactId);
   let currentStage = "Unknown";
 
   try {
-    const [contact, opportunities, pipelines] = await Promise.all([
-      ghl.getContact(contactId),
-      ghl.searchOpportunities({ status: "open" }),
-      ghl.getPipelines(),
-    ]);
-    contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || "Unknown Contact";
+    const supabase = createServerClient();
+    // Look up current stage from Supabase journey_pipeline_state
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("id")
+      .or(`ghl_contact_id.eq.${contactId},id.eq.${contactId}`)
+      .limit(1)
+      .single();
 
-    const opportunity = opportunities.find((o) => o.contactId === contactId);
-    if (opportunity) {
-      const pipeline = pipelines.find((p) => p.id === opportunity.pipelineId);
-      const stage = pipeline?.stages.find((s) => s.id === opportunity.pipelineStageId);
-      if (stage?.name) currentStage = stage.name.trim();
+    if (contact) {
+      const { data: jps } = await supabase
+        .from("journey_pipeline_state")
+        .select("pipeline_stages!inner(name)")
+        .eq("is_active", true)
+        .in(
+          "journey_id",
+          (await supabase.from("journeys").select("id").eq("primary_contact_id", contact.id)).data?.map(
+            (j: any) => j.id
+          ) ?? []
+        )
+        .limit(1)
+        .single();
+
+      if (jps) {
+        currentStage = (jps as any).pipeline_stages?.name ?? "Unknown";
+      }
     }
   } catch {
-    // Use fallback values if fetch fails
+    // Use fallback
   }
 
   const draftedAction: DraftedAction = {

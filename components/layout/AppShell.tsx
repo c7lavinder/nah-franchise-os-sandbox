@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
-import ScoutFAB from "./ScoutFAB";
 import { QuickAsk } from "@/components/scout";
 import type { UserRole } from "@/types/database";
 
@@ -16,11 +15,7 @@ interface AppShellProps {
 }
 
 /** Main app shell — sidebar rail + main content, no top bar */
-export default function AppShell({
-  children,
-  userName,
-  userRole,
-}: AppShellProps) {
+export default function AppShell({ children, userName, userRole }: AppShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const isScoutPage = pathname === "/scout";
@@ -39,10 +34,7 @@ export default function AppShell({
       {/* Mobile overlay */}
       {mobileMenuOpen && (
         <>
-          <div
-            className="fixed inset-0 bg-black/30 z-[150] lg:hidden"
-            onClick={() => setMobileMenuOpen(false)}
-          />
+          <div className="fixed inset-0 bg-black/30 z-[150] lg:hidden" onClick={() => setMobileMenuOpen(false)} />
           <div className="fixed top-4 right-4 z-[200] lg:hidden">
             <button
               onClick={() => setMobileMenuOpen(false)}
@@ -71,9 +63,6 @@ export default function AppShell({
           {children}
         </div>
       </main>
-
-      {/* Scout AI FAB — floating chat bubble on every page except /scout */}
-      <ScoutFAB />
     </div>
   );
 }
