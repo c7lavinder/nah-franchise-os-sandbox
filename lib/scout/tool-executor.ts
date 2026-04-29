@@ -158,14 +158,44 @@ async function executeSearchContacts(input: Record<string, unknown>): Promise<To
     const query = (input.query as string).trim();
     const limit = (input.limit as number) ?? 10;
 
-    // Search Supabase contacts by name, email, or phone
-    const { data, error } = await supabase
-      .from("contacts")
-      .select(
-        "id, ghl_contact_id, first_name, last_name, email, phone, city, state, opportunity_source, territory_interest, capital_availability, scout_lead_score"
-      )
-      .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
-      .limit(limit);
+    // Search Supabase contacts — split multi-word queries to match first + last name
+    const words = query.split(/\s+/).filter((w) => w.length > 0);
+    const select =
+      "id, ghl_contact_id, first_name, last_name, email, phone, city, state, opportunity_source, territory_interest, capital_availability, scout_lead_score";
+
+    let data: any[] | null = null;
+    let error: any = null;
+
+    if (words.length >= 2) {
+      // Multi-word: try first_name + last_name match first
+      const result = await supabase
+        .from("contacts")
+        .select(select)
+        .ilike("first_name", `%${words[0]}%`)
+        .ilike("last_name", `%${words.slice(1).join(" ")}%`)
+        .limit(limit);
+      data = result.data;
+      error = result.error;
+
+      // If no results, fall back to OR search on each word
+      if (!data?.length) {
+        const orFilters = words
+          .map((w) => `first_name.ilike.%${w}%,last_name.ilike.%${w}%,email.ilike.%${w}%`)
+          .join(",");
+        const fallback = await supabase.from("contacts").select(select).or(orFilters).limit(limit);
+        data = fallback.data;
+        error = fallback.error;
+      }
+    } else {
+      // Single word: search across all fields
+      const result = await supabase
+        .from("contacts")
+        .select(select)
+        .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
+        .limit(limit);
+      data = result.data;
+      error = result.error;
+    }
 
     if (error) {
       return { data: `Error searching contacts: ${error.message}` };
