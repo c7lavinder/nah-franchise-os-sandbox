@@ -613,6 +613,17 @@ export async function createAppointment(appointment: GHLAppointmentCreatePayload
   throw new Error("createAppointment: unexpected response shape");
 }
 
+/** Update an appointment's status or details */
+export async function updateAppointment(
+  appointmentId: string,
+  updates: { appointmentStatus?: string; notes?: string; title?: string }
+): Promise<void> {
+  await ghlFetch(`/calendars/events/appointments/${appointmentId}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
 /**
  * Get appointments within a time range.
  *

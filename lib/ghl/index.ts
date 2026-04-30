@@ -22,6 +22,7 @@ export {
   updateTask,
   getCalendars,
   createAppointment,
+  updateAppointment,
   getAppointments,
   getAllAppointments,
   getConversations,

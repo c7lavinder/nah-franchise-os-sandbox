@@ -1,8 +1,16 @@
 "use client";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
-import { Calendar, Clock, Video, ExternalLink, FileText, ChevronDown, ChevronRight, User } from "lucide-react";
+import { Calendar, Clock, Video, ExternalLink, FileText, ChevronDown, ChevronRight, User, Loader2 } from "lucide-react";
 import type { GHLAppointment } from "@/types/ghl";
+
+const STATUS_OPTIONS = [
+  { value: "confirmed", label: "Confirmed", color: "bg-nah-blue/10 text-nah-blue border-nah-blue/30" },
+  { value: "showed", label: "Showed", color: "bg-success/10 text-success border-success/30" },
+  { value: "noshow", label: "No Show", color: "bg-danger/10 text-danger border-danger/30" },
+  { value: "cancelled", label: "Cancelled", color: "bg-text-tertiary/10 text-text-tertiary border-text-tertiary/30" },
+] as const;
 
 interface TodayCalendarProps {
   appointments: GHLAppointment[];
@@ -47,6 +55,25 @@ function isMeetLink(url?: string): boolean {
 
 export default function TodayCalendar({ appointments }: TodayCalendarProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+
+  async function handleStatusChange(aptId: string, newStatus: string) {
+    setUpdatingStatus(aptId);
+    try {
+      const res = await apiFetch(`/api/appointments/${aptId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        setStatusOverrides((prev) => ({ ...prev, [aptId]: newStatus }));
+      }
+    } catch {
+      /* silent */
+    }
+    setUpdatingStatus(null);
+  }
 
   const sorted = [...appointments].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
@@ -158,19 +185,28 @@ export default function TodayCalendar({ appointments }: TodayCalendarProps) {
                       <p className="text-caption text-text-secondary">{apt.notes}</p>
                     </div>
                   )}
-                  {apt.appointmentStatus && apt.appointmentStatus !== "confirmed" && (
-                    <span
-                      className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                        apt.appointmentStatus === "cancelled"
-                          ? "bg-danger/10 text-danger"
-                          : apt.appointmentStatus === "noshow"
-                            ? "bg-warning/10 text-warning"
-                            : "bg-bg-tertiary text-text-tertiary"
-                      }`}
-                    >
-                      {apt.appointmentStatus}
-                    </span>
-                  )}
+                  {/* Status selector */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {updatingStatus === apt.id && <Loader2 size={12} className="animate-spin text-text-tertiary" />}
+                    {STATUS_OPTIONS.map((opt) => {
+                      const currentStatus = statusOverrides[apt.id] ?? apt.appointmentStatus ?? "confirmed";
+                      const isActive = currentStatus === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          onClick={() => handleStatusChange(apt.id, opt.value)}
+                          disabled={updatingStatus === apt.id}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${
+                            isActive
+                              ? opt.color
+                              : "bg-bg-secondary text-text-tertiary border-border-default hover:border-border-hover"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
