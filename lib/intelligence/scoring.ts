@@ -1,5 +1,14 @@
 /**
- * Candidate Intelligence Scoring Engine
+ * Candidate Intelligence Scoring Engine — FRANCHISE VIABILITY (deep profiling)
+ *
+ * Purpose: Tells leadership WHETHER a candidate can succeed as a franchisee.
+ * Used for candidates in Discovery → Awarding stages with deep behavioral data.
+ * Four-dimensional score with full audit trail.
+ *
+ * This is SEPARATE from the Lead Scoring system in lib/profile/lead-scoring.ts,
+ * which answers "Is this a hot lead?" for sales rep daily prioritization.
+ *
+ * See ADR-0012 for the decision to keep these as distinct systems.
  *
  * Implements the explainable 100-point score from the intelligence plan:
  * - Financial Readiness (0-25)
@@ -132,7 +141,11 @@ function scoreOperational(p: CandidateIntelligence, changes: ScoreChange[]): num
   // DISC personality flags
   if (p.disc_profile === "D") {
     score -= 5;
-    changes.push({ field: "disc_profile", delta: -5, reason: "D personality — analysis paralysis risk at offer stage" });
+    changes.push({
+      field: "disc_profile",
+      delta: -5,
+      reason: "D personality — analysis paralysis risk at offer stage",
+    });
   } else if (p.disc_profile === "I") {
     score -= 3;
     changes.push({ field: "disc_profile", delta: -3, reason: "High I personality — oversell risk" });
@@ -155,17 +168,23 @@ function scoreEngagement(p: CandidateIntelligence, changes: ScoreChange[]): numb
     changes.push({ field: "trainual_completion_pct", delta: 5, reason: `PTO completion ${pct}%` });
   } else if (pct === 0 && p.trainual_last_activity === null) {
     // Check if they should have started by now (5+ days since creation)
-    const daysSinceCreated = Math.floor(
-      (Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const daysSinceCreated = Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24));
     if (daysSinceCreated >= 5) {
       score -= 15;
-      changes.push({ field: "trainual_completion_pct", delta: -15, reason: "PTO not started after 5 days — 84% never complete it" });
+      changes.push({
+        field: "trainual_completion_pct",
+        delta: -15,
+        reason: "PTO not started after 5 days — 84% never complete it",
+      });
     }
   }
 
   // Homework completion (+5)
-  if (p.homework_completion_rate !== null && p.homework_completion_rate !== undefined && p.homework_completion_rate >= 0.8) {
+  if (
+    p.homework_completion_rate !== null &&
+    p.homework_completion_rate !== undefined &&
+    p.homework_completion_rate >= 0.8
+  ) {
     score += 5;
     changes.push({ field: "homework_completion_rate", delta: 5, reason: "Homework done on Matt call" });
   }
@@ -185,9 +204,7 @@ function scoreMomentum(p: CandidateIntelligence, changes: ScoreChange[]): number
 
   // Base momentum — having a score at all means some progress
   const activeFlags = (p.active_flags as string[] | null) ?? [];
-  const stallAlerts = activeFlags.filter((f) =>
-    f.toLowerCase().includes("stall") || f.toLowerCase().includes("stale")
-  );
+  const stallAlerts = activeFlags.filter((f) => f.toLowerCase().includes("stall") || f.toLowerCase().includes("stale"));
 
   if (stallAlerts.length === 0) {
     score += 15;

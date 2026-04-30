@@ -1,5 +1,14 @@
 /**
- * Lead Scoring Engine
+ * Lead Scoring Engine — SALES PRIORITIZATION (early pipeline)
+ *
+ * Purpose: Tells reps WHO to call today. Used for pipeline leads in
+ * Engagement → Discovery stages. Quick signal: Hot / Warm / Cool / Cold.
+ *
+ * This is SEPARATE from the Intelligence Scoring system in
+ * lib/intelligence/scoring.ts, which answers "Can this person succeed
+ * as a franchisee?" using deeper behavioral data (Zorakle, DISC, Trainual).
+ *
+ * See ADR-0012 for the decision to keep these as distinct systems.
  *
  * Calculates a 0-100 score for a contact based on the weighted model
  * defined in docs/pipeline.md:
@@ -66,10 +75,17 @@ function scoreCapital(availability: string | null, capitalSource: string | null)
 
   // Capital availability (0-12)
   switch (availability) {
-    case "Confirmed": score += 12; break;
-    case "Needs Verification": score += 7; break;
-    case "Unknown": score += 3; break;
-    default: score += 2; // Not filled
+    case "Confirmed":
+      score += 12;
+      break;
+    case "Needs Verification":
+      score += 7;
+      break;
+    case "Unknown":
+      score += 3;
+      break;
+    default:
+      score += 2; // Not filled
   }
 
   // Capital source identified (0-8)
@@ -85,11 +101,16 @@ function scoreCapital(availability: string | null, capitalSource: string | null)
 /** Score territory availability (0-15 points) */
 function scoreTerritory(status: string | null): number {
   switch (status) {
-    case "Confirmed": return 15;
-    case "Available": return 13;
-    case "Waitlist": return 7;
-    case "Unavailable": return 2;
-    default: return 5; // Not assessed yet
+    case "Confirmed":
+      return 15;
+    case "Available":
+      return 13;
+    case "Waitlist":
+      return 7;
+    case "Unavailable":
+      return 2;
+    default:
+      return 5; // Not assessed yet
   }
 }
 
@@ -104,9 +125,7 @@ function scoreEngagement(
 
   // Recency of last touch (0-6)
   if (lastTouchDate) {
-    const daysSinceTouch = Math.floor(
-      (Date.now() - new Date(lastTouchDate).getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const daysSinceTouch = Math.floor((Date.now() - new Date(lastTouchDate).getTime()) / (1000 * 60 * 60 * 24));
     if (daysSinceTouch <= 1) score += 6;
     else if (daysSinceTouch <= 3) score += 5;
     else if (daysSinceTouch <= 7) score += 3;
@@ -133,46 +152,57 @@ function scoreEngagement(
 }
 
 /** Score business ownership experience (0-15 points) */
-function scoreExperience(
-  businessOwnership: string | null,
-  motivationClarity: string | null
-): number {
+function scoreExperience(businessOwnership: string | null, motivationClarity: string | null): number {
   let score = 0;
 
   // Business ownership (0-8)
   if (businessOwnership === "Yes") score += 8;
-  else if (businessOwnership === "No") score += 4; // Not disqualifying — just less experienced
+  else if (businessOwnership === "No")
+    score += 4; // Not disqualifying — just less experienced
   else score += 3; // Unknown
 
   // Motivation clarity (0-7)
   switch (motivationClarity) {
-    case "Strong": score += 7; break;
-    case "Moderate": score += 4; break;
-    case "Weak": score += 1; break;
-    default: score += 3; // Unknown
+    case "Strong":
+      score += 7;
+      break;
+    case "Moderate":
+      score += 4;
+      break;
+    case "Weak":
+      score += 1;
+      break;
+    default:
+      score += 3; // Unknown
   }
 
   return Math.min(score, 15);
 }
 
 /** Score timeline (0-15 points) */
-function scoreTimeline(
-  investmentTimeline: string | null,
-  timelineToOpen: string | null
-): number {
+function scoreTimeline(investmentTimeline: string | null, timelineToOpen: string | null): number {
   // Use investment timeline if available, fall back to timeline to open
   const timeline = investmentTimeline ?? timelineToOpen;
 
   switch (timeline) {
-    case "Immediately": return 15;
-    case "Under 6 months": return 13;
-    case "1-3 months": return 14;
-    case "3-6 months": return 11;
-    case "6-12 months": return 7;
-    case "6-12 months": return 7;
-    case "12+ months": return 3;
-    case "12+ months": return 3;
-    default: return 5; // Unknown
+    case "Immediately":
+      return 15;
+    case "Under 6 months":
+      return 13;
+    case "1-3 months":
+      return 14;
+    case "3-6 months":
+      return 11;
+    case "6-12 months":
+      return 7;
+    case "6-12 months":
+      return 7;
+    case "12+ months":
+      return 3;
+    case "12+ months":
+      return 3;
+    default:
+      return 5; // Unknown
   }
 }
 
@@ -188,20 +218,19 @@ export function calculateLeadScore(input: ScoringInput): ScoreResult {
       input.contactAttemptCount,
       input.trainualCompletion
     ),
-    experience: scoreExperience(
-      input.businessOwnershipExperience,
-      input.motivationClarity
-    ),
+    experience: scoreExperience(input.businessOwnershipExperience, input.motivationClarity),
     timeline: scoreTimeline(input.investmentTimeline, input.timelineToOpen),
   };
 
-  const total = components.source + components.capital + components.territory +
-    components.engagement + components.experience + components.timeline;
+  const total =
+    components.source +
+    components.capital +
+    components.territory +
+    components.engagement +
+    components.experience +
+    components.timeline;
 
-  const tier: ScoreResult["tier"] =
-    total >= 80 ? "Hot" :
-    total >= 60 ? "Warm" :
-    total >= 40 ? "Cool" : "Cold";
+  const tier: ScoreResult["tier"] = total >= 80 ? "Hot" : total >= 60 ? "Warm" : total >= 40 ? "Cool" : "Cold";
 
   const breakdown = [
     `source:${components.source}/20`,
@@ -226,12 +255,8 @@ export function buildScoringInput(
     capitalSource: profile["Capital Source"] ?? null,
     territoryStatus: profile["Territory Status"] ?? null,
     lastTouchDate: profile["Last Touch Date"] ?? null,
-    daysSinceAdded: Math.floor(
-      (Date.now() - new Date(contact.dateAdded).getTime()) / (1000 * 60 * 60 * 24)
-    ),
-    contactAttemptCount: profile["Contact Attempt Count"]
-      ? parseInt(profile["Contact Attempt Count"])
-      : null,
+    daysSinceAdded: Math.floor((Date.now() - new Date(contact.dateAdded).getTime()) / (1000 * 60 * 60 * 24)),
+    contactAttemptCount: profile["Contact Attempt Count"] ? parseInt(profile["Contact Attempt Count"]) : null,
     businessOwnershipExperience: profile["Business Ownership Experience"] ?? null,
     investmentTimeline: profile["Investment Timeline"] ?? null,
     timelineToOpen: profile["Timeline to Open"] ?? null,
