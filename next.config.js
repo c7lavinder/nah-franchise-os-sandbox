@@ -2,6 +2,9 @@
 const nextConfig = {
   basePath: "/frandev",
   reactStrictMode: true,
+  images: {
+    unoptimized: true,
+  },
   experimental: {
     instrumentationHook: true,
   },
