@@ -52,16 +52,11 @@ interface OverrideBody {
   primary_journey_pipeline_state_id?: string | null;
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ callId: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ callId: string }> }) {
   const { callId } = await params;
   const supabase = createServerClient();
 
-  const authUser = await getAuthUser(
-    request.headers.get("authorization") ?? request.headers.get("Authorization"),
-  );
+  const authUser = await getAuthUser(request.headers.get("authorization") ?? request.headers.get("Authorization"));
   if (!authUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data: call, error: loadErr } = await supabase
@@ -72,9 +67,9 @@ export async function POST(
   if (loadErr) return NextResponse.json({ error: loadErr.message }, { status: 500 });
   if (!call) return NextResponse.json({ error: "Call not found" }, { status: 404 });
 
-  const isAdmin = authUser.role === "admin";
+  const isAdminOrOperator = authUser.role === "admin" || authUser.role === "operator";
   const isOwner = call.hosted_by_user_id === authUser.id;
-  if (!isAdmin && !isOwner) {
+  if (!isAdminOrOperator && !isOwner) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -170,12 +165,9 @@ export async function POST(
     resolvedPrimary =
       primary_territory_ms_slug && unique.includes(primary_territory_ms_slug)
         ? primary_territory_ms_slug
-        : unique[0] ?? null;
+        : (unique[0] ?? null);
 
-    const { error: delErr } = await supabase
-      .from("call_territories")
-      .delete()
-      .eq("call_id", callId);
+    const { error: delErr } = await supabase.from("call_territories").delete().eq("call_id", callId);
     if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
 
     if (unique.length > 0) {
@@ -207,12 +199,9 @@ export async function POST(
     resolvedPrimaryJps =
       primary_journey_pipeline_state_id && uniqueMap.has(primary_journey_pipeline_state_id)
         ? primary_journey_pipeline_state_id
-        : uniqueList[0]?.journey_pipeline_state_id ?? null;
+        : (uniqueList[0]?.journey_pipeline_state_id ?? null);
 
-    const { error: delJErr } = await supabase
-      .from("call_journeys")
-      .delete()
-      .eq("call_id", callId);
+    const { error: delJErr } = await supabase.from("call_journeys").delete().eq("call_id", callId);
     if (delJErr) return NextResponse.json({ error: delJErr.message }, { status: 500 });
 
     if (uniqueList.length > 0) {
@@ -247,10 +236,7 @@ export async function POST(
   }
 
   if (Object.keys(callUpdates).length > 0) {
-    const { error: updateErr } = await supabase
-      .from("calls")
-      .update(callUpdates)
-      .eq("id", callId);
+    const { error: updateErr } = await supabase.from("calls").update(callUpdates).eq("id", callId);
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 

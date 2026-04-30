@@ -14,16 +14,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/auth/session";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ callId: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ callId: string }> }) {
   const { callId } = await params;
   const supabase = createServerClient();
 
-  const authUser = await getAuthUser(
-    request.headers.get("authorization") ?? request.headers.get("Authorization"),
-  );
+  const authUser = await getAuthUser(request.headers.get("authorization") ?? request.headers.get("Authorization"));
   if (!authUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data: call, error: loadErr } = await supabase
@@ -35,9 +30,9 @@ export async function POST(
   if (!call) return NextResponse.json({ error: "Call not found" }, { status: 404 });
   if (call.deleted_at) return NextResponse.json({ success: true, alreadyDeleted: true });
 
-  const isAdmin = authUser.role === "admin";
+  const isAdminOrOperator = authUser.role === "admin" || authUser.role === "operator";
   const isOwner = call.hosted_by_user_id === authUser.id;
-  if (!isAdmin && !isOwner) {
+  if (!isAdminOrOperator && !isOwner) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
