@@ -55,6 +55,12 @@ const NAV_ITEMS: NavItem[] = [
     icon: GitBranch,
     roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"],
   },
+  {
+    label: "Workflows",
+    href: "/workflows",
+    icon: Workflow,
+    roles: ["admin", "operator", "leadership"],
+  },
 ];
 
 interface SidebarProps {
@@ -189,14 +195,6 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
                 boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
               }}
             >
-              {/* Workflows — Coming Soon placeholder */}
-              <div className="flex items-center gap-3 px-4 py-3 text-text-tertiary cursor-not-allowed">
-                <Workflow size={16} />
-                <span className="text-sm font-medium">Workflows</span>
-                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-text-tertiary/10 text-text-tertiary">
-                  Soon
-                </span>
-              </div>
               {/* Signing Software — Coming Soon placeholder */}
               <div className="flex items-center gap-3 px-4 py-3 text-text-tertiary cursor-not-allowed">
                 <FileSignature size={16} />

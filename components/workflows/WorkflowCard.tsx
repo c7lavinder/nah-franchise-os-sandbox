@@ -6,8 +6,21 @@
  */
 
 import { useRouter } from "next/navigation";
-import { Pause, Play, Copy, Archive, Users, Pencil } from "lucide-react";
+import { Pause, Play, Copy, Archive, Users, Pencil, Zap } from "lucide-react";
 import type { Workflow } from "@/lib/workflows/types";
+
+/** Trigger type → short human-readable label */
+const TRIGGER_LABELS: Record<string, string> = {
+  "stage_entry:new_lead": "New prospect enters",
+  "stage_entry:qualified": "Prospect qualified",
+  "stage_entry:fdd_delivered": "FDD delivered",
+  "stage_entry:funds_received": "Funds received",
+  appointment_created: "Appointment created",
+  call_completed: "Call completed",
+  trainual_access_granted: "Trainual access",
+  manual_enrollment: "Manual",
+  tag_added: "Tag added",
+};
 
 /** Color mapping for health score badges */
 const HEALTH_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -51,9 +64,7 @@ export default function WorkflowCard({ workflow, onSelect, onAction, isSelected 
     >
       {/* Top row: name + health score */}
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-headline text-card-title text-text-primary truncate pr-3">
-          {workflow.name}
-        </h3>
+        <h3 className="font-headline text-card-title text-text-primary truncate pr-3">{workflow.name}</h3>
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* Status badge */}
           <span
@@ -78,10 +89,16 @@ export default function WorkflowCard({ workflow, onSelect, onAction, isSelected 
 
       {/* Description */}
       {workflow.description && (
-        <p className="text-body-sm text-text-secondary mb-3 line-clamp-1">
-          {workflow.description}
-        </p>
+        <p className="text-body-sm text-text-secondary mb-2 line-clamp-1">{workflow.description}</p>
       )}
+
+      {/* Trigger */}
+      <div className="flex items-center gap-1.5 mb-3">
+        <Zap size={11} className="text-warning" />
+        <span className="text-caption text-text-tertiary">
+          {TRIGGER_LABELS[workflow.trigger_type] ?? workflow.trigger_type}
+        </span>
+      </div>
 
       {/* Bottom row: enrollees + metric + actions */}
       <div className="flex items-center justify-between">
@@ -94,7 +111,8 @@ export default function WorkflowCard({ workflow, onSelect, onAction, isSelected 
           {/* Primary metric */}
           {workflow.primary_metric_name && workflow.primary_metric_value !== null && (
             <span className="text-body-sm text-text-secondary">
-              {workflow.primary_metric_name}: <span className="font-semibold text-text-primary">{workflow.primary_metric_value}%</span>
+              {workflow.primary_metric_name}:{" "}
+              <span className="font-semibold text-text-primary">{workflow.primary_metric_value}%</span>
             </span>
           )}
         </div>

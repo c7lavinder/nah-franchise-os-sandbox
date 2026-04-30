@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import {
+import { requireAuth } from "@/lib/auth";
+import {
   getEnrollment,
   pauseEnrollment,
   resumeEnrollment,
@@ -14,10 +15,9 @@ import { requireAuth } from "@/lib/auth";import {
   advanceDay,
 } from "@/lib/workflows/enrollment";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ enrollmentId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ enrollmentId: string }> }) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { enrollmentId } = await params;
     const enrollment = await getEnrollment(enrollmentId);
@@ -29,27 +29,20 @@ export async function GET(
     return NextResponse.json({ enrollment });
   } catch (err) {
     console.error("GET enrollment error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ enrollmentId: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ enrollmentId: string }> }) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { enrollmentId } = await params;
     const body = await request.json();
     const { action, reason, goalAchieved } = body;
 
     if (!action) {
-      return NextResponse.json(
-        { error: "action is required (pause, resume, exit, advance)" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "action is required (pause, resume, exit, advance)" }, { status: 400 });
     }
 
     let result;
@@ -63,10 +56,7 @@ export async function PATCH(
         break;
       case "exit":
         if (!reason) {
-          return NextResponse.json(
-            { error: "reason is required for exit action" },
-            { status: 400 }
-          );
+          return NextResponse.json({ error: "reason is required for exit action" }, { status: 400 });
         }
         result = await exitEnrollment({
           enrollmentId,
@@ -91,9 +81,6 @@ export async function PATCH(
     return NextResponse.json({ enrollment: result.enrollment });
   } catch (err) {
     console.error("PATCH enrollment error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }

@@ -6,22 +6,18 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 import { analyzeWorkflow } from "@/lib/workflows/health-scoring";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ workflowId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ workflowId: string }> }) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { workflowId } = await params;
     const supabase = createServerClient();
 
-    const { data: workflow, error } = await supabase
-      .from("workflows")
-      .select("*")
-      .eq("id", workflowId)
-      .single();
+    const { data: workflow, error } = await supabase.from("workflows").select("*").eq("id", workflowId).single();
 
     if (error || !workflow) {
       return NextResponse.json({ error: "Workflow not found" }, { status: 404 });
@@ -33,17 +29,13 @@ export async function GET(
     return NextResponse.json({ workflow, analysis });
   } catch (err) {
     console.error("GET workflow error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ workflowId: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ workflowId: string }> }) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { workflowId } = await params;
     const supabase = createServerClient();
@@ -51,8 +43,13 @@ export async function PATCH(
 
     // Only allow safe fields to be updated directly
     const allowedFields = [
-      "name", "description", "status", "primary_metric_name",
-      "trigger_config", "exit_conditions", "pause_conditions",
+      "name",
+      "description",
+      "status",
+      "primary_metric_name",
+      "trigger_config",
+      "exit_conditions",
+      "pause_conditions",
     ];
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -70,18 +67,12 @@ export async function PATCH(
       .single();
 
     if (error || !workflow) {
-      return NextResponse.json(
-        { error: error?.message ?? "Workflow not found" },
-        { status: error ? 500 : 404 }
-      );
+      return NextResponse.json({ error: error?.message ?? "Workflow not found" }, { status: error ? 500 : 404 });
     }
 
     return NextResponse.json({ workflow });
   } catch (err) {
     console.error("PATCH workflow error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }

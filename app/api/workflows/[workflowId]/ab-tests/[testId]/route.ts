@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import {
+import { requireAuth } from "@/lib/auth";
+import {
   getTest,
   startTest,
   recordResult,
@@ -20,6 +21,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ workflowId: string; testId: string }> }
 ) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { workflowId, testId } = await params;
 
@@ -36,10 +39,7 @@ export async function GET(
     return NextResponse.json({ test, winnerCheck, nextVariant });
   } catch (err) {
     console.error("GET ab-test error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }
 
@@ -47,6 +47,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ workflowId: string; testId: string }> }
 ) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { workflowId, testId } = await params;
     const body = await request.json();
@@ -70,10 +72,7 @@ export async function PATCH(
     if (action === "start") {
       const { approvedBy } = body as { approvedBy?: string };
       if (!approvedBy) {
-        return NextResponse.json(
-          { error: "Missing required field: approvedBy" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Missing required field: approvedBy" }, { status: 400 });
       }
 
       const result = await startTest(testId, approvedBy);
@@ -92,17 +91,11 @@ export async function PATCH(
       };
 
       if (!variant || (variant !== "A" && variant !== "B")) {
-        return NextResponse.json(
-          { error: "Missing or invalid field: variant (must be 'A' or 'B')" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Missing or invalid field: variant (must be 'A' or 'B')" }, { status: 400 });
       }
 
       if (typeof success !== "boolean") {
-        return NextResponse.json(
-          { error: "Missing required field: success (boolean)" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Missing required field: success (boolean)" }, { status: 400 });
       }
 
       const result = await recordResult(testId, variant as ABTestWinner, success);
@@ -124,17 +117,11 @@ export async function PATCH(
       };
 
       if (!winner || (winner !== "A" && winner !== "B")) {
-        return NextResponse.json(
-          { error: "Missing or invalid field: winner (must be 'A' or 'B')" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Missing or invalid field: winner (must be 'A' or 'B')" }, { status: 400 });
       }
 
       if (!declaredBy) {
-        return NextResponse.json(
-          { error: "Missing required field: declaredBy" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Missing required field: declaredBy" }, { status: 400 });
       }
 
       const result = await declareWinner(testId, winner as ABTestWinner, declaredBy);
@@ -151,9 +138,6 @@ export async function PATCH(
     );
   } catch (err) {
     console.error("PATCH ab-test error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }

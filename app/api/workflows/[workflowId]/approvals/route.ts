@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { getApprovalsForWorkflow, submitForApproval } from "@/lib/workflows/approvals";
+import { requireAuth } from "@/lib/auth";
+import { getApprovalsForWorkflow, submitForApproval } from "@/lib/workflows/approvals";
 import type { ApprovalType } from "@/lib/workflows/types";
 
 const VALID_APPROVAL_TYPES: ApprovalType[] = [
@@ -18,27 +19,22 @@ const VALID_APPROVAL_TYPES: ApprovalType[] = [
   "rollback",
 ];
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ workflowId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ workflowId: string }> }) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { workflowId } = await params;
     const approvals = await getApprovalsForWorkflow(workflowId);
     return NextResponse.json({ approvals });
   } catch (err) {
     console.error("GET workflow approvals error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ workflowId: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ workflowId: string }> }) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { workflowId } = await params;
     const body = await request.json();
@@ -53,10 +49,7 @@ export async function POST(
     };
 
     if (!approvalType || !submittedBy) {
-      return NextResponse.json(
-        { error: "approvalType and submittedBy are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "approvalType and submittedBy are required" }, { status: 400 });
     }
 
     if (!VALID_APPROVAL_TYPES.includes(approvalType as ApprovalType)) {
@@ -82,9 +75,6 @@ export async function POST(
     return NextResponse.json({ approval: result.approval }, { status: 201 });
   } catch (err) {
     console.error("POST workflow approval error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }

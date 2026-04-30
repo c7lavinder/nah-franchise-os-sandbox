@@ -6,20 +6,28 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ workflowId: string; stepId: string }> }
 ) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { stepId } = await params;
     const supabase = createServerClient();
     const body = await request.json();
 
     const allowedFields = [
-      "day_number", "step_type", "content", "subject",
-      "send_time", "condition_config", "requires_confirmation",
+      "day_number",
+      "step_type",
+      "content",
+      "subject",
+      "send_time",
+      "condition_config",
+      "requires_confirmation",
       "step_number",
     ];
 
@@ -48,10 +56,7 @@ export async function PATCH(
     return NextResponse.json({ step });
   } catch (err) {
     console.error("PATCH step error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }
 
@@ -59,14 +64,13 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ workflowId: string; stepId: string }> }
 ) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { stepId } = await params;
     const supabase = createServerClient();
 
-    const { error } = await supabase
-      .from("workflow_steps")
-      .delete()
-      .eq("id", stepId);
+    const { error } = await supabase.from("workflow_steps").delete().eq("id", stepId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -75,9 +79,6 @@ export async function DELETE(
     return NextResponse.json({ deleted: true });
   } catch (err) {
     console.error("DELETE step error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }

@@ -6,13 +6,13 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 import type { WorkflowStepInsert } from "@/lib/workflows/types";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ workflowId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ workflowId: string }> }) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { workflowId } = await params;
     const supabase = createServerClient();
@@ -58,17 +58,13 @@ export async function GET(
     return NextResponse.json({ steps: steps ?? [], versionId: workflow.current_version_id });
   } catch (err) {
     console.error("GET steps error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ workflowId: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ workflowId: string }> }) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { workflowId } = await params;
     const supabase = createServerClient();
@@ -77,10 +73,7 @@ export async function POST(
     const { versionId, dayNumber, stepType, content, subject, sendTime, conditionConfig, requiresConfirmation } = body;
 
     if (!versionId || !dayNumber || !stepType) {
-      return NextResponse.json(
-        { error: "versionId, dayNumber, and stepType are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "versionId, dayNumber, and stepType are required" }, { status: 400 });
     }
 
     // Get the next step number for this version
@@ -91,9 +84,7 @@ export async function POST(
       .order("step_number", { ascending: false })
       .limit(1);
 
-    const nextStepNumber = existingSteps && existingSteps.length > 0
-      ? (existingSteps[0].step_number as number) + 1
-      : 1;
+    const nextStepNumber = existingSteps && existingSteps.length > 0 ? (existingSteps[0].step_number as number) + 1 : 1;
 
     const insert: WorkflowStepInsert = {
       workflow_version_id: versionId,
@@ -107,11 +98,7 @@ export async function POST(
       requires_confirmation: requiresConfirmation ?? true,
     };
 
-    const { data: step, error } = await supabase
-      .from("workflow_steps")
-      .insert(insert)
-      .select()
-      .single();
+    const { data: step, error } = await supabase.from("workflow_steps").insert(insert).select().single();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -127,9 +114,6 @@ export async function POST(
     return NextResponse.json({ step }, { status: 201 });
   } catch (err) {
     console.error("POST step error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }

@@ -9,12 +9,12 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { generateRewrites } from "@/lib/workflows/rewrite-engine";
+import { requireAuth } from "@/lib/auth";
+import { generateRewrites } from "@/lib/workflows/rewrite-engine";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ workflowId: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ workflowId: string }> }) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     // Sprint 0 fix: validate route params and return proper status codes instead of 500
     const { workflowId } = await params;

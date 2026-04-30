@@ -6,12 +6,15 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { getApproval, approveRequest, rejectRequest } from "@/lib/workflows/approvals";
+import { requireAuth } from "@/lib/auth";
+import { getApproval, approveRequest, rejectRequest } from "@/lib/workflows/approvals";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ workflowId: string; approvalId: string }> }
 ) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { approvalId } = await params;
     const approval = await getApproval(approvalId);
@@ -23,10 +26,7 @@ export async function GET(
     return NextResponse.json({ approval });
   } catch (err) {
     console.error("GET approval error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }
 
@@ -34,6 +34,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ workflowId: string; approvalId: string }> }
 ) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const { approvalId } = await params;
     const body = await request.json();
@@ -45,17 +47,11 @@ export async function PATCH(
     };
 
     if (!action || !approvedBy) {
-      return NextResponse.json(
-        { error: "action ('approve' | 'reject') and approvedBy are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "action ('approve' | 'reject') and approvedBy are required" }, { status: 400 });
     }
 
     if (action !== "approve" && action !== "reject") {
-      return NextResponse.json(
-        { error: "action must be 'approve' or 'reject'" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "action must be 'approve' or 'reject'" }, { status: 400 });
     }
 
     let result;
@@ -72,9 +68,6 @@ export async function PATCH(
     return NextResponse.json({ approval: result.approval });
   } catch (err) {
     console.error("PATCH approval error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }
