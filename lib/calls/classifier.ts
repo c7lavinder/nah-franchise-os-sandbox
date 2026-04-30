@@ -47,11 +47,7 @@ async function loadTeamEmails(): Promise<string[]> {
   try {
     const { createServerClient } = await import("@/lib/supabase/server");
     const supabase = createServerClient();
-    const { data } = await supabase
-      .from("users")
-      .select("email")
-      .eq("is_active", true)
-      .not("email", "is", null);
+    const { data } = await supabase.from("users").select("email").eq("is_active", true).not("email", "is", null);
     _cachedTeamEmails = (data ?? []).map((u) => u.email.toLowerCase());
     _cacheTime = Date.now();
     return _cachedTeamEmails;
@@ -111,12 +107,12 @@ export type ResolvedParticipant = ResolvedCallParticipant;
  * from host email or participant headcount.
  */
 export type CallCategory =
-  | "prospect"    // Sales bucket — 1 journey with no territory, or 0 journeys + external
-  | "onboarding"  // 1 journey with territory, journey has NOT reached `onboarded`
-  | "coaching"   // 1 journey with territory, journey HAS reached `onboarded`
-  | "group"      // 2+ distinct journeys on the call
-  | "internal"   // zero external participants, 1+ NAH team
-  | "unknown";   // no signals — shouldn't happen once resolver runs but preserved
+  | "prospect" // Sales bucket — 1 journey with no territory, or 0 journeys + external
+  | "onboarding" // 1 journey with territory, journey has NOT reached `onboarded`
+  | "coaching" // 1 journey with territory, journey HAS reached `onboarded`
+  | "group" // 2+ distinct journeys on the call
+  | "internal" // zero external participants, 1+ NAH team
+  | "unknown"; // no signals — shouldn't happen once resolver runs but preserved
 
 export interface ClassifiedCall {
   call_type: CallCategory;
@@ -142,7 +138,7 @@ export function isNAHTeamEmail(email: string | null | undefined): boolean {
 
 /** Map the router category to the Layer-2 classify-type category input. */
 export function toClassifyCategory(
-  callType: CallCategory,
+  callType: CallCategory
 ): "sales" | "onboarding" | "coaching" | "group" | "internal" | "unknown" {
   if (callType === "prospect") return "sales";
   return callType;
@@ -152,21 +148,20 @@ export function toClassifyCategory(
 export function standardizeTitle(
   callTypeName: string | null,
   externalNames: string[],
-  originalTitle: string | null,
+  originalTitle: string | null
 ): string {
   const type = callTypeName ?? "Call";
   if (externalNames.length > 0) {
-    const names = externalNames.length <= 3
-      ? externalNames.join(" & ")
-      : `${externalNames.slice(0, 2).join(", ")} +${externalNames.length - 2}`;
+    const names =
+      externalNames.length <= 3
+        ? externalNames.join(" & ")
+        : `${externalNames.slice(0, 2).join(", ")} +${externalNames.length - 2}`;
     return `${type} w/ ${names}`;
   }
   return originalTitle ?? type;
 }
 
-export async function classifyCall(
-  payload: ReadAIWebhookPayload,
-): Promise<ClassifiedCall> {
+export async function classifyCall(payload: ReadAIWebhookPayload): Promise<ClassifiedCall> {
   const supabase = createServerClient();
   const db = createSupabaseResolverDb(supabase);
 
@@ -179,7 +174,7 @@ export async function classifyCall(
 
   const match = await resolveCallParticipants(
     { participants: signals, meeting_title: payload.title ?? null, source: "read_ai" },
-    db,
+    db
   );
 
   const nah = match.participants.filter((p) => p.role === "nah_team");
@@ -188,22 +183,33 @@ export async function classifyCall(
   // Externals with a matched contact record (prospect/franchisee). Unknown-role
   // externals have no contact match (vendors, observers, random attendees) and
   // shouldn't drive classification away from internal.
-  const externalContacts = external.filter(
-    (p) => p.role === "prospect" || p.role === "franchisee",
-  );
+  const externalContacts = external.filter((p) => p.role === "prospect" || p.role === "franchisee");
   const firstExternal = externalContacts[0] ?? external[0] ?? null;
 
   // Distinct journeys across all external participants — the key classification signal.
-  const distinctJourneyIds = new Set(
-    external.map((p) => p.journey_id).filter((id): id is string => !!id),
-  );
+  const distinctJourneyIds = new Set(external.map((p) => p.journey_id).filter((id): id is string => !!id));
   const distinctJourneyCount = distinctJourneyIds.size;
 
   // INTERNAL — NAH team present, no matched-contact externals on the call.
-  // Catches team-only calls and team + vendor/supplier/data-provider calls
-  // where the "external" folks have no contact record. Known prospects who
-  // aren't journeyed yet fall through to the 0-journey sales branch below.
+  // But check headcount first: 5+ total participants with no contact matches
+  // is likely a group/cohort call, not internal.
   if (nah.length > 0 && externalContacts.length === 0) {
+    const totalParticipants = nah.length + external.length;
+    if (totalParticipants >= 5 && external.length >= 2) {
+      return {
+        call_type: "group",
+        nah_participant_email: nahEmail,
+        external_participant_email: null,
+        external_participant_name: null,
+        coach_user_id: null,
+        confidence: "medium",
+        classification_reason: `Group — ${totalParticipants} participants (${external.length} unmatched externals)`,
+        distinct_journey_count: 0,
+        journey_in_runway: false,
+        match,
+      };
+    }
+
     return {
       call_type: "internal",
       nah_participant_email: nahEmail,
@@ -211,9 +217,10 @@ export async function classifyCall(
       external_participant_name: null,
       coach_user_id: null,
       confidence: "high",
-      classification_reason: external.length === 0
-        ? "All participants are NAH team members"
-        : `NAH team + ${external.length} outsider(s) with no contact record`,
+      classification_reason:
+        external.length === 0
+          ? "All participants are NAH team members"
+          : `NAH team + ${external.length} outsider(s) with no contact record`,
       distinct_journey_count: 0,
       journey_in_runway: false,
       match,
@@ -264,11 +271,7 @@ export async function classifyCall(
       // Coaching — journey is working the runway pipeline.
       let coachUserId: string | null = null;
       if (nahEmail) {
-        const { data: coachUser } = await supabase
-          .from("users")
-          .select("id")
-          .ilike("email", nahEmail)
-          .maybeSingle();
+        const { data: coachUser } = await supabase.from("users").select("id").ilike("email", nahEmail).maybeSingle();
         coachUserId = coachUser?.id ?? null;
       }
       return {
@@ -300,10 +303,81 @@ export async function classifyCall(
     };
   }
 
-  // 0 journeys + external → brand-new prospect. Journey will be created later
-  // by the processor; for now classify as Sales so Layer 2 (title/host regex)
-  // can pick the correct sales sub-type.
+  // 0 journeys + external — check for converted franchisees or stakeholders
+  // before defaulting to prospect.
   if (distinctJourneyCount === 0 && firstExternal) {
+    // Check if any external is a converted franchisee → onboarding/coaching, not prospect
+    const convertedContact = externalContacts.find((p) => p.contact_id);
+    if (convertedContact?.contact_id) {
+      const { data: contactRow } = await supabase
+        .from("contacts")
+        .select("is_converted_franchisee")
+        .eq("id", convertedContact.contact_id)
+        .maybeSingle();
+
+      if (contactRow?.is_converted_franchisee) {
+        return {
+          call_type: "onboarding",
+          nah_participant_email: nahEmail,
+          external_participant_email: firstExternal.email,
+          external_participant_name: firstExternal.display_name,
+          coach_user_id: null,
+          confidence: "medium",
+          classification_reason: `Onboarding — ${firstExternal.display_name} is a converted franchisee (no journey link)`,
+          distinct_journey_count: 0,
+          journey_in_runway: false,
+          match,
+        };
+      }
+    }
+
+    // Check if any external is a territory stakeholder (employee/contractor) → coaching
+    for (const ext of externalContacts) {
+      if (!ext.contact_id) continue;
+      const { data: stakeholder } = await supabase
+        .from("territory_stakeholders")
+        .select("id")
+        .eq("contact_id", ext.contact_id)
+        .limit(1)
+        .maybeSingle();
+
+      if (stakeholder) {
+        let coachUserId: string | null = null;
+        if (nahEmail) {
+          const { data: coachUser } = await supabase.from("users").select("id").ilike("email", nahEmail).maybeSingle();
+          coachUserId = coachUser?.id ?? null;
+        }
+        return {
+          call_type: "coaching",
+          nah_participant_email: nahEmail,
+          external_participant_email: ext.email,
+          external_participant_name: ext.display_name,
+          coach_user_id: coachUserId,
+          confidence: "medium",
+          classification_reason: `Coaching — ${ext.display_name} is a territory stakeholder/employee`,
+          distinct_journey_count: 0,
+          journey_in_runway: false,
+          match,
+        };
+      }
+    }
+
+    // Large call with many externals + no journey matches → likely group, not prospect
+    if (external.length >= 4) {
+      return {
+        call_type: "group",
+        nah_participant_email: nahEmail,
+        external_participant_email: null,
+        external_participant_name: null,
+        coach_user_id: null,
+        confidence: "medium",
+        classification_reason: `Group — ${external.length} external participants, no single journey match`,
+        distinct_journey_count: 0,
+        journey_in_runway: false,
+        match,
+      };
+    }
+
     return {
       call_type: "prospect",
       nah_participant_email: nahEmail,
@@ -392,7 +466,7 @@ function cleanSpeakerName(name: string): string {
 
 export function formatTranscript(
   transcript: ReadAIWebhookPayload["transcript"],
-  participants?: ReadAIParticipant[],
+  participants?: ReadAIParticipant[]
 ): string {
   const blocks = transcript?.speaker_blocks ?? transcript?.turns;
   if (!blocks?.length) return "";
@@ -466,10 +540,7 @@ export function formatTranscript(
  * parenthesized name. We use the Speaker N suffix to differentiate,
  * then assign participant names by order.
  */
-function buildSpeakerMap(
-  blocks: ReadAITranscriptTurn[],
-  participants?: ReadAIParticipant[],
-): Map<string, string> {
+function buildSpeakerMap(blocks: ReadAITranscriptTurn[], participants?: ReadAIParticipant[]): Map<string, string> {
   const map = new Map<string, string>();
 
   // Collect unique raw labels in order of first appearance
@@ -525,17 +596,29 @@ function buildSpeakerMap(
     const blockWithEmail = blocks.find((b) => b.speaker?.name === label && b.speaker?.email);
     if (blockWithEmail?.speaker?.email) {
       const resolved = emailToParticipantName.get(blockWithEmail.speaker.email.toLowerCase());
-      if (resolved) { map.set(label, resolved); continue; }
+      if (resolved) {
+        map.set(label, resolved);
+        continue;
+      }
     }
 
-    if (label === "UNKNOWN_SPEAKER") { map.set(label, "Unknown"); continue; }
+    if (label === "UNKNOWN_SPEAKER") {
+      map.set(label, "Unknown");
+      continue;
+    }
 
     // Try parenthesized name extraction
     const parenMatch = label.match(/\(([^)]+)\)/);
-    if (parenMatch) { map.set(label, parenMatch[1].trim()); continue; }
+    if (parenMatch) {
+      map.set(label, parenMatch[1].trim());
+      continue;
+    }
     // Try device name cleanup
     const deviceMatch = label.match(/^(.+?)['']s\s+(MacBook|iPhone|iPad|Laptop|PC|Computer)/i);
-    if (deviceMatch) { map.set(label, deviceMatch[1].trim()); continue; }
+    if (deviceMatch) {
+      map.set(label, deviceMatch[1].trim());
+      continue;
+    }
 
     // Fuzzy match: "Lars H" → "Lars Hackl", "Ed H" → "Ed Hammad"
     // Match when label is a prefix of a participant's full name, or first name matches
@@ -555,7 +638,10 @@ function buildSpeakerMap(
       }
       return false;
     });
-    if (fuzzyMatch) { map.set(label, fuzzyMatch); continue; }
+    if (fuzzyMatch) {
+      map.set(label, fuzzyMatch);
+      continue;
+    }
 
     // Use as-is
     map.set(label, label);

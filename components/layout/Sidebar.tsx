@@ -44,15 +44,15 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"],
   },
   {
-    label: "Pipeline",
-    href: "/pipeline",
-    icon: GitBranch,
-    roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"],
-  },
-  {
     label: "Calls",
     href: "/calls",
     icon: Phone,
+    roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"],
+  },
+  {
+    label: "Pipeline",
+    href: "/pipeline",
+    icon: GitBranch,
     roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"],
   },
 ];
