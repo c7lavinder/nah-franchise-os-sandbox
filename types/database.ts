@@ -207,7 +207,15 @@ export interface InactivityAlert {
 
 // ─── Territory Market Data Types ─────────────────────────────────────────────
 
-export type MarketDataSource = "census" | "zillow" | "attom" | "bls" | "manual" | "scout" | "mastersuite" | "calculated";
+export type MarketDataSource =
+  | "census"
+  | "zillow"
+  | "attom"
+  | "bls"
+  | "manual"
+  | "scout"
+  | "mastersuite"
+  | "calculated";
 
 /** Territory market data — EAV row */
 export interface TerritoryMarketData {
@@ -366,8 +374,12 @@ export interface EosTerritoryTodo {
   updated_at: string;
 }
 
-/** Supabase Database type for typed client access */
-export interface Database {
+/**
+ * NOTE: The canonical Database type is in types/supabase.ts (auto-generated).
+ * This manual version is kept only as reference — do not import it.
+ * Import Database from "@/types/supabase" instead.
+ */
+interface _DatabaseRef {
   public: {
     Tables: {
       users: {

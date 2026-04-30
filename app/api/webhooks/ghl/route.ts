@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  *
  * Setup: In GHL Marketplace App > Advanced > Webhooks, enable events.
  * Auth: Verified via X-GHL-Signature (Ed25519) sent by GHL on every webhook.
- * Subscribe to: InboundMessage, OutboundMessage, OpportunityStageUpdate
+ * Subscribe to: InboundMessage, OutboundMessage, TaskUpdate
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -233,6 +233,25 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        break;
+      }
+
+      // ─── Task Updated/Completed in GHL ───
+      case eventType.includes("taskupdate"):
+      case eventType.includes("task") && eventType.includes("update"): {
+        const taskId =
+          ((payload as Record<string, unknown>).taskId as string | undefined) ??
+          ((payload as Record<string, unknown>).id as string | undefined);
+        if (taskId && contactId) {
+          const { handleGhlTaskUpdate } = await import("@/lib/tasks/sync");
+          await handleGhlTaskUpdate({
+            id: taskId,
+            contactId,
+            title: payload.body as string | undefined,
+            completed: (payload as Record<string, unknown>).completed as boolean | undefined,
+            dueDate: (payload as Record<string, unknown>).dueDate as string | undefined,
+          });
+        }
         break;
       }
 

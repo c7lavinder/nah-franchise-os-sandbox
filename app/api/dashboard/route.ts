@@ -3,20 +3,19 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/dashboard?period=week|month|quarter|year
  *
- * Aggregates pipeline and lead source metrics from GHL for the leadership dashboard.
- * Only counts opportunities in NAH Franchise Sales pipelines — excludes old/other pipelines.
- * Filters opportunities by createdAt date based on the selected time period.
+ * Aggregates pipeline and lead source metrics from Supabase.
+ * Reads pipelines, contacts, and journey_pipeline_state — no GHL API calls.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
-import type { GHLOpportunity } from "@/types/ghl";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
+import { getPipelinesFromSupabase } from "@/lib/pipelines/queries";
 
 type DashboardPeriod = "week" | "month" | "quarter" | "year";
 
 const VALID_PERIODS: ReadonlySet<string> = new Set<DashboardPeriod>(["week", "month", "quarter", "year"]);
 
-/** Maps a period to the number of days to look back */
 const PERIOD_DAYS: Record<DashboardPeriod, number> = {
   week: 7,
   month: 30,
@@ -24,7 +23,6 @@ const PERIOD_DAYS: Record<DashboardPeriod, number> = {
   year: 365,
 };
 
-/** Returns an ISO date string for the start of the requested period */
 function getPeriodStart(period: DashboardPeriod): string {
   const now = new Date();
   now.setDate(now.getDate() - PERIOD_DAYS[period]);
@@ -32,89 +30,88 @@ function getPeriodStart(period: DashboardPeriod): string {
 }
 
 export async function GET(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   try {
     const rawPeriod = request.nextUrl.searchParams.get("period") ?? "month";
-    const period: DashboardPeriod = VALID_PERIODS.has(rawPeriod)
-      ? (rawPeriod as DashboardPeriod)
-      : "month";
+    const period: DashboardPeriod = VALID_PERIODS.has(rawPeriod) ? (rawPeriod as DashboardPeriod) : "month";
     const periodStart = getPeriodStart(period);
 
-    // Get NAH pipelines
-    const allPipelines = await ghl.getPipelines();
-    const nahPipelines = allPipelines.filter((p) => p.name.startsWith("NAH Franchise Sales"));
+    const supabase = createServerClient();
 
-    // Fetch all opportunities across NAH pipelines (needed for date filtering + funnel)
-    const allOpportunities: GHLOpportunity[] = [];
-    for (const pipeline of nahPipelines) {
-      try {
-        const opps = await ghl.searchOpportunitiesPaginated({
-          pipelineId: pipeline.id,
-        });
-        allOpportunities.push(...opps);
-      } catch {
-        // Continue if a pipeline fetch fails
-      }
-    }
+    // Pipelines + stages from Supabase
+    const pipelines = await getPipelinesFromSupabase();
+    const pipelineIds = pipelines.map((p) => p.id);
 
-    // Filter opportunities to the selected time period
-    const filtered = allOpportunities.filter((o) => o.createdAt >= periodStart);
+    // Journey pipeline state — replaces GHL opportunities
+    const { data: jpsRows } = await supabase
+      .from("journey_pipeline_state")
+      .select("id, contact_id, pipeline_id, current_stage_id, entered_current_stage_at, is_active, created_at")
+      .in("pipeline_id", pipelineIds);
 
-    // Count by status
-    const statusCounts = { open: 0, won: 0, lost: 0 };
-    for (const opp of filtered) {
-      if (opp.status === "open") statusCounts.open++;
-      else if (opp.status === "won") statusCounts.won++;
-      else if (opp.status === "lost") statusCounts.lost++;
-    }
+    const allStates = jpsRows ?? [];
+    const filtered = allStates.filter((s) => s.created_at >= periodStart);
 
-    // Contact source counts (not date-filterable via GHL — always shows all time)
+    // Count by active status
+    const activeCount = filtered.filter((s) => s.is_active).length;
+    const completedCount = filtered.filter((s) => !s.is_active).length;
+
+    // Contact source counts from Supabase
+    const sourceCountQuery = async (source: string) => {
+      const { count } = await supabase
+        .from("contacts")
+        .select("id", { count: "exact", head: true })
+        .or(`source.eq.${source},opportunity_source.eq.${source}`);
+      return count ?? 0;
+    };
+
     const [paidAdCount, referralCount, organicCount, eventCount, unknownCount] = await Promise.all([
-      ghl.countContactsByFilter([{ field: "source", operator: "eq", value: "Paid Ad" }]),
-      ghl.countContactsByFilter([{ field: "source", operator: "eq", value: "Referral" }]),
-      ghl.countContactsByFilter([{ field: "source", operator: "eq", value: "Organic" }]),
-      ghl.countContactsByFilter([{ field: "source", operator: "eq", value: "Event" }]),
-      ghl.countContactsByFilter([{ field: "source", operator: "eq", value: "Unknown" }]),
+      sourceCountQuery("Paid Ad"),
+      sourceCountQuery("Referral"),
+      sourceCountQuery("Organic"),
+      sourceCountQuery("Event"),
+      sourceCountQuery("Unknown"),
     ]);
 
     // Stage counts + average days in stage
-    const openFiltered = filtered.filter((o) => o.status === "open");
     const now = Date.now();
+    const activeFiltered = filtered.filter((s) => s.is_active);
     const stageCounts: { pipelineName: string; stageName: string; count: number; avgDays: number }[] = [];
-    for (const pipeline of nahPipelines) {
-      const pipelineOpps = openFiltered.filter((o) => o.pipelineId === pipeline.id);
-      for (const stage of pipeline.stages) {
-        const stageOpps = pipelineOpps.filter((o) => o.pipelineStageId === stage.id);
-        const count = stageOpps.length;
 
-        // Calculate average days in current stage from updatedAt
+    for (const pipeline of pipelines) {
+      const pipelineStates = activeFiltered.filter((s) => s.pipeline_id === pipeline.id);
+      for (const stage of pipeline.stages) {
+        const stageStates = pipelineStates.filter((s) => s.current_stage_id === stage.id);
+        const count = stageStates.length;
+
         let avgDays = 0;
         if (count > 0) {
-          const totalDays = stageOpps.reduce((sum, o) => {
-            return sum + Math.floor((now - new Date(o.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
+          const totalDays = stageStates.reduce((sum, s) => {
+            return sum + Math.floor((now - new Date(s.entered_current_stage_at).getTime()) / (1000 * 60 * 60 * 24));
           }, 0);
           avgDays = Math.round(totalDays / count);
         }
 
         stageCounts.push({
-          pipelineName: pipeline.name.replace("NAH Franchise Sales - ", ""),
-          stageName: stage.name.trim(),
+          pipelineName: pipeline.name,
+          stageName: stage.name,
           count,
           avgDays,
         });
       }
     }
 
-    // Calculate metrics
-    const totalDeals = statusCounts.open + statusCounts.won + statusCounts.lost;
-    const conversionRate = totalDeals > 0 ? Math.round((statusCounts.won / totalDeals) * 100) : 0;
     const totalContacts = paidAdCount + referralCount + organicCount + eventCount + unknownCount;
+    const totalDeals = activeCount + completedCount;
+    const conversionRate = totalDeals > 0 ? Math.round((completedCount / totalDeals) * 100) : 0;
 
     return NextResponse.json({
       kpis: {
-        activeLeads: statusCounts.open,
-        won: statusCounts.won,
-        lost: statusCounts.lost,
+        activeLeads: activeCount,
+        won: completedCount,
+        lost: 0,
         conversionRate,
         totalContacts,
       },
@@ -130,9 +127,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     console.error("Dashboard fetch failed:", err);
-    return NextResponse.json(
-      { error: "Failed to load dashboard data" },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: "Failed to load dashboard data" }, { status: 502 });
   }
 }

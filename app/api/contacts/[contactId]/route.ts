@@ -4,18 +4,17 @@ export const dynamic = "force-dynamic";
  * GET /api/contacts/[contactId]
  *
  * Returns full contact details including notes, tasks, and message history.
+ * Contact data from Supabase; notes/tasks/messages still from GHL.
  * Used by the ContactDetail slide-out panel.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";
+import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId: rawId } = await params;
 
   if (!rawId) {
@@ -29,8 +28,7 @@ export async function GET(
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (uuidRegex.test(rawId)) {
     const supabase = createServerClient();
-    const { data: row } = await supabase
-      .from("contacts").select("ghl_contact_id").eq("id", rawId).maybeSingle();
+    const { data: row } = await supabase.from("contacts").select("ghl_contact_id").eq("id", rawId).maybeSingle();
     if (row?.ghl_contact_id) ghlContactId = row.ghl_contact_id;
   }
 
@@ -55,10 +53,7 @@ export async function GET(
     });
   } catch (err) {
     console.error("Contact detail fetch failed:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch contact details" },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: "Failed to fetch contact details" }, { status: 502 });
   }
 }
 
@@ -66,26 +61,31 @@ export async function GET(
  * PATCH /api/contacts/[contactId]
  * Updates contact fields in Supabase (territory, deal details, basic info).
  */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId: rawId } = await params;
   const supabase = createServerClient();
   const localId = await resolveContactId(rawId);
   if (!localId) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
 
-  const body = await request.json() as Record<string, unknown>;
+  const body = (await request.json()) as Record<string, unknown>;
   // Territory + territory_slug intentionally removed — territory is now sourced
   // from journey_pipeline_state.territory_ms_slug, not a contact column.
   // EOS carry-forward moved to the pipeline advance/auto-advance paths where
   // a jps row first gets a non-null territory_ms_slug.
   const allowed = [
-    "first_name", "last_name", "email", "phone",
-    "city", "state",
-    "legal_entity", "website",
-    "franchise_fee", "royalty_pct", "term_months",
-    "opportunity_source", "sub_source",
+    "first_name",
+    "last_name",
+    "email",
+    "phone",
+    "city",
+    "state",
+    "legal_entity",
+    "website",
+    "franchise_fee",
+    "royalty_pct",
+    "term_months",
+    "opportunity_source",
+    "sub_source",
   ];
 
   const updates: Record<string, unknown> = {};
@@ -99,11 +99,20 @@ export async function PATCH(
   // The trigger on contact_emails keeps contacts.email in sync.
   if (typeof updates.email === "string" && updates.email.trim().length > 0) {
     const newEmail = (updates.email as string).trim();
-    await supabase.from("contact_emails").update({ is_primary: false })
-      .eq("contact_id", localId).eq("is_primary", true);
-    await supabase.from("contact_emails").upsert({
-      contact_id: localId, email: newEmail, is_primary: true, source: "manual",
-    }, { onConflict: "contact_id,email" });
+    await supabase
+      .from("contact_emails")
+      .update({ is_primary: false })
+      .eq("contact_id", localId)
+      .eq("is_primary", true);
+    await supabase.from("contact_emails").upsert(
+      {
+        contact_id: localId,
+        email: newEmail,
+        is_primary: true,
+        source: "manual",
+      },
+      { onConflict: "contact_id,email" }
+    );
     delete updates.email;
   }
 
@@ -122,11 +131,7 @@ export async function PATCH(
   if (updates.state) ghlFields.state = updates.state as string;
 
   if (Object.keys(ghlFields).length > 0) {
-    const { data: contact } = await supabase
-      .from("contacts")
-      .select("ghl_contact_id")
-      .eq("id", localId)
-      .single();
+    const { data: contact } = await supabase.from("contacts").select("ghl_contact_id").eq("id", localId).single();
 
     if (contact?.ghl_contact_id) {
       try {

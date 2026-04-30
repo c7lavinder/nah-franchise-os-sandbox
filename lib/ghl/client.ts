@@ -39,26 +39,20 @@ const GHL_BASE_URL = "https://services.leadconnectorhq.com";
  * If OAuth token is expired, refreshes it automatically.
  */
 async function getAccessToken(): Promise<string> {
-  // Try OAuth token first
+  // Try OAuth token first — single query for both token + expiry
   try {
     const supabase = createServerClient();
-    const { data: tokenRow } = await supabase
+    const { data: rows } = await supabase
       .from("app_settings")
-      .select("setting_value")
-      .eq("setting_key", "ghl_access_token")
-      .single();
+      .select("setting_key, setting_value")
+      .in("setting_key", ["ghl_access_token", "ghl_token_expires_at"]);
 
-    if (tokenRow?.setting_value) {
-      const token = JSON.parse(tokenRow.setting_value) as string;
+    const tokenVal = rows?.find((r) => r.setting_key === "ghl_access_token")?.setting_value;
+    const expiresVal = rows?.find((r) => r.setting_key === "ghl_token_expires_at")?.setting_value;
 
-      // Check if expired
-      const { data: expiresRow } = await supabase
-        .from("app_settings")
-        .select("setting_value")
-        .eq("setting_key", "ghl_token_expires_at")
-        .single();
-
-      const expiresAt = expiresRow?.setting_value ? new Date(JSON.parse(expiresRow.setting_value) as string) : null;
+    if (tokenVal) {
+      const token = JSON.parse(tokenVal as string) as string;
+      const expiresAt = expiresVal ? new Date(JSON.parse(expiresVal as string) as string) : null;
 
       // If token is still valid (with 5 min buffer), use it
       if (expiresAt && expiresAt.getTime() > Date.now() + 5 * 60 * 1000) {

@@ -17,8 +17,9 @@ export type {
   AlertType,
   AlertSeverity,
   InactivityAlert,
-  Database,
 } from "./database";
+
+export type { Database } from "./supabase";
 
 export type {
   GHLContact,

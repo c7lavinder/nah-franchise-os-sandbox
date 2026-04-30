@@ -244,29 +244,6 @@ export function calculateLeadScore(input: ScoringInput): ScoreResult {
   return { total, tier, breakdown, components };
 }
 
-/** Build scoring input from GHL profile fields and contact data (legacy) */
-export function buildScoringInput(
-  contact: { source: string | null; dateAdded: string },
-  profile: Record<string, string | null>
-): ScoringInput {
-  return {
-    source: contact.source,
-    capitalAvailability: profile["Capital Availability"] ?? null,
-    capitalSource: profile["Capital Source"] ?? null,
-    territoryStatus: profile["Territory Status"] ?? null,
-    lastTouchDate: profile["Last Touch Date"] ?? null,
-    daysSinceAdded: Math.floor((Date.now() - new Date(contact.dateAdded).getTime()) / (1000 * 60 * 60 * 24)),
-    contactAttemptCount: profile["Contact Attempt Count"] ? parseInt(profile["Contact Attempt Count"]) : null,
-    businessOwnershipExperience: profile["Business Ownership Experience"] ?? null,
-    investmentTimeline: profile["Investment Timeline"] ?? null,
-    timelineToOpen: profile["Timeline to Open"] ?? null,
-    motivationClarity: profile["Motivation Clarity"] ?? null,
-    trainualCompletion: profile["Trainual Completion Percent"]
-      ? parseInt(profile["Trainual Completion Percent"])
-      : null,
-  };
-}
-
 /** Build scoring input from a Supabase contacts row */
 export function buildScoringInputFromContact(contact: {
   source?: string | null;

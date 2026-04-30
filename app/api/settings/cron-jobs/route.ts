@@ -8,28 +8,13 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 
 /** All cron jobs defined in vercel.json + their metadata */
 const CRON_DEFINITIONS = [
   {
-    path: "/api/cron/pre-call-briefs",
-    name: "Pre-Call Briefs",
-    schedule: "0 7 * * *",
-    description: "Enrich + generate briefs for today's scheduled calls",
-    category: "agents",
-    frequency: "Daily at 7:00 AM",
-  },
-  {
-    path: "/api/cron/journals",
-    name: "Daily Journals",
-    schedule: "0 23 * * *",
-    description: "Generate end-of-day journals for reps and contacts",
-    category: "reporting",
-    frequency: "Daily at 11:00 PM",
-  },
-  {
-    path: "/api/cron/process-transcripts",
+    path: "/frandev/api/cron/process-transcripts",
     name: "Transcript Processor",
     schedule: "*/5 * * * *",
     description: "Process queued call transcriptions via Whisper",
@@ -37,7 +22,39 @@ const CRON_DEFINITIONS = [
     frequency: "Every 5 minutes",
   },
   {
-    path: "/api/cron/weekly-report",
+    path: "/frandev/api/calls/reconcile",
+    name: "Call Reconciler",
+    schedule: "*/10 * * * *",
+    description: "Reconcile call records with GHL and Read.ai data",
+    category: "pipeline",
+    frequency: "Every 10 minutes",
+  },
+  {
+    path: "/frandev/api/cron/pre-call-briefs",
+    name: "Pre-Call Briefs",
+    schedule: "0 7 * * *",
+    description: "Enrich + generate briefs for today's scheduled calls",
+    category: "agents",
+    frequency: "Daily at 7:00 AM",
+  },
+  {
+    path: "/frandev/api/cron/journals",
+    name: "Daily Journals",
+    schedule: "0 23 * * *",
+    description: "Generate end-of-day journals for reps and contacts",
+    category: "reporting",
+    frequency: "Daily at 11:00 PM",
+  },
+  {
+    path: "/frandev/api/cron/refresh-ghl-token",
+    name: "GHL Token Refresh",
+    schedule: "0 */12 * * *",
+    description: "Refresh GHL OAuth access token before expiry",
+    category: "pipeline",
+    frequency: "Every 12 hours",
+  },
+  {
+    path: "/frandev/api/cron/weekly-report",
     name: "Weekly Report",
     schedule: "0 23 * * 0",
     description: "Generate weekly performance report for leadership",
@@ -45,7 +62,7 @@ const CRON_DEFINITIONS = [
     frequency: "Sundays at 11:00 PM",
   },
   {
-    path: "/api/cron/research-contacts",
+    path: "/frandev/api/cron/research-contacts",
     name: "Contact Research",
     schedule: "0 2 * * 0",
     description: "AI agent researches contacts needing profile enrichment",
@@ -53,7 +70,7 @@ const CRON_DEFINITIONS = [
     frequency: "Sundays at 2:00 AM",
   },
   {
-    path: "/api/cron/research-territories",
+    path: "/frandev/api/cron/research-territories",
     name: "Territory Research",
     schedule: "0 3 * * 0",
     description: "AI agent researches territory market conditions",
@@ -61,7 +78,7 @@ const CRON_DEFINITIONS = [
     frequency: "Sundays at 3:00 AM",
   },
   {
-    path: "/api/cron/reengagement-scan",
+    path: "/frandev/api/cron/reengagement-scan",
     name: "Re-engagement Scan",
     schedule: "0 4 1 * *",
     description: "AI agent scans cold contacts for re-engagement signals",
@@ -69,7 +86,7 @@ const CRON_DEFINITIONS = [
     frequency: "1st of month at 4:00 AM",
   },
   {
-    path: "/api/cron/rubric-review",
+    path: "/frandev/api/cron/rubric-review",
     name: "Rubric Review",
     schedule: "0 23 1 * *",
     description: "Monthly review of call rubric effectiveness",
@@ -79,7 +96,10 @@ const CRON_DEFINITIONS = [
 ];
 
 export async function GET(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   const supabase = createServerClient();
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -97,8 +117,11 @@ export async function GET(request: NextRequest) {
     .select("id, integration_name, event_type, status, created_at, error_message")
     .gte("created_at", sevenDaysAgo)
     .in("integration_name", [
-      "pre-call-brief", "contact-research", "territory-market",
-      "reengagement-signal", "pre_call_brief_agent",
+      "pre-call-brief",
+      "contact-research",
+      "territory-market",
+      "reengagement-signal",
+      "pre_call_brief_agent",
     ])
     .order("created_at", { ascending: false })
     .limit(100);
@@ -113,8 +136,9 @@ export async function GET(request: NextRequest) {
     error: l.error_message,
   }));
 
-  const allLogs = [...(cronLogs ?? []), ...agentLogsMapped]
-    .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
+  const allLogs = [...(cronLogs ?? []), ...agentLogsMapped].sort(
+    (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+  );
 
   // Build per-job recent execution summary
   const jobExecutions: Record<string, { lastRun: string | null; lastStatus: string; runsThisWeek: number }> = {};
