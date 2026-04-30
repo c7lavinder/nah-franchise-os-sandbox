@@ -9,7 +9,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { ChevronDown, ChevronRight, Loader2, MessageSquare, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, MessageSquare, X, Calendar } from "lucide-react";
 import Link from "next/link";
 import { capitalizeName, formatPhone } from "@/lib/format/contact";
 import BulkComposerModal, { type BulkContact } from "./BulkComposerModal";
@@ -36,6 +36,7 @@ interface PipelineContact {
   urgency: "fresh" | "at_risk" | "losing" | "won";
   urgencyScore: number;
   enteredStageAt: string | null;
+  nextAppointment?: { title: string; startTime: string } | null;
 }
 
 interface PipelineLeadListProps {
@@ -47,50 +48,50 @@ interface PipelineLeadListProps {
 type SortField = "urgency" | "name" | "recent";
 
 const URGENCY_STYLES = {
-  won:     { label: "Won",     color: "text-[#1565c0]", bgColor: "bg-[#e3f2fd]" },
-  losing:  { label: "Losing",  color: "text-[#c62828]", bgColor: "bg-[#fce4ec]" },
+  won: { label: "Won", color: "text-[#1565c0]", bgColor: "bg-[#e3f2fd]" },
+  losing: { label: "Losing", color: "text-[#c62828]", bgColor: "bg-[#fce4ec]" },
   at_risk: { label: "At Risk", color: "text-[#e65100]", bgColor: "bg-[#fff3e0]" },
-  fresh:   { label: "Fresh",   color: "text-[#2e7d32]", bgColor: "bg-[#e8f5e9]" },
+  fresh: { label: "Fresh", color: "text-[#2e7d32]", bgColor: "bg-[#e8f5e9]" },
 };
 
 /** Stage slug → color that matches the pipeline circles */
 /** Label colors matching wave gradient circles — custom hex for exact match */
 const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
   // Sales
-  engagement:    { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  engagement: { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
   qualification: { bg: "bg-[#fceee5]", text: "text-[#c97a4a]" },
-  discovery:     { bg: "bg-[#fcf3e0]", text: "text-[#b8924a]" },
-  compliance:    { bg: "bg-[#f5f5d8]", text: "text-[#9a9a38]" },
-  awarding:      { bg: "bg-[#eef5db]", text: "text-[#6d9a3a]" },
-  closed:        { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
+  discovery: { bg: "bg-[#fcf3e0]", text: "text-[#b8924a]" },
+  compliance: { bg: "bg-[#f5f5d8]", text: "text-[#9a9a38]" },
+  awarding: { bg: "bg-[#eef5db]", text: "text-[#6d9a3a]" },
+  closed: { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
   // Onboarding
-  setup:         { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
-  training:      { bg: "bg-[#fcf0e2]", text: "text-[#b88540]" },
+  setup: { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  training: { bg: "bg-[#fcf0e2]", text: "text-[#b88540]" },
   "launch-prep": { bg: "bg-[#f2f5d8]", text: "text-[#8a9a38]" },
-  onboarded:     { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
+  onboarded: { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
   // Runway
-  "first-offer":        { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
-  "first-purchase":     { bg: "bg-[#fcf0e2]", text: "text-[#b88540]" },
+  "first-offer": { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  "first-purchase": { bg: "bg-[#fcf0e2]", text: "text-[#b88540]" },
   "inventory-building": { bg: "bg-[#f2f5d8]", text: "text-[#8a9a38]" },
-  running:              { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
+  running: { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
   // Territories
-  inactive:  { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  inactive: { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
   available: { bg: "bg-[#fcf3e0]", text: "text-[#a89038]" },
-  active:    { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
+  active: { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
   // Follow-up
-  nurture:   { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
-  followup:  { bg: "bg-[#fcf3e0]", text: "text-[#a89038]" },
+  nurture: { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  followup: { bg: "bg-[#fcf3e0]", text: "text-[#a89038]" },
   reengaged: { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
 };
 
 const SOURCE_COLORS: Record<string, { bg: string; text: string }> = {
-  "google ads":     { bg: "bg-blue-50", text: "text-blue-600" },
-  "facebook":       { bg: "bg-indigo-50", text: "text-indigo-600" },
-  "referral":       { bg: "bg-green-50", text: "text-green-600" },
-  "organic":        { bg: "bg-emerald-50", text: "text-emerald-600" },
-  "website":        { bg: "bg-cyan-50", text: "text-cyan-600" },
+  "google ads": { bg: "bg-blue-50", text: "text-blue-600" },
+  facebook: { bg: "bg-indigo-50", text: "text-indigo-600" },
+  referral: { bg: "bg-green-50", text: "text-green-600" },
+  organic: { bg: "bg-emerald-50", text: "text-emerald-600" },
+  website: { bg: "bg-cyan-50", text: "text-cyan-600" },
   "franchise expo": { bg: "bg-orange-50", text: "text-orange-600" },
-  "linkedin":       { bg: "bg-sky-50", text: "text-sky-600" },
+  linkedin: { bg: "bg-sky-50", text: "text-sky-600" },
 };
 
 function getSourceStyle(source: string): { bg: string; text: string } {
@@ -103,11 +104,7 @@ function getSourceStyle(source: string): { bg: string; text: string } {
 
 const PAGE_SIZE = 50;
 
-export default function PipelineLeadList({
-  selectedStageId,
-  selectedStageName,
-  searchQuery,
-}: PipelineLeadListProps) {
+export default function PipelineLeadList({ selectedStageId, selectedStageName, searchQuery }: PipelineLeadListProps) {
   const [contacts, setContacts] = useState<PipelineContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortField, setSortField] = useState<SortField>("urgency");
@@ -143,38 +140,43 @@ export default function PipelineLeadList({
     setSelectedIds(new Set());
   }
 
-  const fetchContacts = useCallback(async (append = false, currentOffset = 0) => {
-    if (!append) { setLoading(true); setVisibleCount(PAGE_SIZE); }
-    else setLoadingMore(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      params.set("sort", sortField);
-      params.set("limit", String(BATCH_SIZE));
-      params.set("offset", String(currentOffset));
-      if (selectedStageId) params.set("stage_id", selectedStageId);
-      if (searchQuery) params.set("q", searchQuery);
+  const fetchContacts = useCallback(
+    async (append = false, currentOffset = 0) => {
+      if (!append) {
+        setLoading(true);
+        setVisibleCount(PAGE_SIZE);
+      } else setLoadingMore(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        params.set("sort", sortField);
+        params.set("limit", String(BATCH_SIZE));
+        params.set("offset", String(currentOffset));
+        if (selectedStageId) params.set("stage_id", selectedStageId);
+        if (searchQuery) params.set("q", searchQuery);
 
-      const res = await apiFetch(`/api/pipeline/contacts?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        const batch: PipelineContact[] = data.contacts ?? [];
-        if (append) {
-          setContacts((prev) => [...prev, ...batch]);
+        const res = await apiFetch(`/api/pipeline/contacts?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          const batch: PipelineContact[] = data.contacts ?? [];
+          if (append) {
+            setContacts((prev) => [...prev, ...batch]);
+          } else {
+            setContacts(batch);
+            setTotalCount(data.totalCount ?? batch.length);
+          }
+          setHasMore((data.totalCount ?? batch.length) > currentOffset + batch.length);
         } else {
-          setContacts(batch);
-          setTotalCount(data.totalCount ?? batch.length);
+          setError("Failed to load contacts");
         }
-        setHasMore((data.totalCount ?? batch.length) > currentOffset + batch.length);
-      } else {
-        setError("Failed to load contacts");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load contacts");
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load contacts");
-    }
-    setLoading(false);
-    setLoadingMore(false);
-  }, [sortField, selectedStageId, searchQuery]);
+      setLoading(false);
+      setLoadingMore(false);
+    },
+    [sortField, selectedStageId, searchQuery]
+  );
 
   async function handleLoadMore() {
     await fetchContacts(true, contacts.length);
@@ -220,7 +222,10 @@ export default function PipelineLeadList({
 
   function toggleSort(field: SortField) {
     if (sortField === field) setSortAsc(!sortAsc);
-    else { setSortField(field); setSortAsc(false); }
+    else {
+      setSortField(field);
+      setSortAsc(false);
+    }
   }
 
   return (
@@ -237,7 +242,9 @@ export default function PipelineLeadList({
         <h2 className="text-h2 text-text-primary">
           {selectedStageName ?? "All Prospects"}
           <span className="text-caption text-text-tertiary ml-2 font-normal">
-            {totalCount > contacts.length ? `Showing ${contacts.length} of ${totalCount} prospects` : `${contacts.length} ${contacts.length === 1 ? "prospect" : "prospects"}`}
+            {totalCount > contacts.length
+              ? `Showing ${contacts.length} of ${totalCount} prospects`
+              : `${contacts.length} ${contacts.length === 1 ? "prospect" : "prospects"}`}
           </span>
         </h2>
         {loading && <Loader2 size={14} className="animate-spin text-text-tertiary" />}
@@ -301,26 +308,40 @@ export default function PipelineLeadList({
                 className="contents"
               >
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <p className="text-body-sm text-text-primary font-medium truncate">
-                    {capitalizeName(contact.name)}
-                  </p>
+                  <p className="text-body-sm text-text-primary font-medium truncate">{capitalizeName(contact.name)}</p>
                   {contact.territoryMsSlug && (
                     <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-info/10 text-info">
                       {contact.territoryMsSlug}
                     </span>
                   )}
+                  {contact.nextAppointment && (
+                    <span className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-nah-blue/10 text-nah-blue">
+                      <Calendar size={9} />
+                      {contact.nextAppointment.title?.replace(/\s*w\/.*$/, "") ?? "Call"} ·{" "}
+                      {new Date(contact.nextAppointment.startTime).toLocaleDateString([], {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                  )}
                 </div>
 
-                <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold text-center ${urg.bgColor} ${urg.color}`}>
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[11px] font-semibold text-center ${urg.bgColor} ${urg.color}`}
+                >
                   {urg.label}
                 </span>
 
-                <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center ${sc.bg} ${sc.text}`}>
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center ${sc.bg} ${sc.text}`}
+                >
                   {contact.stageName}
                 </span>
 
                 {srcStyle ? (
-                  <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center hidden lg:block ${srcStyle.bg} ${srcStyle.text}`}>
+                  <span
+                    className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center hidden lg:block ${srcStyle.bg} ${srcStyle.text}`}
+                  >
                     {contact.source}
                   </span>
                 ) : (
@@ -360,9 +381,7 @@ export default function PipelineLeadList({
       {/* Bulk actions bar — sticky, only when something is selected */}
       {selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-bg-primary border border-border-default rounded-xl shadow-2xl px-4 py-2.5">
-          <span className="text-body-sm font-medium text-text-primary">
-            {selectedIds.size} selected
-          </span>
+          <span className="text-body-sm font-medium text-text-primary">{selectedIds.size} selected</span>
           <button
             onClick={clearSelection}
             className="text-text-tertiary hover:text-text-primary p-1"

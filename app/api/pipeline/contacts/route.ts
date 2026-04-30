@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
+import * as ghl from "@/lib/ghl";
 
 const PAGE_SIZE = 1000;
 
@@ -65,7 +66,10 @@ const SELECT_FIELDS = `
 `;
 
 export async function GET(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   try {
     const { searchParams } = new URL(request.url);
     const stageId = searchParams.get("stage_id");
@@ -97,10 +101,7 @@ export async function GET(request: NextRequest) {
           .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
           .limit(5000);
 
-        const idSet = new Set([
-          ...(nameMatch ?? []).map((c) => c.id),
-          ...(fallback ?? []).map((c) => c.id),
-        ]);
+        const idSet = new Set([...(nameMatch ?? []).map((c) => c.id), ...(fallback ?? []).map((c) => c.id)]);
         matchingContactIds = [...idSet];
       } else {
         const { data: matchedContacts } = await supabase
@@ -123,10 +124,7 @@ export async function GET(request: NextRequest) {
     let hasMore = true;
 
     while (hasMore) {
-      let dbQuery = supabase
-        .from("journey_pipeline_state")
-        .select(SELECT_FIELDS)
-        .eq("is_active", true);
+      let dbQuery = supabase.from("journey_pipeline_state").select(SELECT_FIELDS).eq("is_active", true);
 
       if (stageId) dbQuery = dbQuery.eq("current_stage_id", stageId);
       if (pipelineSlug === "sales") dbQuery = dbQuery.eq("pipeline_id", "a0000000-0000-0000-0000-000000000001");
@@ -155,8 +153,24 @@ export async function GET(request: NextRequest) {
 
     const now = Date.now();
 
-    type ContactRow = { id: string; ghl_contact_id: string | null; first_name: string | null; last_name: string | null; email: string | null; phone: string | null; opportunity_source: string | null; city: string | null; state: string | null };
-    type JourneyRow = { id: string; name: string; slug: string | null; primary_contact_id: string; contacts: ContactRow | ContactRow[] | null };
+    type ContactRow = {
+      id: string;
+      ghl_contact_id: string | null;
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+      phone: string | null;
+      opportunity_source: string | null;
+      city: string | null;
+      state: string | null;
+    };
+    type JourneyRow = {
+      id: string;
+      name: string;
+      slug: string | null;
+      primary_contact_id: string;
+      contacts: ContactRow | ContactRow[] | null;
+    };
     type StageRow = { id: string; name: string; slug: string };
     type PipelineRow = { id: string; name: string; slug: string; sort_order: number };
 
@@ -195,11 +209,12 @@ export async function GET(request: NextRequest) {
       const rawPipeline = row.pipelines;
       const pipeline = (Array.isArray(rawPipeline) ? rawPipeline[0] : rawPipeline) as PipelineRow | null;
 
-      const name = journey?.name
-        ?? [contact?.first_name?.trim(), contact?.last_name?.trim()].filter(Boolean).join(" ")
-        ?? contact?.email
-        ?? contact?.phone
-        ?? "Unknown";
+      const name =
+        journey?.name ??
+        [contact?.first_name?.trim(), contact?.last_name?.trim()].filter(Boolean).join(" ") ??
+        contact?.email ??
+        contact?.phone ??
+        "Unknown";
 
       const subTaskStarted = row.current_sub_task_started_at
         ? new Date(row.current_sub_task_started_at as string).getTime()
@@ -208,9 +223,12 @@ export async function GET(request: NextRequest) {
           : now;
       const daysSinceSubTask = Math.floor((now - subTaskStarted) / (1000 * 60 * 60 * 24));
 
-      const isTerminal = stage?.slug === "closed" || stage?.slug === "onboarded"
-        || stage?.slug === "runway-complete" || stage?.slug === "running"
-        || (stage as StageRow & { is_terminal?: boolean })?.is_terminal === true;
+      const isTerminal =
+        stage?.slug === "closed" ||
+        stage?.slug === "onboarded" ||
+        stage?.slug === "runway-complete" ||
+        stage?.slug === "running" ||
+        (stage as StageRow & { is_terminal?: boolean })?.is_terminal === true;
 
       let urgency: "fresh" | "at_risk" | "losing" | "won";
       let urgencyScore: number;
@@ -257,6 +275,32 @@ export async function GET(request: NextRequest) {
       contacts.sort((a, b) => b.urgencyScore - a.urgencyScore || b.daysSinceSubTask - a.daysSinceSubTask);
     } else if (sort === "name") {
       contacts.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    // Fetch upcoming appointments and attach to contacts
+    try {
+      const nowISO = new Date().toISOString();
+      const in30d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const appointments = await ghl.getAllAppointments(nowISO, in30d);
+
+      const aptByContactId = new Map<string, { title: string; startTime: string }>();
+      for (const apt of appointments) {
+        if (!apt.contactId) continue;
+        // Keep earliest upcoming appointment per contact
+        const existing = aptByContactId.get(apt.contactId);
+        if (!existing || new Date(apt.startTime) < new Date(existing.startTime)) {
+          aptByContactId.set(apt.contactId, { title: apt.title, startTime: apt.startTime });
+        }
+      }
+
+      for (const c of contacts) {
+        const apt = c.ghlContactId ? aptByContactId.get(c.ghlContactId) : null;
+        if (apt) {
+          (c as Record<string, unknown>).nextAppointment = apt;
+        }
+      }
+    } catch {
+      // Appointments are best-effort — don't fail the whole response
     }
 
     return NextResponse.json({ contacts, total: contacts.length, totalCount: contacts.length });
