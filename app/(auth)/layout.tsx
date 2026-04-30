@@ -53,7 +53,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="min-h-screen bg-bg-primary flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/nah-icon.svg" alt="New Again Houses" className="w-10 h-10" />
+          <img src="/frandev/images/nah-icon.svg" alt="New Again Houses" className="w-10 h-10" />
           <p className="text-text-secondary text-body">Loading...</p>
         </div>
       </div>

@@ -214,7 +214,7 @@ export default function ScoutPage() {
         <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
           {/* Logo */}
           <Image
-            src="/images/nah-logo.svg"
+            src="/frandev/images/nah-logo.svg"
             alt="New Again Houses"
             width={140}
             height={50}
@@ -224,20 +224,15 @@ export default function ScoutPage() {
 
           {/* Greeting */}
           <h1 className="font-headline text-hero text-text-primary mb-2">
-            Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}, {firstName}.
+            Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"},{" "}
+            {firstName}.
           </h1>
-          <p className="text-subtitle text-text-secondary mb-10">
-            How can I help you today?
-          </p>
+          <p className="text-subtitle text-text-secondary mb-10">How can I help you today?</p>
 
           {/* Prompt chips */}
           <div className="flex flex-wrap justify-center gap-3 mb-10 max-w-2xl">
             {PROMPT_CHIPS.map((chip) => (
-              <button
-                key={chip}
-                onClick={() => setInputValue(chip)}
-                className="prompt-chip"
-              >
+              <button key={chip} onClick={() => setInputValue(chip)} className="prompt-chip">
                 {chip}
               </button>
             ))}
@@ -257,10 +252,7 @@ export default function ScoutPage() {
                 className="bg-transparent border-none outline-none flex-1 px-4 text-body-lg text-text-primary placeholder:text-text-tertiary"
                 autoFocus
               />
-              <VoiceRecorder
-                onTranscription={(text) => setInputValue(text)}
-                disabled={isThinking}
-              />
+              <VoiceRecorder onTranscription={(text) => setInputValue(text)} disabled={isThinking} />
               <button
                 onClick={handleSend}
                 disabled={!inputValue.trim() || isThinking}
@@ -345,10 +337,7 @@ export default function ScoutPage() {
                   disabled={isThinking}
                   autoFocus
                 />
-                <VoiceRecorder
-                  onTranscription={(text) => setInputValue(text)}
-                  disabled={isThinking}
-                />
+                <VoiceRecorder onTranscription={(text) => setInputValue(text)} disabled={isThinking} />
                 <button
                   onClick={handleSend}
                   disabled={!inputValue.trim() || isThinking}

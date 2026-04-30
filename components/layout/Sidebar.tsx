@@ -101,16 +101,16 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
       <div className="w-[280px] h-full flex flex-col py-6 px-4">
         {/* Logo — icon when collapsed, full logo on hover */}
         <div className="flex items-center justify-center pb-6 min-h-[60px]">
-          <Image
-            src="/images/nah-icon.svg"
+          <img
+            src="/frandev/images/nah-icon.svg"
             alt="NAH"
             width={36}
             height={36}
             className="block group-hover:hidden flex-shrink-0"
           />
           <div className="hidden group-hover:flex items-center gap-2">
-            <Image
-              src="/images/nah-logo.svg"
+            <img
+              src="/frandev/images/nah-logo.svg"
               alt="New Again Houses"
               width={170}
               height={44}

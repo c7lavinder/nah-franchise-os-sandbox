@@ -50,7 +50,7 @@ export default function LoginPage() {
         {/* Logo and title */}
         <div className="text-center mb-8">
           <Image
-            src="/images/nah-logo.svg"
+            src="/frandev/images/nah-logo.svg"
             alt="New Again Houses"
             width={200}
             height={60}
@@ -58,9 +58,7 @@ export default function LoginPage() {
             priority
           />
           <h1 className="font-headline text-page-title text-text-primary">FranDev</h1>
-          <p className="text-subtitle text-text-secondary mt-1">
-            Franchise Sales OS
-          </p>
+          <p className="text-subtitle text-text-secondary mt-1">Franchise Sales OS</p>
         </div>
 
         {/* Login form */}
@@ -103,11 +101,7 @@ export default function LoginPage() {
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary w-full py-3"
-          >
+          <button type="submit" disabled={loading} className="btn-primary w-full py-3">
             {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
