@@ -9,13 +9,13 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/lib/auth/session";
+import { requireAuth } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   const supabase = createServerClient();
 
-  const authUser = await getAuthUser(request.headers.get("Authorization"));
-  if (!authUser) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof Response) {
     // Fallback: return empty for unauthenticated (bell still renders)
     return NextResponse.json({ notifications: [], count: 0 });
   }
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from("notifications")
     .select("id, recipient_user_id, source_type, source_id, contact_id, read_at, created_at")
-    .eq("recipient_user_id", authUser.id)
+    .eq("recipient_user_id", authResult.id)
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -39,10 +39,7 @@ export async function GET(request: NextRequest) {
 
   const contactMap = new Map<string, string>();
   if (contactIds.length > 0) {
-    const { data: contacts } = await supabase
-      .from("contacts")
-      .select("id, first_name, last_name")
-      .in("id", contactIds);
+    const { data: contacts } = await supabase.from("contacts").select("id, first_name, last_name").in("id", contactIds);
     for (const c of contacts ?? []) {
       contactMap.set(c.id, `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown");
     }
@@ -57,10 +54,7 @@ export async function GET(request: NextRequest) {
 
     if (msgs && msgs.length > 0) {
       const authorIds = [...new Set(msgs.map((m) => m.author_user_id))];
-      const { data: authors } = await supabase
-        .from("users")
-        .select("id, full_name")
-        .in("id", authorIds);
+      const { data: authors } = await supabase.from("users").select("id, full_name").in("id", authorIds);
       const authorNameMap = new Map<string, string>();
       for (const a of authors ?? []) {
         authorNameMap.set(a.id, a.full_name);
@@ -95,12 +89,10 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const supabase = createServerClient();
 
-  const authUser = await getAuthUser(request.headers.get("Authorization"));
-  if (!authUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const authResult = await requireAuth(request);
+  if (authResult instanceof Response) return authResult;
 
-  const body = await request.json() as { ids?: string[] };
+  const body = (await request.json()) as { ids?: string[] };
   if (!body.ids || body.ids.length === 0) {
     return NextResponse.json({ error: "ids array is required" }, { status: 400 });
   }
@@ -109,7 +101,7 @@ export async function PATCH(request: NextRequest) {
     .from("notifications")
     .update({ read_at: new Date().toISOString() })
     .in("id", body.ids)
-    .eq("recipient_user_id", authUser.id);
+    .eq("recipient_user_id", authResult.id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

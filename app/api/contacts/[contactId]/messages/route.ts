@@ -8,12 +8,9 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
-import { getAuthUser } from "@/lib/auth/session";
+import { requireAuth } from "@/lib/auth";
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId: rawId } = await params;
   const supabase = createServerClient();
 
@@ -37,10 +34,7 @@ export async function GET(
   const authorIds = [...new Set((data ?? []).map((m) => m.author_user_id))];
   const authorMap = new Map<string, string>();
   if (authorIds.length > 0) {
-    const { data: users } = await supabase
-      .from("users")
-      .select("id, full_name")
-      .in("id", authorIds);
+    const { data: users } = await supabase.from("users").select("id, full_name").in("id", authorIds);
     for (const u of users ?? []) {
       authorMap.set(u.id, u.full_name);
     }
@@ -50,10 +44,7 @@ export async function GET(
   const allMentionIds = [...new Set((data ?? []).flatMap((m) => m.mentioned_user_ids ?? []))];
   const mentionMap = new Map<string, string>();
   if (allMentionIds.length > 0) {
-    const { data: mentionUsers } = await supabase
-      .from("users")
-      .select("id, full_name")
-      .in("id", allMentionIds);
+    const { data: mentionUsers } = await supabase.from("users").select("id, full_name").in("id", allMentionIds);
     for (const u of mentionUsers ?? []) {
       mentionMap.set(u.id, u.full_name);
     }
@@ -76,31 +67,24 @@ export async function GET(
   return NextResponse.json({ messages });
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId: rawId } = await params;
   const supabase = createServerClient();
 
-  // Try Bearer auth first, fall back to authorUserId in body (matches Sprint 4B pattern)
-  const authHeader = request.headers.get("Authorization");
-  const authUser = await getAuthUser(authHeader);
+  const authUser = await requireAuth(request);
+  if (authUser instanceof Response) return authUser;
 
   const localId = await resolveContactId(rawId);
   if (!localId) {
     return NextResponse.json({ error: "Contact not found" }, { status: 404 });
   }
 
-  const body = await request.json() as { body?: string; mentionedUserIds?: string[]; authorUserId?: string };
+  const body = (await request.json()) as { body?: string; mentionedUserIds?: string[]; authorUserId?: string };
   if (!body.body?.trim()) {
     return NextResponse.json({ error: "Message body is required" }, { status: 400 });
   }
 
-  const authorId = authUser?.id ?? body.authorUserId;
-  if (!authorId) {
-    return NextResponse.json({ error: "Author identification required" }, { status: 401 });
-  }
+  const authorId = authUser.id;
 
   const mentionedUserIds = body.mentionedUserIds ?? [];
 

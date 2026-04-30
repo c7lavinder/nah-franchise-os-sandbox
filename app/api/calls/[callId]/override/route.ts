@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/lib/auth/session";
+import { requireAuth } from "@/lib/auth";
 
 interface ParticipantUpdate {
   id: string;
@@ -53,11 +53,10 @@ interface OverrideBody {
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ callId: string }> }) {
+  const authUser = await requireAuth(request);
+  if (authUser instanceof Response) return authUser;
   const { callId } = await params;
   const supabase = createServerClient();
-
-  const authUser = await getAuthUser(request.headers.get("authorization") ?? request.headers.get("Authorization"));
-  if (!authUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data: call, error: loadErr } = await supabase
     .from("calls")

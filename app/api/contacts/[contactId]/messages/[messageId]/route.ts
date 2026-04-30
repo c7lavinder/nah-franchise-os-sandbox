@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/lib/auth/session";
+import { requireAuth } from "@/lib/auth";
 
 export async function PATCH(
   request: NextRequest,
@@ -16,11 +16,11 @@ export async function PATCH(
   const { messageId } = await params;
   const supabase = createServerClient();
 
-  // Try Bearer auth, fall back to userId in body
-  const authUser = await getAuthUser(request.headers.get("Authorization"));
+  const authUser = await requireAuth(request);
+  if (authUser instanceof Response) return authUser;
 
-  const body = await request.json() as { body?: string; userId?: string };
-  const userId = authUser?.id ?? body.userId;
+  const body = (await request.json()) as { body?: string; userId?: string };
+  const userId = authUser.id;
   if (!userId) {
     return NextResponse.json({ error: "User identification required" }, { status: 401 });
   }
@@ -63,11 +63,11 @@ export async function DELETE(
   const { messageId } = await params;
   const supabase = createServerClient();
 
-  // Try Bearer auth, fall back to userId in body
-  const authUser = await getAuthUser(request.headers.get("Authorization"));
+  const authUser = await requireAuth(request);
+  if (authUser instanceof Response) return authUser;
 
-  const body = await request.json().catch(() => ({})) as { userId?: string };
-  const userId = authUser?.id ?? body.userId;
+  const body = (await request.json().catch(() => ({}))) as { userId?: string };
+  const userId = authUser.id;
   if (!userId) {
     return NextResponse.json({ error: "User identification required" }, { status: 401 });
   }

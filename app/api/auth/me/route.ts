@@ -8,15 +8,11 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("Authorization");
-  const user = await getAuthUser(authHeader);
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
 
   return NextResponse.json({ user });
 }
