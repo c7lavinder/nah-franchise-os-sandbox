@@ -2,118 +2,95 @@
 
 ## Status
 
-Phase: Tier 1 + Tier 2 + Tier 3 COMPLETE. Architecture phase done. Moving to UI bugs + enhancements. / Health: Green / Duration: marathon session
+Phase: Tier 1-3 complete + UI/UX polish + call classification overhaul. Next: Workflows page build. / Health: Green / Duration: marathon session
 
 ## What Was Built This Session
 
-### Tier 2 (all 9 items)
+### Tier 2 (9 items — all complete)
 
-- `/frandev` basePath prefix — next.config.js, vercel.json cron paths, apiFetch auto-prepends, OAuth redirect URIs, raw `<a>` tags converted to `<Link>`
-- JWT httpOnly cookies — login/refresh/logout set cookies, requireAuth reads cookies (Bearer fallback for crons), apiFetch simplified to `credentials: "include"`, 6 components cleaned of manual auth headers
-- Lead scores migrated to Supabase — 4 routes rewritten (`/api/contacts/[id]/score`, `/api/leads/score-all`, `/api/leads/priority`, `/api/contacts/batch`), `buildScoringInputFromContact()` reads Supabase contacts table
-- Supabase typed client — types regenerated from live schema (6,207 lines), `Tables`/`TableName` exports
-- Grader fallback to raw_transcript — grader.ts, coach.ts, review-package.ts all fall back to `calls.raw_transcript`
-- Dead GHL cleanup — removed `getCalendarFreeSlots`, `getWorkflows`, unused type imports
-- Action card hooks wired — `useShowSMS/Email/Appointment` in LeadDetailView, `useShowNote` in NotesSection
-- GHL webhook activation — script created, InboundMessage + OutboundMessage configured in GHL portal, endpoint live (401 = working)
-- Per-rep RLS shelved — documented in master-plan.md
+- `/frandev` basePath prefix (next.config, vercel.json, apiFetch, OAuth, all URLs)
+- JWT httpOnly cookies (full auth migration)
+- Lead scores to Supabase (4 routes, buildScoringInputFromContact)
+- Supabase typed client (types regenerated, Tables/TableName exports)
+- Grader fallback to raw_transcript
+- Dead GHL cleanup (getCalendarFreeSlots, getWorkflows removed)
+- Action card hooks wired (useShowSMS/Email/Appointment/Note)
+- GHL webhooks (InboundMessage + OutboundMessage configured)
+- Per-rep RLS shelved
 
-### Tier 3 (all 10 items)
+### Tier 3 (10 items — all complete)
 
-- Full GHL→Supabase read audit — 43 files analyzed, dashboard + pipeline routes migrated to 0 GHL calls, `lib/pipelines/queries.ts` helper
-- Tasks table + two-way GHL sync — migration applied to live Supabase, `lib/tasks/sync.ts` (create/update/webhook handler), TaskUpdate webhook handler in ghl/route.ts
-- Dead ActionPanels — removed SMSPanel, EmailPanel, SchedulePanel (815→233 lines)
-- Cron calendar — added missing `refresh-ghl-token` + `calls/reconcile`, all 10 jobs with `/frandev` paths
-- OAuth cleanup — `getAccessToken()` consolidated from 3 queries to 1
-- Database types reconciled — client uses auto-generated `types/supabase.ts`, manual `Database` deprecated
-- Legacy `buildScoringInput` removed
-- Bulk score backfill — 1,000 contacts scored (900 Cold, 100 Cool)
-- Scout session memory — already fully implemented (`loadUserMemory`/`mergeUserMemory` with Haiku extraction)
-- Typed client migration — deferred (168 errors across 64 files, needs dedicated cleanup session)
+- GHL read audit (43 files) + migration (dashboard, pipeline routes → 0 GHL calls)
+- Tasks table + two-way GHL sync (migration, lib/tasks/sync.ts, TaskUpdate webhook)
+- Dead ActionPanels (815→233 lines)
+- Cron calendar (10 jobs, /frandev paths, missing jobs added)
+- OAuth query consolidation (3→1)
+- Database types reconciled
+- Legacy buildScoringInput removed
+- Bulk score backfill (1,000 contacts)
+- Scout session memory (already implemented)
+- Typed client deferred (168 errors, 64 files)
 
-### Infrastructure
+### UI/UX Polish
 
-- `NEXT_PUBLIC_BASE_PATH=/frandev` set in Vercel production env
-- GHL OAuth redirect URI updated to include `/frandev`
-- psql (libpq) installed on dev machine for Supabase SQL execution
+- Daily HQ calendar: color-coded by call type, expandable cards, Google Meet links, status selector (confirmed/showed/no-show/cancelled)
+- Daily HQ tasks: full-width cards, expandable with details, inline edit
+- Nav reorder: Scout → Daily HQ → Calls → Pipeline
+- Logo fix: hardcoded /frandev paths, images.unoptimized for SVGs
+- Login fix: hardcoded basePath constant
+- Pipeline: upcoming appointment labels on prospect rows (blue badge, future only)
+
+### Call Classification Overhaul
+
+- LLM-driven classification: post-call agent reads transcript and decides call type (replaces unreliable rule-based tree)
+- Classifier improvements: franchisee detection, stakeholder/employee detection, large group detection
+- Team email aliases: user_email_aliases table now checked (Jessica Odle, Mark Pate fixed)
+- Tyler Smith added as user
+- Bulk reclassification: 102 calls processed, 29 corrected
 
 ## What Is Confirmed Working
 
 - `npx tsc --noEmit` — 0 errors
-- `npx vitest run` — 8 suites, 96 tests, all passing
-- Production deploy live at `https://nah-franchise-os-sandbox.vercel.app/frandev`
-- Webhook endpoint responds (401 = signature verification active)
-- Vercel env var `NEXT_PUBLIC_BASE_PATH` set
-- Tasks table exists in live Supabase (0 rows, ready)
-- 1,000 contacts have `scout_lead_score` populated
+- `npx vitest run` — 8 suites, 96 tests passing
+- Production deployed at https://nah-franchise-os-sandbox.vercel.app/frandev
+- Login, auth cookies, token refresh all working
+- Webhook endpoint live (401 = signature check active)
+- 1,000 contacts scored, 102 calls reclassified
+- Tasks table live in Supabase
 
 ## What Is Broken or Incomplete
 
-- Typed client migration (168 errors) — Low (code quality, not functionality)
-- Supabase migration history out of sync — Low (db push fails, db query works)
-- GHL reads still in inbox, contacts detail, daily-hq tasks — Low (works via GHL, just not optimized)
-- TaskUpdate webhook not yet subscribed in GHL portal — Medium (handler is built, needs portal toggle)
+- Typed client migration (168 errors, 64 files) — Low
+- Supabase migration history out of sync — Low
+- TaskUpdate webhook not subscribed in GHL portal — Medium
+- Some GHL reads remain (inbox, contacts detail, daily-hq tasks) — Low
 
 ## Decisions Made
 
-- OpportunityStageUpdate webhook removed — NAH OS owns pipeline, GHL pipelines not used — Corey
-- ContactCreate webhook removed — contacts created from NAH OS, not GHL — Corey
-- Per-rep RLS shelved — small team, everyone collaborates — Corey
-- MasterSuite scoping pushed back — Corey
-- LLM-powered dynamic dashboard shelved for now — Corey (concept approved for future)
-- Two-way task sync with GHL (write-through + webhook back) — Corey
-- Architecture phase complete, move to UI bugs — Corey
+- LLM classifies call types, rule-based tree is just initial guess — Corey
+- OpportunityStageUpdate + ContactCreate webhooks removed — Corey
+- Architecture phase complete, moving to feature builds — Corey
+- Next priority: Workflows page (major blocker for Chad migration from Franchise Tether) — Corey
 
 ## Files Created
 
-- `lib/auth/cookies.ts`
-- `lib/base-path.ts`
-- `lib/pipelines/queries.ts`
-- `lib/tasks/sync.ts`
-- `scripts/backfill-lead-scores.ts`
-- `scripts/register-ghl-webhooks.ts`
+- `lib/auth/cookies.ts`, `lib/base-path.ts`, `lib/pipelines/queries.ts`, `lib/tasks/sync.ts`
+- `scripts/backfill-lead-scores.ts`, `scripts/register-ghl-webhooks.ts`, `scripts/reclassify-calls.ts`
 - `supabase/migrations/20260430100000_create_tasks_table.sql`
+- `app/api/appointments/[appointmentId]/status/route.ts`
 
 ## Files Modified
 
-- `next.config.js`, `vercel.json`, `.env.local.example`
-- `lib/auth/AuthContext.tsx`, `lib/auth/api-fetch.ts`, `lib/auth/session.ts`
-- `lib/supabase/server.ts`, `lib/supabase/client.ts`
-- `lib/ghl/client.ts`, `lib/ghl/index.ts`
-- `lib/calls/grader.ts`, `lib/calls/coach.ts`, `lib/calls/review-package.ts`
-- `lib/profile/lead-scoring.ts`
-- `types/database.ts`, `types/index.ts`, `types/supabase.ts`
-- `app/api/auth/login/route.ts`, `app/api/auth/logout/route.ts`, `app/api/auth/refresh/route.ts`
-- `app/api/auth/crm/route.ts`, `app/api/auth/crm/callback/route.ts`
-- `app/api/dashboard/route.ts`, `app/api/pipeline/route.ts`
-- `app/api/contacts/[contactId]/route.ts`, `app/api/contacts/[contactId]/score/route.ts`
-- `app/api/contacts/batch/route.ts`, `app/api/leads/route.ts`
-- `app/api/leads/priority/route.ts`, `app/api/leads/score-all/route.ts`
-- `app/api/settings/cron-jobs/route.ts`, `app/api/track/click/[logId]/route.ts`
-- `app/api/webhooks/ghl/route.ts`
-- `app/(auth)/daily-hq/page.tsx`, `app/(auth)/settings/page.tsx`
-- `components/contact/ActionPanels.tsx`, `components/contact/MessagesTab.tsx`
-- `components/calls/CallOverrideControls.tsx`
-- `components/layout/NotificationBell.tsx`, `components/layout/TopBar.tsx`
-- `components/leads/LeadDetailView.tsx`, `components/leads/NotesSection.tsx`
-- `components/pipeline/ContactDetail.tsx`, `components/pipeline/TerritoryCardList.tsx`
-- `components/settings/AppSettingsPanel.tsx`, `components/settings/CallTypesRubricEditor.tsx`, `components/settings/PipelineEditor.tsx`
-- `tests/critical-paths/auth-boundary.test.ts`
-- `docs/master-plan.md`
-
-## Files Deleted
-
-- None (dead code removed inline: SMSPanel, EmailPanel, SchedulePanel, getCalendarFreeSlots, getWorkflows, buildScoringInput)
+- 56+ files across auth, GHL, calls, pipeline, daily-hq, settings, layout, scoring, types
 
 ## Open Issues Carried Forward
 
 - Typed client migration (168 fixes) — Low
-- Supabase migration history sync — Low
-- TaskUpdate webhook needs GHL portal subscription — Medium
+- TaskUpdate webhook GHL portal subscription — Medium
 
 ## Exact Next Step
 
-Diagnose and fix visual bugs on the calls page + Daily HQ UI enhancements as directed by Corey.
+Build the Workflows page — major blocker keeping Chad from migrating off Franchise Tether.
 
 ## Copy This To Start Next Session
 
@@ -121,6 +98,6 @@ Diagnose and fix visual bugs on the calls page + Daily HQ UI enhancements as dir
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
-Then: Diagnose and fix visual bugs on the calls page + Daily HQ UI enhancements as directed by Corey.
+Then: Build the Workflows page — Chad needs this to migrate off Franchise Tether. Start by auditing what exists (workflow engine has 7 tables, A/B testing, approvals, health scoring) and what UI is needed.
 
 ---
