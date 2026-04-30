@@ -33,6 +33,10 @@ const NAH_TEAM_EMAILS_FALLBACK = [
   "ray@newagainhouses.com",
   // Ray Heath uses a Hiram Build address on some calls — same person, treat as NAH team.
   "ray@hirambuild.com",
+  // Aliases — team members who use alternate emails on calls
+  "jessica@newagainhouses.com",
+  "mark@altacapitalmanagement.com",
+  "markjpate@gmail.com",
 ];
 
 // Dynamic team email list — loaded from users table on first use
@@ -47,8 +51,14 @@ async function loadTeamEmails(): Promise<string[]> {
   try {
     const { createServerClient } = await import("@/lib/supabase/server");
     const supabase = createServerClient();
-    const { data } = await supabase.from("users").select("email").eq("is_active", true).not("email", "is", null);
-    _cachedTeamEmails = (data ?? []).map((u) => u.email.toLowerCase());
+    const [{ data: users }, { data: aliases }] = await Promise.all([
+      supabase.from("users").select("email").eq("is_active", true).not("email", "is", null),
+      supabase.from("user_email_aliases").select("email"),
+    ]);
+    const emails = new Set<string>();
+    for (const u of users ?? []) emails.add(u.email.toLowerCase());
+    for (const a of aliases ?? []) emails.add(a.email.toLowerCase());
+    _cachedTeamEmails = [...emails];
     _cacheTime = Date.now();
     return _cachedTeamEmails;
   } catch {
