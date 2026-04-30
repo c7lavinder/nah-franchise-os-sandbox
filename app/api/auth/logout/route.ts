@@ -3,14 +3,13 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/auth/logout
  *
- * Signs out the current user. The frontend should clear the stored token.
+ * Clears httpOnly auth cookies.
  */
 
 import { NextResponse } from "next/server";
+import { clearAuthCookies } from "@/lib/auth/cookies";
 
 export async function POST() {
-  // Supabase Auth tokens are stateless JWTs — there's no server-side session to invalidate.
-  // The frontend clears the token from localStorage.
-  // In the future, we can add token blacklisting if needed.
-  return NextResponse.json({ success: true });
+  const response = NextResponse.json({ success: true });
+  return clearAuthCookies(response);
 }

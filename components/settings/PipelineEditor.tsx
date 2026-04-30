@@ -8,8 +8,17 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Loader2, ChevronRight, ChevronDown, Plus, Trash2, GripVertical,
-  GitBranch, Zap, Check, X, AlertTriangle,
+  Loader2,
+  ChevronRight,
+  ChevronDown,
+  Plus,
+  Trash2,
+  GripVertical,
+  GitBranch,
+  Zap,
+  Check,
+  X,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import ConfirmModal from "@/components/ui/ConfirmModal";
@@ -43,7 +52,7 @@ interface Pipeline {
 }
 
 export default function PipelineEditor() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const isAdmin = user?.role === "leadership" || user?.role === "admin";
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,17 +63,17 @@ export default function PipelineEditor() {
   const [saving, setSaving] = useState(false);
 
   // Modal state
-  const [promptModal, setPromptModal] = useState<{ title: string; placeholder: string; onSubmit: (v: string) => void } | null>(null);
+  const [promptModal, setPromptModal] = useState<{
+    title: string;
+    placeholder: string;
+    onSubmit: (v: string) => void;
+  } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ title: string; body: string; onConfirm: () => void } | null>(null);
 
   // Drag state
   const [dragType, setDragType] = useState<"stage" | "subtask" | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
   const bodyUserId = { userId: user?.id };
 
   const fetchPipelines = useCallback(async () => {
@@ -86,7 +95,9 @@ export default function PipelineEditor() {
     setLoading(false);
   }, [selectedPipelineId]);
 
-  useEffect(() => { void fetchPipelines(); }, [fetchPipelines]);
+  useEffect(() => {
+    void fetchPipelines();
+  }, [fetchPipelines]);
 
   const selectedPipeline = pipelines.find((p) => p.id === selectedPipelineId);
 
@@ -94,9 +105,9 @@ export default function PipelineEditor() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...body, ...bodyUserId }),
       });
       if (!res.ok) {
@@ -145,7 +156,11 @@ export default function PipelineEditor() {
 
   async function handleToggleAutoAdvance(stageId: string, current: boolean) {
     if (!selectedPipeline) return;
-    if (await apiCall(`/api/settings/pipelines/${selectedPipeline.id}/stages/${stageId}/auto-advance`, "POST", { enabled: !current })) {
+    if (
+      await apiCall(`/api/settings/pipelines/${selectedPipeline.id}/stages/${stageId}/auto-advance`, "POST", {
+        enabled: !current,
+      })
+    ) {
       await fetchPipelines();
     }
   }
@@ -158,7 +173,11 @@ export default function PipelineEditor() {
     if (fromIdx === -1 || fromIdx === targetIdx) return;
     const [moved] = stages.splice(fromIdx, 1);
     stages.splice(targetIdx, 0, moved);
-    if (await apiCall(`/api/settings/pipelines/${selectedPipeline.id}/stages/reorder`, "POST", { stageIds: stages.map((s) => s.id) })) {
+    if (
+      await apiCall(`/api/settings/pipelines/${selectedPipeline.id}/stages/reorder`, "POST", {
+        stageIds: stages.map((s) => s.id),
+      })
+    ) {
       await fetchPipelines();
     }
     setDragType(null);
@@ -203,7 +222,9 @@ export default function PipelineEditor() {
     if (fromIdx === -1 || fromIdx === targetIdx) return;
     const [moved] = tasks.splice(fromIdx, 1);
     tasks.splice(targetIdx, 0, moved);
-    if (await apiCall(`/api/settings/stages/${stageId}/sub-tasks/reorder`, "POST", { subTaskIds: tasks.map((t) => t.id) })) {
+    if (
+      await apiCall(`/api/settings/stages/${stageId}/sub-tasks/reorder`, "POST", { subTaskIds: tasks.map((t) => t.id) })
+    ) {
       await fetchPipelines();
     }
     setDragType(null);
@@ -215,14 +236,17 @@ export default function PipelineEditor() {
   async function handleNameSave() {
     if (!editingName) return;
     const { type, id, value } = editingName;
-    if (!value.trim()) { setEditingName(null); return; }
+    if (!value.trim()) {
+      setEditingName(null);
+      return;
+    }
 
     let url = "";
     if (type === "pipeline") url = `/api/settings/pipelines/${id}`;
     else if (type === "stage" && selectedPipeline) url = `/api/settings/pipelines/${selectedPipeline.id}/stages/${id}`;
     else if (type === "subtask") url = `/api/settings/sub-tasks/${id}`;
 
-    if (url && await apiCall(url, "PATCH", { name: value.trim() })) {
+    if (url && (await apiCall(url, "PATCH", { name: value.trim() }))) {
       await fetchPipelines();
     }
     setEditingName(null);
@@ -241,7 +265,9 @@ export default function PipelineEditor() {
       {!isAdmin && (
         <div className="mb-4 px-3 py-2 bg-warning/10 border border-warning/20 rounded-lg flex items-center gap-2">
           <AlertTriangle size={14} className="text-warning" />
-          <span className="text-body-sm text-warning font-medium">Admin access required to edit pipeline templates</span>
+          <span className="text-body-sm text-warning font-medium">
+            Admin access required to edit pipeline templates
+          </span>
         </div>
       )}
 
@@ -272,7 +298,10 @@ export default function PipelineEditor() {
                     value={editingName.value}
                     onChange={(e) => setEditingName({ ...editingName, value: e.target.value })}
                     onBlur={() => void handleNameSave()}
-                    onKeyDown={(e) => { if (e.key === "Enter") void handleNameSave(); if (e.key === "Escape") setEditingName(null); }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void handleNameSave();
+                      if (e.key === "Escape") setEditingName(null);
+                    }}
                     className="bg-transparent border-b border-nah-blue text-body-sm outline-none w-full"
                     disabled={!isAdmin}
                   />
@@ -302,7 +331,10 @@ export default function PipelineEditor() {
                   <div
                     key={stage.id}
                     draggable={isAdmin}
-                    onDragStart={() => { setDragType("stage"); setDragId(stage.id); }}
+                    onDragStart={() => {
+                      setDragType("stage");
+                      setDragId(stage.id);
+                    }}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => void handleStageDrop(e, stageIdx)}
                     className="border border-border-default rounded-lg overflow-hidden"
@@ -310,11 +342,13 @@ export default function PipelineEditor() {
                     {/* Stage header */}
                     <div className="flex items-center gap-2 px-3 py-2.5 bg-bg-secondary">
                       {isAdmin && <GripVertical size={14} className="text-text-tertiary cursor-grab flex-shrink-0" />}
-                      <button onClick={() => {
-                        const next = new Set(expandedStages);
-                        isExpanded ? next.delete(stage.id) : next.add(stage.id);
-                        setExpandedStages(next);
-                      }}>
+                      <button
+                        onClick={() => {
+                          const next = new Set(expandedStages);
+                          isExpanded ? next.delete(stage.id) : next.add(stage.id);
+                          setExpandedStages(next);
+                        }}
+                      >
                         {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                       </button>
 
@@ -324,14 +358,19 @@ export default function PipelineEditor() {
                           value={editingName.value}
                           onChange={(e) => setEditingName({ ...editingName, value: e.target.value })}
                           onBlur={() => void handleNameSave()}
-                          onKeyDown={(e) => { if (e.key === "Enter") void handleNameSave(); if (e.key === "Escape") setEditingName(null); }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") void handleNameSave();
+                            if (e.key === "Escape") setEditingName(null);
+                          }}
                           className="bg-transparent border-b border-nah-blue text-body-sm font-medium outline-none flex-1"
                           disabled={!isAdmin}
                         />
                       ) : (
                         <span
                           className="text-body-sm font-medium text-text-primary flex-1"
-                          onDoubleClick={() => isAdmin && setEditingName({ type: "stage", id: stage.id, value: stage.name })}
+                          onDoubleClick={() =>
+                            isAdmin && setEditingName({ type: "stage", id: stage.id, value: stage.name })
+                          }
                           title={isAdmin ? "Double-click to rename" : undefined}
                         >
                           {stage.name}
@@ -341,7 +380,9 @@ export default function PipelineEditor() {
                       <span className="text-[10px] text-text-tertiary">{stage.subTasks.length} tasks</span>
 
                       {stage.is_terminal && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-text-tertiary/10 text-text-tertiary">Terminal</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-text-tertiary/10 text-text-tertiary">
+                          Terminal
+                        </span>
                       )}
 
                       {/* Auto-advance toggle */}
@@ -349,9 +390,7 @@ export default function PipelineEditor() {
                         onClick={() => isAdmin && void handleToggleAutoAdvance(stage.id, stage.auto_advance_enabled)}
                         disabled={!isAdmin}
                         className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-                          stage.auto_advance_enabled
-                            ? "bg-success/10 text-success"
-                            : "bg-bg-hover text-text-tertiary"
+                          stage.auto_advance_enabled ? "bg-success/10 text-success" : "bg-bg-hover text-text-tertiary"
                         }`}
                         title="Auto-advance when all required sub-tasks complete"
                       >
@@ -380,13 +419,30 @@ export default function PipelineEditor() {
                           <div
                             key={task.id}
                             draggable={isAdmin}
-                            onDragStart={(e) => { e.stopPropagation(); setDragType("subtask"); setDragId(task.id); }}
-                            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                            onDrop={(e) => { e.stopPropagation(); void handleSubTaskDrop(e, stage.id, taskIdx); }}
+                            onDragStart={(e) => {
+                              e.stopPropagation();
+                              setDragType("subtask");
+                              setDragId(task.id);
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onDrop={(e) => {
+                              e.stopPropagation();
+                              void handleSubTaskDrop(e, stage.id, taskIdx);
+                            }}
                             className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-bg-hover group"
                           >
-                            {isAdmin && <GripVertical size={12} className="text-text-tertiary cursor-grab opacity-0 group-hover:opacity-100" />}
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${task.is_required ? "bg-nah-orange" : "bg-text-tertiary/30"}`} />
+                            {isAdmin && (
+                              <GripVertical
+                                size={12}
+                                className="text-text-tertiary cursor-grab opacity-0 group-hover:opacity-100"
+                              />
+                            )}
+                            <div
+                              className={`w-2 h-2 rounded-full flex-shrink-0 ${task.is_required ? "bg-nah-orange" : "bg-text-tertiary/30"}`}
+                            />
 
                             {editingName?.type === "subtask" && editingName.id === task.id ? (
                               <input
@@ -394,29 +450,36 @@ export default function PipelineEditor() {
                                 value={editingName.value}
                                 onChange={(e) => setEditingName({ ...editingName, value: e.target.value })}
                                 onBlur={() => void handleNameSave()}
-                                onKeyDown={(e) => { if (e.key === "Enter") void handleNameSave(); if (e.key === "Escape") setEditingName(null); }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") void handleNameSave();
+                                  if (e.key === "Escape") setEditingName(null);
+                                }}
                                 className="bg-transparent border-b border-nah-blue text-caption outline-none flex-1"
                                 disabled={!isAdmin}
                               />
                             ) : (
                               <span
                                 className="text-caption text-text-primary flex-1"
-                                onDoubleClick={() => isAdmin && setEditingName({ type: "subtask", id: task.id, value: task.name })}
+                                onDoubleClick={() =>
+                                  isAdmin && setEditingName({ type: "subtask", id: task.id, value: task.name })
+                                }
                                 title={isAdmin ? "Double-click to rename" : undefined}
                               >
                                 {task.name}
                               </span>
                             )}
 
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                              task.state_type === "two_state" ? "bg-info/10 text-info" : "bg-text-tertiary/10 text-text-tertiary"
-                            }`}>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                task.state_type === "two_state"
+                                  ? "bg-info/10 text-info"
+                                  : "bg-text-tertiary/10 text-text-tertiary"
+                              }`}
+                            >
                               {task.state_type === "two_state" ? "2-state" : "single"}
                             </span>
 
-                            {task.is_required && (
-                              <span className="text-[10px] text-nah-orange">req</span>
-                            )}
+                            {task.is_required && <span className="text-[10px] text-nah-orange">req</span>}
 
                             {isAdmin && (
                               <button

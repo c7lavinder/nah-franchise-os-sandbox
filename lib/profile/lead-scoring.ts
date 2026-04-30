@@ -244,7 +244,7 @@ export function calculateLeadScore(input: ScoringInput): ScoreResult {
   return { total, tier, breakdown, components };
 }
 
-/** Build scoring input from profile fields and contact data */
+/** Build scoring input from GHL profile fields and contact data (legacy) */
 export function buildScoringInput(
   contact: { source: string | null; dateAdded: string },
   profile: Record<string, string | null>
@@ -264,5 +264,33 @@ export function buildScoringInput(
     trainualCompletion: profile["Trainual Completion Percent"]
       ? parseInt(profile["Trainual Completion Percent"])
       : null,
+  };
+}
+
+/** Build scoring input from a Supabase contacts row */
+export function buildScoringInputFromContact(contact: {
+  source?: string | null;
+  opportunity_source?: string | null;
+  capital_availability?: string | null;
+  territory_status?: string | null;
+  business_ownership_experience?: string | null;
+  investment_timeline?: string | null;
+  motivation_clarity?: string | null;
+  trainual_completion_pct?: number | null;
+  created_at: string;
+}): ScoringInput {
+  return {
+    source: contact.opportunity_source ?? contact.source ?? null,
+    capitalAvailability: contact.capital_availability ?? null,
+    capitalSource: null,
+    territoryStatus: contact.territory_status ?? null,
+    lastTouchDate: null,
+    daysSinceAdded: Math.floor((Date.now() - new Date(contact.created_at).getTime()) / (1000 * 60 * 60 * 24)),
+    contactAttemptCount: null,
+    businessOwnershipExperience: contact.business_ownership_experience ?? null,
+    investmentTimeline: contact.investment_timeline ?? null,
+    timelineToOpen: null,
+    motivationClarity: contact.motivation_clarity ?? null,
+    trainualCompletion: contact.trainual_completion_pct ?? null,
   };
 }

@@ -25,12 +25,10 @@ import type {
   GHLAppointment,
   GHLAppointmentCreatePayload,
   GHLCalendar,
-  GHLFreeSlot,
   GHLSendMessagePayload,
   GHLMessage,
   GHLNote,
   GHLPipeline,
-  GHLWorkflow,
 } from "@/types/ghl";
 
 const GHL_BASE_URL = "https://services.leadconnectorhq.com";
@@ -60,9 +58,7 @@ async function getAccessToken(): Promise<string> {
         .eq("setting_key", "ghl_token_expires_at")
         .single();
 
-      const expiresAt = expiresRow?.setting_value
-        ? new Date(JSON.parse(expiresRow.setting_value) as string)
-        : null;
+      const expiresAt = expiresRow?.setting_value ? new Date(JSON.parse(expiresRow.setting_value) as string) : null;
 
       // If token is still valid (with 5 min buffer), use it
       if (expiresAt && expiresAt.getTime() > Date.now() + 5 * 60 * 1000) {
@@ -123,18 +119,24 @@ async function refreshOAuthToken(): Promise<string | null> {
     const expiresAt = new Date(Date.now() + (data.expires_in ?? 86400) * 1000).toISOString();
 
     // Store new tokens — refresh token is single-use, must store the new one
-    await supabase.from("app_settings").upsert(
-      { setting_key: "ghl_access_token", setting_value: JSON.stringify(data.access_token) },
-      { onConflict: "setting_key" }
-    );
-    await supabase.from("app_settings").upsert(
-      { setting_key: "ghl_refresh_token", setting_value: JSON.stringify(data.refresh_token) },
-      { onConflict: "setting_key" }
-    );
-    await supabase.from("app_settings").upsert(
-      { setting_key: "ghl_token_expires_at", setting_value: JSON.stringify(expiresAt) },
-      { onConflict: "setting_key" }
-    );
+    await supabase
+      .from("app_settings")
+      .upsert(
+        { setting_key: "ghl_access_token", setting_value: JSON.stringify(data.access_token) },
+        { onConflict: "setting_key" }
+      );
+    await supabase
+      .from("app_settings")
+      .upsert(
+        { setting_key: "ghl_refresh_token", setting_value: JSON.stringify(data.refresh_token) },
+        { onConflict: "setting_key" }
+      );
+    await supabase
+      .from("app_settings")
+      .upsert(
+        { setting_key: "ghl_token_expires_at", setting_value: JSON.stringify(expiresAt) },
+        { onConflict: "setting_key" }
+      );
 
     console.log("GHL OAuth token refreshed, expires at:", expiresAt);
     return data.access_token;
@@ -186,14 +188,11 @@ const MAX_RETRIES = 3;
  * - 5xx: retry up to 3 times with backoff
  * - 400/422: do not retry (bad request)
  */
-async function ghlFetch<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function ghlFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${GHL_BASE_URL}${endpoint}`;
   let lastError: GHLError | null = null;
 
-  const authHeaders = await getHeaders() as Record<string, string>;
+  const authHeaders = (await getHeaders()) as Record<string, string>;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const response = await fetch(url, {
@@ -207,9 +206,7 @@ async function ghlFetch<T>(
     // 429 — rate limited, backoff and retry
     if (response.status === 429 && attempt < MAX_RETRIES) {
       const retryAfter = response.headers.get("retry-after");
-      const delayMs = retryAfter
-        ? parseInt(retryAfter, 10) * 1000
-        : Math.min(1000 * Math.pow(2, attempt), 10000);
+      const delayMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : Math.min(1000 * Math.pow(2, attempt), 10000);
       console.warn(`GHL 429 on ${endpoint} — retry in ${delayMs}ms (${attempt + 1}/${MAX_RETRIES})`);
       await new Promise((resolve) => setTimeout(resolve, delayMs));
       continue;
@@ -258,31 +255,21 @@ async function ghlFetch<T>(
 
 /** Fetch a single contact by ID */
 export async function getContact(contactId: string): Promise<GHLContact> {
-  const data = await ghlFetch<{ contact: GHLContact }>(
-    `/contacts/${contactId}`
-  );
+  const data = await ghlFetch<{ contact: GHLContact }>(`/contacts/${contactId}`);
   return data.contact;
 }
 
 /** Update a contact's fields */
-export async function updateContact(
-  contactId: string,
-  fields: GHLContactUpdatePayload
-): Promise<GHLContact> {
-  const data = await ghlFetch<{ contact: GHLContact }>(
-    `/contacts/${contactId}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(fields),
-    }
-  );
+export async function updateContact(contactId: string, fields: GHLContactUpdatePayload): Promise<GHLContact> {
+  const data = await ghlFetch<{ contact: GHLContact }>(`/contacts/${contactId}`, {
+    method: "PUT",
+    body: JSON.stringify(fields),
+  });
   return data.contact;
 }
 
 /** Search contacts by name, email, or phone — uses GET with query params per GHL v2 API */
-export async function searchContacts(
-  params: GHLContactSearchParams
-): Promise<GHLContact[]> {
+export async function searchContacts(params: GHLContactSearchParams): Promise<GHLContact[]> {
   const locationId = getLocationId();
   const limit = params.limit ?? 10;
   const query = encodeURIComponent(params.query);
@@ -297,17 +284,12 @@ export async function searchContacts(
  * GHL deduplicates by email or phone — if a match is found, updates; otherwise creates.
  * Returns the contact and whether it was newly created.
  */
-export async function upsertContact(
-  fields: GHLContactUpsertPayload
-): Promise<{ contact: GHLContact; new: boolean }> {
+export async function upsertContact(fields: GHLContactUpsertPayload): Promise<{ contact: GHLContact; new: boolean }> {
   const locationId = getLocationId();
-  const data = await ghlFetch<{ contact: GHLContact; new: boolean }>(
-    `/contacts/upsert`,
-    {
-      method: "POST",
-      body: JSON.stringify({ ...fields, locationId }),
-    }
-  );
+  const data = await ghlFetch<{ contact: GHLContact; new: boolean }>(`/contacts/upsert`, {
+    method: "POST",
+    body: JSON.stringify({ ...fields, locationId }),
+  });
   return { contact: data.contact, new: data.new };
 }
 
@@ -319,17 +301,14 @@ export async function countContactsByFilter(
   filters: { field: string; operator: string; value: string }[]
 ): Promise<number> {
   const locationId = getLocationId();
-  const data = await ghlFetch<{ total?: number; meta?: { total?: number }; contacts?: unknown[] }>(
-    `/contacts/search`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        locationId,
-        pageLimit: 1,
-        filters,
-      }),
-    }
-  );
+  const data = await ghlFetch<{ total?: number; meta?: { total?: number }; contacts?: unknown[] }>(`/contacts/search`, {
+    method: "POST",
+    body: JSON.stringify({
+      locationId,
+      pageLimit: 1,
+      filters,
+    }),
+  });
   return data.total ?? data.meta?.total ?? data.contacts?.length ?? 0;
 }
 
@@ -356,9 +335,7 @@ export async function countOpportunitiesByStatus(
  * Step 1: GET /conversations/search to find the conversationId
  * Step 2: GET /conversations/:conversationId/messages to get messages
  */
-export async function getContactHistory(
-  contactId: string
-): Promise<GHLMessage[]> {
+export async function getContactHistory(contactId: string): Promise<GHLMessage[]> {
   // Step 1: find the conversation for this contact
   const convData = await ghlFetch<{ conversations: GHLConversation[] }>(
     `/conversations/search?contactId=${contactId}&locationId=${getLocationId()}`
@@ -389,9 +366,7 @@ export async function getContactHistory(
 
 /** Get all pipelines for the location */
 export async function getPipelines(): Promise<GHLPipeline[]> {
-  const data = await ghlFetch<{ pipelines: GHLPipeline[] }>(
-    `/opportunities/pipelines?locationId=${getLocationId()}`
-  );
+  const data = await ghlFetch<{ pipelines: GHLPipeline[] }>(`/opportunities/pipelines?locationId=${getLocationId()}`);
   return data.pipelines;
 }
 
@@ -421,9 +396,7 @@ export async function getStageIdByName(stageName: string): Promise<string> {
 }
 
 /** Search opportunities (leads in the pipeline) — uses GET with query params per GHL v2 API */
-export async function searchOpportunities(
-  params: GHLOpportunitySearchParams
-): Promise<GHLOpportunity[]> {
+export async function searchOpportunities(params: GHLOpportunitySearchParams): Promise<GHLOpportunity[]> {
   const locationId = getLocationId();
   const queryParts = [`location_id=${locationId}`];
   if (params.pipelineId) queryParts.push(`pipeline_id=${params.pipelineId}`);
@@ -432,9 +405,7 @@ export async function searchOpportunities(
   if (params.assignedTo) queryParts.push(`assigned_to=${params.assignedTo}`);
   if (params.limit) queryParts.push(`limit=${params.limit}`);
 
-  const data = await ghlFetch<{ opportunities: GHLOpportunity[] }>(
-    `/opportunities/search?${queryParts.join("&")}`
-  );
+  const data = await ghlFetch<{ opportunities: GHLOpportunity[] }>(`/opportunities/search?${queryParts.join("&")}`);
   return data.opportunities;
 }
 
@@ -443,9 +414,7 @@ export async function searchOpportunities(
  * GHL limits to 100 per request — this follows the cursor until all results are fetched.
  * Safety cap at 2,000 results.
  */
-export async function searchOpportunitiesPaginated(
-  params: GHLOpportunitySearchParams
-): Promise<GHLOpportunity[]> {
+export async function searchOpportunitiesPaginated(params: GHLOpportunitySearchParams): Promise<GHLOpportunity[]> {
   const all: GHLOpportunity[] = [];
   const MAX_RESULTS = 2000;
   let hasMore = true;
@@ -491,32 +460,21 @@ export async function searchOpportunitiesPaginated(
 }
 
 /** Move a lead to a different pipeline stage — uses { pipelineStageId } per connection map */
-export async function movePipelineStage(
-  opportunityId: string,
-  stageId: string
-): Promise<GHLOpportunity> {
-  const data = await ghlFetch<{ opportunity: GHLOpportunity }>(
-    `/opportunities/${opportunityId}`,
-    {
-      method: "PUT",
-      body: JSON.stringify({ pipelineStageId: stageId }),
-    }
-  );
+export async function movePipelineStage(opportunityId: string, stageId: string): Promise<GHLOpportunity> {
+  const data = await ghlFetch<{ opportunity: GHLOpportunity }>(`/opportunities/${opportunityId}`, {
+    method: "PUT",
+    body: JSON.stringify({ pipelineStageId: stageId }),
+  });
   return data.opportunity;
 }
 
 /** Create a new opportunity in a pipeline */
-export async function createOpportunity(
-  fields: GHLOpportunityCreatePayload
-): Promise<GHLOpportunity> {
+export async function createOpportunity(fields: GHLOpportunityCreatePayload): Promise<GHLOpportunity> {
   const locationId = getLocationId();
-  const data = await ghlFetch<{ opportunity: GHLOpportunity }>(
-    `/opportunities/`,
-    {
-      method: "POST",
-      body: JSON.stringify({ ...fields, locationId }),
-    }
-  );
+  const data = await ghlFetch<{ opportunity: GHLOpportunity }>(`/opportunities/`, {
+    method: "POST",
+    body: JSON.stringify({ ...fields, locationId }),
+  });
   return data.opportunity;
 }
 
@@ -526,9 +484,7 @@ export async function createOpportunity(
 
 /** Get all tasks for a contact */
 export async function getTasks(contactId: string): Promise<GHLTask[]> {
-  const data = await ghlFetch<{ tasks: GHLTask[] }>(
-    `/contacts/${contactId}/tasks`
-  );
+  const data = await ghlFetch<{ tasks: GHLTask[] }>(`/contacts/${contactId}/tasks`);
   return data.tasks;
 }
 
@@ -573,30 +529,29 @@ export async function searchTasks(filter: {
     completed: boolean;
     contactDetails?: { firstName?: string; lastName?: string; name?: string } | null;
   };
-  const data = await ghlFetch<{ tasks: RawHit[] }>(
-    `/locations/${locationId}/tasks/search`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        assignedTo: filter.assignedTo,
-        completed: filter.completed,
-        limit: filter.limit ?? 100,
-      }),
-    },
-  );
-  return (data.tasks ?? []).map((t): GHLTaskSearchHit => ({
-    id: (t._id ?? t.id) as string,
-    title: t.title,
-    body: t.body ?? null,
-    dueDate: t.dueDate,
-    assignedTo: t.assignedTo ?? null,
-    contactId: t.contactId,
-    completed: t.completed,
-    contactName: t.contactDetails
-      ? (t.contactDetails.name ??
+  const data = await ghlFetch<{ tasks: RawHit[] }>(`/locations/${locationId}/tasks/search`, {
+    method: "POST",
+    body: JSON.stringify({
+      assignedTo: filter.assignedTo,
+      completed: filter.completed,
+      limit: filter.limit ?? 100,
+    }),
+  });
+  return (data.tasks ?? []).map(
+    (t): GHLTaskSearchHit => ({
+      id: (t._id ?? t.id) as string,
+      title: t.title,
+      body: t.body ?? null,
+      dueDate: t.dueDate,
+      assignedTo: t.assignedTo ?? null,
+      contactId: t.contactId,
+      completed: t.completed,
+      contactName: t.contactDetails
+        ? (t.contactDetails.name ??
           ([t.contactDetails.firstName, t.contactDetails.lastName].filter(Boolean).join(" ") || null))
-      : null,
-  }));
+        : null,
+    })
+  );
 }
 
 /**
@@ -605,33 +560,20 @@ export async function searchTasks(filter: {
  * GHL's task POST endpoint requires `completed` even on creation — omitting
  * it returns 422. Default to false so the task starts open.
  */
-export async function createTask(
-  contactId: string,
-  task: GHLTaskCreatePayload
-): Promise<GHLTask> {
-  const data = await ghlFetch<{ task: GHLTask }>(
-    `/contacts/${contactId}/tasks`,
-    {
-      method: "POST",
-      body: JSON.stringify({ completed: false, ...task }),
-    }
-  );
+export async function createTask(contactId: string, task: GHLTaskCreatePayload): Promise<GHLTask> {
+  const data = await ghlFetch<{ task: GHLTask }>(`/contacts/${contactId}/tasks`, {
+    method: "POST",
+    body: JSON.stringify({ completed: false, ...task }),
+  });
   return data.task;
 }
 
 /** Update a task (e.g., mark as completed) */
-export async function updateTask(
-  contactId: string,
-  taskId: string,
-  updates: GHLTaskUpdatePayload
-): Promise<GHLTask> {
-  const data = await ghlFetch<{ task: GHLTask }>(
-    `/contacts/${contactId}/tasks/${taskId}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(updates),
-    }
-  );
+export async function updateTask(contactId: string, taskId: string, updates: GHLTaskUpdatePayload): Promise<GHLTask> {
+  const data = await ghlFetch<{ task: GHLTask }>(`/contacts/${contactId}/tasks/${taskId}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
   return data.task;
 }
 
@@ -646,28 +588,8 @@ export async function updateTask(
  */
 export async function getCalendars(): Promise<GHLCalendar[]> {
   const locationId = getLocationId();
-  const data = await ghlFetch<{ calendars: GHLCalendar[] }>(
-    `/calendars/?locationId=${locationId}`
-  );
+  const data = await ghlFetch<{ calendars: GHLCalendar[] }>(`/calendars/?locationId=${locationId}`);
   return data.calendars ?? [];
-}
-
-/**
- * Get free slots for a calendar.
- * Per connection map: check availability before booking.
- */
-export async function getCalendarFreeSlots(
-  calendarId: string,
-  startDate: string,
-  endDate: string,
-  timezone: string = "America/New_York"
-): Promise<GHLFreeSlot[]> {
-  const startUnix = Math.floor(new Date(startDate).getTime() / 1000);
-  const endUnix = Math.floor(new Date(endDate).getTime() / 1000);
-  const data = await ghlFetch<{ slots: GHLFreeSlot[] }>(
-    `/calendars/${calendarId}/free-slots?startDate=${startUnix}&endDate=${endUnix}&timezone=${timezone}`
-  );
-  return data.slots ?? [];
 }
 
 /**
@@ -677,9 +599,7 @@ export async function getCalendarFreeSlots(
  * which is read-only for listing). Response shape varies — the API returns
  * the appointment fields directly, sometimes wrapped under `appointment`.
  */
-export async function createAppointment(
-  appointment: GHLAppointmentCreatePayload
-): Promise<GHLAppointment> {
+export async function createAppointment(appointment: GHLAppointmentCreatePayload): Promise<GHLAppointment> {
   const locationId = getLocationId();
   const data = await ghlFetch<GHLAppointment | { appointment?: GHLAppointment; event?: GHLAppointment }>(
     `/calendars/events/appointments`,
@@ -713,7 +633,7 @@ export async function createAppointment(
 export async function getAppointments(
   startTime: string,
   endTime: string,
-  filter: { calendarId?: string; userId?: string; groupId?: string } = {},
+  filter: { calendarId?: string; userId?: string; groupId?: string } = {}
 ): Promise<GHLAppointment[]> {
   const locationId = getLocationId();
   if (!filter.calendarId && !filter.userId && !filter.groupId) {
@@ -741,10 +661,7 @@ export async function getAppointments(
  * window. Used by Daily HQ TodayCalendar where we want a unified view.
  * Dedupes by appointment id (events on shared calendars can show twice).
  */
-export async function getAllAppointments(
-  startTime: string,
-  endTime: string,
-): Promise<GHLAppointment[]> {
+export async function getAllAppointments(startTime: string, endTime: string): Promise<GHLAppointment[]> {
   const calendars = await getCalendars();
   const seen = new Map<string, GHLAppointment>();
   await Promise.all(
@@ -757,11 +674,9 @@ export async function getAllAppointments(
       } catch {
         // Skip calendars we can't read (permission errors etc).
       }
-    }),
+    })
   );
-  return Array.from(seen.values()).sort(
-    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
-  );
+  return Array.from(seen.values()).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 }
 
 // ========================================
@@ -769,9 +684,7 @@ export async function getAllAppointments(
 // ========================================
 
 /** Search conversations (inbox view). Returns conversations sorted by most recent. */
-export async function getConversations(
-  params?: GHLConversationSearchParams
-): Promise<GHLConversation[]> {
+export async function getConversations(params?: GHLConversationSearchParams): Promise<GHLConversation[]> {
   const locationId = getLocationId();
   const queryParts = [`locationId=${locationId}`, `sortDirection=desc`];
   if (params?.assignedTo) queryParts.push(`assignedTo=${params.assignedTo}`);
@@ -779,9 +692,7 @@ export async function getConversations(
   if (params?.limit) queryParts.push(`limit=${params.limit}`);
   if (params?.lastId) queryParts.push(`lastId=${params.lastId}`);
 
-  const data = await ghlFetch<{ conversations: GHLConversation[] }>(
-    `/conversations/search?${queryParts.join("&")}`
-  );
+  const data = await ghlFetch<{ conversations: GHLConversation[] }>(`/conversations/search?${queryParts.join("&")}`);
   return data.conversations ?? [];
 }
 
@@ -811,25 +722,18 @@ export async function getConversationMessages(
 }
 
 /** Mark a conversation as read by setting unreadCount to 0. */
-export async function markConversationRead(
-  conversationId: string
-): Promise<GHLConversation> {
-  const data = await ghlFetch<{ conversation: GHLConversation }>(
-    `/conversations/${conversationId}`,
-    {
-      method: "PUT",
-      body: JSON.stringify({ unreadCount: 0 }),
-    }
-  );
+export async function markConversationRead(conversationId: string): Promise<GHLConversation> {
+  const data = await ghlFetch<{ conversation: GHLConversation }>(`/conversations/${conversationId}`, {
+    method: "PUT",
+    body: JSON.stringify({ unreadCount: 0 }),
+  });
   return data.conversation;
 }
 
 /** Get the recording URL for a call message. */
 export async function getCallRecording(messageId: string): Promise<string | null> {
   try {
-    const data = await ghlFetch<{ url?: string; recording?: string }>(
-      `/conversations/messages/${messageId}/recording`
-    );
+    const data = await ghlFetch<{ url?: string; recording?: string }>(`/conversations/messages/${messageId}/recording`);
     return data.url ?? data.recording ?? null;
   } catch {
     return null;
@@ -859,30 +763,17 @@ export async function getCallTranscription(messageId: string): Promise<string | 
  * - Email: { type: "Email", contactId, html, subject, emailFrom }
  * Types enforce correct fields for each.
  */
-export async function sendMessage(
-  payload: GHLSendMessagePayload
-): Promise<GHLMessage> {
-  const data = await ghlFetch<{ message: GHLMessage }>(
-    `/conversations/messages`,
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }
-  );
+export async function sendMessage(payload: GHLSendMessagePayload): Promise<GHLMessage> {
+  const data = await ghlFetch<{ message: GHLMessage }>(`/conversations/messages`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
   return data.message;
 }
 
 // ========================================
 // AUTOMATIONS / WORKFLOWS
 // ========================================
-
-/** Get all workflows for the location */
-export async function getWorkflows(): Promise<GHLWorkflow[]> {
-  const data = await ghlFetch<{ workflows: GHLWorkflow[] }>(
-    `/workflows/?locationId=${getLocationId()}`
-  );
-  return data.workflows;
-}
 
 /**
  * Trigger a workflow via inbound webhook.
@@ -891,10 +782,7 @@ export async function getWorkflows(): Promise<GHLWorkflow[]> {
  * This replaces the old startAutomation() which used the deprecated
  * direct workflow enrollment endpoint.
  */
-export async function triggerWorkflow(
-  contactId: string,
-  workflowName: string
-): Promise<void> {
+export async function triggerWorkflow(contactId: string, workflowName: string): Promise<void> {
   const supabase = createServerClient();
   const { data: workflow, error } = await supabase
     .from("ghl_workflows")
@@ -941,9 +829,7 @@ export interface GHLCustomFieldDefinition {
 /** Fetch all custom field definitions for the location (uses ghlFetch with retry) */
 export async function getCustomFieldDefinitions(): Promise<GHLCustomFieldDefinition[]> {
   const locationId = getLocationId();
-  const data = await ghlFetch<{ customFields: GHLCustomFieldDefinition[] }>(
-    `/locations/${locationId}/customFields`
-  );
+  const data = await ghlFetch<{ customFields: GHLCustomFieldDefinition[] }>(`/locations/${locationId}/customFields`);
   return data.customFields ?? [];
 }
 
@@ -953,23 +839,15 @@ export async function getCustomFieldDefinitions(): Promise<GHLCustomFieldDefinit
 
 /** Get all notes for a contact */
 export async function getNotes(contactId: string): Promise<GHLNote[]> {
-  const data = await ghlFetch<{ notes: GHLNote[] }>(
-    `/contacts/${contactId}/notes`
-  );
+  const data = await ghlFetch<{ notes: GHLNote[] }>(`/contacts/${contactId}/notes`);
   return data.notes;
 }
 
 /** Add a note to a contact */
-export async function addNote(
-  contactId: string,
-  body: string
-): Promise<GHLNote> {
-  const data = await ghlFetch<{ note: GHLNote }>(
-    `/contacts/${contactId}/notes`,
-    {
-      method: "POST",
-      body: JSON.stringify({ body }),
-    }
-  );
+export async function addNote(contactId: string, body: string): Promise<GHLNote> {
+  const data = await ghlFetch<{ note: GHLNote }>(`/contacts/${contactId}/notes`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
   return data.note;
 }

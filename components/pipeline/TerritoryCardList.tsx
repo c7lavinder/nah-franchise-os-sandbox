@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 
@@ -19,15 +20,15 @@ interface TerritoryCard {
 /** Label colors matching wave gradient circles — custom hex */
 const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
   // Onboarding
-  setup:              { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
-  training:           { bg: "bg-[#fcf0e2]", text: "text-[#b88540]" },
-  "launch-prep":      { bg: "bg-[#f2f5d8]", text: "text-[#8a9a38]" },
-  onboarded:          { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
+  setup: { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  training: { bg: "bg-[#fcf0e2]", text: "text-[#b88540]" },
+  "launch-prep": { bg: "bg-[#f2f5d8]", text: "text-[#8a9a38]" },
+  onboarded: { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
   // Runway
-  "first-offer":      { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
-  "first-purchase":   { bg: "bg-[#fcf0e2]", text: "text-[#b88540]" },
+  "first-offer": { bg: "bg-[#fce8e5]", text: "text-[#c95a4a]" },
+  "first-purchase": { bg: "bg-[#fcf0e2]", text: "text-[#b88540]" },
   "inventory-building": { bg: "bg-[#f2f5d8]", text: "text-[#8a9a38]" },
-  running:            { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
+  running: { bg: "bg-[#e2f2e5]", text: "text-[#3d8a4e]" },
 };
 
 interface Props {
@@ -38,8 +39,8 @@ interface Props {
 }
 
 const STATUS_STYLES: Record<string, { label: string; bgColor: string; color: string }> = {
-  active:    { label: "Active",    bgColor: "bg-[#e8f5e9]", color: "text-[#2e7d32]" },
-  inactive:  { label: "Inactive",  bgColor: "bg-[#f5f5f5]", color: "text-[#757575]" },
+  active: { label: "Active", bgColor: "bg-[#e8f5e9]", color: "text-[#2e7d32]" },
+  inactive: { label: "Inactive", bgColor: "bg-[#f5f5f5]", color: "text-[#757575]" },
   available: { label: "Available", bgColor: "bg-[#e3f2fd]", color: "text-[#1565c0]" },
 };
 
@@ -47,6 +48,7 @@ type SortField = "name" | "status" | "owner";
 const PAGE_SIZE = 50;
 
 export default function TerritoryCardList({ status, statusFilter, pipelineStageId, searchQuery }: Props) {
+  const router = useRouter();
   const effectiveStatus = statusFilter ?? status;
   const [cards, setCards] = useState<TerritoryCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,11 +101,18 @@ export default function TerritoryCardList({ status, statusFilter, pipelineStageI
 
   function toggleSort(field: SortField) {
     if (sortField === field) setSortAsc(!sortAsc);
-    else { setSortField(field); setSortAsc(true); }
+    else {
+      setSortField(field);
+      setSortAsc(true);
+    }
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center py-8"><Loader2 size={20} className="animate-spin text-text-tertiary" /></div>;
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 size={20} className="animate-spin text-text-tertiary" />
+      </div>
+    );
   }
 
   return (
@@ -111,7 +120,9 @@ export default function TerritoryCardList({ status, statusFilter, pipelineStageI
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-h2 text-text-primary">
-          {effectiveStatus ? `${effectiveStatus.charAt(0).toUpperCase() + effectiveStatus.slice(1)} Territories` : "Territory Network"}
+          {effectiveStatus
+            ? `${effectiveStatus.charAt(0).toUpperCase() + effectiveStatus.slice(1)} Territories`
+            : "Territory Network"}
           <span className="text-caption text-text-tertiary ml-2 font-normal">
             {searchQuery && filtered.length !== cards.length
               ? `${filtered.length} of ${cards.length} territories`
@@ -137,14 +148,18 @@ export default function TerritoryCardList({ status, statusFilter, pipelineStageI
       {/* Territory rows */}
       <div className="border border-border-default rounded-b-lg overflow-hidden">
         {visible.length === 0 && (
-          <div className="px-4 py-8 text-center text-body-sm text-text-tertiary">
-            No territories found
-          </div>
+          <div className="px-4 py-8 text-center text-body-sm text-text-tertiary">No territories found</div>
         )}
         {visible.map((card, i) => {
-          const st = STATUS_STYLES[card.status] ?? { label: card.status, bgColor: "bg-[#f5f5f5]", color: "text-[#757575]" };
+          const st = STATUS_STYLES[card.status] ?? {
+            label: card.status,
+            bgColor: "bg-[#f5f5f5]",
+            color: "text-[#757575]",
+          };
 
-          const sc = card.stage_slug ? (STAGE_COLORS[card.stage_slug] ?? { bg: "bg-gray-100", text: "text-gray-600" }) : null;
+          const sc = card.stage_slug
+            ? (STAGE_COLORS[card.stage_slug] ?? { bg: "bg-gray-100", text: "text-gray-600" })
+            : null;
 
           return (
             <Link
@@ -169,7 +184,9 @@ export default function TerritoryCardList({ status, statusFilter, pipelineStageI
 
               {/* Pipeline stage — colored label */}
               {sc && card.stage_name ? (
-                <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center ${sc.bg} ${sc.text}`}>
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center ${sc.bg} ${sc.text}`}
+                >
                   {card.stage_name}
                 </span>
               ) : (
@@ -181,7 +198,15 @@ export default function TerritoryCardList({ status, statusFilter, pipelineStageI
               {/* Owner — pill label, clickable to contact page */}
               {card.owner_name ? (
                 <span
-                  onClick={card.owner_ghl_contact_id ? (e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/leads/${card.owner_ghl_contact_id}`; } : undefined}
+                  onClick={
+                    card.owner_ghl_contact_id
+                      ? (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          router.push(`/leads/${card.owner_ghl_contact_id}`);
+                        }
+                      : undefined
+                  }
                   className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center bg-blue-50 text-blue-600 ${card.owner_ghl_contact_id ? "hover:bg-blue-100 cursor-pointer" : ""}`}
                 >
                   {card.owner_name}

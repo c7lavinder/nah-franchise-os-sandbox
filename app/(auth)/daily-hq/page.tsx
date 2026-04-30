@@ -1,5 +1,6 @@
 "use client";
 import { apiFetch } from "@/lib/auth/api-fetch";
+import Link from "next/link";
 
 import { useState, useEffect, useCallback } from "react";
 import { Bot, AlertTriangle } from "lucide-react";
@@ -99,7 +100,7 @@ export default function DailyHQPage() {
   const [needsReviewCount, setNeedsReviewCount] = useState(0);
   useEffect(() => {
     apiFetch("/api/contacts/batch?needs_review=true&count_only=true")
-      .then((r) => r.ok ? r.json() : { count: 0 })
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
       .then((d) => setNeedsReviewCount(d.count ?? 0))
       .catch(() => {});
   }, []);
@@ -119,19 +120,18 @@ export default function DailyHQPage() {
     <div className="flex flex-col h-[calc(100vh-48px)]">
       {/* Scorecards */}
       <div className="py-2 flex-shrink-0 space-y-3">
-        {unreadCount > 0 && (
-          <span className="badge badge-hot">
-            {unreadCount} unread
-          </span>
-        )}
+        {unreadCount > 0 && <span className="badge badge-hot">{unreadCount} unread</span>}
         <ScoreCardRow page="daily-hq" />
         {needsReviewCount > 0 && (
           <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
             <AlertTriangle size={14} className="text-amber-600 flex-shrink-0" />
             <span className="text-body-sm text-amber-800">
-              <strong>{needsReviewCount}</strong> contact{needsReviewCount !== 1 ? "s" : ""} from calls need to be reviewed
+              <strong>{needsReviewCount}</strong> contact{needsReviewCount !== 1 ? "s" : ""} from calls need to be
+              reviewed
             </span>
-            <a href="/pipeline?needs_review=true" className="text-caption text-amber-700 hover:underline ml-auto">Review &rarr;</a>
+            <Link href="/pipeline?needs_review=true" className="text-caption text-amber-700 hover:underline ml-auto">
+              Review &rarr;
+            </Link>
           </div>
         )}
       </div>
@@ -141,7 +141,10 @@ export default function DailyHQPage() {
         {/* INBOX — 3/5 width */}
         <div className="lg:col-span-3 card-glass !p-0 flex min-h-0 overflow-hidden">
           {/* Conversation list */}
-          <div className="w-[280px] flex-shrink-0 flex flex-col min-h-0" style={{ borderRight: "1px solid rgba(0,0,0,0.06)" }}>
+          <div
+            className="w-[280px] flex-shrink-0 flex flex-col min-h-0"
+            style={{ borderRight: "1px solid rgba(0,0,0,0.06)" }}
+          >
             <InboxFilters
               filter={inboxFilter}
               onFilterChange={setInboxFilter}
@@ -162,10 +165,7 @@ export default function DailyHQPage() {
           {/* Thread */}
           <div className="flex-1 flex flex-col min-h-0">
             {selectedConv ? (
-              <ConversationThread
-                conversation={selectedConv}
-                onMessageSent={fetchInbox}
-              />
+              <ConversationThread conversation={selectedConv} onMessageSent={fetchInbox} />
             ) : (
               <div className="flex-1 flex items-center justify-center">
                 <div className="empty-state">

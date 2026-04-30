@@ -229,8 +229,8 @@ See `docs/adr/` for individual decision records. Key decisions:
 
 ## Open questions
 
-- JWT in localStorage vs httpOnly cookies — deferred
-- Per-rep RLS row filtering — separate ADR when prioritized
+- ~~JWT in localStorage vs httpOnly cookies~~ — DONE (Tier 2 #4, httpOnly cookies shipped)
+- Per-rep RLS row filtering — SHELVED (small team, everyone collaborates on prospects/franchisees; revisit when team grows)
 - OAuth token storage cleanup (JSON in app_settings) — cleanup pass later
 - MasterSuite data direction (push vs pull) — needs scoping conversation
 - GitHub API cache: old commit SHAs accessible up to 90 days post-scrub (private repo)

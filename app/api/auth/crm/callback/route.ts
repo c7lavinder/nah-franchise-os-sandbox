@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { BASE_PATH } from "@/lib/base-path";
 
 const TOKEN_URL = "https://services.leadconnectorhq.com/oauth/token";
 
@@ -22,29 +23,25 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const error = request.nextUrl.searchParams.get("error");
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const redirectUri = `${appUrl}/api/auth/crm/callback`;
+  const redirectUri = `${appUrl}${BASE_PATH}/api/auth/crm/callback`;
 
   // Handle OAuth errors
   if (error) {
     console.error("GHL OAuth error:", error);
     return NextResponse.redirect(
-      `${appUrl}/settings?error=crm_auth_failed&detail=${encodeURIComponent(error)}`
+      `${appUrl}${BASE_PATH}/settings?error=crm_auth_failed&detail=${encodeURIComponent(error)}`
     );
   }
 
   if (!code) {
-    return NextResponse.redirect(
-      `${appUrl}/settings?error=crm_auth_failed&detail=no_code`
-    );
+    return NextResponse.redirect(`${appUrl}${BASE_PATH}/settings?error=crm_auth_failed&detail=no_code`);
   }
 
   const clientId = process.env.GHL_CLIENT_ID;
   const clientSecret = process.env.GHL_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    return NextResponse.redirect(
-      `${appUrl}/settings?error=crm_auth_failed&detail=missing_credentials`
-    );
+    return NextResponse.redirect(`${appUrl}${BASE_PATH}/settings?error=crm_auth_failed&detail=missing_credentials`);
   }
 
   try {
@@ -64,9 +61,7 @@ export async function GET(request: NextRequest) {
     if (!tokenResponse.ok) {
       const errorBody = await tokenResponse.text();
       console.error("GHL token exchange failed:", tokenResponse.status, errorBody);
-      return NextResponse.redirect(
-        `${appUrl}/settings?error=crm_auth_failed&detail=token_exchange_failed`
-      );
+      return NextResponse.redirect(`${appUrl}${BASE_PATH}/settings?error=crm_auth_failed&detail=token_exchange_failed`);
     }
 
     const tokenData = await tokenResponse.json();
@@ -111,9 +106,7 @@ export async function GET(request: NextRequest) {
     ];
 
     for (const setting of settings) {
-      await supabase
-        .from("app_settings")
-        .upsert(setting, { onConflict: "setting_key" });
+      await supabase.from("app_settings").upsert(setting, { onConflict: "setting_key" });
     }
 
     console.log("GHL OAuth connected successfully:", {
@@ -123,11 +116,9 @@ export async function GET(request: NextRequest) {
     });
 
     // Redirect to settings page with success
-    return NextResponse.redirect(`${appUrl}/settings?crm=connected`);
+    return NextResponse.redirect(`${appUrl}${BASE_PATH}/settings?crm=connected`);
   } catch (err) {
     console.error("GHL OAuth callback error:", err);
-    return NextResponse.redirect(
-      `${appUrl}/settings?error=crm_auth_failed&detail=unexpected_error`
-    );
+    return NextResponse.redirect(`${appUrl}${BASE_PATH}/settings?error=crm_auth_failed&detail=unexpected_error`);
   }
 }

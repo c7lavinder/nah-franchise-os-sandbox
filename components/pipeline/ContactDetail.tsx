@@ -2,10 +2,7 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  X, Phone as PhoneIcon, Mail, Clock, Megaphone,
-  Loader2, ExternalLink, User,
-} from "lucide-react";
+import { X, Phone as PhoneIcon, Mail, Clock, Megaphone, Loader2, ExternalLink, User } from "lucide-react";
 import type { GHLOpportunity, GHLContact, GHLNote, GHLTask, GHLMessage } from "@/types/ghl";
 import { NotesSection, TaskList, ActivityTimeline, ScoutActionHistory, StageHistory } from "@/components/leads";
 import IntelligenceTab from "@/components/intelligence/IntelligenceTab";
@@ -22,10 +19,10 @@ interface ContactDetailProps {
 function getSpecificSource(contact: GHLContact): string {
   const tagMap: Record<string, string> = {
     "google-ads": "Google Ads",
-    "facebook": "Facebook",
-    "linkedin": "LinkedIn",
-    "youtube": "YouTube",
-    "fbr": "FBR",
+    facebook: "Facebook",
+    linkedin: "LinkedIn",
+    youtube: "YouTube",
+    fbr: "FBR",
     "website-form": "Website Form",
     "franchise-show": "Franchise Show",
     "referral-corey": "Referral (Corey)",
@@ -50,8 +47,30 @@ function daysInPipeline(createdAt: string): number {
 
 /** Categorize tags for display */
 function categorizeTags(tags: string[]): { source: string[]; status: string[]; other: string[] } {
-  const sourceTags = new Set(["google-ads", "facebook", "linkedin", "youtube", "fbr", "referral", "referral-corey", "website-form", "franchise-show", "organic", "paid-ad", "unknown-source"]);
-  const statusTags = new Set(["closed-won", "closed-lost", "nurture", "ct-import", "has-notes", "no-sms", "do-not-contact", "needs-name-update"]);
+  const sourceTags = new Set([
+    "google-ads",
+    "facebook",
+    "linkedin",
+    "youtube",
+    "fbr",
+    "referral",
+    "referral-corey",
+    "website-form",
+    "franchise-show",
+    "organic",
+    "paid-ad",
+    "unknown-source",
+  ]);
+  const statusTags = new Set([
+    "closed-won",
+    "closed-lost",
+    "nurture",
+    "ct-import",
+    "has-notes",
+    "no-sms",
+    "do-not-contact",
+    "needs-name-update",
+  ]);
   const source: string[] = [];
   const status: string[] = [];
   const other: string[] = [];
@@ -152,12 +171,18 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
               {/* Contact Info */}
               <section className="flex flex-wrap gap-x-4 gap-y-2">
                 {contact?.phone && (
-                  <a href={`tel:${contact.phone}`} className="flex items-center gap-1.5 text-body-sm text-info hover:underline">
+                  <a
+                    href={`tel:${contact.phone}`}
+                    className="flex items-center gap-1.5 text-body-sm text-info hover:underline"
+                  >
                     <PhoneIcon size={13} /> {contact.phone}
                   </a>
                 )}
                 {contact?.email && (
-                  <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-body-sm text-info hover:underline">
+                  <a
+                    href={`mailto:${contact.email}`}
+                    className="flex items-center gap-1.5 text-body-sm text-info hover:underline"
+                  >
                     <Mail size={13} /> {contact.email}
                   </a>
                 )}
@@ -182,47 +207,69 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
                   <ExternalLink size={14} className="text-nah-orange" /> Move Stage
                 </button>
                 {contact?.phone && (
-                  <a href={`tel:${contact.phone}`} className="flex items-center gap-2 px-3 py-2.5 bg-bg-secondary border border-border-default rounded-lg hover:border-success hover:bg-success/5 transition-colors text-body-sm text-text-primary">
+                  <a
+                    href={`tel:${contact.phone}`}
+                    className="flex items-center gap-2 px-3 py-2.5 bg-bg-secondary border border-border-default rounded-lg hover:border-success hover:bg-success/5 transition-colors text-body-sm text-text-primary"
+                  >
                     <PhoneIcon size={14} className="text-success" /> Call
                   </a>
                 )}
                 {contact?.phone && (
-                  <a href={`sms:${contact.phone}`} className="flex items-center gap-2 px-3 py-2.5 bg-bg-secondary border border-border-default rounded-lg hover:border-info hover:bg-info/5 transition-colors text-body-sm text-text-primary">
+                  <a
+                    href={`sms:${contact.phone}`}
+                    className="flex items-center gap-2 px-3 py-2.5 bg-bg-secondary border border-border-default rounded-lg hover:border-info hover:bg-info/5 transition-colors text-body-sm text-text-primary"
+                  >
                     <PhoneIcon size={14} className="text-info" /> Text
                   </a>
                 )}
                 {contact?.email && (
-                  <a href={`mailto:${contact.email}`} className="flex items-center gap-2 px-3 py-2.5 bg-bg-secondary border border-border-default rounded-lg hover:border-scout-purple hover:bg-scout-purple/5 transition-colors text-body-sm text-text-primary">
+                  <a
+                    href={`mailto:${contact.email}`}
+                    className="flex items-center gap-2 px-3 py-2.5 bg-bg-secondary border border-border-default rounded-lg hover:border-scout-purple hover:bg-scout-purple/5 transition-colors text-body-sm text-text-primary"
+                  >
                     <Mail size={14} className="text-scout-purple" /> Email
                   </a>
                 )}
               </section>
 
               {/* Tags */}
-              {tagGroups && (tagGroups.source.length > 0 || tagGroups.status.length > 0 || tagGroups.other.length > 0) && (
-                <section className="flex flex-wrap gap-1.5">
-                  {tagGroups.source.map((t) => (
-                    <span key={t} className="px-2 py-0.5 rounded-full bg-scout-purple/15 text-scout-purple text-caption">{t}</span>
-                  ))}
-                  {tagGroups.status.map((t) => (
-                    <span key={t} className="px-2 py-0.5 rounded-full bg-warning/15 text-warning text-caption">{t}</span>
-                  ))}
-                  {tagGroups.other.map((t) => (
-                    <span key={t} className="px-2 py-0.5 rounded-full bg-bg-tertiary text-text-secondary text-caption">{t}</span>
-                  ))}
-                </section>
-              )}
+              {tagGroups &&
+                (tagGroups.source.length > 0 || tagGroups.status.length > 0 || tagGroups.other.length > 0) && (
+                  <section className="flex flex-wrap gap-1.5">
+                    {tagGroups.source.map((t) => (
+                      <span
+                        key={t}
+                        className="px-2 py-0.5 rounded-full bg-scout-purple/15 text-scout-purple text-caption"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                    {tagGroups.status.map((t) => (
+                      <span key={t} className="px-2 py-0.5 rounded-full bg-warning/15 text-warning text-caption">
+                        {t}
+                      </span>
+                    ))}
+                    {tagGroups.other.map((t) => (
+                      <span
+                        key={t}
+                        className="px-2 py-0.5 rounded-full bg-bg-tertiary text-text-secondary text-caption"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </section>
+                )}
 
               {/* Tabs */}
               <div className="flex border-b border-border-default overflow-x-auto">
-                {([
+                {[
                   { key: "notes" as const, label: `Notes (${notes.length})` },
                   { key: "tasks" as const, label: `Tasks (${tasks.length})` },
                   { key: "activity" as const, label: "Comms" },
                   { key: "scout" as const, label: "Scout" },
                   { key: "history" as const, label: "Stages" },
                   { key: "intel" as const, label: "Intel" },
-                ]).map((tab) => (
+                ].map((tab) => (
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
@@ -241,26 +288,17 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
               {activeTab === "notes" && (
                 <NotesSection
                   contactId={opportunity.contactId}
+                  contactName={opportunity.name ?? ""}
                   notes={notes}
                   onNoteAdded={fetchData}
                 />
               )}
               {activeTab === "tasks" && (
-                <TaskList
-                  contactId={opportunity.contactId}
-                  tasks={tasks}
-                  onTaskUpdated={fetchData}
-                />
+                <TaskList contactId={opportunity.contactId} tasks={tasks} onTaskUpdated={fetchData} />
               )}
-              {activeTab === "activity" && (
-                <ActivityTimeline messages={messages} />
-              )}
-              {activeTab === "scout" && (
-                <ScoutActionHistory contactId={opportunity.contactId} />
-              )}
-              {activeTab === "history" && (
-                <StageHistory contactId={opportunity.contactId} />
-              )}
+              {activeTab === "activity" && <ActivityTimeline messages={messages} />}
+              {activeTab === "scout" && <ScoutActionHistory contactId={opportunity.contactId} />}
+              {activeTab === "history" && <StageHistory contactId={opportunity.contactId} />}
               {activeTab === "intel" && !showCallLog && (
                 <IntelligenceTab contactId={opportunity.contactId} onLogCall={() => setShowCallLog(true)} />
               )}
@@ -275,7 +313,13 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
                           callType === t ? "bg-nah-blue text-white" : "text-text-secondary hover:bg-bg-hover"
                         }`}
                       >
-                        {t === "intro" ? "Chad (Intro)" : t === "matt" ? "Matt (Discovery)" : t === "sam" ? "Sam (Validation)" : "Mark (Lending)"}
+                        {t === "intro"
+                          ? "Chad (Intro)"
+                          : t === "matt"
+                            ? "Matt (Discovery)"
+                            : t === "sam"
+                              ? "Sam (Validation)"
+                              : "Mark (Lending)"}
                       </button>
                     ))}
                   </div>
@@ -283,7 +327,10 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
                     callType={callType}
                     contactId={opportunity.contactId}
                     contactName={opportunity.name ?? ""}
-                    onSave={() => { setShowCallLog(false); void fetchData(); }}
+                    onSave={() => {
+                      setShowCallLog(false);
+                      void fetchData();
+                    }}
                     onCancel={() => setShowCallLog(false)}
                   />
                 </div>

@@ -1,5 +1,6 @@
 "use client";
 import { apiFetch } from "@/lib/auth/api-fetch";
+import Link from "next/link";
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -23,10 +24,14 @@ interface TopBarProps {
 
 function severityColor(severity: string): string {
   switch (severity) {
-    case "critical": return "text-danger";
-    case "high": return "text-warning";
-    case "medium": return "text-info";
-    default: return "text-text-tertiary";
+    case "critical":
+      return "text-danger";
+    case "high":
+      return "text-warning";
+    case "medium":
+      return "text-info";
+    default:
+      return "text-text-tertiary";
   }
 }
 
@@ -102,9 +107,7 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
         <div className="w-8 h-8 rounded-md bg-nah-orange flex items-center justify-center">
           <span className="text-white font-bold text-body-sm">NAH</span>
         </div>
-        <span className="text-text-primary font-semibold text-body hidden sm:block">
-          Franchise OS
-        </span>
+        <span className="text-text-primary font-semibold text-body hidden sm:block">Franchise OS</span>
       </div>
 
       {/* Page title */}
@@ -113,7 +116,10 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
       {/* Notification bell */}
       <div className="relative mr-2">
         <button
-          onClick={() => { setBellOpen(!bellOpen); setDropdownOpen(false); }}
+          onClick={() => {
+            setBellOpen(!bellOpen);
+            setDropdownOpen(false);
+          }}
           className="relative p-2 rounded-md text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
           aria-label="Notifications"
         >
@@ -131,13 +137,8 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
             <div className="fixed inset-0 z-40" onClick={() => setBellOpen(false)} />
             <div className="absolute right-0 top-full mt-1 w-80 bg-bg-tertiary border border-border-default rounded-lg shadow-lg z-50 overflow-hidden">
               <div className="flex items-center justify-between px-3 py-2 border-b border-border-default">
-                <span className="text-body-sm font-medium text-text-primary">
-                  Notifications ({alertCount})
-                </span>
-                <button
-                  onClick={() => setBellOpen(false)}
-                  className="p-0.5 text-text-tertiary hover:text-text-primary"
-                >
+                <span className="text-body-sm font-medium text-text-primary">Notifications ({alertCount})</span>
+                <button onClick={() => setBellOpen(false)} className="p-0.5 text-text-tertiary hover:text-text-primary">
                   <X size={14} />
                 </button>
               </div>
@@ -155,9 +156,7 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
                     >
                       <AlertTriangle size={14} className={`mt-0.5 flex-shrink-0 ${severityColor(alert.severity)}`} />
                       <a
-                        href={alert.ghl_contact_id
-                          ? `/contacts/${alert.ghl_contact_id}`
-                          : "/activity"}
+                        href={alert.ghl_contact_id ? `/contacts/${alert.ghl_contact_id}` : "/activity"}
                         className="flex-1 min-w-0"
                         onClick={() => setBellOpen(false)}
                       >
@@ -182,13 +181,13 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
               </div>
               {alerts.length > 0 && (
                 <div className="px-3 py-2 border-t border-border-default">
-                  <a
+                  <Link
                     href="/activity"
                     className="text-caption text-nah-orange hover:underline"
                     onClick={() => setBellOpen(false)}
                   >
                     View all activity
-                  </a>
+                  </Link>
                 </div>
               )}
             </div>
@@ -199,7 +198,10 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
       {/* User menu */}
       <div className="relative">
         <button
-          onClick={() => { setDropdownOpen(!dropdownOpen); setBellOpen(false); }}
+          onClick={() => {
+            setDropdownOpen(!dropdownOpen);
+            setBellOpen(false);
+          }}
           className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-bg-hover transition-colors"
         >
           <div className="w-8 h-8 rounded-full bg-scout-purple flex items-center justify-center">
@@ -212,9 +214,7 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
                 .slice(0, 2)}
             </span>
           </div>
-          <span className="text-body text-text-primary hidden md:block">
-            {userName}
-          </span>
+          <span className="text-body text-text-primary hidden md:block">{userName}</span>
           <ChevronDown size={14} className="text-text-tertiary hidden md:block" />
         </button>
 
@@ -223,7 +223,10 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
             <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)} />
             <div className="absolute right-0 top-full mt-1 w-48 bg-bg-tertiary border border-border-default rounded-lg shadow-lg z-50 py-1">
               <button
-                onClick={() => { setDropdownOpen(false); router.push("/settings"); }}
+                onClick={() => {
+                  setDropdownOpen(false);
+                  router.push("/settings");
+                }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-body text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
               >
                 <User size={16} />

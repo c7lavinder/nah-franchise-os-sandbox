@@ -9,9 +9,10 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";
+import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
-import { calculateLeadScore, buildScoringInput } from "@/lib/profile/lead-scoring";
+import { calculateLeadScore, buildScoringInputFromContact } from "@/lib/profile/lead-scoring";
 import type { GHLContact, GHLOpportunity } from "@/types/ghl";
 
 interface LeadRow {
@@ -27,7 +28,10 @@ interface LeadRow {
 }
 
 export async function GET(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   try {
     const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
     const statusFilter = request.nextUrl.searchParams.get("status") ?? "all";
@@ -90,38 +94,40 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Load field mapping for scoring
+    // Fetch Supabase contacts for scoring (batch lookup by ghl_contact_id)
     const supabase = createServerClient();
-    const { data: fieldMappings } = await supabase
-      .from("ghl_custom_fields")
-      .select("field_name, ghl_field_id")
-      .eq("entity_type", "contact");
+    const ghlIds = contacts.map((c) => c.id);
+    const { data: sbContacts } = await supabase
+      .from("contacts")
+      .select(
+        "ghl_contact_id, source, opportunity_source, capital_availability, territory_status, business_ownership_experience, investment_timeline, motivation_clarity, trainual_completion_pct, scout_lead_score, created_at"
+      )
+      .in("ghl_contact_id", ghlIds);
 
-    const idToName = new Map<string, string>();
-    if (fieldMappings) {
-      for (const m of fieldMappings) {
-        idToName.set(m.ghl_field_id, m.field_name);
-      }
+    const sbByGhlId = new Map<string, NonNullable<typeof sbContacts>[number]>();
+    for (const sc of sbContacts ?? []) {
+      sbByGhlId.set(sc.ghl_contact_id, sc);
     }
 
-    // Build lead rows with opportunity enrichment + scoring
+    // Build lead rows with opportunity enrichment + scoring from Supabase
     const leads: LeadRow[] = contacts.map((c) => {
       const opp = oppsByContact.get(c.id);
-
-      // Extract profile for scoring
-      const profile: Record<string, string | null> = {};
-      for (const cf of c.customFields) {
-        const name = idToName.get(cf.id);
-        if (name && cf.value) profile[name] = cf.value;
-      }
+      const sb = sbByGhlId.get(c.id);
 
       let leadScore: number | null = null;
       let scoreTier: string | null = null;
-      if (idToName.size > 0) {
-        const input = buildScoringInput({ source: c.source, dateAdded: c.dateAdded }, profile);
-        const result = calculateLeadScore(input);
-        leadScore = result.total;
-        scoreTier = result.tier;
+
+      if (sb) {
+        if (sb.scout_lead_score !== null) {
+          leadScore = sb.scout_lead_score;
+          const s = leadScore!;
+          scoreTier = s >= 80 ? "Hot" : s >= 60 ? "Warm" : s >= 40 ? "Cool" : "Cold";
+        } else {
+          const input = buildScoringInputFromContact(sb);
+          const result = calculateLeadScore(input);
+          leadScore = result.total;
+          scoreTier = result.tier;
+        }
       }
 
       return {
@@ -138,9 +144,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Apply status filter for search results (pipeline results are already filtered)
-    const filtered = (q.length >= 2 && statusFilter !== "all")
-      ? leads.filter((l) => l.status === statusFilter)
-      : leads;
+    const filtered = q.length >= 2 && statusFilter !== "all" ? leads.filter((l) => l.status === statusFilter) : leads;
 
     return NextResponse.json({ leads: filtered, total: filtered.length });
   } catch (err) {

@@ -9,7 +9,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth/AuthContext";
+
 import { capitalizeName } from "@/lib/format/contact";
 
 interface Notification {
@@ -31,27 +31,23 @@ interface NotificationBellProps {
 
 export default function NotificationBell({ onNavClick, forceClose }: NotificationBellProps) {
   const router = useRouter();
-  const { token } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const authHeaders: Record<string, string> = token
-    ? { Authorization: `Bearer ${token}` }
-    : {};
-
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await apiFetch("/api/notifications", { headers: authHeaders });
+      const res = await apiFetch("/api/notifications");
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.notifications ?? []);
         setUnreadCount(data.count ?? 0);
       }
-    } catch { /* silent */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+    } catch {
+      /* silent */
+    }
+  }, []);
 
   useEffect(() => {
     void fetchNotifications();
@@ -79,7 +75,7 @@ export default function NotificationBell({ onNavClick, forceClose }: Notificatio
     if (ids.length === 0) return;
     await apiFetch("/api/notifications", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...authHeaders },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids }),
     });
     await fetchNotifications();
@@ -129,10 +125,7 @@ export default function NotificationBell({ onNavClick, forceClose }: Notificatio
           <div className="flex items-center justify-between px-4 py-3 border-b border-border-default">
             <span className="text-body-sm font-medium text-text-primary">Notifications</span>
             {unreadCount > 0 && (
-              <button
-                onClick={handleMarkAllRead}
-                className="text-caption text-nah-blue hover:underline"
-              >
+              <button onClick={handleMarkAllRead} className="text-caption text-nah-blue hover:underline">
                 Mark all as read
               </button>
             )}
@@ -154,18 +147,14 @@ export default function NotificationBell({ onNavClick, forceClose }: Notificatio
                   }`}
                 >
                   <div className="flex items-start gap-2">
-                    {!n.readAt && (
-                      <div className="w-2 h-2 rounded-full bg-nah-blue flex-shrink-0 mt-1.5" />
-                    )}
+                    {!n.readAt && <div className="w-2 h-2 rounded-full bg-nah-blue flex-shrink-0 mt-1.5" />}
                     <div className={`flex-1 min-w-0 ${n.readAt ? "ml-4" : ""}`}>
                       <p className="text-caption text-text-primary">
                         <span className="font-medium">{capitalizeName(n.authorName)}</span>
                         {" mentioned you on "}
                         <span className="font-medium">{capitalizeName(n.contactName)}</span>
                       </p>
-                      <p className="text-[11px] text-text-tertiary mt-0.5 truncate">
-                        {n.preview}
-                      </p>
+                      <p className="text-[11px] text-text-tertiary mt-0.5 truncate">{n.preview}</p>
                       <p className="text-[10px] text-text-tertiary mt-0.5">
                         {new Date(n.createdAt).toLocaleString([], {
                           month: "short",

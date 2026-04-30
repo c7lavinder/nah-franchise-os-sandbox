@@ -4,12 +4,14 @@ export const dynamic = "force-dynamic";
  * POST /api/auth/login
  *
  * Authenticates a user with email + password via Supabase Auth.
- * Returns the session token and user profile.
+ * Sets httpOnly cookies for access + refresh tokens.
+ * Returns the user profile in the JSON body.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@/lib/supabase/server";
+import { setAuthCookies } from "@/lib/auth/cookies";
 import type { User } from "@/types/database";
 
 interface LoginRequestBody {
@@ -22,10 +24,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as LoginRequestBody;
 
     if (!body.email || !body.password) {
-      return NextResponse.json(
-        { error: "Email and password are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
     // Sign in with Supabase Auth
@@ -33,10 +32,7 @@ export async function POST(request: NextRequest) {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json(
-        { error: "Authentication service is not configured" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Authentication service is not configured" }, { status: 500 });
     }
 
     const authClient = createClient(supabaseUrl, supabaseAnonKey);
@@ -46,10 +42,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (authError || !authData.session) {
-      return NextResponse.json(
-        { error: "Invalid email or password" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
     // Look up the app user record
@@ -71,14 +64,9 @@ export async function POST(request: NextRequest) {
     const user = appUser as User;
 
     // Update last login timestamp
-    await supabase
-      .from("users")
-      .update({ last_login_at: new Date().toISOString() })
-      .eq("id", user.id);
+    await supabase.from("users").update({ last_login_at: new Date().toISOString() }).eq("id", user.id);
 
-    return NextResponse.json({
-      token: authData.session.access_token,
-      refreshToken: authData.session.refresh_token,
+    const response = NextResponse.json({
       user: {
         id: user.id,
         email: user.email,
@@ -87,11 +75,10 @@ export async function POST(request: NextRequest) {
         ghlUserId: user.ghl_user_id,
       },
     });
+
+    return setAuthCookies(response, authData.session.access_token, authData.session.refresh_token);
   } catch (err) {
     console.error("Login error:", err);
-    return NextResponse.json(
-      { error: "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "An unexpected error occurred" }, { status: 500 });
   }
 }

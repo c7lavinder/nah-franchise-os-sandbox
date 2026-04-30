@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextResponse } from "next/server";
+import { BASE_PATH } from "@/lib/base-path";
 
 const SCOPES = [
   "contacts.readonly",
@@ -42,13 +43,10 @@ const SCOPES = [
 export async function GET() {
   const clientId = process.env.GHL_CLIENT_ID;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const redirectUri = `${appUrl}/api/auth/crm/callback`;
+  const redirectUri = `${appUrl}${BASE_PATH}/api/auth/crm/callback`;
 
   if (!clientId) {
-    return NextResponse.json(
-      { error: "GHL_CLIENT_ID is not configured" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "GHL_CLIENT_ID is not configured" }, { status: 500 });
   }
 
   const authUrl = new URL("https://marketplace.gohighlevel.com/oauth/chooselocation");

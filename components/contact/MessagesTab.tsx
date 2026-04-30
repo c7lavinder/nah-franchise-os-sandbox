@@ -7,9 +7,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import {
-  Loader2, Send, Pencil, Trash2, MessageSquare,
-} from "lucide-react";
+import { Loader2, Send, Pencil, Trash2, MessageSquare } from "lucide-react";
 import MentionAutocomplete from "./MentionAutocomplete";
 import type { MentionUser } from "./MentionAutocomplete";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -34,7 +32,7 @@ interface MessagesTabProps {
 }
 
 export default function MessagesTab({ contactId, highlightMessageId }: MessagesTabProps) {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,8 +53,6 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState("");
   const [editSaving, setEditSaving] = useState(false);
-
-  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   const fetchMessages = useCallback(async () => {
     setLoadError(null);
@@ -156,7 +152,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
     try {
       const res = await apiFetch(`/api/contacts/${contactId}/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           body: draft.trim(),
           mentionedUserIds: [...mentionedIds],
@@ -182,10 +178,13 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
   async function handleDelete(messageId: string) {
     const res = await apiFetch(`/api/contacts/${contactId}/messages/${messageId}`, {
       method: "DELETE",
-      headers: { "Content-Type": "application/json", ...authHeaders },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: user?.id }),
     });
-    if (res.ok) { toast("Message deleted"); await fetchMessages(); }
+    if (res.ok) {
+      toast("Message deleted");
+      await fetchMessages();
+    }
   }
 
   async function handleEditSave(messageId: string) {
@@ -193,7 +192,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
     setEditSaving(true);
     const res = await apiFetch(`/api/contacts/${contactId}/messages/${messageId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...authHeaders },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body: editBody.trim(), userId: user?.id }),
     });
     if (res.ok) {
@@ -249,9 +248,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <MessageSquare size={32} className="text-text-tertiary mb-3" />
             <p className="text-body-sm text-text-tertiary">No messages yet</p>
-            <p className="text-caption text-text-tertiary mt-1">
-              Start a conversation about this contact.
-            </p>
+            <p className="text-caption text-text-tertiary mt-1">Start a conversation about this contact.</p>
           </div>
         )}
 
@@ -279,9 +276,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
               <div className="flex-1 min-w-0">
                 {/* Header */}
                 <div className="flex items-baseline gap-2">
-                  <span className="text-body-sm font-medium text-text-primary">
-                    {capitalizeName(msg.authorName)}
-                  </span>
+                  <span className="text-body-sm font-medium text-text-primary">{capitalizeName(msg.authorName)}</span>
                   <span className="text-[11px] text-text-tertiary">
                     {new Date(msg.createdAt).toLocaleString([], {
                       month: "short",
@@ -298,7 +293,10 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
                   {isOwn && !isEditing && (
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 ml-auto">
                       <button
-                        onClick={() => { setEditingId(msg.id); setEditBody(msg.body); }}
+                        onClick={() => {
+                          setEditingId(msg.id);
+                          setEditBody(msg.body);
+                        }}
                         className="p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary"
                       >
                         <Pencil size={12} />
@@ -323,10 +321,7 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
                       rows={2}
                     />
                     <div className="flex gap-2 mt-1">
-                      <button
-                        onClick={() => setEditingId(null)}
-                        className="btn-ghost px-2 py-1 text-caption"
-                      >
+                      <button onClick={() => setEditingId(null)} className="btn-ghost px-2 py-1 text-caption">
                         Cancel
                       </button>
                       <button
@@ -383,16 +378,10 @@ export default function MessagesTab({ contactId, highlightMessageId }: MessagesT
             disabled={sending || !draft.trim()}
             className="self-end px-3 py-2 rounded-md bg-nah-blue text-white text-body-sm font-medium hover:bg-nah-blue/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
           >
-            {sending ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Send size={14} />
-            )}
+            {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
           </button>
         </div>
-        {sendError && (
-          <p className="text-caption text-danger mt-1">{sendError}</p>
-        )}
+        {sendError && <p className="text-caption text-danger mt-1">{sendError}</p>}
       </div>
     </div>
   );

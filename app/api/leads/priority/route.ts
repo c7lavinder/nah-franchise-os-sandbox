@@ -6,16 +6,18 @@ export const dynamic = "force-dynamic";
  * Returns the top leads that need attention today, sorted by priority.
  * Priority = high score + stale contact = needs Chad's attention NOW.
  *
- * Also enriches each lead with intelligence score and critical flag status
+ * Enriches each lead with intelligence score and critical flag status
  * from the candidate_intelligence table.
  *
+ * Lead scores are read from Supabase contacts.scout_lead_score.
  * Used by the Daily HQ "Who Needs Attention" panel.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";
+import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
-import { calculateLeadScore, buildScoringInput } from "@/lib/profile/lead-scoring";
+import { calculateLeadScore, buildScoringInputFromContact } from "@/lib/profile/lead-scoring";
 import type { GHLOpportunity } from "@/types/ghl";
 import type { IntelligenceFlag } from "@/lib/intelligence/flags";
 
@@ -27,16 +29,17 @@ interface PriorityLead {
   tier: string;
   daysSinceTouch: number | null;
   reason: string;
-  /** Intelligence score from candidate_intelligence (0-100), null if not profiled */
   intelligenceScore: number | null;
-  /** Whether the lead has any critical-severity flags */
   hasCriticalFlags: boolean;
 }
 
 export async function GET(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   try {
-    // Get NAH pipelines + open opportunities
+    // Get NAH pipelines + open opportunities (still from GHL until pipeline migration)
     const allPipelines = await ghl.getPipelines();
     const nahPipelines = allPipelines.filter((p) => p.name.startsWith("NAH Franchise Sales"));
 
@@ -60,130 +63,90 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Load field mapping
     const supabase = createServerClient();
-    const { data: fieldMappings } = await supabase
-      .from("ghl_custom_fields")
-      .select("field_name, ghl_field_id")
-      .eq("entity_type", "contact");
+    const ghlContactIds = [...new Set(openOpps.map((o) => o.contactId))];
 
-    const idToName = new Map<string, string>();
-    if (fieldMappings) {
-      for (const m of fieldMappings) {
-        idToName.set(m.ghl_field_id, m.field_name);
-      }
+    // Fetch all contacts from Supabase in one query
+    const { data: contacts } = await supabase
+      .from("contacts")
+      .select(
+        "id, ghl_contact_id, first_name, last_name, source, opportunity_source, capital_availability, territory_status, business_ownership_experience, investment_timeline, motivation_clarity, trainual_completion_pct, scout_lead_score, created_at"
+      )
+      .in("ghl_contact_id", ghlContactIds);
+
+    const contactByGhlId = new Map<string, typeof contacts extends (infer T)[] | null ? T : never>();
+    for (const c of contacts ?? []) {
+      contactByGhlId.set(c.ghl_contact_id, c);
     }
 
-    // Fetch intelligence scores for all contacts in bulk
-    const contactIds = [...new Set(openOpps.map((o) => o.contactId))];
+    // Fetch intelligence scores in bulk
+    const supabaseIds = (contacts ?? []).map((c) => c.id);
     const { data: intelRecords } = await supabase
       .from("candidate_intelligence")
       .select("contact_id, current_score, active_flags")
-      .in("contact_id", contactIds);
+      .in("contact_id", supabaseIds);
 
     const intelMap = new Map<string, { score: number; hasCritical: boolean }>();
     for (const rec of intelRecords ?? []) {
       const flags = Array.isArray(rec.active_flags) ? (rec.active_flags as IntelligenceFlag[]) : [];
       const hasCritical = flags.some((f) => f.severity === "critical");
-      intelMap.set(rec.contact_id, {
-        score: rec.current_score ?? 0,
-        hasCritical,
-      });
+      intelMap.set(rec.contact_id, { score: rec.current_score ?? 0, hasCritical });
     }
 
-    // Score and rank — only process top 30 by stage recency to limit API calls
+    // Score and rank — only process top 30 by stage recency
     const recentOpps = openOpps
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, 30);
 
     const priorityLeads: PriorityLead[] = [];
 
-    // Batch-fetch contacts
-    for (let i = 0; i < recentOpps.length; i += 10) {
-      const batch = recentOpps.slice(i, i + 10);
-      const results = await Promise.allSettled(
-        batch.map(async (opp) => {
-          const contact = await ghl.getContact(opp.contactId);
+    for (const opp of recentOpps) {
+      const contact = contactByGhlId.get(opp.contactId);
+      if (!contact) continue;
 
-          // Extract profile
-          const profile: Record<string, string | null> = {};
-          for (const cf of contact.customFields) {
-            const name = idToName.get(cf.id);
-            if (name && cf.value) profile[name] = cf.value;
-          }
+      // Calculate or use stored score
+      let score = contact.scout_lead_score;
+      let tier = "Cool";
 
-          // Calculate score
-          const input = buildScoringInput(
-            { source: contact.source, dateAdded: contact.dateAdded },
-            profile
-          );
-          const scoreResult = calculateLeadScore(input);
-
-          // Calculate days since touch
-          const lastTouchStr = profile["Last Touch Date"];
-          const daysSinceTouch = lastTouchStr
-            ? Math.floor((Date.now() - new Date(lastTouchStr).getTime()) / (1000 * 60 * 60 * 24))
-            : null;
-
-          const daysInStage = Math.floor(
-            (Date.now() - new Date(opp.updatedAt).getTime()) / (1000 * 60 * 60 * 24)
-          );
-
-          // Determine why this lead needs attention
-          let reason = "";
-          if (daysSinceTouch !== null && daysSinceTouch >= 7) {
-            reason = `No contact in ${daysSinceTouch} days — going cold`;
-          } else if (daysSinceTouch !== null && daysSinceTouch >= 3) {
-            reason = `Last touch ${daysSinceTouch}d ago — follow up`;
-          } else if (daysInStage >= 10) {
-            reason = `${daysInStage}d in stage — stalling`;
-          } else if (scoreResult.tier === "Hot") {
-            reason = "High score — keep momentum";
-          } else {
-            reason = `Score ${scoreResult.total} — ${scoreResult.tier}`;
-          }
-
-          const stageName = stageMap.get(opp.pipelineStageId) ?? "Unknown";
-          const contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim() || opp.name;
-
-          // Intelligence data from candidate_intelligence table
-          const intel = intelMap.get(opp.contactId);
-
-          // Priority score: high lead score + stale = highest priority
-          const stalePenalty = daysSinceTouch !== null ? daysSinceTouch * 3 : 0;
-          const priorityScore = scoreResult.total + stalePenalty;
-
-          return {
-            lead: {
-              contactId: opp.contactId,
-              name: contactName,
-              stage: stageName,
-              score: scoreResult.total,
-              tier: scoreResult.tier,
-              daysSinceTouch,
-              reason,
-              intelligenceScore: intel?.score ?? null,
-              hasCriticalFlags: intel?.hasCritical ?? false,
-            },
-            priorityScore,
-          };
-        })
-      );
-
-      for (const r of results) {
-        if (r.status === "fulfilled") {
-          priorityLeads.push(r.value.lead);
-        }
+      if (score === null) {
+        const input = buildScoringInputFromContact(contact);
+        const result = calculateLeadScore(input);
+        score = result.total;
+        tier = result.tier;
+      } else {
+        tier = score >= 80 ? "Hot" : score >= 60 ? "Warm" : score >= 40 ? "Cool" : "Cold";
       }
+
+      const daysInStage = Math.floor((Date.now() - new Date(opp.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
+
+      let reason = "";
+      if (daysInStage >= 10) {
+        reason = `${daysInStage}d in stage — stalling`;
+      } else if (tier === "Hot") {
+        reason = "High score — keep momentum";
+      } else {
+        reason = `Score ${score} — ${tier}`;
+      }
+
+      const stageName = stageMap.get(opp.pipelineStageId) ?? "Unknown";
+      const contactName = `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() || opp.name;
+      const intel = intelMap.get(contact.id);
+
+      priorityLeads.push({
+        contactId: contact.ghl_contact_id,
+        name: contactName,
+        stage: stageName,
+        score,
+        tier,
+        daysSinceTouch: null,
+        reason,
+        intelligenceScore: intel?.score ?? null,
+        hasCriticalFlags: intel?.hasCritical ?? false,
+      });
     }
 
-    // Sort: stale high-score leads first, then by score
-    priorityLeads.sort((a, b) => {
-      const aStale = (a.daysSinceTouch ?? 0) >= 3 ? 1 : 0;
-      const bStale = (b.daysSinceTouch ?? 0) >= 3 ? 1 : 0;
-      if (aStale !== bStale) return bStale - aStale; // Stale first
-      return b.score - a.score; // Then by score
-    });
+    // Sort by score descending
+    priorityLeads.sort((a, b) => b.score - a.score);
 
     return NextResponse.json({
       leads: priorityLeads.slice(0, 10),

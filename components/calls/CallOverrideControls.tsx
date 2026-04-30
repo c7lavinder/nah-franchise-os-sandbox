@@ -121,7 +121,7 @@ interface Props {
 }
 
 export default function CallOverrideControls(props: Props) {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
 
   if (!user) return null;
   const isAdmin = user.role === "admin";
@@ -130,16 +130,16 @@ export default function CallOverrideControls(props: Props) {
 
   return (
     <>
-      <ReclassifyButton {...props} token={token} />
-      <ReassignButton {...props} token={token} />
-      <DeleteButton callId={props.callId} token={token} />
+      <ReclassifyButton {...props} />
+      <ReassignButton {...props} />
+      <DeleteButton callId={props.callId} />
     </>
   );
 }
 
 // ─── Reclassify ───────────────────────────────────────────────────────────
 
-function ReclassifyButton(props: Props & { token: string | null }) {
+function ReclassifyButton(props: Props) {
   const [open, setOpen] = useState(false);
   const [callTypes, setCallTypes] = useState<CallType[]>([]);
   const [selected, setSelected] = useState<string>(props.currentCallTypeId ?? "");
@@ -160,7 +160,10 @@ function ReclassifyButton(props: Props & { token: string | null }) {
   }, [open, props.currentCallTypeId]);
 
   async function submit() {
-    if (!selected || selected === props.currentCallTypeId) { setOpen(false); return; }
+    if (!selected || selected === props.currentCallTypeId) {
+      setOpen(false);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -168,7 +171,6 @@ function ReclassifyButton(props: Props & { token: string | null }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(props.token ? { Authorization: `Bearer ${props.token}` } : {}),
         },
         body: JSON.stringify({ call_type_id: selected }),
       });
@@ -199,8 +201,14 @@ function ReclassifyButton(props: Props & { token: string | null }) {
           footer={
             <>
               {error && <div className="text-caption text-danger flex-1">{error}</div>}
-              <button onClick={() => setOpen(false)} className="btn-ghost px-3 py-1.5 text-caption">Cancel</button>
-              <button onClick={submit} disabled={saving || !selected} className="btn-primary px-3 py-1.5 text-caption disabled:opacity-50">
+              <button onClick={() => setOpen(false)} className="btn-ghost px-3 py-1.5 text-caption">
+                Cancel
+              </button>
+              <button
+                onClick={submit}
+                disabled={saving || !selected}
+                className="btn-primary px-3 py-1.5 text-caption disabled:opacity-50"
+              >
                 {saving ? <Loader2 size={12} className="animate-spin" /> : "Save"}
               </button>
             </>
@@ -232,9 +240,7 @@ function ReclassifyButton(props: Props & { token: string | null }) {
                 </div>
               </div>
             ))}
-            {callTypes.length === 0 && (
-              <div className="text-caption text-text-tertiary py-4 text-center">Loading…</div>
-            )}
+            {callTypes.length === 0 && <div className="text-caption text-text-tertiary py-4 text-center">Loading…</div>}
           </div>
         </ModalShell>
       )}
@@ -290,7 +296,7 @@ async function fetchContactTerritories(contactId: string): Promise<TerritoryOpti
   try {
     const res = await apiFetch(`/api/contacts/${contactId}/territories`);
     if (!res.ok) return [];
-    const data = await res.json() as {
+    const data = (await res.json()) as {
       current?: Array<{
         ms_slug: string;
         source?: string;
@@ -314,7 +320,7 @@ async function fetchContactJourneys(contactId: string): Promise<JourneyMembershi
   try {
     const res = await apiFetch(`/api/contacts/${contactId}/journey`);
     if (!res.ok) return [];
-    const data = await res.json() as { journeys?: JourneyMembership[] };
+    const data = (await res.json()) as { journeys?: JourneyMembership[] };
     return data.journeys ?? [];
   } catch {
     return [];
@@ -365,9 +371,7 @@ function deriveTerritoriesFromJourneys(journeys: JourneyMembership[]): Territory
 function autoPickJps(journey: JourneyMembership, selectedTerritories: string[]): string | null {
   const states = journey.pipeline_states;
   if (states.length === 0) return null;
-  const matchByTerritory = states.find(
-    (s) => s.territory_ms_slug && selectedTerritories.includes(s.territory_ms_slug),
-  );
+  const matchByTerritory = states.find((s) => s.territory_ms_slug && selectedTerritories.includes(s.territory_ms_slug));
   if (matchByTerritory) return matchByTerritory.id;
   const nullTerritory = states.find((s) => s.territory_ms_slug === null);
   if (nullTerritory) return nullTerritory.id;
@@ -439,7 +443,11 @@ function ReclassifyParticipantsButton({ callId, onDone }: { callId: string; onDo
         const parts: string[] = [];
         if (data.promotedToTeam) parts.push(`${data.promotedToTeam} → team`);
         if (data.resolvedToContact) parts.push(`${data.resolvedToContact} matched to contact`);
-        setResult(data.updated ? `Updated ${data.updated} of ${data.total}${parts.length ? ` (${parts.join(", ")})` : ""}` : "Nothing to update");
+        setResult(
+          data.updated
+            ? `Updated ${data.updated} of ${data.total}${parts.length ? ` (${parts.join(", ")})` : ""}`
+            : "Nothing to update"
+        );
         onDone();
       } else {
         setResult(`Failed: ${data.error ?? res.statusText}`);
@@ -452,8 +460,8 @@ function ReclassifyParticipantsButton({ callId, onDone }: { callId: string; onDo
   return (
     <div className="flex items-center justify-between gap-2 rounded-md border border-border-default bg-bg-primary px-3 py-2">
       <div className="text-[11px] text-text-tertiary leading-relaxed">
-        <span className="font-medium text-text-secondary">Re-check classifications.</span>{" "}
-        Re-runs the resolver against the current team list + contacts. Fixes stale &quot;unknown&quot; rows after team members or contacts are added.
+        <span className="font-medium text-text-secondary">Re-check classifications.</span> Re-runs the resolver against
+        the current team list + contacts. Fixes stale &quot;unknown&quot; rows after team members or contacts are added.
       </div>
       <button
         onClick={run}
@@ -468,21 +476,27 @@ function ReclassifyParticipantsButton({ callId, onDone }: { callId: string; onDo
   );
 }
 
-function ReassignButton(props: Props & { token: string | null }) {
+function ReassignButton(props: Props) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<ParticipantState[]>([]);
   const [primaryContactId, setPrimaryContactId] = useState<string | null>(props.currentContactId);
   const [primaryTerritory, setPrimaryTerritory] = useState<string | null>(null);
   const [primaryJps, setPrimaryJps] = useState<string | null>(null);
-  const [initialSelection, setInitialSelection] = useState<{ list: string[]; primary: string | null }>({ list: [], primary: null });
-  const [initialJourneySelection, setInitialJourneySelection] = useState<{ list: string[]; primary: string | null }>({ list: [], primary: null });
+  const [initialSelection, setInitialSelection] = useState<{ list: string[]; primary: string | null }>({
+    list: [],
+    primary: null,
+  });
+  const [initialJourneySelection, setInitialJourneySelection] = useState<{ list: string[]; primary: string | null }>({
+    list: [],
+    primary: null,
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingAdd, setPendingAdd] = useState<PendingAdd | null>(null);
 
   const orphanCount = useMemo(
     () => props.participants.filter((p) => p.role !== "nah_team" && !p.contact_id).length,
-    [props.participants],
+    [props.participants]
   );
 
   useEffect(() => {
@@ -495,8 +509,12 @@ function ReassignButton(props: Props & { token: string | null }) {
     void (async () => {
       const ctPromise = apiFetch(`/api/calls/${props.callId}/territories`);
       const cjPromise = apiFetch(`/api/calls/${props.callId}/journeys`);
-      const territoryPromises = initial.map((r) => r.contactId ? fetchContactTerritories(r.contactId) : Promise.resolve([]));
-      const journeyPromises = initial.map((r) => r.contactId ? fetchContactJourneys(r.contactId) : Promise.resolve([]));
+      const territoryPromises = initial.map((r) =>
+        r.contactId ? fetchContactTerritories(r.contactId) : Promise.resolve([])
+      );
+      const journeyPromises = initial.map((r) =>
+        r.contactId ? fetchContactJourneys(r.contactId) : Promise.resolve([])
+      );
       const [ctRes, cjRes, territoryResults, journeyResults] = await Promise.all([
         ctPromise,
         cjPromise,
@@ -521,7 +539,9 @@ function ReassignButton(props: Props & { token: string | null }) {
       if (cjRes.ok) {
         const data = await cjRes.json();
         const list = (data.journeys ?? []) as Array<{
-          journey_id: string; journey_pipeline_state_id: string; is_primary: boolean;
+          journey_id: string;
+          journey_pipeline_state_id: string;
+          is_primary: boolean;
         }>;
         selectedJpsSet = new Set(list.map((j) => j.journey_pipeline_state_id));
         primaryJpsId = list.find((j) => j.is_primary)?.journey_pipeline_state_id ?? null;
@@ -551,9 +571,7 @@ function ReassignButton(props: Props & { token: string | null }) {
         if (hasPriorJourneySelection) {
           defaultedJps = availableJpsIds.filter((id) => selectedJpsSet.has(id));
         } else {
-          defaultedJps = journeys
-            .map((j) => autoPickJps(j, defaulted))
-            .filter((id): id is string => !!id);
+          defaultedJps = journeys.map((j) => autoPickJps(j, defaulted)).filter((id): id is string => !!id);
         }
         return {
           ...r,
@@ -574,9 +592,7 @@ function ReassignButton(props: Props & { token: string | null }) {
       for (const r of merged) for (const s of r.selectedTerritories) union.add(s);
       for (const s of selectedSet) union.add(s);
       const unionList = [...union];
-      const resolvedPrimary = primary && union.has(primary)
-        ? primary
-        : (isGroup ? null : (unionList[0] ?? null));
+      const resolvedPrimary = primary && union.has(primary) ? primary : isGroup ? null : (unionList[0] ?? null);
       setPrimaryTerritory(resolvedPrimary);
       setInitialSelection({ list: [...unionList].sort(), primary: resolvedPrimary });
 
@@ -584,13 +600,19 @@ function ReassignButton(props: Props & { token: string | null }) {
       for (const r of merged) for (const id of r.selectedJps) jpsUnion.add(id);
       for (const id of selectedJpsSet) jpsUnion.add(id);
       const jpsUnionList = [...jpsUnion];
-      const resolvedJpsPrimary = primaryJpsId && jpsUnion.has(primaryJpsId)
-        ? primaryJpsId
-        : (isGroup ? null : (jpsUnionList[0] ?? null));
+      const resolvedJpsPrimary =
+        primaryJpsId && jpsUnion.has(primaryJpsId) ? primaryJpsId : isGroup ? null : (jpsUnionList[0] ?? null);
       setPrimaryJps(resolvedJpsPrimary);
       setInitialJourneySelection({ list: [...jpsUnionList].sort(), primary: resolvedJpsPrimary });
     })();
-  }, [open, props.callId, props.participants, props.currentContactId, props.currentTerritorySlug, props.currentCallTypeSlug]);
+  }, [
+    open,
+    props.callId,
+    props.participants,
+    props.currentContactId,
+    props.currentTerritorySlug,
+    props.currentCallTypeSlug,
+  ]);
 
   // Compute the current call-level union of selected territories across participants.
   const unionSelected = useMemo(() => {
@@ -650,15 +672,11 @@ function ReassignButton(props: Props & { token: string | null }) {
   }, [unionSelectedJps, primaryJps]);
 
   function setParticipantTerritories(participantId: string, slugs: string[]) {
-    setRows((prev) =>
-      prev.map((r) => r.id === participantId ? { ...r, selectedTerritories: slugs } : r),
-    );
+    setRows((prev) => prev.map((r) => (r.id === participantId ? { ...r, selectedTerritories: slugs } : r)));
   }
 
   function setParticipantJps(participantId: string, jpsIds: string[]) {
-    setRows((prev) =>
-      prev.map((r) => r.id === participantId ? { ...r, selectedJps: jpsIds } : r),
-    );
+    setRows((prev) => prev.map((r) => (r.id === participantId ? { ...r, selectedJps: jpsIds } : r)));
   }
 
   async function submit() {
@@ -673,8 +691,7 @@ function ReassignButton(props: Props & { token: string | null }) {
     const unionSlugs = unionSelected.map((t) => t.ms_slug);
     const sortedNow = [...unionSlugs].sort();
     const listChanged =
-      sortedNow.length !== initialSelection.list.length ||
-      sortedNow.some((s, i) => s !== initialSelection.list[i]);
+      sortedNow.length !== initialSelection.list.length || sortedNow.some((s, i) => s !== initialSelection.list[i]);
     const primaryChanged = primaryTerritory !== initialSelection.primary;
     if (listChanged || primaryChanged) {
       payload.territories = unionSlugs;
@@ -695,7 +712,10 @@ function ReassignButton(props: Props & { token: string | null }) {
       payload.primary_journey_pipeline_state_id = primaryJps;
     }
 
-    if (Object.keys(payload).length === 0) { setOpen(false); return; }
+    if (Object.keys(payload).length === 0) {
+      setOpen(false);
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -704,7 +724,6 @@ function ReassignButton(props: Props & { token: string | null }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(props.token ? { Authorization: `Bearer ${props.token}` } : {}),
         },
         body: JSON.stringify(payload),
       });
@@ -767,8 +786,14 @@ function ReassignButton(props: Props & { token: string | null }) {
           footer={
             <>
               {error && <div className="text-caption text-danger flex-1">{error}</div>}
-              <button onClick={() => setOpen(false)} className="btn-ghost px-3 py-1.5 text-caption">Cancel</button>
-              <button onClick={submit} disabled={saving} className="btn-primary px-3 py-1.5 text-caption disabled:opacity-50">
+              <button onClick={() => setOpen(false)} className="btn-ghost px-3 py-1.5 text-caption">
+                Cancel
+              </button>
+              <button
+                onClick={submit}
+                disabled={saving}
+                className="btn-primary px-3 py-1.5 text-caption disabled:opacity-50"
+              >
                 {saving ? <Loader2 size={12} className="animate-spin" /> : "Save"}
               </button>
             </>
@@ -778,9 +803,9 @@ function ReassignButton(props: Props & { token: string | null }) {
             <div className="text-[11px] leading-relaxed text-text-tertiary bg-bg-tertiary rounded-md px-3 py-2">
               Each participant brings their own territories and journeys to the call.
               <br />
-              <span className="font-medium text-text-secondary">Territory</span> = where they&apos;re tied in (owner or ecosystem member).{" "}
-              <span className="font-medium text-text-secondary">Journey</span> = the franchise pipeline they&apos;re part of.
-              Pick which of each this call should link to.
+              <span className="font-medium text-text-secondary">Territory</span> = where they&apos;re tied in (owner or
+              ecosystem member). <span className="font-medium text-text-secondary">Journey</span> = the franchise
+              pipeline they&apos;re part of. Pick which of each this call should link to.
             </div>
             <ReclassifyParticipantsButton callId={props.callId} onDone={props.onChange} />
 
@@ -799,8 +824,19 @@ function ReassignButton(props: Props & { token: string | null }) {
                       onContactChange={async (contactId, contactName, territory) => {
                         setRows((prev) =>
                           prev.map((r) =>
-                            r.id === p.id ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [], journeys: [], selectedJps: [] } : r,
-                          ),
+                            r.id === p.id
+                              ? {
+                                  ...r,
+                                  contactId,
+                                  contactName,
+                                  territorySlug: territory,
+                                  ownedTerritories: [],
+                                  selectedTerritories: [],
+                                  journeys: [],
+                                  selectedJps: [],
+                                }
+                              : r
+                          )
                         );
                         if (contactId) {
                           // Push the participant's email onto the contact so
@@ -821,9 +857,15 @@ function ReassignButton(props: Props & { token: string | null }) {
                           setRows((prev) =>
                             prev.map((r) =>
                               r.id === p.id
-                                ? { ...r, ownedTerritories: owned, selectedTerritories: territorySlugs, journeys, selectedJps }
-                                : r,
-                            ),
+                                ? {
+                                    ...r,
+                                    ownedTerritories: owned,
+                                    selectedTerritories: territorySlugs,
+                                    journeys,
+                                    selectedJps,
+                                  }
+                                : r
+                            )
                           );
                         }
                       }}
@@ -865,9 +907,18 @@ function ReassignButton(props: Props & { token: string | null }) {
                         setRows((prev) =>
                           prev.map((r) =>
                             r.contactId === oldContactId
-                              ? { ...r, contactId, contactName, territorySlug: territory, ownedTerritories: [], selectedTerritories: [], journeys: [], selectedJps: [] }
-                              : r,
-                          ),
+                              ? {
+                                  ...r,
+                                  contactId,
+                                  contactName,
+                                  territorySlug: territory,
+                                  ownedTerritories: [],
+                                  selectedTerritories: [],
+                                  journeys: [],
+                                  selectedJps: [],
+                                }
+                              : r
+                          )
                         );
                         if (contactId) {
                           for (const e of emailsToAttach) {
@@ -885,21 +936,27 @@ function ReassignButton(props: Props & { token: string | null }) {
                           setRows((prev) =>
                             prev.map((r) =>
                               r.contactId === contactId
-                                ? { ...r, ownedTerritories: owned, selectedTerritories: territorySlugs, journeys, selectedJps }
-                                : r,
-                            ),
+                                ? {
+                                    ...r,
+                                    ownedTerritories: owned,
+                                    selectedTerritories: territorySlugs,
+                                    journeys,
+                                    selectedJps,
+                                  }
+                                : r
+                            )
                           );
                         }
                       }}
                       onTerritoriesChange={(slugs) => {
                         // Propagate to every row in this contact group.
                         setRows((prev) =>
-                          prev.map((r) => r.contactId === p.contactId ? { ...r, selectedTerritories: slugs } : r),
+                          prev.map((r) => (r.contactId === p.contactId ? { ...r, selectedTerritories: slugs } : r))
                         );
                       }}
                       onJpsChange={(ids) => {
                         setRows((prev) =>
-                          prev.map((r) => r.contactId === p.contactId ? { ...r, selectedJps: ids } : r),
+                          prev.map((r) => (r.contactId === p.contactId ? { ...r, selectedJps: ids } : r))
                         );
                       }}
                       onPrimaryChange={() => setPrimaryContactId(p.contactId)}
@@ -915,14 +972,12 @@ function ReassignButton(props: Props & { token: string | null }) {
               </section>
             )}
 
-
             {rows.length === 0 && (
               <div className="text-caption text-text-tertiary py-4 text-center">
                 No external participants on this call.
               </div>
             )}
           </div>
-
         </ModalShell>
       )}
 
@@ -934,11 +989,7 @@ function ReassignButton(props: Props & { token: string | null }) {
           if (!pendingAdd || !contactId) return;
           const id = pendingAdd.participantId;
           setRows((prev) =>
-            prev.map((r) =>
-              r.id === id
-                ? { ...r, contactId, contactName: displayName ?? r.contactName ?? null }
-                : r,
-            ),
+            prev.map((r) => (r.id === id ? { ...r, contactId, contactName: displayName ?? r.contactName ?? null } : r))
           );
           setPendingAdd(null);
         }}
@@ -947,15 +998,9 @@ function ReassignButton(props: Props & { token: string | null }) {
       <AddRelatedContactModal
         open={pendingAdd?.kind === "related"}
         primaryContactId={primaryContactId}
-        primaryContactName={
-          rows.find((r) => r.contactId === primaryContactId)?.contactName ?? null
-        }
+        primaryContactName={rows.find((r) => r.contactId === primaryContactId)?.contactName ?? null}
         callTerritorySlugs={unionSelected.map((t) => t.ms_slug)}
-        existingContactId={
-          pendingAdd
-            ? rows.find((r) => r.id === pendingAdd.participantId)?.contactId ?? null
-            : null
-        }
+        existingContactId={pendingAdd ? (rows.find((r) => r.id === pendingAdd.participantId)?.contactId ?? null) : null}
         prefill={pendingAdd?.kind === "related" ? pendingAdd.prefill : undefined}
         onClose={() => setPendingAdd(null)}
         onCreated={async (newContactId) => {
@@ -976,16 +1021,18 @@ function ReassignButton(props: Props & { token: string | null }) {
           // journey-partner flow may have renamed a shared journey (e.g.
           // Kevin's row needs to update to "Kylie Kremer + Kevin Kremer"
           // after Kylie was added as co-primary).
-          const otherContactIds = Array.from(new Set(
-            rows
-              .filter((r) => r.contactId && r.contactId !== newContactId && r.id !== id)
-              .map((r) => r.contactId as string),
-          ));
+          const otherContactIds = Array.from(
+            new Set(
+              rows
+                .filter((r) => r.contactId && r.contactId !== newContactId && r.id !== id)
+                .map((r) => r.contactId as string)
+            )
+          );
           const refreshedJourneys = new Map<string, JourneyMembership[]>();
           await Promise.all(
             otherContactIds.map(async (cid) => {
               refreshedJourneys.set(cid, await fetchContactJourneys(cid));
-            }),
+            })
           );
           setRows((prev) =>
             prev.map((r) => {
@@ -1004,7 +1051,7 @@ function ReassignButton(props: Props & { token: string | null }) {
                 return { ...r, journeys: refreshedJourneys.get(r.contactId)! };
               }
               return r;
-            }),
+            })
           );
           setPendingAdd(null);
         }}
@@ -1059,7 +1106,10 @@ function ParticipantRow({
 
   useEffect(() => {
     if (!searchActive) return;
-    if (query.length < 2) { setResults([]); return; }
+    if (query.length < 2) {
+      setResults([]);
+      return;
+    }
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(async () => {
       const res = await apiFetch(`/api/contacts/search?q=${encodeURIComponent(query)}&limit=8`);
@@ -1068,12 +1118,15 @@ function ParticipantRow({
         setResults((data.results ?? data.contacts ?? []) as ContactOption[]);
       }
     }, 250);
-    return () => { if (debounce.current) clearTimeout(debounce.current); };
+    return () => {
+      if (debounce.current) clearTimeout(debounce.current);
+    };
   }, [searchActive, query]);
 
-  const participantLabel = row.display_name?.includes("@") || !row.display_name
-    ? row.email ?? row.display_name ?? "Unknown"
-    : row.display_name;
+  const participantLabel =
+    row.display_name?.includes("@") || !row.display_name
+      ? (row.email ?? row.display_name ?? "Unknown")
+      : row.display_name;
 
   return (
     <div className="bg-bg-primary border border-border-default rounded-md p-2.5 space-y-2">
@@ -1106,11 +1159,18 @@ function ParticipantRow({
             <div className="flex-1 text-caption text-text-primary truncate">
               <span className="font-medium">{row.contactName ?? "Unknown"}</span>
               {row.ownedTerritories.length > 0 && (
-                <span className="text-text-tertiary"> · {row.ownedTerritories.length} territor{row.ownedTerritories.length === 1 ? "y" : "ies"}</span>
+                <span className="text-text-tertiary">
+                  {" "}
+                  · {row.ownedTerritories.length} territor{row.ownedTerritories.length === 1 ? "y" : "ies"}
+                </span>
               )}
             </div>
             <button
-              onClick={() => { setEditing(true); setQuery(""); setResults([]); }}
+              onClick={() => {
+                setEditing(true);
+                setQuery("");
+                setResults([]);
+              }}
               className="text-caption text-nah-blue hover:underline"
               title={
                 extraMateEmails.length > 0
@@ -1148,7 +1208,8 @@ function ParticipantRow({
                   const pickedJpsId = autoPickJps(j, row.selectedTerritories);
                   const selectedForJourney = row.selectedJps.find((id) => journeyJpsIds.has(id));
                   const checked = !!selectedForJourney;
-                  const isJourneyPrimary = checked && selectedForJourney != null && callPrimaryJps === selectedForJourney;
+                  const isJourneyPrimary =
+                    checked && selectedForJourney != null && callPrimaryJps === selectedForJourney;
                   const isStakeholder = j.role === "stakeholder";
                   const palette = isStakeholder
                     ? {
@@ -1168,11 +1229,7 @@ function ParticipantRow({
                     <label
                       key={j.journey_id}
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border cursor-pointer transition-colors ${baseClass}`}
-                      title={
-                        isStakeholder
-                          ? `${j.journey_name} — via territory ecosystem`
-                          : j.journey_name
-                      }
+                      title={isStakeholder ? `${j.journey_name} — via territory ecosystem` : j.journey_name}
                     >
                       <input
                         type="checkbox"
@@ -1189,7 +1246,11 @@ function ParticipantRow({
                       {checked && selectedForJourney && (
                         <button
                           type="button"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onPrimaryJpsChange(selectedForJourney); }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onPrimaryJpsChange(selectedForJourney);
+                          }}
                           title={isJourneyPrimary ? "Primary journey" : "Make primary"}
                           className={isJourneyPrimary ? "text-[#EAB308]" : "text-text-tertiary hover:text-text-primary"}
                         >
@@ -1236,7 +1297,11 @@ function ParticipantRow({
                     <label
                       key={t.ms_slug}
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border cursor-pointer transition-colors ${baseClass}`}
-                      title={isStakeholder ? `${t.territory_name} — via ecosystem (employee/contractor/agent)` : `${t.territory_name} — owner`}
+                      title={
+                        isStakeholder
+                          ? `${t.territory_name} — via ecosystem (employee/contractor/agent)`
+                          : `${t.territory_name} — owner`
+                      }
                     >
                       <input
                         type="checkbox"
@@ -1252,7 +1317,11 @@ function ParticipantRow({
                       {checked && (
                         <button
                           type="button"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onPrimaryTerritoryChange(t.ms_slug); }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onPrimaryTerritoryChange(t.ms_slug);
+                          }}
                           title={isPrimary ? "Primary territory" : "Make primary"}
                           className={isPrimary ? "text-[#EAB308]" : "text-text-tertiary hover:text-text-primary"}
                         >
@@ -1283,7 +1352,11 @@ function ParticipantRow({
             />
             {editing && (
               <button
-                onClick={() => { setEditing(false); setQuery(""); setResults([]); }}
+                onClick={() => {
+                  setEditing(false);
+                  setQuery("");
+                  setResults([]);
+                }}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary"
               >
                 <X size={12} />
@@ -1306,24 +1379,34 @@ function ParticipantRow({
                   <div className="text-text-primary font-medium">{c.name}</div>
                   {(c.email || c.phone) && (
                     <div className="text-caption text-text-tertiary truncate">
-                      {c.email ?? ""}{c.email && c.phone ? " · " : ""}{c.phone ?? ""}
+                      {c.email ?? ""}
+                      {c.email && c.phone ? " · " : ""}
+                      {c.phone ?? ""}
                     </div>
                   )}
                 </button>
               ))}
-              {results.length === 0 && (
-                <div className="px-3 py-2 text-caption text-text-tertiary">No matches.</div>
-              )}
+              {results.length === 0 && <div className="px-3 py-2 text-caption text-text-tertiary">No matches.</div>}
               <div className="border-t border-border-default">
                 <button
-                  onClick={() => { onRequestAdd("prospect"); setEditing(false); setQuery(""); setResults([]); }}
+                  onClick={() => {
+                    onRequestAdd("prospect");
+                    setEditing(false);
+                    setQuery("");
+                    setResults([]);
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-body-sm text-nah-blue hover:bg-bg-tertiary"
                 >
                   <UserPlus size={14} />
                   Add new prospect
                 </button>
                 <button
-                  onClick={() => { onRequestAdd("related"); setEditing(false); setQuery(""); setResults([]); }}
+                  onClick={() => {
+                    onRequestAdd("related");
+                    setEditing(false);
+                    setQuery("");
+                    setResults([]);
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-body-sm text-nah-blue hover:bg-bg-tertiary"
                 >
                   <Users size={14} />
@@ -1340,7 +1423,7 @@ function ParticipantRow({
 
 // ─── Delete (soft-delete the call) ───────────────────────────────────────
 
-function DeleteButton({ callId, token }: { callId: string; token: string | null }) {
+function DeleteButton({ callId }: { callId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1352,7 +1435,6 @@ function DeleteButton({ callId, token }: { callId: string; token: string | null 
     try {
       const res = await apiFetch(`/api/calls/${callId}/delete`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -1413,7 +1495,9 @@ function useBodyScrollLock(active: boolean) {
     if (!active) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, [active]);
 }
 
@@ -1441,11 +1525,11 @@ function ModalShell({
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-default flex-shrink-0">
           <h3 className="text-body-sm font-medium text-text-primary">{title}</h3>
-          <button onClick={onClose} className="btn-ghost p-1"><X size={14} /></button>
+          <button onClick={onClose} className="btn-ghost p-1">
+            <X size={14} />
+          </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-3">
-          {children}
-        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3">{children}</div>
         {footer && (
           <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border-default flex-shrink-0 bg-surface-solid">
             {footer}

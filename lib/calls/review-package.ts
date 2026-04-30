@@ -41,22 +41,23 @@ export async function generateReviewPackage(callId: string): Promise<ReviewPacka
   // Fetch call info
   const { data: call } = await supabase
     .from("calls")
-    .select("id, contact_id, hosted_by_user_id")
+    .select("id, contact_id, hosted_by_user_id, raw_transcript")
     .eq("id", callId)
     .single();
 
   if (!call) throw new Error("Call not found");
 
-  // Fetch transcript for profile extraction
+  // Fetch transcript — prefer call_transcripts, fall back to raw_transcript on calls
   const { data: transcript } = await supabase
     .from("call_transcripts")
     .select("full_text")
     .eq("call_id", callId)
     .order("created_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  if (!transcript) throw new Error("No transcript found for this call");
+  const transcriptText = transcript?.full_text ?? call.raw_transcript;
+  if (!transcriptText) throw new Error("No transcript found for this call");
 
   // Run grade + coach + profile extraction in parallel
   // Next steps depends on grade, so it runs after
@@ -64,14 +65,13 @@ export async function generateReviewPackage(callId: string): Promise<ReviewPacka
     gradeCall(callId),
     coachCall(callId),
     call.contact_id
-      ? extractProfileUpdates(transcript.full_text, call.contact_id)
+      ? extractProfileUpdates(transcriptText, call.contact_id)
       : Promise.resolve([] as ProfileSuggestion[]),
   ]);
 
   const grade = gradeResult.status === "fulfilled" ? gradeResult.value : null;
   const coaching = coachResult.status === "fulfilled" ? coachResult.value : null;
-  const suggestions =
-    profileSuggestions.status === "fulfilled" ? profileSuggestions.value : [];
+  const suggestions = profileSuggestions.status === "fulfilled" ? profileSuggestions.value : [];
 
   // Generate next steps (uses grade data if available)
   let nextSteps: NextStepCard[] = [];
@@ -134,9 +134,7 @@ export async function generateReviewPackage(callId: string): Promise<ReviewPacka
  * Extract citation-like patterns from coaching text.
  * Looks for patterns like 'At X:XX you said "quote"' or quoted transcript segments.
  */
-function extractCitations(
-  coachingText: string
-): Array<{ quote: string; criterion: string; timestamp?: string }> {
+function extractCitations(coachingText: string): Array<{ quote: string; criterion: string; timestamp?: string }> {
   if (!coachingText) return [];
 
   const citations: Array<{ quote: string; criterion: string; timestamp?: string }> = [];
@@ -182,12 +180,8 @@ export async function updateReviewPackageStatus(
   }
 
   // Check if all cards have been reviewed
-  const allProfileReviewed = profileSuggestions
-    ? profileSuggestions.every((s) => s.outcome != null)
-    : true;
-  const allNextStepsReviewed = nextStepCards
-    ? nextStepCards.every((c) => c.outcome != null)
-    : true;
+  const allProfileReviewed = profileSuggestions ? profileSuggestions.every((s) => s.outcome != null) : true;
+  const allNextStepsReviewed = nextStepCards ? nextStepCards.every((c) => c.outcome != null) : true;
 
   if (allProfileReviewed && allNextStepsReviewed) {
     updates.status = "complete";
@@ -195,10 +189,7 @@ export async function updateReviewPackageStatus(
     updates.status = "partially_reviewed";
   }
 
-  const { error } = await supabase
-    .from("call_review_packages")
-    .update(updates)
-    .eq("id", packageId);
+  const { error } = await supabase.from("call_review_packages").update(updates).eq("id", packageId);
 
   if (error) {
     throw new Error(`Failed to update review package: ${error.message}`);

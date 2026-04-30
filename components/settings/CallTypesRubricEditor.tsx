@@ -27,7 +27,7 @@ interface CallType {
 }
 
 export default function CallTypesRubricEditor() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const isAdmin = user?.role === "leadership" || user?.role === "admin";
   const [callTypes, setCallTypes] = useState<CallType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,13 +36,13 @@ export default function CallTypesRubricEditor() {
   const [loadingCriteria, setLoadingCriteria] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [promptModal, setPromptModal] = useState<{ title: string; placeholder: string; onSubmit: (v: string) => void } | null>(null);
+  const [promptModal, setPromptModal] = useState<{
+    title: string;
+    placeholder: string;
+    onSubmit: (v: string) => void;
+  } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ title: string; body: string; onConfirm: () => void } | null>(null);
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
   const bodyUserId = { userId: user?.id };
 
   const fetchCallTypes = useCallback(async () => {
@@ -54,7 +54,9 @@ export default function CallTypesRubricEditor() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { void fetchCallTypes(); }, [fetchCallTypes]);
+  useEffect(() => {
+    void fetchCallTypes();
+  }, [fetchCallTypes]);
 
   async function fetchCriteria(callTypeId: string) {
     setLoadingCriteria(true);
@@ -67,7 +69,10 @@ export default function CallTypesRubricEditor() {
   }
 
   function handleSelect(id: string) {
-    if (selectedId === id) { setSelectedId(null); return; }
+    if (selectedId === id) {
+      setSelectedId(null);
+      return;
+    }
     setSelectedId(id);
     void fetchCriteria(id);
   }
@@ -76,7 +81,11 @@ export default function CallTypesRubricEditor() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(url, { method, headers, body: JSON.stringify({ ...body, ...bodyUserId }) });
+      const res = await apiFetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, ...bodyUserId }),
+      });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         setError(d.error ?? `Failed (${res.status})`);
@@ -127,7 +136,10 @@ export default function CallTypesRubricEditor() {
         const res = await apiFetch(`/api/settings/call-types/${ctId}/rubric`);
         if (!res.ok) return;
         const data = await res.json();
-        if (!data.rubric?.id) { setError("No rubric found"); return; }
+        if (!data.rubric?.id) {
+          setError("No rubric found");
+          return;
+        }
         if (await apiCall(`/api/settings/rubrics/${data.rubric.id}/criteria`, "POST", { name })) {
           await fetchCriteria(ctId);
         }
@@ -168,20 +180,30 @@ export default function CallTypesRubricEditor() {
     const data = await res.json();
     if (!data.rubric?.id) return;
 
-    if (await apiCall(`/api/settings/rubrics/${data.rubric.id}/criteria/reorder`, "POST", {
-      criterionIds: items.map((c) => c.id),
-    })) {
+    if (
+      await apiCall(`/api/settings/rubrics/${data.rubric.id}/criteria/reorder`, "POST", {
+        criterionIds: items.map((c) => c.id),
+      })
+    ) {
       await fetchCriteria(selectedId);
     }
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-text-tertiary" /></div>;
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 size={24} className="animate-spin text-text-tertiary" />
+      </div>
+    );
   }
 
   return (
     <div>
-      {error && <div className="mb-4 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg text-body-sm text-danger">{error}</div>}
+      {error && (
+        <div className="mb-4 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg text-body-sm text-danger">
+          {error}
+        </div>
+      )}
 
       <div className="space-y-2">
         {callTypes.map((ct) => {
@@ -195,8 +217,10 @@ export default function CallTypesRubricEditor() {
                 <span className="text-body-sm font-medium text-text-primary flex-1">{ct.name}</span>
                 <span className="text-[10px] text-text-tertiary">{ct.slug}</span>
                 {isAdmin && (
-                  <button onClick={() => void handleDeleteCallType(ct.id)}
-                    className="p-1 rounded hover:bg-danger/10 text-text-tertiary hover:text-danger">
+                  <button
+                    onClick={() => void handleDeleteCallType(ct.id)}
+                    className="p-1 rounded hover:bg-danger/10 text-text-tertiary hover:text-danger"
+                  >
                     <Trash2 size={12} />
                   </button>
                 )}
@@ -207,7 +231,9 @@ export default function CallTypesRubricEditor() {
                   {loadingCriteria ? (
                     <Loader2 size={14} className="animate-spin text-text-tertiary" />
                   ) : criteria.length === 0 ? (
-                    <p className="text-caption text-text-tertiary italic">No criteria defined — add criteria to enable rubric-based grading</p>
+                    <p className="text-caption text-text-tertiary italic">
+                      No criteria defined — add criteria to enable rubric-based grading
+                    </p>
                   ) : (
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-[10px] text-text-tertiary px-2 mb-1">
@@ -228,8 +254,10 @@ export default function CallTypesRubricEditor() {
                     </div>
                   )}
                   {isAdmin && (
-                    <button onClick={() => void handleAddCriterion()}
-                      className="flex items-center gap-1 text-caption text-nah-blue hover:underline mt-2">
+                    <button
+                      onClick={() => void handleAddCriterion()}
+                      className="flex items-center gap-1 text-caption text-nah-blue hover:underline mt-2"
+                    >
                       <Plus size={11} /> Add criterion
                     </button>
                   )}
@@ -241,8 +269,11 @@ export default function CallTypesRubricEditor() {
       </div>
 
       {isAdmin && (
-        <button onClick={() => void handleAddCallType()} disabled={saving}
-          className="flex items-center gap-1 text-body-sm text-nah-blue hover:underline mt-3">
+        <button
+          onClick={() => void handleAddCallType()}
+          disabled={saving}
+          className="flex items-center gap-1 text-body-sm text-nah-blue hover:underline mt-3"
+        >
           <Plus size={14} /> Add call type
         </button>
       )}
@@ -254,16 +285,35 @@ export default function CallTypesRubricEditor() {
       )}
 
       {promptModal && (
-        <PromptModal title={promptModal.title} placeholder={promptModal.placeholder} submitLabel="Add" onSubmit={promptModal.onSubmit} onCancel={() => setPromptModal(null)} />
+        <PromptModal
+          title={promptModal.title}
+          placeholder={promptModal.placeholder}
+          submitLabel="Add"
+          onSubmit={promptModal.onSubmit}
+          onCancel={() => setPromptModal(null)}
+        />
       )}
       {confirmModal && (
-        <ConfirmModal title={confirmModal.title} body={confirmModal.body} destructive confirmLabel="Delete" onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal(null)} />
+        <ConfirmModal
+          title={confirmModal.title}
+          body={confirmModal.body}
+          destructive
+          confirmLabel="Delete"
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
       )}
     </div>
   );
 }
 
-function CriterionRow({ criterion, isAdmin, onWeightChange, onDelete, onDrop }: {
+function CriterionRow({
+  criterion,
+  isAdmin,
+  onWeightChange,
+  onDelete,
+  onDrop,
+}: {
   criterion: Criterion;
   isAdmin: boolean;
   onWeightChange: (w: number) => void;
@@ -280,7 +330,9 @@ function CriterionRow({ criterion, isAdmin, onWeightChange, onDelete, onDrop }: 
       onDrop={onDrop}
       className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-bg-hover group"
     >
-      {isAdmin && <GripVertical size={12} className="text-text-tertiary cursor-grab opacity-0 group-hover:opacity-100" />}
+      {isAdmin && (
+        <GripVertical size={12} className="text-text-tertiary cursor-grab opacity-0 group-hover:opacity-100" />
+      )}
       <span className="text-caption text-text-primary flex-1">{criterion.name}</span>
       <input
         type="number"
@@ -293,8 +345,10 @@ function CriterionRow({ criterion, isAdmin, onWeightChange, onDelete, onDrop }: 
         className="w-16 text-center bg-bg-secondary border border-border-default rounded px-1 py-0.5 text-[11px] text-text-primary disabled:opacity-50"
       />
       {isAdmin && (
-        <button onClick={onDelete}
-          className="p-0.5 rounded hover:bg-danger/10 text-text-tertiary hover:text-danger opacity-0 group-hover:opacity-100">
+        <button
+          onClick={onDelete}
+          className="p-0.5 rounded hover:bg-danger/10 text-text-tertiary hover:text-danger opacity-0 group-hover:opacity-100"
+        >
           <Trash2 size={11} />
         </button>
       )}

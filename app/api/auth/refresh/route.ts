@@ -3,24 +3,20 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/auth/refresh
  *
- * Swaps a Supabase refresh_token for a fresh access_token. Called by the
- * AuthContext on mount (and on a timer) so that a user who logged in
- * yesterday doesn't hit 401s on every protected endpoint today.
+ * Swaps a Supabase refresh_token for a fresh access_token.
+ * Reads refresh token from httpOnly cookie, sets new cookies in response.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-
-interface RefreshRequestBody {
-  refreshToken: string;
-}
+import { getRefreshTokenFromCookies, setAuthCookies } from "@/lib/auth/cookies";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as RefreshRequestBody;
+    const refreshToken = getRefreshTokenFromCookies(request);
 
-    if (!body.refreshToken) {
-      return NextResponse.json({ error: "refreshToken is required" }, { status: 400 });
+    if (!refreshToken) {
+      return NextResponse.json({ error: "No refresh token" }, { status: 401 });
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -31,17 +27,15 @@ export async function POST(request: NextRequest) {
 
     const authClient = createClient(supabaseUrl, supabaseAnonKey);
     const { data, error } = await authClient.auth.refreshSession({
-      refresh_token: body.refreshToken,
+      refresh_token: refreshToken,
     });
 
     if (error || !data.session) {
       return NextResponse.json({ error: "Invalid or expired refresh token" }, { status: 401 });
     }
 
-    return NextResponse.json({
-      token: data.session.access_token,
-      refreshToken: data.session.refresh_token,
-    });
+    const response = NextResponse.json({ ok: true });
+    return setAuthCookies(response, data.session.access_token, data.session.refresh_token);
   } catch {
     return NextResponse.json({ error: "Failed to refresh session" }, { status: 500 });
   }

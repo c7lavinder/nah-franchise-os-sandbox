@@ -3,81 +3,42 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/contacts/[contactId]/score
  *
- * Calculates lead score for a contact based on their profile fields
- * and optionally saves the score + breakdown back to GHL.
- *
- * Query params:
- *   ?save=true — write score back to GHL custom fields
+ * Calculates lead score for a contact from Supabase profile data
+ * and saves the score to contacts.scout_lead_score.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
-import { calculateLeadScore, buildScoringInput } from "@/lib/profile/lead-scoring";
+import { calculateLeadScore, buildScoringInputFromContact } from "@/lib/profile/lead-scoring";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+
   try {
     const { contactId } = await params;
-    const shouldSave = request.nextUrl.searchParams.get("save") === "true";
-
-    // Fetch contact
-    const contact = await ghl.getContact(contactId);
-
-    // Load field mapping
     const supabase = createServerClient();
-    const { data: fieldMappings } = await supabase
-      .from("ghl_custom_fields")
-      .select("field_name, ghl_field_id")
-      .eq("entity_type", "contact");
 
-    const idToName = new Map<string, string>();
-    const nameToId = new Map<string, string>();
-    if (fieldMappings) {
-      for (const m of fieldMappings) {
-        idToName.set(m.ghl_field_id, m.field_name);
-        nameToId.set(m.field_name, m.ghl_field_id);
-      }
+    const { data: contact, error } = await supabase
+      .from("contacts")
+      .select(
+        "id, first_name, last_name, source, opportunity_source, capital_availability, territory_status, business_ownership_experience, investment_timeline, motivation_clarity, trainual_completion_pct, created_at"
+      )
+      .eq("id", contactId)
+      .single();
+
+    if (error || !contact) {
+      return NextResponse.json({ error: "Contact not found" }, { status: 404 });
     }
 
-    // Extract profile values
-    const profile: Record<string, string | null> = {};
-    for (const cf of contact.customFields) {
-      const name = idToName.get(cf.id);
-      if (name) {
-        profile[name] = cf.value || null;
-      }
-    }
+    const input = buildScoringInputFromContact(contact);
+    const result = calculateLeadScore(input);
 
-    // Calculate score
-    const scoringInput = buildScoringInput(
-      { source: contact.source, dateAdded: contact.dateAdded },
-      profile
-    );
-    const result = calculateLeadScore(scoringInput);
+    // Save score to Supabase
+    await supabase.from("contacts").update({ scout_lead_score: result.total }).eq("id", contactId);
 
-    // Save score back to GHL if requested
-    if (shouldSave) {
-      const customFields: { id: string; value: string }[] = [];
-
-      const scoreFieldId = nameToId.get("Scout Lead Score");
-      if (scoreFieldId) {
-        customFields.push({ id: scoreFieldId, value: String(result.total) });
-      }
-
-      const breakdownFieldId = nameToId.get("Score Breakdown");
-      if (breakdownFieldId) {
-        customFields.push({ id: breakdownFieldId, value: result.breakdown });
-      }
-
-      if (customFields.length > 0) {
-        await ghl.updateContact(contactId, { customFields });
-      }
-    }
-
-    const contactName = `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim();
+    const contactName = `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim();
 
     return NextResponse.json({
       contactId,
@@ -86,7 +47,6 @@ export async function POST(
       tier: result.tier,
       breakdown: result.breakdown,
       components: result.components,
-      saved: shouldSave,
     });
   } catch (err) {
     console.error("Score calculation failed:", err);

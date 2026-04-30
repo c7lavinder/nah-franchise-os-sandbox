@@ -27,7 +27,7 @@ interface SystemHealth {
 }
 
 export default function AppSettingsPanel({ variant }: { variant?: "data" | "full" } = {}) {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const isAdmin = user?.role === "leadership" || user?.role === "admin";
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -39,15 +39,10 @@ export default function AppSettingsPanel({ variant }: { variant?: "data" | "full
   const scoutModel = process.env.NEXT_PUBLIC_SCOUT_MODEL ?? "claude-sonnet-4-6-20250514";
   const agentModel = "claude-haiku-4-5-20251001";
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-
   useEffect(() => {
     Promise.all([
-      apiFetch("/api/settings/app-settings").then((r) => r.ok ? r.json() : null),
-      apiFetch("/api/settings/health").then((r) => r.ok ? r.json() : null),
+      apiFetch("/api/settings/app-settings").then((r) => (r.ok ? r.json() : null)),
+      apiFetch("/api/settings/health").then((r) => (r.ok ? r.json() : null)),
     ])
       .then(([settingsData, healthData]) => {
         if (settingsData?.settings) setSettings(settingsData.settings);
@@ -64,7 +59,7 @@ export default function AppSettingsPanel({ variant }: { variant?: "data" | "full
     try {
       const res = await apiFetch("/api/settings/app-settings", {
         method: "PATCH",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...settings, userId: user?.id }),
       });
       if (res.ok) {
@@ -80,7 +75,11 @@ export default function AppSettingsPanel({ variant }: { variant?: "data" | "full
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-text-tertiary" /></div>;
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 size={24} className="animate-spin text-text-tertiary" />
+      </div>
+    );
   }
 
   // "data" variant: only Pipeline Thresholds + GHL Sync (used in Data Management tab)
@@ -102,16 +101,32 @@ export default function AppSettingsPanel({ variant }: { variant?: "data" | "full
           <div className="space-y-3">
             <div>
               <label className="block text-caption text-text-tertiary mb-1">Yellow / At Risk (days)</label>
-              <input type="number" min={1} max={30} value={settings?.time_in_stage_yellow_days ?? 5}
-                onChange={(e) => settings && setSettings({ ...settings, time_in_stage_yellow_days: parseInt(e.target.value) || 5 })}
-                disabled={!isAdmin} className="w-24 bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary disabled:opacity-50" />
+              <input
+                type="number"
+                min={1}
+                max={30}
+                value={settings?.time_in_stage_yellow_days ?? 5}
+                onChange={(e) =>
+                  settings && setSettings({ ...settings, time_in_stage_yellow_days: parseInt(e.target.value) || 5 })
+                }
+                disabled={!isAdmin}
+                className="w-24 bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary disabled:opacity-50"
+              />
               <p className="text-[10px] text-text-tertiary mt-1">Contacts idle this many days turn yellow</p>
             </div>
             <div>
               <label className="block text-caption text-text-tertiary mb-1">Red / Losing (days)</label>
-              <input type="number" min={1} max={60} value={settings?.time_in_stage_red_days ?? 10}
-                onChange={(e) => settings && setSettings({ ...settings, time_in_stage_red_days: parseInt(e.target.value) || 10 })}
-                disabled={!isAdmin} className="w-24 bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary disabled:opacity-50" />
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={settings?.time_in_stage_red_days ?? 10}
+                onChange={(e) =>
+                  settings && setSettings({ ...settings, time_in_stage_red_days: parseInt(e.target.value) || 10 })
+                }
+                disabled={!isAdmin}
+                className="w-24 bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary disabled:opacity-50"
+              />
               <p className="text-[10px] text-text-tertiary mt-1">Contacts idle this many days turn red</p>
             </div>
           </div>
@@ -124,23 +139,40 @@ export default function AppSettingsPanel({ variant }: { variant?: "data" | "full
           </div>
           <div className="space-y-3">
             <label className="flex items-center gap-3">
-              <input type="checkbox" checked={settings?.ghl_sync_enabled ?? false}
+              <input
+                type="checkbox"
+                checked={settings?.ghl_sync_enabled ?? false}
                 onChange={(e) => settings && setSettings({ ...settings, ghl_sync_enabled: e.target.checked })}
-                disabled={!isAdmin} className="w-4 h-4 rounded border-border-default text-nah-blue" />
+                disabled={!isAdmin}
+                className="w-4 h-4 rounded border-border-default text-nah-blue"
+              />
               <span className="text-body-sm text-text-primary">Stage write-back enabled</span>
             </label>
             <div>
               <label className="block text-caption text-text-tertiary mb-1">Queue alert threshold</label>
-              <input type="number" min={1} max={1000} value={settings?.ghl_sync_queue_alert_threshold ?? 50}
-                onChange={(e) => settings && setSettings({ ...settings, ghl_sync_queue_alert_threshold: parseInt(e.target.value) || 50 })}
-                disabled={!isAdmin} className="w-24 bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary disabled:opacity-50" />
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                value={settings?.ghl_sync_queue_alert_threshold ?? 50}
+                onChange={(e) =>
+                  settings &&
+                  setSettings({ ...settings, ghl_sync_queue_alert_threshold: parseInt(e.target.value) || 50 })
+                }
+                disabled={!isAdmin}
+                className="w-24 bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary disabled:opacity-50"
+              />
             </div>
           </div>
         </div>
 
         {isAdmin && settings && (
           <div className="flex items-center gap-3">
-            <button onClick={() => void handleSave()} disabled={saving} className="btn-primary px-4 py-2 text-body-sm flex items-center gap-1">
+            <button
+              onClick={() => void handleSave()}
+              disabled={saving}
+              className="btn-primary px-4 py-2 text-body-sm flex items-center gap-1"
+            >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Save Settings
             </button>

@@ -17,20 +17,22 @@ export async function coachCall(callId: string): Promise<CoachingResult> {
   // Fetch call
   const { data: call } = await supabase
     .from("calls")
-    .select("id, call_type_id, contact_id, hosted_by_user_id")
+    .select("id, call_type_id, contact_id, hosted_by_user_id, raw_transcript")
     .eq("id", callId)
     .single();
   if (!call) throw new Error("Call not found");
 
-  // Fetch transcript
+  // Fetch transcript — prefer call_transcripts, fall back to raw_transcript on calls
   const { data: transcript } = await supabase
     .from("call_transcripts")
     .select("full_text")
     .eq("call_id", callId)
     .order("created_at", { ascending: false })
     .limit(1)
-    .single();
-  if (!transcript) throw new Error("No transcript found");
+    .maybeSingle();
+
+  const transcriptText = transcript?.full_text ?? call.raw_transcript;
+  if (!transcriptText) throw new Error("No transcript found");
 
   // Fetch grade if exists
   const { data: grade } = await supabase
@@ -56,11 +58,7 @@ export async function coachCall(callId: string): Promise<CoachingResult> {
   // Get call type name for relevance matching
   let callTypeName = "";
   if (call.call_type_id) {
-    const { data: ct } = await supabase
-      .from("call_types")
-      .select("name")
-      .eq("id", call.call_type_id)
-      .single();
+    const { data: ct } = await supabase.from("call_types").select("name").eq("id", call.call_type_id).single();
     callTypeName = ct?.name ?? "";
   }
 
@@ -77,15 +75,16 @@ export async function coachCall(callId: string): Promise<CoachingResult> {
     snippet: d.content.length > 500 ? d.content.slice(0, 500) + "..." : d.content,
   }));
 
-  const kbBlock = kbSnippets.length > 0
-    ? kbSnippets.map((s, i) => `[KB${i + 1}: ${s.title}]\n${s.snippet}`).join("\n\n")
-    : "No knowledge base documents available.";
+  const kbBlock =
+    kbSnippets.length > 0
+      ? kbSnippets.map((s, i) => `[KB${i + 1}: ${s.title}]\n${s.snippet}`).join("\n\n")
+      : "No knowledge base documents available.";
 
   const gradeBlock = grade
     ? `GRADE SUMMARY:
 - Overall: ${grade.overall_grade} (${grade.overall_score}/100)
-- Strengths: ${(grade.strengths as string[] ?? []).join(", ")}
-- Improvements: ${(grade.improvements as string[] ?? []).join(", ")}
+- Strengths: ${((grade.strengths as string[]) ?? []).join(", ")}
+- Improvements: ${((grade.improvements as string[]) ?? []).join(", ")}
 - Suggested next: ${grade.suggested_next_action ?? "N/A"}`
     : "No grade available yet.";
 
@@ -100,7 +99,7 @@ KNOWLEDGE BASE CONTEXT:
 ${kbBlock}
 
 TRANSCRIPT:
-${transcript.full_text}
+${transcriptText}
 
 INSTRUCTIONS:
 - Produce coaching notes: specific, actionable feedback referencing moments in the transcript.

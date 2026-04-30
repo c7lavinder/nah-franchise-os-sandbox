@@ -4,10 +4,19 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
-  ArrowLeft, Phone, Mail, Loader2, RefreshCw,
-  MessageSquare, Save, Award, ClipboardList, Calendar,
+  ArrowLeft,
+  Phone,
+  Mail,
+  Loader2,
+  RefreshCw,
+  MessageSquare,
+  Save,
+  Award,
+  ClipboardList,
+  Calendar,
 } from "lucide-react";
-import { SMSPanel, EmailPanel, CallPanel, SchedulePanel } from "@/components/contact/ActionPanels";
+import { CallPanel } from "@/components/contact/ActionPanels";
+import { useShowSMS, useShowEmail, useShowAppointment } from "@/components/contact/ActionButtons";
 import MergeContactModal from "@/components/contact/MergeContactModal";
 import { ProfileSection } from "@/components/profile";
 import { PROFILE_FIELDS, getSortedCategories } from "@/lib/profile/field-registry";
@@ -33,7 +42,15 @@ import { Pencil, GitBranch, UserPlus } from "lucide-react";
 
 const CATEGORIES: FieldCategory[] = getSortedCategories();
 
-function EditableInfoField({ label, value, onSave }: { label: string; value: string; onSave: (v: string) => Promise<void> }) {
+function EditableInfoField({
+  label,
+  value,
+  onSave,
+}: {
+  label: string;
+  value: string;
+  onSave: (v: string) => Promise<void>;
+}) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [edited, setEdited] = useState(false);
@@ -42,7 +59,13 @@ function EditableInfoField({ label, value, onSave }: { label: string; value: str
     return (
       <div>
         <span className="text-text-tertiary block text-[10px]">{label}</span>
-        <p className="text-text-primary flex items-center gap-1 cursor-pointer hover:text-nah-blue" onClick={() => { setEditing(true); setDraft(value); }}>
+        <p
+          className="text-text-primary flex items-center gap-1 cursor-pointer hover:text-nah-blue"
+          onClick={() => {
+            setEditing(true);
+            setDraft(value);
+          }}
+        >
           {value || "—"}
           {edited && <Pencil size={10} className="text-nah-orange flex-shrink-0" />}
         </p>
@@ -57,10 +80,25 @@ function EditableInfoField({ label, value, onSave }: { label: string; value: str
         autoFocus
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => { setEditing(false); if (draft !== value) { void onSave(draft); setEdited(true); } }}
+        onBlur={() => {
+          setEditing(false);
+          if (draft !== value) {
+            void onSave(draft);
+            setEdited(true);
+          }
+        }}
         onKeyDown={(e) => {
-          if (e.key === "Enter") { setEditing(false); if (draft !== value) { void onSave(draft); setEdited(true); } }
-          if (e.key === "Escape") { setEditing(false); setDraft(value); }
+          if (e.key === "Enter") {
+            setEditing(false);
+            if (draft !== value) {
+              void onSave(draft);
+              setEdited(true);
+            }
+          }
+          if (e.key === "Escape") {
+            setEditing(false);
+            setDraft(value);
+          }
         }}
         className="w-full bg-bg-secondary border border-nah-blue rounded px-2 py-0.5 text-body-sm text-text-primary outline-none"
       />
@@ -69,28 +107,65 @@ function EditableInfoField({ label, value, onSave }: { label: string; value: str
 }
 
 interface PipelineStateAPI {
-  id: string; contact_id: string; pipeline_id: string; current_stage_id: string;
-  current_sub_task_id: string | null; current_sub_task_started_at: string | null;
-  entered_current_stage_at: string; pipeline_name: string; pipeline_slug: string;
+  id: string;
+  contact_id: string;
+  pipeline_id: string;
+  current_stage_id: string;
+  current_sub_task_id: string | null;
+  current_sub_task_started_at: string | null;
+  entered_current_stage_at: string;
+  pipeline_name: string;
+  pipeline_slug: string;
   stages: {
-    id: string; slug: string; name: string; sort_order: number; is_terminal: boolean; pipeline_id: string;
-    subTasks: { id: string; slug: string; name: string; sort_order: number; state_type: "single" | "two_state"; first_state_label: string | null; second_state_label: string | null; default_logger_type: string; default_logger_user_id: string | null; is_required: boolean; stage_id: string }[];
-    logsBySubTask: Record<string, SubTaskLog[]>; totalLogs: number;
+    id: string;
+    slug: string;
+    name: string;
+    sort_order: number;
+    is_terminal: boolean;
+    pipeline_id: string;
+    subTasks: {
+      id: string;
+      slug: string;
+      name: string;
+      sort_order: number;
+      state_type: "single" | "two_state";
+      first_state_label: string | null;
+      second_state_label: string | null;
+      default_logger_type: string;
+      default_logger_user_id: string | null;
+      is_required: boolean;
+      stage_id: string;
+    }[];
+    logsBySubTask: Record<string, SubTaskLog[]>;
+    totalLogs: number;
   }[];
   stageHistory: StageHistoryEntry[];
   territories?: {
-    ms_slug: string; territory_name: string; stage_id: string; stage_name: string;
-    jps_id: string; entered_current_stage_at: string;
-    current_sub_task_id: string | null; current_sub_task_started_at: string | null;
+    ms_slug: string;
+    territory_name: string;
+    stage_id: string;
+    stage_name: string;
+    jps_id: string;
+    entered_current_stage_at: string;
+    current_sub_task_id: string | null;
+    current_sub_task_started_at: string | null;
   }[];
 }
 
 interface LocalContact {
-  legal_entity: string | null; website: string | null;
-  franchise_fee: number | null; royalty_pct: number | null; term_months: number | null;
-  opportunity_source: string | null; sub_source: string | null;
-  first_name: string | null; last_name: string | null; email: string | null; phone: string | null;
-  city: string | null; state: string | null;
+  legal_entity: string | null;
+  website: string | null;
+  franchise_fee: number | null;
+  royalty_pct: number | null;
+  term_months: number | null;
+  opportunity_source: string | null;
+  sub_source: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  state: string | null;
 }
 
 export interface JourneyMember {
@@ -145,11 +220,24 @@ export default function LeadDetailView({
   const [activeTab, setActiveTab] = useState<"overview" | "messages" | "profile" | "territories" | "eos">(
     highlightMessageId ? "messages" : "overview"
   );
-  const [contactCalls, setContactCalls] = useState<{ id: string; callTypeName: string | null; hostName: string | null; scheduled_at: string | null; status: string; grade: string | null; duration_seconds: number | null }[]>([]);
+  const [contactCalls, setContactCalls] = useState<
+    {
+      id: string;
+      callTypeName: string | null;
+      hostName: string | null;
+      scheduled_at: string | null;
+      status: string;
+      grade: string | null;
+      duration_seconds: number | null;
+    }[]
+  >([]);
   const [pipelineStates, setPipelineStates] = useState<PipelineStateAPI[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [drilldownStageId, setDrilldownStageId] = useState<string | null>(null);
-  const [activePanel, setActivePanel] = useState<"sms" | "email" | "call" | "schedule" | null>(null);
+  const [activePanel, setActivePanel] = useState<"call" | null>(null);
+  const showSMS = useShowSMS();
+  const showEmail = useShowEmail();
+  const showAppointment = useShowAppointment();
   const [mergeOpen, setMergeOpen] = useState(false);
   const [focusedTerritorySlug, setFocusedTerritorySlug] = useState<string | null>(initialTerritorySlug ?? null);
   const [splitOpen, setSplitOpen] = useState(false);
@@ -183,7 +271,9 @@ export default function LeadDetailView({
   const [profileSavingKey, setProfileSavingKey] = useState<string | null>(null);
 
   // Keep internal profile contact in sync when the outer prop changes.
-  useEffect(() => { setProfileContactId(effectivePrimaryLocalId); }, [effectivePrimaryLocalId]);
+  useEffect(() => {
+    setProfileContactId(effectivePrimaryLocalId);
+  }, [effectivePrimaryLocalId]);
 
   const isAltContact = profileContactId !== effectivePrimaryLocalId;
 
@@ -197,7 +287,10 @@ export default function LeadDetailView({
         apiFetch(`/api/calls/list?contact_id=${contactId}&limit=20`).catch(() => null),
       ]);
 
-      if (callsRes?.ok) { const d = await callsRes.json(); setContactCalls(d.calls ?? []); }
+      if (callsRes?.ok) {
+        const d = await callsRes.json();
+        setContactCalls(d.calls ?? []);
+      }
       if (contactRes?.ok) {
         const d = await contactRes.json();
         setContact(d.contact ?? null);
@@ -214,37 +307,59 @@ export default function LeadDetailView({
 
         if (psData.contact) {
           setLocalContact({
-            first_name: psData.contact.first_name, last_name: psData.contact.last_name,
-            email: psData.contact.email, phone: psData.contact.phone,
-            city: psData.contact.city, state: psData.contact.state,
-            opportunity_source: psData.contact.opportunity_source, sub_source: psData.contact.sub_source,
-            legal_entity: psData.contact.legal_entity, website: psData.contact.website,
-            franchise_fee: psData.contact.franchise_fee, royalty_pct: psData.contact.royalty_pct,
+            first_name: psData.contact.first_name,
+            last_name: psData.contact.last_name,
+            email: psData.contact.email,
+            phone: psData.contact.phone,
+            city: psData.contact.city,
+            state: psData.contact.state,
+            opportunity_source: psData.contact.opportunity_source,
+            sub_source: psData.contact.sub_source,
+            legal_entity: psData.contact.legal_entity,
+            website: psData.contact.website,
+            franchise_fee: psData.contact.franchise_fee,
+            royalty_pct: psData.contact.royalty_pct,
             term_months: psData.contact.term_months,
           });
           if (!contactRes?.ok) {
             setContact({
-              id: psData.contact.ghl_contact_id ?? contactId, locationId: "",
-              firstName: psData.contact.first_name ?? "", lastName: psData.contact.last_name ?? "",
-              email: psData.contact.email ?? null, phone: psData.contact.phone ?? null,
-              tags: [], source: psData.contact.opportunity_source ?? null,
-              dateAdded: "", customFields: [], assignedTo: null,
+              id: psData.contact.ghl_contact_id ?? contactId,
+              locationId: "",
+              firstName: psData.contact.first_name ?? "",
+              lastName: psData.contact.last_name ?? "",
+              email: psData.contact.email ?? null,
+              phone: psData.contact.phone ?? null,
+              tags: [],
+              source: psData.contact.opportunity_source ?? null,
+              dateAdded: "",
+              customFields: [],
+              assignedTo: null,
             } as GHLContact);
           }
         }
       }
 
-      if (profileRes?.ok) { const d = await profileRes.json(); setProfileValues(d.raw ?? {}); }
-    } catch { /* continue */ }
+      if (profileRes?.ok) {
+        const d = await profileRes.json();
+        setProfileValues(d.raw ?? {});
+      }
+    } catch {
+      /* continue */
+    }
     setLoading(false);
   }, [contactId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { void fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    void fetchAll();
+  }, [fetchAll]);
 
   // Load profile data for the currently-selected profile contact (may differ
   // from main contact when a journey has multiple members).
   useEffect(() => {
-    if (profileContactId === contactId) { setProfileContactData(null); return; }
+    if (profileContactId === contactId) {
+      setProfileContactData(null);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {
@@ -253,17 +368,27 @@ export default function LeadDetailView({
         const d = await res.json();
         if (cancelled || !d.contact) return;
         setProfileContactData({
-          first_name: d.contact.first_name, last_name: d.contact.last_name,
-          email: d.contact.email, phone: d.contact.phone,
-          city: d.contact.city, state: d.contact.state,
-          opportunity_source: d.contact.opportunity_source, sub_source: d.contact.sub_source,
-          legal_entity: d.contact.legal_entity, website: d.contact.website,
-          franchise_fee: d.contact.franchise_fee, royalty_pct: d.contact.royalty_pct,
+          first_name: d.contact.first_name,
+          last_name: d.contact.last_name,
+          email: d.contact.email,
+          phone: d.contact.phone,
+          city: d.contact.city,
+          state: d.contact.state,
+          opportunity_source: d.contact.opportunity_source,
+          sub_source: d.contact.sub_source,
+          legal_entity: d.contact.legal_entity,
+          website: d.contact.website,
+          franchise_fee: d.contact.franchise_fee,
+          royalty_pct: d.contact.royalty_pct,
           term_months: d.contact.term_months,
         });
-      } catch { /* keep previous */ }
+      } catch {
+        /* keep previous */
+      }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [profileContactId, contactId]);
 
   // Load extended profile values (Scout score, categories) for whichever
@@ -281,9 +406,13 @@ export default function LeadDetailView({
         if (cancelled) return;
         setProfileValues(d.raw ?? {});
         setPendingChanges({});
-      } catch { /* keep previous */ }
+      } catch {
+        /* keep previous */
+      }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [profileContactId, contactId]);
 
   function handleFieldChange(fieldName: string, value: string) {
@@ -296,11 +425,17 @@ export default function LeadDetailView({
     setSaving(true);
     try {
       const res = await apiFetch(`/api/contacts/${profileContactId}/profile`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: pendingChanges }),
       });
-      if (res.ok) { setPendingChanges({}); toast("Profile saved"); }
-    } catch { /* keep pending */ }
+      if (res.ok) {
+        setPendingChanges({});
+        toast("Profile saved");
+      }
+    } catch {
+      /* keep pending */
+    }
     setSaving(false);
   }
 
@@ -322,9 +457,18 @@ export default function LeadDetailView({
 
   async function saveJourneyTitle() {
     const trimmed = titleDraft.trim();
-    if (!journeyId) { setEditingTitle(false); return; }
-    if (!trimmed) { setEditingTitle(false); return; }
-    if (trimmed === effectiveJourneyName) { setEditingTitle(false); return; }
+    if (!journeyId) {
+      setEditingTitle(false);
+      return;
+    }
+    if (!trimmed) {
+      setEditingTitle(false);
+      return;
+    }
+    if (trimmed === effectiveJourneyName) {
+      setEditingTitle(false);
+      return;
+    }
     setSavingTitle(true);
     try {
       const res = await apiFetch(`/api/journeys/${journeyId}`, {
@@ -350,9 +494,12 @@ export default function LeadDetailView({
   const drilldownStage = selectedPipeline?.stages.find((s) => s.id === drilldownStageId);
 
   const territoryDealFields = {
-    legal_entity: localContact?.legal_entity ?? null, website: localContact?.website ?? null,
-    franchise_fee: localContact?.franchise_fee ?? null, royalty_pct: localContact?.royalty_pct ?? null,
-    term_months: localContact?.term_months ?? null, opportunity_source: localContact?.opportunity_source ?? null,
+    legal_entity: localContact?.legal_entity ?? null,
+    website: localContact?.website ?? null,
+    franchise_fee: localContact?.franchise_fee ?? null,
+    royalty_pct: localContact?.royalty_pct ?? null,
+    term_months: localContact?.term_months ?? null,
+    opportunity_source: localContact?.opportunity_source ?? null,
     sub_source: localContact?.sub_source ?? null,
   };
 
@@ -360,9 +507,7 @@ export default function LeadDetailView({
   // the journey's first active runway/onboarding jps row with a territory,
   // replacing the old contacts.territory column.
   const carriedTerritoryName =
-    pipelineStates
-      .flatMap((p) => p.territories ?? [])
-      .find((t) => t.territory_name)?.territory_name ?? null;
+    pipelineStates.flatMap((p) => p.territories ?? []).find((t) => t.territory_name)?.territory_name ?? null;
 
   // Collect unique awarded territories across every pipeline-state row so
   // the EOS tab knows whether to show contact-scoped (pre-award) or
@@ -413,7 +558,9 @@ export default function LeadDetailView({
     <div className="flex flex-col min-h-0">
       {/* Header — name + action buttons only */}
       <div className="flex items-center gap-3 px-1 py-3 flex-shrink-0">
-        <button onClick={() => router.back()} className="btn-ghost p-1.5"><ArrowLeft size={18} /></button>
+        <button onClick={() => router.back()} className="btn-ghost p-1.5">
+          <ArrowLeft size={18} />
+        </button>
         {journeyId && editingTitle ? (
           <input
             autoFocus
@@ -421,8 +568,13 @@ export default function LeadDetailView({
             onChange={(e) => setTitleDraft(e.target.value)}
             onBlur={() => void saveJourneyTitle()}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); void saveJourneyTitle(); }
-              else if (e.key === "Escape") { e.preventDefault(); setEditingTitle(false); }
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void saveJourneyTitle();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                setEditingTitle(false);
+              }
             }}
             disabled={savingTitle}
             maxLength={200}
@@ -443,10 +595,48 @@ export default function LeadDetailView({
         )}
         {contact && (
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button onClick={() => setActivePanel("call")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-success/10 text-success text-caption font-medium hover:bg-success/20 transition-colors"><Phone size={12} /> Call</button>
-            <button onClick={() => setActivePanel("sms")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-info/10 text-info text-caption font-medium hover:bg-info/20 transition-colors"><MessageSquare size={12} /> Text</button>
-            <button onClick={() => setActivePanel("email")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-scout-purple/10 text-scout-purple text-caption font-medium hover:bg-scout-purple/20 transition-colors"><Mail size={12} /> Email</button>
-            <button onClick={() => setActivePanel("schedule")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-nah-orange/10 text-nah-orange text-caption font-medium hover:bg-nah-orange/20 transition-colors"><Calendar size={12} /> Schedule</button>
+            <button
+              onClick={() => setActivePanel("call")}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-success/10 text-success text-caption font-medium hover:bg-success/20 transition-colors"
+            >
+              <Phone size={12} /> Call
+            </button>
+            <button
+              onClick={() =>
+                showSMS({
+                  contactId: contact.id,
+                  contactName: displayName,
+                  phone: contact.phone ?? localContact?.phone,
+                })
+              }
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-info/10 text-info text-caption font-medium hover:bg-info/20 transition-colors"
+            >
+              <MessageSquare size={12} /> Text
+            </button>
+            <button
+              onClick={() =>
+                showEmail({
+                  contactId: contact.id,
+                  contactName: displayName,
+                  email: contact.email ?? localContact?.email,
+                })
+              }
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-scout-purple/10 text-scout-purple text-caption font-medium hover:bg-scout-purple/20 transition-colors"
+            >
+              <Mail size={12} /> Email
+            </button>
+            <button
+              onClick={() =>
+                showAppointment({
+                  contactId: contact.id,
+                  contactName: displayName,
+                  email: contact.email ?? localContact?.email,
+                })
+              }
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-nah-orange/10 text-nah-orange text-caption font-medium hover:bg-nah-orange/20 transition-colors"
+            >
+              <Calendar size={12} /> Schedule
+            </button>
             <button
               onClick={() => setMergeOpen(true)}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-warning/10 text-warning text-caption font-medium hover:bg-warning/20 transition-colors"
@@ -458,58 +648,87 @@ export default function LeadDetailView({
         )}
         <div className="flex items-center gap-2 flex-shrink-0">
           {hasPending && (
-            <button onClick={() => void handleSave()} disabled={saving} className="btn-primary text-caption px-3 py-1.5 flex items-center gap-1">
-              {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Save ({Object.keys(pendingChanges).length})
+            <button
+              onClick={() => void handleSave()}
+              disabled={saving}
+              className="btn-primary text-caption px-3 py-1.5 flex items-center gap-1"
+            >
+              {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Save (
+              {Object.keys(pendingChanges).length})
             </button>
           )}
-          <button onClick={() => void fetchAll()} className="btn-ghost p-1.5" disabled={loading}><RefreshCw size={16} className={loading ? "animate-spin" : ""} /></button>
+          <button onClick={() => void fetchAll()} className="btn-ghost p-1.5" disabled={loading}>
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          </button>
         </div>
       </div>
 
       {/* Persistent Pipeline Bar */}
       {!loading && (
         <div className="px-1 flex-shrink-0">
-          <PipelineBar contactId={contactId} pipelineStates={pipelineStates} selectedPipelineId={selectedPipelineId}
-            onPipelineChange={setSelectedPipelineId} expandedStageId={drilldownStageId}
+          <PipelineBar
+            contactId={contactId}
+            pipelineStates={pipelineStates}
+            selectedPipelineId={selectedPipelineId}
+            onPipelineChange={setSelectedPipelineId}
+            expandedStageId={drilldownStageId}
             onStageClick={(id) => setDrilldownStageId(drilldownStageId === id ? null : id)}
             focusedTerritorySlug={focusedTerritorySlug}
             onTerritoryChange={setFocusedTerritorySlug}
-            onRefresh={() => void fetchAll()} />
-          {drilldownStage && selectedPipeline && (() => {
-            const currentStg = selectedPipeline.stages.find((s) => s.id === selectedPipeline.current_stage_id);
-            const isPast = drilldownStage.sort_order < (currentStg?.sort_order ?? 0);
-            return (
-              <StageDrilldownInline contactId={contactId} stageName={drilldownStage.name}
-                subTasks={drilldownStage.subTasks} logsBySubTask={new Map(Object.entries(drilldownStage.logsBySubTask))}
-                stageHistory={selectedPipeline.stageHistory} stageId={drilldownStage.id}
-                isPastStage={isPast}
-                onRefresh={() => void fetchAll()} onClose={() => setDrilldownStageId(null)} />
-            );
-          })()}
+            onRefresh={() => void fetchAll()}
+          />
+          {drilldownStage &&
+            selectedPipeline &&
+            (() => {
+              const currentStg = selectedPipeline.stages.find((s) => s.id === selectedPipeline.current_stage_id);
+              const isPast = drilldownStage.sort_order < (currentStg?.sort_order ?? 0);
+              return (
+                <StageDrilldownInline
+                  contactId={contactId}
+                  stageName={drilldownStage.name}
+                  subTasks={drilldownStage.subTasks}
+                  logsBySubTask={new Map(Object.entries(drilldownStage.logsBySubTask))}
+                  stageHistory={selectedPipeline.stageHistory}
+                  stageId={drilldownStage.id}
+                  isPastStage={isPast}
+                  onRefresh={() => void fetchAll()}
+                  onClose={() => setDrilldownStageId(null)}
+                />
+              );
+            })()}
         </div>
       )}
 
       {/* Persistent Territory + Deal cards */}
       {!loading && localContact && (
         <div className="px-1 flex-shrink-0 grid grid-cols-2 gap-2 mb-2">
-          <TerritoryDetailsCard contactId={contactId} fields={territoryDealFields}
-            onUpdate={(f) => setLocalContact((prev) => prev ? { ...prev, ...f } : prev)} />
-          <DealDetailsCard contactId={contactId} fields={territoryDealFields}
-            onUpdate={(f) => setLocalContact((prev) => prev ? { ...prev, ...f } : prev)} />
+          <TerritoryDetailsCard
+            contactId={contactId}
+            fields={territoryDealFields}
+            onUpdate={(f) => setLocalContact((prev) => (prev ? { ...prev, ...f } : prev))}
+          />
+          <DealDetailsCard
+            contactId={contactId}
+            fields={territoryDealFields}
+            onUpdate={(f) => setLocalContact((prev) => (prev ? { ...prev, ...f } : prev))}
+          />
         </div>
       )}
 
       {/* Tabs */}
       <div className="flex border-b border-border-default px-1 flex-shrink-0">
-        {([
+        {[
           { key: "overview" as const, label: "Overview" },
           { key: "messages" as const, label: "Messages" },
           { key: "profile" as const, label: "Profile" },
           { key: "territories" as const, label: "Territories" },
           { key: "eos" as const, label: "EOS" },
-        ]).map((tab) => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 text-body-sm font-medium border-b-2 transition-colors ${activeTab === tab.key ? "border-nah-orange text-nah-orange" : "border-transparent text-text-tertiary hover:text-text-primary"}`}>
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2 text-body-sm font-medium border-b-2 transition-colors ${activeTab === tab.key ? "border-nah-orange text-nah-orange" : "border-transparent text-text-tertiary hover:text-text-primary"}`}
+          >
             {tab.label}
           </button>
         ))}
@@ -518,7 +737,9 @@ export default function LeadDetailView({
       {/* Content — persistent left sidebar + tab-specific right content */}
       <div className="flex-1">
         {loading ? (
-          <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-text-tertiary" /></div>
+          <div className="flex items-center justify-center py-16">
+            <Loader2 size={24} className="animate-spin text-text-tertiary" />
+          </div>
         ) : (
           <div className="p-4">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -528,15 +749,19 @@ export default function LeadDetailView({
                   <RelatedPeopleCard
                     contactId={contactId}
                     mainContact={localContact}
-                    journeyMembers={journeyId ? activeMembers.map((m) => ({
-                      contact_id: m.contact_id,
-                      role: m.role,
-                      first_name: m.first_name,
-                      last_name: m.last_name,
-                      email: m.email ?? null,
-                      phone: m.phone ?? null,
-                      is_primary: m.is_primary,
-                    })) : undefined}
+                    journeyMembers={
+                      journeyId
+                        ? activeMembers.map((m) => ({
+                            contact_id: m.contact_id,
+                            role: m.role,
+                            first_name: m.first_name,
+                            last_name: m.last_name,
+                            email: m.email ?? null,
+                            phone: m.phone ?? null,
+                            is_primary: m.is_primary,
+                          }))
+                        : undefined
+                    }
                     coreRoleLabel={coreRoleLabel}
                     onAddRequested={journeyId ? () => setAddMemberOpen(true) : undefined}
                   />
@@ -559,57 +784,89 @@ export default function LeadDetailView({
                     <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
                       <div className="flex items-center gap-1.5 mb-2">
                         <Award size={14} className="text-text-tertiary" />
-                        <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">GRADED CALLS ({contactCalls.length})</h3>
+                        <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">
+                          GRADED CALLS ({contactCalls.length})
+                        </h3>
                       </div>
-                      {contactCalls.length === 0 ? <p className="text-caption text-text-tertiary">No graded calls yet</p> : (
+                      {contactCalls.length === 0 ? (
+                        <p className="text-caption text-text-tertiary">No graded calls yet</p>
+                      ) : (
                         <div className="space-y-1.5">
                           {contactCalls.map((c) => (
-                            <a key={c.id} href={`/calls/${c.id}`} className="flex items-center gap-2.5 py-1.5 rounded hover:bg-bg-hover transition-colors">
-                              <span className="text-caption font-medium text-text-primary">{c.callTypeName ?? "Call"}</span>
+                            <a
+                              key={c.id}
+                              href={`/calls/${c.id}`}
+                              className="flex items-center gap-2.5 py-1.5 rounded hover:bg-bg-hover transition-colors"
+                            >
+                              <span className="text-caption font-medium text-text-primary">
+                                {c.callTypeName ?? "Call"}
+                              </span>
                               {c.hostName && <span className="text-[10px] text-text-tertiary">{c.hostName}</span>}
-                              {c.duration_seconds && <span className="text-[10px] text-text-tertiary">{Math.round(c.duration_seconds / 60)}m</span>}
-                              {c.grade && <span className={`text-[10px] font-bold px-1 rounded ${c.grade === "A" ? "bg-success/10 text-success" : c.grade === "F" ? "bg-danger/10 text-danger" : "bg-nah-blue/10 text-nah-blue"}`}>{c.grade}</span>}
-                              <span className="text-[10px] text-text-tertiary ml-auto">{c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString() : ""}</span>
+                              {c.duration_seconds && (
+                                <span className="text-[10px] text-text-tertiary">
+                                  {Math.round(c.duration_seconds / 60)}m
+                                </span>
+                              )}
+                              {c.grade && (
+                                <span
+                                  className={`text-[10px] font-bold px-1 rounded ${c.grade === "A" ? "bg-success/10 text-success" : c.grade === "F" ? "bg-danger/10 text-danger" : "bg-nah-blue/10 text-nah-blue"}`}
+                                >
+                                  {c.grade}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-text-tertiary ml-auto">
+                                {c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString() : ""}
+                              </span>
                             </a>
                           ))}
                         </div>
                       )}
                     </div>
                     <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                      <div className="flex items-center gap-1.5 mb-2"><ClipboardList size={14} className="text-text-tertiary" /><h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">TASKS</h3></div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <ClipboardList size={14} className="text-text-tertiary" />
+                        <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">TASKS</h3>
+                      </div>
                       <TaskList contactId={contactId} tasks={tasks} onTaskUpdated={fetchAll} />
                     </div>
                     <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-                      <NotesSection contactId={contactId} notes={notes} onNoteAdded={fetchAll} />
+                      <NotesSection
+                        contactId={contactId}
+                        contactName={displayName}
+                        notes={notes}
+                        onNoteAdded={fetchAll}
+                      />
                     </div>
                   </>
                 ) : activeTab === "messages" ? (
-                  <div className="flex flex-col h-full min-h-0"><MessagesTab contactId={contactId} highlightMessageId={highlightMessageId ?? null} /></div>
+                  <div className="flex flex-col h-full min-h-0">
+                    <MessagesTab contactId={contactId} highlightMessageId={highlightMessageId ?? null} />
+                  </div>
                 ) : activeTab === "profile" ? (
                   <div className="space-y-4">
                     {showProfileHeader && (
                       <div className="flex flex-wrap items-center gap-1 border-b border-border-default">
-                        {showMemberTabs && activeMembers.map((m) => {
-                          const label = capitalizeName(`${m.first_name ?? ""} ${m.last_name ?? ""}`.trim()) || "Member";
-                          const active = m.contact_id === profileContactId;
-                          // Core roles (primary + co_primary) display as the
-                          // journey's role in the current stage — no visual
-                          // hierarchy between the two. Other roles read as-is.
-                          const isCore = m.role === "primary" || m.role === "co_primary";
-                          const roleLabel = isCore ? coreRoleLabel : m.role.replace(/_/g, " ");
-                          return (
-                            <button
-                              key={m.contact_id}
-                              onClick={() => setProfileContactId(m.contact_id)}
-                              className={`px-3 py-1.5 text-caption font-medium border-b-2 transition-colors ${active ? "border-nah-orange text-nah-orange" : "border-transparent text-text-tertiary hover:text-text-primary"}`}
-                            >
-                              {label}
-                              <span className="ml-1 text-[10px] text-text-tertiary">
-                                {roleLabel}
-                              </span>
-                            </button>
-                          );
-                        })}
+                        {showMemberTabs &&
+                          activeMembers.map((m) => {
+                            const label =
+                              capitalizeName(`${m.first_name ?? ""} ${m.last_name ?? ""}`.trim()) || "Member";
+                            const active = m.contact_id === profileContactId;
+                            // Core roles (primary + co_primary) display as the
+                            // journey's role in the current stage — no visual
+                            // hierarchy between the two. Other roles read as-is.
+                            const isCore = m.role === "primary" || m.role === "co_primary";
+                            const roleLabel = isCore ? coreRoleLabel : m.role.replace(/_/g, " ");
+                            return (
+                              <button
+                                key={m.contact_id}
+                                onClick={() => setProfileContactId(m.contact_id)}
+                                className={`px-3 py-1.5 text-caption font-medium border-b-2 transition-colors ${active ? "border-nah-orange text-nah-orange" : "border-transparent text-text-tertiary hover:text-text-primary"}`}
+                              >
+                                {label}
+                                <span className="ml-1 text-[10px] text-text-tertiary">{roleLabel}</span>
+                              </button>
+                            );
+                          })}
                         <div className="ml-auto mb-1 flex items-center gap-1.5">
                           <button
                             onClick={() => setAddMemberOpen(true)}
@@ -636,13 +893,25 @@ export default function LeadDetailView({
                       </h3>
                       <div className="grid grid-cols-2 gap-3 text-body-sm">
                         {[
-                          { label: "First Name", key: "first_name" as const, val: capitalizeName(profileTarget?.first_name) || "" },
-                          { label: "Last Name", key: "last_name" as const, val: capitalizeName(profileTarget?.last_name) || "" },
+                          {
+                            label: "First Name",
+                            key: "first_name" as const,
+                            val: capitalizeName(profileTarget?.first_name) || "",
+                          },
+                          {
+                            label: "Last Name",
+                            key: "last_name" as const,
+                            val: capitalizeName(profileTarget?.last_name) || "",
+                          },
                           { label: "Phone", key: "phone" as const, val: profileTarget?.phone || "" },
                           { label: "Email", key: "email" as const, val: profileTarget?.email || "" },
                           { label: "City", key: "city" as const, val: capitalizeName(profileTarget?.city) || "" },
                           { label: "State", key: "state" as const, val: profileTarget?.state?.toUpperCase() || "" },
-                          { label: "Lead Source", key: "opportunity_source" as const, val: profileTarget?.opportunity_source || "" },
+                          {
+                            label: "Lead Source",
+                            key: "opportunity_source" as const,
+                            val: profileTarget?.opportunity_source || "",
+                          },
                         ].map((f) => (
                           <EditableInfoField
                             key={`${profileContactId}-${f.key}`}
@@ -658,9 +927,9 @@ export default function LeadDetailView({
                               setProfileSavingKey(null);
                               if (!res.ok) return;
                               if (isAltContact) {
-                                setProfileContactData((prev) => prev ? { ...prev, [f.key]: v || null } : prev);
+                                setProfileContactData((prev) => (prev ? { ...prev, [f.key]: v || null } : prev));
                               } else {
-                                setLocalContact((prev) => prev ? { ...prev, [f.key]: v || null } : prev);
+                                setLocalContact((prev) => (prev ? { ...prev, [f.key]: v || null } : prev));
                               }
                             }}
                           />
@@ -672,19 +941,41 @@ export default function LeadDetailView({
                       <div className="bg-scout-purple/5 border border-scout-purple/20 rounded-lg p-4">
                         <span className="text-caption font-medium text-scout-purple">Scout AI Summary</span>
                         <p className="text-body-sm text-text-primary mt-1">{profileValues["Auto Summary"]}</p>
-                        {profileValues["Recommended Next Action"] && <p className="text-body-sm text-nah-orange font-medium mt-2">Next: {profileValues["Recommended Next Action"]}</p>}
+                        {profileValues["Recommended Next Action"] && (
+                          <p className="text-body-sm text-nah-orange font-medium mt-2">
+                            Next: {profileValues["Recommended Next Action"]}
+                          </p>
+                        )}
                       </div>
                     )}
                     {!isSideMember && profileValues["Scout Prospect Score"] && (
                       <div className="flex items-center gap-4 bg-bg-secondary border border-border-default rounded-lg p-4">
-                        <div className="text-center"><div className="text-h1 text-nah-orange">{profileValues["Scout Prospect Score"]}</div><div className="text-caption text-text-tertiary">Prospect Score</div></div>
-                        {profileValues["Predicted Close Probability"] && <div className="text-center"><div className="text-h1 text-success">{profileValues["Predicted Close Probability"]}%</div><div className="text-caption text-text-tertiary">Close Prob.</div></div>}
+                        <div className="text-center">
+                          <div className="text-h1 text-nah-orange">{profileValues["Scout Prospect Score"]}</div>
+                          <div className="text-caption text-text-tertiary">Prospect Score</div>
+                        </div>
+                        {profileValues["Predicted Close Probability"] && (
+                          <div className="text-center">
+                            <div className="text-h1 text-success">{profileValues["Predicted Close Probability"]}%</div>
+                            <div className="text-caption text-text-tertiary">Close Prob.</div>
+                          </div>
+                        )}
                       </div>
                     )}
-                    {!isSideMember && CATEGORIES.map((cat) => {
-                      const fields = PROFILE_FIELDS.filter((f) => f.category === cat);
-                      return <ProfileSection key={cat} category={cat} fields={fields} values={profileValues} onFieldChange={handleFieldChange} saving={saving} />;
-                    })}
+                    {!isSideMember &&
+                      CATEGORIES.map((cat) => {
+                        const fields = PROFILE_FIELDS.filter((f) => f.category === cat);
+                        return (
+                          <ProfileSection
+                            key={cat}
+                            category={cat}
+                            fields={fields}
+                            values={profileValues}
+                            onFieldChange={handleFieldChange}
+                            saving={saving}
+                          />
+                        );
+                      })}
                   </div>
                 ) : activeTab === "territories" ? (
                   <TerritoryDataTab ghlContactId={contact?.id ?? null} />
@@ -711,14 +1002,6 @@ export default function LeadDetailView({
       </div>
 
       {/* Action panels */}
-      {activePanel === "sms" && contact && (
-        <SMSPanel contactId={contact.id} contactName={displayName} contactPhone={contact.phone ?? localContact?.phone ?? null}
-          onClose={() => setActivePanel(null)} onSent={() => { setActivePanel(null); void fetchAll(); }} />
-      )}
-      {activePanel === "email" && contact && (
-        <EmailPanel contactId={contact.id} contactName={displayName} contactEmail={contact.email ?? localContact?.email ?? null}
-          onClose={() => setActivePanel(null)} onSent={() => { setActivePanel(null); void fetchAll(); }} />
-      )}
       {activePanel === "call" && contact && (
         <CallPanel
           contactId={contact.id}
@@ -727,10 +1010,6 @@ export default function LeadDetailView({
           onClose={() => setActivePanel(null)}
           onLogged={() => void fetchAll()}
         />
-      )}
-      {activePanel === "schedule" && contact && (
-        <SchedulePanel contactId={contact.id} contactName={displayName} contactEmail={contact.email ?? localContact?.email ?? null}
-          onClose={() => setActivePanel(null)} onScheduled={() => { setActivePanel(null); void fetchAll(); }} />
       )}
       {mergeOpen && contact && (
         <MergeContactModal
@@ -763,7 +1042,7 @@ export default function LeadDetailView({
             const seen = new Set<string>();
             const out: SplitTerritory[] = [];
             for (const ps of pipelineStates) {
-              for (const t of (ps.territories ?? [])) {
+              for (const t of ps.territories ?? []) {
                 if (!seen.has(t.ms_slug)) {
                   seen.add(t.ms_slug);
                   out.push({ ms_slug: t.ms_slug, territory_name: t.territory_name });
@@ -785,7 +1064,9 @@ export default function LeadDetailView({
           existingMemberIds={activeMembers.map((m) => m.contact_id)}
           coreRoleLabel={coreRoleLabel}
           onClose={() => setAddMemberOpen(false)}
-          onAdded={() => { router.refresh(); }}
+          onAdded={() => {
+            router.refresh();
+          }}
         />
       )}
     </div>

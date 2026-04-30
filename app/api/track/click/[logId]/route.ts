@@ -11,15 +11,13 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ logId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ logId: string }> }) {
   const { logId } = await params;
   const url = request.nextUrl.searchParams.get("url");
 
   // If no URL provided, redirect to homepage as fallback
-  const destination = url || process.env.NEXT_PUBLIC_APP_URL || "/";
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const destination = url || `${process.env.NEXT_PUBLIC_APP_URL || ""}${basePath}` || "/";
 
   // Record the click event
   try {

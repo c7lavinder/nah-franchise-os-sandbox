@@ -1,11 +1,23 @@
 "use client";
 import { apiFetch } from "@/lib/auth/api-fetch";
+import { BASE_PATH } from "@/lib/base-path";
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  Settings, Users, Zap, Bot, Database, Activity, Brain, Bell,
-  CheckCircle2, XCircle, ExternalLink, Shield, User,
+  Settings,
+  Users,
+  Zap,
+  Bot,
+  Database,
+  Activity,
+  Brain,
+  Bell,
+  CheckCircle2,
+  XCircle,
+  ExternalLink,
+  Shield,
+  User,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import PipelineEditor from "@/components/settings/PipelineEditor";
@@ -56,12 +68,14 @@ export default function SettingsPage() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch("/api/settings/integrations").then((r) => r.ok ? r.json() : null),
-      apiFetch("/api/settings/health").then((r) => r.ok ? r.json() : null),
-    ]).then(([intData, healthData]) => {
-      if (intData) setIntegrations(intData);
-      if (healthData) setHealth(healthData);
-    }).catch(() => {});
+      apiFetch("/api/settings/integrations").then((r) => (r.ok ? r.json() : null)),
+      apiFetch("/api/settings/health").then((r) => (r.ok ? r.json() : null)),
+    ])
+      .then(([intData, healthData]) => {
+        if (intData) setIntegrations(intData);
+        if (healthData) setHealth(healthData);
+      })
+      .catch(() => {});
   }, []);
 
   const TABS: { key: SettingsTab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
@@ -119,202 +133,291 @@ export default function SettingsPage() {
       ) : activeTab === "integrations" ? (
         <IntegrationsPanel />
       ) : (
-      /* ─── General Tab ─── */
-      <div>
-        {/* OAuth callback messages */}
-        {crmStatus === "connected" && (
-          <div className="mb-4 px-3 py-2 bg-success/10 border border-success/20 rounded-lg">
-            <p className="text-body-sm text-success">GoHighLevel connected successfully.</p>
-          </div>
-        )}
-        {crmError === "crm_auth_failed" && (
-          <div className="mb-4 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg">
-            <p className="text-body-sm text-danger">GHL connection failed. Check your GHL credentials and try again.</p>
-          </div>
-        )}
+        /* ─── General Tab ─── */
+        <div>
+          {/* OAuth callback messages */}
+          {crmStatus === "connected" && (
+            <div className="mb-4 px-3 py-2 bg-success/10 border border-success/20 rounded-lg">
+              <p className="text-body-sm text-success">GoHighLevel connected successfully.</p>
+            </div>
+          )}
+          {crmError === "crm_auth_failed" && (
+            <div className="mb-4 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg">
+              <p className="text-body-sm text-danger">
+                GHL connection failed. Check your GHL credentials and try again.
+              </p>
+            </div>
+          )}
 
-        {/* Setup Checklist */}
-        {integrations?.setup && !integrations.setup.ready && (
-          <div className="mb-6 p-4 bg-warning/5 border border-warning/20 rounded-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <Settings size={16} className="text-warning" />
-              <h2 className="text-h3 text-text-primary">Setup Checklist</h2>
-              <span className="text-caption text-text-tertiary ml-auto">
-                {integrations.setup.complete}/{integrations.setup.total} complete
-              </span>
+          {/* Setup Checklist */}
+          {integrations?.setup && !integrations.setup.ready && (
+            <div className="mb-6 p-4 bg-warning/5 border border-warning/20 rounded-lg">
+              <div className="flex items-center gap-2 mb-3">
+                <Settings size={16} className="text-warning" />
+                <h2 className="text-h3 text-text-primary">Setup Checklist</h2>
+                <span className="text-caption text-text-tertiary ml-auto">
+                  {integrations.setup.complete}/{integrations.setup.total} complete
+                </span>
+              </div>
+              <div className="space-y-2">
+                {integrations.setup.checklist.map((item) => (
+                  <div key={item.label} className="flex items-center gap-2">
+                    {item.done ? (
+                      <CheckCircle2 size={14} className="text-success flex-shrink-0" />
+                    ) : (
+                      <XCircle size={14} className="text-danger flex-shrink-0" />
+                    )}
+                    <span
+                      className={`text-body-sm ${item.done ? "text-text-secondary" : "text-text-primary font-medium"}`}
+                    >
+                      {item.label}
+                    </span>
+                    <span className="text-caption text-text-tertiary ml-auto">{item.detail}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="space-y-2">
-              {integrations.setup.checklist.map((item) => (
-                <div key={item.label} className="flex items-center gap-2">
-                  {item.done ? <CheckCircle2 size={14} className="text-success flex-shrink-0" /> : <XCircle size={14} className="text-danger flex-shrink-0" />}
-                  <span className={`text-body-sm ${item.done ? "text-text-secondary" : "text-text-primary font-medium"}`}>{item.label}</span>
-                  <span className="text-caption text-text-tertiary ml-auto">{item.detail}</span>
-                </div>
-              ))}
+          )}
+          {integrations?.setup?.ready && (
+            <div className="mb-6 px-3 py-2 bg-success/10 border border-success/20 rounded-lg">
+              <p className="text-body-sm text-success">All systems configured and ready.</p>
             </div>
-          </div>
-        )}
-        {integrations?.setup?.ready && (
-          <div className="mb-6 px-3 py-2 bg-success/10 border border-success/20 rounded-lg">
-            <p className="text-body-sm text-success">All systems configured and ready.</p>
-          </div>
-        )}
+          )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Profile */}
-          <div className="card">
-            <div className="flex items-center gap-2 mb-4">
-              <User size={16} className="text-text-secondary" />
-              <h2 className="text-h3 text-text-primary">Profile</h2>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="text-caption text-text-tertiary">Name</label>
-                <p className="text-body text-text-primary">{user?.fullName ?? "—"}</p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Profile */}
+            <div className="card">
+              <div className="flex items-center gap-2 mb-4">
+                <User size={16} className="text-text-secondary" />
+                <h2 className="text-h3 text-text-primary">Profile</h2>
               </div>
-              <div>
-                <label className="text-caption text-text-tertiary">Email</label>
-                <p className="text-body text-text-primary">{user?.email ?? "—"}</p>
-              </div>
-              <div>
-                <label className="text-caption text-text-tertiary">Role</label>
-                <p className="text-body text-text-primary">{user?.role === "leadership" ? "Admin" : (user?.role ?? "—")}</p>
-              </div>
-              <div>
-                <label className="text-caption text-text-tertiary">GHL User ID</label>
-                <p className="text-body text-text-primary">{user?.ghlUserId ?? "Not linked"}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Integration Status */}
-          <div className="card">
-            <div className="flex items-center gap-2 mb-4">
-              <Zap size={16} className="text-text-secondary" />
-              <h2 className="text-h3 text-text-primary">Integration Status</h2>
-            </div>
-            {!integrations ? (
               <div className="space-y-3">
-                {[0, 1, 2].map((i) => <div key={i} className="h-5 bg-bg-tertiary rounded animate-pulse" />)}
+                <div>
+                  <label className="text-caption text-text-tertiary">Name</label>
+                  <p className="text-body text-text-primary">{user?.fullName ?? "—"}</p>
+                </div>
+                <div>
+                  <label className="text-caption text-text-tertiary">Email</label>
+                  <p className="text-body text-text-primary">{user?.email ?? "—"}</p>
+                </div>
+                <div>
+                  <label className="text-caption text-text-tertiary">Role</label>
+                  <p className="text-body text-text-primary">
+                    {user?.role === "leadership" ? "Admin" : (user?.role ?? "—")}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-caption text-text-tertiary">GHL User ID</label>
+                  <p className="text-body text-text-primary">{user?.ghlUserId ?? "Not linked"}</p>
+                </div>
               </div>
-            ) : (
-              <>
+            </div>
+
+            {/* Quick Integration Status */}
+            <div className="card">
+              <div className="flex items-center gap-2 mb-4">
+                <Zap size={16} className="text-text-secondary" />
+                <h2 className="text-h3 text-text-primary">Integration Status</h2>
+              </div>
+              {!integrations ? (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2"><Database size={14} className="text-text-tertiary" /><span className="text-body-sm text-text-primary">GoHighLevel</span></div>
-                    {integrations.ghl.connected
-                      ? <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> {integrations.ghl.method === "oauth" ? "OAuth" : "API Key"}</span>
-                      : <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> Not Connected</span>}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2"><Zap size={14} className="text-scout-purple" /><span className="text-body-sm text-text-primary">Anthropic (Scout AI)</span></div>
-                    {integrations.anthropic.connected
-                      ? <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> Connected</span>
-                      : <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> No API Key</span>}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2"><Zap size={14} className="text-info" /><span className="text-body-sm text-text-primary">Whisper</span></div>
-                    {integrations.whisper.connected
-                      ? <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> Connected</span>
-                      : <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> No API Key</span>}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2"><Database size={14} className="text-nah-blue" /><span className="text-body-sm text-text-primary">People Data Labs</span></div>
-                    {integrations.pdl?.connected
-                      ? <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> Connected</span>
-                      : <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> No API Key</span>}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2"><Zap size={14} className="text-green-600" /><span className="text-body-sm text-text-primary">Read.ai</span></div>
-                    {integrations.read_ai?.connected
-                      ? <span className="flex items-center gap-1 text-caption text-success"><CheckCircle2 size={12} /> Connected</span>
-                      : <span className="flex items-center gap-1 text-caption text-danger"><XCircle size={12} /> Not Configured</span>}
-                  </div>
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-5 bg-bg-tertiary rounded animate-pulse" />
+                  ))}
                 </div>
-                {!integrations.ghl.connected && (
-                  <a href="/api/auth/crm" className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-md bg-nah-orange text-white text-caption font-medium hover:bg-nah-orange/90 transition-colors">
-                    Connect GHL <ExternalLink size={12} />
-                  </a>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Scout AI Config */}
-          <div className="card">
-            <div className="flex items-center gap-2 mb-4">
-              <Brain size={16} className="text-scout-purple" />
-              <h2 className="text-h3 text-text-primary">Scout AI Configuration</h2>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Database size={14} className="text-text-tertiary" />
+                        <span className="text-body-sm text-text-primary">GoHighLevel</span>
+                      </div>
+                      {integrations.ghl.connected ? (
+                        <span className="flex items-center gap-1 text-caption text-success">
+                          <CheckCircle2 size={12} /> {integrations.ghl.method === "oauth" ? "OAuth" : "API Key"}
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-caption text-danger">
+                          <XCircle size={12} /> Not Connected
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Zap size={14} className="text-scout-purple" />
+                        <span className="text-body-sm text-text-primary">Anthropic (Scout AI)</span>
+                      </div>
+                      {integrations.anthropic.connected ? (
+                        <span className="flex items-center gap-1 text-caption text-success">
+                          <CheckCircle2 size={12} /> Connected
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-caption text-danger">
+                          <XCircle size={12} /> No API Key
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Zap size={14} className="text-info" />
+                        <span className="text-body-sm text-text-primary">Whisper</span>
+                      </div>
+                      {integrations.whisper.connected ? (
+                        <span className="flex items-center gap-1 text-caption text-success">
+                          <CheckCircle2 size={12} /> Connected
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-caption text-danger">
+                          <XCircle size={12} /> No API Key
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Database size={14} className="text-nah-blue" />
+                        <span className="text-body-sm text-text-primary">People Data Labs</span>
+                      </div>
+                      {integrations.pdl?.connected ? (
+                        <span className="flex items-center gap-1 text-caption text-success">
+                          <CheckCircle2 size={12} /> Connected
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-caption text-danger">
+                          <XCircle size={12} /> No API Key
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Zap size={14} className="text-green-600" />
+                        <span className="text-body-sm text-text-primary">Read.ai</span>
+                      </div>
+                      {integrations.read_ai?.connected ? (
+                        <span className="flex items-center gap-1 text-caption text-success">
+                          <CheckCircle2 size={12} /> Connected
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-caption text-danger">
+                          <XCircle size={12} /> Not Configured
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {!integrations.ghl.connected && (
+                    <a
+                      href={`${BASE_PATH}/api/auth/crm`}
+                      className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-md bg-nah-orange text-white text-caption font-medium hover:bg-nah-orange/90 transition-colors"
+                    >
+                      Connect GHL <ExternalLink size={12} />
+                    </a>
+                  )}
+                </>
+              )}
             </div>
-            <div className="space-y-2 text-body-sm">
-              <div className="flex justify-between">
-                <span className="text-text-tertiary">Scout Model</span>
-                <span className="text-text-primary font-mono text-caption">{scoutModel}</span>
+
+            {/* Scout AI Config */}
+            <div className="card">
+              <div className="flex items-center gap-2 mb-4">
+                <Brain size={16} className="text-scout-purple" />
+                <h2 className="text-h3 text-text-primary">Scout AI Configuration</h2>
               </div>
-              <div className="flex justify-between">
-                <span className="text-text-tertiary">Agent Model</span>
-                <span className="text-text-primary font-mono text-caption">{agentModel}</span>
+              <div className="space-y-2 text-body-sm">
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">Scout Model</span>
+                  <span className="text-text-primary font-mono text-caption">{scoutModel}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">Agent Model</span>
+                  <span className="text-text-primary font-mono text-caption">{agentModel}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">Draft → Review → Confirm</span>
+                  <span className="text-success text-caption font-medium">Enforced</span>
+                </div>
+                <p className="text-[10px] text-text-tertiary mt-2">
+                  Model configuration is set via environment variables.
+                </p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-text-tertiary">Draft → Review → Confirm</span>
-                <span className="text-success text-caption font-medium">Enforced</span>
+            </div>
+
+            {/* System Health */}
+            <div className="card">
+              <div className="flex items-center gap-2 mb-4">
+                <Activity size={16} className="text-success" />
+                <h2 className="text-h3 text-text-primary">System Health</h2>
               </div>
-              <p className="text-[10px] text-text-tertiary mt-2">Model configuration is set via environment variables.</p>
+              {health ? (
+                <div className="space-y-3">
+                  <HealthRow label="Total Contacts" value={health.totalContacts} />
+                  <HealthRow label="Territories" value={health.totalTerritories} />
+                  <HealthRow label="Active Users" value={health.activeUsers} />
+                  <HealthRow label="KB Documents" value={health.kbDocuments} />
+                  <HealthRow
+                    label="Pending Suggestions"
+                    value={health.pendingSuggestions}
+                    warn={health.pendingSuggestions > 20}
+                  />
+                </div>
+              ) : (
+                <p className="text-caption text-text-tertiary">Loading...</p>
+              )}
             </div>
-          </div>
 
-          {/* System Health */}
-          <div className="card">
-            <div className="flex items-center gap-2 mb-4">
-              <Activity size={16} className="text-success" />
-              <h2 className="text-h3 text-text-primary">System Health</h2>
-            </div>
-            {health ? (
-              <div className="space-y-3">
-                <HealthRow label="Total Contacts" value={health.totalContacts} />
-                <HealthRow label="Territories" value={health.totalTerritories} />
-                <HealthRow label="Active Users" value={health.activeUsers} />
-                <HealthRow label="KB Documents" value={health.kbDocuments} />
-                <HealthRow label="Pending Suggestions" value={health.pendingSuggestions} warn={health.pendingSuggestions > 20} />
+            {/* Security */}
+            <div className="card">
+              <div className="flex items-center gap-2 mb-4">
+                <Shield size={16} className="text-text-secondary" />
+                <h2 className="text-h3 text-text-primary">Security</h2>
               </div>
-            ) : (
-              <p className="text-caption text-text-tertiary">Loading...</p>
-            )}
-          </div>
-
-          {/* Security */}
-          <div className="card">
-            <div className="flex items-center gap-2 mb-4">
-              <Shield size={16} className="text-text-secondary" />
-              <h2 className="text-h3 text-text-primary">Security</h2>
+              <button className="btn-secondary text-body-sm" disabled>
+                Change Password
+              </button>
+              <p className="text-caption text-text-tertiary mt-2">
+                Password changes are handled through Supabase Auth.
+              </p>
             </div>
-            <button className="btn-secondary text-body-sm" disabled>Change Password</button>
-            <p className="text-caption text-text-tertiary mt-2">Password changes are handled through Supabase Auth.</p>
-          </div>
 
-          {/* Notifications */}
-          <div className="card">
-            <div className="flex items-center gap-2 mb-4">
-              <Bell size={16} className="text-text-secondary" />
-              <h2 className="text-h3 text-text-primary">Notifications</h2>
-              <span className="badge-info ml-auto">Coming Soon</span>
+            {/* Notifications */}
+            <div className="card">
+              <div className="flex items-center gap-2 mb-4">
+                <Bell size={16} className="text-text-secondary" />
+                <h2 className="text-h3 text-text-primary">Notifications</h2>
+                <span className="badge-info ml-auto">Coming Soon</span>
+              </div>
+              <p className="text-body-sm text-text-tertiary">
+                Alert thresholds, email, and Slack notifications will be configurable here.
+              </p>
             </div>
-            <p className="text-body-sm text-text-tertiary">Alert thresholds, email, and Slack notifications will be configurable here.</p>
-          </div>
 
-          {/* Environment */}
-          <div className="card">
-            <h3 className="text-overline text-text-tertiary tracking-wider mb-3">ENVIRONMENT</h3>
-            <div className="space-y-2 text-body-sm">
-              <div className="flex justify-between"><span className="text-text-tertiary">Platform</span><span className="text-text-primary">Vercel + Supabase</span></div>
-              <div className="flex justify-between"><span className="text-text-tertiary">CRM</span><span className="text-text-primary">GoHighLevel</span></div>
-              <div className="flex justify-between"><span className="text-text-tertiary">AI Provider</span><span className="text-text-primary">Anthropic (Claude)</span></div>
-              <div className="flex justify-between"><span className="text-text-tertiary">Transcription</span><span className="text-text-primary">OpenAI Whisper</span></div>
-              <div className="flex justify-between"><span className="text-text-tertiary">Version</span><span className="text-nah-orange text-caption font-medium">Beta</span></div>
+            {/* Environment */}
+            <div className="card">
+              <h3 className="text-overline text-text-tertiary tracking-wider mb-3">ENVIRONMENT</h3>
+              <div className="space-y-2 text-body-sm">
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">Platform</span>
+                  <span className="text-text-primary">Vercel + Supabase</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">CRM</span>
+                  <span className="text-text-primary">GoHighLevel</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">AI Provider</span>
+                  <span className="text-text-primary">Anthropic (Claude)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">Transcription</span>
+                  <span className="text-text-primary">OpenAI Whisper</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-tertiary">Version</span>
+                  <span className="text-nah-orange text-caption font-medium">Beta</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
       )}
     </div>
   );
@@ -324,7 +427,9 @@ function HealthRow({ label, value, warn }: { label: string; value: number; warn?
   return (
     <div className="flex items-center justify-between py-1.5 border-b border-border-default last:border-0">
       <span className="text-body-sm text-text-secondary">{label}</span>
-      <span className={`text-body-sm font-medium ${warn ? "text-warning" : "text-text-primary"}`}>{value.toLocaleString()}</span>
+      <span className={`text-body-sm font-medium ${warn ? "text-warning" : "text-text-primary"}`}>
+        {value.toLocaleString()}
+      </span>
     </div>
   );
 }

@@ -10,8 +10,14 @@ vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(),
 }));
 
+// Mock cookie reader
+vi.mock("@/lib/auth/cookies", () => ({
+  getAccessTokenFromCookies: vi.fn(() => null),
+}));
+
 import { requireAuth, getAuthUser } from "@/lib/auth/session";
 import { createServerClient } from "@/lib/supabase/server";
+import { getAccessTokenFromCookies } from "@/lib/auth/cookies";
 
 const mockSupabase = {
   auth: {
@@ -31,16 +37,12 @@ const mockSupabase = {
 beforeEach(() => {
   vi.clearAllMocks();
   (createServerClient as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase);
+  (getAccessTokenFromCookies as ReturnType<typeof vi.fn>).mockReturnValue(null);
 });
 
 describe("getAuthUser", () => {
-  it("returns null when no auth header", async () => {
+  it("returns null when no token", async () => {
     const result = await getAuthUser(null);
-    expect(result).toBeNull();
-  });
-
-  it("returns null when auth header is not Bearer", async () => {
-    const result = await getAuthUser("Basic abc123");
     expect(result).toBeNull();
   });
 
@@ -49,7 +51,7 @@ describe("getAuthUser", () => {
       data: { user: null },
       error: { message: "Invalid token" },
     });
-    const result = await getAuthUser("Bearer invalid-token");
+    const result = await getAuthUser("invalid-token");
     expect(result).toBeNull();
   });
 
@@ -68,7 +70,7 @@ describe("getAuthUser", () => {
         })),
       })),
     });
-    const result = await getAuthUser("Bearer valid-token");
+    const result = await getAuthUser("valid-token");
     expect(result).toBeNull();
   });
 
@@ -96,7 +98,7 @@ describe("getAuthUser", () => {
         })),
       })),
     });
-    const result = await getAuthUser("Bearer valid-token");
+    const result = await getAuthUser("valid-token");
     expect(result).toEqual({
       id: "user-123",
       email: "chad@newagainhouses.com",
@@ -108,7 +110,7 @@ describe("getAuthUser", () => {
 });
 
 describe("requireAuth", () => {
-  it("returns 401 Response when no Authorization header", async () => {
+  it("returns 401 Response when no token in cookies or header", async () => {
     const request = new Request("http://localhost/api/test");
     const result = await requireAuth(request);
     expect(result).toBeInstanceOf(Response);
@@ -128,7 +130,7 @@ describe("requireAuth", () => {
     expect((result as Response).status).toBe(401);
   });
 
-  it("returns AuthUser when authenticated", async () => {
+  it("returns AuthUser when authenticated via Authorization header", async () => {
     mockSupabase.auth.getUser.mockResolvedValue({
       data: { user: { email: "matt@newagainhouses.com" } },
       error: null,
@@ -159,5 +161,36 @@ describe("requireAuth", () => {
     expect(result).not.toBeInstanceOf(Response);
     expect((result as { id: string }).id).toBe("admin-456");
     expect((result as { role: string }).role).toBe("admin");
+  });
+
+  it("returns AuthUser when authenticated via cookie", async () => {
+    (getAccessTokenFromCookies as ReturnType<typeof vi.fn>).mockReturnValue("cookie-token");
+    mockSupabase.auth.getUser.mockResolvedValue({
+      data: { user: { email: "chad@newagainhouses.com" } },
+      error: null,
+    });
+    const singleMock = vi.fn().mockResolvedValue({
+      data: {
+        id: "user-789",
+        email: "chad@newagainhouses.com",
+        full_name: "Chad Arnold",
+        role: "operator",
+        ghl_user_id: "ghl-def",
+      },
+      error: null,
+    });
+    mockSupabase.from.mockReturnValue({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: singleMock,
+          })),
+        })),
+      })),
+    });
+    const request = new Request("http://localhost/api/test");
+    const result = await requireAuth(request);
+    expect(result).not.toBeInstanceOf(Response);
+    expect((result as { id: string }).id).toBe("user-789");
   });
 });

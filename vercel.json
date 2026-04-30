@@ -1,43 +1,43 @@
 {
   "crons": [
     {
-      "path": "/api/cron/journals",
+      "path": "/frandev/api/cron/journals",
       "schedule": "0 23 * * *"
     },
     {
-      "path": "/api/cron/weekly-report",
+      "path": "/frandev/api/cron/weekly-report",
       "schedule": "0 23 * * 0"
     },
     {
-      "path": "/api/cron/rubric-review",
+      "path": "/frandev/api/cron/rubric-review",
       "schedule": "0 23 1 * *"
     },
     {
-      "path": "/api/cron/research-contacts",
+      "path": "/frandev/api/cron/research-contacts",
       "schedule": "0 2 * * 0"
     },
     {
-      "path": "/api/cron/research-territories",
+      "path": "/frandev/api/cron/research-territories",
       "schedule": "0 3 * * 0"
     },
     {
-      "path": "/api/cron/pre-call-briefs",
+      "path": "/frandev/api/cron/pre-call-briefs",
       "schedule": "0 7 * * *"
     },
     {
-      "path": "/api/cron/reengagement-scan",
+      "path": "/frandev/api/cron/reengagement-scan",
       "schedule": "0 4 1 * *"
     },
     {
-      "path": "/api/cron/process-transcripts",
+      "path": "/frandev/api/cron/process-transcripts",
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/cron/refresh-ghl-token",
+      "path": "/frandev/api/cron/refresh-ghl-token",
       "schedule": "0 */12 * * *"
     },
     {
-      "path": "/api/calls/reconcile",
+      "path": "/frandev/api/calls/reconcile",
       "schedule": "*/10 * * * *"
     }
   ]
