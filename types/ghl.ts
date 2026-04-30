@@ -135,6 +135,11 @@ export interface GHLAppointment {
   startTime: string;
   endTime: string;
   status: "confirmed" | "cancelled" | "no-show";
+  address?: string;
+  assignedUserId?: string;
+  notes?: string;
+  source?: string;
+  appointmentStatus?: string;
 }
 
 /** GHL Appointment creation payload — per connection map */

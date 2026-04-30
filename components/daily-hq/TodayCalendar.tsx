@@ -1,26 +1,54 @@
 "use client";
 
-import { Calendar, Clock, Video } from "lucide-react";
+import { useState } from "react";
+import { Calendar, Clock, Video, ExternalLink, FileText, ChevronDown, ChevronRight, User } from "lucide-react";
 import type { GHLAppointment } from "@/types/ghl";
 
 interface TodayCalendarProps {
   appointments: GHLAppointment[];
-  onAppointmentClick?: (appointment: GHLAppointment) => void;
+}
+
+/** Color palette by appointment title keyword */
+function getEventColor(title: string): { border: string; bg: string; text: string; dot: string } {
+  const t = title.toLowerCase();
+  if (t.includes("intro") || t.includes("chad"))
+    return { border: "border-[#3B82F6]", bg: "bg-[#EFF6FF]", text: "text-[#1D4ED8]", dot: "bg-[#3B82F6]" };
+  if (t.includes("discovery") || t.includes("matt"))
+    return { border: "border-[#8B5CF6]", bg: "bg-[#F5F3FF]", text: "text-[#6D28D9]", dot: "bg-[#8B5CF6]" };
+  if (t.includes("validation") || t.includes("sam"))
+    return { border: "border-[#F59E0B]", bg: "bg-[#FFFBEB]", text: "text-[#B45309]", dot: "bg-[#F59E0B]" };
+  if (t.includes("lending") || t.includes("mark"))
+    return { border: "border-[#10B981]", bg: "bg-[#ECFDF5]", text: "text-[#047857]", dot: "bg-[#10B981]" };
+  if (t.includes("fdd") || t.includes("final"))
+    return { border: "border-[#EF4444]", bg: "bg-[#FEF2F2]", text: "text-[#B91C1C]", dot: "bg-[#EF4444]" };
+  if (t.includes("coaching") || t.includes("onboarding"))
+    return { border: "border-[#06B6D4]", bg: "bg-[#ECFEFF]", text: "text-[#0E7490]", dot: "bg-[#06B6D4]" };
+  if (t.includes("team") || t.includes("internal") || t.includes("huddle"))
+    return { border: "border-[#6B7280]", bg: "bg-[#F9FAFB]", text: "text-[#374151]", dot: "bg-[#6B7280]" };
+  return { border: "border-[#F97316]", bg: "bg-[#FFF7ED]", text: "text-[#C2410C]", dot: "bg-[#F97316]" };
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function getDuration(start: string, end: string): string {
   const diff = Math.round((new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60));
-  return `${diff}min`;
+  if (isNaN(diff) || diff <= 0) return "";
+  return `${diff}m`;
 }
 
-export default function TodayCalendar({ appointments, onAppointmentClick }: TodayCalendarProps) {
-  const sorted = [...appointments].sort(
-    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-  );
+function isMeetLink(url?: string): boolean {
+  if (!url) return false;
+  return url.includes("meet.google") || url.includes("zoom.us") || url.includes("teams.microsoft");
+}
+
+export default function TodayCalendar({ appointments }: TodayCalendarProps) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const sorted = [...appointments].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
   const now = new Date();
   const todayStr = now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
@@ -29,7 +57,8 @@ export default function TodayCalendar({ appointments, onAppointmentClick }: Toda
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border-default flex-shrink-0">
         <Calendar size={14} className="text-nah-orange" />
-        <h3 className="text-body-sm font-semibold text-text-primary">Today</h3>
+        <h3 className="text-body-sm font-semibold text-text-primary">Calendar</h3>
+        <span className="text-caption text-text-tertiary ml-auto">{sorted.length} events</span>
       </div>
       <p className="text-caption text-text-tertiary px-3 py-1.5">{todayStr}</p>
 
@@ -40,36 +69,111 @@ export default function TodayCalendar({ appointments, onAppointmentClick }: Toda
         {sorted.map((apt) => {
           const isPast = new Date(apt.endTime) < now;
           const isCurrent = new Date(apt.startTime) <= now && new Date(apt.endTime) > now;
+          const isExpanded = expandedId === apt.id;
+          const color = getEventColor(apt.title);
+          const hasMeetLink = isMeetLink(apt.address);
 
           return (
-            <button
+            <div
               key={apt.id}
-              onClick={() => onAppointmentClick?.(apt)}
-              className={`
-                w-full text-left px-3 py-2 rounded-lg border transition-colors
-                ${isCurrent
-                  ? "border-nah-orange bg-nah-orange/5"
+              className={`rounded-lg border-l-[3px] border transition-all ${
+                isCurrent
+                  ? `${color.border} ${color.bg} border-r border-t border-b ${color.border}`
                   : isPast
-                    ? "border-border-default bg-bg-secondary opacity-50"
-                    : "border-border-default bg-bg-secondary hover:border-border-hover"
-                }
-              `}
+                    ? "border-l-gray-300 border-border-default bg-bg-secondary opacity-50"
+                    : `${color.border} border-r border-t border-b border-border-default bg-bg-secondary hover:${color.bg}`
+              }`}
             >
-              <div className="flex items-center gap-2 mb-1">
-                <Clock size={11} className={isCurrent ? "text-nah-orange" : "text-text-tertiary"} />
-                <span className={`text-caption font-medium ${isCurrent ? "text-nah-orange" : "text-text-primary"}`}>
-                  {formatTime(apt.startTime)} — {formatTime(apt.endTime)}
-                </span>
-                <span className="text-caption text-text-tertiary">{getDuration(apt.startTime, apt.endTime)}</span>
-              </div>
-              <p className="text-body-sm text-text-primary truncate">{apt.title}</p>
-              {isCurrent && (
-                <div className="flex items-center gap-1 mt-1">
-                  <Video size={11} className="text-nah-orange" />
-                  <span className="text-caption text-nah-orange font-medium">In Progress</span>
+              <button
+                onClick={() => setExpandedId(isExpanded ? null : apt.id)}
+                className="w-full text-left px-3 py-2.5"
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-2 h-2 rounded-full flex-shrink-0 ${isCurrent ? "animate-pulse" : ""} ${color.dot}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-body-sm font-medium truncate ${isCurrent ? color.text : "text-text-primary"}`}>
+                      {apt.title}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Clock size={10} className="text-text-tertiary flex-shrink-0" />
+                      <span className="text-caption text-text-tertiary">
+                        {formatTime(apt.startTime)}
+                        {apt.endTime ? ` - ${formatTime(apt.endTime)}` : ""}
+                        {getDuration(apt.startTime, apt.endTime) ? ` (${getDuration(apt.startTime, apt.endTime)})` : ""}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {isCurrent && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-success/15 text-success">
+                        LIVE
+                      </span>
+                    )}
+                    {hasMeetLink && <Video size={12} className="text-text-tertiary" />}
+                    {isExpanded ? (
+                      <ChevronDown size={12} className="text-text-tertiary" />
+                    ) : (
+                      <ChevronRight size={12} className="text-text-tertiary" />
+                    )}
+                  </div>
+                </div>
+              </button>
+
+              {isExpanded && (
+                <div className="px-3 pb-3 pt-1 border-t border-border-default/50 space-y-2">
+                  {apt.contactId && (
+                    <div className="flex items-center gap-1.5">
+                      <User size={11} className="text-text-tertiary" />
+                      <a
+                        href={`/frandev/contacts/${apt.contactId}`}
+                        className="text-caption text-nah-blue hover:underline"
+                      >
+                        View Contact
+                      </a>
+                    </div>
+                  )}
+                  {apt.address && (
+                    <a
+                      href={apt.address}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-nah-blue/10 text-nah-blue text-caption font-medium hover:bg-nah-blue/20 transition-colors"
+                    >
+                      <Video size={12} />
+                      {apt.address.includes("meet.google")
+                        ? "Join Google Meet"
+                        : apt.address.includes("zoom")
+                          ? "Join Zoom"
+                          : apt.address.includes("teams")
+                            ? "Join Teams"
+                            : "Join Meeting"}
+                      <ExternalLink size={10} className="ml-auto" />
+                    </a>
+                  )}
+                  {apt.notes && (
+                    <div className="flex items-start gap-1.5">
+                      <FileText size={11} className="text-text-tertiary mt-0.5" />
+                      <p className="text-caption text-text-secondary">{apt.notes}</p>
+                    </div>
+                  )}
+                  {apt.appointmentStatus && apt.appointmentStatus !== "confirmed" && (
+                    <span
+                      className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                        apt.appointmentStatus === "cancelled"
+                          ? "bg-danger/10 text-danger"
+                          : apt.appointmentStatus === "noshow"
+                            ? "bg-warning/10 text-warning"
+                            : "bg-bg-tertiary text-text-tertiary"
+                      }`}
+                    >
+                      {apt.appointmentStatus}
+                    </span>
+                  )}
                 </div>
               )}
-            </button>
+            </div>
           );
         })}
       </div>

@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
+import type { GHLAppointment } from "@/types/ghl";
 import type { InactivityAlert } from "@/types/database";
 
 export async function GET(request: NextRequest) {
@@ -124,21 +125,15 @@ async function fetchPipelineSnapshot(userId: string): Promise<{ stage: string; c
 }
 
 /** Fetch upcoming appointments for the next 48 hours from GHL, filtered to this user */
-async function fetchUpcoming(ghlUserId: string | null): Promise<{ title: string; time: string; contactId: string }[]> {
+async function fetchUpcoming(ghlUserId: string | null): Promise<GHLAppointment[]> {
   try {
     const now = new Date();
     const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
 
     // If user has a GHL ID, fetch only their appointments; otherwise fetch all (admin fallback)
-    const appointments = ghlUserId
+    return ghlUserId
       ? await ghl.getAppointments(now.toISOString(), in48h.toISOString(), { userId: ghlUserId })
       : await ghl.getAllAppointments(now.toISOString(), in48h.toISOString());
-
-    return appointments.map((apt) => ({
-      title: apt.title,
-      time: apt.startTime,
-      contactId: apt.contactId,
-    }));
   } catch (err) {
     console.error("Failed to fetch appointments:", err instanceof Error ? err.message : err);
     return [];
