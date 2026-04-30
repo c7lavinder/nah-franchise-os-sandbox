@@ -182,6 +182,19 @@ export async function runPostCallAgent(
     console.error(`[post-call-agent] ${callId} errors:`, errors.join("; "));
   }
 
+  // 2b. Apply LLM call type classification — the LLM reads the transcript and decides the type
+  if (summary?.classifiedCallTypeSlug && !extractionOnly) {
+    const slug = summary.classifiedCallTypeSlug;
+    const { data: callTypeRow } = await supabase.from("call_types").select("id").eq("slug", slug).maybeSingle();
+
+    if (callTypeRow) {
+      await supabase.from("calls").update({ call_type_id: callTypeRow.id }).eq("id", callId);
+      console.log(`[post-call-agent] ${callId} classified as ${slug}`);
+    } else {
+      console.warn(`[post-call-agent] ${callId} LLM returned unknown slug: ${slug}`);
+    }
+  }
+
   // 3. Write results to DB
   await writeResults(callId, context.contactId, { summary, coaching, actions, extractions }, supabase);
 

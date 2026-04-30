@@ -68,6 +68,7 @@ export interface CallContext {
 export interface SummaryResult {
   summary: string;
   bullets: string[];
+  classifiedCallTypeSlug?: string | null;
 }
 
 export interface CoachingResult {
