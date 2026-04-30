@@ -1,155 +1,147 @@
-# Session Handoff — 2026-04-29 — Session 19
+# Session Handoff — 2026-04-30 — Session 20
 
 ## Status
 
-Phase: Tier 1 #1-#3 COMPLETE + Scout testing/hardening / Health: Green / Duration: full session (marathon)
+Phase: Tier 1 COMPLETE (except #6 MasterSuite). Tier 2 planned. / Health: Green / Duration: marathon session
 
 ## What Was Built This Session
 
-### Tier 1 #2 — ghl_user_id mapping
+### Universal DraftedAction Card System
 
-- Mapped GHL user IDs for 12 active team members via `scripts/map-ghl-user-ids.ts`
-- Fixed Jessica Odle name, Mark Pate email, Rylyn Ricker name
-- Added Will Riddle as new user
-- Created `user_email_aliases` table + migration for multi-email team members (Mark, Ray, Jessica)
-- Updated `lib/calls/resolve-participants.ts` to check aliases for call matching
-- Reset all 16 user passwords to Demo123
+- 8 editable action form types: SMS, Email, Task, Stage Move, Appointment, Note, Profile Update, Sub-Task Log
+- All fields editable — searchable dropdowns, date pickers, nothing static
+- SMS/Email: from/to addresses, sender dropdown, scheduled send (now/future)
+- Stage move: cross-pipeline support with live pipeline/stage dropdowns from DB
+- Sub-task log: brand new drafted action type (tool + executor + form + API handler)
+- Profile update: editable field names, add/remove fields, reasons shown
+- SearchableDropdown reusable component (async search, keyboard nav, debounce)
+- All draft executors pre-populate every field from Supabase (no blank fields)
+- 4 executors migrated from ghl.getContact() to Supabase getContactInfo() helper
 
-### Tier 1 #1 — Daily HQ per-user wiring
+### DraftedActionProvider — Universal Action System
 
-- Rewrote `fetchPipelineSnapshot()` to read from Supabase `journey_pipeline_state` (was GHL opportunities)
-- Rewrote `fetchUpcoming()` to filter appointments by user's `ghlUserId`
-- Rewrote `fetchScorecard()` to count from Supabase (was GHL opportunities)
-- Rewrote `fetchTasks()` to accept `ghlUserId` directly
-- Single `ghl_user_id` lookup at top of handler shared by all fetchers
-- Verified: Chad sees only his data, John sees only his, admin "view as" works
-- Assigned all unassigned pipeline contacts to Chad
+- Context provider wraps entire auth layout
+- Any button site-wide shows action card via hooks: useShowSMS, useShowEmail, useShowTask, useShowNote, useShowAppointment, useShowStageMove
+- All actions route through /api/scout/action (LLM + UI + next steps = one execution path)
+- ActionButtons.tsx provides hook functions for site-wide use
 
-### Tier 1 #3 — Scout LLM depth + GHL migration
+### Call Detail Per-Contact/Territory Tabs (Tier 1 #4)
 
-- Raised MAX_TOKENS 4096 → 8192, MAX_TOOL_ITERATIONS 10 → 15
-- Memory now tracks communication preferences (style, verbosity, tone)
-- Added memory bias guard: broad questions must query data, not default to memory
-- System prompt snapshot now includes pipeline counts, active contacts, today's activity
-- Rebuilt QuickAsk as inline chat (no more redirect to /scout page)
-- Removed ScoutFAB floating bubble (Scout access via QuickAsk bar + /scout page only)
-- Added admin audit page at `/audit` with Scout conversation log
-- Added `draft_knowledge_doc` tool (admin-reviewed shared KB suggestions)
-- Added `get_contact_insights` tool (momentum, at_risk, most_engaged, stalling, top_performers)
-- Added `get_tasks` + `complete_task` tools (view and complete GHL tasks from Scout)
-- Fixed contact search for multi-word names ("Denzel Lavinder")
-- Fixed model IDs (Sonnet → `claude-sonnet-4-6`, Opus → `claude-opus-4-6`)
-- Added decisiveness rule: don't ask clarifying questions when there's only one option
-- Task tools now filter by current user's GHL ID
+- Dynamic tabs: per-contact (blue cards) + per-territory (amber cards)
+- Contact tabs show that contact's action items + data extractions
+- Territory tabs show territory-specific data extractions
+- Headers with avatars, counts, empty states
+- Post-call agent already attributes per contact_id + territory_ms_slug
+- Multi-contact extraction prompt: forces LLM to extract for EACH contact individually
+- Multi-contact next-steps prompt: forces actions for EACH contact (note + pipeline minimum)
+- Regenerated test calls: Ken Tolbert (3 contacts, 62 extractions), Dona & Todd (2 contacts, 51 extractions)
 
-### GHL Custom Field Migration
+### Per-Call-Type Rubric Grading (Tier 1 #5)
 
-- Added 37 new columns to contacts table (`supabase/migrations/20260428200000`)
-- Migrated 1,258 contacts (1,673 field values) from GHL custom fields to Supabase
-- Deleted 39 custom field definitions from GHL via API
-- Dropped `ghl_custom_fields` mapping table
-- Rewired Scout `get_pipeline` tool to read from Supabase (was GHL opportunities)
-- Rewired Scout `get_next_action` tool to read profiles from Supabase (was GHL custom fields)
-- Rewired Scout `search_contacts` tool to query Supabase (was GHL API)
-- Added `getContactName()` Supabase helper replacing `ghl.getContact()` for name lookups
-- Created `docs/INTEGRATION_MAP.md` with full GHL data flow audit
+- Seeded rubric criteria for 9 call types: intro, matt, sam, mark, territory, fdd_review, matt_final, coaching, onboarding, group/cohort
+- Post-call agent runs gradeCall() in parallel with existing 5 sections
+- Gracefully skips grading when no criteria configured (team_call, internal, unclassified)
+- Overview tab shows rubric grade section: overall grade + per-criterion bars with rationale
+- Strengths/improvements panels + suggested next action
 
-### Tier 1 execution plans
+### Scoring Consolidation (Tier 1 #7)
 
-- Added concrete execution plans for all 7 Tier 1 items in master-plan.md
-- Each with: problem, steps, key files, acceptance criteria, blockers
+- Full audit of both systems — determined they are intentionally separate
+- Lead Scoring = "Is this a hot lead?" (sales prioritization, early pipeline)
+- Intelligence Scoring = "Can this person succeed?" (franchise viability, deep profiling)
+- Created ADR-0011 documenting the decision
+- Added cross-reference comments to both scoring files
+
+### New API Routes
+
+- /api/team/members — team member dropdown data
+- /api/pipelines/stages — pipeline + stage dropdown data
 
 ## What Is Confirmed Working
 
 - `npx tsc --noEmit` — 0 errors
 - `npx vitest run` — 8 suites, 96 tests, all passing
-- Daily HQ: Chad sees only his tasks/appointments/pipeline (tested with Denzel + John isolation)
-- Task create + complete via Scout (tested with Denzel Lavinder)
-- GHL custom fields deleted, data verified in Supabase (1,257 contacts with profile data)
-- Audit page shows Scout conversations at `/audit`
-- QuickAsk inline chat works on all pages
-- Contact search finds multi-word names
-- All 16 users can sign in with Demo123
-
-## What Is Broken or Incomplete
-
-- DraftedActionCard is text-only, needs editable form UI (task, message, appointment, stage move) — High
-- Call detail next steps tab needs same editable action card treatment — High
-- Scout still calls `ghl.getContact()` for name lookups in ~10 draft tools (should use Supabase helper) — Medium
-- Scout `complete_task` doesn't go through DRC pattern (executes directly) — Medium
-- Tier 1 #7 shelved — marketing site backend not editable — Medium (blocked)
-- Supabase typed client not wired — Medium
-- JWT in localStorage vs httpOnly cookies — deferred — Low
+- Action cards render with all fields pre-populated
+- Per-contact call tabs show correctly on multi-contact calls
+- Cross-pipeline stage moves work in action route
+- Sub-task log drafted action flows end-to-end
+- Multi-contact extraction produces data for each participant who spoke
 
 ## Decisions Made
 
-- GHL custom fields moved to Supabase permanently, deleted from GHL — Corey
-- GHL is backend record system, Supabase is fast operational layer — Corey
-- Two-way sync pattern: write to Supabase first, push to GHL in background — Corey + Claude
-- Remove ScoutFAB, keep only QuickAsk bar + /scout page — Corey
-- Knowledge base edits are admin-only (non-admins can suggest, admins approve) — Corey
-- Scout should be decisive: one result = act on it, don't ask — Corey
-- All pipeline contacts assigned to Chad (he's the only operator) — Corey
-- Tasks, calendar, notes stay in GHL as durable record; mirrored to Supabase for fast reads — Corey
-- DraftedAction cards need full editable form UI (searchable dropdowns, date pickers) — Corey
-- Scout should learn from user edits to drafts — Corey
+- SMS and Email are separate action card types (not a toggle) — Corey
+- Nothing static in action cards — every field editable with searchable dropdowns — Corey
+- Stage move supports cross-pipeline (Sales → Follow-up, etc.) — Corey
+- Journeys drive pipeline movement for sales; territories drive onboarding/coaching — Corey
+- Two scoring systems stay separate: lead score + intelligence score (ADR-0011) — Corey + Claude
+- `/frandev` basePath prefix for MasterSuite domain integration — Corey
+- Tier 2 scoped with 9 items, priority order agreed — Corey
 
 ## Files Created
 
-- `supabase/migrations/20260428100000_user_email_aliases.sql`
-- `supabase/migrations/20260428200000_contact_profile_fields.sql`
-- `supabase/migrations/20260428300000_drop_ghl_custom_fields_table.sql`
-- `scripts/map-ghl-user-ids.ts`
-- `scripts/apply-ghl-user-mapping.ts`
-- `scripts/migrate-ghl-custom-fields.ts`
-- `scripts/migrate-ghl-custom-fields-fast.ts`
-- `scripts/test-denzel.ts`
-- `app/(auth)/audit/page.tsx`
-- `app/api/admin/scout-logs/route.ts`
-- `docs/INTEGRATION_MAP.md`
+- `components/ui/SearchableDropdown.tsx`
+- `components/scout/DraftedActionProvider.tsx`
+- `components/scout/action-forms/` (9 files: index + 8 form components)
+- `components/contact/ActionButtons.tsx`
+- `app/api/team/members/route.ts`
+- `app/api/pipelines/stages/route.ts`
+- `supabase/migrations/20260429100000_seed_rubric_criteria.sql`
+- `docs/adr/0011-two-scoring-systems.md`
 
 ## Files Modified
 
-- `app/api/daily-hq/route.ts` (per-user filtering, Supabase pipeline)
-- `app/(auth)/layout.tsx` (audit page title)
-- `components/layout/AppShell.tsx` (removed ScoutFAB)
-- `components/layout/Sidebar.tsx` (added Audit nav for admins)
-- `components/scout/QuickAsk.tsx` (rebuilt as inline chat)
-- `lib/scout/client.ts` (richer snapshot, token/tool limits, user context injection)
-- `lib/scout/memory.ts` (preference tracking, memory bias guard)
-- `lib/scout/model-router.ts` (fixed model IDs)
-- `lib/scout/tools.ts` (added get_contact_insights, get_tasks, complete_task, draft_knowledge_doc)
-- `lib/scout/tool-executor.ts` (rewired pipeline/profile/search to Supabase, added task tools, contact name helper)
-- `lib/calls/resolve-participants.ts` (email alias support)
-- `types/scout.ts` (new tool types)
-- `docs/master-plan.md` (Tier 1 execution plans, reordering)
-- `CLAUDE.md` (corrected GHL model, added INTEGRATION_MAP)
+- `app/(auth)/layout.tsx` (DraftedActionProvider wrapping)
+- `app/(auth)/calls/[callId]/page.tsx` (rubricGrade state + pass-through)
+- `app/api/scout/action/route.ts` (cross-pipeline moves, sub-task log handler)
+- `components/calls/CallDetailTabs.tsx` (per-contact/territory tabs, card-style UI)
+- `components/calls/CallOverviewTab.tsx` (rubric grade breakdown display)
+- `components/scout/DraftedActionCard.tsx` (modular form system, contact change support)
+- `components/scout/index.ts` (exports for provider + hooks)
+- `lib/agents/post-call/agent.ts` (gradeCall() parallel step)
+- `lib/agents/post-call/prompts/extraction.ts` (multi-contact extraction block)
+- `lib/agents/post-call/prompts/next-steps.ts` (multi-contact actions block)
+- `lib/scout/tool-executor.ts` (pre-populate all fields, getContactInfo helper, getUserName)
+- `lib/scout/tools.ts` (draft_sub_task_log tool definition)
+- `lib/profile/lead-scoring.ts` (cross-reference comment)
+- `lib/intelligence/scoring.ts` (cross-reference comment)
+- `types/scout.ts` (sub_task_log type, message scheduling fields, stage move pipeline fields)
 
-## Files Deleted
+## Tier 1 Final Status
 
-- `ghl_custom_fields` table (dropped via migration)
-- 39 GHL custom field definitions (deleted via API)
+| #   | Gap                                   | Status                                      |
+| --- | ------------------------------------- | ------------------------------------------- |
+| 2   | ghl_user_id mapping                   | DONE (Session 19)                           |
+| 1   | Daily HQ per-user wiring              | DONE (Session 19)                           |
+| 3   | Scout LLM depth                       | DONE — action cards shipped, team observing |
+| 4   | Multi-contact/territory call tracking | DONE — per-contact tabs + extraction        |
+| 5   | Per-call-type grading                 | DONE — rubric criteria for 9 types          |
+| 7   | Scoring consolidation                 | DONE — audited, ADR-0011                    |
+| 6   | MasterSuite data connection           | Moved to Tier 2 #9 (basePath prefix)        |
 
-## Open Issues Carried Forward
+## Tier 2 Plan (Approved)
 
-- DraftedActionCard needs editable form UI with searchable dropdowns, date pickers — High
-- Call detail next steps tab needs same action card treatment — High
-- ~10 draft tools still use ghl.getContact() for name lookups — Medium
-- Tier 1 #7 shelved — needs marketing site access — Medium
-- Supabase typed client not wired — Medium
-- JWT in localStorage vs httpOnly cookies — deferred — Low
-- 13 unused GHL client functions — cleanup pass — Low
+| #   | Gap                                        | Priority                          |
+| --- | ------------------------------------------ | --------------------------------- |
+| 9   | `/frandev` basePath prefix                 | First — everything builds on this |
+| 7   | Grader fallback to raw_transcript          | Quick win                         |
+| 5   | Dead GHL function cleanup                  | Quick win                         |
+| 1   | Wire action card hooks to all site buttons | High                              |
+| 6   | Lead scores to Supabase                    | Medium                            |
+| 3   | Supabase typed client                      | Medium                            |
+| 2   | GHL webhook activation                     | Medium                            |
+| 8   | Per-rep RLS                                | Medium                            |
+| 4   | JWT httpOnly cookies                       | Low                               |
 
 ## Exact Next Step
 
-Build universal editable DraftedAction card system — start with task action card as prototype (searchable contact dropdown, assigned-to dropdown, date picker, editable title/description), then extend to all action types and call detail next steps.
+Start Tier 2. First: add `/frandev` basePath to next.config.ts, update all internal fetch calls, update apiFetch, update auth redirects, update webhook/cron URLs.
 
-## Copy This To Start Next Session In Claude.ai
+## Copy This To Start Next Session
 
 ---
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
-Then: Build universal editable DraftedAction card system — start with task action card prototype.
+Then: Start Tier 2 — `/frandev` basePath prefix first, then work down the list.
 
 ---
