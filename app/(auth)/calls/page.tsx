@@ -2,7 +2,7 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, Plus, X, Search, Loader2, Phone, Monitor, AlertTriangle } from "lucide-react";
+import { RefreshCw, Plus, X, Loader2, Phone, Monitor, AlertTriangle, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
@@ -38,9 +38,10 @@ function getBadCallReasons(c: Call): string[] {
   return reasons;
 }
 
-interface CallType { id: string; name: string }
-interface UserOption { id: string; full_name: string }
-interface ContactOption { id: string; first_name: string | null; last_name: string | null }
+interface UserOption {
+  id: string;
+  full_name: string;
+}
 
 type TimeFilter = "week" | "month" | "all";
 
@@ -163,21 +164,19 @@ function PlatformIcon({ platform, source }: { platform: string | null; source: s
   return <Phone size={16} className="text-text-tertiary flex-shrink-0" />;
 }
 
-
-
 function CallRow({ c }: { c: Call }) {
   const badReasons = getBadCallReasons(c);
   return (
-    <Link href={`/calls/${c.id}`}
-      className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-bg-hover transition-colors">
+    <Link
+      href={`/calls/${c.id}`}
+      className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-bg-hover transition-colors"
+    >
       <PlatformIcon platform={c.platform} source={c.source} />
 
       {/* Call type + team + contacts */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <p className="text-body-sm font-semibold text-text-primary truncate">
-            {c.callTypeName ?? c.title ?? "Call"}
-          </p>
+          <p className="text-body-sm font-semibold text-text-primary truncate">{c.callTypeName ?? c.title ?? "Call"}</p>
           {badReasons.length > 0 && (
             <span
               className="inline-flex items-center text-danger flex-shrink-0"
@@ -196,15 +195,15 @@ function CallRow({ c }: { c: Call }) {
           )}
         </div>
         {c.teamMembers.length > 0 && (
-          <div className="flex items-center gap-1 mt-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: "none" }}>
+          <div
+            className="flex items-center gap-1 mt-1 overflow-x-auto scrollbar-hide"
+            style={{ scrollbarWidth: "none" }}
+          >
             {c.teamMembers.map((m, i) => (
               <span
                 key={i}
                 className="text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap flex-shrink-0"
-                style={m.color
-                  ? { backgroundColor: `${m.color}18`, color: m.color }
-                  : undefined
-                }
+                style={m.color ? { backgroundColor: `${m.color}18`, color: m.color } : undefined}
               >
                 {m.name}
               </span>
@@ -212,9 +211,15 @@ function CallRow({ c }: { c: Call }) {
           </div>
         )}
         {c.externalContacts.length > 0 && (
-          <div className="flex items-center gap-1 mt-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: "none" }}>
+          <div
+            className="flex items-center gap-1 mt-1 overflow-x-auto scrollbar-hide"
+            style={{ scrollbarWidth: "none" }}
+          >
             {c.externalContacts.map((name, i) => (
-              <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-bg-tertiary text-text-secondary whitespace-nowrap flex-shrink-0">
+              <span
+                key={i}
+                className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-bg-tertiary text-text-secondary whitespace-nowrap flex-shrink-0"
+              >
                 {name}
               </span>
             ))}
@@ -227,7 +232,9 @@ function CallRow({ c }: { c: Call }) {
         {c.status === "scheduled" && c.date && new Date(c.date) > new Date() ? (
           <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-info/10 text-info">Upcoming</span>
         ) : c.has_transcript && !c.ai_summary_generated_at ? (
-          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-warning/10 text-warning">Needs Review</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-warning/10 text-warning">
+            Needs Review
+          </span>
         ) : null}
       </div>
 
@@ -257,11 +264,10 @@ function CallPanel({ label, calls }: { label: string; calls: Call[] }) {
       {calls.length === 0 ? (
         <div className="px-4 py-6 text-center text-caption text-text-tertiary">No calls</div>
       ) : (
-        <div
-          className="divide-y divide-border-default overflow-y-auto"
-          style={{ maxHeight: `${maxHeight}px` }}
-        >
-          {calls.map((c) => <CallRow key={c.id} c={c} />)}
+        <div className="divide-y divide-border-default overflow-y-auto" style={{ maxHeight: `${maxHeight}px` }}>
+          {calls.map((c) => (
+            <CallRow key={c.id} c={c} />
+          ))}
         </div>
       )}
     </div>
@@ -274,16 +280,15 @@ export default function CallsPage() {
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("week");
 
-  // Manual entry
+  // Upload form
   const [showManualEntry, setShowManualEntry] = useState(false);
-  const [manualForm, setManualForm] = useState({ title: "", contact_id: "", call_type_id: "", hosted_by_user_id: "", started_at: "", duration_minutes: "", notes: "" });
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [pastedTranscript, setPastedTranscript] = useState("");
+  const [uploadDate, setUploadDate] = useState("");
+  const [uploadHostedBy, setUploadHostedBy] = useState("");
   const [manualSaving, setManualSaving] = useState(false);
-  const [callTypes, setCallTypes] = useState<CallType[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
-  const [contactSearch, setContactSearch] = useState("");
-  const [contactResults, setContactResults] = useState<ContactOption[]>([]);
-  const [contactSearching, setContactSearching] = useState(false);
-  const [selectedContactName, setSelectedContactName] = useState("");
+  const [uploadDragOver, setUploadDragOver] = useState(false);
 
   const fetchCalls = useCallback(async () => {
     setLoading(true);
@@ -293,65 +298,73 @@ export default function CallsPage() {
         const data = await res.json();
         setCalls(data.calls ?? []);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setLoading(false);
   }, []);
 
-  useEffect(() => { void fetchCalls(); }, [fetchCalls]);
+  useEffect(() => {
+    void fetchCalls();
+  }, [fetchCalls]);
 
   useEffect(() => {
     if (!showManualEntry) return;
-    Promise.all([
-      apiFetch("/api/settings/call-types").then((r) => r.ok ? r.json() : null),
-      apiFetch("/api/settings/users").then((r) => r.ok ? r.json() : null),
-    ]).then(([ctData, uData]) => {
-      if (ctData?.callTypes) setCallTypes(ctData.callTypes);
-      if (uData?.users) setUsers(uData.users.filter((u: UserOption & { is_active: boolean }) => u.is_active !== false));
-    }).catch(() => {});
+    apiFetch("/api/settings/users")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((uData) => {
+        if (uData?.users)
+          setUsers(uData.users.filter((u: UserOption & { is_active: boolean }) => u.is_active !== false));
+      })
+      .catch(() => {});
   }, [showManualEntry]);
 
-  useEffect(() => {
-    if (contactSearch.length < 2) { setContactResults([]); return; }
-    const timer = setTimeout(async () => {
-      setContactSearching(true);
-      try {
-        const res = await apiFetch(`/api/pipeline/contacts?q=${encodeURIComponent(contactSearch)}&limit=8`);
-        if (res.ok) {
-          const data = await res.json();
-          setContactResults((data.contacts ?? []).map((c: { id: string; first_name: string | null; last_name: string | null }) => ({ id: c.id, first_name: c.first_name, last_name: c.last_name })));
-        }
-      } catch { /* ignore */ }
-      setContactSearching(false);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [contactSearch]);
-
-  async function handleManualSubmit() {
-    if (!manualForm.title.trim()) return;
+  async function handleUploadSubmit() {
+    if (!uploadFile && !pastedTranscript.trim()) return;
     setManualSaving(true);
     try {
+      // 1. Create the call with minimal info — AI will fill in title + call type
+      const title = uploadFile?.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ") ?? "Uploaded Call";
       const res = await apiFetch("/api/calls/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: manualForm.title,
-          contact_id: manualForm.contact_id || undefined,
-          call_type_id: manualForm.call_type_id || undefined,
-          hosted_by_user_id: manualForm.hosted_by_user_id || undefined,
-          started_at: manualForm.started_at || undefined,
-          duration_minutes: manualForm.duration_minutes ? parseInt(manualForm.duration_minutes) : undefined,
-          notes: manualForm.notes || undefined,
+          title,
+          hosted_by_user_id: uploadHostedBy || undefined,
+          started_at: uploadDate || undefined,
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setShowManualEntry(false);
-        setManualForm({ title: "", contact_id: "", call_type_id: "", hosted_by_user_id: "", started_at: "", duration_minutes: "", notes: "" });
-        setSelectedContactName("");
-        setContactSearch("");
-        router.push(`/calls/${data.id}`);
+      if (!res.ok) throw new Error("Failed to create call");
+      const { id: callId } = await res.json();
+
+      // 2. Upload the file or paste the transcript
+      if (uploadFile) {
+        const formData = new FormData();
+        formData.append("file", uploadFile);
+        const ext = uploadFile.name.split(".").pop()?.toLowerCase() ?? "";
+        formData.append("type", ext === "txt" ? "transcript" : "recording");
+        await apiFetch(`/api/calls/${callId}/upload`, { method: "POST", body: formData });
+      } else if (pastedTranscript.trim()) {
+        const blob = new Blob([pastedTranscript.trim()], { type: "text/plain" });
+        const formData = new FormData();
+        formData.append("file", blob, "transcript.txt");
+        formData.append("type", "transcript");
+        await apiFetch(`/api/calls/${callId}/upload`, { method: "POST", body: formData });
       }
-    } catch { /* ignore */ }
+
+      // 3. Trigger AI processing
+      apiFetch(`/api/calls/${callId}/review-package`, { method: "POST" }).catch(() => {});
+      apiFetch(`/api/calls/${callId}/generate`, { method: "POST" }).catch(() => {});
+
+      setShowManualEntry(false);
+      setUploadFile(null);
+      setPastedTranscript("");
+      setUploadDate("");
+      setUploadHostedBy("");
+      router.push(`/calls/${callId}`);
+    } catch {
+      /* ignore */
+    }
     setManualSaving(false);
   }
 
@@ -380,18 +393,31 @@ export default function CallsPage() {
       <div className="flex items-center gap-2 mb-4">
         {/* Time filter */}
         <div className="flex items-center bg-bg-secondary border border-border-default rounded-md overflow-hidden">
-          {([["week", "This Week"], ["month", "This Month"], ["all", "All"]] as [TimeFilter, string][]).map(([key, label]) => (
-            <button key={key} onClick={() => setTimeFilter(key)}
+          {(
+            [
+              ["week", "This Week"],
+              ["month", "This Month"],
+              ["all", "All"],
+            ] as [TimeFilter, string][]
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTimeFilter(key)}
               className={`px-3 py-1.5 text-caption font-medium transition-colors ${
                 timeFilter === key ? "bg-nah-blue text-white" : "text-text-tertiary hover:text-text-primary"
-              }`}>{label}</button>
+              }`}
+            >
+              {label}
+            </button>
           ))}
         </div>
         <span className="text-caption text-text-tertiary">{filtered.length} calls</span>
 
         <div className="flex items-center gap-2 ml-auto">
-          <button onClick={() => setShowManualEntry((v) => !v)}
-            className="btn-secondary px-3 py-1.5 text-caption flex items-center gap-1">
+          <button
+            onClick={() => setShowManualEntry((v) => !v)}
+            className="btn-secondary px-3 py-1.5 text-caption flex items-center gap-1"
+          >
             <Plus size={14} /> Log Call
           </button>
           <button onClick={fetchCalls} className="btn-ghost p-1.5" disabled={loading}>
@@ -400,87 +426,143 @@ export default function CallsPage() {
         </div>
       </div>
 
-      {/* Manual Entry Form */}
+      {/* Upload Call Form */}
       {showManualEntry && (
         <div className="mb-4 p-4 bg-bg-secondary border border-border-default rounded-lg">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-body-sm font-medium text-text-primary">Log a Call</h3>
-            <button onClick={() => setShowManualEntry(false)} className="btn-ghost p-1"><X size={14} /></button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-caption text-text-tertiary mb-1">Title *</label>
-              <input type="text" value={manualForm.title} onChange={(e) => setManualForm({ ...manualForm, title: e.target.value })}
-                placeholder="e.g. Discovery Call — John Smith"
-                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary" />
-            </div>
-            <div className="relative">
-              <label className="block text-caption text-text-tertiary mb-1">Contact</label>
-              {selectedContactName ? (
-                <div className="flex items-center gap-2 bg-bg-primary border border-border-default rounded-md px-3 py-2">
-                  <span className="text-body-sm text-text-primary flex-1 truncate">{selectedContactName}</span>
-                  <button onClick={() => { setManualForm({ ...manualForm, contact_id: "" }); setSelectedContactName(""); setContactSearch(""); }} className="text-text-tertiary hover:text-text-primary"><X size={12} /></button>
-                </div>
-              ) : (
-                <>
-                  <div className="relative">
-                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
-                    <input type="text" value={contactSearch} onChange={(e) => setContactSearch(e.target.value)} placeholder="Search contacts..."
-                      className="w-full bg-bg-primary border border-border-default rounded-md pl-8 pr-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary" />
-                    {contactSearching && <Loader2 size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 animate-spin text-text-tertiary" />}
-                  </div>
-                  {contactResults.length > 0 && (
-                    <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-bg-primary border border-border-default rounded-md shadow-lg max-h-40 overflow-y-auto">
-                      {contactResults.map((c) => {
-                        const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown";
-                        return (
-                          <button key={c.id} onClick={() => { setManualForm({ ...manualForm, contact_id: c.id }); setSelectedContactName(name); setContactSearch(""); setContactResults([]); }}
-                            className="w-full text-left px-3 py-2 text-body-sm text-text-primary hover:bg-bg-secondary">{name}</button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-            <div>
-              <label className="block text-caption text-text-tertiary mb-1">Call Type</label>
-              <select value={manualForm.call_type_id} onChange={(e) => setManualForm({ ...manualForm, call_type_id: e.target.value })}
-                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary">
-                <option value="">Select...</option>
-                {callTypes.map((ct) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-caption text-text-tertiary mb-1">Hosted By</label>
-              <select value={manualForm.hosted_by_user_id} onChange={(e) => setManualForm({ ...manualForm, hosted_by_user_id: e.target.value })}
-                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary">
-                <option value="">Select...</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-caption text-text-tertiary mb-1">Date</label>
-              <input type="datetime-local" value={manualForm.started_at} onChange={(e) => setManualForm({ ...manualForm, started_at: e.target.value })}
-                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary" />
-            </div>
-            <div>
-              <label className="block text-caption text-text-tertiary mb-1">Duration (min)</label>
-              <input type="number" min={1} max={300} value={manualForm.duration_minutes} onChange={(e) => setManualForm({ ...manualForm, duration_minutes: e.target.value })} placeholder="30"
-                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <label className="block text-caption text-text-tertiary mb-1">Notes</label>
-            <textarea value={manualForm.notes} onChange={(e) => setManualForm({ ...manualForm, notes: e.target.value })} rows={2} placeholder="Key takeaways, action items..."
-              className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary resize-none" />
-          </div>
-          <div className="flex items-center gap-2 mt-3">
-            <button onClick={() => void handleManualSubmit()} disabled={!manualForm.title.trim() || manualSaving}
-              className="btn-primary px-4 py-2 text-body-sm flex items-center gap-1 disabled:opacity-50">
-              {manualSaving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Create Call
+            <h3 className="text-body-sm font-medium text-text-primary">Upload a Call</h3>
+            <button onClick={() => setShowManualEntry(false)} className="btn-ghost p-1">
+              <X size={14} />
             </button>
-            <button onClick={() => setShowManualEntry(false)} className="btn-ghost px-3 py-2 text-body-sm">Cancel</button>
+          </div>
+
+          {/* Drop zone */}
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setUploadDragOver(true);
+            }}
+            onDragLeave={() => setUploadDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setUploadDragOver(false);
+              const file = e.dataTransfer.files[0];
+              if (file) {
+                setUploadFile(file);
+                setPastedTranscript("");
+              }
+            }}
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
+              uploadDragOver
+                ? "border-nah-blue bg-[rgba(0,161,225,0.05)]"
+                : uploadFile
+                  ? "border-success/40 bg-success/5"
+                  : "border-border-default hover:border-border-hover"
+            }`}
+            onClick={() => {
+              const input = document.createElement("input");
+              input.type = "file";
+              input.accept = ".mp4,.webm,.m4a,.mp3,.wav,.txt";
+              input.onchange = () => {
+                const file = input.files?.[0];
+                if (file) {
+                  setUploadFile(file);
+                  setPastedTranscript("");
+                }
+              };
+              input.click();
+            }}
+          >
+            {uploadFile ? (
+              <div className="flex items-center justify-center gap-2">
+                <Upload size={16} className="text-success" />
+                <span className="text-body-sm font-medium text-text-primary">{uploadFile.name}</span>
+                <span className="text-caption text-text-tertiary">
+                  ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setUploadFile(null);
+                  }}
+                  className="text-text-tertiary hover:text-danger ml-2"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <Upload size={20} className="text-text-tertiary mx-auto mb-2" />
+                <p className="text-body-sm text-text-secondary">Drop a recording or transcript here</p>
+                <p className="text-caption text-text-tertiary mt-1">MP4, WebM, M4A, MP3, WAV, or TXT</p>
+              </>
+            )}
+          </div>
+
+          {/* Or paste transcript */}
+          {!uploadFile && (
+            <div className="mt-3">
+              <label className="block text-caption text-text-tertiary mb-1">Or paste transcript</label>
+              <textarea
+                value={pastedTranscript}
+                onChange={(e) => setPastedTranscript(e.target.value)}
+                rows={4}
+                placeholder={"Speaker 1: Hello...\nSpeaker 2: Hi there..."}
+                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary resize-none font-mono"
+              />
+            </div>
+          )}
+
+          {/* Date + Hosted By */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+            <div>
+              <label className="block text-caption text-text-tertiary mb-1">Call Date</label>
+              <input
+                type="datetime-local"
+                value={uploadDate}
+                onChange={(e) => setUploadDate(e.target.value)}
+                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-caption text-text-tertiary mb-1">Who hosted?</label>
+              <select
+                value={uploadHostedBy}
+                onChange={(e) => setUploadHostedBy(e.target.value)}
+                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary"
+              >
+                <option value="">Select team member...</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <p className="text-caption text-text-tertiary mt-3">
+            AI will determine: title, call type, contact match, and coaching analysis.
+          </p>
+
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              onClick={() => void handleUploadSubmit()}
+              disabled={(!uploadFile && !pastedTranscript.trim()) || manualSaving}
+              className="btn-primary px-4 py-2 text-body-sm flex items-center gap-1 disabled:opacity-50"
+            >
+              {manualSaving ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Upload & Process
+            </button>
+            <button
+              onClick={() => {
+                setShowManualEntry(false);
+                setUploadFile(null);
+                setPastedTranscript("");
+              }}
+              className="btn-ghost px-3 py-2 text-body-sm"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
