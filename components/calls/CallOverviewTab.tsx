@@ -182,7 +182,7 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
             Preparing analysis...
           </div>
         ) : (
-          <p className="text-body-sm text-text-tertiary italic">Waiting for transcript from Read.ai.</p>
+          <p className="text-body-sm text-text-tertiary italic">No transcript available yet.</p>
         )}
       </div>
 
@@ -304,7 +304,7 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
             Scout is generating coaching insights...
           </div>
         ) : !props.hasTranscript ? (
-          <p className="text-body-sm text-text-tertiary italic">Waiting for transcript from Read.ai.</p>
+          <p className="text-body-sm text-text-tertiary italic">No transcript available yet.</p>
         ) : props.aiSummaryGeneratedAt ? (
           <p className="text-body-sm text-text-tertiary">Coaching data was not generated for this call.</p>
         ) : (

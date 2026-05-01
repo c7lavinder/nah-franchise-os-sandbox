@@ -7,12 +7,10 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ callId: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ callId: string }> }) {
   const { callId } = await params;
   const supabase = createServerClient();
 
@@ -43,7 +41,7 @@ export async function POST(
         .from("call_transcripts")
         .insert({
           call_id: callId,
-          source: "file_upload",
+          source: "upload",
           full_text: text.trim(),
           word_count: wordCount,
           metadata: { original_filename: file.name },
@@ -80,23 +78,19 @@ export async function POST(
       const buffer = Buffer.from(arrayBuffer);
       const storagePath = `calls/${callId}/recording.${ext}`;
 
-      const { error: uploadErr } = await supabase.storage
-        .from("call-recordings")
-        .upload(storagePath, buffer, {
-          contentType: file.type || `video/${ext}`,
-          upsert: true,
-        });
+      const { error: uploadErr } = await supabase.storage.from("call-recordings").upload(storagePath, buffer, {
+        contentType: file.type || `video/${ext}`,
+        upsert: true,
+      });
 
       if (uploadErr) {
         // Bucket might not exist — try creating it
         if (uploadErr.message?.includes("not found") || uploadErr.message?.includes("Bucket")) {
           await supabase.storage.createBucket("call-recordings", { public: false });
-          const { error: retryErr } = await supabase.storage
-            .from("call-recordings")
-            .upload(storagePath, buffer, {
-              contentType: file.type || `video/${ext}`,
-              upsert: true,
-            });
+          const { error: retryErr } = await supabase.storage.from("call-recordings").upload(storagePath, buffer, {
+            contentType: file.type || `video/${ext}`,
+            upsert: true,
+          });
           if (retryErr) return NextResponse.json({ error: retryErr.message }, { status: 500 });
         } else {
           return NextResponse.json({ error: uploadErr.message }, { status: 500 });
@@ -111,10 +105,13 @@ export async function POST(
       const recordingUrl = urlData?.signedUrl ?? storagePath;
 
       // Update call with recording URL
-      await supabase.from("calls").update({
-        recording_url: recordingUrl,
-        status: "completed",
-      }).eq("id", callId);
+      await supabase
+        .from("calls")
+        .update({
+          recording_url: recordingUrl,
+          status: "completed",
+        })
+        .eq("id", callId);
 
       return NextResponse.json({
         type: "recording",

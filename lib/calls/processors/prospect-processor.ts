@@ -90,7 +90,7 @@ export async function processProspectCall(payload: ReadAIWebhookPayload, classif
           ? Math.round((new Date(payload.end_time).getTime() - new Date(payload.start_time).getTime()) / 1000)
           : null,
       raw_transcript: formatTranscript(payload.transcript, payload.participants),
-      source: "read_ai",
+      source: "upload",
       status: "completed",
       hosted_by_user_id: hostedByUserId,
     })
@@ -121,7 +121,7 @@ export async function processProspectCall(payload: ReadAIWebhookPayload, classif
   if (hasTranscript) {
     await supabase.from("call_transcripts").insert({
       call_id: callRecord.id,
-      source: "read_ai",
+      source: "upload",
       full_text: formatTranscript(payload.transcript, payload.participants),
       word_count: formatTranscript(payload.transcript, payload.participants).split(/\s+/).length,
     });
