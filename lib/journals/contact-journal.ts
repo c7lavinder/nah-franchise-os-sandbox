@@ -28,10 +28,7 @@ interface DayInteraction {
   action_taken?: string;
 }
 
-export async function generateContactJournal(
-  contactId: string,
-  date: string
-): Promise<string | null> {
+export async function generateContactJournal(contactId: string, date: string): Promise<string | null> {
   const supabase = createServerClient();
 
   // Gather today's activity for this contact
@@ -116,7 +113,7 @@ export async function generateContactJournal(
   // Generate summary via Claude
   const anthropic = new Anthropic();
   const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-5-20250514",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 300,
     messages: [
       {
@@ -126,8 +123,7 @@ export async function generateContactJournal(
     ],
   });
 
-  const summary =
-    message.content[0].type === "text" ? message.content[0].text : "";
+  const summary = message.content[0].type === "text" ? message.content[0].text : "";
 
   // Upsert journal entry
   const { data: journal, error } = await supabase

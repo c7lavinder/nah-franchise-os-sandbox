@@ -49,31 +49,27 @@ Respond with ONLY valid JSON matching this schema:
   ]
 }`;
 
-export async function extractProfileUpdates(
-  transcriptText: string,
-  contactId: string
-): Promise<ProfileSuggestion[]> {
+export async function extractProfileUpdates(transcriptText: string, contactId: string): Promise<ProfileSuggestion[]> {
   // Build field list for prompt
-  const fieldList = PROFILE_FIELDS
-    .filter((f) => f.source === "scout" || f.source === "manual")
+  const fieldList = PROFILE_FIELDS.filter((f) => f.source === "scout" || f.source === "manual")
     .map((f) => `  ${f.name}: ${f.label} (${f.dataType}${f.options ? ` — options: ${f.options.join(", ")}` : ""})`)
     .join("\n");
 
   // Get current profile values
   const currentFields = await getContactProfileFields(contactId);
-  const currentProfile = Object.entries(currentFields)
-    .filter(([, v]) => v.field_value !== null)
-    .map(([k, v]) => `  ${k}: ${JSON.stringify(v.field_value)}`)
-    .join("\n") || "  (no profile data yet)";
+  const currentProfile =
+    Object.entries(currentFields)
+      .filter(([, v]) => v.field_value !== null)
+      .map(([k, v]) => `  ${k}: ${JSON.stringify(v.field_value)}`)
+      .join("\n") || "  (no profile data yet)";
 
   // Inject learning context before generating suggestions
   const learningCtx = await getSuggestionContext("general");
-  const prompt = EXTRACT_PROMPT
-    .replace("FIELD_LIST", fieldList)
-    .replace("CURRENT_PROFILE", currentProfile)
-    + (learningCtx ? `\n\n${learningCtx}` : "");
+  const prompt =
+    EXTRACT_PROMPT.replace("FIELD_LIST", fieldList).replace("CURRENT_PROFILE", currentProfile) +
+    (learningCtx ? `\n\n${learningCtx}` : "");
 
-  const model = process.env.SCOUT_MODEL ?? "claude-sonnet-4-5-20250514";
+  const model = process.env.SCOUT_MODEL ?? "claude-haiku-4-5-20251001";
   const anthropic = new Anthropic();
 
   const response = await anthropic.messages.create({

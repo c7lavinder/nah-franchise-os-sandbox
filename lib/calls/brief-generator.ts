@@ -33,10 +33,7 @@ export interface PreCallBrief {
   };
 }
 
-export async function generatePreCallBrief(
-  contactId: string,
-  callType: string
-): Promise<PreCallBrief> {
+export async function generatePreCallBrief(contactId: string, callType: string): Promise<PreCallBrief> {
   const supabase = createServerClient();
 
   // Get contact name
@@ -45,9 +42,7 @@ export async function generatePreCallBrief(
     .select("first_name, last_name")
     .eq("id", contactId)
     .single();
-  const contactName = contact
-    ? `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim()
-    : "Unknown";
+  const contactName = contact ? `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() : "Unknown";
 
   // Retrieve rich context + learning context
   const [context, profileFields, learningContext] = await Promise.all([
@@ -105,7 +100,7 @@ Respond with ONLY valid JSON:
   "suggestedOpening": "Section 8 — 2-3 sentence opener for the call"
 }`;
 
-  const model = process.env.SCOUT_MODEL ?? "claude-sonnet-4-5-20250514";
+  const model = process.env.SCOUT_MODEL ?? "claude-haiku-4-5-20251001";
   const anthropic = new Anthropic();
 
   const response = await anthropic.messages.create({

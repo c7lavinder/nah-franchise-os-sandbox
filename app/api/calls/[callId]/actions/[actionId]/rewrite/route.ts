@@ -8,10 +8,11 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import Anthropic from "@anthropic-ai/sdk";
+import { requireAuth } from "@/lib/auth";
+import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase/server";
 
-const MODEL = "claude-sonnet-4-5-20250514";
+const MODEL = "claude-haiku-4-5-20251001";
 
 interface RewriteBody {
   instruction: string;
@@ -43,23 +44,21 @@ export async function POST(
     .maybeSingle();
 
   // Load contact name
-  const { data: call } = await supabase
-    .from("calls")
-    .select("contact_id, title")
-    .eq("id", callId)
-    .single();
+  const { data: call } = await supabase.from("calls").select("contact_id, title").eq("id", callId).single();
 
   let contactName = "the contact";
   if (call?.contact_id) {
-    const { data: c } = await supabase.from("contacts").select("first_name, last_name").eq("id", call.contact_id).single();
+    const { data: c } = await supabase
+      .from("contacts")
+      .select("first_name, last_name")
+      .eq("id", call.contact_id)
+      .single();
     if (c) contactName = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "the contact";
   }
 
   const transcript = transcriptRow?.full_text ?? "";
   // Trim transcript to last ~3000 chars for token budget
-  const trimmedTranscript = transcript.length > 3000
-    ? "...\n" + transcript.slice(-3000)
-    : transcript;
+  const trimmedTranscript = transcript.length > 3000 ? "...\n" + transcript.slice(-3000) : transcript;
 
   const client = new Anthropic({ apiKey });
 
@@ -68,9 +67,10 @@ export async function POST(
       model: MODEL,
       max_tokens: 1024,
       system: `You are Scout, an AI assistant for NAH Franchise OS. Rewrite the provided form fields based on the user's instruction. Use the call transcript to make the rewrite accurate and specific — reference real details from the conversation. Return only a JSON object with the updated field values. Keep the same field keys. Only change the fields relevant to the instruction.`,
-      messages: [{
-        role: "user",
-        content: `Category: ${body.category}
+      messages: [
+        {
+          role: "user",
+          content: `Category: ${body.category}
 Contact: ${contactName}
 Call: ${call?.title ?? "Unknown"}
 Current fields: ${JSON.stringify(body.currentFields)}
@@ -79,12 +79,11 @@ ${trimmedTranscript ? `Transcript (for reference):\n${trimmedTranscript}\n` : ""
 Instruction: ${body.instruction}
 
 Return only valid JSON with the updated fields.`,
-      }],
+        },
+      ],
     });
 
-    const textBlock = response.content.find(
-      (b): b is Anthropic.TextBlock => b.type === "text"
-    );
+    const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === "text");
 
     if (!textBlock?.text) {
       return NextResponse.json({ error: "No response from Scout" }, { status: 500 });

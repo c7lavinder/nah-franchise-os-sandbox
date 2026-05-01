@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import Anthropic from "@anthropic-ai/sdk";
+import { requireAuth } from "@/lib/auth";
+import Anthropic from "@anthropic-ai/sdk";
 
 interface GradeRequest {
   transcript: string;
@@ -118,10 +119,7 @@ RESPONSE FORMAT — Return ONLY valid JSON:
 Only suggest actions and profile updates that make sense based on the call. Don't force anything.
 If the transcript is short or unclear, grade conservatively and note that limited information was available.`;
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { callId: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: { callId: string } }) {
   try {
     const body = (await request.json()) as GradeRequest;
 
@@ -143,10 +141,12 @@ export async function POST(
       "",
       "TRANSCRIPT:",
       body.transcript,
-    ].filter(Boolean).join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     const response = await client.messages.create({
-      model: "claude-sonnet-4-5-20250514",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 2000,
       system: GRADING_PROMPT,
       messages: [{ role: "user", content: userMessage }],

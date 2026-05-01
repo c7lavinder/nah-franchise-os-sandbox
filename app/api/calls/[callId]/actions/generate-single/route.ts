@@ -11,12 +11,13 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import Anthropic from "@anthropic-ai/sdk";
+import { requireAuth } from "@/lib/auth";
+import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase/server";
 import { stripFences } from "@/lib/agents/post-call/call-claude";
 import { retrieveFeedback } from "@/lib/agents/post-call/feedback-retrieval";
 
-const MODEL = "claude-sonnet-4-5-20250514";
+const MODEL = "claude-haiku-4-5-20251001";
 
 interface PartnerRow {
   contact_id: string;
@@ -24,10 +25,7 @@ interface PartnerRow {
   role: "primary" | "co_primary";
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ callId: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ callId: string }> }) {
   const { callId } = await params;
   const { instruction } = (await request.json()) as { instruction: string };
 
@@ -46,7 +44,11 @@ export async function POST(
 
   let contactName = "Unknown";
   if (call.contact_id) {
-    const { data: c } = await supabase.from("contacts").select("first_name, last_name").eq("id", call.contact_id).single();
+    const { data: c } = await supabase
+      .from("contacts")
+      .select("first_name, last_name")
+      .eq("id", call.contact_id)
+      .single();
     if (c) contactName = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown";
   }
 
@@ -83,18 +85,18 @@ export async function POST(
 
   const client = new Anthropic({ apiKey });
 
-  const trimmedTranscript = transcript.length > 4000
-    ? "...\n" + transcript.slice(-4000)
-    : transcript;
+  const trimmedTranscript = transcript.length > 4000 ? "...\n" + transcript.slice(-4000) : transcript;
 
   try {
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
-      system: "You are Scout, an AI assistant for NAH Franchise OS. Generate exactly one action item from the user's instruction. Use the transcript and context to pre-fill all fields accurately.",
-      messages: [{
-        role: "user",
-        content: `Generate one action item based on this instruction: "${instruction}"
+      system:
+        "You are Scout, an AI assistant for NAH Franchise OS. Generate exactly one action item from the user's instruction. Use the transcript and context to pre-fill all fields accurately.",
+      messages: [
+        {
+          role: "user",
+          content: `Generate one action item based on this instruction: "${instruction}"
 
 Contact: ${contactName}
 Call: ${call.title ?? "Unknown"}
@@ -113,7 +115,8 @@ ${partnerBlock}
 Return a JSON object with: category (apt|comms|task|note|pipeline|data), title, description, why, contact_name, target_contact_name (required if partnership block is present — the exact partner name from above), assigned_to_name, ghl_action (bool), source ("manual"), metadata (with all relevant fields for the category — comms needs comms_channel, comms_body, etc.).
 
 Return only valid JSON. No markdown fences.`,
-      }],
+        },
+      ],
     });
 
     const text = response.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text;
@@ -131,24 +134,27 @@ Return only valid JSON. No markdown fences.`,
       ghl_action?: boolean;
     };
 
-    const resolvedContactId =
-      resolvePartnerNameToId(action.target_contact_name, partners) ?? call.contact_id;
+    const resolvedContactId = resolvePartnerNameToId(action.target_contact_name, partners) ?? call.contact_id;
 
-    const { data: row } = await supabase.from("call_action_items").insert({
-      call_id: callId,
-      contact_id: resolvedContactId,
-      journey_id: journeyId,
-      category: action.category ?? "task",
-      title: action.title ?? instruction,
-      description: action.description ?? null,
-      why: action.why ?? null,
-      contact_name: action.contact_name ?? contactName,
-      assigned_to_name: action.assigned_to_name ?? "Chad Arnold",
-      metadata: action.metadata ?? null,
-      source: "manual",
-      ghl_action: action.ghl_action ?? false,
-      status: "pending",
-    }).select("id").single();
+    const { data: row } = await supabase
+      .from("call_action_items")
+      .insert({
+        call_id: callId,
+        contact_id: resolvedContactId,
+        journey_id: journeyId,
+        category: action.category ?? "task",
+        title: action.title ?? instruction,
+        description: action.description ?? null,
+        why: action.why ?? null,
+        contact_name: action.contact_name ?? contactName,
+        assigned_to_name: action.assigned_to_name ?? "Chad Arnold",
+        metadata: action.metadata ?? null,
+        source: "manual",
+        ghl_action: action.ghl_action ?? false,
+        status: "pending",
+      })
+      .select("id")
+      .single();
 
     return NextResponse.json({ success: true, actionId: row?.id });
   } catch (err) {
@@ -159,7 +165,7 @@ Return only valid JSON. No markdown fences.`,
 
 async function loadJourneyPartners(
   supabase: ReturnType<typeof createServerClient>,
-  callContactId: string | null,
+  callContactId: string | null
 ): Promise<{ journeyId: string | null; partners: PartnerRow[] }> {
   if (!callContactId) return { journeyId: null, partners: [] };
 
@@ -221,15 +227,12 @@ function buildPartnerBlock(partners: PartnerRow[]): string {
   lines.push(
     "If the action topic belongs to one partner's domain, pick that partner.",
     "If it applies to both, pick the first partner listed.",
-    "Never leave target_contact_name blank here.",
+    "Never leave target_contact_name blank here."
   );
   return lines.join("\n");
 }
 
-function resolvePartnerNameToId(
-  name: string | undefined,
-  partners: PartnerRow[],
-): string | null {
+function resolvePartnerNameToId(name: string | undefined, partners: PartnerRow[]): string | null {
   if (!name || partners.length === 0) return null;
   const lc = name.trim().toLowerCase();
   for (const p of partners) {

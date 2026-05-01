@@ -18,10 +18,7 @@ Be encouraging but honest. Include:
 
 Format as 2-3 concise paragraphs.`;
 
-export async function generateRepJournal(
-  userId: string,
-  date: string
-): Promise<string | null> {
+export async function generateRepJournal(userId: string, date: string): Promise<string | null> {
   const supabase = createServerClient();
   const startOfDay = `${date}T00:00:00Z`;
   const endOfDay = `${date}T23:59:59Z`;
@@ -52,9 +49,7 @@ export async function generateRepJournal(
     .gte("created_at", startOfDay)
     .lte("created_at", endOfDay)
     .is("deleted_at", null);
-  const uniqueContacts = new Set(
-    (contactsTouched ?? []).map((r) => r.contact_id)
-  ).size;
+  const uniqueContacts = new Set((contactsTouched ?? []).map((r) => r.contact_id)).size;
 
   // Count Scout actions for this user
   const { count: ghlActionCount } = await supabase
@@ -66,18 +61,13 @@ export async function generateRepJournal(
     .lte("created_at", endOfDay);
 
   // Skip if no activity
-  const totalActivity =
-    (subTaskCount ?? 0) + (callCount ?? 0) + (ghlActionCount ?? 0);
+  const totalActivity = (subTaskCount ?? 0) + (callCount ?? 0) + (ghlActionCount ?? 0);
   if (totalActivity === 0) {
     return null;
   }
 
   // Get user name
-  const { data: user } = await supabase
-    .from("users")
-    .select("full_name")
-    .eq("id", userId)
-    .single();
+  const { data: user } = await supabase.from("users").select("full_name").eq("id", userId).single();
 
   // Generate via Claude
   const anthropic = new Anthropic();
@@ -91,7 +81,7 @@ export async function generateRepJournal(
   };
 
   const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-5-20250514",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 400,
     messages: [
       {
@@ -101,8 +91,7 @@ export async function generateRepJournal(
     ],
   });
 
-  const fullResponse =
-    message.content[0].type === "text" ? message.content[0].text : "";
+  const fullResponse = message.content[0].type === "text" ? message.content[0].text : "";
 
   // Parse coaching notes and focus (simple split on double newline)
   const paragraphs = fullResponse.split(/\n\n+/);
@@ -145,10 +134,7 @@ export async function runRepJournalCron(
   const supabase = createServerClient();
   const journalDate = date ?? new Date().toISOString().split("T")[0];
 
-  const { data: users, error } = await supabase
-    .from("users")
-    .select("id")
-    .eq("is_active", true);
+  const { data: users, error } = await supabase.from("users").select("id").eq("is_active", true);
 
   if (error) {
     throw new Error(`Failed to fetch users: ${error.message}`);

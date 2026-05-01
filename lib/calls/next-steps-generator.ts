@@ -46,9 +46,7 @@ Respond with ONLY valid JSON:
   ]
 }`;
 
-export async function generateNextSteps(
-  callId: string
-): Promise<NextStepCard[]> {
+export async function generateNextSteps(callId: string): Promise<NextStepCard[]> {
   const supabase = createServerClient();
 
   // Fetch call data
@@ -107,11 +105,7 @@ export async function generateNextSteps(
   // Fetch call type name
   let callTypeName = "Unknown";
   if (call.call_type_id) {
-    const { data: ct } = await supabase
-      .from("call_types")
-      .select("name")
-      .eq("id", call.call_type_id)
-      .single();
+    const { data: ct } = await supabase.from("call_types").select("name").eq("id", call.call_type_id).single();
     callTypeName = ct?.name ?? "Unknown";
   }
 
@@ -125,7 +119,7 @@ Grader's suggestion: ${grade?.suggested_next_action ?? "N/A"}`;
 
   const prompt = NEXT_STEPS_PROMPT.replace("CONTEXT_BLOCK", contextBlock);
 
-  const model = process.env.SCOUT_MODEL ?? "claude-sonnet-4-5-20250514";
+  const model = process.env.SCOUT_MODEL ?? "claude-haiku-4-5-20251001";
   const anthropic = new Anthropic();
 
   const response = await anthropic.messages.create({
