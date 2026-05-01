@@ -27,6 +27,7 @@ import AutomationPanel from "@/components/settings/AutomationPanel";
 import UsersPanel from "@/components/settings/UsersPanel";
 import LeadSourcesPanel from "@/components/settings/LeadSourcesPanel";
 import AppSettingsPanel from "@/components/settings/AppSettingsPanel";
+import PermissionsPanel from "@/components/settings/PermissionsPanel";
 
 interface SetupItem {
   label: string;
@@ -51,7 +52,7 @@ interface SystemHealth {
   pendingSuggestions: number;
 }
 
-type SettingsTab = "general" | "users" | "data" | "automation" | "integrations";
+type SettingsTab = "general" | "users" | "permissions" | "data" | "automation" | "integrations";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -81,6 +82,7 @@ export default function SettingsPage() {
   const TABS: { key: SettingsTab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
     { key: "general", label: "General", icon: Settings },
     { key: "users", label: "Users", icon: Users },
+    { key: "permissions", label: "Permissions", icon: Shield },
     { key: "data", label: "Data Management", icon: Database },
     { key: "automation", label: "Automation", icon: Bot },
     { key: "integrations", label: "Integrations", icon: Zap },
@@ -115,7 +117,9 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab content */}
-      {activeTab === "users" ? (
+      {activeTab === "permissions" ? (
+        <PermissionsPanel />
+      ) : activeTab === "users" ? (
         <UsersPanel />
       ) : activeTab === "data" ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

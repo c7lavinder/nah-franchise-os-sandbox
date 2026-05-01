@@ -5,6 +5,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import { getAccessTokenFromCookies } from "@/lib/auth/cookies";
+import { hasPermission, type PermissionAction } from "@/lib/auth/permissions";
 import type { User, UserRole } from "@/types/database";
 
 /** The authenticated user with app-level fields */
@@ -60,11 +61,14 @@ export async function getAuthUser(token: string | null): Promise<AuthUser | null
 }
 
 /**
- * Requires authentication — returns the AuthUser or a 401 Response.
+ * Requires authentication — returns the AuthUser or a 401/403 Response.
  * Reads token from httpOnly cookie first, then falls back to Authorization header.
  * Callers must check: if (user instanceof Response) return user;
+ *
+ * Optional `action` parameter enforces role-based permission from the centralized map.
+ *   const user = await requireAuth(request, "calls:delete");
  */
-export async function requireAuth(request: Request): Promise<AuthUser | Response> {
+export async function requireAuth(request: Request, action?: PermissionAction): Promise<AuthUser | Response> {
   // Try httpOnly cookie first
   let token = getAccessTokenFromCookies(request);
 
@@ -81,6 +85,14 @@ export async function requireAuth(request: Request): Promise<AuthUser | Response
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // If an action is specified, check role-based permission
+  if (action && !hasPermission(user.role, action)) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
       headers: { "Content-Type": "application/json" },
     });
   }

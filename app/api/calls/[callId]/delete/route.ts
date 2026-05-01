@@ -15,7 +15,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/auth";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ callId: string }> }) {
-  const authUser = await requireAuth(request);
+  const authUser = await requireAuth(request, "calls:delete");
   if (authUser instanceof Response) return authUser;
   const { callId } = await params;
   const supabase = createServerClient();
@@ -28,12 +28,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (loadErr) return NextResponse.json({ error: loadErr.message }, { status: 500 });
   if (!call) return NextResponse.json({ error: "Call not found" }, { status: 404 });
   if (call.deleted_at) return NextResponse.json({ success: true, alreadyDeleted: true });
-
-  const isAdminOrOperator = authUser.role === "admin" || authUser.role === "operator";
-  const isOwner = call.hosted_by_user_id === authUser.id;
-  if (!isAdminOrOperator && !isOwner) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   const { error: updateErr } = await supabase
     .from("calls")
