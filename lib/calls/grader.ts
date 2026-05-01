@@ -148,7 +148,7 @@ Use these criterion IDs:
 ${criteria.map((c) => `- ${c.id}: ${c.name}`).join("\n")}`;
 
   // Call Claude
-  const model = process.env.SCOUT_MODEL ?? "claude-sonnet-4-6-20250514";
+  const model = process.env.SCOUT_MODEL ?? "claude-haiku-4-5-20251001";
   const anthropic = new Anthropic();
 
   let parsed: GradeResult;

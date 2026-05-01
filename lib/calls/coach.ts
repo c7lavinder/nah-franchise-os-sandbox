@@ -115,7 +115,7 @@ Respond with ONLY valid JSON:
   "kbReferencedTitles": ["string"]
 }`;
 
-  const model = process.env.SCOUT_MODEL ?? "claude-sonnet-4-6-20250514";
+  const model = process.env.SCOUT_MODEL ?? "claude-haiku-4-5-20251001";
   const anthropic = new Anthropic();
 
   let parsed: { coachingNotes: string; coachingPlan: string; kbReferencedTitles?: string[] };

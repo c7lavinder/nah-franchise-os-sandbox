@@ -6,14 +6,12 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 import Anthropic from "@anthropic-ai/sdk";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId: rawId } = await params;
   const callTypeId = new URL(request.url).searchParams.get("callTypeId");
   const supabase = createServerClient();
@@ -32,7 +30,9 @@ export async function GET(
     // Pipeline state — Phase 4 read migration: jps via primary journey.
     const { data: jps } = await supabase
       .from("journey_pipeline_state")
-      .select("id, current_stage_id, entered_current_stage_at, pipeline_stages(name), journeys!inner(primary_contact_id)")
+      .select(
+        "id, current_stage_id, entered_current_stage_at, pipeline_stages(name), journeys!inner(primary_contact_id)"
+      )
       .eq("journeys.primary_contact_id", localId)
       .eq("is_active", true)
       .limit(1)
@@ -62,9 +62,12 @@ export async function GET(
     const { data: priorGrades } = await supabase
       .from("call_grades")
       .select("overall_grade, overall_score, strengths, improvements, suggested_next_action")
-      .in("call_id", (
-        await supabase.from("calls").select("id").eq("contact_id", localId).is("deleted_at", null)
-      ).data?.map((c) => c.id) ?? [])
+      .in(
+        "call_id",
+        (await supabase.from("calls").select("id").eq("contact_id", localId).is("deleted_at", null)).data?.map(
+          (c) => c.id
+        ) ?? []
+      )
       .order("created_at", { ascending: false })
       .limit(3);
 
@@ -86,9 +89,9 @@ export async function GET(
     const contactName = `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim() || "Unknown";
     const logsBlock = (logs ?? []).map((l) => `[${l.content_type}] ${l.content_text ?? ""}`.slice(0, 100)).join("\n");
     const msgsBlock = (msgs ?? []).map((m) => m.body.slice(0, 100)).join("\n");
-    const gradesBlock = (priorGrades ?? []).map((g) =>
-      `Grade: ${g.overall_grade} (${g.overall_score}) — ${g.suggested_next_action ?? ""}`
-    ).join("\n");
+    const gradesBlock = (priorGrades ?? [])
+      .map((g) => `Grade: ${g.overall_grade} (${g.overall_score}) — ${g.suggested_next_action ?? ""}`)
+      .join("\n");
     const kbBlock = (kbDocs ?? []).map((d) => `[${d.title}] ${d.content.slice(0, 200)}`).join("\n");
 
     // Check for fresh agent-generated context on today's call
@@ -136,7 +139,7 @@ Generate a concise pre-call brief with:
 
 Keep it under 300 words. Be specific and actionable.`;
 
-    const model = process.env.SCOUT_MODEL ?? "claude-sonnet-4-6-20250514";
+    const model = process.env.SCOUT_MODEL ?? "claude-haiku-4-5-20251001";
     const anthropic = new Anthropic();
 
     const response = await anthropic.messages.create({

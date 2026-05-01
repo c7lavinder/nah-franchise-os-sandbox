@@ -33,7 +33,7 @@ import { gradeCall, type GradeResult } from "@/lib/calls/grader";
 // Change model per section here. One line per section.
 // All sections on Sonnet — every call is a high-value touchpoint,
 // maximize intelligence extracted from each one.
-const MODEL = "claude-4-sonnet-20250514";
+const MODEL = "claude-haiku-4-5-20251001";
 const MODELS = {
   summary: MODEL,
   coaching: MODEL,

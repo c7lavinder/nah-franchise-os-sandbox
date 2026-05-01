@@ -5,20 +5,14 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ callId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ callId: string }> }) {
   const { callId } = await params;
   const supabase = createServerClient();
 
-  const { data: call } = await supabase
-    .from("calls")
-    .select("*")
-    .eq("id", callId)
-    .single();
+  const { data: call } = await supabase.from("calls").select("*").eq("id", callId).single();
   if (!call) return NextResponse.json({ error: "Call not found" }, { status: 404 });
 
   // Enrich with names + contact info
@@ -26,7 +20,11 @@ export async function GET(
   let primaryContactEmail: string | null = null;
   let primaryContactPhone: string | null = null;
   if (call.contact_id) {
-    const { data: contactRow } = await supabase.from("contacts").select("first_name, last_name, email, phone").eq("id", call.contact_id).single();
+    const { data: contactRow } = await supabase
+      .from("contacts")
+      .select("first_name, last_name, email, phone")
+      .eq("id", call.contact_id)
+      .single();
     if (contactRow) {
       contactName = `${contactRow.first_name ?? ""} ${contactRow.last_name ?? ""}`.trim() || "Unknown";
       primaryContactEmail = contactRow.email ?? null;
@@ -44,12 +42,19 @@ export async function GET(
   let callTypeSlug = null;
   if (call.call_type_id) {
     const { data: ct } = await supabase.from("call_types").select("name, slug").eq("id", call.call_type_id).single();
-    if (ct) { callTypeName = ct.name; callTypeSlug = ct.slug; }
+    if (ct) {
+      callTypeName = ct.name;
+      callTypeSlug = ct.slug;
+    }
   }
 
   let territoryName = null;
   if (call.territory_ms_slug) {
-    const { data: t } = await supabase.from("territories").select("territory_name").eq("ms_slug", call.territory_ms_slug).single();
+    const { data: t } = await supabase
+      .from("territories")
+      .select("territory_name")
+      .eq("ms_slug", call.territory_ms_slug)
+      .single();
     if (t) territoryName = t.territory_name;
   }
 
@@ -62,10 +67,7 @@ export async function GET(
   const ctSlugs = (ctRows ?? []).map((r) => r.territory_ms_slug);
   const ctNameMap = new Map<string, string>();
   if (ctSlugs.length > 0) {
-    const { data: tRows } = await supabase
-      .from("territories")
-      .select("ms_slug, territory_name")
-      .in("ms_slug", ctSlugs);
+    const { data: tRows } = await supabase.from("territories").select("ms_slug, territory_name").in("ms_slug", ctSlugs);
     for (const t of tRows ?? []) ctNameMap.set(t.ms_slug, t.territory_name);
   }
   const callTerritories = (ctRows ?? []).map((r) => ({
@@ -84,10 +86,7 @@ export async function GET(
   const cjJpsIds = Array.from(new Set((cjRows ?? []).map((r) => r.journey_pipeline_state_id)));
   const journeyNameMap = new Map<string, string>();
   if (cjJourneyIds.length > 0) {
-    const { data: jRows } = await supabase
-      .from("journeys")
-      .select("id, name")
-      .in("id", cjJourneyIds);
+    const { data: jRows } = await supabase.from("journeys").select("id, name").in("id", cjJourneyIds);
     for (const j of jRows ?? []) journeyNameMap.set(j.id, j.name);
   }
   const jpsDetailMap = new Map<string, { stage: string | null; territory_ms_slug: string | null }>();
@@ -102,8 +101,8 @@ export async function GET(
       pipeline_stages: { name: string } | { name: string }[] | null;
     }[]) {
       const stageName = Array.isArray(r.pipeline_stages)
-        ? r.pipeline_stages[0]?.name ?? null
-        : r.pipeline_stages?.name ?? null;
+        ? (r.pipeline_stages[0]?.name ?? null)
+        : (r.pipeline_stages?.name ?? null);
       jpsDetailMap.set(r.id, { stage: stageName, territory_ms_slug: r.territory_ms_slug });
     }
   }
@@ -126,7 +125,7 @@ export async function GET(
       journey_name: journeyNameMap.get(r.journey_id) ?? "Journey",
       stage_name: jps?.stage ?? null,
       territory_ms_slug: jps?.territory_ms_slug ?? null,
-      territory_name: jps?.territory_ms_slug ? ctNameMap.get(jps.territory_ms_slug) ?? null : null,
+      territory_name: jps?.territory_ms_slug ? (ctNameMap.get(jps.territory_ms_slug) ?? null) : null,
       is_primary: r.is_primary,
     };
   });
@@ -187,14 +186,25 @@ export async function GET(
       : Promise.resolve({ data: [] as { id: string; full_name: string; email: string }[] }),
     pContactIds.length > 0
       ? supabase.from("contacts").select("id, first_name, last_name, email, phone").in("id", pContactIds)
-      : Promise.resolve({ data: [] as { id: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null }[] }),
+      : Promise.resolve({
+          data: [] as {
+            id: string;
+            first_name: string | null;
+            last_name: string | null;
+            email: string | null;
+            phone: string | null;
+          }[],
+        }),
   ]);
 
   const userMap = new Map<string, { name: string; email: string }>();
   for (const u of userRes.data ?? []) {
     userMap.set(u.id, { name: u.full_name, email: u.email });
   }
-  const contactMap = new Map<string, { name: string; email: string | null; phone: string | null; ghl_contact_id: string | null }>();
+  const contactMap = new Map<
+    string,
+    { name: string; email: string | null; phone: string | null; ghl_contact_id: string | null }
+  >();
   for (const c of contactRes.data ?? []) {
     contactMap.set(c.id, {
       name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unknown",
@@ -208,10 +218,7 @@ export async function GET(
   const mappedContactIds = Array.from(contactMap.keys());
   const ghlContactIdByLocal = new Map<string, string>();
   if (mappedContactIds.length > 0) {
-    const { data: ghlRows } = await supabase
-      .from("contacts")
-      .select("id, ghl_contact_id")
-      .in("id", mappedContactIds);
+    const { data: ghlRows } = await supabase.from("contacts").select("id, ghl_contact_id").in("id", mappedContactIds);
     for (const row of ghlRows ?? []) {
       if (row.ghl_contact_id) ghlContactIdByLocal.set(row.id, row.ghl_contact_id);
     }
@@ -295,7 +302,7 @@ export async function GET(
   const rawParticipants = (participants ?? []).map((p) => {
     const contact = p.contact_id ? contactMap.get(p.contact_id) : null;
     const ghl = p.contact_id ? ghlContactIdByLocal.get(p.contact_id) : null;
-    const territory = ghl ? ghlToTerritory.get(ghl) ?? null : null;
+    const territory = ghl ? (ghlToTerritory.get(ghl) ?? null) : null;
     return {
       id: p.id,
       email: p.email,
@@ -352,13 +359,8 @@ export async function GET(
     .limit(1)
     .maybeSingle();
 
-  const { data: coaching } = await supabase
-    .from("call_coaching")
-    .select("*")
-    .eq("call_id", callId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Note: coaching data lives on calls.coaching_data (written by post-call agent).
+  // The call_coaching table is from an older standalone coach path and is not used by the UI.
 
   // Fetch action items for Next Steps tab
   const { data: actionItems } = await supabase
@@ -393,11 +395,27 @@ export async function GET(
   const contactPhone = primaryContactPhone ?? linkedContacts[0]?.phone ?? null;
 
   return NextResponse.json({
-    call: { ...call, contactName, contactEmail, contactPhone, hostName, callTypeName, callTypeSlug, territoryName, coachName, teamMembers, linkedContacts, unknownParticipants, rawParticipants, callTerritories, callJourneys, partnershipPartners },
+    call: {
+      ...call,
+      contactName,
+      contactEmail,
+      contactPhone,
+      hostName,
+      callTypeName,
+      callTypeSlug,
+      territoryName,
+      coachName,
+      teamMembers,
+      linkedContacts,
+      unknownParticipants,
+      rawParticipants,
+      callTerritories,
+      callJourneys,
+      partnershipPartners,
+    },
     transcript: transcriptText,
     transcriptSource: transcript?.source ?? (call.raw_transcript ? "read_ai" : null),
     grade,
-    coaching,
     actionItems: actionItems ?? [],
     dataExtractions: dataExtractions ?? [],
     profileFieldCount,
