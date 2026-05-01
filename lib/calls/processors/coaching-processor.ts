@@ -12,10 +12,7 @@ import { classifyCallType } from "../classify-type";
 import { resolveCallTypeBySlug } from "../resolve-call-type";
 import { callAlreadyExistsForReadAiSession } from "./check-existing";
 
-export async function processCoachingCall(
-  payload: ReadAIWebhookPayload,
-  classified: ClassifiedCall
-): Promise<void> {
+export async function processCoachingCall(payload: ReadAIWebhookPayload, classified: ClassifiedCall): Promise<void> {
   const supabase = createServerClient();
 
   if (await callAlreadyExistsForReadAiSession(supabase, payload.session_id)) {
@@ -56,13 +53,14 @@ export async function processCoachingCall(
       title: standardizeTitle(
         callType.name ?? "Coaching Call",
         classified.external_participant_name ? [classified.external_participant_name] : [],
-        payload.title ?? null,
+        payload.title ?? null
       ),
       started_at: payload.start_time ?? null,
       ended_at: payload.end_time ?? null,
-      duration_seconds: payload.start_time && payload.end_time
-        ? Math.round((new Date(payload.end_time).getTime() - new Date(payload.start_time).getTime()) / 1000)
-        : null,
+      duration_seconds:
+        payload.start_time && payload.end_time
+          ? Math.round((new Date(payload.end_time).getTime() - new Date(payload.start_time).getTime()) / 1000)
+          : null,
       raw_transcript: formatTranscript(payload.transcript, payload.participants),
       source: "read_ai",
       status: "completed",
@@ -89,7 +87,8 @@ export async function processCoachingCall(
     .eq("session_id", payload.session_id);
 
   // 5. Store transcript
-  const hasTranscript = (payload.transcript?.speaker_blocks?.length ?? 0) > 0 || (payload.transcript?.turns?.length ?? 0) > 0;
+  const hasTranscript =
+    (payload.transcript?.speaker_blocks?.length ?? 0) > 0 || (payload.transcript?.turns?.length ?? 0) > 0;
   if (hasTranscript) {
     await supabase.from("call_transcripts").insert({
       call_id: callRecord.id,
@@ -100,7 +99,7 @@ export async function processCoachingCall(
   }
 
   // 6. Review pipeline
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const appUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/frandev`;
   try {
     await fetch(`${appUrl}/api/calls/${callRecord.id}/review-package`, {
       method: "POST",

@@ -10,11 +10,7 @@
  * Injects a 1x1 transparent tracking pixel before the closing </body>
  * tag, or at the end of the HTML if no </body> is present.
  */
-export function injectTrackingPixel(
-  html: string,
-  logId: string,
-  baseUrl: string
-): string {
+export function injectTrackingPixel(html: string, logId: string, baseUrl: string): string {
   const cleanBase = baseUrl.replace(/\/+$/, "");
   const pixelUrl = `${cleanBase}/api/track/open/${encodeURIComponent(logId)}`;
   const pixelTag = `<img src="${pixelUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;border:0;" />`;
@@ -36,34 +32,27 @@ export function injectTrackingPixel(
  *
  * Skips mailto: and tel: links, as well as anchors (#).
  */
-export function wrapLinksWithTracking(
-  html: string,
-  logId: string,
-  baseUrl: string
-): string {
+export function wrapLinksWithTracking(html: string, logId: string, baseUrl: string): string {
   const cleanBase = baseUrl.replace(/\/+$/, "");
   const trackBase = `${cleanBase}/api/track/click/${encodeURIComponent(logId)}`;
 
   // Match <a ...href="..."...> with single or double quotes
   const linkRegex = /<a\s([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi;
 
-  return html.replace(
-    linkRegex,
-    (_match: string, before: string, href: string, after: string): string => {
-      // Skip non-http links
-      if (
-        href.startsWith("mailto:") ||
-        href.startsWith("tel:") ||
-        href.startsWith("#") ||
-        href.startsWith("javascript:")
-      ) {
-        return `<a ${before}href="${href}"${after}>`;
-      }
-
-      const trackedUrl = `${trackBase}?url=${encodeURIComponent(href)}`;
-      return `<a ${before}href="${trackedUrl}"${after}>`;
+  return html.replace(linkRegex, (_match: string, before: string, href: string, after: string): string => {
+    // Skip non-http links
+    if (
+      href.startsWith("mailto:") ||
+      href.startsWith("tel:") ||
+      href.startsWith("#") ||
+      href.startsWith("javascript:")
+    ) {
+      return `<a ${before}href="${href}"${after}>`;
     }
-  );
+
+    const trackedUrl = `${trackBase}?url=${encodeURIComponent(href)}`;
+    return `<a ${before}href="${trackedUrl}"${after}>`;
+  });
 }
 
 /**
@@ -71,7 +60,7 @@ export function wrapLinksWithTracking(
  * and click-tracking wrappers. Uses NEXT_PUBLIC_APP_URL as the base URL.
  */
 export function prepareEmailForTracking(html: string, logId: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const baseUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/frandev`;
   let tracked = wrapLinksWithTracking(html, logId, baseUrl);
   tracked = injectTrackingPixel(tracked, logId, baseUrl);
   return tracked;
