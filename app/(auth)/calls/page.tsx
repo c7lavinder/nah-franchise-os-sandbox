@@ -352,16 +352,25 @@ export default function CallsPage() {
         await apiFetch(`/api/calls/${callId}/upload`, { method: "POST", body: formData });
       }
 
-      // 3. Trigger AI processing
-      apiFetch(`/api/calls/${callId}/review-package`, { method: "POST" }).catch(() => {});
-      apiFetch(`/api/calls/${callId}/generate`, { method: "POST" }).catch(() => {});
-
+      // 3. Navigate first, then trigger AI processing from the new page context
       setShowManualEntry(false);
       setUploadFile(null);
       setPastedTranscript("");
       setUploadDate("");
       setUploadHostedBy("");
       router.push(`/calls/${callId}`);
+
+      // 4. Fire AI processing after navigation — use fetch() directly so
+      //    browser doesn't cancel when the component unmounts
+      const base = window.location.origin + "/frandev";
+      fetch(`${base}/api/calls/${callId}/review-package`, {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {});
+      fetch(`${base}/api/calls/${callId}/generate`, {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {});
     } catch {
       /* ignore */
     }
