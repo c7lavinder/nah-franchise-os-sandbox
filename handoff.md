@@ -1,96 +1,125 @@
-# Session Handoff — 2026-04-30 — Session 21
+# Session Handoff — 2026-05-01 — Session 22
 
 ## Status
 
-Phase: Tier 1-3 complete + UI/UX polish + call classification overhaul. Next: Workflows page build. / Health: Green / Duration: marathon session
+Phase: Workflows page live, permissions system built, auth hardened, call upload rebuilt. Next: fix call generate→detail data flow. / Health: Yellow (call processing pipeline has data-flow mismatches) / Duration: marathon session
 
 ## What Was Built This Session
 
-### Tier 2 (9 items — all complete)
+### Workflows Page (activated — was already built but disconnected)
 
-- `/frandev` basePath prefix (next.config, vercel.json, apiFetch, OAuth, all URLs)
-- JWT httpOnly cookies (full auth migration)
-- Lead scores to Supabase (4 routes, buildScoringInputFromContact)
-- Supabase typed client (types regenerated, Tables/TableName exports)
-- Grader fallback to raw_transcript
-- Dead GHL cleanup (getCalendarFreeSlots, getWorkflows removed)
-- Action card hooks wired (useShowSMS/Email/Appointment/Note)
-- GHL webhooks (InboundMessage + OutboundMessage configured)
-- Per-rep RLS shelved
+- Wired Workflows as real nav link in pullout menu (above Knowledge Base)
+- Fixed 13 API route handlers missing `requireAuth` calls (security gap)
+- Redesigned `WorkflowDetail` — full step timeline with content, trigger, day/time, step type visible at a glance
+- Added trigger display to `WorkflowCard` (lightning bolt icon)
 
-### Tier 3 (10 items — all complete)
+### Centralized Permissions System
 
-- GHL read audit (43 files) + migration (dashboard, pipeline routes → 0 GHL calls)
-- Tasks table + two-way GHL sync (migration, lib/tasks/sync.ts, TaskUpdate webhook)
-- Dead ActionPanels (815→233 lines)
-- Cron calendar (10 jobs, /frandev paths, missing jobs added)
-- OAuth query consolidation (3→1)
-- Database types reconciled
-- Legacy buildScoringInput removed
-- Bulk score backfill (1,000 contacts)
-- Scout session memory (already implemented)
-- Typed client deferred (168 errors, 64 files)
+- `lib/auth/permissions.ts` — single source of truth: 22 actions across 8 groups, mapped to 6 roles
+- `requireAuth(request, "calls:delete")` — optional action param enforces role-based 403 automatically
+- Settings → Permissions tab — full matrix UI (roles as columns, actions as rows, check/X indicators)
+- Migrated calls/delete and calls/override to use permission actions
 
-### UI/UX Polish
+### Auth Fixes (19 route handlers total)
 
-- Daily HQ calendar: color-coded by call type, expandable cards, Google Meet links, status selector (confirmed/showed/no-show/cancelled)
-- Daily HQ tasks: full-width cards, expandable with details, inline edit
-- Nav reorder: Scout → Daily HQ → Calls → Pipeline
-- Logo fix: hardcoded /frandev paths, images.unoptimized for SVGs
-- Login fix: hardcoded basePath constant
-- Pipeline: upcoming appointment labels on prospect rows (blue badge, future only)
+- 13 workflow API routes missing `requireAuth` entirely
+- 6 routes using old `getAuthUser(header)` pattern instead of `requireAuth(cookies)` — broke after httpOnly cookie migration
+- Operator role (Chad) now allowed for call delete and override
 
-### Call Classification Overhaul
+### Webhook & Call Processing Fixes
 
-- LLM-driven classification: post-call agent reads transcript and decides call type (replaces unreliable rule-based tree)
-- Classifier improvements: franchisee detection, stakeholder/employee detection, large group detection
-- Team email aliases: user_email_aliases table now checked (Jessica Odle, Mark Pate fixed)
-- Tyler Smith added as user
-- Bulk reclassification: 102 calls processed, 29 corrected
+- Vercel rewrite: `/api/webhooks/*` → `/frandev/api/webhooks/*` (external services broken by basePath)
+- All 3 call processors fixed: internal fetch calls missing `/frandev` basePath prefix
+- `call_transcripts` source constraint: `file_upload` and `read_ai` → `upload` (was silently failing)
+- Upload form fire-and-forget fix: use raw `fetch()` after navigation so browser doesn't cancel
+
+### Call Upload Form Rebuild
+
+- Replaced 7-field manual entry form with file-first flow
+- Drag & drop zone for recordings (mp4/webm/m4a/mp3/wav) or transcripts (txt)
+- Paste transcript area
+- Only 2 fields: date + hosted by
+- AI handles: title, call type, contact match, coaching analysis
+
+### Team
+
+- Ben Harrison added as admin (ben@newagainhouses.com / Demo123)
 
 ## What Is Confirmed Working
 
 - `npx tsc --noEmit` — 0 errors
 - `npx vitest run` — 8 suites, 96 tests passing
-- Production deployed at https://nah-franchise-os-sandbox.vercel.app/frandev
-- Login, auth cookies, token refresh all working
-- Webhook endpoint live (401 = signature check active)
-- 1,000 contacts scored, 102 calls reclassified
-- Tasks table live in Supabase
+- Workflows page live with full step timeline detail view
+- Permissions tab in Settings shows role matrix
+- Call delete/override working for operator role (Chad)
+- Webhook rewrite deployed — Read.ai webhooks flowing again
+- Dreyer call manually processed: 52 extractions, coaching score 25
+- Upload form creates call + uploads transcript + triggers processing
+- Ben Harrison login working
 
 ## What Is Broken or Incomplete
 
+- `generate` endpoint writes to `calls.coaching_data` + `calls.summary`, but detail API reads from `call_coaching` + `call_grades` tables — data never shows in UI — High
+- `call_data_extractions` written by generate but detail API returns empty (possible table mismatch) — High
+- Manual uploads don't match contacts (no participant emails to match from) — Medium
+- Rubric grading fails: model ID `claude-sonnet-4-6-20250514` not found on Anthropic account — Medium
+- `call_transcripts` DB check constraint still only allows `whisper`, `manual_paste`, `upload` (should add `read_ai`) — Low
 - Typed client migration (168 errors, 64 files) — Low
-- Supabase migration history out of sync — Low
 - TaskUpdate webhook not subscribed in GHL portal — Medium
-- Some GHL reads remain (inbox, contacts detail, daily-hq tasks) — Low
 
 ## Decisions Made
 
-- LLM classifies call types, rule-based tree is just initial guess — Corey
-- OpportunityStageUpdate + ContactCreate webhooks removed — Corey
-- Architecture phase complete, moving to feature builds — Corey
-- Next priority: Workflows page (major blocker for Chad migration from Franchise Tether) — Corey
+- Workflows ship as-is, evolve to agents later — Corey
+- Workflows nav stays in pullout menu (not main sidebar) — Corey
+- Permissions are code-defined, not database-editable — Corey
+- Call upload simplified: file + date + host, AI does the rest — Corey
 
 ## Files Created
 
-- `lib/auth/cookies.ts`, `lib/base-path.ts`, `lib/pipelines/queries.ts`, `lib/tasks/sync.ts`
-- `scripts/backfill-lead-scores.ts`, `scripts/register-ghl-webhooks.ts`, `scripts/reclassify-calls.ts`
-- `supabase/migrations/20260430100000_create_tasks_table.sql`
-- `app/api/appointments/[appointmentId]/status/route.ts`
+- `lib/auth/permissions.ts`
+- `components/settings/PermissionsPanel.tsx`
+- `scripts/add-ben-harrison.ts`
+- `scripts/check-webhooks.ts`, `scripts/check-stuck-call.ts`, `scripts/fix-dreyer-transcript.ts`, `scripts/check-uploaded-call.ts`, `scripts/check-call-detail.ts` (diagnostic scripts)
 
 ## Files Modified
 
-- 56+ files across auth, GHL, calls, pipeline, daily-hq, settings, layout, scoring, types
+- `components/layout/Sidebar.tsx` — Workflows nav link
+- `components/workflows/WorkflowCard.tsx` — trigger display
+- `components/workflows/WorkflowDetail.tsx` — full step timeline redesign
+- `components/calls/CallOverviewTab.tsx` — removed "Read.ai" hardcoded text
+- `app/(auth)/calls/page.tsx` — upload form rebuild
+- `app/(auth)/settings/page.tsx` — Permissions tab added
+- `lib/auth/session.ts` — requireAuth accepts action param
+- `lib/auth/index.ts` — permissions re-exports
+- `lib/calls/processors/prospect-processor.ts` — basePath + source fix
+- `lib/calls/processors/coaching-processor.ts` — basePath + source fix
+- `lib/calls/processors/group-processor.ts` — basePath + source fix
+- `lib/workflows/tracking.ts` — basePath fix
+- `app/api/calls/[callId]/upload/route.ts` — source constraint fix
+- `app/api/calls/[callId]/delete/route.ts` — permissions migration
+- `app/api/calls/[callId]/override/route.ts` — permissions migration
+- `app/api/auth/me/route.ts` — cookie auth migration
+- `app/api/notifications/route.ts` — cookie auth migration
+- `app/api/contacts/[contactId]/messages/route.ts` — cookie auth migration
+- `app/api/contacts/[contactId]/messages/[messageId]/route.ts` — cookie auth migration
+- 13 workflow API routes — requireAuth added
+- `vercel.json` — webhook rewrite rule
+
+## Files Deleted
+
+- None
 
 ## Open Issues Carried Forward
 
-- Typed client migration (168 fixes) — Low
+- Call generate→detail data flow mismatch (coaching, extractions not showing in UI) — High
+- Rubric grading model ID not found — Medium
 - TaskUpdate webhook GHL portal subscription — Medium
+- Typed client migration (168 fixes) — Low
+- DB check constraint on call_transcripts source column needs `read_ai` added — Low
 
 ## Exact Next Step
 
-Build the Workflows page — major blocker keeping Chad from migrating off Franchise Tether.
+Fix the call processing data flow: `generate` writes to `calls.coaching_data`/`calls.summary` but the detail API reads from `call_coaching`/`call_grades` tables. Reconcile so uploaded and webhook calls show all data (transcript, coaching, extractions, summary) in the UI.
 
 ## Copy This To Start Next Session
 
@@ -98,6 +127,6 @@ Build the Workflows page — major blocker keeping Chad from migrating off Franc
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
-Then: Build the Workflows page — Chad needs this to migrate off Franchise Tether. Start by auditing what exists (workflow engine has 7 tables, A/B testing, approvals, health scoring) and what UI is needed.
+Then: Fix the call processing data flow — generate writes coaching/summary to the calls table but the detail API reads from call_coaching/call_grades tables. Reconcile so all call data (transcript, coaching, extractions, summary) shows in the UI for both webhook and uploaded calls.
 
 ---
