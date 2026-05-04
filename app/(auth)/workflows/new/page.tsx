@@ -107,11 +107,11 @@ export default function WorkflowBuilderPage() {
         body: JSON.stringify({
           name: currentDraft.name,
           description: currentDraft.description,
-          workflow_type: currentDraft.workflowType,
-          trigger_type: currentDraft.triggerConfig.event,
-          trigger_config: currentDraft.triggerConfig,
-          exit_conditions: currentDraft.exitConditions,
-          primary_metric_name: currentDraft.primaryMetric,
+          workflowType: currentDraft.workflowType,
+          triggerType: currentDraft.triggerConfig.event,
+          triggerConfig: currentDraft.triggerConfig,
+          exitConditions: currentDraft.exitConditions,
+          primaryMetric: currentDraft.primaryMetric,
         }),
       });
 
@@ -122,20 +122,38 @@ export default function WorkflowBuilderPage() {
 
       const { workflow: created } = await createRes.json();
 
-      // Step 2: Create each step
+      // Step 2: Get the version ID that was auto-created
+      const stepsRes = await apiFetch(`/api/workflows/${created.id}/steps`);
+      const stepsData = await stepsRes.json();
+      let versionId = stepsData.versionId;
+
+      // Fallback: if no version found, the API may not have returned one
+      if (!versionId) {
+        // The workflow POST creates a version — fetch it directly
+        const vRes = await apiFetch(`/api/workflows/${created.id}`);
+        const vData = await vRes.json();
+        versionId = vData.workflow?.current_version_id;
+      }
+
+      if (!versionId) {
+        throw new Error("No version ID found — workflow may not have been created properly");
+      }
+
+      // Step 3: Create each step with the version ID
       for (const step of currentDraft.steps) {
         const stepRes = await apiFetch(`/api/workflows/${created.id}/steps`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            day_number: step.dayNumber,
-            step_number: step.stepNumber,
-            step_type: step.stepType,
+            versionId,
+            dayNumber: step.dayNumber,
+            stepNumber: step.stepNumber,
+            stepType: step.stepType,
             content: step.content,
             subject: step.subject,
-            send_time: step.sendTime,
-            requires_confirmation: step.requiresConfirmation,
-            condition_config: step.actionParams ?? null,
+            sendTime: step.sendTime,
+            requiresConfirmation: step.requiresConfirmation,
+            conditionConfig: step.actionParams ?? null,
           }),
         });
 
