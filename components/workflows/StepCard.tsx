@@ -37,7 +37,7 @@ const STEP_TYPE_CONFIG: Record<
 > = {
   sms: { icon: MessageSquare, label: "SMS", color: "#059669" },
   email: { icon: Mail, label: "Email", color: "#00a1e1" },
-  chad_call_task: { icon: PhoneCall, label: "Chad Call", color: "#f5a800" },
+  chad_call_task: { icon: PhoneCall, label: "Task", color: "#f5a800" },
   team_notify: { icon: Bell, label: "Notify", color: "#8b5cf6" },
   ai_agent_action: { icon: Bot, label: "Scout AI", color: "#00a1e1" },
   condition_check: { icon: GitBranch, label: "Condition", color: "#64748b" },

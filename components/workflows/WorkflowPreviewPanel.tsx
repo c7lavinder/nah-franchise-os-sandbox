@@ -53,7 +53,7 @@ const STEP_ICONS: Record<WorkflowStepType, React.ComponentType<{ size?: number; 
 const STEP_LABELS: Record<WorkflowStepType, string> = {
   sms: "SMS",
   email: "Email",
-  chad_call_task: "Call Task",
+  chad_call_task: "Task",
   team_notify: "Notify Team",
   ai_agent_action: "Scout AI",
   condition_check: "Condition",

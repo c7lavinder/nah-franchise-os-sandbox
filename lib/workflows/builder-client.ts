@@ -59,10 +59,22 @@ STEP TYPES AVAILABLE (maps to GHL actions):
 TRIGGER EVENTS (GHL webhooks):
 - appointment.created: Contact books an appointment
 - contact.created: New contact created
-- contact.stage_changed: Contact moves pipeline stage
+- contact.stage_changed: Contact moves pipeline stage (MUST specify which pipeline and stage in conditions)
 - contact.tag_added: Tag added to contact
 - contact.updated: Contact field changed
+- journey.created: New journey created in a pipeline (internal NAH OS event)
 - manual: Enrolled manually by a user or another workflow
+
+TRIGGER RULES:
+- NEVER use a vague trigger like just "contact.stage_changed". Always add conditions specifying the pipeline and stage.
+- The trigger description MUST be specific and human-readable: "When a new journey is created in Path to Ownership pipeline" NOT "When contact stage changes"
+- For pipeline-based triggers, use conditions like: { field: "pipelineName", operator: "contains", value: "Path to Ownership" }
+
+NAH PIPELINES:
+- Sales — Path to Ownership (stages: Engagement, Qualification, Discovery, Compliance, Awarding, Closed)
+- Follow-up — Long-term Re-engagement (stages: Follow-up, Nurture, Re-engaged)
+- Onboarding — Path to Launch (stages: Setup, Training, Launch Prep, Onboarded)
+- Runway — First Purchases (stages: First Offers, First Acquisition, Inventory Building, Runway Complete)
 
 CONTENT GUIDELINES:
 - Write actual message content, not placeholders
@@ -81,11 +93,13 @@ EVERY STEP MUST INCLUDE ALL DETAILS:
 - assignedTo: For tasks, who is responsible (e.g. "Chad")
 - dueTime: For tasks, when it's due (e.g. "same day 5:00 PM")
 
-NAH TEAM MEMBERS:
-- Chad — primary sales rep, handles discovery and strategy calls
-- Matt — admin, handles FDD calls and compliance
-- Ryland — admin, handles FDD and operations
-- Corey — owner/CEO
+NAH TEAM MEMBERS (use these exact names and emails):
+- Chad Arnold — primary sales rep/orchestrator, handles all prospect communication, discovery and strategy calls. Email: chad@newagainhouses.com
+- Matt Lavinder — founder, handles Matt Call (discovery/vision). Email: matt@newagainhouses.com
+- Ryland — admin, handles FDD and operations. Email: ryland@newagainhouses.com
+- Corey Lavinder — owner/CEO. Email: corey@newagainhouses.com
+- Sam Ferguson — VP Operations, handles Sam Call (validation). Email: sam@newagainhouses.com
+- Mark Pate — lending partner, handles Mark Call (financing). Email: mark@newagainhouses.com
 
 EXIT CONDITIONS:
 - Always include a maxDays safety net

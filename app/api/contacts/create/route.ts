@@ -9,10 +9,12 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 import { upsertContact } from "@/lib/ghl/client";
 import { runContactResearch } from "@/lib/agents/contact-research";
 import { ensureJourneyForContact } from "@/lib/journeys/sync";
+import { matchWorkflowTriggers } from "@/lib/workflows/trigger-matcher";
 
 interface CreateContactBody {
   firstName: string;
@@ -30,23 +32,20 @@ interface CreateContactBody {
 }
 
 export async function POST(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   const body = (await request.json()) as CreateContactBody;
 
   // Validate required fields
   if (!body.firstName?.trim() || !body.lastName?.trim()) {
-    return NextResponse.json(
-      { error: "First name and last name are required" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "First name and last name are required" }, { status: 400 });
   }
 
   // Must have at least email or phone for GHL dedup
   if (!body.email?.trim() && !body.phone?.trim()) {
-    return NextResponse.json(
-      { error: "At least an email or phone number is required" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "At least an email or phone number is required" }, { status: 400 });
   }
 
   try {
@@ -81,17 +80,14 @@ export async function POST(request: NextRequest) {
           sub_source: body.subSource?.trim() || null,
           last_synced_at: new Date().toISOString(),
         },
-        { onConflict: "ghl_contact_id" },
+        { onConflict: "ghl_contact_id" }
       )
       .select("id")
       .single();
 
     if (dbError) {
       console.error("[contacts/create] Supabase error:", dbError.message);
-      return NextResponse.json(
-        { error: "Contact created in GHL but failed to save locally" },
-        { status: 500 },
-      );
+      return NextResponse.json({ error: "Contact created in GHL but failed to save locally" }, { status: 500 });
     }
 
     // 3. Place in Sales pipeline → Engagement stage. Creates the journey
@@ -136,6 +132,16 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+    }
+
+    // 3b. Fire workflow triggers for journey creation
+    if (shouldCreateJourney && salesPipeline) {
+      matchWorkflowTriggers("journey.created", ghlContactId, {
+        pipelineName: "Sales — Path to Ownership",
+        pipelineSlug: "sales",
+        stageName: "Engagement",
+        contactName: `${body.firstName} ${body.lastName}`.trim(),
+      }).catch(() => {});
     }
 
     // 4. Link existing calls where this contact's email appears as a participant.
@@ -199,10 +205,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Seed EOS goals (empty row so the tab is ready)
-    await supabase.from("eos_contact_goals").upsert(
-      { contact_id: contact.id, source: "system" },
-      { onConflict: "contact_id", ignoreDuplicates: true }
-    );
+    await supabase
+      .from("eos_contact_goals")
+      .upsert({ contact_id: contact.id, source: "system" }, { onConflict: "contact_id", ignoreDuplicates: true });
 
     // 6. Trigger background research agent (non-blocking)
     runContactResearch(ghlContactId, true).catch((err) => {
