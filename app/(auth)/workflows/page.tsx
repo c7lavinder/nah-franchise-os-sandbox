@@ -79,9 +79,7 @@ export default function WorkflowsPage() {
     (w) => (w.health_score === "D" || w.health_score === "F") && w.status === "live"
   );
 
-  const filteredWorkflows = statusFilter === "all"
-    ? workflows
-    : workflows.filter((w) => w.status === statusFilter);
+  const filteredWorkflows = statusFilter === "all" ? workflows : workflows.filter((w) => w.status === statusFilter);
 
   async function handleAction(workflowId: string, action: "pause" | "resume" | "clone" | "archive") {
     if (!user) return;
@@ -111,7 +109,9 @@ export default function WorkflowsPage() {
           }),
         });
         if (res.ok) void fetchWorkflows();
-      } catch { /* silent */ }
+      } catch {
+        /* silent */
+      }
       return;
     }
 
@@ -136,7 +136,9 @@ export default function WorkflowsPage() {
         const data = await res.json();
         console.error("Approval submission failed:", data.error);
       }
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
   }
 
   return (
@@ -151,12 +153,15 @@ export default function WorkflowsPage() {
         <div className="flex items-center gap-2">
           <button
             className="btn-ghost p-1.5"
-            onClick={() => { setLoading(true); void fetchWorkflows(); }}
+            onClick={() => {
+              setLoading(true);
+              void fetchWorkflows();
+            }}
           >
             <RefreshCw size={16} className={loading ? "animate-spin text-nah-blue" : "text-text-secondary"} />
           </button>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => router.push("/workflows/new")}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-nah-blue text-white text-button hover:bg-nah-blue-hover transition-colors"
           >
             <Plus size={14} />
@@ -199,20 +204,26 @@ export default function WorkflowsPage() {
             approvals={pendingApprovals}
             onApprove={async (id) => {
               if (!user) return;
-              await apiFetch(`/api/workflows/${pendingApprovals.find((a) => a.id === id)?.workflow_id}/approvals/${id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "approve", approvedBy: user.id }),
-              });
+              await apiFetch(
+                `/api/workflows/${pendingApprovals.find((a) => a.id === id)?.workflow_id}/approvals/${id}`,
+                {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "approve", approvedBy: user.id }),
+                }
+              );
               void fetchWorkflows();
             }}
             onReject={async (id) => {
               if (!user) return;
-              await apiFetch(`/api/workflows/${pendingApprovals.find((a) => a.id === id)?.workflow_id}/approvals/${id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "reject", approvedBy: user.id }),
-              });
+              await apiFetch(
+                `/api/workflows/${pendingApprovals.find((a) => a.id === id)?.workflow_id}/approvals/${id}`,
+                {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "reject", approvedBy: user.id }),
+                }
+              );
               void fetchWorkflows();
             }}
           />
@@ -268,7 +279,8 @@ export default function WorkflowsPage() {
               <WorkflowIcon size={48} className="text-text-tertiary mb-4" />
               <p className="text-body-lg text-text-secondary mb-1">Select a workflow</p>
               <p className="text-body-sm text-text-tertiary max-w-xs">
-                Click a workflow from the list to see its details, active enrollments, and Scout&apos;s health assessment.
+                Click a workflow from the list to see its details, active enrollments, and Scout&apos;s health
+                assessment.
               </p>
             </div>
           )}
@@ -319,7 +331,9 @@ function StatPill({
     >
       <Icon size={14} className={PILL_ICON_CLASS[color] ?? "text-text-secondary"} />
       <span className="text-body-sm text-text-secondary">{label}:</span>
-      <span className="text-body-sm font-semibold" style={{ color }}>{value}</span>
+      <span className="text-body-sm font-semibold" style={{ color }}>
+        {value}
+      </span>
     </div>
   );
 }

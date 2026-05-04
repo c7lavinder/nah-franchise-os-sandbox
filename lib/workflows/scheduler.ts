@@ -24,11 +24,9 @@ import { createServerClient } from "@/lib/supabase/server";
 import * as ghl from "@/lib/ghl";
 import { advanceDay, exitEnrollment } from "@/lib/workflows/enrollment";
 import { prepareEmailForTracking } from "@/lib/workflows/tracking";
-import type {
-  WorkflowStep,
-  WorkflowStepType,
-  WorkflowStepLogInsert,
-} from "@/lib/workflows/types";
+import { executeGHLAction } from "@/lib/ghl/actions/executor";
+import type { GHLActionCode } from "@/lib/ghl/permissions";
+import type { WorkflowStep, WorkflowStepType, WorkflowStepLogInsert } from "@/lib/workflows/types";
 
 /** Result summary from a scheduler run */
 export interface SchedulerRunResult {
@@ -48,7 +46,118 @@ const AUTO_EXECUTE_TYPES: WorkflowStepType[] = [
   "ai_agent_action",
   "condition_check",
   "trainual_check",
+  // New action-parity types — all auto-execute
+  "appointment",
+  "send_reminder",
+  "internal_note",
+  "add_tag",
+  "remove_tag",
+  "update_contact",
+  "pipeline_move",
+  "trigger_workflow",
 ];
+
+/**
+ * Maps workflow step types to GHL action codes.
+ * Steps in this map are executed via the shared executeGHLAction() executor,
+ * giving workflows the same 30-action capability as the Next Steps tab.
+ */
+const STEP_ACTION_MAP: Partial<Record<WorkflowStepType, GHLActionCode>> = {
+  sms: "C1",
+  email: "C2",
+  chad_call_task: "T1",
+  appointment: "A1",
+  send_reminder: "A5",
+  internal_note: "C8",
+  add_tag: "M4",
+  remove_tag: "M5",
+  update_contact: "M2",
+  pipeline_move: "M3",
+  trigger_workflow: "C5",
+};
+
+/**
+ * Build params for executeGHLAction() from a workflow step + enrollment context.
+ * Each action code expects specific param shapes — this maps step fields to them.
+ */
+function buildActionParams(
+  step: WorkflowStep,
+  enrollment: { ghl_contact_id: string; contact_name: string | null }
+): Record<string, unknown> {
+  const contactId = enrollment.ghl_contact_id;
+  const content = step.content ? personalizeContent(step.content, enrollment.contact_name) : "";
+  const actionConfig = (step.condition_config ?? {}) as Record<string, unknown>;
+
+  switch (step.step_type) {
+    case "sms":
+      return { contactId, message: content };
+
+    case "email": {
+      const logId = `pending_${step.id}_${Date.now()}`;
+      const trackedHtml = prepareEmailForTracking(content, logId);
+      return {
+        contactId,
+        html: trackedHtml,
+        subject: step.subject ? personalizeContent(step.subject, enrollment.contact_name) : "",
+        emailFrom: actionConfig.emailFrom ?? process.env.GHL_DEFAULT_EMAIL_FROM ?? "franchise@newagainhouses.com",
+      };
+    }
+
+    case "chad_call_task": {
+      const dueDate = new Date();
+      dueDate.setHours(17, 0, 0, 0);
+      return {
+        contactId,
+        title: content || `Call ${enrollment.contact_name ?? "prospect"}`,
+        body: step.subject ?? "Workflow-generated call task",
+        dueDate: dueDate.toISOString(),
+        assignedTo: actionConfig.assignedTo ?? undefined,
+      };
+    }
+
+    case "appointment":
+      return {
+        contactId,
+        calendarId: actionConfig.calendarId ?? "",
+        startTime: actionConfig.startTime ?? "",
+        endTime: actionConfig.endTime ?? "",
+        title: content || actionConfig.title || "NAH Call",
+        assignedUserId: actionConfig.assignedUserId ?? undefined,
+      };
+
+    case "send_reminder":
+      return {
+        contactId,
+        reminderMessage: content || "Reminder: You have an upcoming call with New Again Houses.",
+      };
+
+    case "internal_note":
+      return { contactId, note: content };
+
+    case "add_tag":
+      return { contactId, tags: actionConfig.tags ?? [content] };
+
+    case "remove_tag":
+      return { contactId, remainingTags: actionConfig.remainingTags ?? [] };
+
+    case "update_contact":
+      return { contactId, fields: actionConfig.fields ?? {} };
+
+    case "pipeline_move":
+      return {
+        contactId,
+        fieldId: actionConfig.fieldId ?? "",
+        fieldValue: actionConfig.fieldValue ?? "",
+        customFields: actionConfig.customFields ?? undefined,
+      };
+
+    case "trigger_workflow":
+      return { contactId, campaignName: content || ((actionConfig.campaignName as string) ?? "") };
+
+    default:
+      return { contactId };
+  }
+}
 
 /**
  * Run the scheduler for all active enrollments.
@@ -106,14 +215,22 @@ async function processEnrollment(
 ): Promise<void> {
   const supabase = createServerClient();
 
-  // Get the workflow to check max duration
+  // Get the workflow to check exit conditions
   const { data: workflow } = await supabase
     .from("workflows")
     .select("exit_conditions")
     .eq("id", enrollment.workflow_id)
     .single();
 
-  const exitConditions = (workflow?.exit_conditions ?? {}) as { maxDays?: number };
+  const exitConditions = (workflow?.exit_conditions ?? {}) as {
+    maxDays?: number;
+    goalConditions?: Array<{
+      field: string;
+      operator: string;
+      value: string | string[] | number;
+    }>;
+    description?: string;
+  };
   const maxDays = exitConditions.maxDays;
 
   // Check if enrollment has exceeded max days
@@ -125,6 +242,20 @@ async function processEnrollment(
     });
     result.enrollmentsExpired++;
     return;
+  }
+
+  // Check flexible goal conditions (if defined)
+  if (exitConditions.goalConditions?.length) {
+    const goalMet = await evaluateGoalConditions(enrollment.ghl_contact_id, exitConditions.goalConditions);
+    if (goalMet) {
+      await exitEnrollment({
+        enrollmentId: enrollment.id,
+        reason: exitConditions.description ?? "Goal achieved",
+        goalAchieved: true,
+      });
+      result.enrollmentsExpired++;
+      return;
+    }
   }
 
   // Get all steps for the current day in this workflow version
@@ -165,8 +296,7 @@ async function processEnrollment(
     }
 
     // Check if this step should auto-execute or queue for confirmation
-    const requiresConfirmation = step.requires_confirmation &&
-      !AUTO_EXECUTE_TYPES.includes(step.step_type);
+    const requiresConfirmation = step.requires_confirmation && !AUTO_EXECUTE_TYPES.includes(step.step_type);
 
     if (requiresConfirmation) {
       // Queue for human review — create a log entry with pending status
@@ -203,65 +333,40 @@ async function executeStep(
   try {
     let ghlMessageId: string | null = null;
 
-    switch (step.step_type) {
-      case "chad_call_task":
-        await executeChadCallTask(enrollment, step);
-        break;
+    // Check if this step type maps to a GHL action code
+    const actionCode = STEP_ACTION_MAP[step.step_type];
 
-      case "team_notify":
-        // Internal notification — no GHL action needed
-        // Future: send to Slack/email notification system
-        break;
+    if (actionCode) {
+      // Route through the shared GHL Action Executor — same engine as Next Steps
+      const params = buildActionParams(step, enrollment);
+      const result = await executeGHLAction(actionCode, params, "system", enrollment.ghl_contact_id);
+      if (!result.success) {
+        throw new Error(result.error ?? `Action ${actionCode} failed`);
+      }
+      ghlMessageId = (result.data as { id?: string })?.id ?? null;
+    } else {
+      // Custom handlers for non-GHL step types
+      switch (step.step_type) {
+        case "team_notify":
+          // Internal notification — no GHL action needed
+          break;
 
-      case "ai_agent_action":
-        // Scout analysis action — handled by the intelligence engine
-        break;
+        case "ai_agent_action":
+          // Scout analysis action — handled by the intelligence engine
+          break;
 
-      case "condition_check":
-        // Evaluate condition and potentially branch
-        await evaluateCondition(enrollment, step);
-        break;
+        case "condition_check":
+          await evaluateCondition(enrollment, step);
+          break;
 
-      case "trainual_check":
-        // Check Trainual completion status
-        // Future: call Trainual API integration
-        break;
+        case "trainual_check":
+          // Check Trainual completion status
+          break;
 
-      case "sms":
-        // SMS steps that don't require confirmation (rare, but supported)
-        if (step.content) {
-          const msg = await ghl.sendMessage({
-            type: "SMS",
-            contactId: enrollment.ghl_contact_id,
-            message: personalizeContent(step.content, enrollment.contact_name),
-          });
-          ghlMessageId = msg.id ?? null;
-        }
-        break;
-
-      case "email":
-        // Email steps that don't require confirmation (rare, but supported)
-        if (step.content && step.subject) {
-          // Inject open/click tracking before sending
-          const logId = `pending_${step.id}_${Date.now()}`;
-          const trackedHtml = prepareEmailForTracking(
-            personalizeContent(step.content, enrollment.contact_name),
-            logId
-          );
-          const msg = await ghl.sendMessage({
-            type: "Email",
-            contactId: enrollment.ghl_contact_id,
-            html: trackedHtml,
-            subject: personalizeContent(step.subject, enrollment.contact_name),
-            emailFrom: process.env.GHL_DEFAULT_EMAIL_FROM ?? "franchise@newagainhouses.com",
-          });
-          ghlMessageId = msg.id ?? null;
-        }
-        break;
-
-      case "stage_move_suggestion":
-        // Queued for human review — should not auto-execute
-        break;
+        case "stage_move_suggestion":
+          // Queued for human review — should not auto-execute
+          break;
+      }
     }
 
     // Log successful execution
@@ -286,23 +391,6 @@ async function executeStep(
   }
 }
 
-/** Create a Chad call task in GHL */
-async function executeChadCallTask(
-  enrollment: { ghl_contact_id: string; contact_name: string | null },
-  step: WorkflowStep
-): Promise<void> {
-  const dueDate = new Date();
-  dueDate.setHours(17, 0, 0, 0); // Due by end of day (5 PM)
-
-  await ghl.createTask(enrollment.ghl_contact_id, {
-    title: step.content
-      ? personalizeContent(step.content, enrollment.contact_name)
-      : `Call ${enrollment.contact_name ?? "prospect"}`,
-    body: step.subject ?? "Workflow-generated call task",
-    dueDate: dueDate.toISOString(),
-  });
-}
-
 /** Evaluate a condition check step */
 async function evaluateCondition(
   enrollment: { id: string; ghl_contact_id: string },
@@ -321,20 +409,14 @@ async function evaluateCondition(
   if (config.type === "contact_field" && config.field) {
     try {
       const contact = await ghl.getContact(enrollment.ghl_contact_id);
-      const fieldValue = contact.customFields?.find(
-        (f) => f.id === config.field
-      )?.value;
+      const fieldValue = contact.customFields?.find((f) => f.id === config.field)?.value;
 
-      const conditionMet = evaluateFieldCondition(
-        fieldValue ?? "",
-        config.operator ?? "equals",
-        config.value ?? ""
-      );
+      const conditionMet = evaluateFieldCondition(fieldValue ?? "", config.operator ?? "equals", config.value ?? "");
 
       // Log the condition result for the intelligence engine
       console.log(
         `Condition check for enrollment ${enrollment.id}: ` +
-        `${config.field} ${config.operator} ${config.value} = ${conditionMet}`
+          `${config.field} ${config.operator} ${config.value} = ${conditionMet}`
       );
     } catch {
       console.error(`Condition check failed for enrollment ${enrollment.id}`);
@@ -342,25 +424,72 @@ async function evaluateCondition(
   }
 }
 
-/** Evaluate a simple field condition */
-function evaluateFieldCondition(
-  actual: string,
-  operator: string,
-  expected: string
-): boolean {
+/** Evaluate a simple field condition (supports flexible trigger/terminal operators) */
+function evaluateFieldCondition(actual: string, operator: string, expected: string | string[] | number): boolean {
   switch (operator) {
     case "equals":
-      return actual === expected;
+      return actual === String(expected);
     case "not_equals":
-      return actual !== expected;
+      return actual !== String(expected);
     case "contains":
-      return actual.includes(expected);
+      return actual.includes(String(expected));
     case "not_empty":
       return actual.length > 0;
     case "empty":
       return actual.length === 0;
+    case "in":
+      return Array.isArray(expected) && expected.includes(actual);
+    case "greater_than":
+      return Number(actual) > Number(expected);
+    case "less_than":
+      return Number(actual) < Number(expected);
     default:
       return false;
+  }
+}
+
+/**
+ * Evaluate flexible goal conditions against a contact's current data.
+ * Returns true if ALL conditions are met (AND logic).
+ */
+async function evaluateGoalConditions(
+  contactId: string,
+  conditions: Array<{ field: string; operator: string; value: string | string[] | number }>
+): Promise<boolean> {
+  try {
+    const contact = await ghl.getContact(contactId);
+    if (!contact) return false;
+
+    for (const condition of conditions) {
+      // Check standard fields first, then custom fields
+      let fieldValue: string = "";
+
+      const standardFields: Record<string, string | undefined> = {
+        email: contact.email ?? undefined,
+        phone: contact.phone ?? undefined,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        name: `${contact.firstName ?? ""} ${contact.lastName ?? ""}`.trim(),
+        tags: (contact.tags ?? []).join(","),
+      };
+
+      if (condition.field in standardFields) {
+        fieldValue = standardFields[condition.field] ?? "";
+      } else {
+        // Check custom fields by ID
+        const customField = contact.customFields?.find((f) => f.id === condition.field);
+        fieldValue = String(customField?.value ?? "");
+      }
+
+      if (!evaluateFieldCondition(fieldValue, condition.operator, condition.value)) {
+        return false;
+      }
+    }
+
+    return true;
+  } catch {
+    console.error(`Goal condition evaluation failed for contact ${contactId}`);
+    return false;
   }
 }
 
@@ -398,7 +527,11 @@ async function createStepLog(
     executed_at: status.executed ? new Date().toISOString() : null,
     confirmed_by: null,
     confirmed_at: null,
-    delivery_data: status.error ? { error: status.error, queued: status.queued } : (status.queued ? { queued: true } : null),
+    delivery_data: status.error
+      ? { error: status.error, queued: status.queued }
+      : status.queued
+        ? { queued: true }
+        : null,
   };
 
   await supabase.from("workflow_step_logs").insert(log);

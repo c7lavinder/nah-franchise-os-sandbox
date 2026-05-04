@@ -23,6 +23,14 @@ import {
   GitBranch,
   ArrowRight,
   BookOpen,
+  CalendarPlus,
+  AlarmClock,
+  StickyNote,
+  Tag,
+  XCircle,
+  UserCog,
+  ArrowRightLeft,
+  Workflow as WorkflowIcon,
 } from "lucide-react";
 import ReenrollContactModal from "./ReenrollContactModal";
 import type { Workflow, WorkflowEnrollment, WorkflowStep, WorkflowStepType } from "@/lib/workflows/types";
@@ -57,6 +65,14 @@ const STEP_TYPE_CONFIG: Record<
   condition_check: { icon: GitBranch, label: "Condition", color: "#64748b" },
   stage_move_suggestion: { icon: ArrowRight, label: "Stage Move", color: "#ef4444" },
   trainual_check: { icon: BookOpen, label: "Trainual Check", color: "#059669" },
+  appointment: { icon: CalendarPlus, label: "Appointment", color: "#7c3aed" },
+  send_reminder: { icon: AlarmClock, label: "Reminder", color: "#f5a800" },
+  internal_note: { icon: StickyNote, label: "Note", color: "#64748b" },
+  add_tag: { icon: Tag, label: "Add Tag", color: "#059669" },
+  remove_tag: { icon: XCircle, label: "Remove Tag", color: "#ef4444" },
+  update_contact: { icon: UserCog, label: "Update Contact", color: "#00a1e1" },
+  pipeline_move: { icon: ArrowRightLeft, label: "Pipeline Move", color: "#8b5cf6" },
+  trigger_workflow: { icon: WorkflowIcon, label: "Trigger Workflow", color: "#f97316" },
 };
 
 /** Health score descriptions */

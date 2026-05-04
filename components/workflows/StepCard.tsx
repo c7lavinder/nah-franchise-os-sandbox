@@ -15,15 +15,26 @@ import {
   ArrowRight,
   BookOpen,
   GripVertical,
+  CalendarPlus,
+  AlarmClock,
+  StickyNote,
+  Tag,
+  XCircle,
+  UserCog,
+  ArrowRightLeft,
+  Workflow as WorkflowIcon,
 } from "lucide-react";
 import type { WorkflowStep, WorkflowStepType } from "@/lib/workflows/types";
 
 /** Icon and label for each step type */
-const STEP_TYPE_CONFIG: Record<WorkflowStepType, {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  label: string;
-  color: string;
-}> = {
+const STEP_TYPE_CONFIG: Record<
+  WorkflowStepType,
+  {
+    icon: React.ComponentType<{ size?: number; className?: string }>;
+    label: string;
+    color: string;
+  }
+> = {
   sms: { icon: MessageSquare, label: "SMS", color: "#059669" },
   email: { icon: Mail, label: "Email", color: "#00a1e1" },
   chad_call_task: { icon: PhoneCall, label: "Chad Call", color: "#f5a800" },
@@ -32,6 +43,14 @@ const STEP_TYPE_CONFIG: Record<WorkflowStepType, {
   condition_check: { icon: GitBranch, label: "Condition", color: "#64748b" },
   stage_move_suggestion: { icon: ArrowRight, label: "Stage Move", color: "#ef4444" },
   trainual_check: { icon: BookOpen, label: "Trainual", color: "#059669" },
+  appointment: { icon: CalendarPlus, label: "Appointment", color: "#7c3aed" },
+  send_reminder: { icon: AlarmClock, label: "Reminder", color: "#f5a800" },
+  internal_note: { icon: StickyNote, label: "Note", color: "#64748b" },
+  add_tag: { icon: Tag, label: "Add Tag", color: "#059669" },
+  remove_tag: { icon: XCircle, label: "Remove Tag", color: "#ef4444" },
+  update_contact: { icon: UserCog, label: "Update Contact", color: "#00a1e1" },
+  pipeline_move: { icon: ArrowRightLeft, label: "Pipeline Move", color: "#8b5cf6" },
+  trigger_workflow: { icon: WorkflowIcon, label: "Trigger Workflow", color: "#f97316" },
 };
 
 /** Performance status color */
@@ -70,7 +89,10 @@ export default function StepCard({ step, isSelected, onSelect }: StepCardProps) 
       }`}
     >
       {/* Drag handle */}
-      <GripVertical size={14} className="text-text-tertiary mt-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+      <GripVertical
+        size={14}
+        className="text-text-tertiary mt-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+      />
 
       {/* Step type icon */}
       <div
@@ -86,21 +108,13 @@ export default function StepCard({ step, isSelected, onSelect }: StepCardProps) 
           <span className="text-badge font-semibold" style={{ color: config.color }}>
             {config.label}
           </span>
-          {step.send_time && (
-            <span className="text-caption text-text-tertiary">@ {step.send_time}</span>
-          )}
+          {step.send_time && <span className="text-caption text-text-tertiary">@ {step.send_time}</span>}
           {step.requires_confirmation && (
-            <span className="text-[10px] text-warning bg-warning/10 px-1.5 py-0.5 rounded-sm">
-              Confirm
-            </span>
+            <span className="text-[10px] text-warning bg-warning/10 px-1.5 py-0.5 rounded-sm">Confirm</span>
           )}
         </div>
         <p className="text-body-sm text-text-secondary truncate">{preview}</p>
-        {step.subject && (
-          <p className="text-caption text-text-tertiary truncate mt-0.5">
-            Subject: {step.subject}
-          </p>
-        )}
+        {step.subject && <p className="text-caption text-text-tertiary truncate mt-0.5">Subject: {step.subject}</p>}
       </div>
 
       {/* Performance dot */}

@@ -24,7 +24,16 @@ export type WorkflowStepType =
   | "ai_agent_action"
   | "condition_check"
   | "stage_move_suggestion"
-  | "trainual_check";
+  | "trainual_check"
+  // Action parity with Next Steps — powered by executeGHLAction()
+  | "appointment"
+  | "send_reminder"
+  | "internal_note"
+  | "add_tag"
+  | "remove_tag"
+  | "update_contact"
+  | "pipeline_move"
+  | "trigger_workflow";
 
 /** Color-coded performance indicator for a step */
 export type StepPerformanceStatus = "green" | "yellow" | "red" | "neutral";
@@ -45,13 +54,7 @@ export type ABTestStatus = "draft" | "pending_approval" | "running" | "complete"
 export type ABTestWinner = "A" | "B";
 
 /** What kind of approval is being requested */
-export type ApprovalType =
-  | "publish"
-  | "pause"
-  | "archive"
-  | "ab_test_start"
-  | "ab_test_winner"
-  | "rollback";
+export type ApprovalType = "publish" | "pause" | "archive" | "ab_test_start" | "ab_test_winner" | "rollback";
 
 /** Status of an approval request */
 export type ApprovalStatus = "pending" | "approved" | "rejected";
@@ -205,7 +208,10 @@ export type WorkflowVersionInsert = Omit<WorkflowVersion, "id" | "created_at"> &
   created_at?: string;
 };
 
-export type WorkflowStepInsert = Omit<WorkflowStep, "id" | "created_at" | "performance_status" | "open_rate" | "click_rate" | "response_rate"> & {
+export type WorkflowStepInsert = Omit<
+  WorkflowStep,
+  "id" | "created_at" | "performance_status" | "open_rate" | "click_rate" | "response_rate"
+> & {
   id?: string;
   created_at?: string;
   performance_status?: StepPerformanceStatus;
@@ -214,14 +220,20 @@ export type WorkflowStepInsert = Omit<WorkflowStep, "id" | "created_at" | "perfo
   response_rate?: number | null;
 };
 
-export type WorkflowEnrollmentInsert = Omit<WorkflowEnrollment, "id" | "enrolled_at" | "current_day" | "goal_achieved"> & {
+export type WorkflowEnrollmentInsert = Omit<
+  WorkflowEnrollment,
+  "id" | "enrolled_at" | "current_day" | "goal_achieved"
+> & {
   id?: string;
   enrolled_at?: string;
   current_day?: number;
   goal_achieved?: boolean;
 };
 
-export type WorkflowStepLogInsert = Omit<WorkflowStepLog, "id" | "created_at" | "delivered" | "opened" | "clicked" | "responded"> & {
+export type WorkflowStepLogInsert = Omit<
+  WorkflowStepLog,
+  "id" | "created_at" | "delivered" | "opened" | "clicked" | "responded"
+> & {
   id?: string;
   created_at?: string;
   delivered?: boolean;

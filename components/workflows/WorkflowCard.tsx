@@ -6,7 +6,7 @@
  */
 
 import { useRouter } from "next/navigation";
-import { Pause, Play, Copy, Archive, Users, Pencil, Zap } from "lucide-react";
+import { Pause, Play, Copy, Archive, Users, Pencil, Zap, Sparkles } from "lucide-react";
 import type { Workflow } from "@/lib/workflows/types";
 
 /** Trigger type → short human-readable label */
@@ -96,7 +96,9 @@ export default function WorkflowCard({ workflow, onSelect, onAction, isSelected 
       <div className="flex items-center gap-1.5 mb-3">
         <Zap size={11} className="text-warning" />
         <span className="text-caption text-text-tertiary">
-          {TRIGGER_LABELS[workflow.trigger_type] ?? workflow.trigger_type}
+          {(workflow.trigger_config as { description?: string })?.description ??
+            TRIGGER_LABELS[workflow.trigger_type] ??
+            workflow.trigger_type}
         </span>
       </div>
 
@@ -120,9 +122,16 @@ export default function WorkflowCard({ workflow, onSelect, onAction, isSelected 
         {/* Quick actions */}
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <button
+            onClick={() => router.push(`/workflows/new?workflowId=${workflow.id}`)}
+            className="p-1.5 rounded-md text-text-tertiary hover:text-scout-purple hover:bg-[rgba(124,58,237,0.08)] transition-colors"
+            title="Edit with Scout"
+          >
+            <Sparkles size={14} />
+          </button>
+          <button
             onClick={() => router.push(`/workflows/${workflow.id}`)}
             className="p-1.5 rounded-md text-text-tertiary hover:text-nah-blue hover:bg-[rgba(0,161,225,0.08)] transition-colors"
-            title="Edit"
+            title="Manual Edit"
           >
             <Pencil size={14} />
           </button>

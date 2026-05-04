@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireGhlSignature } from "@/lib/auth/ghl-webhook-verify";
 import { createServerClient } from "@/lib/supabase/server";
+import { matchWorkflowTriggers } from "@/lib/workflows/trigger-matcher";
 
 /** GHL webhook payload — shape varies by event type */
 interface GHLWebhookPayload {
@@ -197,42 +198,6 @@ export async function POST(request: NextRequest) {
           executed_at: new Date().toISOString(),
         });
 
-        // Auto-enroll in workflows triggered by this stage
-        if (oppContactId && payload.pipelineStageId) {
-          const { data: stage } = await supabase
-            .from("ghl_pipeline_stages")
-            .select("stage_name")
-            .eq("stage_id", payload.pipelineStageId)
-            .limit(1)
-            .single();
-
-          if (stage) {
-            const stageName = (stage.stage_name as string).toLowerCase().replace(/\s+/g, "_");
-            const triggerKey = `stage_entry:${stageName}`;
-
-            const { data: workflows } = await supabase
-              .from("workflows")
-              .select("id, current_version_id, name")
-              .eq("trigger_type", triggerKey)
-              .eq("status", "live");
-
-            if (workflows && workflows.length > 0) {
-              const { enrollContact } = await import("@/lib/workflows/enrollment");
-              for (const wf of workflows) {
-                if (!wf.current_version_id) continue;
-                const result = await enrollContact({
-                  workflowId: wf.id,
-                  workflowVersionId: wf.current_version_id,
-                  ghlContactId: oppContactId,
-                });
-                if (result.success) {
-                  console.log(`[ghl-webhook] Auto-enrolled ${oppContactId} in "${wf.name}"`);
-                }
-              }
-            }
-          }
-        }
-
         break;
       }
 
@@ -260,6 +225,15 @@ export async function POST(request: NextRequest) {
         // Log unknown events for debugging
         console.log(`GHL webhook: unhandled event type "${eventType}"`);
         break;
+      }
+    }
+
+    // Flexible workflow trigger matching — evaluate all live workflows' trigger_config
+    // against this event and auto-enroll contacts that match
+    if (contactId) {
+      const triggerResult = await matchWorkflowTriggers(eventType, contactId, payload as Record<string, unknown>);
+      if (triggerResult.enrolled > 0) {
+        console.log(`[ghl-webhook] Trigger matcher: ${triggerResult.enrolled} enrollments from event "${eventType}"`);
       }
     }
 

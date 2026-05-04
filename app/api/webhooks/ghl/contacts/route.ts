@@ -20,6 +20,7 @@ import { requireGhlSignature } from "@/lib/auth/ghl-webhook-verify";
 import { createServerClient } from "@/lib/supabase/server";
 import { syncContactFromGhl } from "@/lib/ghl/sync";
 import { autoCreatePipelineState } from "@/lib/ghl/auto-create-pipeline-state";
+import { matchWorkflowTriggers } from "@/lib/workflows/trigger-matcher";
 import type { GHLContactForSync } from "@/lib/ghl/sync";
 
 interface WebhookPayload {
@@ -114,6 +115,9 @@ export async function POST(request: NextRequest) {
         executed_at: new Date().toISOString(),
       }),
     ]);
+
+    // Flexible workflow trigger matching for contact.created events
+    await matchWorkflowTriggers("contact.created", ghlContactId, payload as Record<string, unknown>);
 
     return NextResponse.json({
       received: true,
