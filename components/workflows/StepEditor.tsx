@@ -14,12 +14,20 @@ import type { WorkflowStep, WorkflowStepType } from "@/lib/workflows/types";
 const STEP_TYPES: { value: WorkflowStepType; label: string }[] = [
   { value: "sms", label: "SMS" },
   { value: "email", label: "Email" },
-  { value: "chad_call_task", label: "Chad Call Task" },
+  { value: "chad_call_task", label: "Task" },
   { value: "team_notify", label: "Team Notification" },
   { value: "ai_agent_action", label: "Scout AI Action" },
   { value: "condition_check", label: "Condition Check" },
   { value: "stage_move_suggestion", label: "Stage Move" },
   { value: "trainual_check", label: "Trainual Check" },
+  { value: "appointment", label: "Appointment" },
+  { value: "send_reminder", label: "Reminder" },
+  { value: "internal_note", label: "Internal Note" },
+  { value: "add_tag", label: "Add Tag" },
+  { value: "remove_tag", label: "Remove Tag" },
+  { value: "update_contact", label: "Update Contact" },
+  { value: "pipeline_move", label: "Pipeline Move" },
+  { value: "trigger_workflow", label: "Trigger Workflow" },
 ];
 
 interface StepEditorProps {
@@ -31,17 +39,33 @@ interface StepEditorProps {
 }
 
 export default function StepEditor({ step, workflowId, onSave, onDelete, onClose }: StepEditorProps) {
+  const config = (step.condition_config ?? {}) as Record<string, unknown>;
   const [stepType, setStepType] = useState<WorkflowStepType>(step.step_type);
   const [content, setContent] = useState(step.content ?? "");
   const [subject, setSubject] = useState(step.subject ?? "");
   const [sendTime, setSendTime] = useState(step.send_time ?? "");
+  const [senderName, setSenderName] = useState(String(config.senderName ?? ""));
+  const [senderEmail, setSenderEmail] = useState(String(config.senderEmail ?? ""));
+  const [assignedTo, setAssignedTo] = useState(String(config.assignedTo ?? ""));
+  const [dueTime, setDueTime] = useState(String(config.dueTime ?? ""));
   const [requiresConfirmation, setRequiresConfirmation] = useState(step.requires_confirmation);
   const [dayNumber, setDayNumber] = useState(step.day_number);
   const [saving, setSaving] = useState(false);
   const [rewriting, setRewriting] = useState(false);
 
-  const hasContentField = ["sms", "email", "chad_call_task"].includes(stepType);
-  const hasSubjectField = stepType === "email";
+  const hasContentField = [
+    "sms",
+    "email",
+    "chad_call_task",
+    "internal_note",
+    "send_reminder",
+    "trigger_workflow",
+  ].includes(stepType);
+  const hasSubjectField = stepType === "email" || stepType === "chad_call_task";
+  const hasSenderField = ["sms", "email", "send_reminder"].includes(stepType);
+  const hasSenderEmailField = stepType === "email";
+  const hasAssignedField = stepType === "chad_call_task";
+  const hasDueTimeField = stepType === "chad_call_task";
   const charCount = content.length;
   const isSms = stepType === "sms";
 
@@ -58,6 +82,13 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
           send_time: sendTime || null,
           requires_confirmation: requiresConfirmation,
           day_number: dayNumber,
+          condition_config: {
+            ...config,
+            ...(senderName ? { senderName } : {}),
+            ...(senderEmail ? { senderEmail } : {}),
+            ...(assignedTo ? { assignedTo } : {}),
+            ...(dueTime ? { dueTime } : {}),
+          },
         }),
       });
 
@@ -118,7 +149,10 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-border-default">
         <h3 className="font-headline text-card-title text-text-primary">Edit Step</h3>
-        <button onClick={onClose} className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors">
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+        >
           <X size={18} />
         </button>
       </div>
@@ -146,23 +180,81 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
               className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary focus:border-nah-blue focus:outline-none transition-colors"
             >
               {STEP_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Subject (email only) */}
+        {/* Subject (email + task) */}
         {hasSubjectField && (
           <div>
-            <label className="text-caption text-text-secondary mb-1 block">Subject Line</label>
+            <label className="text-caption text-text-secondary mb-1 block">
+              {stepType === "chad_call_task" ? "Task Description" : "Subject Line"}
+            </label>
             <input
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="Email subject..."
+              placeholder={stepType === "chad_call_task" ? "Task description..." : "Email subject..."}
               className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary placeholder:text-text-tertiary focus:border-nah-blue focus:outline-none transition-colors"
             />
+          </div>
+        )}
+
+        {/* Sender / Assigned / Due */}
+        {(hasSenderField || hasAssignedField) && (
+          <div className="grid grid-cols-2 gap-3">
+            {hasSenderField && (
+              <div>
+                <label className="text-caption text-text-secondary mb-1 block">From (Name)</label>
+                <input
+                  type="text"
+                  value={senderName}
+                  onChange={(e) => setSenderName(e.target.value)}
+                  placeholder="e.g. Chad"
+                  className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary placeholder:text-text-tertiary focus:border-nah-blue focus:outline-none transition-colors"
+                />
+              </div>
+            )}
+            {hasSenderEmailField && (
+              <div>
+                <label className="text-caption text-text-secondary mb-1 block">From (Email)</label>
+                <input
+                  type="text"
+                  value={senderEmail}
+                  onChange={(e) => setSenderEmail(e.target.value)}
+                  placeholder="e.g. chad@newagainhouses.com"
+                  className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary placeholder:text-text-tertiary focus:border-nah-blue focus:outline-none transition-colors"
+                />
+              </div>
+            )}
+            {hasAssignedField && (
+              <div>
+                <label className="text-caption text-text-secondary mb-1 block">Assigned To</label>
+                <input
+                  type="text"
+                  value={assignedTo}
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                  placeholder="e.g. Chad"
+                  className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary placeholder:text-text-tertiary focus:border-nah-blue focus:outline-none transition-colors"
+                />
+              </div>
+            )}
+            {hasDueTimeField && (
+              <div>
+                <label className="text-caption text-text-secondary mb-1 block">Due</label>
+                <input
+                  type="text"
+                  value={dueTime}
+                  onChange={(e) => setDueTime(e.target.value)}
+                  placeholder="e.g. same day 5:00 PM"
+                  className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary placeholder:text-text-tertiary focus:border-nah-blue focus:outline-none transition-colors"
+                />
+              </div>
+            )}
           </div>
         )}
 

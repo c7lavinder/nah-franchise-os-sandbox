@@ -153,7 +153,13 @@ export default function WorkflowBuilderPage() {
             subject: step.subject,
             sendTime: step.sendTime,
             requiresConfirmation: step.requiresConfirmation,
-            conditionConfig: step.actionParams ?? null,
+            conditionConfig: {
+              ...(step.actionParams ?? {}),
+              ...(step.senderName ? { senderName: step.senderName } : {}),
+              ...(step.senderEmail ? { senderEmail: step.senderEmail } : {}),
+              ...(step.assignedTo ? { assignedTo: step.assignedTo } : {}),
+              ...(step.dueTime ? { dueTime: step.dueTime } : {}),
+            },
           }),
         });
 
