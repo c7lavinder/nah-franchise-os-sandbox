@@ -71,14 +71,31 @@ CONTENT GUIDELINES:
 - Email: Professional but warm, NAH brand voice
 - Reference New Again Houses naturally
 
+EVERY STEP MUST INCLUDE ALL DETAILS:
+- SMS: Full message text, senderName (who it sends from), sendTime
+- Email: Subject line, full body content, senderName, senderEmail, sendTime
+- Call Task: Task title (content), task description (subject), assignedTo (who does the call), dueTime (when it's due)
+- All steps: sendTime is REQUIRED — specify exact time like "09:00" or "14:00"
+- senderName: The team member name this comes from (e.g. "Chad", "Ryland", "Matt")
+- senderEmail: For emails, the sender address (e.g. "chad@newagainhouses.com")
+- assignedTo: For tasks, who is responsible (e.g. "Chad")
+- dueTime: For tasks, when it's due (e.g. "same day 5:00 PM")
+
+NAH TEAM MEMBERS:
+- Chad — primary sales rep, handles discovery and strategy calls
+- Matt — admin, handles FDD calls and compliance
+- Ryland — admin, handles FDD and operations
+- Corey — owner/CEO
+
 EXIT CONDITIONS:
 - Always include a maxDays safety net
 - Define goalConditions when there's a clear success metric
 - Common goals: contact showed up, responded, moved to next stage, completed Trainual
 
 RULES:
-- Always ask clarifying questions before generating a draft
+- Always ask clarifying questions before generating a draft — especially: who sends it, who is it assigned to, what time
 - Generate the FULL workflow in one tool call (not step by step)
+- EVERY field must be filled in — no nulls for sender, timing, or content
 - For complex needs, recommend multiple workflows organized logically
 - Keep workflows focused — one goal per workflow
 - Default to requires_confirmation: true for SMS/email (DRC pattern)`;
@@ -171,13 +188,46 @@ const BUILDER_TOOLS: Anthropic.Messages.Tool[] = [
                   "trainual_check",
                 ],
               },
-              content: { type: ["string", "null"], description: "Message content, task title, or note text" },
-              subject: { type: ["string", "null"], description: "Email subject line (email only)" },
-              sendTime: { type: ["string", "null"], description: "Time to send (e.g. '09:00')" },
+              content: {
+                type: ["string", "null"],
+                description: "Full message text (SMS), email body (email), or task title (task)",
+              },
+              subject: {
+                type: ["string", "null"],
+                description: "Email subject line, or task description for call tasks",
+              },
+              sendTime: {
+                type: ["string", "null"],
+                description: "Time to send/execute (e.g. '09:00', '14:00'). REQUIRED for all steps.",
+              },
+              senderName: {
+                type: ["string", "null"],
+                description: "Who this sends from — team member name (e.g. 'Chad', 'Matt')",
+              },
+              senderEmail: {
+                type: ["string", "null"],
+                description: "Sender email address for email steps (e.g. 'chad@newagainhouses.com')",
+              },
+              assignedTo: {
+                type: ["string", "null"],
+                description: "Who the task is assigned to (for call tasks, e.g. 'Chad')",
+              },
+              dueTime: {
+                type: ["string", "null"],
+                description: "When the task is due (e.g. 'same day 5:00 PM', 'next business day 9:00 AM')",
+              },
               requiresConfirmation: { type: "boolean", description: "True for SMS/email (DRC pattern)" },
               actionParams: { type: "object", description: "Extra params for GHL actions (tags, fields, etc.)" },
             },
-            required: ["dayNumber", "stepNumber", "stepType", "content", "requiresConfirmation"],
+            required: [
+              "dayNumber",
+              "stepNumber",
+              "stepType",
+              "content",
+              "sendTime",
+              "senderName",
+              "requiresConfirmation",
+            ],
           },
         },
       },
@@ -241,6 +291,10 @@ async function executeBuilderTool(
           content: s.content != null ? String(s.content) : null,
           subject: s.subject != null ? String(s.subject) : null,
           sendTime: s.sendTime != null ? String(s.sendTime) : null,
+          senderName: s.senderName != null ? String(s.senderName) : null,
+          senderEmail: s.senderEmail != null ? String(s.senderEmail) : null,
+          assignedTo: s.assignedTo != null ? String(s.assignedTo) : null,
+          dueTime: s.dueTime != null ? String(s.dueTime) : null,
           requiresConfirmation: Boolean(s.requiresConfirmation),
           actionParams: s.actionParams as Record<string, unknown> | undefined,
         })),

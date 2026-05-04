@@ -69,12 +69,20 @@ export interface WorkflowStepDraft {
   dayNumber: number;
   stepNumber: number;
   stepType: WorkflowStepType;
-  /** Message content (SMS text, email HTML, task title, note content, etc.) */
+  /** Message content (SMS text, email body HTML, task title, note content, etc.) */
   content: string | null;
   /** Email subject line */
   subject: string | null;
   /** When to send (e.g. "09:00") */
   sendTime: string | null;
+  /** Who this message/task sends from (person name, e.g. "Chad") */
+  senderName: string | null;
+  /** Sender email address for email steps */
+  senderEmail: string | null;
+  /** Who the task is assigned to (for call tasks) */
+  assignedTo: string | null;
+  /** Due date/time for tasks (e.g. "same day 5pm", "next business day 9am") */
+  dueTime: string | null;
   /** Whether this step needs human approval before executing */
   requiresConfirmation: boolean;
   /** Extra params for GHL actions — stored in condition_config jsonb */

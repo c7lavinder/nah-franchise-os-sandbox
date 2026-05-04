@@ -153,16 +153,45 @@ export default function WorkflowPreviewPanel({
                       <Icon size={14} className="text-text-secondary" />
                     </div>
                     <div className="flex-1 min-w-0">
+                      {/* Type, time, approval */}
                       <div className="flex items-center gap-2">
                         <span className="text-body-sm font-medium text-text-primary">{label}</span>
-                        {step.sendTime && <span className="text-caption text-text-tertiary">{step.sendTime}</span>}
+                        {step.sendTime && <span className="text-caption text-text-tertiary">@ {step.sendTime}</span>}
                         {step.requiresConfirmation && (
                           <span className="text-caption text-amber-500">Needs approval</span>
                         )}
                       </div>
+
+                      {/* Sender / Assigned / Due */}
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                        {step.senderName && (
+                          <span className="text-caption text-text-tertiary">
+                            From: <span className="text-text-secondary">{step.senderName}</span>
+                            {step.senderEmail && <span className="text-text-tertiary"> ({step.senderEmail})</span>}
+                          </span>
+                        )}
+                        {step.assignedTo && (
+                          <span className="text-caption text-text-tertiary">
+                            Assigned: <span className="text-text-secondary">{step.assignedTo}</span>
+                          </span>
+                        )}
+                        {step.dueTime && (
+                          <span className="text-caption text-text-tertiary">
+                            Due: <span className="text-text-secondary">{step.dueTime}</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Subject line */}
+                      {step.subject && (
+                        <p className="text-caption text-text-tertiary mt-1">
+                          Subject: <span className="text-text-secondary">{step.subject}</span>
+                        </p>
+                      )}
+
+                      {/* Content */}
                       {step.content && (
-                        <p className="text-body-sm text-text-secondary mt-1 line-clamp-2">
-                          {step.subject ? `${step.subject} — ` : ""}
+                        <p className="text-body-sm text-text-secondary mt-1 line-clamp-3 whitespace-pre-wrap">
                           {step.content}
                         </p>
                       )}
