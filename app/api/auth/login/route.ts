@@ -3,15 +3,14 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/auth/login
  *
- * Authenticates a user with email + password via Supabase Auth.
- * Sets httpOnly cookies for access + refresh tokens.
- * Returns the user profile in the JSON body.
+ * Authenticates a user via the MasterSuite API.
+ * Sets an httpOnly cookie with the MasterSuite JWT.
+ * Returns the FranDev user profile from the local users table.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@/lib/supabase/server";
-import { setAuthCookies } from "@/lib/auth/cookies";
+import { setAuthCookie } from "@/lib/auth/cookies";
 import type { User } from "@/types/database";
 
 interface LoginRequestBody {
@@ -27,21 +26,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
-    // Sign in with Supabase Auth
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
+    // Authenticate with MasterSuite API
+    const apiUrl = process.env.MASTERSUITE_API_URL;
+    if (!apiUrl) {
       return NextResponse.json({ error: "Authentication service is not configured" }, { status: 500 });
     }
 
-    const authClient = createClient(supabaseUrl, supabaseAnonKey);
-    const { data: authData, error: authError } = await authClient.auth.signInWithPassword({
-      email: body.email,
-      password: body.password,
+    const loginUrl = new URL("/auth/login", apiUrl).toString();
+    const authResponse = await fetch(loginUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: body.email,
+        password: body.password,
+      }),
     });
 
-    if (authError || !authData.session) {
+    if (!authResponse.ok) {
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    }
+
+    const authData = await authResponse.json();
+    const token = authData.jwt;
+
+    if (!token) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
@@ -76,7 +84,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return setAuthCookies(response, authData.session.access_token, authData.session.refresh_token);
+    return setAuthCookie(response, token);
   } catch (err) {
     console.error("Login error:", err);
     return NextResponse.json({ error: "An unexpected error occurred" }, { status: 500 });

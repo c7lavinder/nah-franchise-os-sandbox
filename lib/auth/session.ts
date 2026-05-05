@@ -1,8 +1,9 @@
 /**
- * Auth session utilities — reads the current user from httpOnly cookies.
+ * Auth session utilities — verifies MasterSuite JWT and resolves the app user.
  * Used by API routes and server components to check authentication.
  */
 
+import jwt from "jsonwebtoken";
 import { createServerClient } from "@/lib/supabase/server";
 import { getAccessTokenFromCookies } from "@/lib/auth/cookies";
 import { hasPermission, type PermissionAction } from "@/lib/auth/permissions";
@@ -17,31 +18,59 @@ export interface AuthUser {
   ghlUserId: string | null;
 }
 
+/** Claims in the MasterSuite JWT (PascalCase from the .NET API) */
+interface MasterSuiteClaims {
+  Username: string; // email address
+  Name: string;
+  Permissions: Record<string, boolean>;
+  Territories: string[];
+  Expiration: string;
+}
+
 /**
- * Gets the current authenticated user from a Supabase Auth token.
- * Accepts a raw JWT string (from cookie or header).
+ * Gets the current authenticated user from a MasterSuite JWT.
+ * Verifies HS512 signature, checks expiration, then looks up the app user by email.
  * Returns null if not authenticated.
  */
 export async function getAuthUser(token: string | null): Promise<AuthUser | null> {
   if (!token) return null;
 
-  const supabase = createServerClient();
-
-  // Verify the JWT and get the Supabase Auth user
-  const {
-    data: { user: authUser },
-    error: authError,
-  } = await supabase.auth.getUser(token);
-
-  if (authError || !authUser) {
+  const secret = process.env.MASTERSUITE_API_JWT_SECRET;
+  if (!secret) {
+    console.error("MASTERSUITE_API_JWT_SECRET is not set");
     return null;
   }
 
+  // Verify the JWT signature (HS512)
+  let claims: MasterSuiteClaims;
+  try {
+    // MasterSuite uses a custom Expiration field, not the standard `exp` claim,
+    // so we disable built-in expiration check and handle it ourselves.
+    claims = jwt.verify(token, secret, {
+      algorithms: ["HS512"],
+      ignoreExpiration: true,
+    }) as MasterSuiteClaims;
+  } catch {
+    return null;
+  }
+
+  // Check custom expiration field
+  if (claims.Expiration) {
+    const expiresAt = new Date(claims.Expiration).getTime();
+    if (Date.now() > expiresAt) {
+      return null;
+    }
+  }
+
+  const email = claims.Username;
+  if (!email) return null;
+
   // Look up the app user record by email
+  const supabase = createServerClient();
   const { data: appUser, error: userError } = await supabase
     .from("users")
     .select("*")
-    .eq("email", authUser.email)
+    .eq("email", email)
     .eq("is_active", true)
     .single();
 

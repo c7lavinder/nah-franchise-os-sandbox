@@ -1,13 +1,13 @@
 # Security — NAH Franchise OS
 
-Last verified: 2026-04-27
-Source: code (Tier 0b auth retrofit)
+Last verified: 2026-05-05
+Source: code (MasterSuite API auth migration)
 
 ---
 
 ## Authentication
 
-All API routes require authentication via Supabase Auth JWTs, except intentionally public routes (see below).
+All API routes require authentication via MasterSuite API JWTs (HS512), except intentionally public routes (see below).
 
 **Server-side pattern:**
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 }
 ```
 
-`requireAuth` reads the `Authorization: Bearer <token>` header, verifies the JWT via `supabase.auth.getUser()`, then looks up the app user by email. Returns an `AuthUser` on success or a 401 `Response` on failure.
+`requireAuth` reads the JWT from an httpOnly cookie (or falls back to `Authorization: Bearer` header), verifies the HS512 signature using `MASTERSUITE_API_JWT_SECRET`, checks the custom `Expiration` claim, then looks up the app user by email in the `users` table. Returns an `AuthUser` on success or a 401 `Response` on failure.
 
 **Critical rule:** `requireAuth` returns a `Response` (not throws). Callers must check `if (user instanceof Response) return user;`.
 
@@ -33,7 +33,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 const res = await apiFetch("/api/foo");
 ```
 
-`apiFetch` reads the JWT from `localStorage` (`nah_auth_token`) and attaches it as a Bearer header. On 401, it automatically refreshes the token via `/api/auth/refresh` and retries once. If refresh also fails, it clears auth state and redirects to `/login`.
+`apiFetch` sends requests with `credentials: "include"` so the browser attaches the httpOnly JWT cookie automatically. On 401 (token expired), it clears auth state and redirects to `/login`.
 
 ---
 
@@ -66,16 +66,15 @@ Admins can pass `?targetUserId=X` to view another user's data. Non-admins always
 
 ## Intentionally public routes
 
-| Route                      | Reason                                            |
-| -------------------------- | ------------------------------------------------- |
-| `/api/auth/login`          | Login endpoint                                    |
-| `/api/auth/logout`         | Logout                                            |
-| `/api/auth/refresh`        | Token refresh (called before auth is established) |
-| `/api/auth/crm`            | GHL OAuth initiation                              |
-| `/api/auth/crm/callback`   | GHL OAuth callback                                |
-| `/api/health`              | Health check                                      |
-| `/api/track/click/[logId]` | Email tracking pixel                              |
-| `/api/track/open/[logId]`  | Email tracking pixel                              |
+| Route                      | Reason                                 |
+| -------------------------- | -------------------------------------- |
+| `/api/auth/login`          | Login endpoint (calls MasterSuite API) |
+| `/api/auth/logout`         | Logout (clears cookie)                 |
+| `/api/auth/crm`            | GHL OAuth initiation                   |
+| `/api/auth/crm/callback`   | GHL OAuth callback                     |
+| `/api/health`              | Health check                           |
+| `/api/track/click/[logId]` | Email tracking pixel                   |
+| `/api/track/open/[logId]`  | Email tracking pixel                   |
 
 ---
 
@@ -130,24 +129,23 @@ Vercel Cron automatically passes `Authorization: Bearer ${CRON_SECRET}` when the
 
 ## JWT lifecycle
 
-1. **Login:** User authenticates via `/api/auth/login` with email + password. Supabase returns access token (1-hour expiry) + refresh token.
-2. **Storage:** Tokens stored in `localStorage` (`nah_auth_token`, `nah_refresh_token`).
-3. **Auto-refresh:** `AuthContext` refreshes the access token every 45 minutes via `/api/auth/refresh`.
-4. **On-demand refresh:** `apiFetch` auto-refreshes on 401 and retries.
-5. **Force logout:** If refresh fails (refresh token expired), `apiFetch` clears all auth state and redirects to `/login`.
-6. **Session cap:** 30-day max session from last explicit login. After 30 days, user must re-authenticate.
+1. **Login:** User authenticates via `/api/auth/login` with email + password. FranDev server calls `POST https://api.mastersuiteapp.com/auth/login` and receives a signed JWT (HS512).
+2. **Storage:** JWT stored in an httpOnly cookie (`nah_access_token`, 30-day maxAge). User profile cached in `localStorage` (`nah_user`) for hydration only.
+3. **No refresh needed:** MasterSuite JWT has a 30-day expiry. No refresh endpoint or timer.
+4. **Force logout:** On 401, `apiFetch` clears auth state and redirects to `/login`.
+5. **Session cap:** 30 days from login. After 30 days, user must re-authenticate via MasterSuite API.
 
 ---
 
 ## Known gaps (parked)
 
-| Gap                              | Status   | Notes                                                                                                                                          |
-| -------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| JWT in localStorage              | Deferred | Should migrate to httpOnly cookies. Current approach is standard for SPAs but vulnerable to XSS.                                               |
-| Service role key bypasses RLS    | Accepted | All API routes use the service role key. Authorization is enforced at the application layer (requireAuth + role checks), not via Supabase RLS. |
-| Per-rep row-level filtering      | Deferred | Currently all authenticated users can read all data. Future: restrict reps to their assigned contacts/territories only. Separate ADR needed.   |
-| WEBHOOK_SHARED_SECRET activation | Partial  | Set in Vercel. GHL routes use Ed25519 instead (Tier 1 #7). Non-GHL providers still need provider-side config.                                  |
-| OAuth token storage              | Deferred | GHL OAuth tokens stored as JSON-stringified values in `app_settings` table. Cleanup pass planned.                                              |
+| Gap                                      | Status   | Notes                                                                                                                                                                       |
+| ---------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FranDev roles vs MasterSuite permissions | Accepted | MasterSuite JWT carries MasterSuite permissions (AdminPanel, BulkImport, etc.). FranDev roles (rep, admin, etc.) still come from the local `users` table, matched by email. |
+| Service role key bypasses RLS            | Accepted | All API routes use the service role key. Authorization is enforced at the application layer (requireAuth + role checks), not via Supabase RLS.                              |
+| Per-rep row-level filtering              | Deferred | Currently all authenticated users can read all data. Future: restrict reps to their assigned contacts/territories only. Separate ADR needed.                                |
+| WEBHOOK_SHARED_SECRET activation         | Partial  | Set in Vercel. GHL routes use Ed25519 instead (Tier 1 #7). Non-GHL providers still need provider-side config.                                                               |
+| OAuth token storage                      | Deferred | GHL OAuth tokens stored as JSON-stringified values in `app_settings` table. Cleanup pass planned.                                                                           |
 
 ---
 

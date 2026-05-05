@@ -45,23 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(USER_KEY);
   }, []);
 
-  /**
-   * Refresh the session via the server. Cookies are sent automatically.
-   * Returns true on success, false otherwise.
-   */
-  const refreshSession = useCallback(async (): Promise<boolean> => {
-    try {
-      const res = await fetch(`${BASE_PATH}/api/auth/refresh`, {
-        method: "POST",
-        credentials: "include",
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
-  }, []);
-
-  /** Restore user from localStorage on mount + refresh the access token. */
+  /** Restore user from localStorage on mount */
   useEffect(() => {
     const storedUser = localStorage.getItem(USER_KEY);
 
@@ -69,26 +53,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const parsed = JSON.parse(storedUser) as SessionUser;
         setUser(parsed);
-        // Eagerly refresh so an idle-overnight token doesn't 401 the first API call
-        void refreshSession();
       } catch {
         clearAuth();
       }
     }
     setLoading(false);
-  }, [clearAuth, refreshSession]);
-
-  /** Refresh the access token every 45 min while the tab is open. */
-  useEffect(() => {
-    if (!user) return;
-    const interval = setInterval(
-      () => {
-        void refreshSession();
-      },
-      45 * 60 * 1000
-    );
-    return () => clearInterval(interval);
-  }, [user, refreshSession]);
+  }, [clearAuth]);
 
   /** Log in with email and password */
   async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {

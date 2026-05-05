@@ -1,11 +1,19 @@
 /**
  * Auth boundary tests — verifies requireAuth rejects unauthenticated
  * requests and accepts authenticated ones.
+ * Auth is now via MasterSuite JWT (HS512) verified with jsonwebtoken.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock Supabase before importing the module under test
+// Mock jsonwebtoken before importing the module under test
+vi.mock("jsonwebtoken", () => ({
+  default: {
+    verify: vi.fn(),
+  },
+}));
+
+// Mock Supabase (still used for users table lookup)
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(),
 }));
@@ -15,14 +23,12 @@ vi.mock("@/lib/auth/cookies", () => ({
   getAccessTokenFromCookies: vi.fn(() => null),
 }));
 
+import jwt from "jsonwebtoken";
 import { requireAuth, getAuthUser } from "@/lib/auth/session";
 import { createServerClient } from "@/lib/supabase/server";
 import { getAccessTokenFromCookies } from "@/lib/auth/cookies";
 
 const mockSupabase = {
-  auth: {
-    getUser: vi.fn(),
-  },
   from: vi.fn(() => ({
     select: vi.fn(() => ({
       eq: vi.fn(() => ({
@@ -34,10 +40,23 @@ const mockSupabase = {
   })),
 };
 
+/** Helper to create valid MasterSuite JWT claims */
+function makeClaims(overrides: Partial<{ Username: string; Name: string; Expiration: string }> = {}) {
+  return {
+    Username: "chad@newagainhouses.com",
+    Name: "Chad Arnold",
+    Permissions: { AdminPanel: false },
+    Territories: ["FREDVA"],
+    Expiration: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   (createServerClient as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase);
   (getAccessTokenFromCookies as ReturnType<typeof vi.fn>).mockReturnValue(null);
+  vi.stubEnv("MASTERSUITE_API_JWT_SECRET", "test-secret");
 });
 
 describe("getAuthUser", () => {
@@ -47,19 +66,21 @@ describe("getAuthUser", () => {
   });
 
   it("returns null when token is invalid", async () => {
-    mockSupabase.auth.getUser.mockResolvedValue({
-      data: { user: null },
-      error: { message: "Invalid token" },
+    (jwt.verify as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error("invalid signature");
     });
     const result = await getAuthUser("invalid-token");
     expect(result).toBeNull();
   });
 
+  it("returns null when token is expired", async () => {
+    (jwt.verify as ReturnType<typeof vi.fn>).mockReturnValue(makeClaims({ Expiration: "2020-01-01T00:00:00Z" }));
+    const result = await getAuthUser("expired-token");
+    expect(result).toBeNull();
+  });
+
   it("returns null when user not found in app database", async () => {
-    mockSupabase.auth.getUser.mockResolvedValue({
-      data: { user: { email: "unknown@example.com" } },
-      error: null,
-    });
+    (jwt.verify as ReturnType<typeof vi.fn>).mockReturnValue(makeClaims({ Username: "unknown@example.com" }));
     const singleMock = vi.fn().mockResolvedValue({ data: null, error: { message: "not found" } });
     mockSupabase.from.mockReturnValue({
       select: vi.fn(() => ({
@@ -75,10 +96,7 @@ describe("getAuthUser", () => {
   });
 
   it("returns AuthUser when token and user are valid", async () => {
-    mockSupabase.auth.getUser.mockResolvedValue({
-      data: { user: { email: "chad@newagainhouses.com" } },
-      error: null,
-    });
+    (jwt.verify as ReturnType<typeof vi.fn>).mockReturnValue(makeClaims());
     const singleMock = vi.fn().mockResolvedValue({
       data: {
         id: "user-123",
@@ -118,9 +136,8 @@ describe("requireAuth", () => {
   });
 
   it("returns 401 Response when token is invalid", async () => {
-    mockSupabase.auth.getUser.mockResolvedValue({
-      data: { user: null },
-      error: { message: "Invalid" },
+    (jwt.verify as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error("invalid");
     });
     const request = new Request("http://localhost/api/test", {
       headers: { Authorization: "Bearer bad-token" },
@@ -131,10 +148,9 @@ describe("requireAuth", () => {
   });
 
   it("returns AuthUser when authenticated via Authorization header", async () => {
-    mockSupabase.auth.getUser.mockResolvedValue({
-      data: { user: { email: "matt@newagainhouses.com" } },
-      error: null,
-    });
+    (jwt.verify as ReturnType<typeof vi.fn>).mockReturnValue(
+      makeClaims({ Username: "matt@newagainhouses.com", Name: "Matt Lavinder" })
+    );
     const singleMock = vi.fn().mockResolvedValue({
       data: {
         id: "admin-456",
@@ -165,10 +181,7 @@ describe("requireAuth", () => {
 
   it("returns AuthUser when authenticated via cookie", async () => {
     (getAccessTokenFromCookies as ReturnType<typeof vi.fn>).mockReturnValue("cookie-token");
-    mockSupabase.auth.getUser.mockResolvedValue({
-      data: { user: { email: "chad@newagainhouses.com" } },
-      error: null,
-    });
+    (jwt.verify as ReturnType<typeof vi.fn>).mockReturnValue(makeClaims());
     const singleMock = vi.fn().mockResolvedValue({
       data: {
         id: "user-789",
