@@ -5,7 +5,7 @@
 # Final image is ~150MB and runs as a non-root user.
 # ------------------------------------------------------------------------------
 
-ARG NODE_VERSION=20-alpine
+ARG NODE_VERSION=22-alpine
 
 # --- Stage 1: install dependencies (cached layer) -----------------------------
 FROM node:${NODE_VERSION} AS deps
