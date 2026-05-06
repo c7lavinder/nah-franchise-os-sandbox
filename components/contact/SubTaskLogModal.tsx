@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
  * Per §1.5: content_type, content_text, state_advance, logger pre-fill per §1.8.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Loader2, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import type { SubTaskLog } from "@/lib/contacts/pipeline-state";
@@ -33,17 +33,6 @@ const SOURCE_BADGE: Record<string, { label: string; color: string }> = {
   ai: { label: "AI", color: "bg-scout-purple/10 text-scout-purple" },
 };
 
-const CONTENT_TYPES = [
-  { value: "note", label: "Note" },
-  { value: "call", label: "Call" },
-  { value: "email", label: "Email" },
-  { value: "sms", label: "SMS" },
-  { value: "appointment", label: "Appointment" },
-  { value: "file", label: "File" },
-  { value: "link", label: "Link" },
-  { value: "transcript", label: "Transcript" },
-];
-
 export default function SubTaskLogModal({
   contactId,
   subTaskId,
@@ -60,13 +49,18 @@ export default function SubTaskLogModal({
   onLogDeleted,
 }: SubTaskLogModalProps) {
   const { toast } = useToast();
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
   const [stateAdvance, setStateAdvance] = useState<"first" | "second" | null>(
     stateType === "two_state" ? "first" : null
   );
-  const [contentType, setContentType] = useState("note");
   const [contentText, setContentText] = useState("");
-  const [contentLinkUrl, setContentLinkUrl] = useState("");
-  const [contentFileUrl, setContentFileUrl] = useState("");
   const [loggerUserId, setLoggerUserId] = useState(defaultLoggerUserId ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,10 +96,8 @@ export default function SubTaskLogModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contentType,
+          contentType: "note",
           contentText: contentText || undefined,
-          contentFileUrl: contentFileUrl || undefined,
-          contentLinkUrl: contentLinkUrl || undefined,
           stateAdvance,
           loggerUserId: loggerUserId || undefined,
         }),
@@ -116,7 +108,8 @@ export default function SubTaskLogModal({
         throw new Error(data.error ?? "Failed to create log");
       }
 
-      toast("Log saved");
+      const data = await res.json();
+      toast(data.autoAdvanced ? "Log saved — stage advanced!" : "Log saved");
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create log");
@@ -132,15 +125,15 @@ export default function SubTaskLogModal({
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-h2 text-text-primary">Log: {subTaskName}</h2>
-          <button onClick={onClose} className="btn-ghost p-1"><X size={18} /></button>
+          <button onClick={onClose} className="btn-ghost p-1">
+            <X size={18} />
+          </button>
         </div>
 
         {/* Existing logs — newest first, with delete */}
         {visibleLogs.length > 0 && (
           <div className="mb-5">
-            <div className="text-caption text-text-tertiary mb-1.5">
-              Existing logs ({visibleLogs.length})
-            </div>
+            <div className="text-caption text-text-tertiary mb-1.5">Existing logs ({visibleLogs.length})</div>
             <div className="border border-border-default rounded-md divide-y divide-border-default max-h-40 overflow-y-auto">
               {visibleLogs.map((log) => {
                 const source = SOURCE_BADGE[log.source] ?? SOURCE_BADGE.manual;
@@ -216,21 +209,7 @@ export default function SubTaskLogModal({
           </div>
         )}
 
-        {/* Content type */}
-        <div className="mb-3">
-          <label className="block text-caption text-text-tertiary mb-1">Type</label>
-          <select
-            value={contentType}
-            onChange={(e) => setContentType(e.target.value)}
-            className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary"
-          >
-            {CONTENT_TYPES.map((ct) => (
-              <option key={ct.value} value={ct.value}>{ct.label}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Content text */}
+        {/* Notes */}
         <div className="mb-3">
           <label className="block text-caption text-text-tertiary mb-1">Notes</label>
           <textarea
@@ -242,32 +221,6 @@ export default function SubTaskLogModal({
           />
         </div>
 
-        {/* Conditional URL fields */}
-        {contentType === "link" && (
-          <div className="mb-3">
-            <label className="block text-caption text-text-tertiary mb-1">Link URL</label>
-            <input
-              type="url"
-              value={contentLinkUrl}
-              onChange={(e) => setContentLinkUrl(e.target.value)}
-              placeholder="https://..."
-              className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary"
-            />
-          </div>
-        )}
-        {contentType === "file" && (
-          <div className="mb-3">
-            <label className="block text-caption text-text-tertiary mb-1">File URL</label>
-            <input
-              type="url"
-              value={contentFileUrl}
-              onChange={(e) => setContentFileUrl(e.target.value)}
-              placeholder="https://..."
-              className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary"
-            />
-          </div>
-        )}
-
         {/* Logger select per §1.8 */}
         <div className="mb-4">
           <label className="block text-caption text-text-tertiary mb-1">Logged by</label>
@@ -276,11 +229,11 @@ export default function SubTaskLogModal({
             onChange={(e) => setLoggerUserId(e.target.value)}
             className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary"
           >
-            <option value="">
-              {defaultLoggerName ? `${defaultLoggerName} (default)` : "Select user..."}
-            </option>
+            <option value="">{defaultLoggerName ? `${defaultLoggerName} (default)` : "Select user..."}</option>
             {users.map((u) => (
-              <option key={u.id} value={u.id}>{u.name}</option>
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
             ))}
           </select>
         </div>
@@ -290,7 +243,9 @@ export default function SubTaskLogModal({
 
         {/* Actions */}
         <div className="flex gap-2">
-          <button onClick={onClose} className="btn-ghost px-4 py-2 text-body-sm">Cancel</button>
+          <button onClick={onClose} className="btn-ghost px-4 py-2 text-body-sm">
+            Cancel
+          </button>
           <button
             onClick={() => void handleSubmit()}
             disabled={submitting}

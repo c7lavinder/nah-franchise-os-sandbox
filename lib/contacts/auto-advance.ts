@@ -18,19 +18,16 @@ interface AutoAdvanceResult {
   newStageId?: string;
 }
 
-export async function checkAutoAdvance(
-  jpsId: string,
-  currentStageId: string
-): Promise<AutoAdvanceResult> {
+export async function checkAutoAdvance(jpsId: string, currentStageId: string): Promise<AutoAdvanceResult> {
   const supabase = createServerClient();
 
   const { data: stage } = await supabase
     .from("pipeline_stages")
-    .select("id, auto_advance_enabled, pipeline_id, sort_order")
+    .select("id, pipeline_id, sort_order")
     .eq("id", currentStageId)
     .single();
 
-  if (!stage?.auto_advance_enabled) {
+  if (!stage) {
     return { advanced: false };
   }
 
@@ -55,8 +52,7 @@ export async function checkAutoAdvance(
       .limit(1);
 
     const latest = logs?.[0];
-    const complete =
-      task.state_type === "single" ? !!latest : latest?.state_advance === "second";
+    const complete = task.state_type === "single" ? !!latest : latest?.state_advance === "second";
 
     if (!complete) {
       return { advanced: false };
@@ -129,29 +125,42 @@ export async function checkAutoAdvance(
   // Auto-spawn when the new stage is terminal with an auto_spawn_pipeline_id.
   if (nextStage.is_terminal && nextStage.auto_spawn_pipeline_id) {
     const spawnPipelineId = nextStage.auto_spawn_pipeline_id;
-    const { data: spawnPipeline } = await supabase
-      .from("pipelines").select("slug").eq("id", spawnPipelineId).single();
+    const { data: spawnPipeline } = await supabase.from("pipelines").select("slug").eq("id", spawnPipelineId).single();
     const { data: spawnStages } = await supabase
-      .from("pipeline_stages").select("id")
-      .eq("pipeline_id", spawnPipelineId).order("sort_order").limit(1);
+      .from("pipeline_stages")
+      .select("id")
+      .eq("pipeline_id", spawnPipelineId)
+      .order("sort_order")
+      .limit(1);
 
     if (spawnStages?.[0]) {
       const { data: spawnTasks } = await supabase
-        .from("pipeline_sub_tasks").select("id")
-        .eq("stage_id", spawnStages[0].id).order("sort_order").limit(1);
+        .from("pipeline_sub_tasks")
+        .select("id")
+        .eq("stage_id", spawnStages[0].id)
+        .order("sort_order")
+        .limit(1);
 
       const fanOut = spawnPipeline?.slug === "runway" || spawnPipeline?.slug === "onboarding";
       let spawnSlugs: (string | null)[] = [null];
       if (fanOut) {
         const { data: journey } = await supabase
-          .from("journeys").select("primary_contact_id").eq("id", rootJps.journey_id).single();
+          .from("journeys")
+          .select("primary_contact_id")
+          .eq("id", rootJps.journey_id)
+          .single();
         if (journey) {
           const { data: contact } = await supabase
-            .from("contacts").select("ghl_contact_id").eq("id", journey.primary_contact_id).maybeSingle();
+            .from("contacts")
+            .select("ghl_contact_id")
+            .eq("id", journey.primary_contact_id)
+            .maybeSingle();
           if (contact?.ghl_contact_id) {
             const { data: owners } = await supabase
-              .from("territory_owners").select("ms_slug")
-              .eq("ghl_contact_id", contact.ghl_contact_id).is("end_date", null);
+              .from("territory_owners")
+              .select("ms_slug")
+              .eq("ghl_contact_id", contact.ghl_contact_id)
+              .is("end_date", null);
             const slugs = (owners ?? []).map((o) => o.ms_slug);
             spawnSlugs = slugs.length > 0 ? slugs : [null];
           }
@@ -176,7 +185,10 @@ export async function checkAutoAdvance(
       // hook; idempotent so either path (manual or auto) is safe.
       if (fanOut) {
         const { data: journeyOwner } = await supabase
-          .from("journeys").select("primary_contact_id").eq("id", rootJps.journey_id).single();
+          .from("journeys")
+          .select("primary_contact_id")
+          .eq("id", rootJps.journey_id)
+          .single();
         const primaryContactId = journeyOwner?.primary_contact_id;
         if (primaryContactId) {
           for (const slug of spawnSlugs) {
@@ -193,12 +205,13 @@ export async function checkAutoAdvance(
   }
 
   // GHL write-back (fire-and-forget)
-  const { data: pipeline } = await supabase
-    .from("pipelines").select("slug").eq("id", rootJps.pipeline_id).single();
-  const { data: nextStageDef } = await supabase
-    .from("pipeline_stages").select("slug").eq("id", nextStage.id).single();
+  const { data: pipeline } = await supabase.from("pipelines").select("slug").eq("id", rootJps.pipeline_id).single();
+  const { data: nextStageDef } = await supabase.from("pipeline_stages").select("slug").eq("id", nextStage.id).single();
   const { data: journey } = await supabase
-    .from("journeys").select("primary_contact_id").eq("id", rootJps.journey_id).single();
+    .from("journeys")
+    .select("primary_contact_id")
+    .eq("id", rootJps.journey_id)
+    .single();
 
   if (pipeline?.slug && nextStageDef?.slug && journey?.primary_contact_id) {
     void syncStageToGHL(journey.primary_contact_id, pipeline.slug, nextStageDef.slug);
