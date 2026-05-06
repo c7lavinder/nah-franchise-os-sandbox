@@ -78,18 +78,35 @@ Be thorough — a 30-minute call should yield 5-15 items. A 60-minute call shoul
 - 60-minute call: 20-40 items
 - Team strategy calls (60+ min): 30-50+ items — these are GOLD MINES
 
+## CRITICAL: System-Level Knowledge Only
+The KB captures PATTERNS, PLAYBOOK KNOWLEDGE, and ORGANIZATIONAL INTELLIGENCE — NOT individual deal notes.
+
+**DO extract (system-level):**
+- "Prospects consistently push back on the 7% royalty — the $1,200/mo cap reframe works" (pattern)
+- "SBA lenders are taking 60-90 days right now, up from 45" (market signal)
+- "Franchisees who complete Trainual in first 2 weeks close their first deal 40% faster" (operational insight)
+- "The 'path to $1M net worth' pitch resonates strongest with corporate refugees" (sales tactic)
+- "Contractor pricing in the Southeast has increased 15-20% since Q1" (market condition)
+
+**DO NOT extract (individual-level — this belongs on contact profiles, not the KB):**
+- "Jonathan Suda is concerned about capital" — that's a contact note
+- "Keith Parker's Nashville territory has 3 deals" — that's territory data
+- "Larry Hall joined the call" — that's call metadata
+- "Brett is closing on a property next week" — that's a deal note
+- Any item that only applies to one specific person or one specific deal
+
+**Generalize individual observations into system patterns:**
+- Instead of "Matt talked about ROBS with Jonathan" → "ROBS rollover is an increasingly common funding path — prospects respond well when positioned as 'using your own retirement tax-free'"
+- Instead of "Chad explained the FDD to the Smiths" → "FDD review calls that walk through Item 19 earnings claims first reduce follow-up questions by covering the #1 concern upfront"
+
 ## Rules
 - Each item MUST have a direct quote from the transcript as evidence.
 - Title should be specific and searchable (not generic like "Capital concern").
-- Content should be 2-4 sentences summarizing the insight with context.
+- Content should be 2-4 sentences summarizing the SYSTEM-LEVEL insight. Generalize from the specific instance.
 - If the same topic appears across many calls, mark frequency_signal as "recurring".
-- For team/group calls: capture EVERY decision made, every problem raised, every strategy discussed,
-  every mention of a specific franchisee or prospect, every market insight, every process change.
-- For prospect calls: capture EVERY question, objection, motivation, and competitive mention.
-- For coaching calls: capture EVERY challenge, win, goal, and operational metric mentioned.
-- When a specific contact or territory is discussed, include their name in the content
-  so the knowledge is attributable.
-- Skip only pleasantries and small talk — everything else is intelligence.
+- Do NOT name specific contacts in titles or content. Use roles: "a prospect", "a franchisee", "the team".
+- Territory names ARE acceptable when the insight is about market conditions (not individual deals).
+- Skip pleasantries, small talk, and individual deal status updates.
 - Return ONLY valid JSON, no preamble.
 
 ${ctx.isTeamCall && ctx.roster.length > 0 ? buildKBRosterBlock(ctx.roster) : ""}
@@ -133,7 +150,9 @@ export function parseResult(rawText: string): KBIntelligenceResult | null {
       try {
         const data = JSON.parse(match[0]) as { items?: KBIntelligenceItem[] };
         if (Array.isArray(data.items)) return { items: data.items };
-      } catch { /* give up */ }
+      } catch {
+        /* give up */
+      }
     }
     console.error("[kb-intelligence] parse failed");
     return null;
@@ -145,9 +164,7 @@ function buildKBRosterBlock(roster: RosterEntry[]): string {
   const franchisees = roster.filter((r) => r.role === "franchisee");
   const prospects = roster.filter((r) => r.role === "prospect");
 
-  const lines = [
-    "## KNOWN CONTACTS (match names from transcript to tag knowledge correctly):",
-  ];
+  const lines = ["## KNOWN CONTACTS (match names from transcript to tag knowledge correctly):"];
 
   if (franchisees.length > 0) {
     lines.push("\n**Franchisees:**");
@@ -168,10 +185,7 @@ function buildKBRosterBlock(roster: RosterEntry[]): string {
   return lines.join("\n");
 }
 
-export async function runKBIntelligence(
-  ctx: CallContext,
-  model?: string,
-): Promise<KBIntelligenceResult | null> {
+export async function runKBIntelligence(ctx: CallContext, model?: string): Promise<KBIntelligenceResult | null> {
   return callClaude({
     model,
     systemPrompt: SYSTEM,
