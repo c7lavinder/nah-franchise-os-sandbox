@@ -532,6 +532,7 @@ export default function CallDetailPage() {
                       primaryContactId={call.contact_id}
                       primaryContactName={call.contactName}
                       callTerritories={(call.callTerritories ?? []).map((t) => t.ms_slug)}
+                      callJourneys={call.callJourneys ?? []}
                       onMapped={() => void fetchDetail()}
                     />
                   ))}
@@ -599,6 +600,7 @@ function UnknownParticipantPill({
   primaryContactId,
   primaryContactName,
   callTerritories,
+  callJourneys,
   onMapped,
 }: {
   participant: UnknownParticipant;
@@ -607,15 +609,16 @@ function UnknownParticipantPill({
   primaryContactId: string | null;
   primaryContactName: string | null;
   callTerritories: string[];
+  callJourneys: CallJourneyRef[];
   onMapped: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [mode, setMode] = useState<"actions" | "search">("actions");
+  const [mode, setMode] = useState<"actions" | "search" | "journey">("actions");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  const [addModal, setAddModal] = useState<"prospect" | "related" | null>(null);
+  const [addModal, setAddModal] = useState<"prospect" | "ecosystem" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -631,6 +634,9 @@ function UnknownParticipantPill({
     lastName: displayName.split(" ").slice(1).join(" ") || undefined,
     email: participant.email || undefined,
   };
+
+  // Dedupe journeys by journey_id for the picker
+  const uniqueJourneys = callJourneys.filter((j, i, arr) => arr.findIndex((a) => a.journey_id === j.journey_id) === i);
 
   // Search contacts
   useEffect(() => {
@@ -651,7 +657,6 @@ function UnknownParticipantPill({
     };
   }, [mode, query]);
 
-  // Focus search input when switching to search mode
   useEffect(() => {
     if (mode === "search") inputRef.current?.focus();
   }, [mode]);
@@ -660,13 +665,11 @@ function UnknownParticipantPill({
     if (!rawParticipant) return;
     setBusy(true);
     try {
-      // 1. Override the participant mapping
       await apiFetch(`/api/calls/${callId}/override`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ participants: [{ id: rawParticipant.id, contact_id: contactId }] }),
       });
-      // 2. Attach email to the contact
       if (participant.email) {
         await apiFetch(`/api/contacts/${contactId}/emails`, {
           method: "POST",
@@ -682,10 +685,41 @@ function UnknownParticipantPill({
     setBusy(false);
   }
 
+  /** Create contact from prefill, add to the chosen journey as co_primary, then map. */
+  async function addToJourney(journeyId: string) {
+    setBusy(true);
+    try {
+      // 1. Create contact (createJourney: false — they're joining an existing journey, not starting their own)
+      const createRes = await apiFetch("/api/contacts/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: prefill.firstName ?? "",
+          lastName: prefill.lastName ?? "",
+          email: prefill.email ?? "",
+          opportunity_source: "Call Mapping",
+          createJourney: false,
+        }),
+      });
+      if (!createRes.ok) throw new Error("Failed to create contact");
+      const { contactId: newContactId } = await createRes.json();
+      // 2. Add to journey as co_primary
+      await apiFetch(`/api/journeys/${journeyId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: newContactId, role: "co_primary" }),
+      });
+      // 3. Map the participant
+      await mapToContact(newContactId);
+    } catch {
+      setBusy(false);
+    }
+  }
+
   if (done) {
     return (
       <span className="inline-flex items-center gap-1 text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-success/10 text-success border border-success/30">
-        <Check size={12} /> {displayName} mapped
+        <Check size={12} /> {displayName} Mapped
       </span>
     );
   }
@@ -704,9 +738,9 @@ function UnknownParticipantPill({
   }
 
   return (
-    <div className="w-full mt-1 bg-bg-secondary border border-border-default rounded-lg p-3 space-y-2">
+    <div className="w-full mt-1 bg-bg-secondary border border-border-default rounded-lg p-3" style={{ minHeight: 140 }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-2">
         <div>
           <span className="text-body-sm font-medium text-text-primary">{displayName}</span>
           {participant.email && <span className="text-caption text-text-tertiary ml-1.5">{participant.email}</span>}
@@ -723,7 +757,7 @@ function UnknownParticipantPill({
         </button>
       </div>
 
-      {mode === "actions" ? (
+      {mode === "actions" && (
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => setMode("search")}
@@ -731,8 +765,8 @@ function UnknownParticipantPill({
           >
             <Search size={14} className="text-nah-blue" />
             <div className="text-left">
-              <div className="font-medium">Search contacts</div>
-              <div className="text-[10px] text-text-tertiary">Find existing contact</div>
+              <div className="font-medium">Search Contacts</div>
+              <div className="text-[10px] text-text-tertiary">Find Existing Contact</div>
             </div>
           </button>
           <button
@@ -741,33 +775,37 @@ function UnknownParticipantPill({
           >
             <UserPlus size={14} className="text-success" />
             <div className="text-left">
-              <div className="font-medium">New prospect</div>
-              <div className="text-[10px] text-text-tertiary">Create new contact</div>
+              <div className="font-medium">New Prospect</div>
+              <div className="text-[10px] text-text-tertiary">Create Contact + Journey</div>
             </div>
           </button>
           <button
-            onClick={() => setAddModal("related")}
+            onClick={() => setAddModal("ecosystem")}
             className="flex items-center gap-2 px-3 py-2 rounded-md border border-border-default bg-bg-primary text-body-sm text-text-primary hover:bg-bg-tertiary transition-colors"
           >
             <MapPin size={14} className="text-nah-orange" />
             <div className="text-left">
-              <div className="font-medium">Add to territory</div>
-              <div className="text-[10px] text-text-tertiary">Employee, contractor</div>
+              <div className="font-medium">Add To Ecosystem</div>
+              <div className="text-[10px] text-text-tertiary">Territory Or Contact Link</div>
             </div>
           </button>
           <button
-            onClick={() => setAddModal("related")}
-            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border-default bg-bg-primary text-body-sm text-text-primary hover:bg-bg-tertiary transition-colors"
+            onClick={() => setMode("journey")}
+            disabled={uniqueJourneys.length === 0}
+            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border-default bg-bg-primary text-body-sm text-text-primary hover:bg-bg-tertiary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <GitBranch size={14} className="text-[#3A2FAE]" />
             <div className="text-left">
-              <div className="font-medium">Add to journey</div>
-              <div className="text-[10px] text-text-tertiary">Spouse, partner</div>
+              <div className="font-medium">Add To Journey</div>
+              <div className="text-[10px] text-text-tertiary">
+                {uniqueJourneys.length > 0 ? "Join Existing Journey" : "No Journeys On Call"}
+              </div>
             </div>
           </button>
         </div>
-      ) : (
-        /* Search mode */
+      )}
+
+      {mode === "search" && (
         <div className="space-y-1">
           <div className="relative">
             <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary" />
@@ -776,7 +814,7 @@ function UnknownParticipantPill({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name, email, or phone…"
+              placeholder="Search by name, email, or phone..."
               className="w-full bg-bg-primary border border-border-default rounded-md pl-7 pr-8 py-1.5 text-caption text-text-primary placeholder:text-text-tertiary"
             />
             <button
@@ -790,9 +828,11 @@ function UnknownParticipantPill({
               <X size={12} />
             </button>
           </div>
-          {query.length >= 2 && (
-            <div className="bg-bg-primary border border-border-default rounded-md shadow-sm max-h-48 overflow-y-auto">
-              {results.map((c) => (
+          <div className="bg-bg-primary border border-border-default rounded-md shadow-sm max-h-48 min-h-[40px] overflow-y-auto">
+            {query.length < 2 ? (
+              <div className="px-3 py-2 text-caption text-text-tertiary">Type to search...</div>
+            ) : results.length > 0 ? (
+              results.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => void mapToContact(c.id)}
@@ -815,12 +855,11 @@ function UnknownParticipantPill({
                     </div>
                   )}
                 </button>
-              ))}
-              {results.length === 0 && (
-                <div className="px-3 py-2 text-caption text-text-tertiary">No matches found</div>
-              )}
-            </div>
-          )}
+              ))
+            ) : (
+              <div className="px-3 py-2 text-caption text-text-tertiary">No Matches Found</div>
+            )}
+          </div>
           {busy && (
             <div className="flex items-center gap-2 text-caption text-text-tertiary">
               <Loader2 size={12} className="animate-spin" /> Mapping...
@@ -829,7 +868,35 @@ function UnknownParticipantPill({
         </div>
       )}
 
-      {/* Add modals */}
+      {mode === "journey" && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">Select Journey</span>
+            <button onClick={() => setMode("actions")} className="text-caption text-nah-blue hover:underline">
+              Back
+            </button>
+          </div>
+          <div className="space-y-1">
+            {uniqueJourneys.map((j) => (
+              <button
+                key={j.journey_id}
+                onClick={() => void addToJourney(j.journey_id)}
+                disabled={busy}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-border-default bg-bg-primary text-body-sm text-text-primary hover:bg-[#EEEDFE] transition-colors disabled:opacity-50"
+              >
+                <GitBranch size={14} className="text-[#3A2FAE] flex-shrink-0" />
+                <div className="text-left flex-1 min-w-0">
+                  <div className="font-medium truncate">{j.journey_name}</div>
+                  {j.stage_name && <div className="text-[10px] text-text-tertiary">{j.stage_name}</div>}
+                </div>
+                {busy && <Loader2 size={12} className="animate-spin text-text-tertiary" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modals */}
       <AddProspectModal
         open={addModal === "prospect"}
         prefill={prefill}
@@ -840,7 +907,7 @@ function UnknownParticipantPill({
         }}
       />
       <AddRelatedContactModal
-        open={addModal === "related"}
+        open={addModal === "ecosystem"}
         primaryContactId={primaryContactId}
         primaryContactName={primaryContactName}
         callTerritorySlugs={callTerritories}
