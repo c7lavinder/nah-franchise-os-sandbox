@@ -111,9 +111,39 @@ export async function gradeCall(callId: string): Promise<GradeResult> {
     })
     .join("\n\n");
 
-  const prompt = `You are Scout, an expert franchise sales coach for New Again Houses. Grade this call using the rubric below.
+  // Determine call type slug for framing the prompt correctly
+  const { data: callTypeRow } = await supabase
+    .from("call_types")
+    .select("slug, name")
+    .eq("id", call.call_type_id)
+    .single();
+  const slug = callTypeRow?.slug ?? callTypeSlug ?? "unknown";
+  const callTypeName = callTypeRow?.name ?? "Call";
+
+  // Frame the grading persona based on call type — prevents sales-oriented
+  // language from bleeding into onboarding/coaching/group evaluations.
+  let persona: string;
+  if (slug === "onboarding_call") {
+    persona =
+      "You are Scout, an expert franchise onboarding specialist for New Again Houses. Grade this onboarding call — focus on whether the new franchisee was set up for success, not on sales conversion.";
+  } else if (slug === "coaching_call") {
+    persona =
+      "You are Scout, an expert franchise performance coach for New Again Houses. Grade this coaching call — focus on accountability, obstacle removal, and deal velocity, not on sales conversion.";
+  } else if (slug === "group_call" || slug === "cohort_call") {
+    persona =
+      "You are Scout, evaluating a group/cohort session for New Again Houses. Grade this session — focus on content quality, engagement, facilitation, and actionable takeaways.";
+  } else if (slug === "team_call") {
+    persona =
+      "You are Scout, evaluating an internal team meeting for New Again Houses. Grade this meeting — focus on decision quality, action clarity, and time management.";
+  } else {
+    persona =
+      "You are Scout, an expert franchise sales coach for New Again Houses. Grade this sales call using the rubric below.";
+  }
+
+  const prompt = `${persona}
 
 CALL CONTEXT:
+- Call Type: ${callTypeName}
 - Contact: ${contactName}
 - Pipeline stage: ${stageName || "Unknown"}
 - Duration: ${call.duration_seconds ? `${Math.round(call.duration_seconds / 60)} minutes` : "Unknown"}
