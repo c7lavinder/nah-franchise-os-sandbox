@@ -9,7 +9,7 @@ import { BASE_PATH } from "@/lib/base-path";
 const IS_PROD = process.env.NODE_ENV === "production";
 const COOKIE_PATH = BASE_PATH || "/";
 
-const ACCESS_TOKEN_NAME = "nah_access_token";
+const ACCESS_TOKEN_NAME = "jwt";
 
 /** Set the MasterSuite JWT cookie on a NextResponse */
 export function setAuthCookie(response: NextResponse, token: string): NextResponse {
