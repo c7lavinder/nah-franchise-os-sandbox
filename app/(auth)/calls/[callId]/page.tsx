@@ -7,12 +7,25 @@ import { apiFetch } from "@/lib/auth/api-fetch";
  * Tab content powered by CallDetailTabs component.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  RefreshCw,
+  AlertTriangle,
+  Search,
+  UserPlus,
+  MapPin,
+  GitBranch,
+  X,
+  Check,
+} from "lucide-react";
 import CallDetailTabs from "@/components/calls/CallDetailTabs";
 import CallOverrideControls from "@/components/calls/CallOverrideControls";
+import AddProspectModal from "@/components/pipeline/AddProspectModal";
+import AddRelatedContactModal from "@/components/calls/AddRelatedContactModal";
 
 interface TeamMember {
   id: string;
@@ -498,12 +511,31 @@ export default function CallDetailPage() {
             </>
           ) : null}
 
-          {/* Unknown participants */}
+          {/* Unknown participants — clickable inline mapping */}
           {call.unknownParticipants?.length > 0 && (
             <>
               <div className="w-px h-8 bg-border-default" />
-              <div className="text-[11px] text-text-tertiary">
-                Also present: {call.unknownParticipants.map((p) => p.name).join(", ")}
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
+                  Also present ({call.unknownParticipants.length})
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {call.unknownParticipants.map((p) => (
+                    <UnknownParticipantPill
+                      key={p.email || p.name}
+                      participant={p}
+                      callId={callId}
+                      rawParticipant={
+                        (call.rawParticipants ?? []).find((rp) => rp.email === p.email || rp.display_name === p.name) ??
+                        null
+                      }
+                      primaryContactId={call.contact_id}
+                      primaryContactName={call.contactName}
+                      callTerritories={(call.callTerritories ?? []).map((t) => t.ms_slug)}
+                      onMapped={() => void fetchDetail()}
+                    />
+                  ))}
+                </div>
               </div>
             </>
           )}
@@ -545,6 +577,280 @@ export default function CallDetailPage() {
         kbIntelItems={call.kb_intel_items ?? []}
         rubricGrade={rubricGrade}
         onRefresh={() => void fetchDetail()}
+      />
+    </div>
+  );
+}
+
+// ─── Inline participant mapping ───────────────────────────────────────────
+
+interface SearchResult {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  contactType?: string;
+}
+
+function UnknownParticipantPill({
+  participant,
+  callId,
+  rawParticipant,
+  primaryContactId,
+  primaryContactName,
+  callTerritories,
+  onMapped,
+}: {
+  participant: UnknownParticipant;
+  callId: string;
+  rawParticipant: RawParticipant | null;
+  primaryContactId: string | null;
+  primaryContactName: string | null;
+  callTerritories: string[];
+  onMapped: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [mode, setMode] = useState<"actions" | "search">("actions");
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [addModal, setAddModal] = useState<"prospect" | "related" | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const displayName = participant.name.includes("@")
+    ? participant.name
+        .split("@")[0]
+        .replace(/[._-]/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+    : participant.name;
+
+  const prefill = {
+    firstName: displayName.split(" ")[0],
+    lastName: displayName.split(" ").slice(1).join(" ") || undefined,
+    email: participant.email || undefined,
+  };
+
+  // Search contacts
+  useEffect(() => {
+    if (mode !== "search" || query.length < 2) {
+      setResults([]);
+      return;
+    }
+    if (debounce.current) clearTimeout(debounce.current);
+    debounce.current = setTimeout(async () => {
+      const res = await apiFetch(`/api/contacts/search?q=${encodeURIComponent(query)}&limit=8`);
+      if (res.ok) {
+        const data = await res.json();
+        setResults((data.contacts ?? data.results ?? []) as SearchResult[]);
+      }
+    }, 250);
+    return () => {
+      if (debounce.current) clearTimeout(debounce.current);
+    };
+  }, [mode, query]);
+
+  // Focus search input when switching to search mode
+  useEffect(() => {
+    if (mode === "search") inputRef.current?.focus();
+  }, [mode]);
+
+  async function mapToContact(contactId: string) {
+    if (!rawParticipant) return;
+    setBusy(true);
+    try {
+      // 1. Override the participant mapping
+      await apiFetch(`/api/calls/${callId}/override`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participants: [{ id: rawParticipant.id, contact_id: contactId }] }),
+      });
+      // 2. Attach email to the contact
+      if (participant.email) {
+        await apiFetch(`/api/contacts/${contactId}/emails`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: participant.email, label: "auto" }),
+        }).catch(() => {});
+      }
+      setDone(true);
+      setTimeout(() => onMapped(), 1500);
+    } catch {
+      /* silent */
+    }
+    setBusy(false);
+  }
+
+  if (done) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-success/10 text-success border border-success/30">
+        <Check size={12} /> {displayName} mapped
+      </span>
+    );
+  }
+
+  if (!expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="inline-flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-bg-tertiary text-text-tertiary hover:bg-[#FAEEDA] hover:text-[#854F0B] border border-dashed border-border-default hover:border-[#EAB308]/40 transition-colors"
+        title={`Click to map ${displayName}`}
+      >
+        <AlertTriangle size={10} />
+        {displayName}
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-full mt-1 bg-bg-secondary border border-border-default rounded-lg p-3 space-y-2">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-body-sm font-medium text-text-primary">{displayName}</span>
+          {participant.email && <span className="text-caption text-text-tertiary ml-1.5">{participant.email}</span>}
+        </div>
+        <button
+          onClick={() => {
+            setExpanded(false);
+            setMode("actions");
+            setQuery("");
+          }}
+          className="btn-ghost p-1"
+        >
+          <X size={12} />
+        </button>
+      </div>
+
+      {mode === "actions" ? (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setMode("search")}
+            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border-default bg-bg-primary text-body-sm text-text-primary hover:bg-bg-tertiary transition-colors"
+          >
+            <Search size={14} className="text-nah-blue" />
+            <div className="text-left">
+              <div className="font-medium">Search contacts</div>
+              <div className="text-[10px] text-text-tertiary">Find existing contact</div>
+            </div>
+          </button>
+          <button
+            onClick={() => setAddModal("prospect")}
+            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border-default bg-bg-primary text-body-sm text-text-primary hover:bg-bg-tertiary transition-colors"
+          >
+            <UserPlus size={14} className="text-success" />
+            <div className="text-left">
+              <div className="font-medium">New prospect</div>
+              <div className="text-[10px] text-text-tertiary">Create new contact</div>
+            </div>
+          </button>
+          <button
+            onClick={() => setAddModal("related")}
+            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border-default bg-bg-primary text-body-sm text-text-primary hover:bg-bg-tertiary transition-colors"
+          >
+            <MapPin size={14} className="text-nah-orange" />
+            <div className="text-left">
+              <div className="font-medium">Add to territory</div>
+              <div className="text-[10px] text-text-tertiary">Employee, contractor</div>
+            </div>
+          </button>
+          <button
+            onClick={() => setAddModal("related")}
+            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border-default bg-bg-primary text-body-sm text-text-primary hover:bg-bg-tertiary transition-colors"
+          >
+            <GitBranch size={14} className="text-[#3A2FAE]" />
+            <div className="text-left">
+              <div className="font-medium">Add to journey</div>
+              <div className="text-[10px] text-text-tertiary">Spouse, partner</div>
+            </div>
+          </button>
+        </div>
+      ) : (
+        /* Search mode */
+        <div className="space-y-1">
+          <div className="relative">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name, email, or phone…"
+              className="w-full bg-bg-primary border border-border-default rounded-md pl-7 pr-8 py-1.5 text-caption text-text-primary placeholder:text-text-tertiary"
+            />
+            <button
+              onClick={() => {
+                setMode("actions");
+                setQuery("");
+                setResults([]);
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary"
+            >
+              <X size={12} />
+            </button>
+          </div>
+          {query.length >= 2 && (
+            <div className="bg-bg-primary border border-border-default rounded-md shadow-sm max-h-48 overflow-y-auto">
+              {results.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => void mapToContact(c.id)}
+                  disabled={busy}
+                  className="w-full text-left px-3 py-2 text-body-sm hover:bg-bg-tertiary disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-text-primary font-medium">{c.name}</span>
+                    {c.contactType && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-tertiary font-medium whitespace-nowrap">
+                        {c.contactType}
+                      </span>
+                    )}
+                  </div>
+                  {(c.email || c.phone) && (
+                    <div className="text-caption text-text-tertiary truncate">
+                      {c.email ?? ""}
+                      {c.email && c.phone ? " · " : ""}
+                      {c.phone ?? ""}
+                    </div>
+                  )}
+                </button>
+              ))}
+              {results.length === 0 && (
+                <div className="px-3 py-2 text-caption text-text-tertiary">No matches found</div>
+              )}
+            </div>
+          )}
+          {busy && (
+            <div className="flex items-center gap-2 text-caption text-text-tertiary">
+              <Loader2 size={12} className="animate-spin" /> Mapping...
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Add modals */}
+      <AddProspectModal
+        open={addModal === "prospect"}
+        prefill={prefill}
+        onClose={() => setAddModal(null)}
+        onCreated={(contactId) => {
+          setAddModal(null);
+          if (contactId) void mapToContact(contactId);
+        }}
+      />
+      <AddRelatedContactModal
+        open={addModal === "related"}
+        primaryContactId={primaryContactId}
+        primaryContactName={primaryContactName}
+        callTerritorySlugs={callTerritories}
+        existingContactId={null}
+        prefill={prefill}
+        onClose={() => setAddModal(null)}
+        onCreated={(contactId) => {
+          setAddModal(null);
+          if (contactId) void mapToContact(contactId);
+        }}
       />
     </div>
   );
