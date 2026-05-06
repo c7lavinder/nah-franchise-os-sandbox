@@ -22,7 +22,6 @@ import type {
 } from "./types";
 import { retrieveFeedback } from "./feedback-retrieval";
 import { runSummary } from "./prompts/summary";
-import { runCoaching } from "./prompts/coaching";
 import { runNextSteps } from "./prompts/next-steps";
 import { runExtraction } from "./prompts/extraction";
 import { runKBIntelligence } from "./prompts/kb-intelligence";
@@ -135,9 +134,11 @@ export async function runPostCallAgent(
     );
   }
 
-  const [summaryRes, coachingRes, actionsRes, extractionsRes, kbRes, gradeRes] = await Promise.allSettled([
+  // Coaching section removed — the rubric grader (gradeCall) handles per-call-type
+  // scoring with configurable criteria. The old generic coaching used fixed dimensions
+  // (Discovery, Capital, etc.) that didn't vary by call type.
+  const [summaryRes, actionsRes, extractionsRes, kbRes, gradeRes] = await Promise.allSettled([
     extractionOnly ? Promise.resolve(null) : runSummary(context, MODELS.summary),
-    extractionOnly ? Promise.resolve(null) : runCoaching(context, MODELS.coaching),
     extractionOnly ? Promise.resolve(null) : runNextSteps(context, MODELS.nextSteps),
     isLargeGroupOrInternal ? Promise.resolve(null) : runExtraction(context, MODELS.extraction),
     extractionOnly ? Promise.resolve(null) : runKBIntelligence(context, MODELS.kbIntelligence),
@@ -154,7 +155,7 @@ export async function runPostCallAgent(
   ]);
 
   const summary = summaryRes.status === "fulfilled" ? summaryRes.value : null;
-  const coaching = coachingRes.status === "fulfilled" ? coachingRes.value : null;
+  const coaching = null; // Legacy — kept in writeResults signature for backwards compat
   const actions = actionsRes.status === "fulfilled" ? actionsRes.value : null;
   const extractions = extractionsRes.status === "fulfilled" ? extractionsRes.value : null;
   const kbIntelligence = kbRes.status === "fulfilled" ? kbRes.value : null;
@@ -165,8 +166,6 @@ export async function runPostCallAgent(
   if (!extractionOnly) {
     if (summaryRes.status === "rejected") errors.push(`summary: ${String(summaryRes.reason)}`);
     else if (!summary) errors.push("summary: returned null (parse failure)");
-    if (coachingRes.status === "rejected") errors.push(`coaching: ${String(coachingRes.reason)}`);
-    else if (!coaching) errors.push("coaching: returned null (parse failure)");
     if (actionsRes.status === "rejected") errors.push(`actions: ${String(actionsRes.reason)}`);
     else if (!actions) errors.push("actions: returned null (parse failure)");
     if (kbRes.status === "rejected") errors.push(`kb-intelligence: ${String(kbRes.reason)}`);
@@ -787,6 +786,9 @@ async function writeResults(
     callUpdate.ai_summary = results.summary.summary;
     callUpdate.summary_bullets = results.summary.bullets.length > 0 ? results.summary.bullets : null;
     callUpdate.ai_summary_generated_at = now;
+    if (results.summary.generatedTitle) {
+      callUpdate.title = results.summary.generatedTitle;
+    }
   }
   if (results.coaching) {
     callUpdate.coaching_score = results.coaching.score;

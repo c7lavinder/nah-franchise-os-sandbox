@@ -69,6 +69,7 @@ export interface SummaryResult {
   summary: string;
   bullets: string[];
   classifiedCallTypeSlug?: string | null;
+  generatedTitle?: string | null;
 }
 
 export interface CoachingResult {

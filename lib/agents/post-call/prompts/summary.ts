@@ -43,6 +43,13 @@ IMPORTANT classification rules:
 - If ALL participants are NAH team (no prospects, no franchisees) → team_call
 - Look at the CONVERSATION CONTENT, not just the participant names. What are they actually discussing?
 
+TITLE INSTRUCTIONS:
+Generate a short, specific title (5-10 words) that captures what THIS call was actually about.
+Do NOT use generic patterns like "Intro Call w/ Name" or "Coaching w/ Name".
+Good examples: "SBA funding timeline & territory selection", "First contact — exploring NAH franchise model", "Chattanooga launch prep & contractor hiring".
+Bad examples: "Intro Call w/ John Smith", "Coaching Call", "Meeting with prospect".
+Include participant names only when they add meaning (e.g. "Kevin & Kylie Kremer partnership structure").
+
 SUMMARY INSTRUCTIONS:
 Write exactly ONE paragraph — 4 to 6 sentences maximum. Executive briefing, not a report.
 Pack the most important information: who the person is, where they are in the process, what was discussed, key signals, what was committed, anything critical missed.
@@ -57,6 +64,7 @@ Generate exactly 3 bullet points — most critical takeaways, each under 12 word
 
 Return your response in this exact format (no other text):
 <call_type>[slug from the list above]</call_type>
+<title>[Your specific, descriptive title here]</title>
 <summary>
 [Your full paragraph summary here]
 </summary>
@@ -82,6 +90,10 @@ export function parseResult(rawText: string): SummaryResult | null {
   const typeMatch = text.match(/<call_type>([\s\S]*?)<\/call_type>/);
   const classifiedType = typeMatch ? typeMatch[1].trim() : null;
 
+  // Parse title
+  const titleMatch = text.match(/<title>([\s\S]*?)<\/title>/);
+  const generatedTitle = titleMatch ? titleMatch[1].trim() : null;
+
   // Parse structured <summary> + <bullets> format
   const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
   const bulletsMatch = text.match(/<bullets>([\s\S]*?)<\/bullets>/);
@@ -102,21 +114,22 @@ export function parseResult(rawText: string): SummaryResult | null {
 
   // If structured format worked, return it
   if (summary) {
-    return { summary, bullets, classifiedCallTypeSlug: classifiedType };
+    return { summary, bullets, classifiedCallTypeSlug: classifiedType, generatedTitle };
   }
 
   // Fallback: handle legacy JSON format
   if (text.startsWith("{")) {
     try {
       const data = JSON.parse(text) as { summary?: string };
-      if (data.summary) return { summary: data.summary, bullets: [], classifiedCallTypeSlug: classifiedType };
+      if (data.summary)
+        return { summary: data.summary, bullets: [], classifiedCallTypeSlug: classifiedType, generatedTitle };
     } catch {
       /* not JSON, treat as plain text */
     }
   }
 
   // Fallback: treat entire response as plain text summary
-  return { summary: text, bullets: [], classifiedCallTypeSlug: classifiedType };
+  return { summary: text, bullets: [], classifiedCallTypeSlug: classifiedType, generatedTitle };
 }
 
 export async function runSummary(ctx: CallContext, model?: string): Promise<SummaryResult | null> {

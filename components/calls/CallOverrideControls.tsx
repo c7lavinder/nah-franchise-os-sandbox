@@ -493,6 +493,8 @@ function ReassignButton(props: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingAdd, setPendingAdd] = useState<PendingAdd | null>(null);
+  const [successFlash, setSuccessFlash] = useState<string | null>(null);
+  const [quickAdding, setQuickAdding] = useState<string | null>(null); // participant id being quick-added
 
   const orphanCount = useMemo(
     () => props.participants.filter((p) => p.role !== "nah_team" && !p.contact_id).length,
@@ -764,6 +766,113 @@ function ReassignButton(props: Props) {
     }
   }
 
+  // Group mapped contacts by their selected journey for the journey-centric view.
+  const journeyGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      { journeyId: string; journeyName: string; stageName: string | null; contacts: ParticipantState[] }
+    >();
+    for (const r of mappedPrimaries) {
+      let placed = false;
+      for (const j of r.journeys) {
+        const jpsIds = new Set(j.pipeline_states.map((s) => s.id));
+        const hasSelected = r.selectedJps.some((id) => jpsIds.has(id));
+        if (!hasSelected) continue;
+        if (!groups.has(j.journey_id)) {
+          const bestJps = j.pipeline_states.find((s) => r.selectedJps.includes(s.id));
+          groups.set(j.journey_id, {
+            journeyId: j.journey_id,
+            journeyName: j.journey_name,
+            stageName: bestJps?.stage_name ?? null,
+            contacts: [],
+          });
+        }
+        groups.get(j.journey_id)!.contacts.push(r);
+        placed = true;
+        break; // one group per contact (use first matching journey)
+      }
+      if (!placed) {
+        // Contact has no journey — goes into "unlinked" bucket
+        const key = "__no_journey__";
+        if (!groups.has(key))
+          groups.set(key, { journeyId: key, journeyName: "No journey linked", stageName: null, contacts: [] });
+        groups.get(key)!.contacts.push(r);
+      }
+    }
+    return Array.from(groups.values());
+  }, [mappedPrimaries]);
+
+  /** Quick-add: create contact from participant info, add to a journey, and map the participant — all in one click. */
+  async function quickAddToJourney(participant: ParticipantState, journeyId: string, journeyName: string) {
+    setQuickAdding(participant.id);
+    setError(null);
+    try {
+      // 1. Create the contact
+      const prefill = splitNameForPrefill(participant);
+      const createRes = await apiFetch("/api/contacts/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name: prefill.firstName ?? "",
+          last_name: prefill.lastName ?? "",
+          email: prefill.email ?? "",
+          phone: prefill.phone ?? "",
+          opportunity_source: "Call Mapping",
+        }),
+      });
+      if (!createRes.ok) throw new Error("Failed to create contact");
+      const { id: newContactId } = await createRes.json();
+      const displayName = [prefill.firstName, prefill.lastName].filter(Boolean).join(" ").trim();
+
+      // 2. Add to journey as co_primary
+      await apiFetch(`/api/journeys/${journeyId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: newContactId, role: "co_primary" }),
+      });
+
+      // 3. Attach email to contact_emails
+      if (participant.email) {
+        void attachEmailToContact(newContactId, participant.email);
+      }
+
+      // 4. Fetch territories + journeys for the new contact
+      const [ownedRaw, journeys] = await Promise.all([
+        fetchContactTerritories(newContactId),
+        fetchContactJourneys(newContactId),
+      ]);
+      const owned = ownedRaw.length > 0 ? ownedRaw : deriveTerritoriesFromJourneys(journeys);
+      const territorySlugs = owned.map((t) => t.ms_slug);
+      const selectedJps = journeys.map((j) => autoPickJps(j, territorySlugs)).filter((id): id is string => !!id);
+
+      // 5. Update local state — map the participant
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === participant.id
+            ? {
+                ...r,
+                contactId: newContactId,
+                contactName: displayName || null,
+                role: "prospect" as const,
+                ownedTerritories: owned,
+                selectedTerritories: territorySlugs,
+                journeys,
+                selectedJps,
+              }
+            : r
+        )
+      );
+
+      // 6. Show success
+      setSuccessFlash(`${displayName || "Contact"} added to ${journeyName}`);
+      setTimeout(() => setSuccessFlash(null), 4000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add contact");
+    } finally {
+      setQuickAdding(null);
+    }
+  }
+
   return (
     <>
       <button
@@ -800,175 +909,249 @@ function ReassignButton(props: Props) {
           }
         >
           <div className="space-y-4">
-            <div className="text-[11px] leading-relaxed text-text-tertiary bg-bg-tertiary rounded-md px-3 py-2">
-              Each participant brings their own territories and journeys to the call.
-              <br />
-              <span className="font-medium text-text-secondary">Territory</span> = where they&apos;re tied in (owner or
-              ecosystem member). <span className="font-medium text-text-secondary">Journey</span> = the franchise
-              pipeline they&apos;re part of. Pick which of each this call should link to.
-            </div>
+            {/* Success flash */}
+            {successFlash && (
+              <div className="flex items-center gap-2 rounded-md bg-success/10 border border-success/30 px-3 py-2 text-body-sm text-success font-medium">
+                <span className="text-success">✓</span> {successFlash}
+              </div>
+            )}
+
             <ReclassifyParticipantsButton callId={props.callId} onDone={props.onChange} />
 
+            {/* ── Unmapped participants ── */}
             {orphans.length > 0 && (
               <section>
                 <div className="text-[10px] uppercase tracking-wider text-danger font-medium mb-1.5">
                   Unmapped ({orphans.length})
                 </div>
                 <div className="space-y-1.5">
-                  {orphans.map((p) => (
-                    <ParticipantRow
-                      key={p.id}
-                      row={p}
-                      isPrimary={false}
-                      callPrimaryTerritory={primaryTerritory}
-                      onContactChange={async (contactId, contactName, territory) => {
-                        setRows((prev) =>
-                          prev.map((r) =>
-                            r.id === p.id
-                              ? {
-                                  ...r,
-                                  contactId,
-                                  contactName,
-                                  territorySlug: territory,
-                                  ownedTerritories: [],
-                                  selectedTerritories: [],
-                                  journeys: [],
-                                  selectedJps: [],
-                                }
-                              : r
-                          )
-                        );
-                        if (contactId) {
-                          // Push the participant's email onto the contact so
-                          // the mapping leaves a breadcrumb even if the rep
-                          // never clicked into the contact profile.
-                          if (p.email) {
-                            void attachEmailToContact(contactId, p.email);
+                  {orphans.map((p) => {
+                    // Available journeys on this call for the quick-add flow
+                    const availableJourneys = unionSelectedJps
+                      .filter((j) => j.journey_id !== "__no_journey__")
+                      .filter((j, i, arr) => arr.findIndex((a) => a.journey_id === j.journey_id) === i);
+
+                    return (
+                      <div key={p.id} className="bg-bg-primary border border-border-default rounded-md p-2.5 space-y-2">
+                        {/* Participant identity */}
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-body-sm font-medium text-text-primary truncate">
+                              {p.display_name?.includes("@") || !p.display_name
+                                ? (p.email ?? p.display_name ?? "Unknown")
+                                : p.display_name}
+                            </div>
+                            {p.email && p.display_name !== p.email && (
+                              <div className="text-caption text-text-tertiary truncate">{p.email}</div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Quick-add to journey buttons */}
+                        {availableJourneys.length > 0 && (
+                          <div className="space-y-1">
+                            <div className="text-[10px] text-text-tertiary font-medium">Quick add to journey:</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {availableJourneys.map((j) => (
+                                <button
+                                  key={j.journey_id}
+                                  onClick={() => quickAddToJourney(p, j.journey_id, j.journey_name)}
+                                  disabled={quickAdding === p.id}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-[#EEEDFE] text-[#3A2FAE] hover:bg-[#D7D4FB] transition-colors disabled:opacity-50"
+                                >
+                                  {quickAdding === p.id ? (
+                                    <Loader2 size={10} className="animate-spin" />
+                                  ) : (
+                                    <UserPlus size={10} />
+                                  )}
+                                  {j.journey_name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Existing search / create flow */}
+                        <ParticipantRow
+                          row={p}
+                          isPrimary={false}
+                          callPrimaryTerritory={primaryTerritory}
+                          onContactChange={async (contactId, contactName, territory) => {
+                            setRows((prev) =>
+                              prev.map((r) =>
+                                r.id === p.id
+                                  ? {
+                                      ...r,
+                                      contactId,
+                                      contactName,
+                                      territorySlug: territory,
+                                      ownedTerritories: [],
+                                      selectedTerritories: [],
+                                      journeys: [],
+                                      selectedJps: [],
+                                    }
+                                  : r
+                              )
+                            );
+                            if (contactId) {
+                              if (p.email) {
+                                void attachEmailToContact(contactId, p.email);
+                              }
+                              const [ownedRaw, journeys] = await Promise.all([
+                                fetchContactTerritories(contactId),
+                                fetchContactJourneys(contactId),
+                              ]);
+                              const owned = ownedRaw.length > 0 ? ownedRaw : deriveTerritoriesFromJourneys(journeys);
+                              const territorySlugs = owned.map((t) => t.ms_slug);
+                              const selectedJps = journeys
+                                .map((j) => autoPickJps(j, territorySlugs))
+                                .filter((id): id is string => !!id);
+                              setRows((prev) =>
+                                prev.map((r) =>
+                                  r.id === p.id
+                                    ? {
+                                        ...r,
+                                        ownedTerritories: owned,
+                                        selectedTerritories: territorySlugs,
+                                        journeys,
+                                        selectedJps,
+                                      }
+                                    : r
+                                )
+                              );
+                              setSuccessFlash(`${contactName ?? "Contact"} mapped`);
+                              setTimeout(() => setSuccessFlash(null), 3000);
+                            }
+                          }}
+                          onTerritoriesChange={(slugs) => setParticipantTerritories(p.id, slugs)}
+                          onJpsChange={(ids) => setParticipantJps(p.id, ids)}
+                          onPrimaryChange={() => setPrimaryContactId(p.contactId)}
+                          onPrimaryTerritoryChange={(slug) => setPrimaryTerritory(slug)}
+                          onPrimaryJpsChange={(id) => setPrimaryJps(id)}
+                          callPrimaryJps={primaryJps}
+                          onRequestAdd={(kind) =>
+                            setPendingAdd({ participantId: p.id, kind, prefill: splitNameForPrefill(p) })
                           }
-                          const [ownedRaw, journeys] = await Promise.all([
-                            fetchContactTerritories(contactId),
-                            fetchContactJourneys(contactId),
-                          ]);
-                          const owned = ownedRaw.length > 0 ? ownedRaw : deriveTerritoriesFromJourneys(journeys);
-                          const territorySlugs = owned.map((t) => t.ms_slug);
-                          const selectedJps = journeys
-                            .map((j) => autoPickJps(j, territorySlugs))
-                            .filter((id): id is string => !!id);
-                          setRows((prev) =>
-                            prev.map((r) =>
-                              r.id === p.id
-                                ? {
-                                    ...r,
-                                    ownedTerritories: owned,
-                                    selectedTerritories: territorySlugs,
-                                    journeys,
-                                    selectedJps,
-                                  }
-                                : r
-                            )
-                          );
-                        }
-                      }}
-                      onTerritoriesChange={(slugs) => setParticipantTerritories(p.id, slugs)}
-                      onJpsChange={(ids) => setParticipantJps(p.id, ids)}
-                      onPrimaryChange={() => setPrimaryContactId(p.contactId)}
-                      onPrimaryTerritoryChange={(slug) => setPrimaryTerritory(slug)}
-                      onPrimaryJpsChange={(id) => setPrimaryJps(id)}
-                      callPrimaryJps={primaryJps}
-                      onRequestAdd={(kind) =>
-                        setPendingAdd({ participantId: p.id, kind, prefill: splitNameForPrefill(p) })
-                      }
-                    />
-                  ))}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             )}
 
-            {mappedPrimaries.length > 0 && (
-              <section>
-                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1.5">
-                  Mapped contacts ({mappedPrimaries.length})
-                </div>
-                <div className="space-y-1.5">
-                  {mappedPrimaries.map((p) => (
-                    <ParticipantRow
-                      key={p.id}
-                      row={p}
-                      extraMateEmails={mappedMateEmails.get(p.contactId!) ?? []}
-                      isPrimary={primaryContactId === p.contactId}
-                      callPrimaryTerritory={primaryTerritory}
-                      onContactChange={async (contactId, contactName, territory) => {
-                        // Apply to every row sharing the old contactId so the
-                        // collapsed group moves together.
-                        const oldContactId = p.contactId;
-                        const emailsToAttach = rows
-                          .filter((r) => r.contactId === oldContactId && r.email)
-                          .map((r) => r.email!);
-                        setRows((prev) =>
-                          prev.map((r) =>
-                            r.contactId === oldContactId
-                              ? {
-                                  ...r,
-                                  contactId,
-                                  contactName,
-                                  territorySlug: territory,
-                                  ownedTerritories: [],
-                                  selectedTerritories: [],
-                                  journeys: [],
-                                  selectedJps: [],
+            {/* ── Journey-centric mapped section ── */}
+            {journeyGroups.length > 0 && (
+              <section className="space-y-3">
+                {journeyGroups.map((group) => (
+                  <div key={group.journeyId} className="border border-border-default rounded-lg overflow-hidden">
+                    {/* Journey header */}
+                    <div
+                      className={`flex items-center gap-2 px-3 py-2 ${
+                        group.journeyId === "__no_journey__"
+                          ? "bg-[#FAEEDA] border-b border-[#EF9F27]/30"
+                          : "bg-[#EEEDFE] border-b border-[#3A2FAE]/20"
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <span
+                          className={`text-body-sm font-medium ${
+                            group.journeyId === "__no_journey__" ? "text-[#854F0B]" : "text-[#3A2FAE]"
+                          }`}
+                        >
+                          {group.journeyName}
+                        </span>
+                        {group.stageName && (
+                          <span className="text-[10px] text-text-tertiary ml-1.5">· {group.stageName}</span>
+                        )}
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/50 text-text-tertiary">
+                        {group.contacts.length} contact{group.contacts.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    {/* Contacts within this journey */}
+                    <div className="divide-y divide-border-default">
+                      {group.contacts.map((p) => (
+                        <div key={p.id} className="p-2">
+                          <ParticipantRow
+                            row={p}
+                            extraMateEmails={mappedMateEmails.get(p.contactId!) ?? []}
+                            isPrimary={primaryContactId === p.contactId}
+                            callPrimaryTerritory={primaryTerritory}
+                            onContactChange={async (contactId, contactName, territory) => {
+                              const oldContactId = p.contactId;
+                              const emailsToAttach = rows
+                                .filter((r) => r.contactId === oldContactId && r.email)
+                                .map((r) => r.email!);
+                              setRows((prev) =>
+                                prev.map((r) =>
+                                  r.contactId === oldContactId
+                                    ? {
+                                        ...r,
+                                        contactId,
+                                        contactName,
+                                        territorySlug: territory,
+                                        ownedTerritories: [],
+                                        selectedTerritories: [],
+                                        journeys: [],
+                                        selectedJps: [],
+                                      }
+                                    : r
+                                )
+                              );
+                              if (contactId) {
+                                for (const e of emailsToAttach) {
+                                  void attachEmailToContact(contactId, e);
                                 }
-                              : r
-                          )
-                        );
-                        if (contactId) {
-                          for (const e of emailsToAttach) {
-                            void attachEmailToContact(contactId, e);
-                          }
-                          const [ownedRaw, journeys] = await Promise.all([
-                            fetchContactTerritories(contactId),
-                            fetchContactJourneys(contactId),
-                          ]);
-                          const owned = ownedRaw.length > 0 ? ownedRaw : deriveTerritoriesFromJourneys(journeys);
-                          const territorySlugs = owned.map((t) => t.ms_slug);
-                          const selectedJps = journeys
-                            .map((j) => autoPickJps(j, territorySlugs))
-                            .filter((id): id is string => !!id);
-                          setRows((prev) =>
-                            prev.map((r) =>
-                              r.contactId === contactId
-                                ? {
-                                    ...r,
-                                    ownedTerritories: owned,
-                                    selectedTerritories: territorySlugs,
-                                    journeys,
-                                    selectedJps,
-                                  }
-                                : r
-                            )
-                          );
-                        }
-                      }}
-                      onTerritoriesChange={(slugs) => {
-                        // Propagate to every row in this contact group.
-                        setRows((prev) =>
-                          prev.map((r) => (r.contactId === p.contactId ? { ...r, selectedTerritories: slugs } : r))
-                        );
-                      }}
-                      onJpsChange={(ids) => {
-                        setRows((prev) =>
-                          prev.map((r) => (r.contactId === p.contactId ? { ...r, selectedJps: ids } : r))
-                        );
-                      }}
-                      onPrimaryChange={() => setPrimaryContactId(p.contactId)}
-                      onPrimaryTerritoryChange={(slug) => setPrimaryTerritory(slug)}
-                      onPrimaryJpsChange={(id) => setPrimaryJps(id)}
-                      callPrimaryJps={primaryJps}
-                      onRequestAdd={(kind) =>
-                        setPendingAdd({ participantId: p.id, kind, prefill: splitNameForPrefill(p) })
-                      }
-                    />
-                  ))}
-                </div>
+                                const [ownedRaw, journeys] = await Promise.all([
+                                  fetchContactTerritories(contactId),
+                                  fetchContactJourneys(contactId),
+                                ]);
+                                const owned = ownedRaw.length > 0 ? ownedRaw : deriveTerritoriesFromJourneys(journeys);
+                                const territorySlugs = owned.map((t) => t.ms_slug);
+                                const selectedJps = journeys
+                                  .map((j) => autoPickJps(j, territorySlugs))
+                                  .filter((id): id is string => !!id);
+                                setRows((prev) =>
+                                  prev.map((r) =>
+                                    r.contactId === contactId
+                                      ? {
+                                          ...r,
+                                          ownedTerritories: owned,
+                                          selectedTerritories: territorySlugs,
+                                          journeys,
+                                          selectedJps,
+                                        }
+                                      : r
+                                  )
+                                );
+                              }
+                            }}
+                            onTerritoriesChange={(slugs) => {
+                              setRows((prev) =>
+                                prev.map((r) =>
+                                  r.contactId === p.contactId ? { ...r, selectedTerritories: slugs } : r
+                                )
+                              );
+                            }}
+                            onJpsChange={(ids) => {
+                              setRows((prev) =>
+                                prev.map((r) => (r.contactId === p.contactId ? { ...r, selectedJps: ids } : r))
+                              );
+                            }}
+                            onPrimaryChange={() => setPrimaryContactId(p.contactId)}
+                            onPrimaryTerritoryChange={(slug) => setPrimaryTerritory(slug)}
+                            onPrimaryJpsChange={(id) => setPrimaryJps(id)}
+                            callPrimaryJps={primaryJps}
+                            onRequestAdd={(kind) =>
+                              setPendingAdd({ participantId: p.id, kind, prefill: splitNameForPrefill(p) })
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </section>
             )}
 

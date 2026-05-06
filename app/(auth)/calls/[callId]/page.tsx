@@ -176,6 +176,7 @@ export default function CallDetailPage() {
   const [profileFieldCount, setProfileFieldCount] = useState(0);
   const [rubricGrade, setRubricGrade] = useState<RubricGrade | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const fetchDetail = useCallback(async () => {
@@ -287,8 +288,16 @@ export default function CallDetailPage() {
             participants={call.rawParticipants ?? []}
             onChange={() => void fetchDetail()}
           />
-          <button onClick={() => void fetchDetail()} className="btn-ghost p-1.5 flex-shrink-0">
-            <RefreshCw size={14} />
+          <button
+            onClick={async () => {
+              setRefreshing(true);
+              await fetchDetail();
+              setRefreshing(false);
+            }}
+            disabled={refreshing}
+            className="btn-ghost p-1.5 flex-shrink-0"
+          >
+            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
           </button>
         </div>
 
@@ -550,7 +559,9 @@ function initials(name: string): string {
 }
 
 function getPlatformLabel(source: string | null): string {
-  if (source === "read_ai") return "Google Meet";
+  if (source === "read_ai" || source === "upload") return "Google Meet";
+  if (source === "ghl_calendar") return "GHL Calendar";
+  if (source === "manual") return "Manual Entry";
   return "Phone Call";
 }
 

@@ -65,7 +65,7 @@ export async function processGroupCall(payload: ReadAIWebhookPayload, classified
           ? Math.round((new Date(payload.end_time).getTime() - new Date(payload.start_time).getTime()) / 1000)
           : null,
       raw_transcript: formatTranscript(payload.transcript, payload.participants),
-      source: "upload",
+      source: "read_ai",
       status: "completed",
       participant_count: payload.participants?.length ?? 0,
       hosted_by_user_id: null,

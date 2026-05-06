@@ -62,7 +62,7 @@ export async function processCoachingCall(payload: ReadAIWebhookPayload, classif
           ? Math.round((new Date(payload.end_time).getTime() - new Date(payload.start_time).getTime()) / 1000)
           : null,
       raw_transcript: formatTranscript(payload.transcript, payload.participants),
-      source: "upload",
+      source: "read_ai",
       status: "completed",
       hosted_by_user_id: classified.coach_user_id,
     })

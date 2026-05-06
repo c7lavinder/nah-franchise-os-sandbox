@@ -3,40 +3,13 @@
 import { useState, useMemo } from "react";
 import { ExternalLink, Video, Loader2, Copy, ChevronDown, ChevronUp } from "lucide-react";
 
-interface DimensionScores {
-  discovery: number;
-  capital: number;
-  relationship: number;
-  process_clarity: number;
-  objection_surfacing: number;
-  momentum: number;
-}
-
-interface CoachingData {
-  score: number;
-  label: string;
-  went_well: string[];
-  watch_out: string[];
-  next_call_prep: string;
-  dimension_scores?: DimensionScores;
-}
-
-const DIMENSIONS: { key: keyof DimensionScores; label: string; max: number }[] = [
-  { key: "discovery", label: "Discovery", max: 20 },
-  { key: "capital", label: "Capital", max: 20 },
-  { key: "relationship", label: "Relationship", max: 15 },
-  { key: "objection_surfacing", label: "Objection Surfacing", max: 15 },
-  { key: "process_clarity", label: "Process Clarity", max: 15 },
-  { key: "momentum", label: "Momentum", max: 15 },
-];
-
 interface CallOverviewTabProps {
   callId: string;
   aiSummary: string | null;
   summaryBullets: string[] | null;
   aiSummaryGeneratedAt: string | null;
   coachingScore: number | null;
-  coachingData: CoachingData | null;
+  coachingData: unknown;
   coachingGeneratedAt: string | null;
   rawTranscript: string | null;
   hasTranscript: boolean;
@@ -81,23 +54,6 @@ function gradeColor(grade: string): string {
     default:
       return "text-danger";
   }
-}
-
-function ScoreCircle({ score }: { score: number }) {
-  const color =
-    score >= 80
-      ? "text-success border-success/30 bg-success/5"
-      : score >= 60
-        ? "text-nah-blue border-nah-blue/30 bg-nah-blue/5"
-        : score >= 40
-          ? "text-warning border-warning/30 bg-warning/5"
-          : "text-danger border-danger/30 bg-danger/5";
-
-  return (
-    <div className={`w-16 h-16 rounded-full border-2 flex items-center justify-center ${color}`}>
-      <span className="text-xl font-bold">{score}</span>
-    </div>
-  );
 }
 
 export default function CallOverviewTab(props: CallOverviewTabProps) {
@@ -186,137 +142,8 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
         )}
       </div>
 
-      {/* Section B — Coaching */}
-      <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-        <h3 className="text-overline text-text-tertiary tracking-wider mb-3">COACHING</h3>
-        {state === "complete" && props.coachingData && props.coachingScore !== null ? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <ScoreCircle score={props.coachingScore} />
-              <div>
-                <p className="text-body-sm font-medium text-text-primary">{props.coachingData.label}</p>
-                {props.coachingGeneratedAt && (
-                  <p className="text-[10px] text-text-tertiary">
-                    Scout &middot;{" "}
-                    {new Date(props.coachingGeneratedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Dimension score bars */}
-            {props.coachingData.dimension_scores && (
-              <div className="grid grid-cols-2 gap-x-5 gap-y-2">
-                {DIMENSIONS.map((dim) => {
-                  const score = props.coachingData!.dimension_scores![dim.key] ?? 0;
-                  const pct = Math.round((score / dim.max) * 100);
-                  const barColor = pct >= 75 ? "bg-success" : pct >= 45 ? "bg-warning" : "bg-danger";
-                  const textColor = pct >= 75 ? "text-success" : pct >= 45 ? "text-warning" : "text-danger";
-                  return (
-                    <div key={dim.key} className="flex items-center gap-2">
-                      <span className="text-[11px] text-text-secondary min-w-[110px]">{dim.label}</span>
-                      <div className="flex-1 h-[5px] bg-bg-tertiary rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className={`text-[11px] font-medium min-w-[32px] text-right ${textColor}`}>
-                        {score}/{dim.max}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Side-by-side panels: What went well + Watch out for */}
-            {(props.coachingData.went_well?.length > 0 || props.coachingData.watch_out?.length > 0) && (
-              <div className="grid grid-cols-2 gap-3">
-                {/* Left — What went well */}
-                <div className="rounded-lg p-3" style={{ background: "#EAF3DE", border: "0.5px solid #97C459" }}>
-                  <p className="text-[10px] font-medium uppercase tracking-wider mb-2" style={{ color: "#3B6D11" }}>
-                    What went well
-                  </p>
-                  {props.coachingData.went_well?.map((item, i) => (
-                    <div key={i} className="flex items-start gap-2 mb-2 last:mb-0">
-                      <div
-                        className="w-[5px] h-[5px] rounded-full mt-[5px] flex-shrink-0"
-                        style={{ background: "#3B6D11" }}
-                      />
-                      <span className="text-[12px] leading-relaxed" style={{ color: "#27500A" }}>
-                        {item}
-                      </span>
-                    </div>
-                  ))}
-                  {(!props.coachingData.went_well || props.coachingData.went_well.length === 0) && (
-                    <span className="text-[12px]" style={{ color: "#3B6D11", opacity: 0.5 }}>
-                      &mdash;
-                    </span>
-                  )}
-                </div>
-
-                {/* Right — Watch out for */}
-                <div className="rounded-lg p-3" style={{ background: "#FAEEDA", border: "0.5px solid #EF9F27" }}>
-                  <p className="text-[10px] font-medium uppercase tracking-wider mb-2" style={{ color: "#854F0B" }}>
-                    Watch out for
-                  </p>
-                  {props.coachingData.watch_out?.map((item, i) => (
-                    <div key={i} className="flex items-start gap-2 mb-2 last:mb-0">
-                      <div
-                        className="w-[5px] h-[5px] rounded-full mt-[5px] flex-shrink-0"
-                        style={{ background: "#854F0B" }}
-                      />
-                      <span className="text-[12px] leading-relaxed" style={{ color: "#633806" }}>
-                        {item}
-                      </span>
-                    </div>
-                  ))}
-                  {(!props.coachingData.watch_out || props.coachingData.watch_out.length === 0) && (
-                    <span className="text-[12px]" style={{ color: "#854F0B", opacity: 0.5 }}>
-                      &mdash;
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* For next call — full width blue accent */}
-            {props.coachingData.next_call_prep && (
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{ color: "#185FA5" }}>
-                  For next call
-                </p>
-                <div
-                  className="text-[12px] leading-relaxed p-3"
-                  style={{
-                    borderLeft: "3px solid #378ADD",
-                    background: "#E6F1FB",
-                    color: "#0C447C",
-                    borderRadius: "0 8px 8px 0",
-                  }}
-                >
-                  {props.coachingData.next_call_prep}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : state === "generating" ? (
-          <div className="flex items-center gap-2 text-body-sm text-text-tertiary">
-            <Loader2 size={14} className="animate-spin" />
-            Scout is generating coaching insights...
-          </div>
-        ) : !props.hasTranscript ? (
-          <p className="text-body-sm text-text-tertiary italic">No transcript available yet.</p>
-        ) : props.aiSummaryGeneratedAt ? (
-          <p className="text-body-sm text-text-tertiary">Coaching data was not generated for this call.</p>
-        ) : (
-          <div className="flex items-center gap-2 text-body-sm text-text-tertiary">
-            <Loader2 size={14} className="animate-spin" />
-            Preparing analysis...
-          </div>
-        )}
-      </div>
-
-      {/* Section B2 — Rubric Grade (per-criterion breakdown) */}
-      {props.rubricGrade && props.rubricGrade.criterion_scores && props.rubricGrade.criterion_scores.length > 0 && (
+      {/* Section B — Rubric Grade (per-criterion breakdown) */}
+      {props.rubricGrade && props.rubricGrade.criterion_scores && props.rubricGrade.criterion_scores.length > 0 ? (
         <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-overline text-text-tertiary tracking-wider">RUBRIC GRADE</h3>
@@ -413,14 +240,24 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
             </div>
           )}
         </div>
-      )}
+      ) : state === "generating" ? (
+        <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+          <h3 className="text-overline text-text-tertiary tracking-wider mb-3">GRADE</h3>
+          <div className="flex items-center gap-2 text-body-sm text-text-tertiary">
+            <Loader2 size={14} className="animate-spin" />
+            Scout is grading this call...
+          </div>
+        </div>
+      ) : null}
 
       {/* Section C — Transcript */}
       <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <h3 className="text-overline text-text-tertiary tracking-wider">TRANSCRIPT</h3>
-            {props.source === "read_ai" && <span className="text-[10px] text-text-tertiary">From Read.ai</span>}
+            {(props.source === "read_ai" || props.source === "upload") && (
+              <span className="text-[10px] text-text-tertiary">From Read.ai</span>
+            )}
           </div>
           {parsedTranscript.length > 0 && (
             <button
