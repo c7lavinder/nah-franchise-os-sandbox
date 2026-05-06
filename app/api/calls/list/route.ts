@@ -11,7 +11,10 @@ import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
   const callTypeId = searchParams.get("call_type_id");
@@ -30,20 +33,25 @@ export async function GET(request: NextRequest) {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(rawContactId)) {
       const { data: localRow } = await supabase
-        .from("contacts").select("id").eq("ghl_contact_id", rawContactId).maybeSingle();
+        .from("contacts")
+        .select("id")
+        .eq("ghl_contact_id", rawContactId)
+        .maybeSingle();
       contactId = localRow?.id ?? null;
     }
   }
 
   let query = supabase
     .from("calls")
-    .select(`
+    .select(
+      `
       id, contact_id, call_type_id, territory_ms_slug,
       scheduled_at, started_at, ended_at, duration_seconds,
       hosted_by_user_id, status, created_at,
       title, source, read_ai_session_id,
       raw_transcript, ai_summary_generated_at
-    `)
+    `
+    )
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
@@ -72,13 +80,22 @@ export async function GET(request: NextRequest) {
       ? supabase.from("contacts").select("id, first_name, last_name").in("id", contactIds)
       : Promise.resolve({ data: [] }),
     userIds.length > 0
-      ? supabase.from("users").select("id, full_name, email").in("id", userIds as string[])
+      ? supabase
+          .from("users")
+          .select("id, full_name, email")
+          .in("id", userIds as string[])
       : Promise.resolve({ data: [] }),
     callTypeIds.length > 0
-      ? supabase.from("call_types").select("id, name, slug").in("id", callTypeIds as string[])
+      ? supabase
+          .from("call_types")
+          .select("id, name, slug")
+          .in("id", callTypeIds as string[])
       : Promise.resolve({ data: [] }),
     sessionIds.length > 0
-      ? supabase.from("read_ai_sessions").select("session_id, participant_emails, owner_email, call_type, platform").in("session_id", sessionIds)
+      ? supabase
+          .from("read_ai_sessions")
+          .select("session_id, participant_emails, owner_email, call_type, platform")
+          .in("session_id", sessionIds)
       : Promise.resolve({ data: [] }),
     territorySlugs.length > 0
       ? supabase.from("territories").select("ms_slug, territory_name").in("ms_slug", territorySlugs)
@@ -111,14 +128,25 @@ export async function GET(request: NextRequest) {
     if (u.email) emailToUser.set(u.email.toLowerCase(), { name: u.full_name, color: null });
   }
   // Fetch all users with label_color for participant matching (team members may not be hosts)
-  const { data: allUsers } = await supabase.from("users").select("email, full_name, label_color").not("email", "is", null);
+  const { data: allUsers } = await supabase
+    .from("users")
+    .select("email, full_name, label_color")
+    .not("email", "is", null);
   for (const u of allUsers ?? []) {
     if (u.email) emailToUser.set(u.email.toLowerCase(), { name: u.full_name, color: u.label_color });
   }
 
-  const sessionMap = new Map<string, { participant_emails: string[]; owner_email: string | null; call_type: string | null; platform: string | null }>();
+  const sessionMap = new Map<
+    string,
+    { participant_emails: string[]; owner_email: string | null; call_type: string | null; platform: string | null }
+  >();
   for (const s of sessionRes.data ?? []) {
-    sessionMap.set(s.session_id, { participant_emails: s.participant_emails ?? [], owner_email: s.owner_email, call_type: s.call_type ?? null, platform: s.platform ?? null });
+    sessionMap.set(s.session_id, {
+      participant_emails: s.participant_emails ?? [],
+      owner_email: s.owner_email,
+      call_type: s.call_type ?? null,
+      platform: s.platform ?? null,
+    });
   }
 
   // Build set of team emails from users table (not by domain — franchisees share @newagainhouses.com)
@@ -132,7 +160,11 @@ export async function GET(request: NextRequest) {
   let allContacts: { email: string; first_name: string | null; last_name: string | null }[] = [];
   let cOffset = 0;
   while (true) {
-    const { data: page } = await supabase.from("contacts").select("email, first_name, last_name").not("email", "is", null).range(cOffset, cOffset + 999);
+    const { data: page } = await supabase
+      .from("contacts")
+      .select("email, first_name, last_name")
+      .not("email", "is", null)
+      .range(cOffset, cOffset + 999);
     if (!page || page.length === 0) break;
     allContacts = allContacts.concat(page);
     if (page.length < 1000) break;
@@ -148,9 +180,13 @@ export async function GET(request: NextRequest) {
 
   // Build per-call participant lists from call_participants (primary source of truth)
   const callIds = calls.map((c) => c.id);
-  const { data: allParticipants } = callIds.length > 0
-    ? await supabase.from("call_participants").select("call_id, email, display_name, user_id, role, contact_id").in("call_id", callIds)
-    : { data: [] };
+  const { data: allParticipants } =
+    callIds.length > 0
+      ? await supabase
+          .from("call_participants")
+          .select("call_id, email, display_name, user_id, role, contact_id")
+          .in("call_id", callIds)
+      : { data: [] };
 
   const callParticipantMap = new Map<string, typeof allParticipants>();
   for (const p of allParticipants ?? []) {
@@ -167,7 +203,8 @@ export async function GET(request: NextRequest) {
 
     // Use call_participants as primary source; fall back to session emails only if no participants
     const teamMembers: { name: string; color: string | null }[] = [];
-    const externalContacts: string[] = [];
+    const externalContacts: string[] = []; // matched to a contact record
+    const unmappedParticipants: string[] = []; // not in our contacts table
 
     if (participants.length > 0) {
       // Dedupe: one chip per contact_id for mapped rows, one per email for
@@ -187,18 +224,25 @@ export async function GET(request: NextRequest) {
             color: user?.color ?? null,
           });
         } else {
+          const name =
+            p.display_name && !p.display_name.includes("@")
+              ? p.display_name
+              : ((lc ? (contactEmailToName.get(lc) ?? null) : null) ??
+                (lc
+                  ? lc
+                      .split("@")[0]
+                      .replace(/[._-]/g, " ")
+                      .replace(/\b\w/g, (ch: string) => ch.toUpperCase())
+                  : "Unknown"));
           if (p.contact_id) {
             if (seenContactIds.has(p.contact_id)) continue;
             seenContactIds.add(p.contact_id);
-          } else if (lc) {
-            if (seenExternalEmails.has(lc)) continue;
-            seenExternalEmails.add(lc);
+            externalContacts.push(name);
+          } else {
+            if (lc && seenExternalEmails.has(lc)) continue;
+            if (lc) seenExternalEmails.add(lc);
+            unmappedParticipants.push(name);
           }
-          const name = p.display_name && !p.display_name.includes("@")
-            ? p.display_name
-            : (lc ? (contactEmailToName.get(lc) ?? null) : null)
-              ?? (lc ? lc.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (ch: string) => ch.toUpperCase()) : "Unknown");
-          externalContacts.push(name);
         }
       }
     } else {
@@ -209,9 +253,10 @@ export async function GET(request: NextRequest) {
         const user = emailToUser.get(lc);
         if (teamEmailSet.has(lc)) {
           teamMembers.push({ name: user?.name ?? email.split("@")[0], color: user?.color ?? null });
+        } else if (contactEmailToName.has(lc)) {
+          externalContacts.push(contactEmailToName.get(lc)!);
         } else {
-          const displayName = contactEmailToName.get(lc) ?? user?.name ?? null;
-          externalContacts.push(displayName ?? email.split("@")[0]);
+          unmappedParticipants.push(user?.name ?? email.split("@")[0]);
         }
       }
     }
@@ -234,6 +279,7 @@ export async function GET(request: NextRequest) {
       territoryName: c.territory_ms_slug ? (territoryMap.get(c.territory_ms_slug) ?? null) : null,
       teamMembers,
       externalContacts,
+      unmappedParticipants,
       date: c.scheduled_at ?? c.started_at ?? c.created_at,
       duration_seconds: c.duration_seconds,
       has_transcript: !!c.raw_transcript,

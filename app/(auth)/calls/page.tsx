@@ -3,7 +3,6 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Plus, X, Loader2, Phone, Monitor, AlertTriangle, Upload } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
 
@@ -19,6 +18,7 @@ interface Call {
   classifiedType: string | null;
   teamMembers: { name: string; color: string | null }[];
   externalContacts: string[];
+  unmappedParticipants: string[];
   date: string | null;
   duration_seconds: number | null;
   platform: string | null;
@@ -45,43 +45,50 @@ interface UserOption {
 
 type TimeFilter = "week" | "month" | "all";
 
-// Panel definitions — each maps to call type slugs or classified types
+// Panel definitions — each maps to call type slugs or classified types.
+// `defaultSlug` is the slug assigned when a call is dragged INTO this panel.
 const PANELS = [
   {
     key: "pto",
     label: "Path to Ownership",
     slugs: ["intro_call", "matt_call", "sam_call", "mark_call", "matt_final_call", "fdd_review_call"],
     classified: ["prospect"],
+    defaultSlug: "intro_call",
   },
   {
     key: "onboarding",
     label: "Onboarding",
     slugs: ["onboarding_call"],
     classified: [] as string[],
+    defaultSlug: "onboarding_call",
   },
   {
     key: "coaching",
     label: "Coaching",
     slugs: ["coaching_call"],
     classified: ["coaching"],
+    defaultSlug: "coaching_call",
   },
   {
     key: "team",
     label: "Team Calls",
     slugs: ["team_call"] as string[],
     classified: ["internal"],
+    defaultSlug: "team_call",
   },
   {
     key: "group",
     label: "Group Calls",
     slugs: ["group_call", "cohort_call"] as string[],
     classified: ["group"],
+    defaultSlug: "group_call",
   },
   {
     key: "other",
     label: "Other",
     slugs: [] as string[],
     classified: [] as string[],
+    defaultSlug: "unclassified",
   },
 ];
 
@@ -165,15 +172,21 @@ function PlatformIcon({ platform, source }: { platform: string | null; source: s
 }
 
 function CallRow({ c }: { c: Call }) {
+  const router = useRouter();
   const badReasons = getBadCallReasons(c);
   return (
-    <Link
-      href={`/calls/${c.id}`}
-      className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-bg-hover transition-colors"
+    <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", c.id);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      onClick={() => router.push(`/calls/${c.id}`)}
+      className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-bg-hover transition-colors cursor-grab active:cursor-grabbing"
     >
       <PlatformIcon platform={c.platform} source={c.source} />
 
-      {/* Call type + team + contacts */}
+      {/* Call type + team + contacts + unmapped */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <p className="text-body-sm font-semibold text-text-primary truncate">{c.callTypeName ?? c.title ?? "Call"}</p>
@@ -194,6 +207,7 @@ function CallRow({ c }: { c: Call }) {
             </span>
           )}
         </div>
+        {/* Row 1: NAH team members */}
         {c.teamMembers.length > 0 && (
           <div
             className="flex items-center gap-1 mt-1 overflow-x-auto scrollbar-hide"
@@ -210,6 +224,7 @@ function CallRow({ c }: { c: Call }) {
             ))}
           </div>
         )}
+        {/* Row 2: Matched contacts */}
         {c.externalContacts.length > 0 && (
           <div
             className="flex items-center gap-1 mt-1 overflow-x-auto scrollbar-hide"
@@ -219,6 +234,22 @@ function CallRow({ c }: { c: Call }) {
               <span
                 key={i}
                 className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-bg-tertiary text-text-secondary whitespace-nowrap flex-shrink-0"
+              >
+                {name}
+              </span>
+            ))}
+          </div>
+        )}
+        {/* Row 3: Unmapped participants (not in contacts) */}
+        {c.unmappedParticipants?.length > 0 && (
+          <div
+            className="flex items-center gap-1 mt-1 overflow-x-auto scrollbar-hide"
+            style={{ scrollbarWidth: "none" }}
+          >
+            {c.unmappedParticipants.map((name, i) => (
+              <span
+                key={i}
+                className="text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-dashed border-[#EAB308]/40 text-[#EAB308] whitespace-nowrap flex-shrink-0"
               >
                 {name}
               </span>
@@ -245,24 +276,62 @@ function CallRow({ c }: { c: Call }) {
           <p className="text-[10px] text-text-tertiary mt-0.5">{formatDuration(c.duration_seconds)}</p>
         ) : null}
       </div>
-    </Link>
+    </div>
   );
 }
 
 const PANEL_VISIBLE_LIMIT = 6;
 const ROW_HEIGHT_PX = 76; // approximate height per call row (title + team + contacts)
 
-function CallPanel({ label, calls }: { label: string; calls: Call[] }) {
+function CallPanel({
+  label,
+  calls,
+  panelKey,
+  onDrop,
+  reclassifying,
+}: {
+  label: string;
+  calls: Call[];
+  panelKey: string;
+  onDrop: (callId: string, targetPanel: string) => void;
+  reclassifying: string | null;
+}) {
+  const [dragOver, setDragOver] = useState(false);
   const maxHeight = PANEL_VISIBLE_LIMIT * ROW_HEIGHT_PX;
 
   return (
-    <div className="card p-0 overflow-hidden">
+    <div
+      className={`card p-0 overflow-hidden transition-all ${
+        dragOver ? "ring-2 ring-nah-blue bg-[rgba(0,161,225,0.03)]" : ""
+      }`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const callId = e.dataTransfer.getData("text/plain");
+        if (callId) onDrop(callId, panelKey);
+      }}
+    >
       <div className="flex items-center justify-between px-4 py-3 border-b border-border-default">
         <h3 className="text-body-sm font-medium text-text-primary">{label}</h3>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-tertiary">{calls.length}</span>
+        <div className="flex items-center gap-1.5">
+          {reclassifying && calls.some((c) => c.id === reclassifying) && (
+            <Loader2 size={12} className="animate-spin text-nah-blue" />
+          )}
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-tertiary">
+            {calls.length}
+          </span>
+        </div>
       </div>
       {calls.length === 0 ? (
-        <div className="px-4 py-6 text-center text-caption text-text-tertiary">No calls</div>
+        <div className={`px-4 py-6 text-center text-caption text-text-tertiary ${dragOver ? "text-nah-blue" : ""}`}>
+          {dragOver ? "Drop here to reclassify" : "No calls"}
+        </div>
       ) : (
         <div className="divide-y divide-border-default overflow-y-auto" style={{ maxHeight: `${maxHeight}px` }}>
           {calls.map((c) => (
@@ -274,11 +343,19 @@ function CallPanel({ label, calls }: { label: string; calls: Call[] }) {
   );
 }
 
+interface CallType {
+  id: string;
+  slug: string;
+  name: string;
+}
+
 export default function CallsPage() {
   const router = useRouter();
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("week");
+  const [callTypes, setCallTypes] = useState<CallType[]>([]);
+  const [reclassifying, setReclassifying] = useState<string | null>(null);
 
   // Upload form
   const [showManualEntry, setShowManualEntry] = useState(false);
@@ -306,7 +383,56 @@ export default function CallsPage() {
 
   useEffect(() => {
     void fetchCalls();
+    apiFetch("/api/settings/call-types")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.callTypes) setCallTypes(d.callTypes);
+      })
+      .catch(() => {});
   }, [fetchCalls]);
+
+  /** Drag-drop reclassify: override call type + re-trigger AI processing */
+  async function handlePanelDrop(callId: string, targetPanelKey: string) {
+    const panel = PANELS.find((p) => p.key === targetPanelKey);
+    if (!panel?.defaultSlug) return;
+
+    // Don't reclassify if already in this panel
+    const call = calls.find((c) => c.id === callId);
+    if (!call) return;
+    if (categorizeCall(call) === targetPanelKey) return;
+
+    const ct = callTypes.find((t) => t.slug === panel.defaultSlug);
+    if (!ct) return;
+
+    setReclassifying(callId);
+
+    // Optimistically move the card
+    setCalls((prev) =>
+      prev.map((c) => (c.id === callId ? { ...c, callTypeSlug: panel.defaultSlug, callTypeName: ct.name } : c))
+    );
+
+    try {
+      // Override the call type
+      const overrideRes = await apiFetch(`/api/calls/${callId}/override`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ call_type_id: ct.id }),
+      });
+      if (!overrideRes.ok) throw new Error("Override failed");
+
+      // Re-trigger AI processing with the corrected type
+      const base = window.location.origin + "/frandev";
+      fetch(`${base}/api/calls/${callId}/generate`, {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {});
+    } catch {
+      // Revert optimistic update
+      void fetchCalls();
+    } finally {
+      setReclassifying(null);
+    }
+  }
 
   useEffect(() => {
     if (!showManualEntry) return;
@@ -592,11 +718,18 @@ export default function CallsPage() {
         </div>
       )}
 
-      {/* Panels — two columns */}
+      {/* Panels — two columns, drag calls between panels to reclassify */}
       {calls.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {visiblePanels.map((p) => (
-            <CallPanel key={p.key} label={p.label} calls={p.calls} />
+            <CallPanel
+              key={p.key}
+              label={p.label}
+              calls={p.calls}
+              panelKey={p.key}
+              onDrop={handlePanelDrop}
+              reclassifying={reclassifying}
+            />
           ))}
         </div>
       )}

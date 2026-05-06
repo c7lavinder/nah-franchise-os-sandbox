@@ -200,26 +200,11 @@ export async function classifyCall(payload: ReadAIWebhookPayload): Promise<Class
   const distinctJourneyIds = new Set(external.map((p) => p.journey_id).filter((id): id is string => !!id));
   const distinctJourneyCount = distinctJourneyIds.size;
 
-  // INTERNAL — NAH team present, no matched-contact externals on the call.
-  // But check headcount first: 5+ total participants with no contact matches
-  // is likely a group/cohort call, not internal.
-  if (nah.length > 0 && externalContacts.length === 0) {
-    const totalParticipants = nah.length + external.length;
-    if (totalParticipants >= 5 && external.length >= 2) {
-      return {
-        call_type: "group",
-        nah_participant_email: nahEmail,
-        external_participant_email: null,
-        external_participant_name: null,
-        coach_user_id: null,
-        confidence: "medium",
-        classification_reason: `Group — ${totalParticipants} participants (${external.length} unmatched externals)`,
-        distinct_journey_count: 0,
-        journey_in_runway: false,
-        match,
-      };
-    }
-
+  // INTERNAL — every participant is a NAH team member, nobody external at all.
+  // Previously this checked `externalContacts.length === 0` which also caught
+  // calls with unmatched externals (role=unknown) — misclassifying first-touch
+  // sales calls as "internal" when the prospect wasn't in the contacts table.
+  if (nah.length > 0 && external.length === 0) {
     return {
       call_type: "internal",
       nah_participant_email: nahEmail,
@@ -227,10 +212,7 @@ export async function classifyCall(payload: ReadAIWebhookPayload): Promise<Class
       external_participant_name: null,
       coach_user_id: null,
       confidence: "high",
-      classification_reason:
-        external.length === 0
-          ? "All participants are NAH team members"
-          : `NAH team + ${external.length} outsider(s) with no contact record`,
+      classification_reason: "All participants are NAH team members",
       distinct_journey_count: 0,
       journey_in_runway: false,
       match,
