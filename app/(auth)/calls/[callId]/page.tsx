@@ -526,8 +526,14 @@ export default function CallDetailPage() {
                       participant={p}
                       callId={callId}
                       rawParticipant={
-                        (call.rawParticipants ?? []).find((rp) => rp.email === p.email || rp.display_name === p.name) ??
-                        null
+                        (call.rawParticipants ?? []).find((rp) => {
+                          if (rp.email && p.email && rp.email.toLowerCase() === p.email.toLowerCase()) return true;
+                          if (rp.display_name && p.name && rp.display_name.toLowerCase() === p.name.toLowerCase())
+                            return true;
+                          // Fallback: match by email appearing in name (detail API sets name = email when display_name is null)
+                          if (rp.email && p.name && p.name.toLowerCase() === rp.email.toLowerCase()) return true;
+                          return false;
+                        }) ?? null
                       }
                       primaryContactId={call.contact_id}
                       primaryContactName={call.contactName}
@@ -662,14 +668,25 @@ function UnknownParticipantPill({
   }, [mode]);
 
   async function mapToContact(contactId: string) {
-    if (!rawParticipant) return;
     setBusy(true);
     try {
-      await apiFetch(`/api/calls/${callId}/override`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ participants: [{ id: rawParticipant.id, contact_id: contactId }] }),
-      });
+      if (rawParticipant) {
+        // Direct participant update — we have the row ID
+        await apiFetch(`/api/calls/${callId}/override`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ participants: [{ id: rawParticipant.id, contact_id: contactId }] }),
+        });
+      } else {
+        // Fallback: re-run participant resolver to pick up the new contact,
+        // then set the contact as the call's primary if none exists
+        await apiFetch(`/api/calls/${callId}/reclassify-participants`, { method: "POST" });
+        await apiFetch(`/api/calls/${callId}/override`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contact_id: contactId }),
+        });
+      }
       if (participant.email) {
         await apiFetch(`/api/contacts/${contactId}/emails`, {
           method: "POST",
