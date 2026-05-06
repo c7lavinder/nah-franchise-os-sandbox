@@ -191,6 +191,7 @@ export default function CallDetailPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [expandedPill, setExpandedPill] = useState<string | null>(null);
 
   const fetchDetail = useCallback(async () => {
     try {
@@ -535,6 +536,9 @@ export default function CallDetailPage() {
                   {call.unknownParticipants.map((p) => (
                     <UnknownParticipantPill
                       key={p.email || p.name}
+                      pillKey={p.email || p.name}
+                      expandedPill={expandedPill}
+                      onExpand={setExpandedPill}
                       participant={p}
                       callId={callId}
                       rawParticipant={
@@ -542,7 +546,6 @@ export default function CallDetailPage() {
                           if (rp.email && p.email && rp.email.toLowerCase() === p.email.toLowerCase()) return true;
                           if (rp.display_name && p.name && rp.display_name.toLowerCase() === p.name.toLowerCase())
                             return true;
-                          // Fallback: match by email appearing in name (detail API sets name = email when display_name is null)
                           if (rp.email && p.name && p.name.toLowerCase() === rp.email.toLowerCase()) return true;
                           return false;
                         }) ?? null
@@ -612,6 +615,9 @@ interface SearchResult {
 }
 
 function UnknownParticipantPill({
+  pillKey,
+  expandedPill,
+  onExpand,
   participant,
   callId,
   rawParticipant,
@@ -621,6 +627,9 @@ function UnknownParticipantPill({
   callJourneys,
   onMapped,
 }: {
+  pillKey: string;
+  expandedPill: string | null;
+  onExpand: (key: string | null) => void;
   participant: UnknownParticipant;
   callId: string;
   rawParticipant: RawParticipant | null;
@@ -630,7 +639,7 @@ function UnknownParticipantPill({
   callJourneys: CallJourneyRef[];
   onMapped: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const expanded = expandedPill === pillKey;
   const [mode, setMode] = useState<"actions" | "search" | "journey">("actions");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -641,17 +650,25 @@ function UnknownParticipantPill({
   const inputRef = useRef<HTMLInputElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const displayName = participant.name.includes("@")
+  const autoName = participant.name.includes("@")
     ? participant.name
         .split("@")[0]
         .replace(/[._-]/g, " ")
         .replace(/\b\w/g, (c) => c.toUpperCase())
     : participant.name;
 
+  // Editable fields so the user can correct name/phone before creating
+  const [editFirst, setEditFirst] = useState(autoName.split(" ")[0] ?? "");
+  const [editLast, setEditLast] = useState(autoName.split(" ").slice(1).join(" ") ?? "");
+  const [editPhone, setEditPhone] = useState("");
+
+  const displayName = [editFirst, editLast].filter(Boolean).join(" ").trim() || autoName;
+
   const prefill = {
-    firstName: displayName.split(" ")[0],
-    lastName: displayName.split(" ").slice(1).join(" ") || undefined,
+    firstName: editFirst || autoName.split(" ")[0],
+    lastName: editLast || autoName.split(" ").slice(1).join(" ") || undefined,
     email: participant.email || undefined,
+    phone: editPhone || undefined,
   };
 
   // Dedupe journeys by journey_id for the picker
@@ -768,7 +785,7 @@ function UnknownParticipantPill({
   if (!expanded) {
     return (
       <button
-        onClick={() => setExpanded(true)}
+        onClick={() => onExpand(pillKey)}
         className="inline-flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-bg-tertiary text-text-tertiary hover:bg-[#FAEEDA] hover:text-[#854F0B] border border-dashed border-border-default hover:border-[#EAB308]/40 transition-colors"
         title={`Click to map ${displayName}`}
       >
@@ -788,7 +805,7 @@ function UnknownParticipantPill({
         </div>
         <button
           onClick={() => {
-            setExpanded(false);
+            onExpand(null);
             setMode("actions");
             setQuery("");
           }}
@@ -799,8 +816,35 @@ function UnknownParticipantPill({
       </div>
 
       {error && (
-        <div className="text-caption text-danger bg-danger/10 border border-danger/30 rounded-md px-2 py-1">
+        <div className="text-caption text-danger bg-danger/10 border border-danger/30 rounded-md px-2 py-1 mb-2">
           {error}
+        </div>
+      )}
+
+      {/* Editable name + phone fields */}
+      {mode === "actions" && (
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          <input
+            type="text"
+            value={editFirst}
+            onChange={(e) => setEditFirst(e.target.value)}
+            placeholder="First Name"
+            className="bg-bg-primary border border-border-default rounded-md px-2 py-1 text-caption text-text-primary placeholder:text-text-tertiary"
+          />
+          <input
+            type="text"
+            value={editLast}
+            onChange={(e) => setEditLast(e.target.value)}
+            placeholder="Last Name"
+            className="bg-bg-primary border border-border-default rounded-md px-2 py-1 text-caption text-text-primary placeholder:text-text-tertiary"
+          />
+          <input
+            type="text"
+            value={editPhone}
+            onChange={(e) => setEditPhone(e.target.value)}
+            placeholder="Phone"
+            className="bg-bg-primary border border-border-default rounded-md px-2 py-1 text-caption text-text-primary placeholder:text-text-tertiary"
+          />
         </div>
       )}
 

@@ -132,7 +132,6 @@ export default function CallOverrideControls(props: Props) {
   return (
     <>
       <ReclassifyButton {...props} />
-      <ReassignButton {...props} />
       <DeleteButton callId={props.callId} />
     </>
   );
