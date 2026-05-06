@@ -722,7 +722,7 @@ export default function LeadDetailView({
           { key: "messages" as const, label: "Messages" },
           { key: "profile" as const, label: "Profile" },
           { key: "territories" as const, label: "Territories" },
-          { key: "eos" as const, label: "EOS" },
+          ...(journeyType === "franchisee" ? [{ key: "eos" as const, label: "EOS" }] : []),
         ].map((tab) => (
           <button
             key={tab.key}

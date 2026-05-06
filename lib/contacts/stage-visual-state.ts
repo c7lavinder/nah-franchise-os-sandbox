@@ -29,6 +29,9 @@ export function computeStageVisualState(
   // Stage is in the past — already passed through
   if (stage.sort_order < currentStageSortOrder) return "full";
 
+  // Terminal stage reached — always show full
+  if (stage.is_terminal) return "full";
+
   // Stage is the current stage — check sub-task completion
   const requiredTasks = subTasks.filter((st) => st.is_required);
   if (requiredTasks.length === 0) return "half"; // No sub-tasks = in progress
@@ -51,10 +54,7 @@ export function computeStageVisualState(
  * - 'half': for two-state subs, latest log is state_advance='first'
  * - 'full': for two-state subs, latest log is 'second'; for single-state, any log
  */
-export function computeSubTaskVisualState(
-  subTask: PipelineSubTask,
-  logs: SubTaskLog[]
-): CircleState {
+export function computeSubTaskVisualState(subTask: PipelineSubTask, logs: SubTaskLog[]): CircleState {
   const activeLogs = logs.filter((l) => !l.deleted_at);
   if (activeLogs.length === 0) return "empty";
 

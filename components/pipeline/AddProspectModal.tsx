@@ -56,7 +56,9 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
           const data = await res.json();
           setSources((data.sources as LeadSource[]).filter((s) => s.is_active));
         }
-      } catch { /* silent */ }
+      } catch {
+        /* silent */
+      }
     })();
   }, [open]);
 
@@ -153,17 +155,13 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
       >
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h2 className="text-body-lg font-semibold text-text-primary">Add Prospect</h2>
+          <h2 className="text-body-lg font-semibold text-text-primary">Add Journey</h2>
           <button type="button" onClick={handleClose} className="btn-ghost p-1.5">
             <X size={16} />
           </button>
         </div>
 
-        {error && (
-          <div className="text-body-sm text-danger bg-danger/10 rounded-md px-3 py-2">
-            {error}
-          </div>
-        )}
+        {error && <div className="text-body-sm text-danger bg-danger/10 rounded-md px-3 py-2">{error}</div>}
 
         {/* Name row */}
         <div className="grid grid-cols-2 gap-3">
@@ -246,7 +244,9 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
             >
               <option value="">Select...</option>
               {sources.map((s) => (
-                <option key={s.id} value={s.name}>{s.name}</option>
+                <option key={s.id} value={s.name}>
+                  {s.name}
+                </option>
               ))}
             </select>
           </label>
@@ -260,7 +260,9 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
             >
               <option value="">Select...</option>
               {activeSubSources.map((ss) => (
-                <option key={ss.id} value={ss.name}>{ss.name}</option>
+                <option key={ss.id} value={ss.name}>
+                  {ss.name}
+                </option>
               ))}
             </select>
           </label>
@@ -281,7 +283,7 @@ export default function AddProspectModal({ open, onClose, onCreated, prefill }: 
             className="px-4 py-2 bg-nah-orange text-white text-body-sm font-medium rounded-md hover:bg-nah-orange/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {submitting && <Loader2 size={14} className="animate-spin" />}
-            {submitting ? "Creating..." : "Add Prospect"}
+            {submitting ? "Creating..." : "Add Journey"}
           </button>
         </div>
       </form>

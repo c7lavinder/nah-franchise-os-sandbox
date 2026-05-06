@@ -70,12 +70,9 @@ export default function PipelinePage() {
       />
 
       {/* Path to Ownership + Long-Term visual */}
-      <OwnershipPath
-        selectedStage={selectedStage}
-        onStageClick={handleStageClick}
-      />
+      <OwnershipPath selectedStage={selectedStage} onStageClick={handleStageClick} />
 
-      {/* Prospects list — always visible, filtered by stage when selected */}
+      {/* Journeys list — always visible, filtered by stage when selected */}
       <PipelineLeadList
         key={refreshKey}
         selectedStageId={selectedStage}
@@ -83,17 +80,15 @@ export default function PipelinePage() {
         searchQuery={searchQuery}
       />
 
-      {/* Territory Cards — always below prospects */}
-      <div className="mt-8">
-        <TerritoryCardList statusFilter={selectedTerritoryStatus} pipelineStageId={showTerritories && !selectedTerritoryStatus ? selectedStage : null} searchQuery={searchQuery} />
-      </div>
+      {/* Territory Cards — only show when no stage selected or onboarding/runway/territories selected */}
+      {(!selectedStage || showTerritories) && (
+        <div className="mt-8">
+          <TerritoryCardList statusFilter={selectedTerritoryStatus} searchQuery={searchQuery} />
+        </div>
+      )}
 
       {/* Add Prospect Modal */}
-      <AddProspectModal
-        open={showAddProspect}
-        onClose={() => setShowAddProspect(false)}
-        onCreated={handleRefresh}
-      />
+      <AddProspectModal open={showAddProspect} onClose={() => setShowAddProspect(false)} onCreated={handleRefresh} />
     </div>
   );
 }

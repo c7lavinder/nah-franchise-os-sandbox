@@ -34,7 +34,6 @@ const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
 interface Props {
   status?: string;
   statusFilter?: string | null;
-  pipelineStageId?: string | null;
   searchQuery?: string;
 }
 
@@ -47,7 +46,7 @@ const STATUS_STYLES: Record<string, { label: string; bgColor: string; color: str
 type SortField = "name" | "status" | "owner";
 const PAGE_SIZE = 50;
 
-export default function TerritoryCardList({ status, statusFilter, pipelineStageId, searchQuery }: Props) {
+export default function TerritoryCardList({ status, statusFilter, searchQuery }: Props) {
   const router = useRouter();
   const effectiveStatus = statusFilter ?? status;
   const [cards, setCards] = useState<TerritoryCard[]>([]);
@@ -60,14 +59,13 @@ export default function TerritoryCardList({ status, statusFilter, pipelineStageI
     setLoading(true);
     const params = new URLSearchParams();
     if (effectiveStatus) params.set("status", effectiveStatus);
-    if (pipelineStageId) params.set("stage_id", pipelineStageId);
     const url = `/api/pipeline/territory-cards${params.toString() ? `?${params.toString()}` : ""}`;
     fetch(url)
       .then((r) => r.json())
       .then((d) => setCards(d.cards ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [effectiveStatus, pipelineStageId]);
+  }, [effectiveStatus]);
 
   const filtered = searchQuery
     ? cards.filter((c) => {

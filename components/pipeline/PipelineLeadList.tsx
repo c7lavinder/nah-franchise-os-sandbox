@@ -240,11 +240,11 @@ export default function PipelineLeadList({ selectedStageId, selectedStageName, s
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-h2 text-text-primary">
-          {selectedStageName ?? "All Prospects"}
+          {selectedStageName ?? "All Journeys"}
           <span className="text-caption text-text-tertiary ml-2 font-normal">
             {totalCount > contacts.length
-              ? `Showing ${contacts.length} of ${totalCount} prospects`
-              : `${contacts.length} ${contacts.length === 1 ? "prospect" : "prospects"}`}
+              ? `Showing ${contacts.length} of ${totalCount} journeys`
+              : `${contacts.length} ${contacts.length === 1 ? "journey" : "journeys"}`}
           </span>
         </h2>
         {loading && <Loader2 size={14} className="animate-spin text-text-tertiary" />}
@@ -268,7 +268,7 @@ export default function PipelineLeadList({ selectedStageId, selectedStageName, s
       <div className="border border-border-default rounded-b-lg overflow-hidden">
         {!loading && visible.length === 0 && (
           <div className="px-4 py-8 text-center text-body-sm text-text-tertiary">
-            {searchQuery ? "No prospects match your search" : "No prospects in this stage"}
+            {searchQuery ? "No journeys match your search" : "No journeys in this stage"}
           </div>
         )}
         {visible.map((contact, i) => {
