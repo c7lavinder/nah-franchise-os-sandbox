@@ -304,14 +304,23 @@ export default function CallDetailPage() {
           <button
             onClick={async () => {
               setRefreshing(true);
-              // Re-run participant classification + re-fetch data
-              await apiFetch(`/api/calls/${callId}/reclassify-participants`, { method: "POST" }).catch(() => {});
-              await fetchDetail();
+              setIsGenerating(true);
+              try {
+                // 1. Re-classify participants (fixes roles, contact matches)
+                await apiFetch(`/api/calls/${callId}/reclassify-participants`, { method: "POST" }).catch(() => {});
+                // 2. Re-run full AI processing (title, summary, grade, extractions, next steps)
+                await apiFetch(`/api/calls/${callId}/generate?force=true`, { method: "POST" }).catch(() => {});
+                // 3. Re-fetch all data
+                await fetchDetail();
+              } catch {
+                /* silent */
+              }
               setRefreshing(false);
+              setIsGenerating(false);
             }}
             disabled={refreshing}
             className="btn-ghost p-1.5 flex-shrink-0"
-            title="Re-check participants and refresh data"
+            title="Re-process call — reclassify participants, regenerate AI analysis"
           >
             <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
           </button>
