@@ -304,11 +304,14 @@ export default function CallDetailPage() {
           <button
             onClick={async () => {
               setRefreshing(true);
+              // Re-run participant classification + re-fetch data
+              await apiFetch(`/api/calls/${callId}/reclassify-participants`, { method: "POST" }).catch(() => {});
               await fetchDetail();
               setRefreshing(false);
             }}
             disabled={refreshing}
             className="btn-ghost p-1.5 flex-shrink-0"
+            title="Re-check participants and refresh data"
           >
             <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
           </button>
@@ -624,6 +627,7 @@ function UnknownParticipantPill({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [addModal, setAddModal] = useState<"prospect" | "ecosystem" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -669,23 +673,34 @@ function UnknownParticipantPill({
 
   async function mapToContact(contactId: string) {
     setBusy(true);
+    setError(null);
     try {
       if (rawParticipant) {
-        // Direct participant update — we have the row ID
-        await apiFetch(`/api/calls/${callId}/override`, {
+        const res = await apiFetch(`/api/calls/${callId}/override`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ participants: [{ id: rawParticipant.id, contact_id: contactId }] }),
         });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error ?? `Override failed (${res.status})`);
+        }
       } else {
-        // Fallback: re-run participant resolver to pick up the new contact,
-        // then set the contact as the call's primary if none exists
-        await apiFetch(`/api/calls/${callId}/reclassify-participants`, { method: "POST" });
-        await apiFetch(`/api/calls/${callId}/override`, {
+        // No raw participant row found — try reclassify first, then set contact
+        const reclRes = await apiFetch(`/api/calls/${callId}/reclassify-participants`, { method: "POST" });
+        if (!reclRes.ok) {
+          const data = await reclRes.json().catch(() => ({}));
+          throw new Error(data.error ?? `Reclassify failed (${reclRes.status})`);
+        }
+        const ovRes = await apiFetch(`/api/calls/${callId}/override`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ contact_id: contactId }),
         });
+        if (!ovRes.ok) {
+          const data = await ovRes.json().catch(() => ({}));
+          throw new Error(data.error ?? `Override failed (${ovRes.status})`);
+        }
       }
       if (participant.email) {
         await apiFetch(`/api/contacts/${contactId}/emails`, {
@@ -696,8 +711,8 @@ function UnknownParticipantPill({
       }
       setDone(true);
       setTimeout(() => onMapped(), 1500);
-    } catch {
-      /* silent */
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Mapping failed");
     }
     setBusy(false);
   }
@@ -773,6 +788,12 @@ function UnknownParticipantPill({
           <X size={12} />
         </button>
       </div>
+
+      {error && (
+        <div className="text-caption text-danger bg-danger/10 border border-danger/30 rounded-md px-2 py-1">
+          {error}
+        </div>
+      )}
 
       {mode === "actions" && (
         <div className="grid grid-cols-2 gap-2">
