@@ -1,64 +1,81 @@
-# Session Handoff — 2026-05-03 — Session 23
+# Session Handoff — 2026-05-06 — Session 26
 
 ## Status
 
-Phase: Call processing pipeline fixed — all AI analysis now writes and reads correctly. / Health: Green (model IDs fixed, AI processing confirmed working, 0 type errors, 96 tests passing) / Duration: short session
+Phase: Calls page overhaul — classification, detail, mapping, grading, KB / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-- Traced full call data flow: write path (post-call agent → calls table + child tables) and read path (detail API → UI)
-- Discovered root cause: agent.ts used invalid model ID `"claude-4-sonnet-20250514"` — all 5 AI sections silently failed, nothing was ever written
-- Fixed model ID in `lib/agents/post-call/agent.ts` — `"claude-4-sonnet-20250514"` → `"claude-haiku-4-5-20251001"`
-- Fixed model ID fallback in `lib/calls/grader.ts` — `"claude-sonnet-4-6-20250514"` → `"claude-haiku-4-5-20251001"`
-- Fixed model ID fallback in `lib/calls/coach.ts` — same fix
-- Fixed model ID fallback in `app/api/contacts/[contactId]/pre-call-brief/route.ts` — same fix
-- Removed dead `call_coaching` table query from `app/api/calls/[callId]/detail/route.ts` (UI never used this data — coaching reads from `calls.coaching_data`)
-- Fixed 8 additional standalone callers with invalid `"claude-sonnet-4-5-20250514"` model IDs: profile-extractor, brief-generator, next-steps-generator, grade route, action rewrite, single-action generate, rep-journal, contact-journal
-- Re-generated Dreyer call: coaching score 62 (was 25), 61 extractions (was 52), 4 actions, 9 KB docs
-- Re-generated Corey coaching call: coaching score 25, 5 actions, 4 KB docs
+- Fixed call misclassification bug — unmatched prospects were classified as "Team Call" (`classifier.ts` checked `externalContacts.length` instead of `external.length`)
+- Drag-to-reclassify on calls list page — grab a call card, drop it into a different panel to change its type
+- 3-row participant layout on call cards — team (colored) / matched contacts (gray) / unmapped (dashed yellow)
+- Contact search API enriched with type labels — search results show "Franchisee — Chattanooga", "Prospect — Suda Journey", etc.
+- AI-generated call titles — Scout generates specific titles from transcript content instead of generic "Intro Call w/ Name"
+- Fixed platform display — calls from Read.ai now show "Google Meet" instead of "Phone Call" (processors were hardcoding `source: "upload"`)
+- Removed duplicate coaching section from call detail — only rubric grade remains (call-type-specific criteria from DB)
+- Removed `runCoaching()` from post-call agent — saves one LLM call per processed call
+- Refresh button on call detail now runs full re-process pipeline (reclassify participants + re-generate all AI sections with `force=true`)
+- Inline participant mapping on call detail page — clickable grey pills in "Also Present" section expand to show Search / New Prospect / Add To Ecosystem / Add To Journey actions
+- Only one mapping pill expands at a time (lifted state)
+- Editable name + phone fields on expanded mapping pills
+- Journey picker for "Add To Journey" action — shows journeys on this call, creates contact without own journey, adds as co_primary
+- Mapping error messages now visible (were silently caught)
+- Participant matching fix — case-insensitive email/name comparison, fallback for email-in-name field
+- Removed mapping modal icon (UserCog) from header — inline mapping replaces it
+- KB extraction prompt rewritten for system-level knowledge only — no individual deal notes, generalizes observations into patterns
+- KB updater now merges/updates existing entries instead of always appending — prevents unbounded doc growth
+- Created migration for missing rubrics + criteria — all call types now have rubric grading (was only working for onboarding)
+- Grader prompt adapts persona by call type — onboarding uses "onboarding specialist", coaching uses "performance coach", etc.
 
 ## What Is Confirmed Working
 
-- `npx tsc --noEmit` — 0 errors
-- `npx vitest run` — 8 suites, 96 tests passing
-- Post-call agent generates summary, coaching, actions, extractions, KB intel (verified via API)
-- Dreyer call fully reprocessed with correct data
-- Corey coaching call fully reprocessed with correct data
-- Detail API returns all call data (summary, coaching_data, coaching_score, action items, transcript)
-- Zero invalid model IDs remain in the codebase
+- `npx tsc --noEmit` passes clean (0 errors)
+- All 8 test files pass (97 tests)
+- Classification fix deployed — new calls with unmatched prospects route to sales, not internal
+- Drag-to-reclassify works — override API + AI re-generation fires on drop
+- Rubric migration applied to production — all call types have rubrics + criteria
+- KB prompt changes deployed — new extractions will be system-level
+- 10 commits pushed and deployed to Vercel (all showing "Ready" in production)
 
 ## What Is Broken or Incomplete
 
-- Manual uploads don't match contacts (no participant emails to match from) — Medium
-- `call_transcripts` DB check constraint still only allows `whisper`, `manual_paste`, `upload` (should add `read_ai`) — Low
-- Typed client migration (168 errors, 64 files) — Low
-- TaskUpdate webhook not subscribed in GHL portal — Medium
-- Rubric grading returns null when no rubric criteria configured for the call type — Low (expected behavior, needs criteria setup)
+- Larry Hall mapping on Jonathan Suda call — mapping action fires but participant may not persist after refresh; rawParticipant matching improved but needs live verification — High
+- Existing KB docs contain individual-level content from before the prompt change — will gradually clean up as calls re-process — Low
+- Existing calls still have old generic titles — need refresh (re-generate) to get AI titles — Low
+- AddRelatedContactModal "journey" anchor still shows "partner of" language — should be simplified journey picker — Medium
+- Scout LLM hallucinating confirmations — Medium (carried forward)
 
 ## Decisions Made
 
-- All AI callers standardized on `claude-haiku-4-5-20251001` (matches CLAUDE.md "Scout powered by Haiku 4.5") — Claude
-- Removed dead `call_coaching` table read from detail API (old standalone coach path, UI never used it) — Claude
+- Call classification uses `external.length` (all non-team) not `externalContacts.length` (only matched) for internal detection — Corey approved by context
+- Coaching section removed, rubric grade is the single scoring system — Corey approved
+- KB should capture system-level patterns only, not individual deal notes — Corey approved
+- KB updater merges instead of appending — Corey approved
+- Mapping modal removed from header, replaced with inline mapping on the page — Corey approved
+- @newagainhouses.com domain is NOT a team indicator — franchisees get these emails too — Corey confirmed
 
 ## Files Created
 
-- None
+- `supabase/migrations/20260506100000_fix_missing_rubrics_and_criteria.sql`
 
 ## Files Modified
 
-- `lib/agents/post-call/agent.ts` — model ID fix
-- `lib/calls/grader.ts` — model ID fallback fix
-- `lib/calls/coach.ts` — model ID fallback fix
-- `app/api/contacts/[contactId]/pre-call-brief/route.ts` — model ID fallback fix
-- `app/api/calls/[callId]/detail/route.ts` — removed dead call_coaching query
-- `lib/calls/profile-extractor.ts` — model ID fix
-- `lib/calls/brief-generator.ts` — model ID fix
-- `lib/calls/next-steps-generator.ts` — model ID fix
-- `app/api/calls/[callId]/grade/route.ts` — model ID fix
-- `app/api/calls/[callId]/actions/generate-single/route.ts` — model ID fix
-- `app/api/calls/[callId]/actions/[actionId]/rewrite/route.ts` — model ID fix
-- `lib/journals/rep-journal.ts` — model ID fix
-- `lib/journals/contact-journal.ts` — model ID fix
+- `lib/calls/classifier.ts` — fixed internal classification condition
+- `app/(auth)/calls/page.tsx` — drag-to-reclassify, 3-row participant layout, unmapped pills
+- `app/api/calls/list/route.ts` — split externalContacts from unmappedParticipants
+- `app/(auth)/calls/[callId]/page.tsx` — inline mapping pills, refresh pipeline, editable fields, platform label fix
+- `components/calls/CallOverrideControls.tsx` — removed mapping button, journey-centric grouped view, contact type labels in search
+- `components/calls/CallOverviewTab.tsx` — removed coaching section, kept rubric grade only
+- `app/api/contacts/search/route.ts` — enriched with territory/journey/stakeholder type labels
+- `lib/agents/post-call/agent.ts` — removed runCoaching, writes AI title, removed coaching import
+- `lib/agents/post-call/prompts/summary.ts` — AI title generation in prompt + parser
+- `lib/agents/post-call/types.ts` — added generatedTitle to SummaryResult
+- `lib/agents/post-call/prompts/kb-intelligence.ts` — system-level extraction rules
+- `lib/agents/post-call/kb-updater.ts` — merge logic instead of append-only
+- `lib/calls/grader.ts` — call-type-aware persona in grading prompt
+- `lib/calls/processors/prospect-processor.ts` — source: "read_ai"
+- `lib/calls/processors/coaching-processor.ts` — source: "read_ai"
+- `lib/calls/processors/group-processor.ts` — source: "read_ai"
 
 ## Files Deleted
 
@@ -66,22 +83,23 @@ Phase: Call processing pipeline fixed — all AI analysis now writes and reads c
 
 ## Open Issues Carried Forward
 
-- Manual uploads don't match contacts (no participant emails) — Medium
-- TaskUpdate webhook GHL portal subscription — Medium
-- `call_transcripts` source constraint needs `read_ai` added — Low
-- Typed client migration (168 fixes) — Low
-- Rubric criteria need to be configured per call type for grading to work — Low
+- Larry Hall mapping persistence — needs live verification after latest fix — High
+- AddRelatedContactModal journey anchor UX — "partner of" should be simple journey picker — Medium
+- Scout LLM hallucinating confirmations — Medium (prompt work needed)
+- Marketing dashboard page not yet built — Medium
+- `marketing_spend` table blocked on Matt's input — Medium
+- Workflow builder fixes from Session 23 not re-tested — Low
 
 ## Exact Next Step
 
-Set up rubric criteria for each call type (intro_call, matt_call, coaching_call, etc.) so rubric grading produces results, then test a full end-to-end webhook call from Read.ai through processing to UI display.
+Verify Larry Hall mapping persists on refresh, then test the full call flow end-to-end: new call comes in via Read.ai → correct classification → AI title → rubric grade → inline mapping → KB extraction.
 
-## Copy This To Start Next Session
+## Copy This To Start Next Session In Claude.ai
 
 ---
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
-GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
-Then: Set up rubric criteria for each call type so rubric grading works, then test a full end-to-end webhook call from Read.ai through processing to UI display.
+GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
+Then: Verify Larry Hall mapping persists on refresh, then test the full call flow end-to-end: new call comes in via Read.ai → correct classification → AI title → rubric grade → inline mapping → KB extraction.
 
 ---
