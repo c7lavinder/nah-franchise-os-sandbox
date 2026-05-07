@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import { AlertTriangle, RotateCcw, Bot, ArrowRight } from "lucide-react";
+import { titleCase } from "@/lib/format/contact";
 import SubTaskCircle from "./SubTaskCircle";
 import SubTaskLogHistory from "./SubTaskLogHistory";
 import SubTaskLogModal from "./SubTaskLogModal";
@@ -35,17 +36,27 @@ export default function StageDrilldown({
 }: StageDrilldownProps) {
   const [expandedSubTask, setExpandedSubTask] = useState<string | null>(null);
   const [logModalSubTask, setLogModalSubTask] = useState<PipelineSubTask | null>(null);
+  const [editingLog, setEditingLog] = useState<SubTaskLog | null>(null);
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
 
   // Fetch users for logger select
   useEffect(() => {
     apiFetch("/api/pipeline/users")
-      .then((r) => r.ok ? r.json() : { users: [] })
+      .then((r) => (r.ok ? r.json() : { users: [] }))
       .then((d) => setUsers(d.users ?? []))
       .catch(() => {});
   }, []);
 
   const relevantHistory = stageHistory.filter((h) => h.to_stage_id === stageId);
+
+  function handleEditFromHistory(log: SubTaskLog) {
+    // Find the sub-task this log belongs to so we can open the modal in edit mode
+    const task = subTasks.find((t) => t.id === log.sub_task_id);
+    if (task) {
+      setEditingLog(log);
+      setLogModalSubTask(task);
+    }
+  }
 
   return (
     <div className="mt-3 bg-bg-secondary border border-border-default rounded-lg p-4">
@@ -56,9 +67,7 @@ export default function StageDrilldown({
             <p className="text-caption text-text-tertiary italic">No sub-tasks for this stage</p>
           ) : (
             <div className="relative">
-              {subTasks.length > 1 && (
-                <div className="absolute left-[17px] top-5 bottom-5 w-0.5 bg-border-default" />
-              )}
+              {subTasks.length > 1 && <div className="absolute left-[17px] top-5 bottom-5 w-0.5 bg-border-default" />}
               <div className="space-y-0.5">
                 {subTasks.map((task) => {
                   const logs = logsBySubTask.get(task.id) ?? [];
@@ -78,7 +87,10 @@ export default function StageDrilldown({
                         logCount={logs.length}
                         isExpanded={isHistoryExpanded}
                         isMissingLog={isMissing}
-                        onClick={() => setLogModalSubTask(task)}
+                        onClick={() => {
+                          setEditingLog(null);
+                          setLogModalSubTask(task);
+                        }}
                       />
                       {/* View history toggle — only when logs exist */}
                       {logs.length > 0 && (
@@ -86,10 +98,12 @@ export default function StageDrilldown({
                           onClick={() => setExpandedSubTask(isHistoryExpanded ? null : task.id)}
                           className="ml-10 text-[11px] text-nah-blue hover:underline"
                         >
-                          {isHistoryExpanded ? "Hide logs" : `View ${logs.length} log${logs.length !== 1 ? "s" : ""}`}
+                          {isHistoryExpanded ? "Hide Logs" : `View ${logs.length} Log${logs.length !== 1 ? "s" : ""}`}
                         </button>
                       )}
-                      {isHistoryExpanded && <SubTaskLogHistory logs={logs} onRefresh={onRefresh} />}
+                      {isHistoryExpanded && (
+                        <SubTaskLogHistory logs={logs} onRefresh={onRefresh} onEdit={handleEditFromHistory} />
+                      )}
                     </div>
                   );
                 })}
@@ -117,11 +131,11 @@ export default function StageDrilldown({
                     )}
                     <div className="flex-1">
                       <span>
-                        {entry.from_stage_name ? `From ${entry.from_stage_name}` : "Initial entry"}
+                        {entry.from_stage_name ? `From ${titleCase(entry.from_stage_name)}` : "Initial Entry"}
                         {entry.moved_by_name && ` by ${entry.moved_by_name}`}
-                        {entry.was_skip && " (skipped)"}
-                        {entry.was_revert && " (reverted)"}
-                        {entry.was_auto && " (auto)"}
+                        {entry.was_skip && " (Skipped)"}
+                        {entry.was_revert && " (Reverted)"}
+                        {entry.was_auto && " (Auto)"}
                       </span>
                       {entry.reason && <p className="text-text-tertiary italic mt-0.5">{entry.reason}</p>}
                       <p className="text-text-tertiary text-[10px]">{new Date(entry.created_at).toLocaleString()}</p>
@@ -147,8 +161,16 @@ export default function StageDrilldown({
           defaultLoggerName={users.find((u) => u.id === logModalSubTask.default_logger_user_id)?.name ?? null}
           users={users}
           existingLogs={logsBySubTask.get(logModalSubTask.id) ?? []}
-          onClose={() => setLogModalSubTask(null)}
-          onSuccess={() => { setLogModalSubTask(null); onRefresh(); }}
+          editingLog={editingLog}
+          onClose={() => {
+            setLogModalSubTask(null);
+            setEditingLog(null);
+          }}
+          onSuccess={() => {
+            setLogModalSubTask(null);
+            setEditingLog(null);
+            onRefresh();
+          }}
           onLogDeleted={onRefresh}
         />
       )}

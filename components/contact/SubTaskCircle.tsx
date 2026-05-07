@@ -6,6 +6,7 @@
  */
 
 import { Check, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { titleCase } from "@/lib/format/contact";
 import type { CircleState } from "@/lib/contacts/stage-visual-state";
 
 interface SubTaskCircleProps {
@@ -58,13 +59,14 @@ export default function SubTaskCircle({
       <div
         className={`
           relative w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0
-          ${state === "full"
-            ? "bg-success text-white"
-            : state === "half"
-              ? "bg-warning/20 border-2 border-warning text-warning"
-              : isMissingLog
-                ? "bg-amber-100 border-2 border-amber-300 text-amber-600"
-                : "bg-bg-tertiary border-2 border-border-default text-text-tertiary"
+          ${
+            state === "full"
+              ? "bg-success text-white"
+              : state === "half"
+                ? "bg-warning/20 border-2 border-warning text-warning"
+                : isMissingLog
+                  ? "bg-amber-100 border-2 border-amber-300 text-amber-600"
+                  : "bg-bg-tertiary border-2 border-border-default text-text-tertiary"
           }
         `}
       >
@@ -79,13 +81,17 @@ export default function SubTaskCircle({
 
       {/* Name + state label */}
       <div className="flex-1 min-w-0">
-        <p className={`text-body-sm font-medium truncate ${state === "full" ? "text-text-primary" : "text-text-secondary"}`}>
-          {name}
+        <p
+          className={`text-body-sm font-medium truncate ${state === "full" ? "text-text-primary" : "text-text-secondary"}`}
+        >
+          {titleCase(name)}
         </p>
-        <p className={`text-caption ${
-          state === "full" ? "text-success" : state === "half" ? "text-warning" : "text-text-tertiary"
-        }`}>
-          {label}
+        <p
+          className={`text-caption ${
+            state === "full" ? "text-success" : state === "half" ? "text-warning" : "text-text-tertiary"
+          }`}
+        >
+          {titleCase(label)}
         </p>
       </div>
 
@@ -96,9 +102,12 @@ export default function SubTaskCircle({
             {logCount} {logCount === 1 ? "log" : "logs"}
           </span>
         )}
-        {logCount > 0 && (
-          isExpanded ? <ChevronDown size={12} className="text-text-tertiary" /> : <ChevronRight size={12} className="text-text-tertiary" />
-        )}
+        {logCount > 0 &&
+          (isExpanded ? (
+            <ChevronDown size={12} className="text-text-tertiary" />
+          ) : (
+            <ChevronRight size={12} className="text-text-tertiary" />
+          ))}
       </div>
     </button>
   );

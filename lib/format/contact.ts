@@ -22,6 +22,21 @@ export function capitalizeName(name: string | null | undefined): string {
     .join("");
 }
 
+/** Title-case a general string: "send nda" → "Send NDA", "first call scheduled" → "First Call Scheduled". */
+export function titleCase(text: string | null | undefined): string {
+  if (!text) return "";
+  return text
+    .split(/(\s+)/)
+    .map((word) => {
+      if (!word.trim()) return word;
+      const upper = word.toUpperCase();
+      // Keep common abbreviations fully uppercased
+      if (["NDA", "FDD", "SBA", "LLC", "FAQ", "API", "AI", "SMS", "URL", "ID"].includes(upper)) return upper;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join("");
+}
+
 /** Format phone to (XXX) XXX-XXXX. No country code. Returns raw if invalid. */
 export function formatPhone(raw: string | null | undefined): string {
   if (!raw) return "";
