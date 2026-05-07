@@ -83,7 +83,7 @@ export default function PipelinePage() {
       {/* Territory Cards — only show when no stage selected or onboarding/runway/territories selected */}
       {(!selectedStage || showTerritories) && (
         <div className="mt-8">
-          <TerritoryCardList statusFilter={selectedTerritoryStatus} searchQuery={searchQuery} />
+          <TerritoryCardList statusFilter={selectedTerritoryStatus} stageId={selectedStage} searchQuery={searchQuery} />
         </div>
       )}
 

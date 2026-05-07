@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { apiFetch } from "@/lib/auth/api-fetch";
 
 interface TerritoryCard {
   ms_slug: string;
@@ -34,6 +35,7 @@ const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
 interface Props {
   status?: string;
   statusFilter?: string | null;
+  stageId?: string | null;
   searchQuery?: string;
 }
 
@@ -46,7 +48,7 @@ const STATUS_STYLES: Record<string, { label: string; bgColor: string; color: str
 type SortField = "name" | "status" | "owner";
 const PAGE_SIZE = 50;
 
-export default function TerritoryCardList({ status, statusFilter, searchQuery }: Props) {
+export default function TerritoryCardList({ status, statusFilter, stageId, searchQuery }: Props) {
   const router = useRouter();
   const effectiveStatus = statusFilter ?? status;
   const [cards, setCards] = useState<TerritoryCard[]>([]);
@@ -59,13 +61,14 @@ export default function TerritoryCardList({ status, statusFilter, searchQuery }:
     setLoading(true);
     const params = new URLSearchParams();
     if (effectiveStatus) params.set("status", effectiveStatus);
+    if (stageId) params.set("stage_id", stageId);
     const url = `/api/pipeline/territory-cards${params.toString() ? `?${params.toString()}` : ""}`;
-    fetch(url)
+    apiFetch(url)
       .then((r) => r.json())
       .then((d) => setCards(d.cards ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [effectiveStatus]);
+  }, [effectiveStatus, stageId]);
 
   const filtered = searchQuery
     ? cards.filter((c) => {
