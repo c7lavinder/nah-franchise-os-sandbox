@@ -3,21 +3,20 @@
 /**
  * PipelineQuickPanel — inline panel below a pipeline lead row.
  * Three columns: Sub-Tasks | Upcoming Events | Contacts
- * Action bar: Move to Follow-Up, Nurture, Advance Stage
+ * Action bar: Advance, Back Stage, Move to Follow-Up / Nurture
  */
 
 import { useState, useEffect, useCallback } from "react";
 import {
   Loader2,
   ChevronRight,
+  ChevronLeft,
   Calendar,
   Mail,
   MessageSquare,
   Phone,
   ClipboardList,
   ArrowRight,
-  UserMinus,
-  RotateCcw,
 } from "lucide-react";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { titleCase, capitalizeName } from "@/lib/format/contact";
@@ -85,80 +84,67 @@ export default function PipelineQuickPanel({
   const [pendingSteps, setPendingSteps] = useState<PendingStep[]>([]);
   const [journeyMembers, setJourneyMembers] = useState<JourneyMember[]>([]);
   const [appointments, setAppointments] = useState<{ title: string; startTime: string }[]>([]);
-  const [advancing, setAdvancing] = useState(false);
+  const [acting, setActing] = useState(false);
   const [logModalTask, setLogModalTask] = useState<PipelineSubTask | null>(null);
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
+
+  const identifier = ghlContactId ?? contactId;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const identifier = ghlContactId ?? contactId;
-
-      // Parallel fetches
-      const [stateRes, pendingRes, usersRes] = await Promise.all([
+      // All fetches in parallel
+      const [stateRes, pendingRes, usersRes, membersRes, aptRes] = await Promise.all([
         apiFetch(`/api/contacts/${identifier}/pipeline-state`),
         ghlContactId ? apiFetch(`/api/workflows/pending-steps?ghl_contact_id=${ghlContactId}`) : Promise.resolve(null),
         apiFetch("/api/pipeline/users"),
+        apiFetch(`/api/contacts/${identifier}/journey-members`),
+        ghlContactId ? apiFetch(`/api/contacts/${identifier}/appointments`) : Promise.resolve(null),
       ]);
 
-      // Parse pipeline state
+      // Pipeline state → sub-tasks
       if (stateRes.ok) {
         const stateData = await stateRes.json();
         const states = stateData.pipelineStates ?? [];
-
-        // Find the pipeline matching pipelineSlug
         const matchingState = states.find(
           (s: { pipeline_slug?: string; pipelines?: { slug: string } }) =>
             s.pipeline_slug === pipelineSlug || (s.pipelines as { slug: string } | undefined)?.slug === pipelineSlug
         );
-
         if (matchingState) {
           setPipelineId(matchingState.pipeline_id);
-          const stages = matchingState.stages ?? [];
-          // Find current stage
-          const stage = stages.find((s: StageData) => s.id === stageId);
-          if (stage) {
-            setCurrentStage(stage);
-          }
-        }
-
-        // Extract journey members from contact info
-        const localId = stateData.localContactId;
-        if (localId) {
-          // Fetch journey members
-          const jRes = await apiFetch(`/api/contacts/${identifier}/journey-members`);
-          if (jRes.ok) {
-            const jData = await jRes.json();
-            setJourneyMembers(jData.members ?? []);
-          }
-        }
-
-        // Fetch upcoming appointments for this contact
-        if (ghlContactId) {
-          const aptRes = await apiFetch(`/api/contacts/${identifier}/appointments`);
-          if (aptRes.ok) {
-            const aptData = await aptRes.json();
-            setAppointments((aptData.appointments ?? []).slice(0, 5));
-          }
+          const stage = (matchingState.stages ?? []).find((s: StageData) => s.id === stageId);
+          if (stage) setCurrentStage(stage);
         }
       }
 
-      // Parse pending workflow steps
+      // Pending workflow steps
       if (pendingRes?.ok) {
-        const pendingData = await pendingRes.json();
-        setPendingSteps((pendingData.pendingSteps ?? []).slice(0, 5));
+        const d = await pendingRes.json();
+        setPendingSteps((d.pendingSteps ?? []).slice(0, 5));
       }
 
-      // Users for log modal
+      // Users
       if (usersRes.ok) {
-        const uData = await usersRes.json();
-        setUsers(uData.users ?? []);
+        const d = await usersRes.json();
+        setUsers(d.users ?? []);
+      }
+
+      // Journey members
+      if (membersRes.ok) {
+        const d = await membersRes.json();
+        setJourneyMembers(d.members ?? []);
+      }
+
+      // Appointments
+      if (aptRes?.ok) {
+        const d = await aptRes.json();
+        setAppointments((d.appointments ?? []).slice(0, 5));
       }
     } catch {
       // silent
     }
     setLoading(false);
-  }, [contactId, ghlContactId, pipelineSlug, stageId]);
+  }, [identifier, ghlContactId, pipelineSlug, stageId]);
 
   useEffect(() => {
     void fetchData();
@@ -166,9 +152,8 @@ export default function PipelineQuickPanel({
 
   async function handleAdvance() {
     if (!pipelineId) return;
-    setAdvancing(true);
+    setActing(true);
     try {
-      const identifier = ghlContactId ?? contactId;
       const res = await apiFetch(`/api/contacts/${identifier}/pipelines/${pipelineId}/advance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -176,7 +161,6 @@ export default function PipelineQuickPanel({
       });
       if (res.ok) {
         toast("Stage advanced");
-        // Refresh both the panel and the parent list
         await fetchData();
         onRefresh();
       } else {
@@ -186,7 +170,61 @@ export default function PipelineQuickPanel({
     } catch {
       toast("Advance failed");
     }
-    setAdvancing(false);
+    setActing(false);
+  }
+
+  async function handleRevert() {
+    if (!pipelineId) return;
+    const reason = prompt("Reason for reverting to previous stage:");
+    if (!reason?.trim()) return;
+    setActing(true);
+    try {
+      const res = await apiFetch(`/api/contacts/${identifier}/pipelines/${pipelineId}/revert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (res.ok) {
+        toast("Reverted to previous stage");
+        await fetchData();
+        onRefresh();
+      } else {
+        const data = await res.json().catch(() => ({ error: "Revert failed" }));
+        toast(data.error ?? "Revert failed");
+      }
+    } catch {
+      toast("Revert failed");
+    }
+    setActing(false);
+  }
+
+  async function handleDrop(destination: "followup" | "nurture") {
+    if (!pipelineId) return;
+    const label = destination === "followup" ? "Follow-Up" : "Nurture";
+    let reason = "";
+    if (destination === "followup") {
+      const input = prompt(`Reason for moving to ${label}:`);
+      if (!input?.trim()) return;
+      reason = input;
+    }
+    setActing(true);
+    try {
+      const res = await apiFetch(`/api/contacts/${identifier}/pipelines/${pipelineId}/drop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ destination, reason }),
+      });
+      if (res.ok) {
+        toast(`Moved to ${label}`);
+        onRefresh();
+      } else {
+        const data = await res.json().catch(() => ({ error: `Move to ${label} failed` }));
+        toast(data.error ?? `Move to ${label} failed`);
+      }
+    } catch {
+      toast(`Move to ${label} failed`);
+    }
+    setActing(false);
   }
 
   function handleLogSuccess() {
@@ -203,15 +241,10 @@ export default function PipelineQuickPanel({
     );
   }
 
-  // Merge appointments + pending steps into a single timeline
+  // Merge appointments + pending steps into chronological timeline
   const upcoming: { type: string; title: string; time: string; meta?: string }[] = [];
-
   for (const apt of appointments) {
-    upcoming.push({
-      type: "appointment",
-      title: apt.title,
-      time: apt.startTime,
-    });
+    upcoming.push({ type: "appointment", title: apt.title, time: apt.startTime });
   }
   for (const step of pendingSteps) {
     upcoming.push({
@@ -221,13 +254,14 @@ export default function PipelineQuickPanel({
       meta: step.workflowName,
     });
   }
-
-  // Sort by time ascending
   upcoming.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
   const visibleUpcoming = upcoming.slice(0, 5);
 
   const subTasks = currentStage?.subTasks ?? [];
   const logsBySubTask = currentStage?.logsBySubTask ?? {};
+
+  const isSales = pipelineSlug === "sales";
+  const isFollowup = pipelineSlug === "followup";
 
   function getEventIcon(type: string) {
     switch (type) {
@@ -311,7 +345,6 @@ export default function PipelineQuickPanel({
         <div className="p-3">
           <h4 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-2 uppercase">Contacts</h4>
           <div className="space-y-2.5">
-            {/* Primary contact from the row data */}
             <div>
               <p className="text-body-sm text-text-primary font-medium">{capitalizeName(contactName)}</p>
               {contactPhone && (
@@ -331,7 +364,6 @@ export default function PipelineQuickPanel({
                 </a>
               )}
             </div>
-            {/* Additional journey members */}
             {journeyMembers
               .filter((m) => m.contactId !== contactId)
               .map((m) => (
@@ -363,15 +395,48 @@ export default function PipelineQuickPanel({
       </div>
 
       {/* Action bar */}
-      <div className="flex items-center gap-2 px-3 py-2.5 border-t border-border-default bg-bg-tertiary">
+      <div className="flex items-center gap-2 px-3 py-2.5 border-t border-border-default bg-bg-tertiary flex-wrap">
+        {/* Back stage */}
+        <button
+          onClick={() => void handleRevert()}
+          disabled={acting || !pipelineId}
+          className="btn-ghost px-3 py-1.5 text-caption flex items-center gap-1 text-text-secondary"
+        >
+          <ChevronLeft size={12} /> Back Stage
+        </button>
+
+        {/* Advance stage */}
         <button
           onClick={() => void handleAdvance()}
-          disabled={advancing || !pipelineId}
+          disabled={acting || !pipelineId}
           className="btn-primary px-3 py-1.5 text-caption flex items-center gap-1"
         >
-          {advancing ? <Loader2 size={12} className="animate-spin" /> : <ChevronRight size={12} />}
+          {acting ? <Loader2 size={12} className="animate-spin" /> : <ChevronRight size={12} />}
           Advance Stage
         </button>
+
+        {/* Spacer */}
+        <span className="flex-1" />
+
+        {/* Move to Follow-Up / Nurture — only for sales pipeline */}
+        {(isSales || (!isFollowup && pipelineSlug !== "followup")) && (
+          <>
+            <button
+              onClick={() => void handleDrop("followup")}
+              disabled={acting || !pipelineId}
+              className="btn-ghost px-3 py-1.5 text-caption flex items-center gap-1 text-warning border border-warning/30 hover:bg-warning/10"
+            >
+              Move to Follow-Up
+            </button>
+            <button
+              onClick={() => void handleDrop("nurture")}
+              disabled={acting || !pipelineId}
+              className="btn-ghost px-3 py-1.5 text-caption flex items-center gap-1 text-text-tertiary border border-border-default hover:bg-bg-hover"
+            >
+              Move to Nurture
+            </button>
+          </>
+        )}
       </div>
 
       {/* Sub-task log modal */}
