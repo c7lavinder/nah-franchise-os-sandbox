@@ -381,9 +381,12 @@ interface TranscriptLine {
 function parseTranscriptLines(raw: string, participantNames: string[] = []): TranscriptLine[] {
   const parsed: TranscriptLine[] = [];
 
+  // Normalize line endings
+  const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
   // First pass: collect unique raw bracket labels to build a speaker map
   const rawLabels: string[] = [];
-  for (const line of raw.split("\n")) {
+  for (const line of normalized.split("\n")) {
     const m = line.match(/^\[([^\]]+)\]/);
     if (m && !rawLabels.includes(m[1])) rawLabels.push(m[1]);
   }
@@ -391,7 +394,7 @@ function parseTranscriptLines(raw: string, participantNames: string[] = []): Tra
   // Build label → display name mapping
   const labelMap = buildDisplaySpeakerMap(rawLabels, participantNames);
 
-  const segments = raw.split("\n");
+  const segments = normalized.split("\n");
 
   for (const segment of segments) {
     if (!segment.trim()) continue;
@@ -399,19 +402,38 @@ function parseTranscriptLines(raw: string, participantNames: string[] = []): Tra
     let speaker: string | null = null;
     let text = "";
 
-    // Old format: [Speaker Label]: text
+    // Format 1: [Speaker Label]: text
     const bracketMatch = segment.match(/^\[([^\]]+)\]:\s*([\s\S]*)/);
     if (bracketMatch) {
       speaker = labelMap.get(bracketMatch[1]) ?? cleanSpeakerLabel(bracketMatch[1]);
       text = bracketMatch[2].trim();
     }
 
-    // New format: Name: text
+    // Format 2: Name: text (allows digits, dots, hyphens in names)
     if (!speaker) {
-      const colonMatch = segment.match(/^([A-Z][a-zA-Z' ]{1,40}):\s*([\s\S]*)/);
+      const colonMatch = segment.match(/^([A-Z][a-zA-Z0-9' .-]{1,40}):\s*([\s\S]*)/);
       if (colonMatch) {
         speaker = colonMatch[1].trim();
         text = colonMatch[2].trim();
+      }
+    }
+
+    // Format 3: Read.ai plain text — "Name  0:15" or "Name  00:15:30"
+    // Speaker name + timestamp on its own line, text follows on next lines
+    if (!speaker) {
+      const tsMatch = segment.match(/^([A-Za-z][A-Za-z' .-]+?)\s{2,}\d{1,2}:\d{2}(?::\d{2})?\s*$/);
+      if (tsMatch) {
+        speaker = tsMatch[1].trim();
+        text = "";
+      }
+    }
+
+    // Format 4: Timestamp prefix — "0:15 Name:" or "00:15:30 Name:"
+    if (!speaker) {
+      const tsPrefixMatch = segment.match(/^\d{1,2}:\d{2}(?::\d{2})?\s+([A-Z][a-zA-Z0-9' .-]{1,40}):\s*([\s\S]*)/);
+      if (tsPrefixMatch) {
+        speaker = tsPrefixMatch[1].trim();
+        text = tsPrefixMatch[2].trim();
       }
     }
 

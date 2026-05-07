@@ -291,7 +291,9 @@ export default function CallDetailPage() {
           <button onClick={() => router.back()} className="btn-ghost p-1.5">
             <ArrowLeft size={18} />
           </button>
-          <h1 className="font-headline text-page-title text-text-primary truncate flex-1">{call.title ?? "Call"}</h1>
+          <h1 className="font-headline text-page-title text-text-primary truncate flex-1 max-w-[480px]">
+            {call.title ?? "Call"}
+          </h1>
           <CallOverrideControls
             callId={call.id}
             hostedByUserId={call.hosted_by_user_id}
