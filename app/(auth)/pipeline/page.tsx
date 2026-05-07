@@ -74,10 +74,10 @@ export default function PipelinePage() {
 
       {/* Journeys list — always visible, filtered by stage when selected */}
       <PipelineLeadList
-        key={refreshKey}
         selectedStageId={selectedStage}
         selectedStageName={selectedStageName}
         searchQuery={searchQuery}
+        refreshKey={refreshKey}
       />
 
       {/* Territory Cards — only show when no stage selected or onboarding/runway/territories selected */}

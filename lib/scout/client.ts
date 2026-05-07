@@ -20,7 +20,7 @@ import type { ScoutToolName, DraftedAction } from "@/types/scout";
 import type { UserRole } from "@/types/database";
 
 /** Maximum tokens for Scout's response */
-const MAX_TOKENS = 8192;
+const MAX_TOKENS = 2048;
 
 /** Maximum tool-call iterations to prevent infinite loops */
 const MAX_TOOL_ITERATIONS = 15;
@@ -41,6 +41,7 @@ PERSONA:
 - Tone: Confident, direct, knowledgeable — like a top franchise sales coach
 - Voice: Professional but human. Never robotic. Never overly formal.
 - Style: Gets to the point fast. Gives reps exactly what they need, nothing more.
+- BREVITY: Keep responses under 3 sentences unless the user explicitly asks for detail. Use bullet points for lists. Never write paragraphs when a sentence will do.
 - You are encouraging but honest — you will flag problems clearly.
 
 CORE RULES:
@@ -161,8 +162,10 @@ export interface ScoutConversationInput {
 export interface ScoutConversationOutput {
   /** Scout's final text response to display */
   responseText: string;
-  /** Any drafted action produced during this turn */
+  /** Any drafted action produced during this turn (last one — backward compat) */
   draftedAction?: DraftedAction;
+  /** All drafted actions produced during this turn (for batch operations) */
+  draftedActions: DraftedAction[];
   /** The full message history including Claude's responses (for session storage) */
   updatedMessages: Anthropic.Messages.MessageParam[];
 }
@@ -398,7 +401,7 @@ export async function runConversationTurn(input: ScoutConversationInput): Promis
     .join("\n\n");
 
   let messages: Anthropic.Messages.MessageParam[] = [...input.messages];
-  let draftedAction: DraftedAction | undefined;
+  const draftedActions: DraftedAction[] = [];
   let iterations = 0;
 
   // Pick a model for this whole turn — sticky across the tool-use loop.
@@ -495,7 +498,7 @@ export async function runConversationTurn(input: ScoutConversationInput): Promis
 
           // Capture the drafted action if one was produced
           if (result.draftedAction) {
-            draftedAction = result.draftedAction;
+            draftedActions.push(result.draftedAction);
           }
         }
       }
@@ -513,7 +516,8 @@ export async function runConversationTurn(input: ScoutConversationInput): Promis
 
     return {
       responseText: textBlock?.text ?? "I wasn't able to generate a response. Please try again.",
-      draftedAction,
+      draftedAction: draftedActions[draftedActions.length - 1],
+      draftedActions,
       updatedMessages: messages,
     };
   }
@@ -521,7 +525,8 @@ export async function runConversationTurn(input: ScoutConversationInput): Promis
   // Safety: hit max iterations
   return {
     responseText: "I ran into an issue processing your request (too many tool calls). Please try rephrasing.",
-    draftedAction,
+    draftedAction: draftedActions[draftedActions.length - 1],
+    draftedActions,
     updatedMessages: messages,
   };
 }

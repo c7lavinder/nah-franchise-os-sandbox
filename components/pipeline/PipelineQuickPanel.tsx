@@ -28,6 +28,7 @@ import SubTaskLogModal from "@/components/contact/SubTaskLogModal";
 import { computeSubTaskVisualState } from "@/lib/contacts/stage-visual-state";
 import type { PipelineSubTask, SubTaskLog } from "@/lib/contacts/pipeline-state";
 import { useToast } from "@/components/ui/Toast";
+import TerritoryAssignModal from "./TerritoryAssignModal";
 
 interface PipelineQuickPanelProps {
   contactId: string;
@@ -90,6 +91,8 @@ export default function PipelineQuickPanel({
   const [acting, setActing] = useState(false);
   const [logModalTask, setLogModalTask] = useState<PipelineSubTask | null>(null);
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
+  const [showTerritoryModal, setShowTerritoryModal] = useState(false);
+  const [allStages, setAllStages] = useState<StageData[]>([]);
 
   const identifier = ghlContactId ?? contactId;
 
@@ -115,7 +118,9 @@ export default function PipelineQuickPanel({
         );
         if (matchingState) {
           setPipelineId(matchingState.pipeline_id);
-          const stage = (matchingState.stages ?? []).find((s: StageData) => s.id === stageId);
+          const stages = matchingState.stages ?? [];
+          setAllStages(stages);
+          const stage = stages.find((s: StageData) => s.id === stageId);
           if (stage) setCurrentStage(stage);
         }
       }
@@ -153,7 +158,28 @@ export default function PipelineQuickPanel({
     void fetchData();
   }, [fetchData]);
 
+  // Check if advancing would move into a terminal stage (e.g. Closed → triggers onboarding)
+  function isNextStageTerminal(): boolean {
+    if (!currentStage || allStages.length === 0) return false;
+    const sorted = [...allStages].sort((a, b) => a.sort_order - b.sort_order);
+    const idx = sorted.findIndex((s) => s.id === currentStage.id);
+    const next = sorted[idx + 1];
+    return next?.slug === "closed" || next?.slug === "onboarded" || next?.slug === "running";
+  }
+
   async function handleAdvance() {
+    if (!pipelineId) return;
+
+    // If next stage is terminal and this is sales, offer territory creation first
+    if (pipelineSlug === "sales" && isNextStageTerminal() && ghlContactId) {
+      setShowTerritoryModal(true);
+      return;
+    }
+
+    await doAdvance();
+  }
+
+  async function doAdvance() {
     if (!pipelineId) return;
     setActing(true);
     try {
@@ -435,6 +461,19 @@ export default function PipelineQuickPanel({
           onLogDeleted={() => {
             void fetchData();
             onRefresh();
+          }}
+        />
+      )}
+
+      {/* Territory creation modal — shown before closing a sales deal */}
+      {showTerritoryModal && ghlContactId && (
+        <TerritoryAssignModal
+          ghlContactId={ghlContactId}
+          contactName={contactName}
+          onClose={() => setShowTerritoryModal(false)}
+          onCreated={() => {
+            setShowTerritoryModal(false);
+            void doAdvance();
           }}
         />
       )}

@@ -44,6 +44,7 @@ interface PipelineLeadListProps {
   selectedStageId: string | null;
   selectedStageName: string | null;
   searchQuery: string;
+  refreshKey?: number;
 }
 
 type SortField = "urgency" | "name" | "recent";
@@ -105,7 +106,12 @@ function getSourceStyle(source: string): { bg: string; text: string } {
 
 const PAGE_SIZE = 50;
 
-export default function PipelineLeadList({ selectedStageId, selectedStageName, searchQuery }: PipelineLeadListProps) {
+export default function PipelineLeadList({
+  selectedStageId,
+  selectedStageName,
+  searchQuery,
+  refreshKey,
+}: PipelineLeadListProps) {
   const [contacts, setContacts] = useState<PipelineContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortField, setSortField] = useState<SortField>("urgency");
@@ -126,8 +132,9 @@ export default function PipelineLeadList({ selectedStageId, selectedStageName, s
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
 
   useEffect(() => {
-    // Reset selection on stage/search change
+    // Reset selection + expanded panel on stage/search change
     setSelectedIds(new Set());
+    setExpandedRow(null);
   }, [selectedStageId, searchQuery]);
 
   function toggleOne(id: string) {
@@ -177,7 +184,8 @@ export default function PipelineLeadList({ selectedStageId, selectedStageName, s
       setLoading(false);
       setLoadingMore(false);
     },
-    [sortField, selectedStageId, searchQuery]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedStageId, searchQuery, refreshKey]
   );
 
   async function handleLoadMore() {
