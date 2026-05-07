@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
 import { X, Loader2, Trash2, Pencil, Paperclip, ExternalLink, ArrowLeft } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { titleCase } from "@/lib/format/contact";
+import FileDropZone from "@/components/ui/FileDropZone";
 import type { SubTaskLog } from "@/lib/contacts/pipeline-state";
 
 interface SubTaskLogModalProps {
@@ -348,16 +349,7 @@ export default function SubTaskLogModal({
                   placeholder="What happened?"
                 />
               </div>
-              <div>
-                <label className="block text-caption text-text-tertiary mb-1">File / Screenshot URL</label>
-                <input
-                  type="url"
-                  value={editFileUrl}
-                  onChange={(e) => setEditFileUrl(e.target.value)}
-                  className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary"
-                  placeholder="https://..."
-                />
-              </div>
+              <FileDropZone value={editFileUrl} onChange={setEditFileUrl} label="Attachment" />
               <div>
                 <label className="block text-caption text-text-tertiary mb-1">Link URL</label>
                 <input
@@ -417,16 +409,7 @@ export default function SubTaskLogModal({
                 />
               </div>
 
-              <div>
-                <label className="block text-caption text-text-tertiary mb-1">File / Screenshot URL</label>
-                <input
-                  type="url"
-                  value={fileUrl}
-                  onChange={(e) => setFileUrl(e.target.value)}
-                  className="w-full bg-bg-secondary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary"
-                  placeholder="https://..."
-                />
-              </div>
+              <FileDropZone value={fileUrl} onChange={setFileUrl} label="Attachment" />
 
               <div>
                 <label className="block text-caption text-text-tertiary mb-1">Link URL</label>
