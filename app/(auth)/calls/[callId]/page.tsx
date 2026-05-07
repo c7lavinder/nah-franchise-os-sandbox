@@ -287,11 +287,11 @@ export default function CallDetailPage() {
       {/* ═══ HEADER ═══ */}
       <div className="mb-5 space-y-3">
         {/* Row 1 — Back + Title + Refresh */}
-        <div className="flex items-start gap-2">
-          <button onClick={() => router.back()} className="btn-ghost p-1.5 flex-shrink-0 mt-0.5">
+        <div className="flex items-center gap-2">
+          <button onClick={() => router.back()} className="btn-ghost p-1.5 flex-shrink-0">
             <ArrowLeft size={18} />
           </button>
-          <h1 className="font-headline text-page-title text-text-primary flex-1 min-w-0">{call.title ?? "Call"}</h1>
+          <h1 className="font-headline text-page-title text-text-primary whitespace-nowrap">{call.title ?? "Call"}</h1>
           <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
             <CallOverrideControls
               callId={call.id}
