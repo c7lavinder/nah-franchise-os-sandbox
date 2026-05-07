@@ -123,6 +123,7 @@ export interface GHLTaskUpdatePayload {
   body?: string;
   dueDate?: string;
   completed?: boolean;
+  assignedTo?: string;
 }
 
 /** GHL Calendar Event / Appointment */

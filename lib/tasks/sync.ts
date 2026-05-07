@@ -170,6 +170,7 @@ export async function handleGhlTaskUpdate(payload: {
   body?: string;
   dueDate?: string;
   completed?: boolean;
+  assignedTo?: string;
 }): Promise<void> {
   const supabase = createServerClient();
 
@@ -178,24 +179,36 @@ export async function handleGhlTaskUpdate(payload: {
     updates.completed = payload.completed;
     updates.completed_at = payload.completed ? new Date().toISOString() : null;
   }
-  if (payload.title) updates.title = payload.title;
+  if (payload.title !== undefined) updates.title = payload.title || undefined;
   if (payload.body !== undefined) updates.body = payload.body;
-  if (payload.dueDate) updates.due_date = payload.dueDate;
+  if (payload.dueDate !== undefined) updates.due_date = payload.dueDate || null;
+  if (payload.assignedTo) updates.assigned_to_ghl_user_id = payload.assignedTo;
 
   // Try to find existing task by ghl_task_id
   const { data: existing } = await supabase.from("tasks").select("id").eq("ghl_task_id", payload.id).maybeSingle();
 
   if (existing) {
-    // Update existing
     await supabase.from("tasks").update(updates).eq("id", existing.id);
   } else {
-    // Task created in GHL directly — create in Supabase
+    // Task created in GHL directly — resolve contact UUID from ghl_contact_id
+    let contactUuid: string | null = null;
+    if (payload.contactId) {
+      const { data: contact } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("ghl_contact_id", payload.contactId)
+        .maybeSingle();
+      contactUuid = contact?.id ?? null;
+    }
+
     await supabase.from("tasks").insert({
       ghl_task_id: payload.id,
+      contact_id: contactUuid,
       ghl_contact_id: payload.contactId,
       title: payload.title ?? "Untitled task",
       body: payload.body ?? null,
       due_date: payload.dueDate ?? null,
+      assigned_to_ghl_user_id: payload.assignedTo ?? null,
       completed: payload.completed ?? false,
       completed_at: payload.completed ? new Date().toISOString() : null,
       source: "ghl",

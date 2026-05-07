@@ -172,9 +172,9 @@ export async function POST(request: NextRequest) {
         break;
       }
 
-      // ─── Opportunity Stage Changed ───
-      case eventType.includes("opportunity") && eventType.includes("stage"):
-      case eventType.includes("opportunitystage"): {
+      // ─── Opportunity Updated (includes stage changes) ───
+      // GHL sends "OpportunityUpdate" for ALL opportunity changes including stage moves.
+      case eventType.includes("opportunity"): {
         const oppContactId = contactId ?? null;
 
         // Log the stage change
@@ -201,20 +201,21 @@ export async function POST(request: NextRequest) {
         break;
       }
 
-      // ─── Task Updated/Completed in GHL ───
-      case eventType.includes("taskupdate"):
-      case eventType.includes("task") && eventType.includes("update"): {
-        const taskId =
-          ((payload as Record<string, unknown>).taskId as string | undefined) ??
-          ((payload as Record<string, unknown>).id as string | undefined);
+      // ─── Task Events (Create, Complete, Delete) ───
+      // GHL sends TaskCreate, TaskComplete, TaskDelete (not TaskUpdate)
+      case eventType.includes("task"): {
+        const p = payload as Record<string, unknown>;
+        const taskId = (p.taskId as string | undefined) ?? (p.id as string | undefined);
         if (taskId && contactId) {
           const { handleGhlTaskUpdate } = await import("@/lib/tasks/sync");
           await handleGhlTaskUpdate({
             id: taskId,
             contactId,
-            title: payload.body as string | undefined,
-            completed: (payload as Record<string, unknown>).completed as boolean | undefined,
-            dueDate: (payload as Record<string, unknown>).dueDate as string | undefined,
+            title: p.title as string | undefined,
+            body: p.body as string | undefined,
+            completed: p.completed as boolean | undefined,
+            dueDate: p.dueDate as string | undefined,
+            assignedTo: p.assignedTo as string | undefined,
           });
         }
         break;
