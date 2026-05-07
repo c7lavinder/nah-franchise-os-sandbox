@@ -345,32 +345,16 @@ export default function PipelineQuickPanel({
         <div className="p-3">
           <h4 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-2 uppercase">Contacts</h4>
           <div className="space-y-2.5">
-            <div>
-              <p className="text-body-sm text-text-primary font-medium">{capitalizeName(contactName)}</p>
-              {contactPhone && (
-                <a
-                  href={`tel:${contactPhone}`}
-                  className="flex items-center gap-1 text-[11px] text-nah-blue hover:underline"
-                >
-                  <Phone size={10} /> {contactPhone}
-                </a>
-              )}
-              {contactEmail && (
-                <a
-                  href={`mailto:${contactEmail}`}
-                  className="flex items-center gap-1 text-[11px] text-nah-blue hover:underline truncate"
-                >
-                  <Mail size={10} /> {contactEmail}
-                </a>
-              )}
-            </div>
-            {journeyMembers
-              .filter((m) => m.contactId !== contactId)
-              .map((m) => (
-                <div key={m.contactId}>
+            {journeyMembers.length > 0 ? (
+              journeyMembers.map((m) => (
+                <div key={m.contactId} className="border-b border-border-default last:border-0 pb-2 last:pb-0">
                   <p className="text-body-sm text-text-primary font-medium">
                     {capitalizeName(m.name)}
-                    <span className="text-[10px] text-text-tertiary font-normal ml-1">{titleCase(m.role)}</span>
+                    {m.role !== "primary" && (
+                      <span className="text-[10px] text-text-tertiary font-normal ml-1">
+                        {titleCase(m.role.replace("_", " "))}
+                      </span>
+                    )}
                   </p>
                   {m.phone && (
                     <a
@@ -389,7 +373,29 @@ export default function PipelineQuickPanel({
                     </a>
                   )}
                 </div>
-              ))}
+              ))
+            ) : (
+              /* Fallback to row data when no journey members returned */
+              <div>
+                <p className="text-body-sm text-text-primary font-medium">{capitalizeName(contactName)}</p>
+                {contactPhone && (
+                  <a
+                    href={`tel:${contactPhone}`}
+                    className="flex items-center gap-1 text-[11px] text-nah-blue hover:underline"
+                  >
+                    <Phone size={10} /> {contactPhone}
+                  </a>
+                )}
+                {contactEmail && (
+                  <a
+                    href={`mailto:${contactEmail}`}
+                    className="flex items-center gap-1 text-[11px] text-nah-blue hover:underline truncate"
+                  >
+                    <Mail size={10} /> {contactEmail}
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
