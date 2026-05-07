@@ -9,10 +9,11 @@ import { apiFetch } from "@/lib/auth/api-fetch";
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { ChevronDown, ChevronRight, Loader2, MessageSquare, X, Calendar } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, Loader2, MessageSquare, X, Calendar } from "lucide-react";
 import Link from "next/link";
 import { capitalizeName, formatPhone } from "@/lib/format/contact";
 import BulkComposerModal, { type BulkContact } from "./BulkComposerModal";
+import PipelineQuickPanel from "./PipelineQuickPanel";
 
 interface PipelineContact {
   stateId: string;
@@ -115,6 +116,7 @@ export default function PipelineLeadList({ selectedStageId, selectedStageName, s
   const [loadingMore, setLoadingMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const BATCH_SIZE = 5000;
 
   // Bulk-select state — keyed by contactId. Cleared whenever the visible
@@ -277,38 +279,43 @@ export default function PipelineLeadList({ selectedStageId, selectedStageName, s
           const sc = STAGE_COLORS[contact.stageSlug] ?? { bg: "bg-gray-100", text: "text-gray-600" };
           const srcStyle = contact.source ? getSourceStyle(contact.source) : null;
           const isSelected = selectedIds.has(contact.contactId);
+          const isExpanded = expandedRow === contact.stateId;
 
           return (
-            <div
-              key={contact.stateId}
-              className={`
-                grid items-center gap-2 pl-2 pr-3 py-2.5 hover:bg-bg-hover transition-colors
-                grid-cols-[20px_1fr_72px_110px_140px_16px]
-                ${isSelected ? "bg-nah-blue/5" : ""}
-                ${i < visible.length - 1 ? "border-b border-border-default" : ""}
-              `}
-            >
-              {/* Selection checkbox — its own click region so the row link still navigates */}
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={() => toggleOne(contact.contactId)}
-                onClick={(e) => e.stopPropagation()}
-                className="cursor-pointer"
-                aria-label={`Select ${contact.name}`}
-              />
-
-              {/* The rest of the row links to the detail page */}
-              <Link
-                href={
-                  contact.journeySlug || contact.journeyId
-                    ? `/journeys/${contact.journeySlug ?? contact.journeyId}${contact.territoryMsSlug ? `?territory=${contact.territoryMsSlug}` : ""}`
-                    : `/leads/${contact.contactId}`
-                }
-                className="contents"
+            <div key={contact.stateId}>
+              <div
+                onClick={() => setExpandedRow(isExpanded ? null : contact.stateId)}
+                className={`
+                  grid items-center gap-2 pl-2 pr-3 py-2.5 hover:bg-bg-hover transition-colors cursor-pointer
+                  grid-cols-[20px_1fr_72px_110px_140px_16px]
+                  ${isSelected ? "bg-nah-blue/5" : ""}
+                  ${isExpanded ? "bg-bg-hover" : ""}
+                  ${!isExpanded && i < visible.length - 1 ? "border-b border-border-default" : ""}
+                `}
               >
+                {/* Selection checkbox */}
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleOne(contact.contactId)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="cursor-pointer"
+                  aria-label={`Select ${contact.name}`}
+                />
+
+                {/* Name — links to detail page */}
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <p className="text-body-sm text-text-primary font-medium truncate">{capitalizeName(contact.name)}</p>
+                  <Link
+                    href={
+                      contact.journeySlug || contact.journeyId
+                        ? `/journeys/${contact.journeySlug ?? contact.journeyId}${contact.territoryMsSlug ? `?territory=${contact.territoryMsSlug}` : ""}`
+                        : `/leads/${contact.contactId}`
+                    }
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-body-sm text-text-primary font-medium truncate hover:underline"
+                  >
+                    {capitalizeName(contact.name)}
+                  </Link>
                   {contact.territoryMsSlug && (
                     <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-info/10 text-info">
                       {contact.territoryMsSlug}
@@ -348,8 +355,31 @@ export default function PipelineLeadList({ selectedStageId, selectedStageName, s
                   <span className="hidden lg:block" />
                 )}
 
-                <ChevronRight size={12} className="text-text-tertiary" />
-              </Link>
+                {isExpanded ? (
+                  <ChevronUp size={12} className="text-nah-blue" />
+                ) : (
+                  <ChevronRight size={12} className="text-text-tertiary" />
+                )}
+              </div>
+
+              {/* Quick-action panel */}
+              {isExpanded && (
+                <PipelineQuickPanel
+                  contactId={contact.contactId}
+                  ghlContactId={contact.ghlContactId}
+                  contactName={contact.name}
+                  contactEmail={contact.email}
+                  contactPhone={contact.phone}
+                  stageId={contact.stageId}
+                  stageName={contact.stageName}
+                  pipelineSlug={contact.pipelineSlug}
+                  journeyId={contact.journeyId}
+                  onRefresh={() => void fetchContacts()}
+                />
+              )}
+
+              {/* Border after expanded panel or between collapsed rows */}
+              {isExpanded && i < visible.length - 1 && <div className="border-b border-border-default" />}
             </div>
           );
         })}
