@@ -287,46 +287,46 @@ export default function CallDetailPage() {
       {/* ═══ HEADER ═══ */}
       <div className="mb-5 space-y-3">
         {/* Row 1 — Back + Title + Refresh */}
-        <div className="flex items-center gap-2">
-          <button onClick={() => router.back()} className="btn-ghost p-1.5">
+        <div className="flex items-start gap-2">
+          <button onClick={() => router.back()} className="btn-ghost p-1.5 flex-shrink-0 mt-0.5">
             <ArrowLeft size={18} />
           </button>
-          <h1 className="font-headline text-page-title text-text-primary truncate flex-1 max-w-[480px]">
-            {call.title ?? "Call"}
-          </h1>
-          <CallOverrideControls
-            callId={call.id}
-            hostedByUserId={call.hosted_by_user_id}
-            currentCallTypeId={call.call_type_id}
-            currentCallTypeSlug={call.callTypeSlug}
-            currentContactId={call.contact_id}
-            currentTerritorySlug={call.territory_ms_slug}
-            participants={call.rawParticipants ?? []}
-            onChange={() => void fetchDetail()}
-          />
-          <button
-            onClick={async () => {
-              setRefreshing(true);
-              setIsGenerating(true);
-              try {
-                // 1. Re-classify participants (fixes roles, contact matches)
-                await apiFetch(`/api/calls/${callId}/reclassify-participants`, { method: "POST" }).catch(() => {});
-                // 2. Re-run full AI processing (title, summary, grade, extractions, next steps)
-                await apiFetch(`/api/calls/${callId}/generate?force=true`, { method: "POST" }).catch(() => {});
-                // 3. Re-fetch all data
-                await fetchDetail();
-              } catch {
-                /* silent */
-              }
-              setRefreshing(false);
-              setIsGenerating(false);
-            }}
-            disabled={refreshing}
-            className="btn-ghost p-1.5 flex-shrink-0"
-            title="Re-process call — reclassify participants, regenerate AI analysis"
-          >
-            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-          </button>
+          <h1 className="font-headline text-page-title text-text-primary flex-1 min-w-0">{call.title ?? "Call"}</h1>
+          <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+            <CallOverrideControls
+              callId={call.id}
+              hostedByUserId={call.hosted_by_user_id}
+              currentCallTypeId={call.call_type_id}
+              currentCallTypeSlug={call.callTypeSlug}
+              currentContactId={call.contact_id}
+              currentTerritorySlug={call.territory_ms_slug}
+              participants={call.rawParticipants ?? []}
+              onChange={() => void fetchDetail()}
+            />
+            <button
+              onClick={async () => {
+                setRefreshing(true);
+                setIsGenerating(true);
+                try {
+                  // 1. Re-classify participants (fixes roles, contact matches)
+                  await apiFetch(`/api/calls/${callId}/reclassify-participants`, { method: "POST" }).catch(() => {});
+                  // 2. Re-run full AI processing (title, summary, grade, extractions, next steps)
+                  await apiFetch(`/api/calls/${callId}/generate?force=true`, { method: "POST" }).catch(() => {});
+                  // 3. Re-fetch all data
+                  await fetchDetail();
+                } catch {
+                  /* silent */
+                }
+                setRefreshing(false);
+                setIsGenerating(false);
+              }}
+              disabled={refreshing}
+              className="btn-ghost p-1.5 flex-shrink-0"
+              title="Re-process call — reclassify participants, regenerate AI analysis"
+            >
+              <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+            </button>
+          </div>
         </div>
 
         {/* Row 2 — Call metadata */}
