@@ -186,7 +186,7 @@ export default function PipelineQuickPanel({
       const res = await apiFetch(`/api/contacts/${identifier}/pipelines/${pipelineId}/advance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ force: false }),
+        body: JSON.stringify({ force: true }),
       });
       if (res.ok) {
         toast("Stage advanced");
