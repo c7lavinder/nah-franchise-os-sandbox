@@ -17,6 +17,9 @@ import {
   Phone,
   ClipboardList,
   ArrowRight,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { titleCase, capitalizeName } from "@/lib/format/contact";
@@ -347,47 +350,23 @@ export default function PipelineQuickPanel({
           <div className="space-y-2.5">
             {journeyMembers.length > 0 ? (
               journeyMembers.map((m) => (
-                <div key={m.contactId} className="border-b border-border-default last:border-0 pb-2 last:pb-0">
-                  <p className="text-body-sm text-text-primary font-medium">{capitalizeName(m.name)}</p>
-                  {m.phone && (
-                    <a
-                      href={`tel:${m.phone}`}
-                      className="flex items-center gap-1 text-[11px] text-nah-blue hover:underline"
-                    >
-                      <Phone size={10} /> {m.phone}
-                    </a>
-                  )}
-                  {m.email && (
-                    <a
-                      href={`mailto:${m.email}`}
-                      className="flex items-center gap-1 text-[11px] text-nah-blue hover:underline truncate"
-                    >
-                      <Mail size={10} /> {m.email}
-                    </a>
-                  )}
-                </div>
+                <EditableContactCard
+                  key={m.contactId}
+                  contactId={m.contactId}
+                  name={m.name}
+                  phone={m.phone}
+                  email={m.email}
+                  onSaved={() => void fetchData()}
+                />
               ))
             ) : (
-              /* Fallback to row data when no journey members returned */
-              <div>
-                <p className="text-body-sm text-text-primary font-medium">{capitalizeName(contactName)}</p>
-                {contactPhone && (
-                  <a
-                    href={`tel:${contactPhone}`}
-                    className="flex items-center gap-1 text-[11px] text-nah-blue hover:underline"
-                  >
-                    <Phone size={10} /> {contactPhone}
-                  </a>
-                )}
-                {contactEmail && (
-                  <a
-                    href={`mailto:${contactEmail}`}
-                    className="flex items-center gap-1 text-[11px] text-nah-blue hover:underline truncate"
-                  >
-                    <Mail size={10} /> {contactEmail}
-                  </a>
-                )}
-              </div>
+              <EditableContactCard
+                contactId={contactId}
+                name={contactName}
+                phone={contactPhone}
+                email={contactEmail}
+                onSaved={() => void fetchData()}
+              />
             )}
           </div>
         </div>
@@ -458,6 +437,129 @@ export default function PipelineQuickPanel({
             onRefresh();
           }}
         />
+      )}
+    </div>
+  );
+}
+
+// ── Inline editable contact card ──────────────────
+
+function EditableContactCard({
+  contactId,
+  name,
+  phone,
+  email,
+  onSaved,
+}: {
+  contactId: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [editPhone, setEditPhone] = useState(phone ?? "");
+  const [editEmail, setEditEmail] = useState(email ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const body: Record<string, string | null> = {};
+      if (editPhone !== (phone ?? "")) body.phone = editPhone || null;
+      if (editEmail !== (email ?? "")) body.email = editEmail || null;
+
+      if (Object.keys(body).length > 0) {
+        const res = await apiFetch(`/api/contacts/${contactId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) {
+          toast("Contact updated");
+          onSaved();
+        } else {
+          const d = await res.json().catch(() => ({ error: "Update failed" }));
+          toast(d.error ?? "Update failed");
+        }
+      }
+    } catch {
+      toast("Update failed");
+    }
+    setSaving(false);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="border-b border-border-default last:border-0 pb-2 last:pb-0 space-y-1.5">
+        <p className="text-body-sm text-text-primary font-medium">{capitalizeName(name)}</p>
+        <div className="flex items-center gap-1">
+          <Phone size={10} className="text-text-tertiary flex-shrink-0" />
+          <input
+            value={editPhone}
+            onChange={(e) => setEditPhone(e.target.value)}
+            placeholder="Phone"
+            className="flex-1 min-w-0 text-[11px] bg-bg-secondary border border-border-default rounded px-1.5 py-0.5 text-text-primary"
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          <Mail size={10} className="text-text-tertiary flex-shrink-0" />
+          <input
+            value={editEmail}
+            onChange={(e) => setEditEmail(e.target.value)}
+            placeholder="Email"
+            className="flex-1 min-w-0 text-[11px] bg-bg-secondary border border-border-default rounded px-1.5 py-0.5 text-text-primary"
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className="p-0.5 rounded text-success hover:bg-success/10"
+          >
+            {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+          </button>
+          <button
+            onClick={() => {
+              setEditing(false);
+              setEditPhone(phone ?? "");
+              setEditEmail(email ?? "");
+            }}
+            className="p-0.5 rounded text-text-tertiary hover:bg-bg-hover"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-b border-border-default last:border-0 pb-2 last:pb-0">
+      <div className="flex items-center gap-1">
+        <p className="text-body-sm text-text-primary font-medium flex-1">{capitalizeName(name)}</p>
+        <button
+          onClick={() => setEditing(true)}
+          className="p-0.5 rounded text-text-tertiary hover:text-nah-blue hover:bg-nah-blue/10 transition-colors"
+          title="Edit contact"
+        >
+          <Pencil size={10} />
+        </button>
+      </div>
+      {phone && (
+        <a href={`tel:${phone}`} className="flex items-center gap-1 text-[11px] text-nah-blue hover:underline">
+          <Phone size={10} /> {phone}
+        </a>
+      )}
+      {email && (
+        <a
+          href={`mailto:${email}`}
+          className="flex items-center gap-1 text-[11px] text-nah-blue hover:underline truncate"
+        >
+          <Mail size={10} /> {email}
+        </a>
       )}
     </div>
   );

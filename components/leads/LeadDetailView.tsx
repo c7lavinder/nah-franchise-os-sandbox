@@ -18,6 +18,7 @@ import {
 import { CallPanel } from "@/components/contact/ActionPanels";
 import { useShowSMS, useShowEmail, useShowAppointment } from "@/components/contact/ActionButtons";
 import MergeContactModal from "@/components/contact/MergeContactModal";
+import ContactEmailsPanel from "@/components/contact/ContactEmailsPanel";
 import { ProfileSection } from "@/components/profile";
 import { PROFILE_FIELDS, getSortedCategories } from "@/lib/profile/field-registry";
 import type { FieldCategory } from "@/lib/profile/field-registry";
@@ -936,6 +937,12 @@ export default function LeadDetailView({
                         ))}
                       </div>
                       {profileSavingKey && <p className="text-[10px] text-text-tertiary mt-2">Saving…</p>}
+                      <div className="mt-3 pt-3 border-t border-border-default">
+                        <ContactEmailsPanel
+                          contactId={profileContactId}
+                          initialPrimaryEmail={profileTarget?.email ?? null}
+                        />
+                      </div>
                     </div>
                     {!isSideMember && profileValues["Auto Summary"] && (
                       <div className="bg-scout-purple/5 border border-scout-purple/20 rounded-lg p-4">
