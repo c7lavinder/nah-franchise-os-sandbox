@@ -188,8 +188,10 @@ function CallRow({ c }: { c: Call }) {
 
       {/* Call type + team + contacts + unmapped */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="text-body-sm font-semibold text-text-primary truncate">{c.callTypeName ?? c.title ?? "Call"}</p>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <p className="text-body-sm font-semibold text-text-primary truncate max-w-[260px]">
+            {c.callTypeName ?? c.title ?? "Call"}
+          </p>
           {badReasons.length > 0 && (
             <span
               className="inline-flex items-center text-danger flex-shrink-0"

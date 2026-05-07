@@ -77,10 +77,10 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Section A — AI Summary */}
       <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-        <h3 className="text-overline text-text-tertiary tracking-wider mb-2">AI SUMMARY</h3>
+        <h3 className="text-overline text-text-tertiary tracking-wider mb-2">SUMMARY</h3>
         {state === "complete" && props.aiSummary ? (
           <>
             {/* Bullet digest — default view when bullets exist */}
@@ -142,104 +142,9 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
         )}
       </div>
 
-      {/* Section B — Rubric Grade (per-criterion breakdown) */}
+      {/* Section B — Rubric Grade (compact) */}
       {props.rubricGrade && props.rubricGrade.criterion_scores && props.rubricGrade.criterion_scores.length > 0 ? (
-        <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-overline text-text-tertiary tracking-wider">RUBRIC GRADE</h3>
-            <div className="flex items-center gap-2">
-              <span className={`text-lg font-bold ${gradeColor(props.rubricGrade.overall_grade)}`}>
-                {props.rubricGrade.overall_grade}
-              </span>
-              <span className="text-caption text-text-tertiary">({props.rubricGrade.overall_score}/100)</span>
-            </div>
-          </div>
-
-          {/* Per-criterion scores */}
-          <div className="space-y-3 mb-4">
-            {props.rubricGrade.criterion_scores.map((cs) => {
-              const pct = cs.score;
-              const barColor =
-                pct >= 80 ? "bg-success" : pct >= 60 ? "bg-nah-blue" : pct >= 40 ? "bg-warning" : "bg-danger";
-              return (
-                <div key={cs.criterionId}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-body-sm font-medium text-text-primary">{cs.name}</span>
-                    <span className={`text-body-sm font-bold ${gradeColor(cs.grade)}`}>
-                      {cs.grade} ({cs.score})
-                    </span>
-                  </div>
-                  <div className="h-[5px] bg-bg-tertiary rounded-full overflow-hidden mb-1">
-                    <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
-                  </div>
-                  <p className="text-caption text-text-tertiary">{cs.rationale}</p>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Strengths + Improvements */}
-          {props.rubricGrade.strengths?.length || props.rubricGrade.improvements?.length ? (
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              {props.rubricGrade.strengths && props.rubricGrade.strengths.length > 0 && (
-                <div className="rounded-lg p-3" style={{ background: "#EAF3DE", border: "0.5px solid #97C459" }}>
-                  <p className="text-[10px] font-medium uppercase tracking-wider mb-2" style={{ color: "#3B6D11" }}>
-                    Strengths
-                  </p>
-                  {props.rubricGrade.strengths.map((s, i) => (
-                    <div key={i} className="flex items-start gap-2 mb-1 last:mb-0">
-                      <div
-                        className="w-[5px] h-[5px] rounded-full mt-[5px] flex-shrink-0"
-                        style={{ background: "#3B6D11" }}
-                      />
-                      <span className="text-[12px] leading-relaxed" style={{ color: "#27500A" }}>
-                        {s}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {props.rubricGrade.improvements && props.rubricGrade.improvements.length > 0 && (
-                <div className="rounded-lg p-3" style={{ background: "#FAEEDA", border: "0.5px solid #EF9F27" }}>
-                  <p className="text-[10px] font-medium uppercase tracking-wider mb-2" style={{ color: "#854F0B" }}>
-                    Improvements
-                  </p>
-                  {props.rubricGrade.improvements.map((s, i) => (
-                    <div key={i} className="flex items-start gap-2 mb-1 last:mb-0">
-                      <div
-                        className="w-[5px] h-[5px] rounded-full mt-[5px] flex-shrink-0"
-                        style={{ background: "#854F0B" }}
-                      />
-                      <span className="text-[12px] leading-relaxed" style={{ color: "#633806" }}>
-                        {s}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {/* Suggested next action */}
-          {props.rubricGrade.suggested_next_action && (
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{ color: "#185FA5" }}>
-                Suggested next action
-              </p>
-              <div
-                className="text-[12px] leading-relaxed p-3"
-                style={{
-                  borderLeft: "3px solid #378ADD",
-                  background: "#E6F1FB",
-                  color: "#0C447C",
-                  borderRadius: "0 8px 8px 0",
-                }}
-              >
-                {props.rubricGrade.suggested_next_action}
-              </div>
-            </div>
-          )}
-        </div>
+        <RubricSection rubricGrade={props.rubricGrade} />
       ) : state === "generating" ? (
         <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
           <h3 className="text-overline text-text-tertiary tracking-wider mb-3">GRADE</h3>
@@ -330,6 +235,95 @@ export default function CallOverviewTab(props: CallOverviewTabProps) {
               Open <ExternalLink size={12} />
             </a>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Rubric section (compact) ─────────────────────
+
+function RubricSection({ rubricGrade }: { rubricGrade: NonNullable<CallOverviewTabProps["rubricGrade"]> }) {
+  const [expandedCriterion, setExpandedCriterion] = useState<string | null>(null);
+
+  return (
+    <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+      {/* Header row — grade + score */}
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-overline text-text-tertiary tracking-wider">GRADE</h3>
+        <div className="flex items-center gap-1.5">
+          <span className={`text-xl font-bold ${gradeColor(rubricGrade.overall_grade)}`}>
+            {rubricGrade.overall_grade}
+          </span>
+          <span className="text-caption text-text-tertiary">{rubricGrade.overall_score}/100</span>
+        </div>
+      </div>
+
+      {/* Compact criterion rows */}
+      <div className="space-y-1.5 mb-3">
+        {rubricGrade.criterion_scores!.map((cs) => {
+          const pct = cs.score;
+          const barColor =
+            pct >= 80 ? "bg-success" : pct >= 60 ? "bg-nah-blue" : pct >= 40 ? "bg-warning" : "bg-danger";
+          const isExpanded = expandedCriterion === cs.criterionId;
+
+          return (
+            <div key={cs.criterionId}>
+              <button
+                onClick={() => setExpandedCriterion(isExpanded ? null : cs.criterionId)}
+                className="w-full flex items-center gap-2 py-1 hover:bg-bg-tertiary/50 rounded-md px-1 -mx-1 transition-colors"
+              >
+                <span className="text-[12px] font-medium text-text-primary flex-1 text-left truncate">{cs.name}</span>
+                <div className="w-16 h-[4px] bg-bg-tertiary rounded-full overflow-hidden flex-shrink-0">
+                  <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                </div>
+                <span className={`text-[11px] font-bold w-5 text-right flex-shrink-0 ${gradeColor(cs.grade)}`}>
+                  {cs.grade}
+                </span>
+              </button>
+              {isExpanded && cs.rationale && <p className="text-[11px] text-text-tertiary pl-1 pb-1">{cs.rationale}</p>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Strengths + Improvements — inline compact */}
+      {rubricGrade.strengths?.length || rubricGrade.improvements?.length ? (
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {rubricGrade.strengths && rubricGrade.strengths.length > 0 && (
+            <div className="rounded-md px-2.5 py-2" style={{ background: "#EAF3DE" }}>
+              <p className="text-[9px] font-semibold uppercase tracking-wider mb-1" style={{ color: "#3B6D11" }}>
+                Strengths
+              </p>
+              {rubricGrade.strengths.map((s, i) => (
+                <p key={i} className="text-[11px] leading-snug" style={{ color: "#27500A" }}>
+                  &bull; {s}
+                </p>
+              ))}
+            </div>
+          )}
+          {rubricGrade.improvements && rubricGrade.improvements.length > 0 && (
+            <div className="rounded-md px-2.5 py-2" style={{ background: "#FAEEDA" }}>
+              <p className="text-[9px] font-semibold uppercase tracking-wider mb-1" style={{ color: "#854F0B" }}>
+                Improve
+              </p>
+              {rubricGrade.improvements.map((s, i) => (
+                <p key={i} className="text-[11px] leading-snug" style={{ color: "#633806" }}>
+                  &bull; {s}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {/* Next action */}
+      {rubricGrade.suggested_next_action && (
+        <div
+          className="text-[11px] leading-snug px-2.5 py-2 rounded-md"
+          style={{ borderLeft: "3px solid #378ADD", background: "#E6F1FB", color: "#0C447C" }}
+        >
+          <span className="font-semibold">Next:</span> {rubricGrade.suggested_next_action}
         </div>
       )}
     </div>

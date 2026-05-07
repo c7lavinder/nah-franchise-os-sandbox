@@ -227,7 +227,8 @@ export default function CallDetailPage() {
       pollTimer = setTimeout(async () => {
         const refreshed = await fetchDetail();
         if (cancelled) return;
-        if (refreshed?.call?.ai_summary_generated_at && refreshed?.call?.coaching_generated_at) {
+        // Stop polling once summary exists — coaching is optional for some call types
+        if (refreshed?.call?.ai_summary_generated_at) {
           setIsGenerating(false);
         } else {
           poll(remaining - 1);
@@ -240,14 +241,13 @@ export default function CallDetailPage() {
       if (cancelled) return;
       setLoading(false);
 
-      // Auto-trigger if transcript exists but summary OR coaching is missing
-      const needsSummary = !data.call?.ai_summary_generated_at;
-      const needsCoaching = !data.call?.coaching_generated_at;
+      // Only auto-trigger if transcript exists but NO summary yet.
+      // Don't re-trigger if summary already exists (coaching is optional).
+      const needsSummary = !data?.call?.ai_summary_generated_at;
 
-      if (data?.transcript && (needsSummary || needsCoaching)) {
+      if (data?.transcript && needsSummary) {
         setIsGenerating(true);
         apiFetch(`/api/calls/${callId}/generate`, { method: "POST" }).catch(() => {});
-        // Poll until both summary and coaching are present
         poll(60);
       }
     })();

@@ -155,23 +155,23 @@ TRANSCRIPT:
 ${transcriptText}
 
 INSTRUCTIONS:
-- For each criterion, provide: grade (A/B/C/D/F), numeric score (0-100), and rationale grounded in specific quotes or moments from the transcript.
+- For each criterion, provide: grade (A/B/C/D/F), numeric score (0-100), and a rationale that is ONE concise sentence (max 15 words) citing a specific moment.
 - Provide an overall grade (A/B/C/D/F) and overall score (0-100) as a weighted average.
-- List exactly 3 strengths and 3 areas for improvement.
-- Suggest one specific next action for the rep.
+- List 2-3 strengths and 2-3 improvements — each ONE short sentence (max 12 words).
+- Suggest one specific next action in one sentence.
 - Do NOT invent content not in the transcript.
-- Be critical but fair.
+- Be critical but fair. Be concise — every word must earn its place.
 
 Respond with ONLY valid JSON matching this schema:
 {
   "overallGrade": "A|B|C|D|F",
   "overallScore": 0-100,
   "criterionScores": [
-    { "criterionId": "uuid", "name": "string", "grade": "A|B|C|D|F", "score": 0-100, "rationale": "string" }
+    { "criterionId": "uuid", "name": "string", "grade": "A|B|C|D|F", "score": 0-100, "rationale": "string (max 15 words)" }
   ],
-  "strengths": ["string", "string", "string"],
-  "improvements": ["string", "string", "string"],
-  "suggestedNextAction": "string"
+  "strengths": ["short sentence", "short sentence"],
+  "improvements": ["short sentence", "short sentence"],
+  "suggestedNextAction": "one sentence"
 }
 
 Use these criterion IDs:
