@@ -44,11 +44,10 @@ IMPORTANT classification rules:
 - Look at the CONVERSATION CONTENT, not just the participant names. What are they actually discussing?
 
 TITLE INSTRUCTIONS:
-Generate a short, specific title (5-10 words) that captures what THIS call was actually about.
-Do NOT use generic patterns like "Intro Call w/ Name" or "Coaching w/ Name".
-Good examples: "SBA funding timeline & territory selection", "First contact — exploring NAH franchise model", "Chattanooga launch prep & contractor hiring".
-Bad examples: "Intro Call w/ John Smith", "Coaching Call", "Meeting with prospect".
-Include participant names only when they add meaning (e.g. "Kevin & Kylie Kremer partnership structure").
+Generate a very short title — 3 to 5 words maximum. Capture the core topic only.
+Do NOT include participant names. Do NOT use generic patterns like "Intro Call" or "Coaching Call".
+Good examples: "SBA funding & territory", "Exploring franchise model", "Launch prep & hiring".
+Bad examples: "Intro Call w/ John Smith" (has name), "SBA funding timeline & territory selection discussion" (too long), "Coaching Call" (generic).
 
 SUMMARY INSTRUCTIONS:
 Write exactly ONE paragraph — 4 to 6 sentences maximum. Executive briefing, not a report.
