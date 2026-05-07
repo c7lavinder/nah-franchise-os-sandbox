@@ -348,14 +348,7 @@ export default function PipelineQuickPanel({
             {journeyMembers.length > 0 ? (
               journeyMembers.map((m) => (
                 <div key={m.contactId} className="border-b border-border-default last:border-0 pb-2 last:pb-0">
-                  <p className="text-body-sm text-text-primary font-medium">
-                    {capitalizeName(m.name)}
-                    {m.role !== "primary" && (
-                      <span className="text-[10px] text-text-tertiary font-normal ml-1">
-                        {titleCase(m.role.replace("_", " "))}
-                      </span>
-                    )}
-                  </p>
+                  <p className="text-body-sm text-text-primary font-medium">{capitalizeName(m.name)}</p>
                   {m.phone && (
                     <a
                       href={`tel:${m.phone}`}
