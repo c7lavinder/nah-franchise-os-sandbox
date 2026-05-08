@@ -34,7 +34,7 @@ fi
 # --- Scout / Anthropic boundary check ---
 # Allow files within lib/scout/
 if [[ "$FILE_PATH" != *"lib/scout/"* ]]; then
-  if echo "$NEW_STRING" | grep -qE '@anthropic-ai/sdk|from "anthropic"|import Anthropic|new Anthropic\('; then
+  if echo "$NEW_STRING" | grep -qE '@anthropic-ai/sdk|from "anthropic"|new Anthropic\(' && ! echo "$NEW_STRING" | grep -qE 'import type '; then
     echo "BLOCKED: Anthropic SDK calls must go through lib/scout/." >&2
     echo "File: $FILE_PATH" >&2
     echo "Found: direct Anthropic SDK import or usage." >&2

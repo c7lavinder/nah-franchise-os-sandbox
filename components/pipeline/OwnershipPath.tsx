@@ -12,42 +12,56 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Users, Phone, Search, Shield, Award, Trophy,
-  PhoneForwarded, UserMinus, UserPlus,
-  Settings, BookOpen, Rocket, CheckCircle2,
-  ChevronDown, ChevronRight,
+  Users,
+  Phone,
+  Search,
+  Shield,
+  Award,
+  Trophy,
+  PhoneForwarded,
+  UserMinus,
+  UserPlus,
+  Settings,
+  BookOpen,
+  Rocket,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 /** Stage metadata: slug → icon + gradient
  *  Wave-style flow: warm coral → peach-orange → golden → yellow-green → fresh green
  *  Each circle blends into the next for a smooth gradient wave across the row.
  */
-const STAGE_META: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; gradient: string }> = {
+const STAGE_META: Record<
+  string,
+  { icon: React.ComponentType<{ size?: number; className?: string }>; gradient: string }
+> = {
   // Sales (6 stages — tight wave)
-  engagement:    { icon: Users,          gradient: "from-[#e87461] to-[#e8956a]" },
-  qualification: { icon: Search,         gradient: "from-[#e8956a] to-[#e8b468]" },
-  discovery:     { icon: Phone,          gradient: "from-[#e8b468] to-[#d4c456]" },
-  compliance:    { icon: Shield,         gradient: "from-[#d4c456] to-[#a8c94a]" },
-  awarding:      { icon: Award,          gradient: "from-[#a8c94a] to-[#6dba5e]" },
-  closed:        { icon: Trophy,         gradient: "from-[#6dba5e] to-[#4aad6b]" },
+  engagement: { icon: Users, gradient: "from-[#e87461] to-[#e8956a]" },
+  qualification: { icon: Search, gradient: "from-[#e8956a] to-[#e8b468]" },
+  discovery: { icon: Phone, gradient: "from-[#e8b468] to-[#d4c456]" },
+  compliance: { icon: Shield, gradient: "from-[#d4c456] to-[#a8c94a]" },
+  awarding: { icon: Award, gradient: "from-[#a8c94a] to-[#6dba5e]" },
+  closed: { icon: Trophy, gradient: "from-[#6dba5e] to-[#4aad6b]" },
   // Onboarding (4 stages — wider wave steps)
-  setup:         { icon: Settings,       gradient: "from-[#e87461] to-[#e8956a]" },
-  training:      { icon: BookOpen,       gradient: "from-[#e8a065] to-[#d4b855]" },
-  "launch-prep": { icon: Rocket,         gradient: "from-[#c4c44e] to-[#8ec758]" },
-  onboarded:     { icon: CheckCircle2,   gradient: "from-[#6dba5e] to-[#4aad6b]" },
+  setup: { icon: Settings, gradient: "from-[#e87461] to-[#e8956a]" },
+  training: { icon: BookOpen, gradient: "from-[#e8a065] to-[#d4b855]" },
+  "launch-prep": { icon: Rocket, gradient: "from-[#c4c44e] to-[#8ec758]" },
+  onboarded: { icon: CheckCircle2, gradient: "from-[#6dba5e] to-[#4aad6b]" },
   // Runway (4 stages)
-  "first-offer":        { icon: Search,  gradient: "from-[#e87461] to-[#e8956a]" },
-  "first-purchase":     { icon: Award,   gradient: "from-[#e8a065] to-[#d4b855]" },
-  "inventory-building": { icon: Rocket,  gradient: "from-[#c4c44e] to-[#8ec758]" },
-  running:              { icon: Trophy,  gradient: "from-[#6dba5e] to-[#4aad6b]" },
+  "first-offer": { icon: Search, gradient: "from-[#e87461] to-[#e8956a]" },
+  "first-purchase": { icon: Award, gradient: "from-[#e8a065] to-[#d4b855]" },
+  "inventory-building": { icon: Rocket, gradient: "from-[#c4c44e] to-[#8ec758]" },
+  running: { icon: Trophy, gradient: "from-[#6dba5e] to-[#4aad6b]" },
   // Territories (3 stages: Inactive → Available → Active)
-  inactive:  { icon: UserMinus,    gradient: "from-[#e87461] to-[#e8956a]" },
-  available: { icon: UserPlus,     gradient: "from-[#d4b855] to-[#b8c84e]" },
-  active:    { icon: CheckCircle2, gradient: "from-[#6dba5e] to-[#4aad6b]" },
+  inactive: { icon: UserMinus, gradient: "from-[#e87461] to-[#e8956a]" },
+  available: { icon: UserPlus, gradient: "from-[#d4b855] to-[#b8c84e]" },
+  active: { icon: CheckCircle2, gradient: "from-[#6dba5e] to-[#4aad6b]" },
   // Follow-up (3 stages: Nurture → Follow-up → Re-engaged)
-  nurture:   { icon: UserMinus,      gradient: "from-[#e87461] to-[#e8956a]" },
-  followup:  { icon: PhoneForwarded, gradient: "from-[#d4b855] to-[#b8c84e]" },
-  reengaged: { icon: UserPlus,       gradient: "from-[#6dba5e] to-[#4aad6b]" },
+  nurture: { icon: UserMinus, gradient: "from-[#e87461] to-[#e8956a]" },
+  followup: { icon: PhoneForwarded, gradient: "from-[#d4b855] to-[#b8c84e]" },
+  reengaged: { icon: UserPlus, gradient: "from-[#6dba5e] to-[#4aad6b]" },
 };
 
 interface StageAPI {
@@ -87,7 +101,9 @@ function getExpandedState(): Record<string, boolean> {
 function saveExpandedState(state: Record<string, boolean>) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch { /* silent */ }
+  } catch {
+    /* silent */
+  }
 }
 
 const PIPELINE_ORDER = ["sales", "onboarding", "runway", "territories", "followup"];
@@ -111,7 +127,9 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
         const data = await res.json();
         setPipelines(data.pipelines ?? []);
       }
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
     setLoading(false);
   }, []);
 
@@ -136,9 +154,9 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
   }
 
   // Order pipelines
-  const ordered = PIPELINE_ORDER
-    .map((slug) => pipelines.find((p) => p.slug === slug))
-    .filter((p): p is PipelineAPI => !!p);
+  const ordered = PIPELINE_ORDER.map((slug) => pipelines.find((p) => p.slug === slug)).filter(
+    (p): p is PipelineAPI => !!p
+  );
 
   return (
     <div className="mb-6 space-y-2">
@@ -165,8 +183,8 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
 
             {/* Stage circles */}
             {isExpanded && (
-              <div className="px-3 py-3">
-                <div className="relative">
+              <div className="px-3 py-3 overflow-x-auto">
+                <div className="relative min-w-[320px]">
                   {/* Connection line */}
                   {pipeline.stages.length > 1 && (
                     <div
@@ -178,10 +196,7 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
                     />
                   )}
 
-                  <div
-                    className="grid gap-1"
-                    style={{ gridTemplateColumns: `repeat(${MAX_COLS}, minmax(0, 1fr))` }}
-                  >
+                  <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${MAX_COLS}, minmax(0, 1fr))` }}>
                     {pipeline.stages.map((stage) => {
                       const meta = STAGE_META[stage.slug] ?? { icon: Users, gradient: "from-gray-400 to-gray-500" };
                       const isSelected = selectedStage === stage.id;
@@ -190,7 +205,10 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
                       return (
                         <button
                           key={stage.id}
-                          onClick={(e) => { e.stopPropagation(); onStageClick(stage.id, stage.name, pipeline.slug); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onStageClick(stage.id, stage.name, pipeline.slug);
+                          }}
                           className={`
                             relative flex flex-col items-center text-center group transition-all duration-200
                             ${isSelected ? "scale-110" : "hover:scale-105"}
@@ -211,20 +229,24 @@ export default function OwnershipPath({ selectedStage, onStageClick }: Ownership
 
                           {/* Count badge */}
                           {stage.active_count > 0 && (
-                            <span className={`
+                            <span
+                              className={`
                               absolute -top-1.5 left-1/2 -translate-x-1/2 min-w-[18px] h-4 px-1 rounded-full
                               text-[9px] font-bold flex items-center justify-center
                               ${isSelected ? "bg-nah-blue text-white" : "bg-text-primary/90 text-white"}
-                            `}>
+                            `}
+                            >
                               {stage.active_count}
                             </span>
                           )}
 
                           {/* Label */}
-                          <span className={`
+                          <span
+                            className={`
                             text-[10px] leading-tight max-w-[64px]
                             ${isSelected ? "text-nah-blue font-medium" : "text-text-tertiary"}
-                          `}>
+                          `}
+                          >
                             {stage.name}
                           </span>
                         </button>

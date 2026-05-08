@@ -41,9 +41,11 @@ export interface TriggerRule {
 export interface ExitRule {
   /** Maximum days before auto-expiring the enrollment */
   maxDays: number;
-  /** Goal conditions evaluated each scheduler cycle against contact data */
+  /** Internal event that triggers the exit check (e.g. "subtask.completed", "stage.advanced") */
+  goalEvent?: string;
+  /** Goal conditions evaluated against the event payload or contact data */
   goalConditions: ConditionRule[];
-  /** Human-readable summary (e.g. "When contact shows up to their call") */
+  /** Human-readable summary (e.g. "When Discovery Call sub-task is completed") */
   description: string;
 }
 

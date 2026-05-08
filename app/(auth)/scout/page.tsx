@@ -3,7 +3,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Bot, Send, Paperclip, Mic } from "lucide-react";
+import { Bot, Send, Paperclip, Mic, Loader2, CheckCheck } from "lucide-react";
 import Image from "next/image";
 import { ScoutBubble, UserBubble, ThinkingIndicator, DraftedActionCard, VoiceRecorder } from "@/components/scout";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -45,7 +45,10 @@ export default function ScoutPage() {
     setInputValue(searchParams.get("ask") ?? "");
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Send a message to Scout */
+  // Stable ID for the in-progress Scout message during streaming
+  const streamMsgIdRef = useRef<string>("");
+
+  /** Send a message to Scout (streaming) */
   async function handleSend() {
     const trimmed = inputValue.trim();
     if (!trimmed || isThinking) return;
@@ -63,11 +66,22 @@ export default function ScoutPage() {
     setMessages((prev) => [...prev, userMessage]);
     setIsThinking(true);
 
+    // Create a placeholder Scout message for streaming
+    const scoutMsgId = crypto.randomUUID();
+    streamMsgIdRef.current = scoutMsgId;
+    const placeholderMsg: ChatMessage = {
+      id: scoutMsgId,
+      role: "assistant",
+      content: "",
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, placeholderMsg]);
+
     try {
       const fromPath = searchParams.get("from");
       const pageContext = parsePageContext(fromPath);
 
-      const response = await apiFetch("/api/scout/chat", {
+      const response = await apiFetch("/api/scout/chat-stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -79,41 +93,88 @@ export default function ScoutPage() {
       });
 
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(errData.error ?? `Server error: ${response.status}`);
+        const errText = await response.text().catch(() => "Unknown error");
+        throw new Error(errText || `Server error: ${response.status}`);
       }
 
-      const data = await response.json();
+      // Read the SSE stream
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
 
-      // Update the API history for the next turn
-      apiHistoryRef.current = data.history ?? [];
-      if (data.sessionId) {
-        setSessionId(data.sessionId);
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let accumulatedText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events from the buffer
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? ""; // keep incomplete line in buffer
+
+        let currentEvent = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7);
+          } else if (line.startsWith("data: ") && currentEvent) {
+            const data = line.slice(6);
+            try {
+              const parsed = JSON.parse(data);
+
+              if (currentEvent === "text") {
+                accumulatedText += parsed.text;
+                // Update the streaming message with accumulated text
+                setMessages((prev) => prev.map((m) => (m.id === scoutMsgId ? { ...m, content: accumulatedText } : m)));
+              } else if (currentEvent === "actions") {
+                const actions = parsed.actions as DraftedAction[];
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === scoutMsgId ? { ...m, draftedAction: actions[0], draftedActions: actions } : m
+                  )
+                );
+              } else if (currentEvent === "done") {
+                apiHistoryRef.current = parsed.history ?? [];
+              } else if (currentEvent === "session") {
+                if (parsed.sessionId) setSessionId(parsed.sessionId);
+              } else if (currentEvent === "error") {
+                throw new Error(parsed.error);
+              }
+              // "thinking" and "tool" events: isThinking state already shows the indicator
+            } catch (parseErr) {
+              // Skip malformed JSON lines
+              if (currentEvent === "error") {
+                throw new Error(data);
+              }
+            }
+            currentEvent = "";
+          }
+        }
       }
 
-      // Add Scout's response to the UI
-      const scoutMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: data.message,
-        timestamp: new Date().toISOString(),
-        draftedAction: data.draftedAction ?? undefined,
-      };
-      setMessages((prev) => [...prev, scoutMessage]);
+      // If we got no text at all, show a fallback
+      if (!accumulatedText) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === scoutMsgId ? { ...m, content: "I wasn't able to generate a response. Please try again." } : m
+          )
+        );
+      }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Failed to reach Scout";
       setError(errMsg);
 
-      // Add error as a Scout message so it's visible in the chat
-      const errorMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: `I ran into an issue: ${errMsg}. Please try again.`,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      // Update the placeholder message with the error
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === scoutMsgId ? { ...m, content: `I ran into an issue: ${errMsg}. Please try again.` } : m
+        )
+      );
     } finally {
       setIsThinking(false);
+      streamMsgIdRef.current = "";
       inputRef.current?.focus();
     }
   }
@@ -148,30 +209,18 @@ export default function ScoutPage() {
       // Update the action status in the message that contains it
       setMessages((prev) =>
         prev.map((msg) => {
-          if (msg.draftedAction?.id === action.id) {
-            return {
-              ...msg,
-              draftedAction: { ...msg.draftedAction, status: "confirmed" as const },
-            };
-          }
-          return msg;
+          const updatedActions = msg.draftedActions?.map((a) =>
+            a.id === action.id ? { ...a, status: "confirmed" as const } : a
+          );
+          return msg.draftedActions?.some((a) => a.id === action.id) ? { ...msg, draftedActions: updatedActions } : msg;
         })
       );
-
-      // Add a confirmation message
-      const confirmMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: `Done! The ${action.type === "message" ? "message has been sent" : action.type === "task" ? "task has been created" : "stage has been moved"} successfully.`,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, confirmMsg]);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Failed to execute action";
       const errorMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: `Failed to execute the action: ${errMsg}. You can try again.`,
+        content: `Failed to execute ${action.type.replace(/_/g, " ")} for ${action.contactName}: ${errMsg}`,
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -180,17 +229,67 @@ export default function ScoutPage() {
     }
   }
 
+  /** Confirm all pending actions in a batch */
+  async function handleConfirmAll(actions: DraftedAction[]) {
+    const pending = actions.filter((a) => a.status === "pending");
+    let succeeded = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const action of pending) {
+      setExecutingActionId(action.id);
+      try {
+        const res = await apiFetch("/api/scout/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            sessionId: sessionId ?? "no-session",
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Unknown error" }));
+          throw new Error(err.error ?? "Failed");
+        }
+        setMessages((prev) =>
+          prev.map((msg) => {
+            const updatedActions = msg.draftedActions?.map((a) =>
+              a.id === action.id ? { ...a, status: "confirmed" as const } : a
+            );
+            return msg.draftedActions?.some((a) => a.id === action.id)
+              ? { ...msg, draftedActions: updatedActions }
+              : msg;
+          })
+        );
+        succeeded++;
+      } catch (err) {
+        failed++;
+        errors.push(`${action.contactName}: ${err instanceof Error ? err.message : "Failed"}`);
+      }
+    }
+    setExecutingActionId(null);
+
+    const parts: string[] = [];
+    if (succeeded > 0) parts.push(`${succeeded} action${succeeded !== 1 ? "s" : ""} executed`);
+    if (failed > 0) parts.push(`${failed} failed`);
+    const summary = parts.join(", ");
+    const summaryMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: failed > 0 ? `${summary}.\n\nFailed:\n${errors.map((e) => `- ${e}`).join("\n")}` : `Done — ${summary}.`,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, summaryMsg]);
+  }
+
   /** Cancel a drafted action */
   function handleCancelAction(actionId: string) {
     setMessages((prev) =>
       prev.map((msg) => {
-        if (msg.draftedAction?.id === actionId) {
-          return {
-            ...msg,
-            draftedAction: { ...msg.draftedAction, status: "cancelled" as const },
-          };
-        }
-        return msg;
+        const updatedActions = msg.draftedActions?.map((a) =>
+          a.id === actionId ? { ...a, status: "cancelled" as const } : a
+        );
+        return msg.draftedActions?.some((a) => a.id === actionId) ? { ...msg, draftedActions: updatedActions } : msg;
       })
     );
   }
@@ -298,14 +397,31 @@ export default function ScoutPage() {
                   ) : (
                     <>
                       <ScoutBubble content={msg.content} timestamp={msg.timestamp} />
-                      {msg.draftedAction && (
-                        <div className="ml-11 mt-2">
-                          <DraftedActionCard
-                            action={msg.draftedAction}
-                            onConfirm={handleConfirmAction}
-                            onCancel={handleCancelAction}
-                            isExecuting={executingActionId === msg.draftedAction.id}
-                          />
+                      {msg.draftedActions && msg.draftedActions.length > 0 && (
+                        <div className="ml-2 sm:ml-11 mt-2 space-y-2">
+                          {msg.draftedActions.map((action) => (
+                            <DraftedActionCard
+                              key={action.id}
+                              action={action}
+                              onConfirm={handleConfirmAction}
+                              onCancel={handleCancelAction}
+                              isExecuting={executingActionId === action.id}
+                            />
+                          ))}
+                          {msg.draftedActions.filter((a) => a.status === "pending").length > 1 && (
+                            <button
+                              onClick={() => handleConfirmAll(msg.draftedActions!)}
+                              disabled={!!executingActionId}
+                              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-nah-blue text-white text-sm font-medium hover:bg-nah-blue/90 disabled:opacity-50 transition-colors"
+                            >
+                              {executingActionId ? (
+                                <Loader2 size={14} className="animate-spin" />
+                              ) : (
+                                <CheckCheck size={14} />
+                              )}
+                              Confirm All ({msg.draftedActions.filter((a) => a.status === "pending").length})
+                            </button>
+                          )}
                         </div>
                       )}
                     </>

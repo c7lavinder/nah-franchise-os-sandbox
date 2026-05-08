@@ -17,6 +17,8 @@ import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 import { checkAutoAdvance } from "@/lib/contacts/auto-advance";
+import { matchWorkflowTriggers } from "@/lib/workflows/trigger-matcher";
+import { checkExitConditions } from "@/lib/workflows/enrollment";
 
 interface LogBody {
   contentType: string;
@@ -31,7 +33,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ contactId: string; subTaskId: string }> }
 ) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   try {
     const { contactId: rawContactId, subTaskId } = await params;
     const body = (await request.json()) as LogBody;
@@ -67,8 +72,10 @@ export async function POST(
     if (!stage) return NextResponse.json({ error: "Stage not found" }, { status: 404 });
 
     const { data: journey } = await supabase
-      .from("journeys").select("id")
-      .eq("primary_contact_id", localContactId).maybeSingle();
+      .from("journeys")
+      .select("id")
+      .eq("primary_contact_id", localContactId)
+      .maybeSingle();
     if (!journey?.id) return NextResponse.json({ error: "No journey for contact" }, { status: 404 });
 
     // Find the canonical active jps row for (journey, pipeline). NULL-territory
@@ -86,8 +93,8 @@ export async function POST(
     }
 
     // Resolve logger per §1.8
-    const loggerUserId = body.loggerUserId
-      ?? (subTask.default_logger_type === "user" ? subTask.default_logger_user_id : null);
+    const loggerUserId =
+      body.loggerUserId ?? (subTask.default_logger_type === "user" ? subTask.default_logger_user_id : null);
 
     const { data: newLog, error: logError } = await supabase
       .from("contact_sub_task_logs")
@@ -112,8 +119,7 @@ export async function POST(
     // If this log completes the sub-task AND it's the current sub-task,
     // advance current_sub_task_id to the next required sub-task in the stage.
     const isComplete =
-      subTask.state_type === "single" ||
-      (subTask.state_type === "two_state" && body.stateAdvance === "second");
+      subTask.state_type === "single" || (subTask.state_type === "two_state" && body.stateAdvance === "second");
 
     if (isComplete && pipelineState.current_sub_task_id === subTaskId) {
       const { data: stageTasks } = await supabase
@@ -137,15 +143,10 @@ export async function POST(
           .limit(1);
 
         const latestLog = taskLogs?.[0];
-        const taskSubDef = await supabase
-          .from("pipeline_sub_tasks")
-          .select("state_type")
-          .eq("id", task.id)
-          .single();
+        const taskSubDef = await supabase.from("pipeline_sub_tasks").select("state_type").eq("id", task.id).single();
 
         const taskComplete =
-          latestLog &&
-          (taskSubDef.data?.state_type === "single" || latestLog.state_advance === "second");
+          latestLog && (taskSubDef.data?.state_type === "single" || latestLog.state_advance === "second");
 
         if (!taskComplete) {
           nextSubTaskId = task.id;
@@ -160,7 +161,10 @@ export async function POST(
           current_sub_task_id: nextSubTaskId,
           current_sub_task_started_at: new Date().toISOString(),
         })
-        .in("id", rows.map((r) => r.id));
+        .in(
+          "id",
+          rows.map((r) => r.id)
+        );
 
       if (!nextSubTaskId) {
         const autoResult = await checkAutoAdvance(pipelineState.id, pipelineState.current_stage_id);
@@ -171,6 +175,53 @@ export async function POST(
             autoAdvanced: true,
             newStageId: autoResult.newStageId,
           });
+        }
+      }
+    }
+
+    // Fire workflow triggers for sub-task log
+    {
+      const { data: contactForTrigger } = await supabase
+        .from("contacts")
+        .select("ghl_contact_id")
+        .eq("id", localContactId)
+        .maybeSingle();
+      if (contactForTrigger?.ghl_contact_id) {
+        const { data: pipelineDef } = await supabase
+          .from("pipelines")
+          .select("slug, name")
+          .eq("id", stage.pipeline_id)
+          .single();
+        const { data: stageDef } = await supabase
+          .from("pipeline_stages")
+          .select("slug, name")
+          .eq("id", subTask.stage_id)
+          .single();
+
+        const triggerPayload = {
+          pipelineSlug: pipelineDef?.slug ?? "",
+          pipelineName: pipelineDef?.name ?? "",
+          stageSlug: stageDef?.slug ?? "",
+          stageName: stageDef?.name ?? "",
+          subTaskSlug: subTask.slug,
+          subTaskName: subTask.name,
+          subTaskId,
+          contentType: body.contentType,
+          stateAdvance: body.stateAdvance ?? null,
+        };
+
+        // Always fire subtask.logged trigger + exit check
+        void matchWorkflowTriggers("subtask.logged", contactForTrigger.ghl_contact_id, triggerPayload).catch(() => {});
+        void checkExitConditions(contactForTrigger.ghl_contact_id, "subtask.logged", triggerPayload).catch(() => {});
+
+        // Fire subtask.completed trigger + exit check when task is done
+        if (isComplete) {
+          void matchWorkflowTriggers("subtask.completed", contactForTrigger.ghl_contact_id, triggerPayload).catch(
+            () => {}
+          );
+          void checkExitConditions(contactForTrigger.ghl_contact_id, "subtask.completed", triggerPayload).catch(
+            () => {}
+          );
         }
       }
     }

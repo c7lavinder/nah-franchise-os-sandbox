@@ -14,12 +14,15 @@ import { capitalizeName } from "@/lib/format/contact";
 
 interface Notification {
   id: string;
+  type: string;
   sourceType: string;
   sourceId: string;
-  contactId: string;
+  contactId: string | null;
   contactName: string;
+  title: string;
   authorName: string;
   preview: string;
+  metadata?: Record<string, unknown>;
   readAt: string | null;
   createdAt: string;
 }
@@ -85,7 +88,19 @@ export default function NotificationBell({ onNavClick, forceClose }: Notificatio
     setOpen(false);
     onNavClick?.();
     void markAsRead([n.id]);
-    router.push(`/contacts/${n.contactId}?message=${n.sourceId}`);
+
+    // Route based on notification type
+    if (n.type === "daily_brief") {
+      router.push("/daily-hq");
+    } else if (n.type === "new_lead" && n.contactId) {
+      router.push(`/contacts/${n.contactId}`);
+    } else if (n.contactId && n.sourceId) {
+      router.push(`/contacts/${n.contactId}?message=${n.sourceId}`);
+    } else if (n.contactId) {
+      router.push(`/contacts/${n.contactId}`);
+    } else {
+      router.push("/pipeline");
+    }
   }
 
   function handleMarkAllRead() {
@@ -149,11 +164,15 @@ export default function NotificationBell({ onNavClick, forceClose }: Notificatio
                   <div className="flex items-start gap-2">
                     {!n.readAt && <div className="w-2 h-2 rounded-full bg-nah-blue flex-shrink-0 mt-1.5" />}
                     <div className={`flex-1 min-w-0 ${n.readAt ? "ml-4" : ""}`}>
-                      <p className="text-caption text-text-primary">
-                        <span className="font-medium">{capitalizeName(n.authorName)}</span>
-                        {" mentioned you on "}
-                        <span className="font-medium">{capitalizeName(n.contactName)}</span>
-                      </p>
+                      {n.type === "activity_mention" ? (
+                        <p className="text-caption text-text-primary">
+                          <span className="font-medium">{capitalizeName(n.authorName)}</span>
+                          {" mentioned you on "}
+                          <span className="font-medium">{capitalizeName(n.contactName)}</span>
+                        </p>
+                      ) : (
+                        <p className="text-caption text-text-primary font-medium">{n.title}</p>
+                      )}
                       <p className="text-[11px] text-text-tertiary mt-0.5 truncate">{n.preview}</p>
                       <p className="text-[10px] text-text-tertiary mt-0.5">
                         {new Date(n.createdAt).toLocaleString([], {

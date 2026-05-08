@@ -164,7 +164,10 @@ export default function WorkflowBuilderPage() {
         });
 
         if (!stepRes.ok) {
-          console.error(`Failed to create step ${step.stepNumber} on day ${step.dayNumber}`);
+          const errData = await stepRes.json().catch(() => ({ error: "Unknown error" }));
+          throw new Error(
+            `Failed to create step ${step.stepNumber} on day ${step.dayNumber}: ${errData.error ?? "Unknown error"}`
+          );
         }
       }
 

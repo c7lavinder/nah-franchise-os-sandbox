@@ -11,7 +11,8 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Plus, RefreshCw, Eye, Send } from "lucide-react";
+import { ArrowLeft, Plus, RefreshCw, Eye, Send, Loader2 } from "lucide-react";
+import { useAuth } from "@/lib/auth/AuthContext";
 import type { Workflow, WorkflowStep, WorkflowStepType } from "@/lib/workflows/types";
 import StepCard from "@/components/workflows/StepCard";
 import StepEditor from "@/components/workflows/StepEditor";
@@ -19,6 +20,7 @@ import StepEditor from "@/components/workflows/StepEditor";
 export default function WorkflowBuilderPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const workflowId = params.workflowId as string;
 
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
@@ -27,6 +29,7 @@ export default function WorkflowBuilderPage() {
   const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
   const [loading, setLoading] = useState(true);
   const [addingDay, setAddingDay] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -96,7 +99,7 @@ export default function WorkflowBuilderPage() {
   }
 
   function handleStepSaved(updated: WorkflowStep) {
-    setSteps((prev) => prev.map((s) => s.id === updated.id ? updated : s));
+    setSteps((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
     setSelectedStep(updated);
   }
 
@@ -125,9 +128,7 @@ export default function WorkflowBuilderPage() {
             <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 className="font-headline text-page-title text-text-primary">
-              {workflow?.name ?? "Workflow Builder"}
-            </h1>
+            <h1 className="font-headline text-page-title text-text-primary">{workflow?.name ?? "Workflow Builder"}</h1>
             <p className="text-caption text-text-tertiary">
               {steps.length} steps across {dayGroups.size} days
             </p>
@@ -138,10 +139,33 @@ export default function WorkflowBuilderPage() {
             <Eye size={14} />
             Preview
           </button>
-          {workflow?.status === "draft" && (
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-nah-blue text-white text-button hover:bg-nah-blue-hover transition-colors">
-              <Send size={14} />
-              Submit for Approval
+          {workflow?.status === "draft" && user && (
+            <button
+              disabled={submitting || steps.length === 0}
+              onClick={async () => {
+                setSubmitting(true);
+                try {
+                  const res = await apiFetch(`/api/workflows/${workflowId}/approvals`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      approvalType: "publish",
+                      submittedBy: user.id,
+                      notes: "Submitted from visual editor",
+                    }),
+                  });
+                  if (res.ok) {
+                    router.push("/workflows");
+                  }
+                } catch {
+                  /* silent */
+                }
+                setSubmitting(false);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-nah-blue text-white text-button hover:bg-nah-blue-hover transition-colors disabled:opacity-50"
+            >
+              {submitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+              {submitting ? "Submitting..." : "Submit for Approval"}
             </button>
           )}
         </div>
@@ -273,16 +297,9 @@ function DayRow({
 
       {/* Steps */}
       <div className="ml-[52px] space-y-1.5 mb-4">
-        {steps.length === 0 && !isAdding && (
-          <p className="text-caption text-text-tertiary py-2 pl-1">No steps</p>
-        )}
+        {steps.length === 0 && !isAdding && <p className="text-caption text-text-tertiary py-2 pl-1">No steps</p>}
         {steps.map((step) => (
-          <StepCard
-            key={step.id}
-            step={step}
-            isSelected={selectedStepId === step.id}
-            onSelect={onSelectStep}
-          />
+          <StepCard key={step.id} step={step} isSelected={selectedStepId === step.id} onSelect={onSelectStep} />
         ))}
       </div>
 

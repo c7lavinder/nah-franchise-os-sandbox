@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
+import { checkRateLimit, RATE_LIMITS } from "@/lib/auth/rate-limit";
 import { runConversationTurn } from "@/lib/scout";
 import { loadUserMemory, mergeUserMemory } from "@/lib/scout/memory";
 import { createServerClient } from "@/lib/supabase/server";
@@ -33,21 +34,19 @@ interface ChatRequestBody {
 export async function POST(request: NextRequest) {
   const user = await requireAuth(request);
   if (user instanceof Response) return user;
+
+  const rateLimited = checkRateLimit(user.id, RATE_LIMITS.scoutChat);
+  if (rateLimited) return rateLimited;
+
   try {
     const body = (await request.json()) as ChatRequestBody;
 
     if (!body.message) {
-      return NextResponse.json(
-        { error: "Missing required field: message" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing required field: message" }, { status: 400 });
     }
 
     // Build the messages array — existing history + new user message
-    const messages: Anthropic.Messages.MessageParam[] = [
-      ...body.history,
-      { role: "user", content: body.message },
-    ];
+    const messages: Anthropic.Messages.MessageParam[] = [...body.history, { role: "user", content: body.message }];
 
     // Run the full conversation turn with tool-call loop
     const result = await runConversationTurn({
@@ -91,20 +90,22 @@ export async function POST(request: NextRequest) {
       console.error("Failed to persist session — continuing without save");
     }
 
-    // Log the action if a draft was produced
-    if (result.draftedAction) {
+    // Log all drafted actions
+    if (result.draftedActions.length > 0) {
       try {
         const supabase = createServerClient();
-        await supabase.from("scout_action_logs").insert({
-          user_id: user.id,
-          session_id: sessionId ?? "00000000-0000-0000-0000-000000000000",
-          action_type: result.draftedAction.type,
-          action_status: "drafted",
-          ghl_contact_id: result.draftedAction.contactId,
-          draft_content: result.draftedAction.payload as unknown as Record<string, unknown>,
-        });
+        await supabase.from("scout_action_logs").insert(
+          result.draftedActions.map((da) => ({
+            user_id: user.id,
+            session_id: sessionId ?? "00000000-0000-0000-0000-000000000000",
+            action_type: da.type,
+            action_status: "drafted",
+            ghl_contact_id: da.contactId,
+            draft_content: da.payload as unknown as Record<string, unknown>,
+          }))
+        );
       } catch {
-        console.error("Failed to log Scout action — continuing");
+        console.error("Failed to log Scout actions — continuing");
       }
     }
 
@@ -130,14 +131,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       message: result.responseText,
       draftedAction: result.draftedAction ?? null,
+      draftedActions: result.draftedActions,
       sessionId,
       /** Return the updated messages so the frontend can send them back on the next turn */
       history: result.updatedMessages,
     });
   } catch (err) {
     console.error("Scout chat error:", err);
-    const message =
-      err instanceof Error ? err.message : "An unexpected error occurred";
+    const message = err instanceof Error ? err.message : "An unexpected error occurred";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

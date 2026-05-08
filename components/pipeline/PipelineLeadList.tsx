@@ -295,7 +295,7 @@ export default function PipelineLeadList({
                 onClick={() => setExpandedRow(isExpanded ? null : contact.stateId)}
                 className={`
                   grid items-center gap-2 pl-2 pr-3 py-2.5 hover:bg-bg-hover transition-colors cursor-pointer
-                  grid-cols-[20px_1fr_72px_110px_140px_16px]
+                  grid-cols-[20px_1fr_72px_16px] sm:grid-cols-[20px_1fr_72px_110px_16px] lg:grid-cols-[20px_1fr_72px_110px_140px_16px]
                   ${isSelected ? "bg-nah-blue/5" : ""}
                   ${isExpanded ? "bg-bg-hover" : ""}
                   ${!isExpanded && i < visible.length - 1 ? "border-b border-border-default" : ""}
@@ -348,7 +348,7 @@ export default function PipelineLeadList({
                 </span>
 
                 <span
-                  className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center ${sc.bg} ${sc.text}`}
+                  className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate text-center hidden sm:block ${sc.bg} ${sc.text}`}
                 >
                   {contact.stageName}
                 </span>

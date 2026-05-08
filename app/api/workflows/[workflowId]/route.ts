@@ -52,6 +52,29 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       "pause_conditions",
     ];
 
+    // Validate status transitions if status is being changed
+    if (body.status) {
+      const { data: current } = await supabase.from("workflows").select("status").eq("id", workflowId).single();
+
+      if (current) {
+        const validTransitions: Record<string, string[]> = {
+          draft: ["live", "archived"],
+          live: ["paused", "archived"],
+          paused: ["live", "archived"],
+          pending_approval: ["draft", "live", "archived"],
+          archived: [], // archived is terminal — must clone to reuse
+        };
+
+        const allowed = validTransitions[current.status] ?? [];
+        if (!allowed.includes(body.status)) {
+          return NextResponse.json(
+            { error: `Cannot change status from "${current.status}" to "${body.status}"` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     for (const field of allowedFields) {
       if (body[field] !== undefined) {

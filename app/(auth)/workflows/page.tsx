@@ -16,8 +16,9 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import type { Workflow } from "@/lib/workflows/types";
 import WorkflowCard from "@/components/workflows/WorkflowCard";
 import WorkflowDetail from "@/components/workflows/WorkflowDetail";
-import CreateWorkflowModal from "@/components/workflows/CreateWorkflowModal";
+
 import ApprovalQueue from "@/components/workflows/ApprovalQueue";
+import PendingConfirmations from "@/components/workflows/PendingConfirmations";
 
 type StatusFilter = "all" | "live" | "draft" | "paused" | "archived";
 
@@ -41,7 +42,6 @@ export default function WorkflowsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
 
   const fetchWorkflows = useCallback(async () => {
@@ -230,6 +230,9 @@ export default function WorkflowsPage() {
         </div>
       )}
 
+      {/* Pending step confirmations (DRC pattern) */}
+      <PendingConfirmations />
+
       {/* Error banner */}
       {error && (
         <div className="mb-4 px-3 py-2 bg-danger/10 border border-danger/20 rounded-lg">
@@ -273,7 +276,28 @@ export default function WorkflowsPage() {
         {/* Detail panel — 3/5 */}
         <div className="lg:col-span-3 bg-bg-primary flex flex-col min-h-0">
           {selectedWorkflow ? (
-            <WorkflowDetail workflow={selectedWorkflow} />
+            <WorkflowDetail
+              workflow={selectedWorkflow}
+              onStatusChange={async (workflowId, newStatus) => {
+                const patchRes = await apiFetch(`/api/workflows/${workflowId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: newStatus }),
+                });
+                if (!patchRes.ok) {
+                  const errData = await patchRes.json().catch(() => ({ error: "Unknown error" }));
+                  setError(errData.error ?? `Failed to change status to ${newStatus}`);
+                  return;
+                }
+                // Refresh list and update selected
+                const res = await apiFetch(`/api/workflows/${workflowId}`);
+                if (res.ok) {
+                  const data = await res.json();
+                  setSelectedWorkflow(data.workflow);
+                }
+                void fetchWorkflows();
+              }}
+            />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
               <WorkflowIcon size={48} className="text-text-tertiary mb-4" />
@@ -286,18 +310,6 @@ export default function WorkflowsPage() {
           )}
         </div>
       </div>
-
-      {/* Create Workflow Modal */}
-      {showCreateModal && user && (
-        <CreateWorkflowModal
-          userId={user.id ?? ""}
-          onClose={() => setShowCreateModal(false)}
-          onCreate={(wf) => {
-            setShowCreateModal(false);
-            router.push(`/workflows/${wf.id}`);
-          }}
-        />
-      )}
     </div>
   );
 }

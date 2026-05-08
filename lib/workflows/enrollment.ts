@@ -11,11 +11,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import * as ghl from "@/lib/ghl";
 import { resolveCustomFields } from "@/lib/ghl/custom-fields";
-import type {
-  WorkflowEnrollment,
-  WorkflowEnrollmentInsert,
-  EnrollmentStatus,
-} from "@/lib/workflows/types";
+import type { WorkflowEnrollment, WorkflowEnrollmentInsert, EnrollmentStatus } from "@/lib/workflows/types";
 
 /** Result of an enrollment operation */
 export interface EnrollmentResult {
@@ -55,11 +51,7 @@ export async function enrollContact(params: {
   }
 
   // Get workflow name for GHL sync
-  const { data: workflow } = await supabase
-    .from("workflows")
-    .select("name")
-    .eq("id", params.workflowId)
-    .single();
+  const { data: workflow } = await supabase.from("workflows").select("name").eq("id", params.workflowId).single();
 
   // Create the enrollment
   const insert: WorkflowEnrollmentInsert = {
@@ -75,11 +67,7 @@ export async function enrollContact(params: {
     paused_at: null,
   };
 
-  const { data: enrollment, error } = await supabase
-    .from("workflow_enrollments")
-    .insert(insert)
-    .select()
-    .single();
+  const { data: enrollment, error } = await supabase.from("workflow_enrollments").insert(insert).select().single();
 
   if (error || !enrollment) {
     return { success: false, error: error?.message ?? "Failed to create enrollment" };
@@ -357,11 +345,7 @@ export async function getWorkflowEnrollments(
 export async function getEnrollment(enrollmentId: string): Promise<WorkflowEnrollment | null> {
   const supabase = createServerClient();
 
-  const { data, error } = await supabase
-    .from("workflow_enrollments")
-    .select("*")
-    .eq("id", enrollmentId)
-    .single();
+  const { data, error } = await supabase.from("workflow_enrollments").select("*").eq("id", enrollmentId).single();
 
   if (error || !data) return null;
   return data as WorkflowEnrollment;
@@ -370,10 +354,7 @@ export async function getEnrollment(enrollmentId: string): Promise<WorkflowEnrol
 /**
  * Check if a contact has an active enrollment in a specific workflow.
  */
-export async function isContactEnrolled(
-  ghlContactId: string,
-  workflowId: string
-): Promise<boolean> {
+export async function isContactEnrolled(ghlContactId: string, workflowId: string): Promise<boolean> {
   const supabase = createServerClient();
 
   const { data } = await supabase
@@ -392,10 +373,7 @@ export async function isContactEnrolled(
  * Expire enrollments that have exceeded their workflow duration.
  * Called by the workflow cron job.
  */
-export async function expireStaleEnrollments(
-  workflowId: string,
-  maxDays: number
-): Promise<number> {
+export async function expireStaleEnrollments(workflowId: string, maxDays: number): Promise<number> {
   const supabase = createServerClient();
 
   const cutoff = new Date();
@@ -424,6 +402,129 @@ export async function expireStaleEnrollments(
 }
 
 // ════════════════════════════════════════════
+// Real-time Exit Condition Evaluation
+// ════════════════════════════════════════════
+
+/**
+ * Check all active enrollments for a contact and exit any whose
+ * goal conditions are now met. Called in real-time from stage advance
+ * and sub-task log endpoints — not just the scheduler.
+ *
+ * Supports exit conditions based on NAH OS internal data:
+ * - stage.advanced: contact reached a specific pipeline stage
+ * - subtask.completed: a specific sub-task was completed
+ * - GHL fields: tags, custom fields (legacy, via scheduler)
+ *
+ * @param ghlContactId - The GHL contact ID
+ * @param eventType - The internal event that just happened
+ * @param eventPayload - Event data for condition evaluation
+ */
+export async function checkExitConditions(
+  ghlContactId: string,
+  eventType: string,
+  eventPayload: Record<string, unknown>
+): Promise<{ exited: number }> {
+  const supabase = createServerClient();
+  let exited = 0;
+
+  // Find all active/paused enrollments for this contact
+  const { data: enrollments } = await supabase
+    .from("workflow_enrollments")
+    .select("id, workflow_id, status")
+    .eq("ghl_contact_id", ghlContactId)
+    .in("status", ["active", "paused"]);
+
+  if (!enrollments || enrollments.length === 0) return { exited: 0 };
+
+  for (const enrollment of enrollments) {
+    // Get the workflow's exit conditions
+    const { data: workflow } = await supabase
+      .from("workflows")
+      .select("exit_conditions, name")
+      .eq("id", enrollment.workflow_id)
+      .single();
+
+    if (!workflow?.exit_conditions) continue;
+
+    const exitConfig = workflow.exit_conditions as {
+      maxDays?: number;
+      goalConditions?: Array<{ field: string; operator: string; value: string | string[] | number }>;
+      goalEvent?: string;
+      description?: string;
+    };
+
+    if (!exitConfig.goalConditions?.length && !exitConfig.goalEvent) continue;
+
+    let goalMet = false;
+
+    // Check event-based exit (new system): goalEvent matches the current event
+    if (exitConfig.goalEvent) {
+      const eventCompact = eventType.toLowerCase().replace(/[._\s]/g, "");
+      const goalCompact = exitConfig.goalEvent.toLowerCase().replace(/[._\s]/g, "");
+      if (eventCompact.includes(goalCompact) || goalCompact.includes(eventCompact)) {
+        // Event type matches — now check conditions
+        if (exitConfig.goalConditions?.length) {
+          goalMet = exitConfig.goalConditions.every((condition) => {
+            const fieldValue = String(eventPayload[condition.field] ?? "");
+            return evaluateExitCondition(fieldValue, condition.operator, condition.value);
+          });
+        } else {
+          goalMet = true; // Event matched with no conditions = exit
+        }
+      }
+    }
+
+    // Fallback: check conditions against the event payload directly (no goalEvent required)
+    if (!goalMet && exitConfig.goalConditions?.length && !exitConfig.goalEvent) {
+      goalMet = exitConfig.goalConditions.every((condition) => {
+        const fieldValue = String(eventPayload[condition.field] ?? "");
+        return evaluateExitCondition(fieldValue, condition.operator, condition.value);
+      });
+    }
+
+    if (goalMet) {
+      const result = await exitEnrollment({
+        enrollmentId: enrollment.id,
+        reason: exitConfig.description ?? `Goal achieved (${eventType})`,
+        goalAchieved: true,
+      });
+      if (result.success) {
+        exited++;
+        console.log(
+          `[exit-check] Exited enrollment ${enrollment.id} from "${workflow.name}" — ${exitConfig.description ?? eventType}`
+        );
+      }
+    }
+  }
+
+  return { exited };
+}
+
+/** Evaluate a single exit condition */
+function evaluateExitCondition(actual: string, operator: string, expected: string | string[] | number): boolean {
+  switch (operator) {
+    case "equals":
+      return actual === String(expected);
+    case "not_equals":
+      return actual !== String(expected);
+    case "contains":
+      return actual.toLowerCase().includes(String(expected).toLowerCase());
+    case "in":
+      return Array.isArray(expected) && expected.includes(actual);
+    case "not_empty":
+      return actual.length > 0;
+    case "empty":
+      return actual.length === 0;
+    case "greater_than":
+      return Number(actual) > Number(expected);
+    case "less_than":
+      return Number(actual) < Number(expected);
+    default:
+      return false;
+  }
+}
+
+// ════════════════════════════════════════════
 // GHL Custom Field Sync
 // ════════════════════════════════════════════
 
@@ -442,10 +543,7 @@ interface GhlWorkflowFieldUpdate {
  * Per ghl-masterclass: always use field IDs (not names) when writing,
  * and all values must be strings.
  */
-async function syncGhlWorkflowFields(
-  contactId: string,
-  fields: GhlWorkflowFieldUpdate
-): Promise<void> {
+async function syncGhlWorkflowFields(contactId: string, fields: GhlWorkflowFieldUpdate): Promise<void> {
   try {
     const rawFields: Record<string, string | number | boolean> = {};
 

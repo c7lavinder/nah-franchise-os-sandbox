@@ -16,10 +16,13 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 import { syncStageToGHL } from "@/lib/ghl/stage-sync";
 import { carryForwardContactEos } from "@/lib/eos/carry-forward";
+import { matchWorkflowTriggers } from "@/lib/workflows/trigger-matcher";
+import { checkExitConditions } from "@/lib/workflows/enrollment";
 
 export async function POST(
   request: NextRequest,
@@ -74,15 +77,21 @@ export async function POST(
       const nextStage = stages[currentIdx + 1];
 
       const { data: nextTasks } = await supabase
-        .from("pipeline_sub_tasks").select("id")
-        .eq("stage_id", nextStage.id).order("sort_order").limit(1);
+        .from("pipeline_sub_tasks")
+        .select("id")
+        .eq("stage_id", nextStage.id)
+        .order("sort_order")
+        .limit(1);
 
-      await supabase.from("journey_pipeline_state").update({
-        current_stage_id: nextStage.id,
-        entered_current_stage_at: now,
-        current_sub_task_id: nextTasks?.[0]?.id ?? null,
-        current_sub_task_started_at: now,
-      }).eq("id", jps.id);
+      await supabase
+        .from("journey_pipeline_state")
+        .update({
+          current_stage_id: nextStage.id,
+          entered_current_stage_at: now,
+          current_sub_task_id: nextTasks?.[0]?.id ?? null,
+          current_sub_task_started_at: now,
+        })
+        .eq("id", jps.id);
 
       await supabase.from("pipeline_stage_history").insert({
         journey_pipeline_state_id: jps.id,
@@ -95,9 +104,33 @@ export async function POST(
       });
 
       const { data: pipeline } = await supabase.from("pipelines").select("slug").eq("id", pipelineId).single();
-      const { data: nextStageDef } = await supabase.from("pipeline_stages").select("slug").eq("id", nextStage.id).single();
+      const { data: nextStageDef } = await supabase
+        .from("pipeline_stages")
+        .select("slug")
+        .eq("id", nextStage.id)
+        .single();
       if (pipeline?.slug && nextStageDef?.slug) {
         void syncStageToGHL(localContactId, pipeline.slug, nextStageDef.slug);
+      }
+
+      // Fire workflow triggers for territory-scoped stage advance
+      const { data: contactForTrigger } = await supabase
+        .from("contacts")
+        .select("ghl_contact_id")
+        .eq("id", localContactId)
+        .maybeSingle();
+      if (contactForTrigger?.ghl_contact_id) {
+        const stagePayload = {
+          pipelineId,
+          pipelineSlug: pipeline?.slug ?? "",
+          fromStageId: jps.current_stage_id,
+          toStageId: nextStage.id,
+          toStageSlug: nextStageDef?.slug ?? "",
+          scope: "territory",
+          territory: territory_ms_slug,
+        };
+        void matchWorkflowTriggers("stage.advanced", contactForTrigger.ghl_contact_id, stagePayload).catch(() => {});
+        void checkExitConditions(contactForTrigger.ghl_contact_id, "stage.advanced", stagePayload).catch(() => {});
       }
 
       return NextResponse.json({ success: true, newStageId: nextStage.id, scope: "territory" });
@@ -142,9 +175,12 @@ export async function POST(
         const latest = logs?.[0];
         const complete = task.state_type === "single" ? !!latest : latest?.state_advance === "second";
         if (!complete) {
-          return NextResponse.json({
-            error: "Not all required sub-tasks are complete. Use force=true to skip.",
-          }, { status: 400 });
+          return NextResponse.json(
+            {
+              error: "Not all required sub-tasks are complete. Use force=true to skip.",
+            },
+            { status: 400 }
+          );
         }
       }
     }
@@ -152,17 +188,23 @@ export async function POST(
     const nextStage = stages[currentIdx + 1];
 
     const { data: nextTasks } = await supabase
-      .from("pipeline_sub_tasks").select("id")
-      .eq("stage_id", nextStage.id).order("sort_order").limit(1);
+      .from("pipeline_sub_tasks")
+      .select("id")
+      .eq("stage_id", nextStage.id)
+      .order("sort_order")
+      .limit(1);
 
     // Move every active jps row to the next stage; one history row per jps row.
     const jpsIds = jpsRows.map((r) => r.id);
-    await supabase.from("journey_pipeline_state").update({
-      current_stage_id: nextStage.id,
-      entered_current_stage_at: now,
-      current_sub_task_id: nextTasks?.[0]?.id ?? null,
-      current_sub_task_started_at: now,
-    }).in("id", jpsIds);
+    await supabase
+      .from("journey_pipeline_state")
+      .update({
+        current_stage_id: nextStage.id,
+        entered_current_stage_at: now,
+        current_sub_task_id: nextTasks?.[0]?.id ?? null,
+        current_sub_task_started_at: now,
+      })
+      .in("id", jpsIds);
 
     await supabase.from("pipeline_stage_history").insert(
       jpsRows.map((r) => ({
@@ -177,9 +219,53 @@ export async function POST(
     );
 
     const { data: pipeline } = await supabase.from("pipelines").select("slug").eq("id", pipelineId).single();
-    const { data: nextStageDef } = await supabase.from("pipeline_stages").select("slug").eq("id", nextStage.id).single();
+    const { data: nextStageDef } = await supabase
+      .from("pipeline_stages")
+      .select("slug")
+      .eq("id", nextStage.id)
+      .single();
     if (pipeline?.slug && nextStageDef?.slug) {
       void syncStageToGHL(localContactId, pipeline.slug, nextStageDef.slug);
+    }
+
+    // Fire workflow triggers for contact-wide stage advance
+    {
+      const { data: contactForTrigger } = await supabase
+        .from("contacts")
+        .select("ghl_contact_id, first_name, last_name")
+        .eq("id", localContactId)
+        .maybeSingle();
+      if (contactForTrigger?.ghl_contact_id) {
+        const { data: fromStageDef } = await supabase
+          .from("pipeline_stages")
+          .select("slug, name")
+          .eq("id", canonical.current_stage_id)
+          .single();
+        const stagePayload = {
+          pipelineId,
+          pipelineSlug: pipeline?.slug ?? "",
+          pipelineName:
+            pipeline?.slug === "sales"
+              ? "Sales — Path to Ownership"
+              : pipeline?.slug === "followup"
+                ? "Follow-up — Long-term Re-engagement"
+                : pipeline?.slug === "onboarding"
+                  ? "Onboarding — Path to Launch"
+                  : pipeline?.slug === "runway"
+                    ? "Runway — First Purchases"
+                    : (pipeline?.slug ?? ""),
+          fromStageId: canonical.current_stage_id,
+          fromStageSlug: fromStageDef?.slug ?? "",
+          fromStageName: fromStageDef?.name ?? "",
+          toStageId: nextStage.id,
+          toStageSlug: nextStageDef?.slug ?? "",
+          toStageName: nextStageDef?.slug ?? "",
+          contactName: `${contactForTrigger.first_name ?? ""} ${contactForTrigger.last_name ?? ""}`.trim(),
+          scope: "contact",
+        };
+        void matchWorkflowTriggers("stage.advanced", contactForTrigger.ghl_contact_id, stagePayload).catch(() => {});
+        void checkExitConditions(contactForTrigger.ghl_contact_id, "stage.advanced", stagePayload).catch(() => {});
+      }
     }
 
     // Auto-spawn: if the next stage is terminal and names an auto-spawn
@@ -189,13 +275,23 @@ export async function POST(
     if (nextStage.is_terminal && nextStage.auto_spawn_pipeline_id) {
       const spawnPipelineId = nextStage.auto_spawn_pipeline_id;
       const { data: spawnPipeline } = await supabase
-        .from("pipelines").select("slug").eq("id", spawnPipelineId).single();
+        .from("pipelines")
+        .select("slug")
+        .eq("id", spawnPipelineId)
+        .single();
       const { data: spawnStages } = await supabase
-        .from("pipeline_stages").select("id")
-        .eq("pipeline_id", spawnPipelineId).order("sort_order").limit(1);
+        .from("pipeline_stages")
+        .select("id")
+        .eq("pipeline_id", spawnPipelineId)
+        .order("sort_order")
+        .limit(1);
       const { data: spawnTasks } = spawnStages?.[0]
-        ? await supabase.from("pipeline_sub_tasks").select("id")
-            .eq("stage_id", spawnStages[0].id).order("sort_order").limit(1)
+        ? await supabase
+            .from("pipeline_sub_tasks")
+            .select("id")
+            .eq("stage_id", spawnStages[0].id)
+            .order("sort_order")
+            .limit(1)
         : { data: [] as { id: string }[] };
 
       if (spawnStages?.[0]) {
@@ -203,11 +299,16 @@ export async function POST(
         let spawnSlugs: (string | null)[] = [null];
         if (fanOut) {
           const { data: contactRow } = await supabase
-            .from("contacts").select("ghl_contact_id").eq("id", localContactId).maybeSingle();
+            .from("contacts")
+            .select("ghl_contact_id")
+            .eq("id", localContactId)
+            .maybeSingle();
           if (contactRow?.ghl_contact_id) {
             const { data: owners } = await supabase
-              .from("territory_owners").select("ms_slug")
-              .eq("ghl_contact_id", contactRow.ghl_contact_id).is("end_date", null);
+              .from("territory_owners")
+              .select("ms_slug")
+              .eq("ghl_contact_id", contactRow.ghl_contact_id)
+              .is("end_date", null);
             const slugs = (owners ?? []).map((o) => o.ms_slug);
             spawnSlugs = slugs.length > 0 ? slugs : [null];
           }

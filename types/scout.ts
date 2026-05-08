@@ -30,7 +30,9 @@ export type ScoutToolName =
   | "draft_note"
   | "draft_trigger_workflow"
   | "draft_knowledge_doc"
-  | "draft_sub_task_log";
+  | "draft_sub_task_log"
+  | "get_compliance"
+  | "draft_compliance_update";
 
 /** Chat message role */
 export type ChatRole = "user" | "assistant";
@@ -41,8 +43,10 @@ export interface ChatMessage {
   role: ChatRole;
   content: string;
   timestamp: string;
-  /** If this message includes a drafted action for the user to confirm */
+  /** If this message includes a drafted action for the user to confirm (backward compat) */
   draftedAction?: DraftedAction;
+  /** All drafted actions for batch operations */
+  draftedActions?: DraftedAction[];
 }
 
 /** Types of actions Scout can draft for user confirmation */
@@ -57,7 +61,8 @@ export type DraftedActionType =
   | "journey_action"
   | "note"
   | "trigger_workflow"
-  | "sub_task_log";
+  | "sub_task_log"
+  | "compliance_update";
 
 /** Status of a drafted action in the UI */
 export type DraftedActionStatus = "pending" | "editing" | "confirmed" | "cancelled";
@@ -81,7 +86,10 @@ export interface DraftedAction {
     | DraftedJourneyActionPayload
     | DraftedNotePayload
     | DraftedTriggerWorkflowPayload
-    | DraftedSubTaskLogPayload;
+    | DraftedSubTaskLogPayload
+    | DraftedComplianceUpdatePayload;
+  /** Human-readable summary of what this action does */
+  summary?: string;
 }
 
 /** Payload for a drafted SMS or email message */
@@ -240,6 +248,14 @@ export interface DraftedSubTaskLogPayload {
   loggerUserId?: string;
   /** Logger display name (UI only) */
   loggerName?: string;
+}
+
+/** Payload for a drafted compliance tracking update */
+export interface DraftedComplianceUpdatePayload {
+  actionType: "compliance_update";
+  contactId: string;
+  updates: Record<string, unknown>;
+  reason?: string;
 }
 
 /** Request body sent to the Scout API */

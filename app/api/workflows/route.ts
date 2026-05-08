@@ -84,16 +84,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Create initial version (v1)
-    const { error: versionErr } = await supabase.from("workflow_versions").insert({
-      workflow_id: workflow.id,
-      version_number: 1,
-      change_description: "Initial version",
-      created_by: user.id,
-    });
+    // Create initial version (v1) and link it back to the workflow
+    const { data: version, error: versionErr } = await supabase
+      .from("workflow_versions")
+      .insert({
+        workflow_id: workflow.id,
+        version_number: 1,
+        change_description: "Initial version",
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
 
-    if (versionErr) {
-      console.error("Failed to create initial version:", versionErr.message);
+    if (versionErr || !version) {
+      console.error("Failed to create initial version:", versionErr?.message);
+    } else {
+      // Link version back to workflow
+      await supabase.from("workflows").update({ current_version_id: version.id }).eq("id", workflow.id);
+      workflow.current_version_id = version.id;
     }
 
     return NextResponse.json({ workflow }, { status: 201 });

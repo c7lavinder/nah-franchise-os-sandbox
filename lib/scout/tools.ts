@@ -545,4 +545,44 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
       required: ["contact_id", "sub_task_id"],
     },
   },
+
+  // ════════════════════════════════════════════════════════════════
+  // COMPLIANCE
+  // ════════════════════════════════════════════════════════════════
+  {
+    name: "get_compliance",
+    description:
+      "Get compliance tracking data for a contact — FDD disclosure status, 14-day cooling period, " +
+      "state registration, franchise agreement, training progress, background check. Use when asked " +
+      "'Has this prospect received their FDD?', 'When does the cooling period end?', 'Is training complete?'",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: { type: "string", description: "Supabase contact UUID" },
+      },
+      required: ["contact_id"],
+    },
+  },
+  {
+    name: "draft_compliance_update",
+    description:
+      "Draft a compliance record update for human review. Use when the user says " +
+      "'Mark FDD as issued', 'Log agreement signed', 'Update training to 5 of 8 modules complete'. " +
+      "Supports: fdd_issued_at, fdd_acknowledged_at, fdd_version, fdd_state, " +
+      "franchise_agreement_sent_at, franchise_agreement_signed_at, " +
+      "training_started_at, training_completed_at, training_modules_completed, training_modules_total, " +
+      "background_check_status, insurance_verified_at, state_registration_status.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: { type: "string", description: "Supabase contact UUID" },
+        updates: {
+          type: "object",
+          description: "Key-value pairs of fields to update. Date fields use ISO 8601 format.",
+        },
+        reason: { type: "string", description: "Brief reason for the update" },
+      },
+      required: ["contact_id", "updates"],
+    },
+  },
 ];

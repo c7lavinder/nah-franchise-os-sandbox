@@ -448,6 +448,31 @@ export async function POST(request: NextRequest) {
           ghlResponse = await logRes.json();
           break;
         }
+        case "compliance_update": {
+          const compPayload = action.payload as {
+            contactId: string;
+            updates: Record<string, unknown>;
+            reason?: string;
+          };
+          const compSupabase = createServerClient();
+
+          const { data: compResult, error: compError } = await compSupabase
+            .from("compliance_tracking")
+            .upsert(
+              {
+                contact_id: compPayload.contactId,
+                ...compPayload.updates,
+                updated_by: user.id,
+              },
+              { onConflict: "contact_id" }
+            )
+            .select("id")
+            .single();
+
+          if (compError) throw new Error(compError.message);
+          ghlResponse = { complianceId: compResult?.id, updated: Object.keys(compPayload.updates) };
+          break;
+        }
         default: {
           throw new Error(`Unknown action type: ${action.type}`);
         }

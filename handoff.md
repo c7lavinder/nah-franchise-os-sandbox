@@ -1,81 +1,140 @@
-# Session Handoff — 2026-05-07 — Session 30
+# Session Handoff — 2026-05-08 — Session 31
 
 ## Status
 
-Phase: Pipeline Quick-Actions + Log Overhaul + Call Fixes / Health: Green / Duration: full session
+Phase: Full system audit + 4-phase build + bug fix sweep / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-- Fixed pipeline territories not loading — `TerritoryCardList` used bare `fetch()` instead of `apiFetch()`, added `stage_id` filtering (`TerritoryCardList.tsx`, `page.tsx`)
-- Call page title: changed AI prompt from 5-10 words to 3-5 words max, no participant names (`lib/agents/post-call/prompts/summary.ts`)
-- Call page title layout: full display, no ellipsis, icons pinned right (`app/(auth)/calls/[callId]/page.tsx`)
-- Transcript speaker parser: broadened regex for digits/dots/hyphens, added Read.ai plain-text format + timestamp-prefix format, normalized line endings (`CallOverviewTab.tsx`)
-- Sub-task log panel complete overhaul — 4-view modal (list → detail → edit → create), card-based history with edit+delete icons, `titleCase()` utility applied across all labels (`SubTaskLogModal.tsx`, `SubTaskLogHistory.tsx`, `SubTaskCircle.tsx`, `StageDrilldown.tsx`)
-- `PATCH /api/sub-task-logs/:logId` — new endpoint for editing log content + attachments (`app/api/sub-task-logs/[logId]/route.ts`)
-- Drag-and-drop file upload for log attachments — `FileDropZone` component + `POST /api/sub-task-logs/upload` (Supabase Storage, 10MB max)
-- Pipeline quick-action panel — click any lead row to expand inline panel with three columns: sub-tasks (mirrors journey page), upcoming events (appointments + workflow steps), contacts (journey members with phone/email)
-- Action bar: Advance Stage (force=true, no sub-task blocking), Back Stage (revert with reason), Move to Follow-Up, Move to Nurture
-- Inline contact editing from quick panel — pencil icon, edit phone/email, syncs to Supabase + GHL
-- `ContactEmailsPanel` added to journey page prospect info section — shows all linked emails with add/remove/promote
-- Territory creation on sales close — `POST /api/territories`, `TerritoryAssignModal` pops up before advancing to Closed stage
-- Pipeline filtering bugs fixed — removed `key={refreshKey}` remount, sort is client-side only, expanded row clears on stage change
-- Scout LLM panel — MAX_TOKENS 8192→2048, hard brevity rule in system prompt, panel capped at 50vh with scroll
-- `GET /api/contacts/:id/journey-members` — new endpoint
-- `GET /api/contacts/:id/appointments` — new endpoint
-- `GET /api/workflows/pending-steps?ghl_contact_id=X` — added contact-level filter
+### Audit
+
+- Comprehensive $100M readiness audit across all 6 system areas (Scout, Pipeline, Calls, Workflows, Architecture, Knowledge)
+- 6 parallel research agents crawled 641 files, 109K lines of code
+- Identified 24 gaps, prioritized into 4 build phases
+
+### Phase 1 — Stop the Bleeding
+
+- `supabase/migrations/20260508100000_scale_indexes.sql` — 8 database indexes on calls, workflow_step_logs, journey_pipeline_state, contacts
+- `app/api/leads/intake/route.ts` — public lead ingestion API with webhook secret, dedup, pipeline setup, team notifications, GHL sync
+- `lib/scout/stream.ts` + `app/api/scout/chat-stream/route.ts` — SSE streaming with true Anthropic token streaming + tool status events
+- `app/(auth)/dashboard/page.tsx` — visual dashboard with KPI cards, sales funnel bar chart, lead source donut chart, pipeline breakdown grid
+- `lib/scout/tool-executor.ts` — wired pgvector RAG into Scout's search_knowledge tool (semantic + keyword merge)
+- `supabase/migrations/20260508200000_compliance_tracking.sql` + `app/api/contacts/[contactId]/compliance/route.ts` + `app/api/compliance/route.ts` — FDD compliance tracking with 14-day cooling trigger
+
+### Phase 2 — Make It Smart
+
+- `lib/scout/prompt-loader.ts` + `app/api/settings/scout-prompt/route.ts` + migration — Scout system prompt editable from database with 60s cache
+- `app/api/cron/daily-brief/route.ts` + vercel.json — daily brief cron at 7:30 AM per user (batch-optimized: 4 queries total)
+- `app/api/metrics/rep-leaderboard/route.ts` + dashboard update — rep performance leaderboard (leads, advances, grades, actions, stalled)
+- `lib/auth/rate-limit.ts` — per-user rate limiting on Scout chat (20/min) and lead intake (10/min by IP)
+- `tests/business-logic/` — 3 test files: lead-scoring (12 tests), rate-limit (5 tests), model-router (8 tests)
+- GHL client audit — verified all 32 functions have callers, no dead code
+
+### Phase 3 — Scale the Engine
+
+- Cron audit: added 4 missing crons to vercel.json + CRON_DEFINITIONS (score-recalculate, stale-leads, sync-ghl-calendar, daily-brief). 18 total, all synced.
+- `lib/errors/tracker.ts` + enhanced `app/api/settings/health/route.ts` — structured error tracking with IDs, rolling window, per-route rates
+- `app/api/contacts/batch-actions/route.ts` — bulk stage advance, tag, assign, score recalc (50 max per batch)
+- `app/api/workflows/[workflowId]/analytics/route.ts` — enrollment funnel, per-step metrics, day-by-day retention, exit reasons
+- `app/api/metrics/conversion-funnel/route.ts` + dashboard update — stage-to-stage conversion rates with drop-off visualization
+- `tests/business-logic/error-tracker.test.ts` + `prompt-loader.test.ts` — 7 more tests
+
+### Phase 4 — Make It Feel Premium
+
+- Mobile-responsive: pipeline circles scroll on small screens, lead list responsive grid, Scout action cards, dashboard donut chart stacks
+- `supabase/migrations/20260508400000_notifications_expand.sql` + updated API + bell component — notification bell supports daily_brief, new_lead, mention types
+- `lib/scout/tools.ts` + `tool-executor.ts` — Scout compliance tools (get_compliance + draft_compliance_update, 27 tools total)
+- `components/layout/OnboardingChecklist.tsx` — 5-step guided checklist for new team members
+- `app/api/contacts/check-duplicates/route.ts` — fuzzy duplicate detection (email, phone, name similarity)
+
+### Bug Fix Sweep
+
+- `app/api/scout/action/route.ts` — added compliance_update case (was broken: confirm would error)
+- `app/api/contacts/batch-actions/route.ts` — batch advance now writes stage history, fires workflow triggers, syncs GHL
+- `app/api/cron/daily-brief/route.ts` — replaced 5N sequential queries with 4 batch queries (scales to 500+ users)
+- `supabase/migrations/20260508500000_phone_normalized.sql` — normalized phone column + index + auto-populate trigger
+- `lib/scout/stream.ts` — replaced fake text chunking with true `client.messages.stream()` token streaming
+- `.claude/hooks/ghl-boundary-check.sh` — exclude `import type` from Anthropic SDK block
+- `app/api/leads/intake/route.ts` — save Supabase first (source of truth), GHL sync as best-effort
 
 ## What Is Confirmed Working
 
 - `npx tsc --noEmit` passes clean (0 errors)
-- All 8 test files pass (97 tests)
-- All commits pushed to main, Vercel auto-deploy triggered
-- Pre-commit hooks passed (prettier + vitest) on every commit
+- All 13 test files pass (129 tests)
+- All 18 cron jobs synced across vercel.json, CRON_DEFINITIONS, and route files
+- Rate limiter tested with 5 unit tests
+- Lead scoring tested with 12 unit tests
+- Model router tested with 8 unit tests
 
 ## What Is Broken or Incomplete
 
-- Pipeline quick panel load speed depends on pipeline-state API which fetches all stages + sub-tasks for all pipelines — could be optimized to fetch only current pipeline — Medium
-- Territory creation modal is admin-only (POST /api/territories requires admin role) — may need to relax for operators — Low
-- Drag-and-drop file upload needs the `log-attachments` Supabase Storage bucket to be created on first upload — auto-creates but may fail if Storage not enabled — Low
+- Scout streaming not deployed yet (needs commit + push) — Medium
+- Compliance tracking table needs migration run on Supabase — Medium
+- Notifications expanded table needs migration run on Supabase — Medium
+- Phone normalized column needs migration run on Supabase — Medium
+- OnboardingChecklist uses localStorage (won't sync across devices) — Low
+- Rate limiter is in-memory (resets on Vercel cold start) — Low at current scale
+- pgvector RAG requires OPENAI_API_KEY and embeddings to be backfilled — Low (falls back to keyword search)
 
 ## Decisions Made
 
-- Call titles: 3-5 words max, no participant names — Corey approved
-- Title shows in full, no ellipsis, no wrapping — Corey approved
-- Sub-task log panel: multi-view modal (list/detail/edit/create) — Corey approved
-- Pipeline quick panel: 3-column layout (tasks/upcoming/contacts) with action bar — Corey approved
-- Contact role labels removed from quick panel (was confusing) — Corey approved
-- Advance Stage uses force=true (skipped tasks stay yellow, don't block) — Corey approved
-- Scout brevity: under 3 sentences unless asked for detail — Corey approved
-- Scout panel: 50vh max height, bottom-right anchored — Corey approved
+- Lead intake saves Supabase first, GHL second (GHL outage won't lose leads) — architectural decision
+- Scout streaming uses SSE (not WebSocket) for Vercel compatibility — architectural decision
+- Daily brief uses batch queries (4 total) instead of per-user (5N) — performance decision
+- Compliance tracking auto-calculates 14-day FDD cooling via DB trigger — architectural decision
+- Dashboard uses inline SVG charts (no new dependencies) — Corey prefers simple/clean
 
 ## Files Created
 
-- `app/api/sub-task-logs/upload/route.ts`
-- `app/api/contacts/[contactId]/journey-members/route.ts`
-- `app/api/contacts/[contactId]/appointments/route.ts`
-- `components/ui/FileDropZone.tsx`
-- `components/pipeline/PipelineQuickPanel.tsx`
-- `components/pipeline/TerritoryAssignModal.tsx`
+- `app/(auth)/dashboard/page.tsx`
+- `app/api/compliance/route.ts`
+- `app/api/contacts/[contactId]/compliance/route.ts`
+- `app/api/contacts/batch-actions/route.ts`
+- `app/api/contacts/check-duplicates/route.ts`
+- `app/api/cron/daily-brief/route.ts`
+- `app/api/leads/intake/route.ts`
+- `app/api/metrics/conversion-funnel/route.ts`
+- `app/api/metrics/rep-leaderboard/route.ts`
+- `app/api/scout/chat-stream/route.ts`
+- `app/api/settings/scout-prompt/route.ts`
+- `app/api/workflows/[workflowId]/analytics/route.ts`
+- `components/layout/OnboardingChecklist.tsx`
+- `lib/auth/rate-limit.ts`
+- `lib/errors/tracker.ts`
+- `lib/scout/prompt-loader.ts`
+- `lib/scout/stream.ts`
+- `supabase/migrations/20260508100000_scale_indexes.sql`
+- `supabase/migrations/20260508200000_compliance_tracking.sql`
+- `supabase/migrations/20260508300000_scout_prompt_settings.sql`
+- `supabase/migrations/20260508400000_notifications_expand.sql`
+- `supabase/migrations/20260508500000_phone_normalized.sql`
+- `tests/business-logic/error-tracker.test.ts`
+- `tests/business-logic/lead-scoring.test.ts`
+- `tests/business-logic/model-router.test.ts`
+- `tests/business-logic/prompt-loader.test.ts`
+- `tests/business-logic/rate-limit.test.ts`
 
 ## Files Modified
 
-- `app/(auth)/pipeline/page.tsx` — removed key={refreshKey}, pass as prop, added stageId to TerritoryCardList
-- `components/pipeline/PipelineLeadList.tsx` — click-to-expand quick panel, refreshKey prop, client-side sort, clear expandedRow on stage change
-- `components/pipeline/TerritoryCardList.tsx` — apiFetch fix, stageId prop + API param
-- `app/(auth)/calls/[callId]/page.tsx` — title layout (full display, icons pinned right)
-- `components/calls/CallOverviewTab.tsx` — enhanced transcript speaker parser (4 formats)
-- `lib/agents/post-call/prompts/summary.ts` — 3-5 word titles, no names
-- `components/contact/SubTaskLogHistory.tsx` — full rewrite: card layout, edit+delete, attachments, timestamps
-- `components/contact/SubTaskLogModal.tsx` — full rewrite: 4-view modal, FileDropZone, edit support
-- `components/contact/SubTaskCircle.tsx` — titleCase on name + state label
-- `components/contact/StageDrilldown.tsx` — titleCase, edit handler, editingLog prop
-- `lib/format/contact.ts` — added titleCase() utility
-- `app/api/sub-task-logs/[logId]/route.ts` — added PATCH endpoint, added requireAuth to DELETE
-- `app/api/workflows/pending-steps/route.ts` — added ghl_contact_id filter param
-- `app/api/territories/route.ts` — added POST handler for territory creation + owner assignment
-- `lib/scout/client.ts` — MAX_TOKENS 8192→2048, brevity instruction
-- `components/layout/ScoutFAB.tsx` — max-h-[50vh], bottom-right anchor
-- `components/leads/LeadDetailView.tsx` — added ContactEmailsPanel to prospect info section
+- `.claude/hooks/ghl-boundary-check.sh`
+- `app/(auth)/scout/page.tsx`
+- `app/api/contacts/batch-actions/route.ts`
+- `app/api/cron/daily-brief/route.ts`
+- `app/api/leads/intake/route.ts`
+- `app/api/notifications/route.ts`
+- `app/api/scout/action/route.ts`
+- `app/api/scout/chat/route.ts`
+- `app/api/settings/cron-jobs/route.ts`
+- `app/api/settings/health/route.ts`
+- `components/layout/AppShell.tsx`
+- `components/layout/NotificationBell.tsx`
+- `components/pipeline/OwnershipPath.tsx`
+- `components/pipeline/PipelineLeadList.tsx`
+- `lib/scout/client.ts`
+- `lib/scout/tool-executor.ts`
+- `lib/scout/tools.ts`
+- `types/scout.ts`
+- `vercel.json`
 
 ## Files Deleted
 
@@ -83,18 +142,17 @@ Phase: Pipeline Quick-Actions + Log Overhaul + Call Fixes / Health: Green / Dura
 
 ## Open Issues Carried Forward
 
-- Pipeline quick panel load speed — pipeline-state API fetches all pipelines/stages, could be narrowed — Medium
+- 5 new migrations need to be run on Supabase (indexes, compliance, prompt settings, notifications, phone_normalized) — High
+- pgvector embeddings need backfill for RAG to work (`scripts/backfill-embeddings.ts` exists) — Medium
+- Rate limiter needs Redis (Vercel KV) for durability at scale — Medium
 - Larry Hall mapping persistence — needs live verification — High
-- AddRelatedContactModal journey anchor UX — "partner of" should be simple journey picker — Medium
-- Scout LLM hallucinating confirmations — Medium (prompt work needed beyond brevity fix)
-- Marketing dashboard page not yet built — Medium
-- `marketing_spend` table blocked on Matt's input — Medium
+- Scout LLM hallucinating confirmations — Medium (prompt work needed)
 - MasterSuite API integration — not connected yet, deferred — Medium
-- Unstaged changes from prior sessions in Scout, workflows, audit page (~26 files) — Low
+- Unstaged changes from prior sessions (~26 files from session 30) — Low
 
 ## Exact Next Step
 
-Test the pipeline quick-action panel end-to-end: click a lead row, verify sub-tasks load for correct stage, log a sub-task, click Advance Stage, confirm it moves and shows next stage tasks, then test territory creation modal on the Closed transition.
+Run the 5 new Supabase migrations (20260508\*), commit all session 31 changes, push to main, and verify the dashboard + daily brief + lead intake work in production.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -102,6 +160,6 @@ Test the pipeline quick-action panel end-to-end: click a lead row, verify sub-ta
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Test the pipeline quick-action panel end-to-end: click a lead row, verify sub-tasks load for correct stage, log a sub-task, click Advance Stage, confirm it moves and shows next stage tasks, then test territory creation modal on the Closed transition.
+Then: Run the 5 new Supabase migrations (20260508\*), commit all session 31 changes, push to main, and verify the dashboard + daily brief + lead intake work in production.
 
 ---

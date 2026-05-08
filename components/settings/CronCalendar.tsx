@@ -8,8 +8,17 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import {
-  Loader2, CheckCircle2, XCircle, Clock, AlertCircle,
-  Bot, FileText, Zap, ChevronDown, ChevronRight,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertCircle,
+  Bot,
+  FileText,
+  Zap,
+  ChevronDown,
+  ChevronRight,
+  Workflow as WorkflowIcon,
 } from "lucide-react";
 
 interface CronSchedule {
@@ -33,10 +42,14 @@ interface CronLog {
   error: string | null;
 }
 
-const CATEGORY_META: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; color: string; label: string }> = {
+const CATEGORY_META: Record<
+  string,
+  { icon: React.ComponentType<{ size?: number; className?: string }>; color: string; label: string }
+> = {
   agents: { icon: Bot, color: "text-scout-purple", label: "AI Agents" },
   reporting: { icon: FileText, color: "text-nah-blue", label: "Reporting" },
   pipeline: { icon: Zap, color: "text-nah-orange", label: "Pipeline" },
+  workflows: { icon: WorkflowIcon, color: "text-success", label: "Workflows" },
 };
 
 const STATUS_BADGE: Record<string, { color: string; label: string }> = {
@@ -53,7 +66,7 @@ export default function CronCalendar() {
 
   useEffect(() => {
     apiFetch("/api/settings/cron-jobs")
-      .then((r) => r.ok ? r.json() : { schedules: [], logs: [] })
+      .then((r) => (r.ok ? r.json() : { schedules: [], logs: [] }))
       .then((d) => {
         setSchedules(d.schedules ?? []);
         setLogs(d.logs ?? []);
@@ -63,11 +76,15 @@ export default function CronCalendar() {
   }, []);
 
   if (loading) {
-    return <div className="flex items-center justify-center py-12"><Loader2 size={20} className="animate-spin text-text-tertiary" /></div>;
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 size={20} className="animate-spin text-text-tertiary" />
+      </div>
+    );
   }
 
   // Group by category
-  const categories = ["agents", "pipeline", "reporting"];
+  const categories = ["workflows", "agents", "pipeline", "reporting"];
   const grouped = categories.map((cat) => ({
     ...CATEGORY_META[cat],
     key: cat,
@@ -108,7 +125,11 @@ export default function CronCalendar() {
                       onClick={() => setExpandedJob(isExpanded ? null : job.path)}
                       className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-bg-hover transition-colors"
                     >
-                      {isExpanded ? <ChevronDown size={12} className="text-text-tertiary" /> : <ChevronRight size={12} className="text-text-tertiary" />}
+                      {isExpanded ? (
+                        <ChevronDown size={12} className="text-text-tertiary" />
+                      ) : (
+                        <ChevronRight size={12} className="text-text-tertiary" />
+                      )}
                       <div className="flex-1 text-left">
                         <span className="text-body-sm font-medium text-text-primary">{job.name}</span>
                         <span className="text-caption text-text-tertiary ml-2">{job.frequency}</span>
@@ -155,7 +176,9 @@ export default function CronCalendar() {
                                   ) : (
                                     <XCircle size={10} className="text-danger flex-shrink-0" />
                                   )}
-                                  <span className="text-text-tertiary">{new Date(log.started_at).toLocaleString()}</span>
+                                  <span className="text-text-tertiary">
+                                    {new Date(log.started_at).toLocaleString()}
+                                  </span>
                                   {log.error && <span className="text-danger truncate max-w-[200px]">{log.error}</span>}
                                 </div>
                               ))}

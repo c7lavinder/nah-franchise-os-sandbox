@@ -45,6 +45,38 @@
     {
       "path": "/frandev/api/calls/reconcile",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/frandev/api/cron/workflow-scheduler",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/frandev/api/cron/workflow-notifications",
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/frandev/api/cron/workflow-delivery-sync",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/frandev/api/cron/workflow-analysis",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/frandev/api/cron/daily-brief",
+      "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/frandev/api/cron/score-recalculate",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/frandev/api/cron/stale-leads",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/frandev/api/cron/sync-ghl-calendar",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

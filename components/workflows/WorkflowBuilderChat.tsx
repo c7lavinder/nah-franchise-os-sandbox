@@ -11,10 +11,26 @@ import { ScoutBubble, UserBubble, ThinkingIndicator } from "@/components/scout";
 import type { BuilderMessage } from "@/types/workflow-builder";
 
 const PROMPT_CHIPS = [
-  "Rebuild a Franchise Tether automation",
-  "Appointment reminder sequence",
-  "New lead follow-up drip",
-  "Post-call follow-up workflow",
+  {
+    label: "New Lead 30-Day",
+    prompt:
+      "Build a 30-day new lead follow-up sequence. Trigger when a new journey is created in Path to Ownership. SMS and email touches from Chad, with call tasks. Goal: get them on a Discovery Call within 30 days.",
+  },
+  {
+    label: "Pre-Call Reminder",
+    prompt:
+      "Build a pre-call reminder workflow. Trigger when an appointment is created. Send an SMS reminder the day before and morning of the call from Chad. Goal: reduce no-shows.",
+  },
+  {
+    label: "Post-Call Follow-Up",
+    prompt:
+      "Build a post-call follow-up sequence. Trigger on manual enrollment after a Discovery Call. Send a recap email from Chad within 2 hours, then follow up over 7 days with next steps. Goal: move to Compliance stage.",
+  },
+  {
+    label: "Re-engagement",
+    prompt:
+      "Build a 14-day re-engagement sequence for cold leads. Trigger on manual enrollment. Mix of SMS and email from Chad — casual, low-pressure touches to restart the conversation. Goal: get a response.",
+  },
 ];
 
 interface WorkflowBuilderChatProps {
@@ -59,15 +75,17 @@ export default function WorkflowBuilderChat({ messages, isThinking, onSend }: Wo
               Describe what automation you need and Scout will help you build it.
             </p>
 
-            {/* Prompt chips */}
-            <div className="flex flex-wrap gap-2 justify-center max-w-[400px]">
+            {/* Workflow templates */}
+            <div className="grid grid-cols-2 gap-2 max-w-[440px]">
               {PROMPT_CHIPS.map((chip) => (
                 <button
-                  key={chip}
-                  onClick={() => onSend(chip)}
-                  className="px-3 py-1.5 rounded-full bg-bg-tertiary border border-border-default text-body-sm text-text-secondary hover:text-text-primary hover:border-scout-purple/30 transition-colors"
+                  key={chip.label}
+                  onClick={() => onSend(chip.prompt)}
+                  className="px-3 py-2.5 rounded-lg bg-bg-tertiary border border-border-default text-left hover:border-scout-purple/30 hover:bg-scout-bubble-bg/30 transition-colors group"
                 >
-                  {chip}
+                  <span className="text-body-sm font-medium text-text-primary group-hover:text-scout-purple transition-colors">
+                    {chip.label}
+                  </span>
                 </button>
               ))}
             </div>

@@ -95,6 +95,10 @@ export async function executeTool(
       return executeDraftKnowledgeDoc(input);
     case "draft_sub_task_log":
       return executeDraftSubTaskLog(input);
+    case "get_compliance":
+      return executeGetCompliance(input);
+    case "draft_compliance_update":
+      return executeDraftComplianceUpdate(input);
     default: {
       const _exhaustive: never = toolName;
       return { data: `Unknown tool: ${_exhaustive}` };
@@ -189,6 +193,10 @@ async function executeSearchContacts(input: Record<string, unknown>): Promise<To
     const query = (input.query as string).trim();
     const limit = (input.limit as number) ?? 10;
 
+    // Check if the query looks like a phone number (mostly digits)
+    const digitsOnly = query.replace(/\D/g, "");
+    const isPhoneQuery = digitsOnly.length >= 7 && digitsOnly.length <= 11;
+
     // Search Supabase contacts — split multi-word queries to match first + last name
     const words = query.split(/\s+/).filter((w) => w.length > 0);
     const select =
@@ -197,7 +205,26 @@ async function executeSearchContacts(input: Record<string, unknown>): Promise<To
     let data: any[] | null = null;
     let error: any = null;
 
-    if (words.length >= 2) {
+    if (isPhoneQuery) {
+      // Phone search — build a pattern that matches digits regardless of formatting
+      // e.g. "5098087404" matches "(509) 808-7404", "+15098087404", "509-808-7404"
+      const phoneDigits = digitsOnly.length === 11 && digitsOnly[0] === "1" ? digitsOnly.slice(1) : digitsOnly;
+      const phonePattern = phoneDigits.split("").join("%");
+      const result = await supabase.from("contacts").select(select).ilike("phone", `%${phonePattern}%`).limit(limit);
+      data = result.data;
+      error = result.error;
+
+      // Also search by email in case the digits are part of an email
+      if (!data?.length) {
+        const fallback = await supabase
+          .from("contacts")
+          .select(select)
+          .or(`email.ilike.%${query}%,first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
+          .limit(limit);
+        data = fallback.data;
+        error = fallback.error;
+      }
+    } else if (words.length >= 2) {
       // Multi-word: try first_name + last_name match first
       const result = await supabase
         .from("contacts")
@@ -574,10 +601,48 @@ async function executeGetContactInsights(input: Record<string, unknown>): Promis
 async function executeSearchKnowledge(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
     const supabase = createServerClient();
-    const query = (input.query as string).toLowerCase();
+    const queryText = input.query as string;
+    const query = queryText.toLowerCase();
     const queryWords = query.split(/\s+/).filter((w) => w.length > 2);
 
-    // Fetch all active KB docs
+    // --- Semantic search via pgvector (when OPENAI_API_KEY is set) ---
+    let semanticResults: { title: string; category: string; content: string }[] = [];
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        const { searchEmbeddings } = await import("@/lib/rag/embedder");
+        const hits = await searchEmbeddings({
+          query: queryText,
+          contentType: "kb_doc",
+          limit: 8,
+          threshold: 0.35,
+        });
+
+        if (hits.length > 0) {
+          // Map embedding results back to knowledge_documents for full content
+          const docIds = hits.map((h) => h.metadata?.source_id).filter((id): id is string => id != null);
+
+          if (docIds.length > 0) {
+            const { data: fullDocs } = await supabase
+              .from("knowledge_documents")
+              .select("id, title, category, content")
+              .in("id", docIds);
+
+            if (fullDocs && fullDocs.length > 0) {
+              // Order by semantic similarity (hits order)
+              const docMap = new Map(fullDocs.map((d) => [d.id, d]));
+              semanticResults = docIds
+                .map((id) => docMap.get(id))
+                .filter((d): d is NonNullable<typeof d> => d != null)
+                .map(({ title, category, content }) => ({ title, category, content }));
+            }
+          }
+        }
+      } catch {
+        // Semantic search failed — fall through to keyword search
+      }
+    }
+
+    // --- Keyword search (always runs as fallback/supplement) ---
     const { data: rawDocs, error } = await supabase
       .from("knowledge_documents")
       .select("id, title, category, content, priority, retrieval_count")
@@ -585,6 +650,10 @@ async function executeSearchKnowledge(input: Record<string, unknown>): Promise<T
       .order("priority", { ascending: false });
 
     if (error) {
+      // If we have semantic results, use those despite the keyword error
+      if (semanticResults.length > 0) {
+        return { data: JSON.stringify(semanticResults) };
+      }
       return { data: `Error searching knowledge base: ${error.message}` };
     }
 
@@ -599,6 +668,9 @@ async function executeSearchKnowledge(input: Record<string, unknown>): Promise<T
         }[]
       | null;
     if (!docs || docs.length === 0) {
+      if (semanticResults.length > 0) {
+        return { data: JSON.stringify(semanticResults) };
+      }
       return { data: "No knowledge base documents found." };
     }
 
@@ -609,36 +681,46 @@ async function executeSearchKnowledge(input: Record<string, unknown>): Promise<T
       const catLower = doc.category.toLowerCase();
       let score = 0;
 
-      // Exact phrase match in title = highest signal
       if (titleLower.includes(query)) score += 30;
-      // Exact phrase match in content
       if (contentLower.includes(query)) score += 15;
-      // Category match (including partial — "coach" matches "coaching")
       for (const word of queryWords) {
         if (catLower.includes(word)) score += 20;
       }
-
-      // Individual word matches — weighted by position
       for (const word of queryWords) {
         if (titleLower.includes(word)) score += 8;
-        // Count occurrences in content for density scoring
         const matches = contentLower.split(word).length - 1;
-        score += Math.min(matches * 3, 15); // Cap at 15 per word
+        score += Math.min(matches * 3, 15);
       }
-
-      // Priority boost (0-10 scale)
       score += doc.priority;
 
       return { ...doc, score };
     });
 
-    // Sort by score, take top results
     const sorted = scored.filter((d) => d.score > 0).sort((a, b) => b.score - a.score);
-    const results = sorted.length > 0 ? sorted.slice(0, 10) : docs.slice(0, 5);
+    const keywordResults = sorted.length > 0 ? sorted.slice(0, 10) : docs.slice(0, 5);
 
-    // Update retrieval metrics — increment count, not replace
+    // --- Merge semantic + keyword results (dedup by title) ---
+    const seen = new Set<string>();
+    const merged: { title: string; category: string; content: string }[] = [];
+
+    // Semantic results first (higher relevance)
+    for (const doc of semanticResults) {
+      if (!seen.has(doc.title)) {
+        seen.add(doc.title);
+        merged.push(doc);
+      }
+    }
+    // Then keyword results
+    for (const doc of keywordResults) {
+      if (!seen.has(doc.title) && merged.length < 12) {
+        seen.add(doc.title);
+        merged.push({ title: doc.title, category: doc.category, content: doc.content });
+      }
+    }
+
+    // Update retrieval metrics
     const now = new Date().toISOString();
-    for (const doc of results) {
+    for (const doc of keywordResults) {
       await supabase
         .from("knowledge_documents")
         .update({
@@ -649,17 +731,15 @@ async function executeSearchKnowledge(input: Record<string, unknown>): Promise<T
     }
 
     // Log gap signal if no results found
-    if (sorted.length === 0) {
+    if (sorted.length === 0 && semanticResults.length === 0) {
       await supabase.from("kb_gap_signals").insert({
-        query: input.query as string,
+        query: queryText,
         results_found: 0,
         suggested_category: queryWords[0] ?? null,
-      }); // non-critical — errors ignored
+      });
     }
 
-    // Return with category for context
-    const cleaned = results.map(({ title, category, content }) => ({ title, category, content }));
-    return { data: JSON.stringify(cleaned) };
+    return { data: JSON.stringify(merged) };
   } catch (err) {
     return { data: `Error searching knowledge base: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
@@ -1646,4 +1726,108 @@ async function executeDraftSubTaskLog(input: Record<string, unknown>): Promise<T
     data: `I've drafted a sub-task log for ${contactName}: "${subTask.name}" → ${stateLabel}. Please review and confirm.`,
     draftedAction,
   };
+}
+
+// ════════════════════════════════════════════════════════════════
+// COMPLIANCE TOOLS
+// ════════════════════════════════════════════════════════════════
+
+async function executeGetCompliance(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  try {
+    const contactId = input.contact_id as string;
+    const supabase = createServerClient();
+
+    const { data, error } = await supabase
+      .from("compliance_tracking")
+      .select("*")
+      .eq("contact_id", contactId)
+      .maybeSingle();
+
+    if (error) {
+      return { data: `Error fetching compliance data: ${error.message}` };
+    }
+
+    if (!data) {
+      return { data: "No compliance record exists for this contact yet. Use draft_compliance_update to create one." };
+    }
+
+    // Calculate flags
+    const now = new Date();
+    const flags: string[] = [];
+
+    if (data.fdd_cooling_ends_at && !data.franchise_agreement_signed_at) {
+      const coolingEnds = new Date(data.fdd_cooling_ends_at);
+      if (now < coolingEnds) {
+        const daysLeft = Math.ceil((coolingEnds.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        flags.push(`FDD cooling: ${daysLeft} days remaining (ends ${coolingEnds.toLocaleDateString()})`);
+      } else {
+        flags.push("FDD cooling period complete — eligible for signing");
+      }
+    }
+
+    if (data.franchise_agreement_signed_at && !data.fdd_issued_at) {
+      flags.push("WARNING: Agreement signed without FDD on file");
+    }
+
+    if (data.training_started_at && !data.training_completed_at) {
+      flags.push(
+        `Training: ${data.training_modules_completed ?? 0}/${data.training_modules_total ?? 0} modules complete`
+      );
+    }
+
+    if (data.background_check_status === "pending") {
+      flags.push("Background check pending");
+    } else if (data.background_check_status === "failed") {
+      flags.push("WARNING: Background check failed");
+    }
+
+    return {
+      data: JSON.stringify({
+        compliance: data,
+        flags,
+        summary: flags.length > 0 ? flags.join(" | ") : "All compliance items clear",
+      }),
+    };
+  } catch (err) {
+    return { data: `Error: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+async function executeDraftComplianceUpdate(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  try {
+    const contactId = input.contact_id as string;
+    const updates = input.updates as Record<string, unknown>;
+    const reason = (input.reason as string) ?? "Compliance update";
+
+    // Get contact name for display
+    const supabase = createServerClient();
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("first_name, last_name")
+      .eq("id", contactId)
+      .single();
+
+    const contactName = contact ? `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() : contactId;
+
+    const fieldSummary = Object.entries(updates)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(", ");
+
+    const draftedAction: DraftedAction = {
+      id: crypto.randomUUID(),
+      type: "compliance_update",
+      contactId,
+      contactName,
+      status: "pending",
+      payload: { actionType: "compliance_update" as const, contactId, updates, reason },
+      summary: `Update compliance for ${contactName}: ${fieldSummary}`,
+    };
+
+    return {
+      data: `I've drafted a compliance update for ${contactName}: ${fieldSummary}. Reason: ${reason}. Please review and confirm.`,
+      draftedAction,
+    };
+  } catch (err) {
+    return { data: `Error: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
 }

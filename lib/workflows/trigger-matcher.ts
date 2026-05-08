@@ -102,6 +102,31 @@ export async function matchWorkflowTriggers(
 }
 
 /**
+ * GHL event name → builder trigger event aliases.
+ *
+ * GHL sends event names like "OpportunityUpdate" but the builder defines
+ * triggers as "contact.stage_changed". This map bridges the gap so
+ * the flexible matcher can connect them.
+ *
+ * Each GHL event can map to multiple trigger events (e.g., OpportunityUpdate
+ * could match both contact.stage_changed and opportunity.updated triggers).
+ */
+const EVENT_ALIASES: Record<string, string[]> = {
+  // GHL webhook events → builder trigger events
+  opportunityupdate: ["contact.stage_changed", "opportunity.updated"],
+  contactupdate: ["contact.updated", "contact.tag_added"],
+  contactcreate: ["contact.created"],
+  appointmentcreate: ["appointment.created"],
+  taskcreate: ["task.created"],
+  taskcomplete: ["task.completed"],
+  taskdelete: ["task.deleted"],
+  // NAH OS internal events → builder trigger events
+  stageadvanced: ["stage.advanced", "contact.stage_changed"],
+  subtasklogged: ["subtask.logged"],
+  subtaskcompleted: ["subtask.completed"],
+};
+
+/**
  * Check if an incoming event matches a flexible trigger rule.
  */
 function doesEventMatch(
@@ -118,9 +143,26 @@ function doesEventMatch(
   const incomingCompact = normalizedIncoming.replace(/\./g, "");
   const triggerCompact = normalizedTrigger.replace(/\./g, "");
 
-  if (!incomingCompact.includes(triggerCompact) && !triggerCompact.includes(incomingCompact)) {
-    return false;
+  let eventMatches = false;
+
+  // Direct match (original logic)
+  if (incomingCompact.includes(triggerCompact) || triggerCompact.includes(incomingCompact)) {
+    eventMatches = true;
   }
+
+  // Alias match — check if the incoming GHL event maps to the trigger event
+  if (!eventMatches) {
+    const aliases = EVENT_ALIASES[incomingCompact] ?? [];
+    for (const alias of aliases) {
+      const aliasCompact = alias.toLowerCase().replace(/[._\s]/g, "");
+      if (aliasCompact.includes(triggerCompact) || triggerCompact.includes(aliasCompact)) {
+        eventMatches = true;
+        break;
+      }
+    }
+  }
+
+  if (!eventMatches) return false;
 
   // All conditions must pass (AND logic)
   for (const condition of conditions) {

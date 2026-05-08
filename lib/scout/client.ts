@@ -15,6 +15,7 @@ import { executeTool } from "./tool-executor";
 import { logLLMCall } from "./llm-logger";
 import { routeModel } from "./model-router";
 import { loadUserMemory, formatMemoryForPrompt } from "./memory";
+import { loadPromptSection } from "./prompt-loader";
 import { createServerClient } from "@/lib/supabase/server";
 import type { ScoutToolName, DraftedAction } from "@/types/scout";
 import type { UserRole } from "@/types/database";
@@ -360,13 +361,13 @@ async function loadPipelineSnapshot(userId: string): Promise<string> {
 }
 
 /**
- * Runs a full conversation turn with the tool-call loop.
- * This is the main entry point used by the /api/scout/chat route.
+ * Assemble the full system prompt for a Scout conversation turn.
+ * Exported so the streaming route can reuse it without duplicating logic.
  */
-export async function runConversationTurn(input: ScoutConversationInput): Promise<ScoutConversationOutput> {
-  const client = createAnthropicClient();
-
-  // Look up the user's GHL ID for tool context
+export async function buildSystemPrompt(input: ScoutConversationInput): Promise<{
+  systemPrompt: string;
+  ghlUserId: string | null;
+}> {
   const supabaseForUser = createServerClient();
   const { data: currentUser } = await supabaseForUser
     .from("users")
@@ -375,30 +376,42 @@ export async function runConversationTurn(input: ScoutConversationInput): Promis
     .single();
   const ghlUserId = currentUser?.ghl_user_id ?? null;
 
-  // Load dynamic context from Supabase — KB is context-aware
-  const [knowledgeBase, pipelineSnapshot, userMemory] = await Promise.all([
+  // Load dynamic context + DB-backed prompt overrides in parallel
+  const [knowledgeBase, pipelineSnapshot, userMemory, identity, rules, profileCtx] = await Promise.all([
     loadKnowledgeBase(input.pageContext),
     loadPipelineSnapshot(input.userId),
     loadUserMemory(input.userId),
+    loadPromptSection("scout_identity", SCOUT_IDENTITY),
+    loadPromptSection("scout_rules", SCOUT_RULES),
+    loadPromptSection("scout_profile_context", PROFILE_AND_SCORING_CONTEXT),
   ]);
 
-  // Format page context as a one-line directive Scout can use to pre-fill
   const pageContextLine = formatPageContextForPrompt(input.pageContext);
 
-  // Assemble system prompt with injected knowledge + memory
   const systemPrompt = [
-    SCOUT_IDENTITY,
+    identity,
     getRoleBehavior(input.userRole),
     `CURRENT USER: ${input.userName} (ID: ${input.userId}, Role: ${input.userRole})`,
     pageContextLine,
     formatMemoryForPrompt(userMemory),
     pipelineSnapshot,
-    PROFILE_AND_SCORING_CONTEXT,
+    profileCtx,
     knowledgeBase,
-    SCOUT_RULES,
+    rules,
   ]
     .filter(Boolean)
     .join("\n\n");
+
+  return { systemPrompt, ghlUserId };
+}
+
+/**
+ * Runs a full conversation turn with the tool-call loop.
+ * This is the main entry point used by the /api/scout/chat route.
+ */
+export async function runConversationTurn(input: ScoutConversationInput): Promise<ScoutConversationOutput> {
+  const client = createAnthropicClient();
+  const { systemPrompt, ghlUserId } = await buildSystemPrompt(input);
 
   let messages: Anthropic.Messages.MessageParam[] = [...input.messages];
   const draftedActions: DraftedAction[] = [];

@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from("notifications")
-    .select("id, recipient_user_id, source_type, source_id, contact_id, read_at, created_at")
+    .select(
+      "id, recipient_user_id, source_type, source_id, contact_id, type, title, body, metadata, read_at, created_at"
+    )
     .eq("recipient_user_id", authResult.id)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -33,9 +35,10 @@ export async function GET(request: NextRequest) {
 
   const notifications = data ?? [];
 
-  // Enrich with contact names and author names from the source messages
-  const contactIds = [...new Set(notifications.map((n) => n.contact_id))];
-  const sourceIds = [...new Set(notifications.map((n) => n.source_id))];
+  // Enrich @-mention notifications with contact names and author names
+  const mentionNotifs = notifications.filter((n) => n.source_type === "activity_mention" && n.source_id);
+  const contactIds = [...new Set(notifications.map((n) => n.contact_id).filter(Boolean))];
+  const sourceIds = [...new Set(mentionNotifs.map((n) => n.source_id).filter(Boolean))];
 
   const contactMap = new Map<string, string>();
   if (contactIds.length > 0) {
@@ -71,17 +74,43 @@ export async function GET(request: NextRequest) {
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
 
-  const enriched = notifications.map((n) => ({
-    id: n.id,
-    sourceType: n.source_type,
-    sourceId: n.source_id,
-    contactId: n.contact_id,
-    contactName: contactMap.get(n.contact_id) ?? "Unknown",
-    authorName: messageMap.get(n.source_id)?.authorName ?? "Unknown",
-    preview: messageMap.get(n.source_id)?.preview ?? "",
-    readAt: n.read_at,
-    createdAt: n.created_at,
-  }));
+  const enriched = notifications.map((n) => {
+    const notifType = n.type ?? n.source_type ?? "activity_mention";
+
+    // Rich notifications (daily_brief, new_lead, etc.)
+    if (n.title || n.body) {
+      return {
+        id: n.id,
+        type: notifType,
+        sourceType: n.source_type,
+        sourceId: n.source_id,
+        contactId: n.contact_id ?? (n.metadata as Record<string, unknown>)?.contactId ?? null,
+        contactName: n.contact_id ? (contactMap.get(n.contact_id) ?? "") : "",
+        title: n.title ?? notifType,
+        preview: n.body ?? "",
+        authorName: "Scout",
+        metadata: n.metadata,
+        readAt: n.read_at,
+        createdAt: n.created_at,
+      };
+    }
+
+    // Legacy @-mention notifications
+    return {
+      id: n.id,
+      type: notifType,
+      sourceType: n.source_type,
+      sourceId: n.source_id,
+      contactId: n.contact_id,
+      contactName: contactMap.get(n.contact_id) ?? "Unknown",
+      title: "Mention",
+      preview: messageMap.get(n.source_id)?.preview ?? "",
+      authorName: messageMap.get(n.source_id)?.authorName ?? "Unknown",
+      metadata: n.metadata,
+      readAt: n.read_at,
+      createdAt: n.created_at,
+    };
+  });
 
   return NextResponse.json({ notifications: enriched, count: unreadCount });
 }

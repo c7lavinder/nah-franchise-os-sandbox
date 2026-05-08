@@ -27,6 +27,9 @@ import {
   Target,
   CheckCircle,
   Pencil,
+  Shield,
+  Play,
+  Send,
 } from "lucide-react";
 import type { WorkflowDraft, WorkflowStepDraft } from "@/types/workflow-builder";
 import type { WorkflowStepType } from "@/lib/workflows/types";
@@ -144,6 +147,38 @@ export default function WorkflowPreviewPanel({
                 const Icon = STEP_ICONS[step.stepType] ?? WorkflowIcon;
                 const label = STEP_LABELS[step.stepType] ?? step.stepType;
 
+                const autoExecuteTypes = [
+                  "chad_call_task",
+                  "team_notify",
+                  "ai_agent_action",
+                  "condition_check",
+                  "trainual_check",
+                  "appointment",
+                  "send_reminder",
+                  "internal_note",
+                  "add_tag",
+                  "remove_tag",
+                  "update_contact",
+                  "pipeline_move",
+                  "trigger_workflow",
+                ];
+                const needsApproval = step.requiresConfirmation && !autoExecuteTypes.includes(step.stepType);
+
+                // Build FROM → TO routing
+                let fromLabel: string | null = null;
+                let toLabel: string | null = null;
+                if (step.stepType === "sms") {
+                  fromLabel = step.senderName ?? "NAH";
+                  toLabel = "[Contact Phone]";
+                } else if (step.stepType === "email") {
+                  fromLabel = step.senderEmail
+                    ? `${step.senderName ?? "NAH"} (${step.senderEmail})`
+                    : (step.senderName ?? "NAH");
+                  toLabel = "[Contact Email]";
+                } else if (step.stepType === "chad_call_task") {
+                  toLabel = `Assigned to ${step.assignedTo ?? "Chad"}`;
+                }
+
                 return (
                   <div
                     key={`${dayNum}-${i}`}
@@ -153,34 +188,42 @@ export default function WorkflowPreviewPanel({
                       <Icon size={14} className="text-text-secondary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      {/* Type, time, approval */}
-                      <div className="flex items-center gap-2">
+                      {/* Type, time, execution mode */}
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-body-sm font-medium text-text-primary">{label}</span>
                         {step.sendTime && <span className="text-caption text-text-tertiary">@ {step.sendTime}</span>}
-                        {step.requiresConfirmation && (
-                          <span className="text-caption text-amber-500">Needs approval</span>
+                        {needsApproval ? (
+                          <span className="text-[10px] text-warning bg-warning/10 border border-warning/20 px-1.5 py-0.5 rounded-sm flex items-center gap-1 ml-auto">
+                            <Shield size={9} /> Needs your approval
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-success bg-success/10 border border-success/20 px-1.5 py-0.5 rounded-sm flex items-center gap-1 ml-auto">
+                            <Play size={9} /> Auto-fires
+                          </span>
                         )}
                       </div>
 
-                      {/* Sender / Assigned / Due */}
-                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                        {step.senderName && (
-                          <span className="text-caption text-text-tertiary">
-                            From: <span className="text-text-secondary">{step.senderName}</span>
-                            {step.senderEmail && <span className="text-text-tertiary"> ({step.senderEmail})</span>}
-                          </span>
-                        )}
-                        {step.assignedTo && (
-                          <span className="text-caption text-text-tertiary">
-                            Assigned: <span className="text-text-secondary">{step.assignedTo}</span>
-                          </span>
-                        )}
-                        {step.dueTime && (
-                          <span className="text-caption text-text-tertiary">
-                            Due: <span className="text-text-secondary">{step.dueTime}</span>
-                          </span>
-                        )}
-                      </div>
+                      {/* FROM → TO routing */}
+                      {fromLabel && (
+                        <div className="flex items-center gap-1.5 mt-1 text-caption">
+                          <span className="font-medium text-text-primary">{fromLabel}</span>
+                          <Send size={10} className="text-text-tertiary" />
+                          <span className="text-text-secondary">{toLabel}</span>
+                        </div>
+                      )}
+                      {!fromLabel && toLabel && (
+                        <div className="flex items-center gap-1.5 mt-1 text-caption">
+                          <ArrowRight size={10} className="text-text-tertiary" />
+                          <span className="text-text-secondary">{toLabel}</span>
+                        </div>
+                      )}
+
+                      {/* Due time for tasks */}
+                      {step.dueTime && (
+                        <span className="text-caption text-text-tertiary mt-0.5 block">
+                          Due: <span className="text-text-secondary">{step.dueTime}</span>
+                        </span>
+                      )}
 
                       {/* Subject line */}
                       {step.subject && (
@@ -191,9 +234,7 @@ export default function WorkflowPreviewPanel({
 
                       {/* Content */}
                       {step.content && (
-                        <p className="text-body-sm text-text-secondary mt-1 line-clamp-3 whitespace-pre-wrap">
-                          {step.content}
-                        </p>
+                        <p className="text-body-sm text-text-secondary mt-1 whitespace-pre-wrap">{step.content}</p>
                       )}
                     </div>
                   </div>

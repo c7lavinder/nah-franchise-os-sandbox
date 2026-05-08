@@ -4,7 +4,8 @@ export const dynamic = "force-dynamic";
  * GET /api/admin/scout-logs
  *
  * Returns Scout conversation exchanges for the admin audit page.
- * Extracts user/assistant message pairs from session conversation_history.
+ * Extracts user/assistant message pairs from session conversation_history,
+ * including tool call details (inputs + results) for debugging.
  * Admin-only.
  *
  * Query params:
@@ -17,10 +18,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 
+interface ToolCallDetail {
+  name: string;
+  input: Record<string, unknown>;
+  result?: string;
+  isError?: boolean;
+}
+
 interface ConversationExchange {
   userMessage: string;
   aiResponse: string;
   toolsCalled: string[];
+  toolDetails: ToolCallDetail[];
 }
 
 interface SessionEntry {
@@ -29,6 +38,7 @@ interface SessionEntry {
   userName: string;
   exchanges: ConversationExchange[];
   lastActivity: string;
+  startedAt: string;
 }
 
 /** Extract clean user message text from a message param */
@@ -43,18 +53,50 @@ function extractUserText(msg: any): string {
   return "";
 }
 
-/** Extract AI response text + tool names from an assistant message */
-function extractAssistantContent(msg: any): { text: string; tools: string[] } {
-  if (typeof msg.content === "string") return { text: msg.content, tools: [] };
+/** Extract AI response text, tool names, and full tool details from an assistant message */
+function extractAssistantContent(msg: any): {
+  text: string;
+  tools: string[];
+  toolUses: { id: string; name: string; input: Record<string, unknown> }[];
+} {
+  if (typeof msg.content === "string") return { text: msg.content, tools: [], toolUses: [] };
   if (Array.isArray(msg.content)) {
     const text = msg.content
       .filter((b: any) => b.type === "text")
       .map((b: any) => b.text)
       .join("\n");
     const tools = msg.content.filter((b: any) => b.type === "tool_use").map((b: any) => b.name);
-    return { text, tools };
+    const toolUses = msg.content
+      .filter((b: any) => b.type === "tool_use")
+      .map((b: any) => ({ id: b.id as string, name: b.name as string, input: b.input ?? {} }));
+    return { text, tools, toolUses };
   }
-  return { text: "", tools: [] };
+  return { text: "", tools: [], toolUses: [] };
+}
+
+/** Extract tool_result blocks from a user message (these follow tool_use calls) */
+function extractToolResults(msg: any): Map<string, { content: string; isError: boolean }> {
+  const results = new Map<string, { content: string; isError: boolean }>();
+  if (!Array.isArray(msg.content)) return results;
+
+  for (const block of msg.content) {
+    if (block.type === "tool_result" && block.tool_use_id) {
+      let content = "";
+      if (typeof block.content === "string") {
+        content = block.content;
+      } else if (Array.isArray(block.content)) {
+        content = block.content
+          .filter((b: any) => b.type === "text")
+          .map((b: any) => b.text)
+          .join("\n");
+      }
+      results.set(block.tool_use_id, {
+        content,
+        isError: block.is_error === true,
+      });
+    }
+  }
+  return results;
 }
 
 export async function GET(request: NextRequest) {
@@ -75,7 +117,7 @@ export async function GET(request: NextRequest) {
   // Query sessions with conversation history
   let query = supabase
     .from("sessions")
-    .select("id, user_id, conversation_history, last_activity_at")
+    .select("id, user_id, conversation_history, last_activity_at, started_at")
     .not("conversation_history", "is", null)
     .order("last_activity_at", { ascending: false })
     .range(offset, offset + limit - 1);
@@ -99,6 +141,18 @@ export async function GET(request: NextRequest) {
 
   const userMap = new Map((users ?? []).map((u: any) => [u.id, u.full_name]));
 
+  // Build a map of tool_use_id → tool_result from the entire history
+  function buildToolResultMap(history: any[]): Map<string, { content: string; isError: boolean }> {
+    const allResults = new Map<string, { content: string; isError: boolean }>();
+    for (const msg of history) {
+      if (msg.role === "user") {
+        const results = extractToolResults(msg);
+        results.forEach((val, key) => allResults.set(key, val));
+      }
+    }
+    return allResults;
+  }
+
   // Parse conversation_history into clean exchanges
   const entries: SessionEntry[] = (sessions ?? [])
     .filter((s: any) => {
@@ -108,7 +162,7 @@ export async function GET(request: NextRequest) {
     .map((session: any) => {
       const history = session.conversation_history as any[];
       const exchanges: ConversationExchange[] = [];
-      const allTools: string[] = [];
+      const toolResultMap = buildToolResultMap(history);
 
       // Walk through messages pairing user → assistant
       for (let i = 0; i < history.length; i++) {
@@ -122,25 +176,46 @@ export async function GET(request: NextRequest) {
           }
           if (!userText) continue;
 
-          // Find the next assistant message with text content
+          // Find the next assistant message(s) — collect all tool calls and text
           let aiText = "";
-          let tools: string[] = [];
+          const allTools: string[] = [];
+          const allToolDetails: ToolCallDetail[] = [];
+
           for (let j = i + 1; j < history.length; j++) {
             if (history[j].role === "assistant") {
               const extracted = extractAssistantContent(history[j]);
-              tools.push(...extracted.tools);
+              allTools.push(...extracted.tools);
+
+              // Build tool details with matched results
+              for (const tu of extracted.toolUses) {
+                const result = toolResultMap.get(tu.id);
+                allToolDetails.push({
+                  name: tu.name,
+                  input: tu.input,
+                  result: result?.content,
+                  isError: result?.isError,
+                });
+              }
+
               if (extracted.text) {
                 aiText = extracted.text;
                 break;
               }
             }
-            if (history[j].role === "user" && j > i + 1) break;
+            // Stop at the next real user message — but skip tool_result messages
+            // (tool_result messages have role "user" but are system-generated, not new turns)
+            if (history[j].role === "user" && j > i + 1) {
+              const isToolResult = Array.isArray(history[j].content) && history[j].content[0]?.type === "tool_result";
+              if (!isToolResult) break;
+            }
           }
 
-          if (userText) {
-            exchanges.push({ userMessage: userText, aiResponse: aiText, toolsCalled: tools });
-            allTools.push(...tools);
-          }
+          exchanges.push({
+            userMessage: userText,
+            aiResponse: aiText,
+            toolsCalled: allTools,
+            toolDetails: allToolDetails,
+          });
         }
       }
 
@@ -150,6 +225,7 @@ export async function GET(request: NextRequest) {
         userName: userMap.get(session.user_id) ?? "Unknown",
         exchanges,
         lastActivity: session.last_activity_at,
+        startedAt: session.started_at ?? session.last_activity_at,
       };
     })
     .filter((e: SessionEntry) => e.exchanges.length > 0);

@@ -93,6 +93,72 @@ const CRON_DEFINITIONS = [
     category: "reporting",
     frequency: "1st of month at 11:00 PM",
   },
+  {
+    path: "/frandev/api/cron/workflow-scheduler",
+    name: "Workflow Scheduler",
+    schedule: "*/15 * * * *",
+    description: "Process all active workflow enrollments — execute due steps, advance days, check exit conditions",
+    category: "workflows",
+    frequency: "Every 15 minutes",
+  },
+  {
+    path: "/frandev/api/cron/workflow-notifications",
+    name: "Workflow Notifications",
+    schedule: "0 */4 * * *",
+    description: "Flag steps pending confirmation, alert on unhealthy workflows, detect stale enrollments",
+    category: "workflows",
+    frequency: "Every 4 hours",
+  },
+  {
+    path: "/frandev/api/cron/workflow-delivery-sync",
+    name: "Workflow Delivery Sync",
+    schedule: "*/15 * * * *",
+    description: "Sync message delivery and response data from GHL, auto-enroll contacts matching stage triggers",
+    category: "workflows",
+    frequency: "Every 15 minutes",
+  },
+  {
+    path: "/frandev/api/cron/workflow-analysis",
+    name: "Workflow Health Analysis",
+    schedule: "0 6 * * *",
+    description: "Score all live workflows A-F based on open rates, response rates, and goal achievement",
+    category: "workflows",
+    frequency: "Daily at 6:00 AM",
+  },
+  {
+    path: "/frandev/api/cron/daily-brief",
+    name: "Daily Brief",
+    schedule: "30 7 * * *",
+    description: "Generate proactive daily brief per user — stalled leads, today's calls, alerts, pending approvals",
+    category: "reporting",
+    frequency: "Daily at 7:30 AM",
+  },
+  {
+    path: "/frandev/api/cron/score-recalculate",
+    name: "Score Recalculation",
+    schedule: "0 2 * * *",
+    description:
+      "Recalculate intelligence scores and flags for all profiled candidates — keeps time-sensitive factors fresh",
+    category: "agents",
+    frequency: "Daily at 2:00 AM",
+  },
+  {
+    path: "/frandev/api/cron/stale-leads",
+    name: "Stale Lead Alerts",
+    schedule: "0 8 * * *",
+    description:
+      "Check all active pipeline leads for staleness and create inactivity alerts (3d medium, 7d high, 14d follow-up)",
+    category: "pipeline",
+    frequency: "Daily at 8:00 AM",
+  },
+  {
+    path: "/frandev/api/cron/sync-ghl-calendar",
+    name: "GHL Calendar Sync",
+    schedule: "*/30 * * * *",
+    description: "Poll GHL calendar events with meeting links and upsert into calls table",
+    category: "pipeline",
+    frequency: "Every 30 minutes",
+  },
 ];
 
 export async function GET(request: NextRequest) {

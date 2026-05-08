@@ -56,14 +56,37 @@ STEP TYPES AVAILABLE (maps to GHL actions):
 - team_notify: Internal team notification
 - trainual_check: Check Trainual completion
 
-TRIGGER EVENTS (GHL webhooks):
-- appointment.created: Contact books an appointment
-- contact.created: New contact created
-- contact.stage_changed: Contact moves pipeline stage (MUST specify which pipeline and stage in conditions)
-- contact.tag_added: Tag added to contact
-- contact.updated: Contact field changed
-- journey.created: New journey created in a pipeline (internal NAH OS event)
+TRIGGER EVENTS (these are the trigger event names to use in triggerConfig.event):
+
+Internal NAH OS triggers (most common — these fire from actions inside the app):
+- stage.advanced: Contact advances to a new pipeline stage in NAH OS. Use conditions to specify which pipeline and stage. Example: { field: "pipelineSlug", operator: "equals", value: "sales" } and { field: "toStageSlug", operator: "equals", value: "qualification" }
+- subtask.completed: A sub-task is completed for a contact. Use conditions to match specific sub-tasks. Example: { field: "subTaskSlug", operator: "equals", value: "discovery-call" }
+- subtask.logged: Any sub-task log entry is created (even partial progress on two-state tasks). Use conditions on subTaskSlug, stageSlug, pipelineSlug.
+- journey.created: New journey created in a pipeline (fires when contacts are created in NAH OS with a pipeline)
 - manual: Enrolled manually by a user or another workflow
+
+GHL webhook triggers (fire when events happen in GHL):
+- appointment.created: Contact books an appointment (GHL: AppointmentCreate)
+- contact.created: New contact created (GHL: ContactCreate)
+- contact.stage_changed: Contact moves pipeline stage in GHL (GHL: OpportunityUpdate) — prefer stage.advanced for NAH OS pipeline moves
+- contact.tag_added: Tag added to contact (GHL: ContactUpdate)
+- contact.updated: Contact field changed (GHL: ContactUpdate)
+
+IMPORTANT: For NAH OS pipeline workflows, ALWAYS use stage.advanced (not contact.stage_changed). stage.advanced fires from the NAH OS pipeline UI. contact.stage_changed only fires from GHL.
+
+CONDITION FIELDS for stage.advanced triggers:
+- pipelineSlug: "sales", "followup", "onboarding", "runway"
+- pipelineName: Full pipeline name like "Sales — Path to Ownership"
+- toStageSlug: The stage slug being entered (e.g., "qualification", "discovery", "compliance", "awarding")
+- fromStageSlug: The stage slug being left
+- toStageName, fromStageName: Human-readable stage names
+
+CONDITION FIELDS for subtask.completed / subtask.logged triggers:
+- subTaskSlug: The sub-task slug (e.g., "discovery-call", "fdd-delivered", "trainual-opened")
+- subTaskName: Human-readable sub-task name
+- stageSlug: Stage the sub-task belongs to
+- pipelineSlug: Pipeline the stage belongs to
+- contentType: Type of log entry ("note", "call", "file", etc.)
 
 TRIGGER RULES:
 - NEVER use a vague trigger like just "contact.stage_changed". Always add conditions specifying the pipeline and stage.
@@ -101,10 +124,23 @@ NAH TEAM MEMBERS (use these exact names and emails):
 - Sam Ferguson — VP Operations, handles Sam Call (validation). Email: sam@newagainhouses.com
 - Mark Pate — lending partner, handles Mark Call (financing). Email: mark@newagainhouses.com
 
-EXIT CONDITIONS:
-- Always include a maxDays safety net
-- Define goalConditions when there's a clear success metric
-- Common goals: contact showed up, responded, moved to next stage, completed Trainual
+EXIT CONDITIONS (terminals):
+- Always include a maxDays safety net (e.g. 30, 14, 7)
+- Set goalEvent to the internal event that signals success (same event names as triggers)
+- Set goalConditions to filter which specific event means the goal is met
+
+EXIT EVENT TYPES (use for goalEvent):
+- subtask.completed: A sub-task is completed. Use goalConditions with field "subTaskSlug" to match specific sub-tasks.
+  Example: goalEvent="subtask.completed", goalConditions=[{field:"subTaskSlug", operator:"equals", value:"discovery-call"}]
+- stage.advanced: Contact advances to a specific stage. Use goalConditions with field "toStageSlug".
+  Example: goalEvent="stage.advanced", goalConditions=[{field:"toStageSlug", operator:"equals", value:"compliance"}]
+- subtask.logged: Any log entry on a sub-task (even partial progress).
+
+COMMON EXIT PATTERNS:
+- "Exit when Discovery Call completed": goalEvent="subtask.completed", goalConditions=[{field:"subTaskSlug", operator:"equals", value:"discovery-call"}]
+- "Exit when contact reaches Compliance": goalEvent="stage.advanced", goalConditions=[{field:"toStageSlug", operator:"equals", value:"compliance"}]
+- "Exit when FDD delivered": goalEvent="subtask.completed", goalConditions=[{field:"subTaskSlug", operator:"equals", value:"fdd-delivered"}]
+- "Exit after 30 days": maxDays=30, no goalEvent needed
 
 RULES:
 - Always ask clarifying questions before generating a draft — especially: who sends it, who is it assigned to, what time
@@ -159,6 +195,10 @@ const BUILDER_TOOLS: Anthropic.Messages.Tool[] = [
           type: "object",
           properties: {
             maxDays: { type: "number" },
+            goalEvent: {
+              type: "string",
+              description: "Internal event that signals goal achieved (e.g. 'subtask.completed', 'stage.advanced')",
+            },
             goalConditions: {
               type: "array",
               items: {
