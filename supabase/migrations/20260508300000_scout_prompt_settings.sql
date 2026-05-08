@@ -3,7 +3,7 @@
 
 INSERT INTO app_settings (setting_key, setting_value, description)
 VALUES
-  ('scout_identity', NULL, 'Scout persona and core rules. NULL = use hardcoded default.'),
-  ('scout_rules', NULL, 'Scout absolute rules (DRC enforcement). NULL = use hardcoded default.'),
-  ('scout_profile_context', NULL, 'Profile schema and scoring context injected into prompt. NULL = use hardcoded default.')
+  ('scout_identity', '""'::jsonb, 'Scout persona and core rules. Empty = use hardcoded default.'),
+  ('scout_rules', '""'::jsonb, 'Scout absolute rules (DRC enforcement). Empty = use hardcoded default.'),
+  ('scout_profile_context', '""'::jsonb, 'Profile schema and scoring context injected into prompt. Empty = use hardcoded default.')
 ON CONFLICT (setting_key) DO NOTHING;

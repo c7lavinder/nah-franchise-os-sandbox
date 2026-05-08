@@ -34,9 +34,11 @@ export async function loadPromptSection(key: string, defaultValue: string): Prom
 
     const map = new Map<string, string>();
     for (const row of rows ?? []) {
-      const r = row as { setting_key: string; setting_value: string | null };
-      if (r.setting_value) {
-        map.set(r.setting_key, r.setting_value);
+      const r = row as { setting_key: string; setting_value: unknown };
+      // setting_value is JSONB — could be a JSON string, object, or empty
+      const val = typeof r.setting_value === "string" ? r.setting_value : "";
+      if (val && val.trim()) {
+        map.set(r.setting_key, val);
       }
     }
     cache = { data: map, ts: Date.now() };
