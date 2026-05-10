@@ -112,7 +112,7 @@ export default function TerritoryProfilePage() {
       .then(([territoryData, perfData, t12Data, gradesData]) => {
         setData(territoryData);
         if (perfData?.kpis) setKpis(perfData.kpis);
-        if (t12Data?.kpis) setT12Sold(t12Data.kpis.soldInPeriod ?? 0);
+        if (t12Data?.kpis) setT12Sold(t12Data.kpis.purchasedInPeriod ?? 0);
         if (gradesData?.grades) setQuarterlyGrades(gradesData.grades);
       })
       .catch(() => {})
@@ -132,8 +132,9 @@ export default function TerritoryProfilePage() {
     .map((o) => o.ownerName)
     .filter(Boolean) as string[];
   const carriedOwnerName = ownerNames.length > 1 ? ownerNames.join(" + ") : (ownerNames[0] ?? null);
-  // 12+ houses purchased (sold) in last 12 months = above target
-  const isUnderTarget = territory.status === "active" && t12Sold !== null && t12Sold < 12;
+  // 12+ houses purchased in last 12 months = high performer
+  const isHighPerformer = territory.status === "active" && t12Sold !== null && t12Sold >= 12;
+  const isUnderTarget = territory.status === "active" && t12Sold !== null && t12Sold < 12 && !isHighPerformer;
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
@@ -146,6 +147,11 @@ export default function TerritoryProfilePage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-text-primary">{territory.Nickname}</h1>
             <StatusBadge status={territory.status} />
+            {isHighPerformer && (
+              <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-success/10 text-success">
+                High Performer
+              </span>
+            )}
             {isUnderTarget && (
               <span className="flex items-center gap-1 text-xs text-danger">
                 <AlertTriangle size={14} /> Below target

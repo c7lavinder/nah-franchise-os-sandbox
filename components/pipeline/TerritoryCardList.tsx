@@ -16,6 +16,7 @@ interface TerritoryCard {
   stage_name: string | null;
   stage_slug: string | null;
   pipeline_slug: string | null;
+  highPerformer?: boolean;
 }
 
 /** Label colors matching wave gradient circles — custom hex */
@@ -172,12 +173,15 @@ export default function TerritoryCardList({ status, statusFilter, stageId, searc
                 ${i < visible.length - 1 ? "border-b border-border-default" : ""}
               `}
             >
-              {/* Name + slug */}
-              <p className="text-body-sm text-text-primary font-medium truncate min-w-0">
+              {/* Name + slug + high performer */}
+              <p className="text-body-sm text-text-primary font-medium truncate min-w-0 flex items-center gap-1.5">
                 {card.Nickname}
-                <span className="text-[10px] text-text-tertiary font-mono font-normal ml-1.5">
-                  {card.TerritorySlug}
-                </span>
+                <span className="text-[10px] text-text-tertiary font-mono font-normal">{card.TerritorySlug}</span>
+                {card.highPerformer && (
+                  <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-success/10 text-success whitespace-nowrap">
+                    High Performer
+                  </span>
+                )}
               </p>
 
               {/* Status badge */}

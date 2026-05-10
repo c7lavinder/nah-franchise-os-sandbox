@@ -320,6 +320,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       avgLeadToPurchase,
       avgCycleDays,
       activeInventory: activeInventoryRows.length,
+      purchasedInPeriod: purchasedInPeriod.length,
       soldInPeriod: soldInPeriod.length,
       avgProfit: profitCount > 0 ? Math.round(totalProfit / profitCount) : null,
       totalProfit: profitCount > 0 ? Math.round(totalProfit) : null,

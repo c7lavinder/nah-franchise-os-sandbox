@@ -109,6 +109,48 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // High Performers: count purchases in last 12 months per territory
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+  const highPerformerSlugs = new Set<string>();
+
+  if (slugs.length > 0) {
+    // Get properties purchased in last 12 months for these territories
+    let hpOffset = 0;
+    const purchasesBySlug: Record<string, number> = {};
+    while (true) {
+      const { data: page } = await supabase
+        .from("ms_properties")
+        .select("PropertyId, TerritorySlug")
+        .in("TerritorySlug", slugs)
+        .eq("Archived", false)
+        .order("PropertyId")
+        .range(hpOffset, hpOffset + 999);
+      if (!page || page.length === 0) break;
+
+      const ids = page.map((p) => p.PropertyId);
+      const { data: inv } = await supabase
+        .from("ms_property_inventory")
+        .select("PropertyId")
+        .in("PropertyId", ids)
+        .not("Inv_PurchaseDate", "is", null)
+        .gte("Inv_PurchaseDate", twelveMonthsAgo.toISOString());
+
+      const purchasedIds = new Set((inv ?? []).map((i) => i.PropertyId));
+      for (const p of page) {
+        if (purchasedIds.has(p.PropertyId)) {
+          purchasesBySlug[p.TerritorySlug] = (purchasesBySlug[p.TerritorySlug] ?? 0) + 1;
+        }
+      }
+
+      if (page.length < 1000) break;
+      hpOffset += 1000;
+    }
+    for (const [slug, count] of Object.entries(purchasesBySlug)) {
+      if (count >= 12) highPerformerSlugs.add(slug);
+    }
+  }
+
   const cards = (territories ?? []).map((t) => {
     const owner = ownerMap.get(t.TerritorySlug);
     const pipelineStage = stageBySlug.get(t.TerritorySlug) ?? null;
@@ -122,6 +164,7 @@ export async function GET(request: NextRequest) {
       stage_name: pipelineStage?.stageName ?? null,
       stage_slug: pipelineStage?.stageSlug ?? null,
       pipeline_slug: pipelineStage?.pipelineSlug ?? null,
+      highPerformer: highPerformerSlugs.has(t.TerritorySlug),
     };
   });
 

@@ -54,27 +54,51 @@ export async function getDailyHQScorecard() {
     .select("TerritorySlug", { count: "exact", head: true })
     .eq("status", "active");
 
-  // High Performers: territories with 10+ houses in trailing 12 months
+  // High Performers: territories with 12+ purchased properties in trailing 12 months
+  // Uses ms_property_inventory.Inv_PurchaseDate as source of truth
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-  const currentYear = new Date().getFullYear();
-  const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3);
 
-  const { data: grades } = await supabase
-    .from("territory_grades")
-    .select("TerritorySlug, houses_purchased")
-    .gte("year", currentYear - 1);
+  // Get all properties purchased in last 12 months with their territory
+  let purchasedRows: { TerritorySlug: string }[] = [];
+  let hpOffset = 0;
+  while (true) {
+    const { data: page } = await supabase
+      .from("ms_properties")
+      .select("PropertyId, TerritorySlug")
+      .eq("Archived", false)
+      .order("PropertyId")
+      .range(hpOffset, hpOffset + 999);
+    if (!page || page.length === 0) break;
 
-  const housesByTerritory: Record<string, number> = {};
-  for (const g of grades ?? []) {
-    housesByTerritory[g.TerritorySlug] = (housesByTerritory[g.TerritorySlug] ?? 0) + (g.houses_purchased ?? 0);
+    // Check which of these have purchase dates in the last 12 months
+    const ids = page.map((p) => p.PropertyId);
+    const { data: inv } = await supabase
+      .from("ms_property_inventory")
+      .select("PropertyId")
+      .in("PropertyId", ids)
+      .not("Inv_PurchaseDate", "is", null)
+      .gte("Inv_PurchaseDate", twelveMonthsAgo.toISOString());
+
+    const purchasedIds = new Set((inv ?? []).map((i) => i.PropertyId));
+    for (const p of page) {
+      if (purchasedIds.has(p.PropertyId)) purchasedRows.push({ TerritorySlug: p.TerritorySlug });
+    }
+
+    if (page.length < 1000) break;
+    hpOffset += 1000;
   }
-  const highPerformers = Object.values(housesByTerritory).filter((h) => h >= 10).length;
+
+  const purchasesByTerritory: Record<string, number> = {};
+  for (const r of purchasedRows) {
+    purchasesByTerritory[r.TerritorySlug] = (purchasesByTerritory[r.TerritorySlug] ?? 0) + 1;
+  }
+  const highPerformers = Object.values(purchasesByTerritory).filter((h) => h >= 12).length;
 
   return {
     newProspects: { value: newProspectCount ?? 0, label: "New Prospects", sub: "last 30 days" },
     activeFranchisees: { value: activeFranchisees ?? 0, goal: 250, label: "Active Franchisees", sub: "of 250 goal" },
-    highPerformers: { value: highPerformers, goal: 100, label: "High Performers", sub: "10+ houses last 12 months" },
+    highPerformers: { value: highPerformers, goal: 100, label: "High Performers", sub: "12+ purchased last 12mo" },
   };
 }
 
