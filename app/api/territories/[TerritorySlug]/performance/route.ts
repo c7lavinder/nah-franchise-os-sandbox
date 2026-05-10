@@ -43,14 +43,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const periodStartISO = periodStart.toISOString();
   const ytdStart = new Date(now.getFullYear(), 0, 1).toISOString();
 
-  // 1. Get all non-archived properties for this territory
-  const { data: properties } = await supabase
-    .from("ms_properties")
-    .select("PropertyId, Status, Inserted, Archived")
-    .eq("TerritorySlug", TerritorySlug)
-    .eq("Archived", false);
+  // 1. Get ALL non-archived properties for this territory (paginate past 1000-row default)
+  let properties: { PropertyId: number; Status: string; Inserted: string | null }[] = [];
+  let offset = 0;
+  const PAGE = 2000;
+  while (true) {
+    const { data: page } = await supabase
+      .from("ms_properties")
+      .select("PropertyId, Status, Inserted")
+      .eq("TerritorySlug", TerritorySlug)
+      .eq("Archived", false)
+      .range(offset, offset + PAGE - 1);
+    if (!page || page.length === 0) break;
+    properties = properties.concat(page);
+    if (page.length < PAGE) break;
+    offset += PAGE;
+  }
 
-  const propertyIds = (properties ?? []).map((p) => p.PropertyId);
+  const propertyIds = properties.map((p) => p.PropertyId);
 
   if (propertyIds.length === 0) {
     return NextResponse.json({
@@ -70,12 +80,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   // 2. Fetch inventory for all properties — use Inv_PurchaseDate as source of truth
-  //    (a property with Inv_PurchaseDate was actually purchased, regardless of current Status)
-  const { data: inventory } = await supabase
-    .from("ms_property_inventory")
-    .select("PropertyId, Inv_PurchaseDate, Inv_SellDate")
-    .in("PropertyId", propertyIds)
-    .not("Inv_PurchaseDate", "is", null);
+  //    Only get rows with a purchase date (actual purchases). Paginate for large territories.
+  let inventory: { PropertyId: number; Inv_PurchaseDate: string; Inv_SellDate: string | null }[] = [];
+  for (let i = 0; i < propertyIds.length; i += 500) {
+    const batch = propertyIds.slice(i, i + 500);
+    const { data: page } = await supabase
+      .from("ms_property_inventory")
+      .select("PropertyId, Inv_PurchaseDate, Inv_SellDate")
+      .in("PropertyId", batch)
+      .not("Inv_PurchaseDate", "is", null);
+    if (page) inventory = inventory.concat(page as typeof inventory);
+  }
 
   // 3. Compute KPIs from inventory dates
   let purchasedYTD = 0;
@@ -83,7 +98,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   let activeInventory = 0;
   const soldYTDPropertyIds: number[] = [];
 
-  for (const inv of inventory ?? []) {
+  for (const inv of inventory) {
     const purchaseDate = inv.Inv_PurchaseDate ? new Date(inv.Inv_PurchaseDate) : null;
     const sellDate = inv.Inv_SellDate ? new Date(inv.Inv_SellDate) : null;
 
@@ -123,7 +138,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // 5. Cycle days for sold properties (purchase → sell)
   const cycleDays: number[] = [];
-  for (const inv of inventory ?? []) {
+  for (const inv of inventory) {
     if (inv.Inv_PurchaseDate && inv.Inv_SellDate) {
       const days = Math.round(
         (new Date(inv.Inv_SellDate).getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24)
@@ -135,23 +150,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const medianCycleDays = cycleDays.length > 0 ? cycleDays[Math.floor(cycleDays.length / 2)] : null;
 
   // 6. Leads entered in period (non-dead properties inserted in time window)
-  const leadsInPeriod = (properties ?? []).filter((p) => {
+  const leadsInPeriod = properties.filter((p) => {
     if (!p.Inserted) return false;
     return new Date(p.Inserted) >= periodStart && !p.Status.startsWith("0");
   }).length;
 
   // 7. Conversion rate for the period
   // Properties that entered stage 4+ in period / properties that entered stage 1+ in period
-  const { data: statusHistory } = await supabase
-    .from("ms_property_status_history")
-    .select("PropertyId, NewStatus, Inserted")
-    .in("PropertyId", propertyIds)
-    .gte("Inserted", periodStartISO);
+  let statusHistory: { PropertyId: number; NewStatus: string | null; Inserted: string }[] = [];
+  for (let i = 0; i < propertyIds.length; i += 500) {
+    const batch = propertyIds.slice(i, i + 500);
+    const { data: page } = await supabase
+      .from("ms_property_status_history")
+      .select("PropertyId, NewStatus, Inserted")
+      .in("PropertyId", batch)
+      .gte("Inserted", periodStartISO);
+    if (page) statusHistory = statusHistory.concat(page as typeof statusHistory);
+  }
 
   // Unique properties that hit each milestone in period
   const hitStage1Plus = new Set<number>();
   const hitStage4Plus = new Set<number>();
-  for (const h of statusHistory ?? []) {
+  for (const h of statusHistory) {
     const s = h.NewStatus;
     if (s && !s.startsWith("0")) {
       hitStage1Plus.add(h.PropertyId);
@@ -169,7 +189,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   for (const stage of stageOrder) {
     funnel[stage] = 0;
   }
-  for (const h of statusHistory ?? []) {
+  for (const h of statusHistory) {
     if (h.NewStatus && stageOrder.includes(h.NewStatus)) {
       funnel[h.NewStatus] = (funnel[h.NewStatus] || 0) + 1;
     }

@@ -17,15 +17,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { TerritorySlug } = await params;
   const supabase = createServerClient();
 
-  // 1. All properties for this territory (with archive status)
-  const { data: allProperties, error: propError } = await supabase
-    .from("ms_properties")
-    .select("PropertyId, Status, Archived, Inserted, Address1, City, State")
-    .eq("TerritorySlug", TerritorySlug)
-    .order("PropertyId");
+  // 1. All properties for this territory (paginate past 1000-row default)
+  let allProperties: Record<string, unknown>[] = [];
+  let propError: { message: string } | null = null;
+  let pOffset = 0;
+  while (true) {
+    const { data: page, error } = await supabase
+      .from("ms_properties")
+      .select("PropertyId, Status, Archived, Inserted, Address1, City, State")
+      .eq("TerritorySlug", TerritorySlug)
+      .order("PropertyId")
+      .range(pOffset, pOffset + 1999);
+    if (error) {
+      propError = error;
+      break;
+    }
+    if (!page || page.length === 0) break;
+    allProperties = allProperties.concat(page);
+    if (page.length < 2000) break;
+    pOffset += 2000;
+  }
 
   // 2. All inventory rows for these properties
-  const propertyIds = (allProperties ?? []).map((p) => p.PropertyId);
+  const propertyIds = allProperties.map((p) => p.PropertyId as number);
   const { data: allInventory, error: invError } =
     propertyIds.length > 0
       ? await supabase
@@ -48,8 +62,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const ytdStart = new Date(new Date().getFullYear(), 0, 1).toISOString();
 
-  const propertyDetails = (allProperties ?? []).map((p) => {
-    const inv = invMap.get(p.PropertyId);
+  const propertyDetails = allProperties.map((p) => {
+    const inv = invMap.get(p.PropertyId as number);
     return {
       PropertyId: p.PropertyId,
       Address: p.Address1,
