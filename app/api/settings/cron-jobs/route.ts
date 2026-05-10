@@ -184,6 +184,15 @@ const CRON_DEFINITIONS = [
     category: "pipeline",
     frequency: "Daily at 1:00 AM",
   },
+  {
+    path: "/frandev/api/cron/sync-ms-eos",
+    name: "MasterSuite EOS Sync",
+    schedule: "0 */6 * * *",
+    description:
+      "Sync EOS data from MasterSuite — rocks, todos, issues, budgets, goals, habits, lead channels, construction EOS, project management",
+    category: "pipeline",
+    frequency: "Every 6 hours",
+  },
 ];
 
 export async function GET(request: NextRequest) {

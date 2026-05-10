@@ -89,6 +89,10 @@
     {
       "path": "/frandev/api/cron/sync-ms-lead-list",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/frandev/api/cron/sync-ms-eos",
+      "schedule": "0 */6 * * *"
     }
   ]
 }
