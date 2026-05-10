@@ -49,13 +49,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const supabase = createServerClient();
 
   const now = new Date();
-  let periodMonths: number;
-  if (period === "t1") periodMonths = 1;
-  else if (period === "t12") periodMonths = 12;
-  else periodMonths = 3;
+  let periodStart: Date;
+  let prevPeriodStart: Date;
 
-  const periodStart = new Date(now.getFullYear(), now.getMonth() - periodMonths, now.getDate());
-  const prevPeriodStart = new Date(now.getFullYear(), now.getMonth() - periodMonths * 2, now.getDate());
+  if (period === "ytd") {
+    periodStart = new Date(now.getFullYear(), 0, 1);
+    prevPeriodStart = new Date(now.getFullYear() - 1, 0, 1);
+  } else {
+    const periodMonths = period === "t1" ? 1 : period === "t12" ? 12 : 3;
+    periodStart = new Date(now.getFullYear(), now.getMonth() - periodMonths, now.getDate());
+    prevPeriodStart = new Date(now.getFullYear(), now.getMonth() - periodMonths * 2, now.getDate());
+  }
   const periodStartISO = periodStart.toISOString();
   const prevPeriodStartISO = prevPeriodStart.toISOString();
 

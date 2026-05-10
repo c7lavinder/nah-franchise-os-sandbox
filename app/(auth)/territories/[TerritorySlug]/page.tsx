@@ -99,7 +99,7 @@ export default function TerritoryProfilePage() {
   useEffect(() => {
     Promise.all([
       apiFetch(`/api/territories/${TerritorySlug}`).then((r) => r.json()),
-      apiFetch(`/api/territories/${TerritorySlug}/performance`)
+      apiFetch(`/api/territories/${TerritorySlug}/performance?period=ytd`)
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
       apiFetch(`/api/territories/${TerritorySlug}/performance?period=t12`)
@@ -172,8 +172,8 @@ export default function TerritoryProfilePage() {
           <div className="text-caption text-text-tertiary">Active Inventory</div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="Leads Entered" value={kpis?.leadsEntered ?? "—"} sub="hit Stage 1" />
-          <StatCard label="Sold" value={kpis?.soldInPeriod ?? "—"} />
+          <StatCard label="Leads Entered" value={kpis?.leadsEntered ?? "—"} sub="YTD" />
+          <StatCard label="Sold YTD" value={kpis?.soldInPeriod ?? "—"} />
           <StatCard
             label="Conversion"
             value={kpis?.conversionRate != null ? `${kpis.conversionRate}%` : "—"}
