@@ -22,7 +22,11 @@ interface FunnelStage {
 interface PhaseStep {
   label: string;
   reached: boolean;
-  date: string | null;
+}
+interface MilestoneStep {
+  label: string;
+  date: string;
+  daysBetween: number | null;
 }
 
 interface PropertyRow {
@@ -30,6 +34,7 @@ interface PropertyRow {
   address: string;
   currentPhase: string | null;
   phases: PhaseStep[];
+  milestones: MilestoneStep[];
   purchaseDate: string;
   totalDays: number;
   profit?: number | null;
@@ -407,13 +412,37 @@ function PhaseJourney({ phases, currentPhase }: { phases: PhaseStep[]; currentPh
                     ? "w-5 h-5 bg-success/20 text-success"
                     : "w-5 h-5 bg-bg-tertiary text-text-tertiary"
               }`}
-              title={`${p.label}${p.date ? ` — ${fmtDate(p.date)}` : ""}`}
+              title={p.label}
             >
               {short}
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function MilestoneLine({ milestones }: { milestones: MilestoneStep[] }) {
+  return (
+    <div className="flex items-center gap-0 overflow-x-auto mt-1 pb-1">
+      {milestones.map((m, i) => (
+        <div key={i} className="flex items-center shrink-0">
+          {i > 0 && (
+            <div className="flex flex-col items-center mx-0.5">
+              <div className="w-8 sm:w-12 h-px bg-success" />
+              {m.daysBetween != null && (
+                <span className="text-[9px] text-text-primary font-bold">{m.daysBetween}d</span>
+              )}
+            </div>
+          )}
+          <div className="flex flex-col items-center">
+            <div className="w-2.5 h-2.5 rounded-full bg-success shrink-0" />
+            <span className="text-[9px] text-text-tertiary mt-0.5 whitespace-nowrap">{m.label}</span>
+            <span className="text-[8px] text-text-tertiary">{fmtDate(m.date)}</span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -452,6 +481,7 @@ function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: 
         </div>
       </div>
       <PhaseJourney phases={p.phases} currentPhase={p.currentPhase} />
+      {p.milestones.length > 1 && <MilestoneLine milestones={p.milestones} />}
     </div>
   );
 }

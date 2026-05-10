@@ -267,22 +267,32 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const currentRank = currentPhase ? (phaseRank.get(currentPhase) ?? -1) : -1;
     const totalDays = Math.round((now.getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24));
 
-    // Key date milestones we know
-    const dates: Record<string, string | null> = {
-      Purchased: inv.Inv_PurchaseDate,
-      Construction: inv.Inv_ConstructionStartDate,
-      Complete: inv.Inv_CompletionDate,
-      Listed: inv.Inv_ListDate,
-      Sold: inv.Inv_SellDate,
-    };
+    // Dated milestones we can show days between
+    const datedSteps: { label: string; date: string }[] = [];
+    if (inv.Inv_PurchaseDate) datedSteps.push({ label: "Purchased", date: inv.Inv_PurchaseDate });
+    if (inv.Inv_ConstructionStartDate) datedSteps.push({ label: "Construction", date: inv.Inv_ConstructionStartDate });
+    if (inv.Inv_CompletionDate) datedSteps.push({ label: "Complete", date: inv.Inv_CompletionDate });
+    if (inv.Inv_ListDate) datedSteps.push({ label: "Listed", date: inv.Inv_ListDate });
+    if (inv.Inv_SellDate) datedSteps.push({ label: "Sold", date: inv.Inv_SellDate });
+
+    const milestones = datedSteps.map((s, i) => ({
+      label: s.label,
+      date: s.date,
+      daysBetween:
+        i > 0
+          ? Math.round(
+              (new Date(s.date).getTime() - new Date(datedSteps[i - 1].date).getTime()) / (1000 * 60 * 60 * 24)
+            )
+          : null,
+    }));
 
     return {
       currentPhase,
       phases: PHASE_ORDER.map((phase) => ({
         label: phase,
         reached: currentRank >= (phaseRank.get(phase) ?? 999),
-        date: dates[phase] ?? null,
       })),
+      milestones,
       purchaseDate: inv.Inv_PurchaseDate,
       totalDays,
     };
