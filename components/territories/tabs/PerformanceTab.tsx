@@ -200,8 +200,6 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
           sub="purchase → sold"
         />
         <NoSoldFallback icon={Package} label="Sold" value={kpis.soldInPeriod} sub={PERIOD_LABELS[period]} />
-        {/* Col 4 */}
-        <NoSoldFallback icon={DollarSign} label="Avg Profit" value={kpis.avgProfit} sub="per flip" isMoney />
         <NoSoldFallback
           icon={DollarSign}
           label="Total Profit"
