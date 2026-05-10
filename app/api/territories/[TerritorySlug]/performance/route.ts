@@ -247,7 +247,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // Build lifecycle milestones from inventory dates
   // Construction phase order for the journey UI
-  const PHASE_ORDER = [
+  // Phases — Sold and Rented merged into final step based on actual outcome
+  const PHASE_ORDER_BASE = [
     "Phase 1",
     "Phase 2",
     "Phase 3",
@@ -257,42 +258,49 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     "Complete",
     "Listed",
     "Contract to Sell",
-    "Sold",
-    "Rented",
   ];
-  const phaseRank = new Map(PHASE_ORDER.map((p, i) => [p, i]));
+  const phaseRankBase = new Map(PHASE_ORDER_BASE.map((p, i) => [p, i]));
+  // Sold/Rented both rank as the final step
+  phaseRankBase.set("Sold", PHASE_ORDER_BASE.length);
+  phaseRankBase.set("Rented", PHASE_ORDER_BASE.length);
+
+  function daysBetween(a: string | null, b: string | null): number | null {
+    if (!a || !b) return null;
+    const d = Math.round((new Date(b).getTime() - new Date(a).getTime()) / (1000 * 60 * 60 * 24));
+    return d >= 0 ? d : null;
+  }
 
   function buildPhaseJourney(inv: InvRow) {
-    const currentPhase = inv.Inv_Status ?? null;
-    const currentRank = currentPhase ? (phaseRank.get(currentPhase) ?? -1) : -1;
+    const status = inv.Inv_Status ?? null;
+    const isSoldOrRented = status === "Sold" || status === "Rented";
+    const finalLabel = isSoldOrRented ? status! : "Sold";
+    const phases = [...PHASE_ORDER_BASE, finalLabel];
+    const currentRank = status ? (phaseRankBase.get(status) ?? -1) : -1;
     const totalDays = Math.round((now.getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24));
 
-    // Dated milestones we can show days between
-    const datedSteps: { label: string; date: string }[] = [];
-    if (inv.Inv_PurchaseDate) datedSteps.push({ label: "Purchased", date: inv.Inv_PurchaseDate });
-    if (inv.Inv_ConstructionStartDate) datedSteps.push({ label: "Construction", date: inv.Inv_ConstructionStartDate });
-    if (inv.Inv_CompletionDate) datedSteps.push({ label: "Complete", date: inv.Inv_CompletionDate });
-    if (inv.Inv_ListDate) datedSteps.push({ label: "Listed", date: inv.Inv_ListDate });
-    if (inv.Inv_SellDate) datedSteps.push({ label: "Sold", date: inv.Inv_SellDate });
-
-    const milestones = datedSteps.map((s, i) => ({
-      label: s.label,
-      date: s.date,
-      daysBetween:
-        i > 0
-          ? Math.round(
-              (new Date(s.date).getTime() - new Date(datedSteps[i - 1].date).getTime()) / (1000 * 60 * 60 * 24)
-            )
-          : null,
-    }));
+    // Segment durations from milestone dates — placed between phase dots
+    // Each segment maps: "after phase index X, show Y days"
+    const segments: Record<number, number> = {};
+    // Purchase → Construction Start = pre-construction (covers P1, P2 gap — show after P2, index 1)
+    const preConDays = daysBetween(inv.Inv_PurchaseDate, inv.Inv_ConstructionStartDate);
+    if (preConDays != null) segments[1] = preConDays;
+    // Construction Start → Complete = construction (covers P3-P5 — show after P5, index 5)
+    const conDays = daysBetween(inv.Inv_ConstructionStartDate, inv.Inv_CompletionDate);
+    if (conDays != null) segments[5] = conDays;
+    // Complete → Listed (show after Complete, index 6)
+    const listDays = daysBetween(inv.Inv_CompletionDate, inv.Inv_ListDate);
+    if (listDays != null) segments[6] = listDays;
+    // Listed → Sold (show after Contract to Sell, index 8)
+    const saleDays = daysBetween(inv.Inv_ListDate, inv.Inv_SellDate);
+    if (saleDays != null) segments[8] = saleDays;
 
     return {
-      currentPhase,
-      phases: PHASE_ORDER.map((phase) => ({
-        label: phase,
-        reached: currentRank >= (phaseRank.get(phase) ?? 999),
+      currentPhase: status,
+      phases: phases.map((label, i) => ({
+        label,
+        reached: currentRank >= i,
       })),
-      milestones,
+      segments,
       purchaseDate: inv.Inv_PurchaseDate,
       totalDays,
     };

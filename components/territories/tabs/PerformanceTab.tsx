@@ -23,18 +23,13 @@ interface PhaseStep {
   label: string;
   reached: boolean;
 }
-interface MilestoneStep {
-  label: string;
-  date: string;
-  daysBetween: number | null;
-}
 
 interface PropertyRow {
   propertyId: number;
   address: string;
   currentPhase: string | null;
   phases: PhaseStep[];
-  milestones: MilestoneStep[];
+  segments: Record<string, number>;
   purchaseDate: string;
   totalDays: number;
   profit?: number | null;
@@ -381,30 +376,24 @@ function NoSoldFallback({
 }
 
 // Milestone days between — shows between phase dots where we have timestamps
-function daysBetweenLabel(milestones: MilestoneStep[], fromLabel: string, toLabel: string): number | null {
-  const from = milestones.find((m) => m.label === fromLabel);
-  const to = milestones.find((m) => m.label === toLabel);
-  if (!from || !to) return null;
-  return Math.round((new Date(to.date).getTime() - new Date(from.date).getTime()) / (1000 * 60 * 60 * 24));
-}
-
-// Map phase labels to which milestone pair gives days-between
-const PHASE_DAY_SOURCE: Record<string, [string, string]> = {
-  "Phase 1": ["Purchased", "Construction"],
-  "Phase 2": ["Purchased", "Construction"],
-  "Phase 3": ["Construction", "Complete"],
-  "Phase 4": ["Construction", "Complete"],
-  "Phase 4 Punch": ["Construction", "Complete"],
-  "Phase 5": ["Complete", "Listed"],
-  Complete: ["Construction", "Complete"],
-  Listed: ["Complete", "Listed"],
-  "Contract to Sell": ["Listed", "Sold"],
-  Sold: ["Listed", "Sold"],
+const SHORT: Record<string, string> = {
+  "Phase 1": "P1",
+  "Phase 2": "P2",
+  "Phase 3": "P3",
+  "Phase 4": "P4",
+  "Phase 4 Punch": "P4P",
+  "Phase 5": "P5",
+  Complete: "Done",
+  Listed: "Listed",
+  "Contract to Sell": "Contract",
+  Sold: "Sold",
+  Rented: "Rented",
 };
 
 function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: boolean }) {
   const phases = p.phases;
   const currentIdx = phases.findIndex((ph) => ph.label === p.currentPhase);
+  const segments = p.segments ?? {};
 
   return (
     <div className="px-4 py-4">
@@ -437,72 +426,53 @@ function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: 
         </div>
       </div>
 
-      {/* Phase Journey — horizontal stepper */}
-      <div className="relative">
-        {/* Background track */}
-        <div className="absolute top-3 left-0 right-0 h-0.5 bg-border-default" />
-        {/* Completed track */}
-        {currentIdx >= 0 && (
-          <div
-            className="absolute top-3 left-0 h-0.5 bg-success transition-all"
-            style={{ width: `${(currentIdx / (phases.length - 1)) * 100}%` }}
-          />
-        )}
+      {/* Phase Journey */}
+      <div className="flex items-start overflow-x-auto">
+        {phases.map((ph, i) => {
+          const isCurrent = i === currentIdx;
+          const isPast = currentIdx >= 0 && i < currentIdx;
+          const segDays = segments[String(i)] ?? null;
+          const showSeg = segDays !== null && i > 0 && (isPast || isCurrent);
 
-        <div className="relative flex justify-between">
-          {phases.map((ph, i) => {
-            const isCurrent = i === currentIdx;
-            const isPast = i < currentIdx;
-            const isFuture = i > currentIdx;
-
-            // Get days between this phase and previous (from milestone data)
-            const daySource = PHASE_DAY_SOURCE[ph.label];
-            const days = daySource ? daysBetweenLabel(p.milestones, daySource[0], daySource[1]) : null;
-            // Only show days on the current or past phases where we have data
-            const showDays = days !== null && (isCurrent || isPast) && i > 0;
-
-            return (
-              <div key={i} className="flex flex-col items-center" style={{ width: `${100 / phases.length}%` }}>
-                {/* Dot */}
+          return (
+            <div key={i} className="flex items-start shrink-0">
+              {/* Connector line + days between */}
+              {i > 0 && (
+                <div className="flex flex-col items-center mt-[7px]" style={{ minWidth: showSeg ? 32 : 12 }}>
+                  <div className={`w-full h-[2px] ${isPast || isCurrent ? "bg-success" : "bg-border-default"}`} />
+                  {showSeg && (
+                    <span
+                      className={`text-[9px] font-bold -mt-0.5 ${
+                        segDays > 60 ? "text-danger" : segDays > 30 ? "text-warning" : "text-text-tertiary"
+                      }`}
+                    >
+                      {segDays}d
+                    </span>
+                  )}
+                </div>
+              )}
+              {/* Phase dot + label */}
+              <div className="flex flex-col items-center" style={{ minWidth: 28 }}>
                 <div
-                  className={`relative z-10 rounded-full transition-all ${
+                  className={`rounded-full transition-all ${
                     isCurrent
-                      ? "w-6 h-6 border-[3px] border-nah-orange bg-white shadow-md"
+                      ? "w-4 h-4 border-[2.5px] border-nah-orange bg-white shadow-sm"
                       : isPast
-                        ? "w-3.5 h-3.5 bg-success"
+                        ? "w-3 h-3 bg-success"
                         : "w-3 h-3 bg-bg-tertiary border border-border-default"
                   }`}
                 />
-                {/* Label */}
                 <span
-                  className={`text-[8px] mt-1 text-center leading-tight ${
-                    isCurrent ? "text-nah-orange font-bold" : isPast ? "text-success font-medium" : "text-text-tertiary"
+                  className={`text-[8px] mt-0.5 text-center leading-tight whitespace-nowrap ${
+                    isCurrent ? "text-nah-orange font-bold" : isPast ? "text-success" : "text-text-tertiary"
                   }`}
                 >
-                  {ph.label
-                    .replace("Phase ", "P")
-                    .replace("Contract to Sell", "Contract")
-                    .replace("Phase 4 Punch", "P4 Punch")}
+                  {SHORT[ph.label] ?? ph.label}
                 </span>
-                {/* Days indicator — shown below current phase as a badge */}
-                {showDays && (
-                  <span
-                    className={`text-[9px] font-bold mt-0.5 ${
-                      isCurrent && days! > 60
-                        ? "text-danger"
-                        : isCurrent && days! > 30
-                          ? "text-warning"
-                          : "text-text-tertiary"
-                    }`}
-                  >
-                    {days}d
-                  </span>
-                )}
-                {isFuture && i > 0 && <span className="text-[8px] text-transparent mt-0.5">—</span>}
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
