@@ -4,12 +4,12 @@ import { useState, useEffect } from "react";
 import { BarChart3, Loader2 } from "lucide-react";
 
 interface KPIs {
-  purchasedYTD: number;
-  soldYTD: number;
+  leadsEntered: number;
   activeInventory: number;
+  soldInPeriod: number;
+  avgProfit: number | null;
   conversionRate: number | null;
-  avgProfit: number;
-  leadsInPeriod: number;
+  medianCycleDays: number | null;
 }
 
 interface Props {
@@ -50,15 +50,15 @@ export default function TerritoryPerformanceCard({ TerritorySlug, Nickname }: Pr
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">Purchased YTD</div>
-          <div className="text-body-sm font-bold text-text-primary">{kpis.purchasedYTD}</div>
+          <div className="text-[10px] text-text-tertiary">Leads Entered</div>
+          <div className="text-body-sm font-bold text-text-primary">{kpis.leadsEntered}</div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">Sold YTD</div>
-          <div className="text-body-sm font-bold text-text-primary">{kpis.soldYTD}</div>
+          <div className="text-[10px] text-text-tertiary">Sold (3mo)</div>
+          <div className="text-body-sm font-bold text-text-primary">{kpis.soldInPeriod}</div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">Active Inventory</div>
+          <div className="text-[10px] text-text-tertiary">Inventory</div>
           <div className="text-body-sm font-bold text-text-primary">{kpis.activeInventory}</div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
@@ -68,14 +68,14 @@ export default function TerritoryPerformanceCard({ TerritorySlug, Nickname }: Pr
           </div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">Leads (3mo)</div>
-          <div className="text-body-sm font-bold text-text-primary">{kpis.leadsInPeriod}</div>
-        </div>
-        <div className="bg-bg-tertiary rounded px-2 py-1.5">
           <div className="text-[10px] text-text-tertiary">Avg Profit</div>
           <div className="text-body-sm font-bold text-text-primary">
-            {kpis.avgProfit > 0 ? `$${kpis.avgProfit.toLocaleString()}` : "—"}
+            {kpis.avgProfit != null ? `$${kpis.avgProfit.toLocaleString()}` : "—"}
           </div>
+        </div>
+        <div className="bg-bg-tertiary rounded px-2 py-1.5">
+          <div className="text-[10px] text-text-tertiary">Cycle Days</div>
+          <div className="text-body-sm font-bold text-text-primary">{kpis.medianCycleDays ?? "—"}</div>
         </div>
       </div>
     </div>

@@ -39,13 +39,12 @@ interface TerritoryData {
 }
 
 interface PerformanceKPIs {
-  purchasedYTD: number;
-  soldYTD: number;
+  leadsEntered: number;
   activeInventory: number;
+  soldInPeriod: number;
+  avgProfit: number | null;
+  totalProfit: number | null;
   conversionRate: number | null;
-  avgProfit: number;
-  totalProfit: number;
-  leadsInPeriod: number;
   medianCycleDays: number | null;
 }
 
@@ -92,6 +91,7 @@ export default function TerritoryProfilePage() {
 
   const [data, setData] = useState<TerritoryData | null>(null);
   const [kpis, setKpis] = useState<PerformanceKPIs | null>(null);
+  const [t12Sold, setT12Sold] = useState<number | null>(null);
   const [quarterlyGrades, setQuarterlyGrades] = useState<QuarterlyGrade[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"performance" | "ecosystem" | "market" | "eos">("performance");
@@ -102,13 +102,17 @@ export default function TerritoryProfilePage() {
       apiFetch(`/api/territories/${TerritorySlug}/performance`)
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
+      apiFetch(`/api/territories/${TerritorySlug}/performance?period=t12`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
       apiFetch(`/api/territories/${TerritorySlug}/quarterly-grades`)
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
     ])
-      .then(([territoryData, perfData, gradesData]) => {
+      .then(([territoryData, perfData, t12Data, gradesData]) => {
         setData(territoryData);
         if (perfData?.kpis) setKpis(perfData.kpis);
+        if (t12Data?.kpis) setT12Sold(t12Data.kpis.soldInPeriod ?? 0);
         if (gradesData?.grades) setQuarterlyGrades(gradesData.grades);
       })
       .catch(() => {})
@@ -128,8 +132,8 @@ export default function TerritoryProfilePage() {
     .map((o) => o.ownerName)
     .filter(Boolean) as string[];
   const carriedOwnerName = ownerNames.length > 1 ? ownerNames.join(" + ") : (ownerNames[0] ?? null);
-  const purchasedYTD = kpis?.purchasedYTD ?? 0;
-  const isUnderTarget = purchasedYTD < 10 && territory.status === "active";
+  // 12+ houses purchased (sold) in last 12 months = above target
+  const isUnderTarget = territory.status === "active" && t12Sold !== null && t12Sold < 12;
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
@@ -164,22 +168,18 @@ export default function TerritoryProfilePage() {
           <h2 className="text-body-sm font-semibold">Operations</h2>
         </div>
         <div className="text-center mb-4">
-          <div className="text-4xl font-bold text-text-primary">{purchasedYTD}</div>
-          <div className="text-caption text-text-tertiary">Houses Purchased YTD</div>
+          <div className="text-4xl font-bold text-text-primary">{kpis?.activeInventory ?? 0}</div>
+          <div className="text-caption text-text-tertiary">Active Inventory</div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="Sold YTD" value={kpis?.soldYTD ?? "—"} />
-          <StatCard label="Active Inventory" value={kpis?.activeInventory ?? "—"} sub="purchased, not sold" />
+          <StatCard label="Leads Entered" value={kpis?.leadsEntered ?? "—"} sub="hit Stage 1" />
+          <StatCard label="Sold" value={kpis?.soldInPeriod ?? "—"} />
           <StatCard
             label="Conversion"
             value={kpis?.conversionRate != null ? `${kpis.conversionRate}%` : "—"}
-            sub="S1+ → S4+"
+            sub="S1 → S4+"
           />
-          <StatCard
-            label="Avg Profit/Flip"
-            value={kpis?.avgProfit ? `$${kpis.avgProfit.toLocaleString()}` : "—"}
-            sub="YTD"
-          />
+          <StatCard label="Avg Profit" value={kpis?.avgProfit != null ? `$${kpis.avgProfit.toLocaleString()}` : "—"} />
         </div>
       </div>
 
