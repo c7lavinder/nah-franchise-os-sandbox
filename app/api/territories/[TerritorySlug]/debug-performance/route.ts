@@ -27,15 +27,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .select("PropertyId, Status, Archived, Inserted, Address1, City, State")
       .eq("TerritorySlug", TerritorySlug)
       .order("PropertyId")
-      .range(pOffset, pOffset + 1999);
+      .range(pOffset, pOffset + 999);
     if (error) {
       propError = error;
       break;
     }
     if (!page || page.length === 0) break;
     allProperties = allProperties.concat(page);
-    if (page.length < 2000) break;
-    pOffset += 2000;
+    if (page.length < 1000) break;
+    pOffset += 1000;
   }
 
   // 2. All inventory rows for these properties

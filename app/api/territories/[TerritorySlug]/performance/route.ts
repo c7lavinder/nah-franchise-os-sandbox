@@ -43,21 +43,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const periodStartISO = periodStart.toISOString();
   const ytdStart = new Date(now.getFullYear(), 0, 1).toISOString();
 
-  // 1. Get ALL non-archived properties for this territory (paginate past 1000-row default)
+  // 1. Get ALL non-archived properties for this territory
+  //    Supabase REST API hard-limits to 1000 rows, so paginate in 1000-row chunks
   let properties: { PropertyId: number; Status: string; Inserted: string | null }[] = [];
   let offset = 0;
-  const PAGE = 2000;
   while (true) {
     const { data: page } = await supabase
       .from("ms_properties")
       .select("PropertyId, Status, Inserted")
       .eq("TerritorySlug", TerritorySlug)
       .eq("Archived", false)
-      .range(offset, offset + PAGE - 1);
+      .order("PropertyId")
+      .range(offset, offset + 999);
     if (!page || page.length === 0) break;
     properties = properties.concat(page);
-    if (page.length < PAGE) break;
-    offset += PAGE;
+    if (page.length < 1000) break;
+    offset += 1000;
   }
 
   const propertyIds = properties.map((p) => p.PropertyId);
