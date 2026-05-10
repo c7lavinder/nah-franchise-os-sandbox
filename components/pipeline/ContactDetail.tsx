@@ -2,6 +2,7 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { X, Phone as PhoneIcon, Mail, Clock, Megaphone, Loader2, ExternalLink, User } from "lucide-react";
 import type { GHLOpportunity, GHLContact, GHLNote, GHLTask, GHLMessage } from "@/types/ghl";
 import { NotesSection, TaskList, ActivityTimeline, ScoutActionHistory, StageHistory } from "@/components/leads";
@@ -146,13 +147,13 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <a
+              <Link
                 href={`/contacts/${opportunity.contactId}`}
                 className="p-1 text-text-tertiary hover:text-nah-orange transition-colors"
                 title="Open full profile"
               >
                 <ExternalLink size={16} />
-              </a>
+              </Link>
               <button onClick={onClose} className="p-1 text-text-tertiary hover:text-text-primary">
                 <X size={20} />
               </button>
@@ -341,13 +342,13 @@ export default function ContactDetail({ opportunity, stageName, onClose, onMoveC
 
         {/* Ask Scout — always visible at bottom */}
         <div className="bg-bg-primary border-t border-border-default px-5 py-3 flex-shrink-0">
-          <a
+          <Link
             href={`/scout?ask=${encodeURIComponent(`Tell me about ${opportunity.name} — what's their current status, recent activity, and what should I do next?`)}`}
             className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-scout-purple/10 border border-scout-purple/30 rounded-lg hover:bg-scout-purple/20 transition-colors text-body-sm text-scout-purple font-medium"
           >
             <User size={16} />
             Ask Scout about {opportunity.name.split(" ")[0]}
-          </a>
+          </Link>
         </div>
       </div>
     </div>

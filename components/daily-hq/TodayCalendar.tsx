@@ -2,6 +2,7 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Calendar, Clock, Video, ExternalLink, FileText, ChevronDown, ChevronRight, User, Loader2 } from "lucide-react";
 import type { GHLAppointment } from "@/types/ghl";
 
@@ -153,12 +154,9 @@ export default function TodayCalendar({ appointments }: TodayCalendarProps) {
                   {apt.contactId && (
                     <div className="flex items-center gap-1.5">
                       <User size={11} className="text-text-tertiary" />
-                      <a
-                        href={`/frandev/contacts/${apt.contactId}`}
-                        className="text-caption text-nah-blue hover:underline"
-                      >
+                      <Link href={`/contacts/${apt.contactId}`} className="text-caption text-nah-blue hover:underline">
                         View Contact
-                      </a>
+                      </Link>
                     </div>
                   )}
                   {apt.address && (

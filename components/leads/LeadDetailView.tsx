@@ -2,6 +2,7 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -794,7 +795,7 @@ export default function LeadDetailView({
                       ) : (
                         <div className="space-y-1.5">
                           {contactCalls.map((c) => (
-                            <a
+                            <Link
                               key={c.id}
                               href={`/calls/${c.id}`}
                               className="flex items-center gap-2.5 py-1.5 rounded hover:bg-bg-hover transition-colors"
@@ -818,7 +819,7 @@ export default function LeadDetailView({
                               <span className="text-[10px] text-text-tertiary ml-auto">
                                 {c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString() : ""}
                               </span>
-                            </a>
+                            </Link>
                           ))}
                         </div>
                       )}

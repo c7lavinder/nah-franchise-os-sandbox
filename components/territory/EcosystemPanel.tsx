@@ -176,14 +176,14 @@ export default function EcosystemPanel({ TerritorySlug, owner, owners }: Props) 
                       </span>
                     )}
                     {o.ghlContactId && (
-                      <a
+                      <Link
                         href={`/contacts/${o.ghlContactId}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[10px] text-nah-blue hover:underline mt-0.5"
                       >
                         View profile
-                      </a>
+                      </Link>
                     )}
                   </div>
                 );

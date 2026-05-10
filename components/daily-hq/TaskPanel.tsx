@@ -2,6 +2,7 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   CheckCircle2,
   Circle,
@@ -226,13 +227,13 @@ export default function TaskPanel({ tasks, onTaskUpdated }: TaskPanelProps) {
               <>
                 {task.body && <p className="text-caption text-text-secondary">{task.body}</p>}
                 {task.contactName && (
-                  <a
-                    href={`/frandev/contacts/${task.contactId}`}
+                  <Link
+                    href={`/contacts/${task.contactId}`}
                     className="flex items-center gap-1.5 text-caption text-nah-blue hover:underline"
                   >
                     <User size={11} />
                     {task.contactName}
-                  </a>
+                  </Link>
                 )}
                 <div className="flex items-center gap-2">
                   <span className="text-caption text-text-tertiary">

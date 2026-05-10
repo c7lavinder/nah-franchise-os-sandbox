@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
  */
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   Loader2,
   MapPin,
@@ -147,7 +148,7 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
             >
               {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               <MapPin size={14} className="text-info" />
-              <a
+              <Link
                 href={`/territories/${t.TerritorySlug}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -155,7 +156,7 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
                 className="text-body-sm font-medium text-nah-blue hover:underline"
               >
                 {t.Nickname}
-              </a>
+              </Link>
               <span className="text-[10px] text-text-tertiary font-mono ml-1">{t.TerritorySlug}</span>
               <span
                 className={`ml-auto px-1.5 py-0.5 rounded text-[10px] font-medium ${

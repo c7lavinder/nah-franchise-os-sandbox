@@ -2,6 +2,7 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { MapPin, Plus, ArrowRightLeft, Ban } from "lucide-react";
 
 interface TerritoryOwnership {
@@ -209,14 +210,14 @@ export default function TerritoryOwnershipSection({
         <div className="p-4 space-y-2">
           <div className="flex items-center justify-between">
             <div>
-              <a
+              <Link
                 href={`/territories/${active.TerritorySlug}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-body-sm font-medium text-nah-blue hover:underline"
               >
                 {active.territories?.Nickname ?? active.TerritorySlug}
-              </a>
+              </Link>
               <div className="text-caption text-text-tertiary">
                 {active.isCurrent ? "Current" : "Former"} {active.role} since{" "}
                 {new Date(active.start_date).toLocaleDateString()}
