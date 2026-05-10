@@ -380,84 +380,38 @@ function NoSoldFallback({
   );
 }
 
-// Short labels for compact display
-const PHASE_SHORT: Record<string, string> = {
-  "Phase 1": "P1",
-  "Phase 2": "P2",
-  "Phase 3": "P3",
-  "Phase 4": "P4",
-  "Phase 4 Punch": "P4P",
-  "Phase 5": "P5",
-  Complete: "Done",
-  Listed: "List",
-  "Contract to Sell": "Ctr",
-  Sold: "Sold",
-  Rented: "Rent",
+// Milestone days between — shows between phase dots where we have timestamps
+function daysBetweenLabel(milestones: MilestoneStep[], fromLabel: string, toLabel: string): number | null {
+  const from = milestones.find((m) => m.label === fromLabel);
+  const to = milestones.find((m) => m.label === toLabel);
+  if (!from || !to) return null;
+  return Math.round((new Date(to.date).getTime() - new Date(from.date).getTime()) / (1000 * 60 * 60 * 24));
+}
+
+// Map phase labels to which milestone pair gives days-between
+const PHASE_DAY_SOURCE: Record<string, [string, string]> = {
+  "Phase 1": ["Purchased", "Construction"],
+  "Phase 2": ["Purchased", "Construction"],
+  "Phase 3": ["Construction", "Complete"],
+  "Phase 4": ["Construction", "Complete"],
+  "Phase 4 Punch": ["Construction", "Complete"],
+  "Phase 5": ["Complete", "Listed"],
+  Complete: ["Construction", "Complete"],
+  Listed: ["Complete", "Listed"],
+  "Contract to Sell": ["Listed", "Sold"],
+  Sold: ["Listed", "Sold"],
 };
 
-function PhaseJourney({ phases, currentPhase }: { phases: PhaseStep[]; currentPhase: string | null }) {
-  return (
-    <div className="flex items-center gap-0.5 overflow-x-auto py-1">
-      {phases.map((p, i) => {
-        const isCurrent = p.label === currentPhase;
-        const short = PHASE_SHORT[p.label] ?? p.label;
-        return (
-          <div key={i} className="flex items-center shrink-0">
-            {i > 0 && <div className={`w-3 sm:w-5 h-0.5 ${p.reached ? "bg-success" : "bg-border-default"}`} />}
-            <div
-              className={`flex items-center justify-center rounded-full text-[9px] font-semibold transition-all ${
-                isCurrent
-                  ? "w-7 h-7 bg-nah-orange text-white ring-2 ring-nah-orange/30"
-                  : p.reached
-                    ? "w-5 h-5 bg-success/20 text-success"
-                    : "w-5 h-5 bg-bg-tertiary text-text-tertiary"
-              }`}
-              title={p.label}
-            >
-              {short}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function MilestoneLine({ milestones }: { milestones: MilestoneStep[] }) {
-  return (
-    <div className="flex items-center gap-0 overflow-x-auto mt-1 pb-1">
-      {milestones.map((m, i) => (
-        <div key={i} className="flex items-center shrink-0">
-          {i > 0 && (
-            <div className="flex flex-col items-center mx-0.5">
-              <div className="w-8 sm:w-12 h-px bg-success" />
-              {m.daysBetween != null && (
-                <span className="text-[9px] text-text-primary font-bold">{m.daysBetween}d</span>
-              )}
-            </div>
-          )}
-          <div className="flex flex-col items-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-success shrink-0" />
-            <span className="text-[9px] text-text-tertiary mt-0.5 whitespace-nowrap">{m.label}</span>
-            <span className="text-[8px] text-text-tertiary">{fmtDate(m.date)}</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: boolean }) {
+  const phases = p.phases;
+  const currentIdx = phases.findIndex((ph) => ph.label === p.currentPhase);
+
   return (
-    <div className="px-4 py-3">
-      <div className="flex items-center justify-between mb-1">
+    <div className="px-4 py-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
-          <p className="text-body-sm font-medium text-text-primary truncate">{p.address}</p>
-          {p.currentPhase && (
-            <span className="px-1.5 py-0.5 rounded bg-nah-orange/10 text-nah-orange text-[10px] font-medium shrink-0">
-              {p.currentPhase}
-            </span>
-          )}
+          <p className="text-body-sm font-semibold text-text-primary truncate">{p.address}</p>
           {p.leadCategory && (
             <span className="px-1.5 py-0.5 rounded bg-bg-tertiary text-[10px] text-text-tertiary shrink-0">
               {p.leadCategory}
@@ -465,7 +419,9 @@ function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: 
           )}
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <span className="text-caption text-text-tertiary">
+          <span
+            className={`text-caption font-medium ${p.totalDays > 180 ? "text-danger" : p.totalDays > 90 ? "text-warning" : "text-text-tertiary"}`}
+          >
             {p.totalDays}d {isSold ? "cycle" : "held"}
           </span>
           {p.arv != null && <span className="text-caption text-text-tertiary">ARV {fmt$(p.arv)}</span>}
@@ -480,8 +436,74 @@ function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: 
           ) : null}
         </div>
       </div>
-      <PhaseJourney phases={p.phases} currentPhase={p.currentPhase} />
-      {p.milestones.length > 1 && <MilestoneLine milestones={p.milestones} />}
+
+      {/* Phase Journey — horizontal stepper */}
+      <div className="relative">
+        {/* Background track */}
+        <div className="absolute top-3 left-0 right-0 h-0.5 bg-border-default" />
+        {/* Completed track */}
+        {currentIdx >= 0 && (
+          <div
+            className="absolute top-3 left-0 h-0.5 bg-success transition-all"
+            style={{ width: `${(currentIdx / (phases.length - 1)) * 100}%` }}
+          />
+        )}
+
+        <div className="relative flex justify-between">
+          {phases.map((ph, i) => {
+            const isCurrent = i === currentIdx;
+            const isPast = i < currentIdx;
+            const isFuture = i > currentIdx;
+
+            // Get days between this phase and previous (from milestone data)
+            const daySource = PHASE_DAY_SOURCE[ph.label];
+            const days = daySource ? daysBetweenLabel(p.milestones, daySource[0], daySource[1]) : null;
+            // Only show days on the current or past phases where we have data
+            const showDays = days !== null && (isCurrent || isPast) && i > 0;
+
+            return (
+              <div key={i} className="flex flex-col items-center" style={{ width: `${100 / phases.length}%` }}>
+                {/* Dot */}
+                <div
+                  className={`relative z-10 rounded-full transition-all ${
+                    isCurrent
+                      ? "w-6 h-6 border-[3px] border-nah-orange bg-white shadow-md"
+                      : isPast
+                        ? "w-3.5 h-3.5 bg-success"
+                        : "w-3 h-3 bg-bg-tertiary border border-border-default"
+                  }`}
+                />
+                {/* Label */}
+                <span
+                  className={`text-[8px] mt-1 text-center leading-tight ${
+                    isCurrent ? "text-nah-orange font-bold" : isPast ? "text-success font-medium" : "text-text-tertiary"
+                  }`}
+                >
+                  {ph.label
+                    .replace("Phase ", "P")
+                    .replace("Contract to Sell", "Contract")
+                    .replace("Phase 4 Punch", "P4 Punch")}
+                </span>
+                {/* Days indicator — shown below current phase as a badge */}
+                {showDays && (
+                  <span
+                    className={`text-[9px] font-bold mt-0.5 ${
+                      isCurrent && days! > 60
+                        ? "text-danger"
+                        : isCurrent && days! > 30
+                          ? "text-warning"
+                          : "text-text-tertiary"
+                    }`}
+                  >
+                    {days}d
+                  </span>
+                )}
+                {isFuture && i > 0 && <span className="text-[8px] text-transparent mt-0.5">—</span>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
