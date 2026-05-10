@@ -54,45 +54,32 @@ export async function getDailyHQScorecard() {
     .select("TerritorySlug", { count: "exact", head: true })
     .eq("status", "active");
 
-  // High Performers: territories with 12+ purchased properties in trailing 12 months
-  // Uses ms_property_inventory.Inv_PurchaseDate as source of truth
+  // High Performers: territories with 10+ purchased properties in trailing 12 months
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
-  // Get all properties purchased in last 12 months with their territory
-  let purchasedRows: { TerritorySlug: string }[] = [];
-  let hpOffset = 0;
-  while (true) {
-    const { data: page } = await supabase
+  // Start from inventory (small set ~500 recent purchases) then look up territories
+  const { data: recentPurchases } = await supabase
+    .from("ms_property_inventory")
+    .select("PropertyId")
+    .not("Inv_PurchaseDate", "is", null)
+    .gte("Inv_PurchaseDate", twelveMonthsAgo.toISOString());
+
+  const purchasedIds = (recentPurchases ?? []).map((r) => r.PropertyId);
+  const purchasesByTerritory: Record<string, number> = {};
+
+  // Look up territory for each purchased property (batch in 500s)
+  for (let i = 0; i < purchasedIds.length; i += 500) {
+    const { data: props } = await supabase
       .from("ms_properties")
       .select("PropertyId, TerritorySlug")
-      .eq("Archived", false)
-      .order("PropertyId")
-      .range(hpOffset, hpOffset + 999);
-    if (!page || page.length === 0) break;
-
-    // Check which of these have purchase dates in the last 12 months
-    const ids = page.map((p) => p.PropertyId);
-    const { data: inv } = await supabase
-      .from("ms_property_inventory")
-      .select("PropertyId")
-      .in("PropertyId", ids)
-      .not("Inv_PurchaseDate", "is", null)
-      .gte("Inv_PurchaseDate", twelveMonthsAgo.toISOString());
-
-    const purchasedIds = new Set((inv ?? []).map((i) => i.PropertyId));
-    for (const p of page) {
-      if (purchasedIds.has(p.PropertyId)) purchasedRows.push({ TerritorySlug: p.TerritorySlug });
+      .in("PropertyId", purchasedIds.slice(i, i + 500))
+      .eq("Archived", false);
+    for (const p of props ?? []) {
+      purchasesByTerritory[p.TerritorySlug] = (purchasesByTerritory[p.TerritorySlug] ?? 0) + 1;
     }
-
-    if (page.length < 1000) break;
-    hpOffset += 1000;
   }
 
-  const purchasesByTerritory: Record<string, number> = {};
-  for (const r of purchasedRows) {
-    purchasesByTerritory[r.TerritorySlug] = (purchasesByTerritory[r.TerritorySlug] ?? 0) + 1;
-  }
   const highPerformers = Object.values(purchasesByTerritory).filter((h) => h >= 10).length;
 
   return {

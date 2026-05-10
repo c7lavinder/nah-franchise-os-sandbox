@@ -109,43 +109,34 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // High Performers: count purchases in last 12 months per territory
+  // High Performers: 10+ purchases in last 12 months
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
   const highPerformerSlugs = new Set<string>();
 
   if (slugs.length > 0) {
-    // Get properties purchased in last 12 months for these territories
-    let hpOffset = 0;
+    // Start from inventory (small set) then look up territories
+    const { data: recentPurchases } = await supabase
+      .from("ms_property_inventory")
+      .select("PropertyId")
+      .not("Inv_PurchaseDate", "is", null)
+      .gte("Inv_PurchaseDate", twelveMonthsAgo.toISOString());
+
+    const purchasedIds = (recentPurchases ?? []).map((r) => r.PropertyId);
     const purchasesBySlug: Record<string, number> = {};
-    while (true) {
-      const { data: page } = await supabase
+
+    for (let i = 0; i < purchasedIds.length; i += 500) {
+      const { data: props } = await supabase
         .from("ms_properties")
         .select("PropertyId, TerritorySlug")
+        .in("PropertyId", purchasedIds.slice(i, i + 500))
         .in("TerritorySlug", slugs)
-        .eq("Archived", false)
-        .order("PropertyId")
-        .range(hpOffset, hpOffset + 999);
-      if (!page || page.length === 0) break;
-
-      const ids = page.map((p) => p.PropertyId);
-      const { data: inv } = await supabase
-        .from("ms_property_inventory")
-        .select("PropertyId")
-        .in("PropertyId", ids)
-        .not("Inv_PurchaseDate", "is", null)
-        .gte("Inv_PurchaseDate", twelveMonthsAgo.toISOString());
-
-      const purchasedIds = new Set((inv ?? []).map((i) => i.PropertyId));
-      for (const p of page) {
-        if (purchasedIds.has(p.PropertyId)) {
-          purchasesBySlug[p.TerritorySlug] = (purchasesBySlug[p.TerritorySlug] ?? 0) + 1;
-        }
+        .eq("Archived", false);
+      for (const p of props ?? []) {
+        purchasesBySlug[p.TerritorySlug] = (purchasesBySlug[p.TerritorySlug] ?? 0) + 1;
       }
-
-      if (page.length < 1000) break;
-      hpOffset += 1000;
     }
+
     for (const [slug, count] of Object.entries(purchasesBySlug)) {
       if (count >= 10) highPerformerSlugs.add(slug);
     }
