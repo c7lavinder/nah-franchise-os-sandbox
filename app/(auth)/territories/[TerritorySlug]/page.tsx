@@ -72,6 +72,19 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
   );
 }
 
+interface QuarterlyGrade {
+  Scope: string;
+  PropertiesAcquired: number | null;
+  NumberSold: number | null;
+  NumberInInventory: number | null;
+  GrossProfit: number | null;
+  LeadsEntered: number | null;
+  Stage1toStage4: number | null;
+  MedianCycleDays: number | null;
+  AverageComplianceScore: number | null;
+  [key: string]: unknown;
+}
+
 export default function TerritoryProfilePage() {
   const params = useParams();
   const router = useRouter();
@@ -79,6 +92,7 @@ export default function TerritoryProfilePage() {
 
   const [data, setData] = useState<TerritoryData | null>(null);
   const [kpis, setKpis] = useState<PerformanceKPIs | null>(null);
+  const [quarterlyGrades, setQuarterlyGrades] = useState<QuarterlyGrade[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"performance" | "ecosystem" | "market" | "eos">("performance");
 
@@ -88,10 +102,14 @@ export default function TerritoryProfilePage() {
       apiFetch(`/api/territories/${TerritorySlug}/performance`)
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
+      apiFetch(`/api/territories/${TerritorySlug}/quarterly-grades`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
     ])
-      .then(([territoryData, perfData]) => {
+      .then(([territoryData, perfData, gradesData]) => {
         setData(territoryData);
         if (perfData?.kpis) setKpis(perfData.kpis);
+        if (gradesData?.grades) setQuarterlyGrades(gradesData.grades);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -164,6 +182,51 @@ export default function TerritoryProfilePage() {
           />
         </div>
       </div>
+
+      {/* Quarterly Scorecard — from MasterSuite TerritoryScorecardKPIs */}
+      {quarterlyGrades.length > 0 && (
+        <div className="bg-bg-primary border border-border-default rounded-lg p-5">
+          <h2 className="text-body-sm font-semibold mb-4">Quarterly Scorecard</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-body-sm">
+              <thead>
+                <tr className="text-left text-caption text-text-tertiary border-b border-border-default">
+                  <th className="py-2 pr-3">Quarter</th>
+                  <th className="py-2 px-2 text-right">Acquired</th>
+                  <th className="py-2 px-2 text-right">Sold</th>
+                  <th className="py-2 px-2 text-right">Inventory</th>
+                  <th className="py-2 px-2 text-right">Gross Profit</th>
+                  <th className="py-2 px-2 text-right">Leads</th>
+                  <th className="py-2 px-2 text-right">S1→S4</th>
+                  <th className="py-2 px-2 text-right">Cycle Days</th>
+                  <th className="py-2 px-2 text-right">Compliance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quarterlyGrades.map((g, i) => (
+                  <tr key={i} className="border-b border-border-default/50">
+                    <td className="py-2 pr-3 font-medium">{g.Scope}</td>
+                    <td className="py-2 px-2 text-right">{g.PropertiesAcquired ?? "—"}</td>
+                    <td className="py-2 px-2 text-right">{g.NumberSold ?? "—"}</td>
+                    <td className="py-2 px-2 text-right">{g.NumberInInventory ?? "—"}</td>
+                    <td className="py-2 px-2 text-right">
+                      {g.GrossProfit != null ? `$${Number(g.GrossProfit).toLocaleString()}` : "—"}
+                    </td>
+                    <td className="py-2 px-2 text-right">{g.LeadsEntered ?? "—"}</td>
+                    <td className="py-2 px-2 text-right">
+                      {g.Stage1toStage4 != null ? `${Number(g.Stage1toStage4).toFixed(1)}%` : "—"}
+                    </td>
+                    <td className="py-2 px-2 text-right">{g.MedianCycleDays ?? "—"}</td>
+                    <td className="py-2 px-2 text-right">
+                      {g.AverageComplianceScore != null ? Number(g.AverageComplianceScore).toFixed(0) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border-default">
