@@ -43,11 +43,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const periodStartISO = periodStart.toISOString();
   const ytdStart = new Date(now.getFullYear(), 0, 1).toISOString();
 
-  // 1. Get all properties for this territory
+  // 1. Get all non-archived properties for this territory
   const { data: properties } = await supabase
     .from("ms_properties")
-    .select("PropertyId, Status, Inserted")
-    .eq("TerritorySlug", TerritorySlug);
+    .select("PropertyId, Status, Inserted, Archived")
+    .eq("TerritorySlug", TerritorySlug)
+    .eq("Archived", false);
 
   const propertyIds = (properties ?? []).map((p) => p.PropertyId);
 
@@ -68,11 +69,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
   }
 
-  // 2. Fetch inventory data for all properties in this territory
-  const { data: inventory } = await supabase
-    .from("ms_property_inventory")
-    .select("PropertyId, Inv_PurchaseDate, Inv_SellDate")
-    .in("PropertyId", propertyIds);
+  // 2. Only look at inventory for properties that reached "6 Purchase" status
+  //    (properties in earlier stages may have Inv_PurchaseDate as a projection)
+  const purchasedPropertyIds = (properties ?? []).filter((p) => p.Status === "6 Purchase").map((p) => p.PropertyId);
+
+  const { data: inventory } =
+    purchasedPropertyIds.length > 0
+      ? await supabase
+          .from("ms_property_inventory")
+          .select("PropertyId, Inv_PurchaseDate, Inv_SellDate")
+          .in("PropertyId", purchasedPropertyIds)
+      : { data: [] };
 
   // 3. Compute KPIs from inventory dates
   let purchasedYTD = 0;
@@ -84,18 +91,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const purchaseDate = inv.Inv_PurchaseDate ? new Date(inv.Inv_PurchaseDate) : null;
     const sellDate = inv.Inv_SellDate ? new Date(inv.Inv_SellDate) : null;
 
-    // Purchased YTD: has purchase date in this calendar year
+    // Purchased YTD: purchase date in this calendar year
     if (purchaseDate && purchaseDate >= new Date(ytdStart)) {
       purchasedYTD++;
     }
 
-    // Sold YTD: has sell date in this calendar year
+    // Sold YTD: sell date in this calendar year
     if (sellDate && sellDate >= new Date(ytdStart)) {
       soldYTD++;
       soldYTDPropertyIds.push(inv.PropertyId);
     }
 
-    // Active Inventory: purchased but not sold
+    // Active Inventory: has purchase date but no sell date (still holding)
     if (purchaseDate && !sellDate) {
       activeInventory++;
     }
