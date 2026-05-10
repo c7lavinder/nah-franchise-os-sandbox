@@ -237,7 +237,7 @@ export default function AddRelatedContactModal({
 
       // 2. Write the anchor row.
       if (anchor === "territory") {
-        const linkRes = await fetch(`/api/territories/${encodeURIComponent(territorySlug)}/stakeholders`, {
+        const linkRes = await apiFetch(`/api/territories/${encodeURIComponent(territorySlug)}/stakeholders`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

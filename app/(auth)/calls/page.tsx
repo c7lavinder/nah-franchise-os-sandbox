@@ -1,5 +1,6 @@
 "use client";
 import { apiFetch } from "@/lib/auth/api-fetch";
+import { BASE_PATH } from "@/lib/base-path";
 
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Plus, X, Loader2, Phone, Monitor, AlertTriangle, Upload } from "lucide-react";
@@ -423,7 +424,7 @@ export default function CallsPage() {
       if (!overrideRes.ok) throw new Error("Override failed");
 
       // Re-trigger AI processing with the corrected type
-      const base = window.location.origin + "/frandev";
+      const base = window.location.origin + BASE_PATH;
       fetch(`${base}/api/calls/${callId}/generate`, {
         method: "POST",
         credentials: "include",
@@ -490,7 +491,7 @@ export default function CallsPage() {
 
       // 4. Fire AI processing after navigation — use fetch() directly so
       //    browser doesn't cancel when the component unmounts
-      const base = window.location.origin + "/frandev";
+      const base = window.location.origin + BASE_PATH;
       fetch(`${base}/api/calls/${callId}/review-package`, {
         method: "POST",
         credentials: "include",
