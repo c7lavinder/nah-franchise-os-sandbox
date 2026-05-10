@@ -278,21 +278,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const currentRank = status ? (phaseRankBase.get(status) ?? -1) : -1;
     const totalDays = Math.round((now.getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24));
 
-    // Segment durations from milestone dates — placed between phase dots
-    // Each segment maps: "after phase index X, show Y days"
-    const segments: Record<number, number> = {};
-    // Purchase → Construction Start = pre-construction (covers P1, P2 gap — show after P2, index 1)
+    // Segment durations — keyed by "from→to" phase labels
+    const segments: Record<string, number> = {};
     const preConDays = daysBetween(inv.Inv_PurchaseDate, inv.Inv_ConstructionStartDate);
-    if (preConDays != null) segments[1] = preConDays;
-    // Construction Start → Complete = construction (covers P3-P5 — show after P5, index 5)
+    if (preConDays != null) segments["Phase 2→Phase 3"] = preConDays;
     const conDays = daysBetween(inv.Inv_ConstructionStartDate, inv.Inv_CompletionDate);
-    if (conDays != null) segments[5] = conDays;
-    // Complete → Listed (show after Complete, index 6)
+    if (conDays != null) segments["Phase 5→Complete"] = conDays;
     const listDays = daysBetween(inv.Inv_CompletionDate, inv.Inv_ListDate);
-    if (listDays != null) segments[6] = listDays;
-    // Listed → Sold (show after Contract to Sell, index 8)
+    if (listDays != null) segments["Complete→Listed"] = listDays;
     const saleDays = daysBetween(inv.Inv_ListDate, inv.Inv_SellDate);
-    if (saleDays != null) segments[8] = saleDays;
+    if (saleDays != null) segments["Contract to Sell→final"] = saleDays;
 
     return {
       currentPhase: status,

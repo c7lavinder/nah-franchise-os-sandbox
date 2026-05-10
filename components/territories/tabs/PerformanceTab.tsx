@@ -431,7 +431,12 @@ function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: 
         {phases.map((ph, i) => {
           const isCurrent = i === currentIdx;
           const isPast = currentIdx >= 0 && i < currentIdx;
-          const segDays = segments[String(i)] ?? null;
+          // Look up days for the gap BEFORE this phase (from previous phase → this phase)
+          const prevLabel = i > 0 ? phases[i - 1].label : null;
+          const segKey = prevLabel ? `${prevLabel}→${ph.label}` : null;
+          // Also check "→final" for the last step
+          const finalKey = prevLabel ? `${prevLabel}→final` : null;
+          const segDays = (segKey ? segments[segKey] : null) ?? (finalKey ? segments[finalKey] : null) ?? null;
           const showSeg = segDays !== null && i > 0 && (isPast || isCurrent);
 
           return (
