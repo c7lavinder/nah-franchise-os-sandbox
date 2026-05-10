@@ -11,7 +11,17 @@ type PropRow = {
   Address1: string | null;
   LeadCategory: string | null;
 };
-type InvRow = { PropertyId: number; Inv_PurchaseDate: string; Inv_SellDate: string | null };
+type InvRow = {
+  PropertyId: number;
+  Inv_ContractedPurchaseDate: string | null;
+  Inv_PurchaseDate: string;
+  Inv_ConstructionStartDate: string | null;
+  Inv_CompletionDate: string | null;
+  Inv_ListDate: string | null;
+  Inv_ContractedSellDate: string | null;
+  Inv_SellDate: string | null;
+  Inv_OccupiedDate: string | null;
+};
 type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string };
 type CalcRow = { PropertyId: number; Calculated_Inv_Profit: number | null; Calculated_Arv: number | null };
 
@@ -52,7 +62,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   let periodStart: Date;
   let prevPeriodStart: Date;
 
-  if (period === "ytd") {
+  if (period === "all") {
+    periodStart = new Date(2000, 0, 1);
+    prevPeriodStart = new Date(2000, 0, 1);
+  } else if (period === "ytd") {
     periodStart = new Date(now.getFullYear(), 0, 1);
     prevPeriodStart = new Date(now.getFullYear() - 1, 0, 1);
   } else {
@@ -109,7 +122,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   for (let i = 0; i < propertyIds.length; i += 500) {
     const { data: page } = await supabase
       .from("ms_property_inventory")
-      .select("PropertyId, Inv_PurchaseDate, Inv_SellDate")
+      .select(
+        "PropertyId, Inv_ContractedPurchaseDate, Inv_PurchaseDate, Inv_ConstructionStartDate, Inv_CompletionDate, Inv_ListDate, Inv_ContractedSellDate, Inv_SellDate, Inv_OccupiedDate"
+      )
       .in("PropertyId", propertyIds.slice(i, i + 500))
       .not("Inv_PurchaseDate", "is", null);
     if (page) inventory = inventory.concat(page as InvRow[]);
@@ -232,19 +247,46 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
+  // Build lifecycle milestones from inventory dates
+  function buildMilestones(inv: InvRow) {
+    const ms: { label: string; date: string | null }[] = [
+      { label: "Contracted", date: inv.Inv_ContractedPurchaseDate },
+      { label: "Purchased", date: inv.Inv_PurchaseDate },
+      { label: "Construction", date: inv.Inv_ConstructionStartDate },
+      { label: "Complete", date: inv.Inv_CompletionDate },
+      { label: "Listed", date: inv.Inv_ListDate },
+      { label: "Under Contract", date: inv.Inv_ContractedSellDate },
+      { label: "Sold", date: inv.Inv_SellDate },
+      { label: "Occupied", date: inv.Inv_OccupiedDate },
+    ];
+    // Only include milestones that have dates
+    const reached = ms
+      .filter((m) => m.date)
+      .map((m, i, arr) => {
+        const prevDate = i > 0 ? arr[i - 1].date : null;
+        const daysBetween =
+          prevDate && m.date
+            ? Math.round((new Date(m.date).getTime() - new Date(prevDate).getTime()) / (1000 * 60 * 60 * 24))
+            : null;
+        return { label: m.label, date: m.date!, daysBetween };
+      });
+    // Add "current" marker for inventory items (no sell date)
+    const totalDays = inv.Inv_PurchaseDate
+      ? Math.round((now.getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+    return { milestones: reached, totalDays };
+  }
+
   // 11. Sold property list
   const soldProperties = soldInPeriod.map((inv) => {
     const prop = propMap.get(inv.PropertyId);
     const calc = calcMap.get(inv.PropertyId);
-    const daysHeld = Math.round(
-      (new Date(inv.Inv_SellDate!).getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const { milestones, totalDays } = buildMilestones(inv);
     return {
       propertyId: inv.PropertyId,
       address: prop?.Address1 ?? "Unknown",
-      purchaseDate: inv.Inv_PurchaseDate,
-      sellDate: inv.Inv_SellDate,
-      daysHeld,
+      milestones,
+      totalDays,
       profit: calc?.Calculated_Inv_Profit != null ? Math.round(Number(calc.Calculated_Inv_Profit)) : null,
       arv: calc?.Calculated_Arv != null ? Math.round(Number(calc.Calculated_Arv)) : null,
       leadCategory: prop?.LeadCategory ?? null,
@@ -255,12 +297,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const inventoryProperties = activeInventoryRows.map((inv) => {
     const prop = propMap.get(inv.PropertyId);
     const calc = invCalcMap.get(inv.PropertyId);
-    const daysHeld = Math.round((now.getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24));
+    const { milestones, totalDays } = buildMilestones(inv);
     return {
       propertyId: inv.PropertyId,
       address: prop?.Address1 ?? "Unknown",
-      purchaseDate: inv.Inv_PurchaseDate,
-      daysHeld,
+      milestones,
+      totalDays,
       arv: calc?.Calculated_Arv != null ? Math.round(Number(calc.Calculated_Arv)) : null,
       projectedProfit: calc?.Calculated_Inv_Profit != null ? Math.round(Number(calc.Calculated_Inv_Profit)) : null,
       leadCategory: prop?.LeadCategory ?? null,

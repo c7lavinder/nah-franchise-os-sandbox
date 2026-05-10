@@ -19,12 +19,17 @@ interface FunnelStage {
   count: number;
 }
 
+interface Milestone {
+  label: string;
+  date: string;
+  daysBetween: number | null;
+}
+
 interface PropertyRow {
   propertyId: number;
   address: string;
-  purchaseDate: string;
-  sellDate?: string | null;
-  daysHeld: number;
+  milestones: Milestone[];
+  totalDays: number;
   profit?: number | null;
   arv?: number | null;
   projectedProfit?: number | null;
@@ -54,10 +59,15 @@ interface PerformanceData {
   period: string;
 }
 
-type Period = "t1" | "t3" | "t12";
+type Period = "t1" | "t3" | "t12" | "all";
 
-const PERIOD_LABELS: Record<Period, string> = { t1: "Last Month", t3: "Last 3 Months", t12: "Last 12 Months" };
-const PREV_LABELS: Record<Period, string> = { t1: "vs prior month", t3: "vs prior 3mo", t12: "vs prior 12mo" };
+const PERIOD_LABELS: Record<Period, string> = {
+  t1: "Last Month",
+  t3: "Last 3 Months",
+  t12: "Last 12 Months",
+  all: "All Time",
+};
+const PREV_LABELS: Record<Period, string> = { t1: "vs prior month", t3: "vs prior 3mo", t12: "vs prior 12mo", all: "" };
 
 const STAGE_LABELS: Record<string, string> = {
   "1": "Stage 1",
@@ -141,7 +151,7 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
       {/* Period Toggle */}
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1 bg-bg-secondary border border-border-default rounded-lg p-1">
-          {(["t1", "t3", "t12"] as Period[]).map((p) => (
+          {(["t1", "t3", "t12", "all"] as Period[]).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
@@ -284,28 +294,7 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
           </div>
           <div className="divide-y divide-border-default/50">
             {inventoryProperties.map((p) => (
-              <div key={p.propertyId} className="px-4 py-2.5 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-body-sm font-medium text-text-primary truncate">{p.address}</p>
-                  <div className="flex items-center gap-3 text-caption text-text-tertiary mt-0.5">
-                    <span>Purchased {fmtDate(p.purchaseDate)}</span>
-                    <span>{p.daysHeld}d held</span>
-                    {p.leadCategory && (
-                      <span className="px-1.5 py-0.5 rounded bg-bg-tertiary text-[10px]">{p.leadCategory}</span>
-                    )}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  {p.arv != null && <p className="text-caption text-text-tertiary">ARV {fmt$(p.arv)}</p>}
-                  {p.projectedProfit != null && (
-                    <p
-                      className={`text-body-sm font-medium ${p.projectedProfit >= 0 ? "text-success" : "text-danger"}`}
-                    >
-                      {fmt$(p.projectedProfit)}
-                    </p>
-                  )}
-                </div>
-              </div>
+              <PropertyCard key={p.propertyId} property={p} isSold={false} />
             ))}
           </div>
         </div>
@@ -327,28 +316,7 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
         ) : (
           <div className="divide-y divide-border-default/50">
             {soldProperties.map((p) => (
-              <div key={p.propertyId} className="px-4 py-2.5 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-body-sm font-medium text-text-primary truncate">{p.address}</p>
-                  <div className="flex items-center gap-3 text-caption text-text-tertiary mt-0.5">
-                    <span>Sold {fmtDate(p.sellDate!)}</span>
-                    <span>{p.daysHeld}d cycle</span>
-                    {p.leadCategory && (
-                      <span className="px-1.5 py-0.5 rounded bg-bg-tertiary text-[10px]">{p.leadCategory}</span>
-                    )}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  {p.arv != null && <p className="text-caption text-text-tertiary">ARV {fmt$(p.arv)}</p>}
-                  {p.profit != null ? (
-                    <p className={`text-body-sm font-bold ${p.profit >= 0 ? "text-success" : "text-danger"}`}>
-                      {fmt$(p.profit)}
-                    </p>
-                  ) : (
-                    <p className="text-caption text-text-tertiary">—</p>
-                  )}
-                </div>
-              </div>
+              <PropertyCard key={p.propertyId} property={p} isSold={true} />
             ))}
           </div>
         )}
@@ -392,9 +360,8 @@ function NoSoldFallback({
   sub: string;
   isMoney?: boolean;
 }) {
-  if (value != null && value > 0) {
+  if (value != null && value > 0)
     return <KPICard icon={Icon} label={label} value={isMoney ? fmt$(value) : String(value)} sub={sub} />;
-  }
   return (
     <div className="bg-bg-secondary rounded-lg p-3">
       <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
@@ -404,6 +371,81 @@ function NoSoldFallback({
         <AlertTriangle size={14} /> None sold
       </div>
       <div className="text-caption text-text-tertiary">{sub}</div>
+    </div>
+  );
+}
+
+const MILESTONE_COLORS: Record<string, string> = {
+  Contracted: "#94a3b8",
+  Purchased: "#3b82f6",
+  Construction: "#f97316",
+  Complete: "#8b5cf6",
+  Listed: "#06b6d4",
+  "Under Contract": "#eab308",
+  Sold: "#22c55e",
+  Occupied: "#10b981",
+};
+
+function MilestoneTimeline({ milestones }: { milestones: Milestone[]; isSold: boolean }) {
+  if (milestones.length === 0) return null;
+  return (
+    <div className="flex items-center gap-0 overflow-x-auto">
+      {milestones.map((m, i) => {
+        const color = MILESTONE_COLORS[m.label] ?? "#6b7280";
+        return (
+          <div key={i} className="flex items-center shrink-0">
+            {i > 0 && (
+              <div className="flex flex-col items-center mx-0.5">
+                <div className="w-6 sm:w-10 h-px bg-border-default" />
+                {m.daysBetween != null && (
+                  <span className="text-[9px] text-text-tertiary font-medium">{m.daysBetween}d</span>
+                )}
+              </div>
+            )}
+            <div className="flex flex-col items-center">
+              <div
+                className="w-3 h-3 rounded-full border-2 shrink-0"
+                style={{ borderColor: color, backgroundColor: `${color}30` }}
+              />
+              <span className="text-[9px] text-text-tertiary mt-0.5 whitespace-nowrap">{m.label}</span>
+              <span className="text-[8px] text-text-tertiary">{fmtDate(m.date)}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: boolean }) {
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-body-sm font-medium text-text-primary truncate">{p.address}</p>
+          {p.leadCategory && (
+            <span className="px-1.5 py-0.5 rounded bg-bg-tertiary text-[10px] text-text-tertiary shrink-0">
+              {p.leadCategory}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-caption text-text-tertiary">
+            {p.totalDays}d {isSold ? "cycle" : "held"}
+          </span>
+          {p.arv != null && <span className="text-caption text-text-tertiary">ARV {fmt$(p.arv)}</span>}
+          {isSold && p.profit != null ? (
+            <span className={`text-body-sm font-bold ${p.profit >= 0 ? "text-success" : "text-danger"}`}>
+              {fmt$(p.profit)}
+            </span>
+          ) : !isSold && p.projectedProfit != null ? (
+            <span className={`text-body-sm font-medium ${p.projectedProfit >= 0 ? "text-success" : "text-danger"}`}>
+              {fmt$(p.projectedProfit)}
+            </span>
+          ) : null}
+        </div>
+      </div>
+      <MilestoneTimeline milestones={p.milestones} isSold={isSold} />
     </div>
   );
 }
