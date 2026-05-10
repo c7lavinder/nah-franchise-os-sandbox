@@ -93,12 +93,12 @@ export async function getDailyHQScorecard() {
   for (const r of purchasedRows) {
     purchasesByTerritory[r.TerritorySlug] = (purchasesByTerritory[r.TerritorySlug] ?? 0) + 1;
   }
-  const highPerformers = Object.values(purchasesByTerritory).filter((h) => h >= 12).length;
+  const highPerformers = Object.values(purchasesByTerritory).filter((h) => h >= 10).length;
 
   return {
     newProspects: { value: newProspectCount ?? 0, label: "New Prospects", sub: "last 30 days" },
     activeFranchisees: { value: activeFranchisees ?? 0, goal: 250, label: "Active Franchisees", sub: "of 250 goal" },
-    highPerformers: { value: highPerformers, goal: 100, label: "High Performers", sub: "12+ purchased last 12mo" },
+    highPerformers: { value: highPerformers, goal: 100, label: "High Performers", sub: "10+ purchased last 12mo" },
   };
 }
 

@@ -132,9 +132,9 @@ export default function TerritoryProfilePage() {
     .map((o) => o.ownerName)
     .filter(Boolean) as string[];
   const carriedOwnerName = ownerNames.length > 1 ? ownerNames.join(" + ") : (ownerNames[0] ?? null);
-  // 12+ houses purchased in last 12 months = high performer
-  const isHighPerformer = territory.status === "active" && t12Sold !== null && t12Sold >= 12;
-  const isUnderTarget = territory.status === "active" && t12Sold !== null && t12Sold < 12 && !isHighPerformer;
+  // 10+ houses purchased in last 12 months = high performer
+  const isHighPerformer = territory.status === "active" && t12Sold !== null && t12Sold >= 10;
+  const isUnderTarget = territory.status === "active" && t12Sold !== null && t12Sold < 10 && !isHighPerformer;
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">

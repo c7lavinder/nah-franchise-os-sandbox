@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
       hpOffset += 1000;
     }
     for (const [slug, count] of Object.entries(purchasesBySlug)) {
-      if (count >= 12) highPerformerSlugs.add(slug);
+      if (count >= 10) highPerformerSlugs.add(slug);
     }
   }
 
