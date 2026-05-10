@@ -69,17 +69,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
   }
 
-  // 2. Only look at inventory for properties that reached "6 Purchase" status
-  //    (properties in earlier stages may have Inv_PurchaseDate as a projection)
-  const purchasedPropertyIds = (properties ?? []).filter((p) => p.Status === "6 Purchase").map((p) => p.PropertyId);
-
-  const { data: inventory } =
-    purchasedPropertyIds.length > 0
-      ? await supabase
-          .from("ms_property_inventory")
-          .select("PropertyId, Inv_PurchaseDate, Inv_SellDate")
-          .in("PropertyId", purchasedPropertyIds)
-      : { data: [] };
+  // 2. Fetch inventory for all properties — use Inv_PurchaseDate as source of truth
+  //    (a property with Inv_PurchaseDate was actually purchased, regardless of current Status)
+  const { data: inventory } = await supabase
+    .from("ms_property_inventory")
+    .select("PropertyId, Inv_PurchaseDate, Inv_SellDate")
+    .in("PropertyId", propertyIds)
+    .not("Inv_PurchaseDate", "is", null);
 
   // 3. Compute KPIs from inventory dates
   let purchasedYTD = 0;
