@@ -33,11 +33,13 @@ interface PropertyRow {
 
 interface KPIs {
   leadsEntered: number;
+  leadProgression: number | null;
+  avgLeadToPurchase: number | null;
+  avgCycleDays: number | null;
   activeInventory: number;
   soldInPeriod: number;
   avgProfit: number | null;
   totalProfit: number | null;
-  medianCycleDays: number | null;
   conversionRate: number | null;
 }
 
@@ -162,48 +164,40 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
         )}
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* KPI Cards — 4 columns x 2 rows, paired vertically */}
+      <div className="grid grid-cols-4 gap-3">
+        {/* Col 1 */}
         <KPICard icon={TrendingUp} label="Leads Entered" value={String(kpis.leadsEntered)} sub="hit Stage 1" />
         <KPICard
           icon={Target}
-          label="Conversion"
-          value={kpis.conversionRate != null ? `${kpis.conversionRate}%` : "—"}
-          sub="S1 → S4+"
+          label="Lead Progression"
+          value={kpis.leadProgression != null ? `${kpis.leadProgression}%` : "—"}
+          sub="reached Stage 4"
         />
-        {kpis.avgProfit != null ? (
-          <KPICard icon={DollarSign} label="Avg Profit" value={fmt$(kpis.avgProfit)} sub={PERIOD_LABELS[period]} />
-        ) : (
-          <div className="bg-bg-secondary rounded-lg p-3">
-            <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
-              <DollarSign size={12} /> Avg Profit
-            </div>
-            <div className="flex items-center gap-1.5 text-body-sm text-warning font-medium">
-              <AlertTriangle size={14} /> None sold
-            </div>
-            <div className="text-caption text-text-tertiary">{PERIOD_LABELS[period]}</div>
-          </div>
-        )}
-        {kpis.totalProfit != null ? (
-          <KPICard icon={DollarSign} label="Total Profit" value={fmt$(kpis.totalProfit)} sub={PERIOD_LABELS[period]} />
-        ) : (
-          <div className="bg-bg-secondary rounded-lg p-3">
-            <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
-              <DollarSign size={12} /> Total Profit
-            </div>
-            <div className="flex items-center gap-1.5 text-body-sm text-warning font-medium">
-              <AlertTriangle size={14} /> None sold
-            </div>
-            <div className="text-caption text-text-tertiary">{PERIOD_LABELS[period]}</div>
-          </div>
-        )}
-        <KPICard icon={Home} label="Active Inventory" value={String(kpis.activeInventory)} sub="in hand" />
-        <KPICard icon={Package} label="Sold" value={String(kpis.soldInPeriod)} sub={PERIOD_LABELS[period]} />
+        {/* Col 2 */}
         <KPICard
           icon={Clock}
-          label="Cycle Days"
-          value={kpis.medianCycleDays != null ? String(kpis.medianCycleDays) : "—"}
-          sub="median"
+          label="Lead → Purchase"
+          value={kpis.avgLeadToPurchase != null ? `${kpis.avgLeadToPurchase}d` : "—"}
+          sub="avg days"
+        />
+        <KPICard
+          icon={Clock}
+          label="Cycle Time"
+          value={kpis.avgCycleDays != null ? `${kpis.avgCycleDays}d` : "—"}
+          sub="purchase → sold"
+        />
+        {/* Col 3 */}
+        <KPICard icon={Home} label="Active Inventory" value={String(kpis.activeInventory)} sub="in hand" />
+        <NoSoldFallback icon={Package} label="Sold" value={kpis.soldInPeriod} sub={PERIOD_LABELS[period]} />
+        {/* Col 4 */}
+        <NoSoldFallback icon={DollarSign} label="Avg Profit" value={kpis.avgProfit} sub="per flip" isMoney />
+        <NoSoldFallback
+          icon={DollarSign}
+          label="Total Profit"
+          value={kpis.totalProfit}
+          sub={PERIOD_LABELS[period]}
+          isMoney
         />
       </div>
 
@@ -381,6 +375,35 @@ function KPICard({
       </div>
       <div className="text-lg font-bold text-text-primary">{value}</div>
       {sub && <div className="text-caption text-text-tertiary">{sub}</div>}
+    </div>
+  );
+}
+
+function NoSoldFallback({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  isMoney,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: number | null;
+  sub: string;
+  isMoney?: boolean;
+}) {
+  if (value != null && value > 0) {
+    return <KPICard icon={Icon} label={label} value={isMoney ? fmt$(value) : String(value)} sub={sub} />;
+  }
+  return (
+    <div className="bg-bg-secondary rounded-lg p-3">
+      <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
+        <Icon size={12} /> {label}
+      </div>
+      <div className="flex items-center gap-1.5 text-body-sm text-warning font-medium">
+        <AlertTriangle size={14} /> None sold
+      </div>
+      <div className="text-caption text-text-tertiary">{sub}</div>
     </div>
   );
 }

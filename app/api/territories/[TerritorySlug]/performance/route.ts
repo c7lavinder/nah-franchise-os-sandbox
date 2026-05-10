@@ -190,17 +190,37 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
   const invCalcMap = new Map(invCalcs.map((c) => [c.PropertyId, c]));
 
-  // 9. Cycle days
+  // 9. Cycle days (purchase → sell) for sold properties in period
   const cycleDays: number[] = [];
-  for (const inv of inventory) {
-    if (inv.Inv_PurchaseDate && inv.Inv_SellDate) {
-      const days = Math.round(
-        (new Date(inv.Inv_SellDate).getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24)
-      );
-      if (days > 0) cycleDays.push(days);
-    }
+  for (const inv of soldInPeriod) {
+    const days = Math.round(
+      (new Date(inv.Inv_SellDate!).getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (days > 0) cycleDays.push(days);
   }
   cycleDays.sort((a, b) => a - b);
+  const avgCycleDays =
+    cycleDays.length > 0 ? Math.round(cycleDays.reduce((a, b) => a + b, 0) / cycleDays.length) : null;
+
+  // 9b. Lead-to-purchase days (Inserted → Inv_PurchaseDate) for purchased in period
+  const purchasedInPeriod = inventory.filter((inv) => {
+    if (filteredPropertyIds && !filteredPropertyIds.has(inv.PropertyId)) return false;
+    return new Date(inv.Inv_PurchaseDate) >= periodStart;
+  });
+  const leadToPurchaseDays: number[] = [];
+  for (const inv of purchasedInPeriod) {
+    const prop = propMap.get(inv.PropertyId);
+    if (prop?.Inserted) {
+      const days = Math.round(
+        (new Date(inv.Inv_PurchaseDate).getTime() - new Date(prop.Inserted).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (days >= 0) leadToPurchaseDays.push(days);
+    }
+  }
+  const avgLeadToPurchase =
+    leadToPurchaseDays.length > 0
+      ? Math.round(leadToPurchaseDays.reduce((a, b) => a + b, 0) / leadToPurchaseDays.length)
+      : null;
 
   // 10. Lead category breakdown
   const leadCategories: Record<string, number> = {};
@@ -254,11 +274,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   return NextResponse.json({
     kpis: {
       leadsEntered: enteredStage1.size,
+      leadProgression: conversionRate,
+      avgLeadToPurchase,
+      avgCycleDays,
       activeInventory: activeInventoryRows.length,
       soldInPeriod: soldInPeriod.length,
       avgProfit: profitCount > 0 ? Math.round(totalProfit / profitCount) : null,
       totalProfit: profitCount > 0 ? Math.round(totalProfit) : null,
-      medianCycleDays: cycleDays.length > 0 ? cycleDays[Math.floor(cycleDays.length / 2)] : null,
       conversionRate,
     },
     funnel,

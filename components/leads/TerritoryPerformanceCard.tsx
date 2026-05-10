@@ -5,11 +5,11 @@ import { BarChart3, Loader2 } from "lucide-react";
 
 interface KPIs {
   leadsEntered: number;
+  leadProgression: number | null;
   activeInventory: number;
   soldInPeriod: number;
   avgProfit: number | null;
   conversionRate: number | null;
-  medianCycleDays: number | null;
 }
 
 interface Props {
@@ -74,8 +74,10 @@ export default function TerritoryPerformanceCard({ TerritorySlug, Nickname }: Pr
           </div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">Cycle Days</div>
-          <div className="text-body-sm font-bold text-text-primary">{kpis.medianCycleDays ?? "—"}</div>
+          <div className="text-[10px] text-text-tertiary">Progression</div>
+          <div className="text-body-sm font-bold text-text-primary">
+            {kpis.leadProgression != null ? `${kpis.leadProgression}%` : "—"}
+          </div>
         </div>
       </div>
     </div>

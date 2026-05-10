@@ -40,12 +40,12 @@ interface TerritoryData {
 
 interface PerformanceKPIs {
   leadsEntered: number;
+  leadProgression: number | null;
   activeInventory: number;
   soldInPeriod: number;
   avgProfit: number | null;
   totalProfit: number | null;
   conversionRate: number | null;
-  medianCycleDays: number | null;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -161,24 +161,20 @@ export default function TerritoryProfilePage() {
         </div>
       </div>
 
-      {/* Persistent: Operations — MasterSuite KPIs */}
+      {/* Persistent: Operations — YTD */}
       <div className="bg-bg-primary border border-border-default rounded-lg p-5">
         <div className="flex items-center gap-2 mb-4">
           <Activity size={18} className="text-info" />
-          <h2 className="text-body-sm font-semibold">Operations</h2>
+          <h2 className="text-body-sm font-semibold">Operations — YTD</h2>
         </div>
-        <div className="text-center mb-4">
-          <div className="text-4xl font-bold text-text-primary">{kpis?.activeInventory ?? 0}</div>
-          <div className="text-caption text-text-tertiary">Active Inventory</div>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="Leads Entered" value={kpis?.leadsEntered ?? "—"} sub="YTD" />
-          <StatCard label="Sold YTD" value={kpis?.soldInPeriod ?? "—"} />
+        <div className="grid grid-cols-4 gap-3">
+          <StatCard label="Leads Entered" value={kpis?.leadsEntered ?? "—"} sub="hit Stage 1" />
           <StatCard
             label="Conversion"
             value={kpis?.conversionRate != null ? `${kpis.conversionRate}%` : "—"}
             sub="S1 → S4+"
           />
+          <StatCard label="Sold" value={kpis?.soldInPeriod ?? "—"} />
           <StatCard label="Avg Profit" value={kpis?.avgProfit != null ? `$${kpis.avgProfit.toLocaleString()}` : "—"} />
         </div>
       </div>
