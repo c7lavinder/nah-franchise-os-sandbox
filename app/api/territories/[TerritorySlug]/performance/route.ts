@@ -184,16 +184,31 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const conversionRate =
     hitStage1Plus.size > 0 ? Number(((hitStage4Plus.size / hitStage1Plus.size) * 100).toFixed(1)) : null;
 
-  // 8. Funnel — count properties that entered each stage in the period
-  const funnel: Record<string, number> = {};
-  const stageOrder = ["0 Lead List", "1", "2", "3", "4", "5 Contract", "6 Purchase"];
-  for (const stage of stageOrder) {
-    funnel[stage] = 0;
-  }
+  // 8. Funnel — unique properties that REACHED each stage (cumulative)
+  //    A property at stage 3 also reached stages 1 and 2. This ensures
+  //    each stage count >= the next (proper decreasing funnel).
+  //    We look at the highest stage each property reached in the period.
+  const stageOrder = ["1", "2", "3", "4", "5 Contract", "6 Purchase"];
+  const stageRank: Record<string, number> = {};
+  stageOrder.forEach((s, i) => {
+    stageRank[s] = i;
+  });
+
+  // Find the highest stage each property reached in the period
+  const highestStageByProperty = new Map<number, number>();
   for (const h of statusHistory) {
-    if (h.NewStatus && stageOrder.includes(h.NewStatus)) {
-      funnel[h.NewStatus] = (funnel[h.NewStatus] || 0) + 1;
+    const rank = stageRank[h.NewStatus ?? ""];
+    if (rank !== undefined) {
+      const current = highestStageByProperty.get(h.PropertyId) ?? -1;
+      if (rank > current) highestStageByProperty.set(h.PropertyId, rank);
     }
+  }
+
+  // Build cumulative funnel: stage N count = properties that reached stage N or higher
+  const funnel: Record<string, number> = {};
+  for (const stage of stageOrder) {
+    const rank = stageRank[stage];
+    funnel[stage] = [...highestStageByProperty.values()].filter((r) => r >= rank).length;
   }
 
   return NextResponse.json({

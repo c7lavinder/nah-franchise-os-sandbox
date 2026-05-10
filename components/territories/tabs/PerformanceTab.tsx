@@ -52,13 +52,12 @@ function Stat({
 }
 
 const FUNNEL_STAGES = [
-  { key: "0 Lead List", label: "Stage 0", color: "bg-gray-400" },
   { key: "1", label: "Stage 1", color: "bg-blue-400" },
   { key: "2", label: "Stage 2", color: "bg-blue-500" },
   { key: "3", label: "Stage 3", color: "bg-indigo-500" },
   { key: "4", label: "Stage 4", color: "bg-purple-500" },
-  { key: "5 Contract", label: "Stage 5", color: "bg-orange-500" },
-  { key: "6 Purchase", label: "Stage 6", color: "bg-green-500" },
+  { key: "5 Contract", label: "Contract", color: "bg-orange-500" },
+  { key: "6 Purchase", label: "Purchased", color: "bg-green-500" },
 ];
 
 export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: string }) {
@@ -145,7 +144,9 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
       {/* Property Funnel — entries per stage in period */}
       <div className="bg-bg-primary border border-border-default rounded-lg p-5">
         <h3 className="text-body-sm font-semibold text-text-primary mb-1">Property Funnel</h3>
-        <p className="text-caption text-text-tertiary mb-4">Properties entering each stage — {PERIOD_LABELS[period]}</p>
+        <p className="text-caption text-text-tertiary mb-4">
+          Unique properties reaching each stage — {PERIOD_LABELS[period]}
+        </p>
         <div className="space-y-2">
           {FUNNEL_STAGES.map((stage) => {
             const count = funnel[stage.key] || 0;
