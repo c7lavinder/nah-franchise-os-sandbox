@@ -1,7 +1,18 @@
 "use client";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, DollarSign, Clock, Target, TrendingUp, AlertTriangle, Home, Package } from "lucide-react";
+import {
+  Loader2,
+  DollarSign,
+  Clock,
+  Target,
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  Home,
+  Package,
+  X,
+} from "lucide-react";
 
 interface FunnelStage {
   stage: string;
@@ -33,19 +44,18 @@ interface KPIs {
 interface PerformanceData {
   kpis: KPIs | null;
   funnel: FunnelStage[];
+  prevFunnel: FunnelStage[];
   soldProperties: PropertyRow[];
   inventoryProperties: PropertyRow[];
   leadCategories: Record<string, number>;
+  leadCategoryFilter: string | null;
   period: string;
 }
 
 type Period = "t1" | "t3" | "t12";
 
-const PERIOD_LABELS: Record<Period, string> = {
-  t1: "Last Month",
-  t3: "Last 3 Months",
-  t12: "Last 12 Months",
-};
+const PERIOD_LABELS: Record<Period, string> = { t1: "Last Month", t3: "Last 3 Months", t12: "Last 12 Months" };
+const PREV_LABELS: Record<Period, string> = { t1: "vs prior month", t3: "vs prior 3mo", t12: "vs prior 12mo" };
 
 const STAGE_LABELS: Record<string, string> = {
   "1": "Stage 1",
@@ -68,21 +78,38 @@ const STAGE_COLORS: Record<string, string> = {
 function fmt$(n: number): string {
   return `$${n.toLocaleString()}`;
 }
-
 function fmtDate(d: string): string {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
+}
+
+function ChangeIndicator({ current, previous }: { current: number; previous: number }) {
+  if (previous === 0 && current === 0) return null;
+  if (previous === 0) return <span className="text-[10px] text-success font-medium">NEW</span>;
+  const pctChange = Math.round(((current - previous) / previous) * 100);
+  if (pctChange === 0) return <span className="text-[10px] text-text-tertiary">0%</span>;
+  const isUp = pctChange > 0;
+  return (
+    <span className={`text-[10px] font-medium flex items-center gap-0.5 ${isUp ? "text-success" : "text-danger"}`}>
+      {isUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+      {isUp ? "+" : ""}
+      {pctChange}%
+    </span>
+  );
 }
 
 export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: string }) {
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("t3");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const fetchData = useCallback(
-    async (p: Period) => {
+    async (p: Period, cat: string | null) => {
       setLoading(true);
       try {
-        const res = await apiFetch(`/api/territories/${TerritorySlug}/performance?period=${p}`);
+        let url = `/api/territories/${TerritorySlug}/performance?period=${p}`;
+        if (cat) url += `&leadCategory=${encodeURIComponent(cat)}`;
+        const res = await apiFetch(url);
         if (res.ok) setData(await res.json());
       } catch {
         /* silent */
@@ -93,8 +120,8 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
   );
 
   useEffect(() => {
-    void fetchData(period);
-  }, [period, fetchData]);
+    void fetchData(period, selectedCategory);
+  }, [period, selectedCategory, fetchData]);
 
   if (loading && !data)
     return (
@@ -104,142 +131,147 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
     );
   if (!data || !data.kpis) return <div className="text-text-secondary py-6">No performance data available.</div>;
 
-  const { kpis, funnel, soldProperties, inventoryProperties, leadCategories } = data;
-  const maxFunnel = funnel.length > 0 ? Math.max(...funnel.map((f) => f.count), 1) : 1;
+  const { kpis, funnel, prevFunnel, soldProperties, inventoryProperties, leadCategories } = data;
+  const stage1Count = funnel[0]?.count ?? 0;
 
   return (
     <div className="space-y-6">
       {/* Period Toggle */}
-      <div className="flex items-center gap-1 bg-bg-secondary border border-border-default rounded-lg p-1 w-fit">
-        {(["t1", "t3", "t12"] as Period[]).map((p) => (
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 bg-bg-secondary border border-border-default rounded-lg p-1">
+          {(["t1", "t3", "t12"] as Period[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`px-3 py-1.5 text-caption font-medium rounded-md transition-colors ${
+                period === p ? "bg-nah-orange text-white shadow-sm" : "text-text-tertiary hover:text-text-primary"
+              }`}
+            >
+              {PERIOD_LABELS[p]}
+            </button>
+          ))}
+        </div>
+        {loading && <Loader2 size={14} className="animate-spin text-text-tertiary" />}
+        {selectedCategory && (
           <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            className={`px-3 py-1.5 text-caption font-medium rounded-md transition-colors ${
-              period === p ? "bg-nah-orange text-white shadow-sm" : "text-text-tertiary hover:text-text-primary"
-            }`}
+            onClick={() => setSelectedCategory(null)}
+            className="flex items-center gap-1 px-2 py-1 rounded-full bg-nah-blue/10 text-nah-blue text-caption font-medium"
           >
-            {PERIOD_LABELS[p]}
+            {selectedCategory} <X size={12} />
           </button>
-        ))}
-        {loading && <Loader2 size={14} className="animate-spin text-text-tertiary ml-2" />}
+        )}
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-bg-secondary rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
-            <TrendingUp size={12} /> Leads Entered
-          </div>
-          <div className="text-lg font-bold text-text-primary">{kpis.leadsEntered}</div>
-          <div className="text-caption text-text-tertiary">hit Stage 1</div>
-        </div>
-        <div className="bg-bg-secondary rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
-            <Target size={12} /> Conversion
-          </div>
-          <div className="text-lg font-bold text-text-primary">
-            {kpis.conversionRate != null ? `${kpis.conversionRate}%` : "—"}
-          </div>
-          <div className="text-caption text-text-tertiary">S1 → S4+</div>
-        </div>
-        <div className="bg-bg-secondary rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
-            <DollarSign size={12} /> Avg Profit
-          </div>
-          {kpis.avgProfit != null ? (
-            <div className="text-lg font-bold text-text-primary">{fmt$(kpis.avgProfit)}</div>
-          ) : (
+        <KPICard icon={TrendingUp} label="Leads Entered" value={String(kpis.leadsEntered)} sub="hit Stage 1" />
+        <KPICard
+          icon={Target}
+          label="Conversion"
+          value={kpis.conversionRate != null ? `${kpis.conversionRate}%` : "—"}
+          sub="S1 → S4+"
+        />
+        {kpis.avgProfit != null ? (
+          <KPICard icon={DollarSign} label="Avg Profit" value={fmt$(kpis.avgProfit)} sub={PERIOD_LABELS[period]} />
+        ) : (
+          <div className="bg-bg-secondary rounded-lg p-3">
+            <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
+              <DollarSign size={12} /> Avg Profit
+            </div>
             <div className="flex items-center gap-1.5 text-body-sm text-warning font-medium">
               <AlertTriangle size={14} /> None sold
             </div>
-          )}
-          <div className="text-caption text-text-tertiary">{PERIOD_LABELS[period]}</div>
-        </div>
-        <div className="bg-bg-secondary rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
-            <DollarSign size={12} /> Total Profit
+            <div className="text-caption text-text-tertiary">{PERIOD_LABELS[period]}</div>
           </div>
-          {kpis.totalProfit != null ? (
-            <div className="text-lg font-bold text-text-primary">{fmt$(kpis.totalProfit)}</div>
-          ) : (
+        )}
+        {kpis.totalProfit != null ? (
+          <KPICard icon={DollarSign} label="Total Profit" value={fmt$(kpis.totalProfit)} sub={PERIOD_LABELS[period]} />
+        ) : (
+          <div className="bg-bg-secondary rounded-lg p-3">
+            <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
+              <DollarSign size={12} /> Total Profit
+            </div>
             <div className="flex items-center gap-1.5 text-body-sm text-warning font-medium">
               <AlertTriangle size={14} /> None sold
             </div>
-          )}
-          <div className="text-caption text-text-tertiary">{PERIOD_LABELS[period]}</div>
-        </div>
-        <div className="bg-bg-secondary rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
-            <Home size={12} /> Active Inventory
+            <div className="text-caption text-text-tertiary">{PERIOD_LABELS[period]}</div>
           </div>
-          <div className="text-lg font-bold text-text-primary">{kpis.activeInventory}</div>
-          <div className="text-caption text-text-tertiary">in hand</div>
-        </div>
-        <div className="bg-bg-secondary rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
-            <Package size={12} /> Sold
-          </div>
-          <div className="text-lg font-bold text-text-primary">{kpis.soldInPeriod}</div>
-          <div className="text-caption text-text-tertiary">{PERIOD_LABELS[period]}</div>
-        </div>
-        <div className="bg-bg-secondary rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
-            <Clock size={12} /> Cycle Days
-          </div>
-          <div className="text-lg font-bold text-text-primary">{kpis.medianCycleDays ?? "—"}</div>
-          <div className="text-caption text-text-tertiary">median</div>
-        </div>
+        )}
+        <KPICard icon={Home} label="Active Inventory" value={String(kpis.activeInventory)} sub="in hand" />
+        <KPICard icon={Package} label="Sold" value={String(kpis.soldInPeriod)} sub={PERIOD_LABELS[period]} />
+        <KPICard
+          icon={Clock}
+          label="Cycle Days"
+          value={kpis.medianCycleDays != null ? String(kpis.medianCycleDays) : "—"}
+          sub="median"
+        />
       </div>
 
-      {/* Lead Category Breakdown */}
-      {Object.keys(leadCategories).length > 0 && (
+      {/* Lead Sources — clickable to filter funnel */}
+      {Object.keys(leadCategories).length > 0 && !selectedCategory && (
         <div className="bg-bg-primary border border-border-default rounded-lg p-4">
           <h3 className="text-body-sm font-semibold text-text-primary mb-3">Lead Sources — {PERIOD_LABELS[period]}</h3>
           <div className="flex flex-wrap gap-2">
             {Object.entries(leadCategories)
               .sort(([, a], [, b]) => b - a)
               .map(([cat, count]) => (
-                <div key={cat} className="flex items-center gap-1.5 bg-bg-secondary rounded-full px-3 py-1">
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className="flex items-center gap-1.5 bg-bg-secondary hover:bg-bg-hover rounded-full px-3 py-1 transition-colors cursor-pointer border border-transparent hover:border-nah-blue/30"
+                >
                   <span className="text-body-sm font-medium text-text-primary">{count}</span>
                   <span className="text-caption text-text-tertiary">{cat}</span>
-                </div>
+                </button>
               ))}
           </div>
         </div>
       )}
 
-      {/* Funnel */}
+      {/* Funnel — each stage as % of Stage 1, with period-over-period change */}
       <div className="bg-bg-primary border border-border-default rounded-lg p-5">
-        <h3 className="text-body-sm font-semibold text-text-primary mb-1">Property Funnel</h3>
-        <p className="text-caption text-text-tertiary mb-4">{PERIOD_LABELS[period]}</p>
-        <div className="flex flex-col items-center gap-0.5">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-body-sm font-semibold text-text-primary">Property Funnel</h3>
+          <span className="text-caption text-text-tertiary">{PREV_LABELS[period]}</span>
+        </div>
+        <p className="text-caption text-text-tertiary mb-4">
+          {selectedCategory ? `${selectedCategory} — ` : ""}
+          {PERIOD_LABELS[period]}
+        </p>
+        <div className="flex flex-col items-center gap-1">
           {funnel.map((f, i) => {
-            const widthPct = maxFunnel > 0 ? Math.max((f.count / maxFunnel) * 100, 20) : 20;
-            const prevCount = i > 0 ? funnel[i - 1].count : null;
-            const convPct = prevCount && prevCount > 0 ? ((f.count / prevCount) * 100).toFixed(0) : null;
+            const pct = stage1Count > 0 ? (f.count / stage1Count) * 100 : 0;
+            const widthPct = Math.max(pct, 15);
+            const prevCount = prevFunnel[i]?.count ?? 0;
             const color = STAGE_COLORS[f.stage] ?? "#6b7280";
             const label = STAGE_LABELS[f.stage] ?? f.stage;
 
             return (
               <div key={f.stage} className="w-full flex flex-col items-center">
-                {/* Conversion arrow between stages */}
-                {convPct && <div className="text-[10px] font-medium text-text-tertiary py-0.5">↓ {convPct}%</div>}
-                {/* Funnel bar — trapezoid via clip-path */}
                 <div
-                  className="relative flex items-center justify-between px-4 py-2 rounded-sm transition-all"
+                  className="relative flex items-center justify-between px-4 py-2.5 transition-all"
                   style={{
                     width: `${widthPct}%`,
-                    minWidth: "160px",
-                    backgroundColor: `${color}18`,
+                    minWidth: "200px",
+                    backgroundColor: `${color}15`,
                     borderLeft: `3px solid ${color}`,
                     borderRight: `3px solid ${color}`,
+                    clipPath:
+                      i < funnel.length - 1
+                        ? `polygon(0 0, 100% 0, 97% 100%, 3% 100%)`
+                        : `polygon(2% 0, 98% 0, 100% 100%, 0% 100%)`,
                   }}
                 >
-                  <span className="text-body-sm font-medium" style={{ color }}>
-                    {label}
-                  </span>
-                  <span className="text-body-sm font-bold text-text-primary">{f.count}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-body-sm font-semibold" style={{ color }}>
+                      {label}
+                    </span>
+                    <span className="text-[10px] text-text-tertiary">{i === 0 ? "100%" : `${pct.toFixed(0)}%`}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-body-sm font-bold text-text-primary">{f.count}</span>
+                    <ChangeIndicator current={f.count} previous={prevCount} />
+                  </div>
                 </div>
               </div>
             );
@@ -327,6 +359,28 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function KPICard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="bg-bg-secondary rounded-lg p-3">
+      <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
+        <Icon size={12} /> {label}
+      </div>
+      <div className="text-lg font-bold text-text-primary">{value}</div>
+      {sub && <div className="text-caption text-text-tertiary">{sub}</div>}
     </div>
   );
 }

@@ -4,35 +4,62 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 
-/**
- * GET /api/territories/:TerritorySlug/performance?period=t1|t3|t12
- *
- * Returns KPIs, funnel, and property lists for the Performance tab.
- */
+type PropRow = {
+  PropertyId: number;
+  Status: string;
+  Inserted: string | null;
+  Address1: string | null;
+  LeadCategory: string | null;
+};
+type InvRow = { PropertyId: number; Inv_PurchaseDate: string; Inv_SellDate: string | null };
+type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string };
+type CalcRow = { PropertyId: number; Calculated_Inv_Profit: number | null; Calculated_Arv: number | null };
+
+const STAGE_ORDER = ["1", "2", "3", "4", "5 Contract", "6 Purchase"];
+
+function computeFunnel(history: HistRow[], propertyFilter?: Set<number>) {
+  const stageRank: Record<string, number> = {};
+  STAGE_ORDER.forEach((s, i) => {
+    stageRank[s] = i;
+  });
+
+  const highest = new Map<number, number>();
+  for (const h of history) {
+    if (propertyFilter && !propertyFilter.has(h.PropertyId)) continue;
+    const rank = stageRank[h.NewStatus ?? ""];
+    if (rank !== undefined) {
+      const cur = highest.get(h.PropertyId) ?? -1;
+      if (rank > cur) highest.set(h.PropertyId, rank);
+    }
+  }
+
+  return STAGE_ORDER.map((stage, i) => ({
+    stage,
+    count: [...highest.values()].filter((r) => r >= i).length,
+  }));
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ TerritorySlug: string }> }) {
   const user = await requireAuth(request);
   if (user instanceof Response) return user;
 
   const { TerritorySlug } = await params;
   const period = request.nextUrl.searchParams.get("period") ?? "t3";
+  const leadCategoryFilter = request.nextUrl.searchParams.get("leadCategory") ?? null;
   const supabase = createServerClient();
 
-  // Date range
   const now = new Date();
-  let periodStart: Date;
-  if (period === "t1") periodStart = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-  else if (period === "t12") periodStart = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-  else periodStart = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
-  const periodStartISO = periodStart.toISOString();
+  let periodMonths: number;
+  if (period === "t1") periodMonths = 1;
+  else if (period === "t12") periodMonths = 12;
+  else periodMonths = 3;
 
-  // 1. All non-archived properties (paginate in 1000-row chunks)
-  type PropRow = {
-    PropertyId: number;
-    Status: string;
-    Inserted: string | null;
-    Address1: string | null;
-    LeadCategory: string | null;
-  };
+  const periodStart = new Date(now.getFullYear(), now.getMonth() - periodMonths, now.getDate());
+  const prevPeriodStart = new Date(now.getFullYear(), now.getMonth() - periodMonths * 2, now.getDate());
+  const periodStartISO = periodStart.toISOString();
+  const prevPeriodStartISO = prevPeriodStart.toISOString();
+
+  // 1. All non-archived properties (paginate)
   let properties: PropRow[] = [];
   let offset = 0;
   while (true) {
@@ -56,6 +83,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({
       kpis: null,
       funnel: [],
+      prevFunnel: [],
       soldProperties: [],
       inventoryProperties: [],
       leadCategories: {},
@@ -63,8 +91,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
   }
 
+  // Lead category filter — build a set of matching property IDs
+  let filteredPropertyIds: Set<number> | undefined;
+  if (leadCategoryFilter) {
+    filteredPropertyIds = new Set<number>();
+    for (const p of properties) {
+      if ((p.LeadCategory || "Unknown") === leadCategoryFilter) filteredPropertyIds.add(p.PropertyId);
+    }
+  }
+
   // 2. Inventory rows with purchase dates
-  type InvRow = { PropertyId: number; Inv_PurchaseDate: string; Inv_SellDate: string | null };
   let inventory: InvRow[] = [];
   for (let i = 0; i < propertyIds.length; i += 500) {
     const { data: page } = await supabase
@@ -75,67 +111,57 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (page) inventory = inventory.concat(page as InvRow[]);
   }
 
-  // 3. Status history for funnel + leads entered
-  type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string };
-  let statusHistory: HistRow[] = [];
+  // 3. Status history — fetch BOTH current AND previous period in one pass
+  let allHistory: HistRow[] = [];
   for (let i = 0; i < propertyIds.length; i += 500) {
     const { data: page } = await supabase
       .from("ms_property_status_history")
       .select("PropertyId, NewStatus, Inserted")
       .in("PropertyId", propertyIds.slice(i, i + 500))
-      .gte("Inserted", periodStartISO);
-    if (page) statusHistory = statusHistory.concat(page as HistRow[]);
+      .gte("Inserted", prevPeriodStartISO);
+    if (page) allHistory = allHistory.concat(page as HistRow[]);
   }
 
-  // 4. Leads Entered = unique properties that entered Stage 1 during the period
-  const enteredStage1 = new Set<number>();
-  for (const h of statusHistory) {
-    if (h.NewStatus === "1") enteredStage1.add(h.PropertyId);
-  }
-  const leadsEntered = enteredStage1.size;
-
-  // 5. Funnel — cumulative reach
-  const stageOrder = ["1", "2", "3", "4", "5 Contract", "6 Purchase"];
-  const stageRank: Record<string, number> = {};
-  stageOrder.forEach((s, i) => {
-    stageRank[s] = i;
+  // Split into current and previous period
+  const currentHistory = allHistory.filter((h) => new Date(h.Inserted) >= periodStart);
+  const prevHistory = allHistory.filter((h) => {
+    const d = new Date(h.Inserted);
+    return d >= prevPeriodStart && d < periodStart;
   });
 
-  const highestStageByProperty = new Map<number, number>();
-  for (const h of statusHistory) {
-    const rank = stageRank[h.NewStatus ?? ""];
-    if (rank !== undefined) {
-      const current = highestStageByProperty.get(h.PropertyId) ?? -1;
-      if (rank > current) highestStageByProperty.set(h.PropertyId, rank);
+  // 4. Leads Entered = Stage 1 entries in current period
+  const enteredStage1 = new Set<number>();
+  for (const h of currentHistory) {
+    if (h.NewStatus === "1") {
+      if (!filteredPropertyIds || filteredPropertyIds.has(h.PropertyId)) {
+        enteredStage1.add(h.PropertyId);
+      }
     }
   }
 
-  const funnelStages = stageOrder.map((stage, i) => {
-    const count = [...highestStageByProperty.values()].filter((r) => r >= i).length;
-    return { stage, count };
-  });
+  // 5. Funnels — current + previous, with optional lead category filter
+  const funnel = computeFunnel(currentHistory, filteredPropertyIds);
+  const prevFunnel = computeFunnel(prevHistory, filteredPropertyIds);
 
   // 6. Sold in period + Active Inventory
   const soldInPeriod: InvRow[] = [];
   const activeInventoryRows: InvRow[] = [];
   for (const inv of inventory) {
+    if (filteredPropertyIds && !filteredPropertyIds.has(inv.PropertyId)) continue;
     const sellDate = inv.Inv_SellDate ? new Date(inv.Inv_SellDate) : null;
     if (sellDate && sellDate >= periodStart) soldInPeriod.push(inv);
     if (!inv.Inv_SellDate) activeInventoryRows.push(inv);
   }
 
-  // 7. Profit — for properties sold in the PERIOD (not YTD)
+  // 7. Profit for sold in period
   const soldPeriodIds = soldInPeriod.map((s) => s.PropertyId);
-  type CalcRow = { PropertyId: number; Calculated_Inv_Profit: number | null; Calculated_Arv: number | null };
   let soldCalcs: CalcRow[] = [];
-  if (soldPeriodIds.length > 0) {
-    for (let i = 0; i < soldPeriodIds.length; i += 500) {
-      const { data: page } = await supabase
-        .from("ms_property_calculations")
-        .select("PropertyId, Calculated_Inv_Profit, Calculated_Arv")
-        .in("PropertyId", soldPeriodIds.slice(i, i + 500));
-      if (page) soldCalcs = soldCalcs.concat(page as CalcRow[]);
-    }
+  for (let i = 0; i < soldPeriodIds.length; i += 500) {
+    const { data: page } = await supabase
+      .from("ms_property_calculations")
+      .select("PropertyId, Calculated_Inv_Profit, Calculated_Arv")
+      .in("PropertyId", soldPeriodIds.slice(i, i + 500));
+    if (page) soldCalcs = soldCalcs.concat(page as CalcRow[]);
   }
   const calcMap = new Map(soldCalcs.map((c) => [c.PropertyId, c]));
 
@@ -147,19 +173,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       profitCount++;
     }
   }
-  const avgProfit = profitCount > 0 ? Math.round(totalProfit / profitCount) : null;
 
-  // 8. Inventory calcs (for ARV on inventory list)
+  // 8. Inventory calcs
   let invCalcs: CalcRow[] = [];
   const invIds = activeInventoryRows.map((r) => r.PropertyId);
-  if (invIds.length > 0) {
-    for (let i = 0; i < invIds.length; i += 500) {
-      const { data: page } = await supabase
-        .from("ms_property_calculations")
-        .select("PropertyId, Calculated_Inv_Profit, Calculated_Arv")
-        .in("PropertyId", invIds.slice(i, i + 500));
-      if (page) invCalcs = invCalcs.concat(page as CalcRow[]);
-    }
+  for (let i = 0; i < invIds.length; i += 500) {
+    const { data: page } = await supabase
+      .from("ms_property_calculations")
+      .select("PropertyId, Calculated_Inv_Profit, Calculated_Arv")
+      .in("PropertyId", invIds.slice(i, i + 500));
+    if (page) invCalcs = invCalcs.concat(page as CalcRow[]);
   }
   const invCalcMap = new Map(invCalcs.map((c) => [c.PropertyId, c]));
 
@@ -175,15 +198,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
   cycleDays.sort((a, b) => a - b);
 
-  // 10. Lead category breakdown (for properties that entered stage 1+ in period)
+  // 10. Lead category breakdown
   const leadCategories: Record<string, number> = {};
-  for (const pid of enteredStage1) {
-    const prop = propMap.get(pid);
-    const cat = prop?.LeadCategory || "Unknown";
-    leadCategories[cat] = (leadCategories[cat] || 0) + 1;
+  for (const h of currentHistory) {
+    if (h.NewStatus === "1") {
+      const prop = propMap.get(h.PropertyId);
+      const cat = prop?.LeadCategory || "Unknown";
+      leadCategories[cat] = (leadCategories[cat] || 0) + 1;
+    }
   }
 
-  // 11. Build sold property list
+  // 11. Sold property list
   const soldProperties = soldInPeriod.map((inv) => {
     const prop = propMap.get(inv.PropertyId);
     const calc = calcMap.get(inv.PropertyId);
@@ -202,7 +227,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     };
   });
 
-  // 12. Build inventory property list
+  // 12. Inventory property list
   const inventoryProperties = activeInventoryRows.map((inv) => {
     const prop = propMap.get(inv.PropertyId);
     const calc = invCalcMap.get(inv.PropertyId);
@@ -218,27 +243,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     };
   });
 
+  // Conversion: S1 → S4+ in current period
+  const s4PlusCount = funnel.find((f) => f.stage === "4")?.count ?? 0;
+  const conversionRate = enteredStage1.size > 0 ? Number(((s4PlusCount / enteredStage1.size) * 100).toFixed(1)) : null;
+
   return NextResponse.json({
     kpis: {
-      leadsEntered,
+      leadsEntered: enteredStage1.size,
       activeInventory: activeInventoryRows.length,
       soldInPeriod: soldInPeriod.length,
-      avgProfit,
+      avgProfit: profitCount > 0 ? Math.round(totalProfit / profitCount) : null,
       totalProfit: profitCount > 0 ? Math.round(totalProfit) : null,
       medianCycleDays: cycleDays.length > 0 ? cycleDays[Math.floor(cycleDays.length / 2)] : null,
-      conversionRate:
-        enteredStage1.size > 0
-          ? Number(
-              (([...highestStageByProperty.values()].filter((r) => r >= 3).length / enteredStage1.size) * 100).toFixed(
-                1
-              )
-            )
-          : null,
+      conversionRate,
     },
-    funnel: funnelStages,
+    funnel,
+    prevFunnel,
     soldProperties,
     inventoryProperties,
     leadCategories,
+    leadCategoryFilter,
     period,
   });
 }
