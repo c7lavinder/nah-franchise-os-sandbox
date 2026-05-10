@@ -19,17 +19,17 @@ interface FunnelStage {
   count: number;
 }
 
-interface PhaseStep {
+interface Stage {
   label: string;
-  reached: boolean;
+  date: string | null;
+  days: number | null;
 }
 
 interface PropertyRow {
   propertyId: number;
   address: string;
   currentPhase: string | null;
-  phases: PhaseStep[];
-  segments: Record<string, number>;
+  stages: Stage[];
   purchaseDate: string;
   totalDays: number;
   profit?: number | null;
@@ -375,25 +375,16 @@ function NoSoldFallback({
   );
 }
 
-// Milestone days between — shows between phase dots where we have timestamps
-const SHORT: Record<string, string> = {
-  "Phase 1": "P1",
-  "Phase 2": "P2",
-  "Phase 3": "P3",
-  "Phase 4": "P4",
-  "Phase 4 Punch": "P4P",
-  "Phase 5": "P5",
-  Complete: "Done",
-  Listed: "Listed",
-  "Contract to Sell": "Contract",
-  Sold: "Sold",
-  Rented: "Rented",
-};
-
 function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: boolean }) {
-  const phases = p.phases;
-  const currentIdx = phases.findIndex((ph) => ph.label === p.currentPhase);
-  const segments = p.segments ?? {};
+  const stages = p.stages;
+  // Current = last stage with a date
+  let currentIdx = 0;
+  for (let i = stages.length - 1; i >= 0; i--) {
+    if (stages[i].date) {
+      currentIdx = i;
+      break;
+    }
+  }
 
   return (
     <div className="px-4 py-4">
@@ -401,6 +392,11 @@ function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: 
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
           <p className="text-body-sm font-semibold text-text-primary truncate">{p.address}</p>
+          {p.currentPhase && (
+            <span className="px-1.5 py-0.5 rounded bg-nah-orange/10 text-nah-orange text-[10px] font-medium shrink-0">
+              {p.currentPhase}
+            </span>
+          )}
           {p.leadCategory && (
             <span className="px-1.5 py-0.5 rounded bg-bg-tertiary text-[10px] text-text-tertiary shrink-0">
               {p.leadCategory}
@@ -426,38 +422,29 @@ function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: 
         </div>
       </div>
 
-      {/* Phase Journey */}
-      <div className="flex items-start overflow-x-auto">
-        {phases.map((ph, i) => {
+      {/* Journey — 5 stages: Purchased → Construction → Complete → Listed → Sold */}
+      <div className="flex items-start">
+        {stages.map((s, i) => {
+          const reached = !!s.date;
           const isCurrent = i === currentIdx;
-          const isPast = currentIdx >= 0 && i < currentIdx;
-          // Look up days for the gap BEFORE this phase (from previous phase → this phase)
-          const prevLabel = i > 0 ? phases[i - 1].label : null;
-          const segKey = prevLabel ? `${prevLabel}→${ph.label}` : null;
-          // Also check "→final" for the last step
-          const finalKey = prevLabel ? `${prevLabel}→final` : null;
-          const segDays = (segKey ? segments[segKey] : null) ?? (finalKey ? segments[finalKey] : null) ?? null;
-          const showSeg = segDays !== null && i > 0 && (isPast || isCurrent);
-
+          const isPast = i < currentIdx;
           return (
-            <div key={i} className="flex items-start shrink-0">
-              {/* Connector line + days between */}
+            <div key={i} className="flex items-start flex-1 min-w-0">
               {i > 0 && (
-                <div className="flex flex-col items-center mt-[7px]" style={{ minWidth: showSeg ? 32 : 12 }}>
-                  <div className={`w-full h-[2px] ${isPast || isCurrent ? "bg-success" : "bg-border-default"}`} />
-                  {showSeg && (
+                <div className="flex flex-col items-center mt-[7px] flex-1 min-w-0">
+                  <div className={`w-full h-[2px] ${reached ? "bg-success" : "bg-border-default"}`} />
+                  {s.days != null && (
                     <span
-                      className={`text-[9px] font-bold -mt-0.5 ${
-                        segDays > 60 ? "text-danger" : segDays > 30 ? "text-warning" : "text-text-tertiary"
+                      className={`text-[10px] font-bold mt-0.5 ${
+                        s.days > 90 ? "text-danger" : s.days > 45 ? "text-warning" : "text-text-tertiary"
                       }`}
                     >
-                      {segDays}d
+                      {s.days}d
                     </span>
                   )}
                 </div>
               )}
-              {/* Phase dot + label */}
-              <div className="flex flex-col items-center" style={{ minWidth: 28 }}>
+              <div className="flex flex-col items-center shrink-0" style={{ width: 60 }}>
                 <div
                   className={`rounded-full transition-all ${
                     isCurrent
@@ -468,12 +455,13 @@ function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: 
                   }`}
                 />
                 <span
-                  className={`text-[8px] mt-0.5 text-center leading-tight whitespace-nowrap ${
-                    isCurrent ? "text-nah-orange font-bold" : isPast ? "text-success" : "text-text-tertiary"
+                  className={`text-[9px] mt-1 text-center leading-tight ${
+                    isCurrent ? "text-nah-orange font-bold" : isPast ? "text-success font-medium" : "text-text-tertiary"
                   }`}
                 >
-                  {SHORT[ph.label] ?? ph.label}
+                  {s.label}
                 </span>
+                {s.date && <span className="text-[8px] text-text-tertiary">{fmtDate(s.date)}</span>}
               </div>
             </div>
           );

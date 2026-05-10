@@ -245,67 +245,45 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
-  // Build lifecycle milestones from inventory dates
-  // Construction phase order for the journey UI
-  // Phases — Sold and Rented merged into final step based on actual outcome
-  const PHASE_ORDER_BASE = [
-    "Phase 1",
-    "Phase 2",
-    "Phase 3",
-    "Phase 4",
-    "Phase 4 Punch",
-    "Phase 5",
-    "Complete",
-    "Listed",
-    "Contract to Sell",
-  ];
-  const phaseRankBase = new Map(PHASE_ORDER_BASE.map((p, i) => [p, i]));
-  // Sold/Rented both rank as the final step
-  phaseRankBase.set("Sold", PHASE_ORDER_BASE.length);
-  phaseRankBase.set("Rented", PHASE_ORDER_BASE.length);
-
-  function daysBetween(a: string | null, b: string | null): number | null {
+  function dBtwn(a: string | null, b: string | null): number | null {
     if (!a || !b) return null;
     const d = Math.round((new Date(b).getTime() - new Date(a).getTime()) / (1000 * 60 * 60 * 24));
     return d >= 0 ? d : null;
   }
 
-  function buildPhaseJourney(inv: InvRow) {
-    const status = inv.Inv_Status ?? null;
-    const isSoldOrRented = status === "Sold" || status === "Rented";
-    const finalLabel = isSoldOrRented ? status! : "Sold";
-    const phases = [...PHASE_ORDER_BASE, finalLabel];
-    const currentRank = status ? (phaseRankBase.get(status) ?? -1) : -1;
+  function buildJourney(inv: InvRow) {
     const totalDays = Math.round((now.getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24));
+    const isSold = !!inv.Inv_SellDate;
+    const status = inv.Inv_Status;
 
-    // Segment durations — keyed by "from→to" phase labels
-    const segments: Record<string, number> = {};
-    const preConDays = daysBetween(inv.Inv_PurchaseDate, inv.Inv_ConstructionStartDate);
-    if (preConDays != null) segments["Phase 2→Phase 3"] = preConDays;
-    const conDays = daysBetween(inv.Inv_ConstructionStartDate, inv.Inv_CompletionDate);
-    if (conDays != null) segments["Phase 5→Complete"] = conDays;
-    const listDays = daysBetween(inv.Inv_CompletionDate, inv.Inv_ListDate);
-    if (listDays != null) segments["Complete→Listed"] = listDays;
-    const saleDays = daysBetween(inv.Inv_ListDate, inv.Inv_SellDate);
-    if (saleDays != null) segments["Contract to Sell→final"] = saleDays;
+    const stages = [
+      { label: "Purchased", date: inv.Inv_PurchaseDate, days: null as number | null },
+      {
+        label: "Construction",
+        date: inv.Inv_ConstructionStartDate,
+        days: dBtwn(inv.Inv_PurchaseDate, inv.Inv_ConstructionStartDate),
+      },
+      {
+        label: "Complete",
+        date: inv.Inv_CompletionDate,
+        days: dBtwn(inv.Inv_ConstructionStartDate, inv.Inv_CompletionDate),
+      },
+      { label: "Listed", date: inv.Inv_ListDate, days: dBtwn(inv.Inv_CompletionDate, inv.Inv_ListDate) },
+      {
+        label: isSold ? "Sold" : status === "Rented" ? "Rented" : "Sold",
+        date: inv.Inv_SellDate,
+        days: dBtwn(inv.Inv_ListDate, inv.Inv_SellDate),
+      },
+    ];
 
-    return {
-      currentPhase: status,
-      phases: phases.map((label, i) => ({
-        label,
-        reached: currentRank >= i,
-      })),
-      segments,
-      purchaseDate: inv.Inv_PurchaseDate,
-      totalDays,
-    };
+    return { stages, currentPhase: status, totalDays, purchaseDate: inv.Inv_PurchaseDate };
   }
 
   // 11. Sold property list
   const soldProperties = soldInPeriod.map((inv) => {
     const prop = propMap.get(inv.PropertyId);
     const calc = calcMap.get(inv.PropertyId);
-    const journey = buildPhaseJourney(inv);
+    const journey = buildJourney(inv);
     return {
       propertyId: inv.PropertyId,
       address: prop?.Address1 ?? "Unknown",
@@ -320,7 +298,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const inventoryProperties = activeInventoryRows.map((inv) => {
     const prop = propMap.get(inv.PropertyId);
     const calc = invCalcMap.get(inv.PropertyId);
-    const journey = buildPhaseJourney(inv);
+    const journey = buildJourney(inv);
     return {
       propertyId: inv.PropertyId,
       address: prop?.Address1 ?? "Unknown",
