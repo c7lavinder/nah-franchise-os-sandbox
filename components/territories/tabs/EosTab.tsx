@@ -26,6 +26,7 @@ import type {
 interface EosData {
   goals: EosTerritoryGoal[];
   scorecard: EosTerritoryScorecard[];
+  scorecardActuals?: Record<string, string>;
   budgets: EosTerritoryBudget[];
   leadChannels: EosTerritoryLeadChannel[];
   habits: EosTerritoryHabit[];
@@ -107,7 +108,12 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
       </div>
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosScorecard TerritorySlug={TerritorySlug} scorecard={data.scorecard} onUpdate={handleUpdate} />
+        <TerritoryEosScorecard
+          TerritorySlug={TerritorySlug}
+          scorecard={data.scorecard}
+          actuals={data.scorecardActuals}
+          onUpdate={handleUpdate}
+        />
       </div>
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">

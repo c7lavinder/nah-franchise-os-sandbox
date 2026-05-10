@@ -7,6 +7,7 @@ import { ArrowLeft, MapPin, Activity, DollarSign, BarChart3, Award, AlertTriangl
 import EcosystemPanel from "@/components/territory/EcosystemPanel";
 import TerritoryEosTab from "@/components/territories/tabs/EosTab";
 import MarketTab from "@/components/territories/tabs/MarketTab";
+import PerformanceTab from "@/components/territories/tabs/PerformanceTab";
 
 interface OwnerOut {
   ownerName: string | null;
@@ -67,7 +68,7 @@ export default function TerritoryProfilePage() {
 
   const [data, setData] = useState<TerritoryData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"ecosystem" | "market" | "eos">("ecosystem");
+  const [activeTab, setActiveTab] = useState<"performance" | "ecosystem" | "market" | "eos">("performance");
 
   useEffect(() => {
     apiFetch(`/api/territories/${TerritorySlug}`)
@@ -198,6 +199,7 @@ export default function TerritoryProfilePage() {
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border-default">
         {[
+          { key: "performance" as const, label: "Performance" },
           { key: "ecosystem" as const, label: "Ecosystem" },
           { key: "market" as const, label: "Market & Financial" },
           { key: "eos" as const, label: "EOS" },
@@ -217,6 +219,8 @@ export default function TerritoryProfilePage() {
       </div>
 
       {/* Tab Content */}
+      {activeTab === "performance" && <PerformanceTab TerritorySlug={TerritorySlug} />}
+
       {activeTab === "ecosystem" && (
         <EcosystemPanel TerritorySlug={TerritorySlug} owner={currentOwner} owners={currentOwners ?? null} />
       )}

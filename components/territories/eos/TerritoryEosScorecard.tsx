@@ -7,10 +7,11 @@ import type { EosTerritoryScorecard } from "@/types/database";
 interface Props {
   TerritorySlug: string;
   scorecard: EosTerritoryScorecard[];
+  actuals?: Record<string, string>;
   onUpdate: () => void;
 }
 
-export default function TerritoryEosScorecard({ TerritorySlug, scorecard, onUpdate }: Props) {
+export default function TerritoryEosScorecard({ TerritorySlug, scorecard, actuals, onUpdate }: Props) {
   const [local, setLocal] = useState<EosTerritoryScorecard[]>(scorecard);
   const [saving, setSaving] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -61,7 +62,13 @@ export default function TerritoryEosScorecard({ TerritorySlug, scorecard, onUpda
                   onBlur={() => handleBlur(s.metric_key)}
                 />
               </td>
-              <td className="py-2 px-2 text-text-tertiary">—</td>
+              <td className="py-2 px-2 font-medium">
+                {actuals?.[s.metric_key] ? (
+                  <span className="text-text-primary">{actuals[s.metric_key]}</span>
+                ) : (
+                  <span className="text-text-tertiary">—</span>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
