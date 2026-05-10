@@ -174,22 +174,24 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
         )}
       </div>
 
-      {/* KPI Cards — 4 columns x 2 rows, paired vertically */}
+      {/* KPI Cards — 4 columns x 2 rows, paired as columns (top/bottom) */}
       <div className="grid grid-cols-4 gap-3">
-        {/* Col 1 */}
+        {/* Row 1: Leads Entered | Lead→Purchase | Active Inventory | Avg Profit */}
         <KPICard icon={TrendingUp} label="Leads Entered" value={String(kpis.leadsEntered)} sub="hit Stage 1" />
-        <KPICard
-          icon={Target}
-          label="Lead Progression"
-          value={kpis.leadProgression != null ? `${kpis.leadProgression}%` : "—"}
-          sub="reached Stage 4"
-        />
-        {/* Col 2 */}
         <KPICard
           icon={Clock}
           label="Lead → Purchase"
           value={kpis.avgLeadToPurchase != null ? `${kpis.avgLeadToPurchase}d` : "—"}
           sub="avg days"
+        />
+        <KPICard icon={Home} label="Active Inventory" value={String(kpis.activeInventory)} sub="in hand" />
+        <NoSoldFallback icon={DollarSign} label="Avg Profit" value={kpis.avgProfit} sub="per flip" isMoney />
+        {/* Row 2: Lead Progression | Cycle Time | Sold | Total Profit */}
+        <KPICard
+          icon={Target}
+          label="Lead Progression"
+          value={kpis.leadProgression != null ? `${kpis.leadProgression}%` : "—"}
+          sub="reached Stage 4"
         />
         <KPICard
           icon={Clock}
@@ -197,8 +199,6 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
           value={kpis.avgCycleDays != null ? `${kpis.avgCycleDays}d` : "—"}
           sub="purchase → sold"
         />
-        {/* Col 3 */}
-        <KPICard icon={Home} label="Active Inventory" value={String(kpis.activeInventory)} sub="in hand" />
         <NoSoldFallback icon={Package} label="Sold" value={kpis.soldInPeriod} sub={PERIOD_LABELS[period]} />
         {/* Col 4 */}
         <NoSoldFallback icon={DollarSign} label="Avg Profit" value={kpis.avgProfit} sub="per flip" isMoney />
@@ -376,14 +376,11 @@ function NoSoldFallback({
 }
 
 const MILESTONE_COLORS: Record<string, string> = {
-  Contracted: "#94a3b8",
   Purchased: "#3b82f6",
   Construction: "#f97316",
   Complete: "#8b5cf6",
   Listed: "#06b6d4",
-  "Under Contract": "#eab308",
   Sold: "#22c55e",
-  Occupied: "#10b981",
 };
 
 function MilestoneTimeline({ milestones }: { milestones: Milestone[]; isSold: boolean }) {

@@ -249,15 +249,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // Build lifecycle milestones from inventory dates
   function buildMilestones(inv: InvRow) {
+    // Construction-focused lifecycle
     const ms: { label: string; date: string | null }[] = [
-      { label: "Contracted", date: inv.Inv_ContractedPurchaseDate },
       { label: "Purchased", date: inv.Inv_PurchaseDate },
       { label: "Construction", date: inv.Inv_ConstructionStartDate },
       { label: "Complete", date: inv.Inv_CompletionDate },
       { label: "Listed", date: inv.Inv_ListDate },
-      { label: "Under Contract", date: inv.Inv_ContractedSellDate },
       { label: "Sold", date: inv.Inv_SellDate },
-      { label: "Occupied", date: inv.Inv_OccupiedDate },
     ];
     // Only include milestones that have dates
     const reached = ms
