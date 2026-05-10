@@ -32,6 +32,7 @@ import { TerritoryDetailsCard, DealDetailsCard } from "@/components/contact/Terr
 import RelatedPeopleCard from "@/components/contact/RelatedPeopleCard";
 import TeamCard from "@/components/contact/TeamCard";
 import TerritoryOwnershipSection from "@/components/contact/TerritoryOwnershipSection";
+import TerritoryPerformanceCard from "@/components/leads/TerritoryPerformanceCard";
 import TerritoryDataTab from "@/components/contact/TerritoryDataTab";
 import JourneyEosTab from "@/components/leads/tabs/JourneyEosTab";
 import SplitJourneyModal from "@/components/leads/SplitJourneyModal";
@@ -777,6 +778,17 @@ export default function LeadDetailView({
                   focusedTerritorySlug={focusedTerritorySlug}
                   onTerritoryChange={setFocusedTerritorySlug}
                 />
+                {awardedTerritories.length > 0 && (
+                  <div className="bg-bg-secondary border border-border-default rounded-lg p-4">
+                    <TerritoryPerformanceCard
+                      TerritorySlug={focusedTerritorySlug ?? awardedTerritories[0].TerritorySlug}
+                      Nickname={
+                        awardedTerritories.find((t) => t.TerritorySlug === focusedTerritorySlug)?.Nickname ??
+                        awardedTerritories[0].Nickname
+                      }
+                    />
+                  </div>
+                )}
               </div>
 
               {/* RIGHT — Tab content */}

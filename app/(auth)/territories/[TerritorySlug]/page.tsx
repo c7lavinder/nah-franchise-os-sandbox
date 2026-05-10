@@ -3,7 +3,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, MapPin, Activity, DollarSign, BarChart3, Award, AlertTriangle, Loader2 } from "lucide-react";
+import { ArrowLeft, Activity, Award, AlertTriangle, Loader2 } from "lucide-react";
 import EcosystemPanel from "@/components/territory/EcosystemPanel";
 import TerritoryEosTab from "@/components/territories/tabs/EosTab";
 import MarketTab from "@/components/territories/tabs/MarketTab";
@@ -38,6 +38,17 @@ interface TerritoryData {
   franchiseOwner: { full_name: string; status: string } | null;
 }
 
+interface PerformanceKPIs {
+  purchasedYTD: number;
+  soldYTD: number;
+  activeDeals: number;
+  conversionRate: number | null;
+  avgProfit: number;
+  totalProfit: number;
+  leadsT3: number;
+  medianCycleDays: number | null;
+}
+
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     active: "bg-green-100 text-green-800",
@@ -67,13 +78,21 @@ export default function TerritoryProfilePage() {
   const TerritorySlug = params.TerritorySlug as string;
 
   const [data, setData] = useState<TerritoryData | null>(null);
+  const [kpis, setKpis] = useState<PerformanceKPIs | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"performance" | "ecosystem" | "market" | "eos">("performance");
 
   useEffect(() => {
-    apiFetch(`/api/territories/${TerritorySlug}`)
-      .then((r) => r.json())
-      .then(setData)
+    Promise.all([
+      apiFetch(`/api/territories/${TerritorySlug}`).then((r) => r.json()),
+      apiFetch(`/api/territories/${TerritorySlug}/performance`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ])
+      .then(([territoryData, perfData]) => {
+        setData(territoryData);
+        if (perfData?.kpis) setKpis(perfData.kpis);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [TerritorySlug]);
@@ -86,14 +105,13 @@ export default function TerritoryProfilePage() {
     );
   if (!data) return <div className="p-6 text-text-secondary">Territory not found.</div>;
 
-  const { territory, profile, currentOwner, currentOwners, grades } = data;
+  const { territory, currentOwner, currentOwners, grades } = data;
   const ownerNames = (currentOwners && currentOwners.length > 0 ? currentOwners : currentOwner ? [currentOwner] : [])
     .map((o) => o.ownerName)
     .filter(Boolean) as string[];
   const carriedOwnerName = ownerNames.length > 1 ? ownerNames.join(" + ") : (ownerNames[0] ?? null);
-  const p = profile as Record<string, number | string | null> | null;
-  const housesYTD = (p?.houses_purchased_ytd as number) ?? 0;
-  const isUnderTarget = housesYTD < 10 && territory.status === "active";
+  const purchasedYTD = kpis?.purchasedYTD ?? 0;
+  const isUnderTarget = purchasedYTD < 10 && territory.status === "active";
 
   // Group grades by year
   const gradesByYear: Record<number, typeof grades> = {};
@@ -128,24 +146,25 @@ export default function TerritoryProfilePage() {
         </div>
       </div>
 
-      {/* Persistent: Operations — full width, big number + 4-col stats */}
+      {/* Persistent: Operations — MasterSuite KPIs */}
       <div className="bg-bg-primary border border-border-default rounded-lg p-5">
         <div className="flex items-center gap-2 mb-4">
           <Activity size={18} className="text-info" />
           <h2 className="text-body-sm font-semibold">Operations</h2>
         </div>
         <div className="text-center mb-4">
-          <div className="text-4xl font-bold text-text-primary">{housesYTD}</div>
+          <div className="text-4xl font-bold text-text-primary">{purchasedYTD}</div>
           <div className="text-caption text-text-tertiary">Houses Purchased YTD</div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="Sold YTD" value={p?.houses_sold_ytd ?? "—"} />
-          <StatCard label="Active Deals" value={p?.active_deals ?? "—"} />
-          <StatCard label="Lead Conv. Rate" value={p?.lead_conversion_rate ? `${p.lead_conversion_rate}%` : "—"} />
+          <StatCard label="Sold YTD" value={kpis?.soldYTD ?? "—"} />
+          <StatCard label="Active Deals" value={kpis?.activeDeals ?? "—"} />
           <StatCard
-            label="Avg Profit/Flip"
-            value={p?.avg_profit_per_flip ? `$${Number(p.avg_profit_per_flip).toLocaleString()}` : "—"}
+            label="Conversion"
+            value={kpis?.conversionRate != null ? `${kpis.conversionRate}%` : "—"}
+            sub="S1+ → S4+"
           />
+          <StatCard label="Avg Profit/Flip" value={kpis?.avgProfit ? `$${kpis.avgProfit.toLocaleString()}` : "—"} />
         </div>
       </div>
 
