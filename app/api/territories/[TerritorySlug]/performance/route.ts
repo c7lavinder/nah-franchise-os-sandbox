@@ -13,14 +13,12 @@ type PropRow = {
 };
 type InvRow = {
   PropertyId: number;
-  Inv_ContractedPurchaseDate: string | null;
+  Inv_Status: string | null;
   Inv_PurchaseDate: string;
   Inv_ConstructionStartDate: string | null;
   Inv_CompletionDate: string | null;
   Inv_ListDate: string | null;
-  Inv_ContractedSellDate: string | null;
   Inv_SellDate: string | null;
-  Inv_OccupiedDate: string | null;
 };
 type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string };
 type CalcRow = { PropertyId: number; Calculated_Inv_Profit: number | null; Calculated_Arv: number | null };
@@ -123,7 +121,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { data: page } = await supabase
       .from("ms_property_inventory")
       .select(
-        "PropertyId, Inv_ContractedPurchaseDate, Inv_PurchaseDate, Inv_ConstructionStartDate, Inv_CompletionDate, Inv_ListDate, Inv_ContractedSellDate, Inv_SellDate, Inv_OccupiedDate"
+        "PropertyId, Inv_Status, Inv_PurchaseDate, Inv_ConstructionStartDate, Inv_CompletionDate, Inv_ListDate, Inv_SellDate"
       )
       .in("PropertyId", propertyIds.slice(i, i + 500))
       .not("Inv_PurchaseDate", "is", null);
@@ -248,43 +246,57 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   // Build lifecycle milestones from inventory dates
-  function buildMilestones(inv: InvRow) {
-    // Construction-focused lifecycle
-    const ms: { label: string; date: string | null }[] = [
-      { label: "Purchased", date: inv.Inv_PurchaseDate },
-      { label: "Construction", date: inv.Inv_ConstructionStartDate },
-      { label: "Complete", date: inv.Inv_CompletionDate },
-      { label: "Listed", date: inv.Inv_ListDate },
-      { label: "Sold", date: inv.Inv_SellDate },
-    ];
-    // Only include milestones that have dates
-    const reached = ms
-      .filter((m) => m.date)
-      .map((m, i, arr) => {
-        const prevDate = i > 0 ? arr[i - 1].date : null;
-        const daysBetween =
-          prevDate && m.date
-            ? Math.round((new Date(m.date).getTime() - new Date(prevDate).getTime()) / (1000 * 60 * 60 * 24))
-            : null;
-        return { label: m.label, date: m.date!, daysBetween };
-      });
-    // Add "current" marker for inventory items (no sell date)
-    const totalDays = inv.Inv_PurchaseDate
-      ? Math.round((now.getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24))
-      : 0;
-    return { milestones: reached, totalDays };
+  // Construction phase order for the journey UI
+  const PHASE_ORDER = [
+    "Phase 1",
+    "Phase 2",
+    "Phase 3",
+    "Phase 4",
+    "Phase 4 Punch",
+    "Phase 5",
+    "Complete",
+    "Listed",
+    "Contract to Sell",
+    "Sold",
+    "Rented",
+  ];
+  const phaseRank = new Map(PHASE_ORDER.map((p, i) => [p, i]));
+
+  function buildPhaseJourney(inv: InvRow) {
+    const currentPhase = inv.Inv_Status ?? null;
+    const currentRank = currentPhase ? (phaseRank.get(currentPhase) ?? -1) : -1;
+    const totalDays = Math.round((now.getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24));
+
+    // Key date milestones we know
+    const dates: Record<string, string | null> = {
+      Purchased: inv.Inv_PurchaseDate,
+      Construction: inv.Inv_ConstructionStartDate,
+      Complete: inv.Inv_CompletionDate,
+      Listed: inv.Inv_ListDate,
+      Sold: inv.Inv_SellDate,
+    };
+
+    return {
+      currentPhase,
+      phases: PHASE_ORDER.map((phase) => ({
+        label: phase,
+        reached: currentRank >= (phaseRank.get(phase) ?? 999),
+        date: dates[phase] ?? null,
+      })),
+      purchaseDate: inv.Inv_PurchaseDate,
+      totalDays,
+    };
   }
 
   // 11. Sold property list
   const soldProperties = soldInPeriod.map((inv) => {
     const prop = propMap.get(inv.PropertyId);
     const calc = calcMap.get(inv.PropertyId);
-    const { milestones, totalDays } = buildMilestones(inv);
+    const journey = buildPhaseJourney(inv);
     return {
       propertyId: inv.PropertyId,
       address: prop?.Address1 ?? "Unknown",
-      milestones,
-      totalDays,
+      ...journey,
       profit: calc?.Calculated_Inv_Profit != null ? Math.round(Number(calc.Calculated_Inv_Profit)) : null,
       arv: calc?.Calculated_Arv != null ? Math.round(Number(calc.Calculated_Arv)) : null,
       leadCategory: prop?.LeadCategory ?? null,
@@ -295,12 +307,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const inventoryProperties = activeInventoryRows.map((inv) => {
     const prop = propMap.get(inv.PropertyId);
     const calc = invCalcMap.get(inv.PropertyId);
-    const { milestones, totalDays } = buildMilestones(inv);
+    const journey = buildPhaseJourney(inv);
     return {
       propertyId: inv.PropertyId,
       address: prop?.Address1 ?? "Unknown",
-      milestones,
-      totalDays,
+      ...journey,
       arv: calc?.Calculated_Arv != null ? Math.round(Number(calc.Calculated_Arv)) : null,
       projectedProfit: calc?.Calculated_Inv_Profit != null ? Math.round(Number(calc.Calculated_Inv_Profit)) : null,
       leadCategory: prop?.LeadCategory ?? null,

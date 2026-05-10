@@ -19,16 +19,18 @@ interface FunnelStage {
   count: number;
 }
 
-interface Milestone {
+interface PhaseStep {
   label: string;
-  date: string;
-  daysBetween: number | null;
+  reached: boolean;
+  date: string | null;
 }
 
 interface PropertyRow {
   propertyId: number;
   address: string;
-  milestones: Milestone[];
+  currentPhase: string | null;
+  phases: PhaseStep[];
+  purchaseDate: string;
   totalDays: number;
   profit?: number | null;
   arv?: number | null;
@@ -373,37 +375,41 @@ function NoSoldFallback({
   );
 }
 
-const MILESTONE_COLORS: Record<string, string> = {
-  Purchased: "#3b82f6",
-  Construction: "#f97316",
-  Complete: "#8b5cf6",
-  Listed: "#06b6d4",
-  Sold: "#22c55e",
+// Short labels for compact display
+const PHASE_SHORT: Record<string, string> = {
+  "Phase 1": "P1",
+  "Phase 2": "P2",
+  "Phase 3": "P3",
+  "Phase 4": "P4",
+  "Phase 4 Punch": "P4P",
+  "Phase 5": "P5",
+  Complete: "Done",
+  Listed: "List",
+  "Contract to Sell": "Ctr",
+  Sold: "Sold",
+  Rented: "Rent",
 };
 
-function MilestoneTimeline({ milestones }: { milestones: Milestone[]; isSold: boolean }) {
-  if (milestones.length === 0) return null;
+function PhaseJourney({ phases, currentPhase }: { phases: PhaseStep[]; currentPhase: string | null }) {
   return (
-    <div className="flex items-center gap-0 overflow-x-auto">
-      {milestones.map((m, i) => {
-        const color = MILESTONE_COLORS[m.label] ?? "#6b7280";
+    <div className="flex items-center gap-0.5 overflow-x-auto py-1">
+      {phases.map((p, i) => {
+        const isCurrent = p.label === currentPhase;
+        const short = PHASE_SHORT[p.label] ?? p.label;
         return (
           <div key={i} className="flex items-center shrink-0">
-            {i > 0 && (
-              <div className="flex flex-col items-center mx-0.5">
-                <div className="w-6 sm:w-10 h-px bg-border-default" />
-                {m.daysBetween != null && (
-                  <span className="text-[9px] text-text-tertiary font-medium">{m.daysBetween}d</span>
-                )}
-              </div>
-            )}
-            <div className="flex flex-col items-center">
-              <div
-                className="w-3 h-3 rounded-full border-2 shrink-0"
-                style={{ borderColor: color, backgroundColor: `${color}30` }}
-              />
-              <span className="text-[9px] text-text-tertiary mt-0.5 whitespace-nowrap">{m.label}</span>
-              <span className="text-[8px] text-text-tertiary">{fmtDate(m.date)}</span>
+            {i > 0 && <div className={`w-3 sm:w-5 h-0.5 ${p.reached ? "bg-success" : "bg-border-default"}`} />}
+            <div
+              className={`flex items-center justify-center rounded-full text-[9px] font-semibold transition-all ${
+                isCurrent
+                  ? "w-7 h-7 bg-nah-orange text-white ring-2 ring-nah-orange/30"
+                  : p.reached
+                    ? "w-5 h-5 bg-success/20 text-success"
+                    : "w-5 h-5 bg-bg-tertiary text-text-tertiary"
+              }`}
+              title={`${p.label}${p.date ? ` — ${fmtDate(p.date)}` : ""}`}
+            >
+              {short}
             </div>
           </div>
         );
@@ -415,9 +421,14 @@ function MilestoneTimeline({ milestones }: { milestones: Milestone[]; isSold: bo
 function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: boolean }) {
   return (
     <div className="px-4 py-3">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2 min-w-0">
           <p className="text-body-sm font-medium text-text-primary truncate">{p.address}</p>
+          {p.currentPhase && (
+            <span className="px-1.5 py-0.5 rounded bg-nah-orange/10 text-nah-orange text-[10px] font-medium shrink-0">
+              {p.currentPhase}
+            </span>
+          )}
           {p.leadCategory && (
             <span className="px-1.5 py-0.5 rounded bg-bg-tertiary text-[10px] text-text-tertiary shrink-0">
               {p.leadCategory}
@@ -440,7 +451,7 @@ function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: 
           ) : null}
         </div>
       </div>
-      <MilestoneTimeline milestones={p.milestones} isSold={isSold} />
+      <PhaseJourney phases={p.phases} currentPhase={p.currentPhase} />
     </div>
   );
 }
