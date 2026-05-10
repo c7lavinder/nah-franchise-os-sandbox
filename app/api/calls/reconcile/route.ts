@@ -9,11 +9,15 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 import { reconcileCall } from "@/lib/calls/processors/reconcile-call";
 
 export async function POST(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   const supabase = createServerClient();
 
   // Find every distinct call that has at least one fully-orphan participant.
@@ -32,7 +36,7 @@ export async function POST(request: NextRequest) {
   for (const callId of callIds) {
     const before = await supabase
       .from("calls")
-      .select("contact_id, territory_ms_slug, journey_pipeline_state_id")
+      .select("contact_id, TerritorySlug, journey_pipeline_state_id")
       .eq("id", callId)
       .single();
 
@@ -40,13 +44,13 @@ export async function POST(request: NextRequest) {
 
     const after = await supabase
       .from("calls")
-      .select("contact_id, territory_ms_slug, journey_pipeline_state_id")
+      .select("contact_id, TerritorySlug, journey_pipeline_state_id")
       .eq("id", callId)
       .single();
 
     if (
       before.data?.contact_id !== after.data?.contact_id ||
-      before.data?.territory_ms_slug !== after.data?.territory_ms_slug ||
+      before.data?.TerritorySlug !== after.data?.TerritorySlug ||
       before.data?.journey_pipeline_state_id !== after.data?.journey_pipeline_state_id
     ) {
       callsUpdated++;

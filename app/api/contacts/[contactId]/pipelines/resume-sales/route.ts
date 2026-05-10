@@ -9,16 +9,14 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 
 const SALES_PIPELINE_ID = "a0000000-0000-0000-0000-000000000001";
 const ENGAGEMENT_STAGE_ID = "b0000000-0000-0000-0000-000000000001";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   try {
     const { contactId: rawId } = await params;
     const { mode } = (await request.json()) as { mode: "fresh" | "resume" };
@@ -28,8 +26,10 @@ export async function POST(
     if (!localContactId) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
 
     const { data: journey } = await supabase
-      .from("journeys").select("id")
-      .eq("primary_contact_id", localContactId).maybeSingle();
+      .from("journeys")
+      .select("id")
+      .eq("primary_contact_id", localContactId)
+      .maybeSingle();
     if (!journey?.id) return NextResponse.json({ error: "No journey for contact" }, { status: 404 });
 
     // Check if already has active Sales entry (scoped to this journey).
@@ -66,15 +66,19 @@ export async function POST(
     const now = new Date().toISOString();
 
     const { data: firstTask } = await supabase
-      .from("pipeline_sub_tasks").select("id")
-      .eq("stage_id", targetStageId).order("sort_order").limit(1).maybeSingle();
+      .from("pipeline_sub_tasks")
+      .select("id")
+      .eq("stage_id", targetStageId)
+      .order("sort_order")
+      .limit(1)
+      .maybeSingle();
 
     const { data: newState, error: insertErr } = await supabase
       .from("journey_pipeline_state")
       .insert({
         journey_id: journey.id,
         pipeline_id: SALES_PIPELINE_ID,
-        territory_ms_slug: null,
+        TerritorySlug: null,
         current_stage_id: targetStageId,
         current_sub_task_id: firstTask?.id ?? null,
         current_sub_task_started_at: now,

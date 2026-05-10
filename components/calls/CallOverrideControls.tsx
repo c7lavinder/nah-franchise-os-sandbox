@@ -71,8 +71,8 @@ interface ContactOption {
 }
 
 interface TerritoryOption {
-  ms_slug: string;
-  territory_name: string;
+  TerritorySlug: string;
+  Nickname: string;
   /** 'owner' when the contact is a territory_owner (franchisee) or
    *  'stakeholder' when they're linked via the territory ecosystem
    *  (employee/contractor/agent/etc.). Drives chip styling. */
@@ -81,8 +81,8 @@ interface TerritoryOption {
 
 interface JourneyPipelineStateOption {
   id: string;
-  territory_ms_slug: string | null;
-  territory_name: string | null;
+  TerritorySlug: string | null;
+  Nickname: string | null;
   stage_name: string | null;
 }
 
@@ -104,7 +104,7 @@ export interface RawParticipant {
   contact_id: string | null;
   contact_name: string | null;
   contact_phone: string | null;
-  territory_ms_slug: string | null;
+  TerritorySlug: string | null;
 }
 
 interface Props {
@@ -284,7 +284,7 @@ function buildInitialState(participants: RawParticipant[]): ParticipantState[] {
       originalContactId: p.contact_id,
       contactId: p.contact_id,
       contactName: p.contact_name,
-      territorySlug: p.territory_ms_slug,
+      territorySlug: p.TerritorySlug,
       ownedTerritories: [],
       selectedTerritories: [],
       journeys: [],
@@ -298,16 +298,16 @@ async function fetchContactTerritories(contactId: string): Promise<TerritoryOpti
     if (!res.ok) return [];
     const data = (await res.json()) as {
       current?: Array<{
-        ms_slug: string;
+        TerritorySlug: string;
         source?: string;
-        territories?: { territory_name?: string } | Array<{ territory_name?: string }>;
+        territories?: { Nickname?: string } | Array<{ Nickname?: string }>;
       }>;
     };
     return (data.current ?? []).map((row) => {
       const t = Array.isArray(row.territories) ? row.territories[0] : row.territories;
       return {
-        ms_slug: row.ms_slug,
-        territory_name: t?.territory_name ?? row.ms_slug,
+        TerritorySlug: row.TerritorySlug,
+        Nickname: t?.Nickname ?? row.TerritorySlug,
         source: row.source === "stakeholder" ? "stakeholder" : "owner",
       } as TerritoryOption;
     });
@@ -349,11 +349,11 @@ function deriveTerritoriesFromJourneys(journeys: JourneyMembership[]): Territory
   const out: TerritoryOption[] = [];
   for (const j of journeys) {
     for (const s of j.pipeline_states) {
-      if (s.territory_ms_slug && !seen.has(s.territory_ms_slug)) {
-        seen.add(s.territory_ms_slug);
+      if (s.TerritorySlug && !seen.has(s.TerritorySlug)) {
+        seen.add(s.TerritorySlug);
         out.push({
-          ms_slug: s.territory_ms_slug,
-          territory_name: s.territory_name ?? s.territory_ms_slug,
+          TerritorySlug: s.TerritorySlug,
+          Nickname: s.Nickname ?? s.TerritorySlug,
           source: "stakeholder",
         });
       }
@@ -371,9 +371,9 @@ function deriveTerritoriesFromJourneys(journeys: JourneyMembership[]): Territory
 function autoPickJps(journey: JourneyMembership, selectedTerritories: string[]): string | null {
   const states = journey.pipeline_states;
   if (states.length === 0) return null;
-  const matchByTerritory = states.find((s) => s.territory_ms_slug && selectedTerritories.includes(s.territory_ms_slug));
+  const matchByTerritory = states.find((s) => s.TerritorySlug && selectedTerritories.includes(s.TerritorySlug));
   if (matchByTerritory) return matchByTerritory.id;
-  const nullTerritory = states.find((s) => s.territory_ms_slug === null);
+  const nullTerritory = states.find((s) => s.TerritorySlug === null);
   if (nullTerritory) return nullTerritory.id;
   return states[0].id;
 }
@@ -528,9 +528,9 @@ function ReassignButton(props: Props) {
       let primary = props.currentTerritorySlug;
       if (ctRes.ok) {
         const data = await ctRes.json();
-        const list = (data.territories ?? []) as Array<{ territory_ms_slug: string; is_primary: boolean }>;
-        selectedSet = new Set(list.map((t) => t.territory_ms_slug));
-        primary = list.find((t) => t.is_primary)?.territory_ms_slug ?? props.currentTerritorySlug;
+        const list = (data.territories ?? []) as Array<{ TerritorySlug: string; is_primary: boolean }>;
+        selectedSet = new Set(list.map((t) => t.TerritorySlug));
+        primary = list.find((t) => t.is_primary)?.TerritorySlug ?? props.currentTerritorySlug;
       }
       if (props.currentTerritorySlug) selectedSet.add(props.currentTerritorySlug);
 
@@ -558,12 +558,12 @@ function ReassignButton(props: Props) {
         const journeys = journeyResults[i];
         // Journey-derived territory fallback: if the contact owns no territory
         // directly (common for journey drivers, spouses, employees attached
-        // via the stakeholder model), pull territory_ms_slug off their journey
+        // via the stakeholder model), pull TerritorySlug off their journey
         // pipeline states so the row still shows the right territory chip.
         const owned = ownedRaw.length > 0 ? ownedRaw : deriveTerritoriesFromJourneys(journeys);
         const defaulted = hasPriorSelection
-          ? owned.filter((t) => selectedSet.has(t.ms_slug)).map((t) => t.ms_slug)
-          : owned.map((t) => t.ms_slug);
+          ? owned.filter((t) => selectedSet.has(t.TerritorySlug)).map((t) => t.TerritorySlug)
+          : owned.map((t) => t.TerritorySlug);
         // Default jps selection = prior call selection ∩ contact's jps ids,
         // else auto-pick best jps per membership using the same rule the
         // resolver uses (territory match → null territory → first).
@@ -621,18 +621,18 @@ function ReassignButton(props: Props) {
     for (const r of rows) {
       for (const slug of r.selectedTerritories) {
         if (!seen.has(slug)) {
-          const name = r.ownedTerritories.find((t) => t.ms_slug === slug)?.territory_name ?? slug;
+          const name = r.ownedTerritories.find((t) => t.TerritorySlug === slug)?.Nickname ?? slug;
           seen.set(slug, name);
         }
       }
     }
-    return [...seen.entries()].map(([ms_slug, territory_name]) => ({ ms_slug, territory_name }));
+    return [...seen.entries()].map(([TerritorySlug, Nickname]) => ({ TerritorySlug, Nickname }));
   }, [rows]);
 
   // If the primary was unchecked across all participants, fall back to first union slug.
   useEffect(() => {
-    if (primaryTerritory && unionSelected.some((t) => t.ms_slug === primaryTerritory)) return;
-    setPrimaryTerritory(unionSelected[0]?.ms_slug ?? null);
+    if (primaryTerritory && unionSelected.some((t) => t.TerritorySlug === primaryTerritory)) return;
+    setPrimaryTerritory(unionSelected[0]?.TerritorySlug ?? null);
   }, [unionSelected, primaryTerritory]);
 
   // Call-level union of selected journey pipeline states across every participant.
@@ -642,7 +642,7 @@ function ReassignButton(props: Props) {
       journey_id: string;
       journey_name: string;
       journey_slug: string | null;
-      territory_name: string | null;
+      Nickname: string | null;
       stage_name: string | null;
     };
     const seen = new Map<string, JpsLabel>();
@@ -657,7 +657,7 @@ function ReassignButton(props: Props) {
             journey_id: j.journey_id,
             journey_name: j.journey_name,
             journey_slug: j.journey_slug,
-            territory_name: s.territory_name,
+            Nickname: s.Nickname,
             stage_name: s.stage_name,
           });
           break;
@@ -689,14 +689,14 @@ function ReassignButton(props: Props) {
     if (changed.length > 0) payload.participants = changed;
     if (primaryContactId !== props.currentContactId) payload.contact_id = primaryContactId;
 
-    const unionSlugs = unionSelected.map((t) => t.ms_slug);
+    const unionSlugs = unionSelected.map((t) => t.TerritorySlug);
     const sortedNow = [...unionSlugs].sort();
     const listChanged =
       sortedNow.length !== initialSelection.list.length || sortedNow.some((s, i) => s !== initialSelection.list[i]);
     const primaryChanged = primaryTerritory !== initialSelection.primary;
     if (listChanged || primaryChanged) {
       payload.territories = unionSlugs;
-      payload.primary_territory_ms_slug = primaryTerritory;
+      payload.primary_TerritorySlug = primaryTerritory;
     }
 
     const unionJpsIds = unionSelectedJps.map((j) => j.id);
@@ -885,7 +885,7 @@ function ReassignButton(props: Props) {
                             fetchContactJourneys(contactId),
                           ]);
                           const owned = ownedRaw.length > 0 ? ownedRaw : deriveTerritoriesFromJourneys(journeys);
-                          const territorySlugs = owned.map((t) => t.ms_slug);
+                          const territorySlugs = owned.map((t) => t.TerritorySlug);
                           const selectedJps = journeys
                             .map((j) => autoPickJps(j, territorySlugs))
                             .filter((id): id is string => !!id);
@@ -989,7 +989,7 @@ function ReassignButton(props: Props) {
                                   fetchContactJourneys(contactId),
                                 ]);
                                 const owned = ownedRaw.length > 0 ? ownedRaw : deriveTerritoriesFromJourneys(journeys);
-                                const territorySlugs = owned.map((t) => t.ms_slug);
+                                const territorySlugs = owned.map((t) => t.TerritorySlug);
                                 const selectedJps = journeys
                                   .map((j) => autoPickJps(j, territorySlugs))
                                   .filter((id): id is string => !!id);
@@ -1063,7 +1063,7 @@ function ReassignButton(props: Props) {
         open={pendingAdd?.kind === "related"}
         primaryContactId={primaryContactId}
         primaryContactName={rows.find((r) => r.contactId === primaryContactId)?.contactName ?? null}
-        callTerritorySlugs={unionSelected.map((t) => t.ms_slug)}
+        callTerritorySlugs={unionSelected.map((t) => t.TerritorySlug)}
         existingContactId={pendingAdd ? (rows.find((r) => r.id === pendingAdd.participantId)?.contactId ?? null) : null}
         prefill={pendingAdd?.kind === "related" ? pendingAdd.prefill : undefined}
         onClose={() => setPendingAdd(null)}
@@ -1077,7 +1077,7 @@ function ReassignButton(props: Props) {
             fetchContactTerritories(newContactId),
             fetchContactJourneys(newContactId),
           ]);
-          const territorySlugs = owned.map((t) => t.ms_slug);
+          const territorySlugs = owned.map((t) => t.TerritorySlug);
           const selectedJps = journeys
             .map((j) => autoPickJps(j, territorySlugs))
             .filter((jpsId): jpsId is string => !!jpsId);
@@ -1340,8 +1340,8 @@ function ParticipantRow({
               </div>
               <div className="flex flex-wrap gap-1">
                 {row.ownedTerritories.map((t) => {
-                  const checked = row.selectedTerritories.includes(t.ms_slug);
-                  const isPrimary = checked && callPrimaryTerritory === t.ms_slug;
+                  const checked = row.selectedTerritories.includes(t.TerritorySlug);
+                  const isPrimary = checked && callPrimaryTerritory === t.TerritorySlug;
                   const isStakeholder = t.source === "stakeholder";
                   const palette = isStakeholder
                     ? {
@@ -1359,12 +1359,12 @@ function ParticipantRow({
                     : palette.unchecked;
                   return (
                     <label
-                      key={t.ms_slug}
+                      key={t.TerritorySlug}
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border cursor-pointer transition-colors ${baseClass}`}
                       title={
                         isStakeholder
-                          ? `${t.territory_name} — via ecosystem (employee/contractor/agent)`
-                          : `${t.territory_name} — owner`
+                          ? `${t.Nickname} — via ecosystem (employee/contractor/agent)`
+                          : `${t.Nickname} — owner`
                       }
                     >
                       <input
@@ -1372,8 +1372,8 @@ function ParticipantRow({
                         checked={checked}
                         onChange={() => {
                           const next = checked
-                            ? row.selectedTerritories.filter((s) => s !== t.ms_slug)
-                            : [...row.selectedTerritories, t.ms_slug];
+                            ? row.selectedTerritories.filter((s) => s !== t.TerritorySlug)
+                            : [...row.selectedTerritories, t.TerritorySlug];
                           onTerritoriesChange(next);
                         }}
                         className="sr-only"
@@ -1384,7 +1384,7 @@ function ParticipantRow({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            onPrimaryTerritoryChange(t.ms_slug);
+                            onPrimaryTerritoryChange(t.TerritorySlug);
                           }}
                           title={isPrimary ? "Primary territory" : "Make primary"}
                           className={isPrimary ? "text-[#EAB308]" : "text-text-tertiary hover:text-text-primary"}
@@ -1392,7 +1392,7 @@ function ParticipantRow({
                           <Star size={10} fill={isPrimary ? "currentColor" : "none"} />
                         </button>
                       )}
-                      <span>{t.territory_name}</span>
+                      <span>{t.Nickname}</span>
                       {isStakeholder && <span className="text-[9px] opacity-80">· via ecosystem</span>}
                     </label>
                   );

@@ -17,10 +17,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const GHL_BASE_URL = "https://services.leadconnectorhq.com";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 
 async function ghlGet<T>(endpoint: string): Promise<T> {
   const token = process.env.GHL_API_KEY;
@@ -66,20 +63,20 @@ async function main() {
 
   // Map from GHL human-readable field name → registry snake_case name
   // The GHL custom fields table stores names like "Capital Availability"
-  // The registry uses "capital_availability"
+  // The registry uses "NonRetirementCapitalAvailable"
   const GHL_TO_REGISTRY: Record<string, string> = {
     "Territory Interest": "territory_interest",
     "Territory Status": "territory_status",
-    "Capital Availability": "capital_availability",
+    "Capital Availability": "NonRetirementCapitalAvailable",
     "Investment Timeline": "investment_timeline",
-    "Motivation Clarity": "motivation_clarity",
+    "Motivation Clarity": "WhatInterestsInOpportunity",
     "NDA Status": "nda_status",
     "Framing Call Logged": "framing_call_logged",
     "Trainual Access Sent": "trainual_access_sent",
     "Trainual Completion Percent": "trainual_completion_pct",
-    "Business Ownership Experience": "business_ownership_experience",
+    "Business Ownership Experience": "BriefWorkHistory",
     "Scout Lead Score": "scout_lead_score",
-    "Lead Source Detail": "lead_source_detail",
+    "Lead Source Detail": "LeadSource",
   };
 
   const ghlIdToRegistryName = new Map<string, string>();
@@ -87,8 +84,12 @@ async function main() {
   for (const m of ghlFieldMappings) {
     ghlIdToGhlName.set(m.ghl_field_id, m.field_name);
     // Try exact mapping first, then snake_case conversion
-    const registryName = GHL_TO_REGISTRY[m.field_name]
-      ?? m.field_name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/(^_|_$)/g, "");
+    const registryName =
+      GHL_TO_REGISTRY[m.field_name] ??
+      m.field_name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/(^_|_$)/g, "");
     ghlIdToRegistryName.set(m.ghl_field_id, registryName);
   }
   console.log(`Loaded ${ghlIdToRegistryName.size} GHL field mappings\n`);

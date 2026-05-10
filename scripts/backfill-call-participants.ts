@@ -30,14 +30,23 @@ async function main() {
     .is("deleted_at", null)
     .order("created_at", { ascending: true });
 
-  if (error) { console.error("Error fetching calls:", error.message); process.exit(1); }
-  if (!calls?.length) { console.log("No calls found."); return; }
+  if (error) {
+    console.error("Error fetching calls:", error.message);
+    process.exit(1);
+  }
+  if (!calls?.length) {
+    console.log("No calls found.");
+    return;
+  }
 
   // Check which calls already have participants
   const { data: existingRows } = await supabase
     .from("call_participants")
     .select("call_id")
-    .in("call_id", calls.map((c) => c.id));
+    .in(
+      "call_id",
+      calls.map((c) => c.id)
+    );
 
   const alreadyDone = new Set((existingRows ?? []).map((r) => r.call_id));
 
@@ -52,9 +61,19 @@ async function main() {
   let skipped = 0;
 
   for (const call of calls) {
-    if (alreadyDone.has(call.id)) { skipped++; continue; }
+    if (alreadyDone.has(call.id)) {
+      skipped++;
+      continue;
+    }
 
-    const rows: { call_id: string; user_id: string | null; contact_id: string | null; role: string; display_name: string | null; email: string | null }[] = [];
+    const rows: {
+      call_id: string;
+      user_id: string | null;
+      contact_id: string | null;
+      role: string;
+      display_name: string | null;
+      email: string | null;
+    }[] = [];
 
     // Try Read.ai session first
     if (call.read_ai_session_id) {
@@ -90,11 +109,11 @@ async function main() {
             if (contact) {
               const { data: ownerLink } = await supabase
                 .from("territory_owners")
-                .select("ms_slug")
+                .select("TerritorySlug")
                 .eq("ghl_contact_id", contact.ghl_contact_id)
                 .is("end_date", null)
                 .maybeSingle();
-              role = ownerLink?.ms_slug ? "franchisee" : "prospect";
+              role = ownerLink?.TerritorySlug ? "franchisee" : "prospect";
             }
 
             rows.push({

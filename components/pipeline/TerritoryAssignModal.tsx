@@ -57,8 +57,8 @@ export default function TerritoryAssignModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ms_slug: slug.trim(),
-          territory_name: territoryName.trim(),
+          TerritorySlug: slug.trim(),
+          Nickname: territoryName.trim(),
           region: region.trim() || undefined,
           ghl_contact_id: ghlContactId,
         }),

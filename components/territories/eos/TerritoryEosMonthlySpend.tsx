@@ -6,12 +6,12 @@ import { X } from "lucide-react";
 import type { EosTerritoryBudget } from "@/types/database";
 
 interface Props {
-  msSlug: string;
+  TerritorySlug: string;
   budgets: EosTerritoryBudget[];
   onUpdate: () => void;
 }
 
-export default function TerritoryEosMonthlySpend({ msSlug, budgets, onUpdate }: Props) {
+export default function TerritoryEosMonthlySpend({ TerritorySlug, budgets, onUpdate }: Props) {
   const [local, setLocal] = useState<EosTerritoryBudget[]>(budgets);
   const [newDesc, setNewDesc] = useState("");
   const [saving, setSaving] = useState(false);
@@ -21,7 +21,7 @@ export default function TerritoryEosMonthlySpend({ msSlug, budgets, onUpdate }: 
   async function addBudget() {
     if (!newDesc.trim()) return;
     setSaving(true);
-    const res = await apiFetch(`/api/territories/${msSlug}/eos/budgets`, {
+    const res = await apiFetch(`/api/territories/${TerritorySlug}/eos/budgets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ description: newDesc.trim(), amount: 0 }),
@@ -37,7 +37,7 @@ export default function TerritoryEosMonthlySpend({ msSlug, budgets, onUpdate }: 
 
   async function updateAmount(id: string, amount: number) {
     setLocal((prev) => prev.map((b) => (b.id === id ? { ...b, amount } : b)));
-    await apiFetch(`/api/territories/${msSlug}/eos/budgets/${id}`, {
+    await apiFetch(`/api/territories/${TerritorySlug}/eos/budgets/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ amount }),
@@ -46,7 +46,7 @@ export default function TerritoryEosMonthlySpend({ msSlug, budgets, onUpdate }: 
   }
 
   async function deleteBudget(id: string) {
-    await apiFetch(`/api/territories/${msSlug}/eos/budgets/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/territories/${TerritorySlug}/eos/budgets/${id}`, { method: "DELETE" });
     setLocal((prev) => prev.filter((b) => b.id !== id));
     onUpdate();
   }
@@ -56,7 +56,10 @@ export default function TerritoryEosMonthlySpend({ msSlug, budgets, onUpdate }: 
       <h3 className="text-body-sm font-semibold text-text-primary mb-3">Monthly Spend</h3>
       <div className="space-y-1">
         {local.map((b) => (
-          <div key={b.id} className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-bg-secondary transition-colors">
+          <div
+            key={b.id}
+            className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-bg-secondary transition-colors"
+          >
             <span className="flex-1 text-body-sm text-text-primary">{b.description}</span>
             <span className="text-text-tertiary text-body-sm">$</span>
             <input

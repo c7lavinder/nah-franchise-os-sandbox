@@ -10,13 +10,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 
 interface JourneyPipelineStateOption {
   id: string;
-  territory_ms_slug: string | null;
-  territory_name: string | null;
+  TerritorySlug: string | null;
+  Nickname: string | null;
   stage_name: string | null;
 }
 
@@ -29,10 +30,7 @@ interface JourneyMembership {
   pipeline_states: JourneyPipelineStateOption[];
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId } = await params;
 
   const localContactId = await resolveContactId(contactId);
@@ -53,16 +51,22 @@ export async function GET(
 
   const baseJourneys = (data ?? []).flatMap((row) => {
     const j = row.journeys as unknown as {
-      id: string; slug: string | null; name: string; primary_contact_id: string; status: string;
+      id: string;
+      slug: string | null;
+      name: string;
+      primary_contact_id: string;
+      status: string;
     } | null;
     if (!j || j.status !== "active") return [];
-    return [{
-      journey_id: j.id,
-      journey_slug: j.slug,
-      journey_name: j.name,
-      role: row.role as string,
-      is_journey_primary: j.primary_contact_id === localContactId,
-    }];
+    return [
+      {
+        journey_id: j.id,
+        journey_slug: j.slug,
+        journey_name: j.name,
+        role: row.role as string,
+        is_journey_primary: j.primary_contact_id === localContactId,
+      },
+    ];
   });
 
   // Stakeholder fallback — if the contact is linked to a territory's ecosystem
@@ -71,17 +75,17 @@ export async function GET(
   // logged against Brian's journey, not a new one for Brett himself".
   const { data: stakeRows } = await supabase
     .from("territory_stakeholders")
-    .select("ms_slug, role")
+    .select("TerritorySlug, role")
     .eq("contact_id", localContactId)
     .eq("is_active", true);
-  const stakeholderSlugs = [...new Set((stakeRows ?? []).map((r) => r.ms_slug))];
+  const stakeholderSlugs = [...new Set((stakeRows ?? []).map((r) => r.TerritorySlug))];
   const directJourneyIds = new Set(baseJourneys.map((j) => j.journey_id));
 
   if (stakeholderSlugs.length > 0) {
     const { data: jpsRows } = await supabase
       .from("journey_pipeline_state")
       .select("journey_id, journeys!inner(id, slug, name, primary_contact_id, status)")
-      .in("territory_ms_slug", stakeholderSlugs)
+      .in("TerritorySlug", stakeholderSlugs)
       .eq("is_active", true);
     const seen = new Set<string>();
     for (const row of (jpsRows ?? []) as unknown as {
@@ -112,7 +116,7 @@ export async function GET(
     const journeyIds = baseJourneys.map((j) => j.journey_id);
     const { data: jpsRows } = await supabase
       .from("journey_pipeline_state")
-      .select("id, journey_id, territory_ms_slug, pipeline_stages(name)")
+      .select("id, journey_id, TerritorySlug, pipeline_stages(name)")
       .in("journey_id", journeyIds)
       .eq("is_active", true);
 
@@ -121,19 +125,19 @@ export async function GET(
     for (const r of (jpsRows ?? []) as unknown as {
       id: string;
       journey_id: string;
-      territory_ms_slug: string | null;
+      TerritorySlug: string | null;
       pipeline_stages: { name: string } | { name: string }[] | null;
     }[]) {
       const stageName = Array.isArray(r.pipeline_stages)
-        ? r.pipeline_stages[0]?.name ?? null
-        : r.pipeline_stages?.name ?? null;
+        ? (r.pipeline_stages[0]?.name ?? null)
+        : (r.pipeline_stages?.name ?? null);
       const option: JourneyPipelineStateOption = {
         id: r.id,
-        territory_ms_slug: r.territory_ms_slug,
-        territory_name: null,
+        TerritorySlug: r.TerritorySlug,
+        Nickname: null,
         stage_name: stageName,
       };
-      if (r.territory_ms_slug) slugSet.add(r.territory_ms_slug);
+      if (r.TerritorySlug) slugSet.add(r.TerritorySlug);
       const list = jpsByJourney.get(r.journey_id) ?? [];
       list.push(option);
       jpsByJourney.set(r.journey_id, list);
@@ -144,16 +148,16 @@ export async function GET(
     if (slugSet.size > 0) {
       const { data: tRows } = await supabase
         .from("territories")
-        .select("ms_slug, territory_name")
-        .in("ms_slug", Array.from(slugSet));
-      for (const t of tRows ?? []) territoryNameMap.set(t.ms_slug, t.territory_name);
+        .select("TerritorySlug, Nickname")
+        .in("TerritorySlug", Array.from(slugSet));
+      for (const t of tRows ?? []) territoryNameMap.set(t.TerritorySlug, t.Nickname);
     }
 
     journeys = baseJourneys.map((j) => ({
       ...j,
       pipeline_states: (jpsByJourney.get(j.journey_id) ?? []).map((opt) => ({
         ...opt,
-        territory_name: opt.territory_ms_slug ? territoryNameMap.get(opt.territory_ms_slug) ?? null : null,
+        Nickname: opt.TerritorySlug ? (territoryNameMap.get(opt.TerritorySlug) ?? null) : null,
       })),
     }));
   }

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
  * Body:
  *   - reason (optional)
  *   - force (optional) — skip sub-task completion check
- *   - territory_ms_slug (optional) — when set, advance ONLY the journey's
+ *   - TerritorySlug (optional) — when set, advance ONLY the journey's
  *     jps row for (pipeline, territory). Without it, every active jps row
  *     for the (journey, pipeline) pair moves together — the legacy
  *     contact-wide semantic. Both paths write jps directly now; cps is no
@@ -30,10 +30,10 @@ export async function POST(
 ) {
   try {
     const { contactId: rawId, pipelineId } = await params;
-    const { reason, force, territory_ms_slug } = (await request.json()) as {
+    const { reason, force, TerritorySlug } = (await request.json()) as {
       reason?: string;
       force?: boolean;
-      territory_ms_slug?: string | null;
+      TerritorySlug?: string | null;
     };
     const supabase = createServerClient();
 
@@ -59,13 +59,13 @@ export async function POST(
     const now = new Date().toISOString();
 
     // ─── Per-territory path: write one targeted jps row. ───
-    if (territory_ms_slug) {
+    if (TerritorySlug) {
       const { data: jps } = await supabase
         .from("journey_pipeline_state")
         .select("id, current_stage_id")
         .eq("journey_id", journey.id)
         .eq("pipeline_id", pipelineId)
-        .eq("territory_ms_slug", territory_ms_slug)
+        .eq("TerritorySlug", TerritorySlug)
         .eq("is_active", true)
         .maybeSingle();
       if (!jps) return NextResponse.json({ error: "No active state for territory" }, { status: 404 });
@@ -127,7 +127,7 @@ export async function POST(
           toStageId: nextStage.id,
           toStageSlug: nextStageDef?.slug ?? "",
           scope: "territory",
-          territory: territory_ms_slug,
+          territory: TerritorySlug,
         };
         void matchWorkflowTriggers("stage.advanced", contactForTrigger.ghl_contact_id, stagePayload).catch(() => {});
         void checkExitConditions(contactForTrigger.ghl_contact_id, "stage.advanced", stagePayload).catch(() => {});
@@ -139,7 +139,7 @@ export async function POST(
     // ─── Contact-wide path: every active jps row for (journey, pipeline) moves together. ───
     const { data: jpsRows } = await supabase
       .from("journey_pipeline_state")
-      .select("id, current_stage_id, territory_ms_slug")
+      .select("id, current_stage_id, TerritorySlug")
       .eq("journey_id", journey.id)
       .eq("pipeline_id", pipelineId)
       .eq("is_active", true);
@@ -150,7 +150,7 @@ export async function POST(
     // All active jps rows for a (journey, pipeline) share a stage under legacy
     // cps-sync semantics. Use the canonical row (NULL-territory preferred) for
     // completion checks + next-stage math.
-    const canonical = jpsRows.find((r) => r.territory_ms_slug === null) ?? jpsRows[0];
+    const canonical = jpsRows.find((r) => r.TerritorySlug === null) ?? jpsRows[0];
     const currentIdx = stages.findIndex((s) => s.id === canonical.current_stage_id);
     if (currentIdx === -1 || currentIdx >= stages.length - 1) {
       return NextResponse.json({ error: "No next stage available" }, { status: 400 });
@@ -306,10 +306,10 @@ export async function POST(
           if (contactRow?.ghl_contact_id) {
             const { data: owners } = await supabase
               .from("territory_owners")
-              .select("ms_slug")
+              .select("TerritorySlug")
               .eq("ghl_contact_id", contactRow.ghl_contact_id)
               .is("end_date", null);
-            const slugs = (owners ?? []).map((o) => o.ms_slug);
+            const slugs = (owners ?? []).map((o) => o.TerritorySlug);
             spawnSlugs = slugs.length > 0 ? slugs : [null];
           }
         }
@@ -317,7 +317,7 @@ export async function POST(
         await supabase.from("journey_pipeline_state").insert(
           spawnSlugs.map((slug) => ({
             journey_id: journey.id,
-            territory_ms_slug: slug,
+            TerritorySlug: slug,
             pipeline_id: spawnPipelineId,
             current_stage_id: spawnStages[0].id,
             current_sub_task_id: spawnTasks?.[0]?.id ?? null,

@@ -31,18 +31,36 @@ interface CpsRow {
   current_stage_id: string;
   is_active: boolean;
 }
-interface OwnerRow { ghl_contact_id: string; ms_slug: string; end_date: string | null }
-interface StageRow { id: string; name: string; pipeline_id: string }
-interface PipelineRow { id: string; slug: string; name: string }
-interface RelatedRow { contact_id: string; linked_contact_id: string | null; role: string }
+interface OwnerRow {
+  ghl_contact_id: string;
+  TerritorySlug: string;
+  end_date: string | null;
+}
+interface StageRow {
+  id: string;
+  name: string;
+  pipeline_id: string;
+}
+interface PipelineRow {
+  id: string;
+  slug: string;
+  name: string;
+}
+interface RelatedRow {
+  contact_id: string;
+  linked_contact_id: string | null;
+  role: string;
+}
 
-function hdr(title: string) { console.log(`\n━━ ${title} ━━`); }
+function hdr(title: string) {
+  console.log(`\n━━ ${title} ━━`);
+}
 
 // PostgREST caps selects at 1000 rows; paginate everything.
 async function fetchAll<T>(
   table: string,
   select: string,
-  filter?: (q: ReturnType<typeof supabase.from>) => ReturnType<typeof supabase.from>,
+  filter?: (q: ReturnType<typeof supabase.from>) => ReturnType<typeof supabase.from>
 ): Promise<T[]> {
   const rows: T[] = [];
   let offset = 0;
@@ -63,10 +81,12 @@ async function main() {
   const [contactList, cpsList, ownerList, stageList, pipelineList, relatedList] = await Promise.all([
     fetchAll<ContactRow>("contacts", "id, ghl_contact_id, first_name, last_name, is_converted_franchisee"),
     fetchAll<CpsRow>("contact_pipeline_state", "id, contact_id, pipeline_id, current_stage_id, is_active"),
-    fetchAll<OwnerRow>("territory_owners", "ghl_contact_id, ms_slug, end_date"),
+    fetchAll<OwnerRow>("territory_owners", "ghl_contact_id, TerritorySlug, end_date"),
     fetchAll<StageRow>("pipeline_stages", "id, name, pipeline_id"),
     fetchAll<PipelineRow>("pipelines", "id, slug, name"),
-    fetchAll<RelatedRow>("contact_related_people", "contact_id, linked_contact_id, role", (q) => q.is("deleted_at", null)),
+    fetchAll<RelatedRow>("contact_related_people", "contact_id, linked_contact_id, role", (q) =>
+      q.is("deleted_at", null)
+    ),
   ]);
 
   const contactById = new Map(contactList.map((c) => [c.id, c]));
@@ -76,7 +96,7 @@ async function main() {
   const ownersByGhl = new Map<string, string[]>();
   for (const o of activeOwners) {
     const list = ownersByGhl.get(o.ghl_contact_id) ?? [];
-    list.push(o.ms_slug);
+    list.push(o.TerritorySlug);
     ownersByGhl.set(o.ghl_contact_id, list);
   }
 
@@ -93,7 +113,9 @@ async function main() {
   console.log(`  Total active pipeline rows: ${activeCps.length}`);
 
   hdr("2 · Role classification per contact (derived)");
-  let countProspect = 0, countFranchisee = 0, countSupport = 0;
+  let countProspect = 0,
+    countFranchisee = 0,
+    countSupport = 0;
   const roleFlips: ContactRow[] = []; // is_converted_franchisee wrong/missing
   const noGhl: ContactRow[] = [];
   for (const c of contactList) {
@@ -111,7 +133,9 @@ async function main() {
   console.log(`  Support:      ${countSupport}`);
   console.log(`  Total:        ${contactList.length}`);
   if (roleFlips.length > 0) {
-    console.log(`\n  ⚠ ${roleFlips.length} contacts own a territory but is_converted_franchisee is NOT true — migration will set it:`);
+    console.log(
+      `\n  ⚠ ${roleFlips.length} contacts own a territory but is_converted_franchisee is NOT true — migration will set it:`
+    );
     for (const c of roleFlips.slice(0, 20)) console.log(`    · ${c.first_name} ${c.last_name} (${c.id})`);
     if (roleFlips.length > 20) console.log(`    · ...and ${roleFlips.length - 20} more`);
   }
@@ -130,13 +154,15 @@ async function main() {
       const b = r.linked_contact_id ? contactById.get(r.linked_contact_id) : null;
       console.log(`  · ${a?.first_name ?? "?"} ${a?.last_name ?? ""} ⇔ ${b?.first_name ?? "?"} ${b?.last_name ?? ""}`);
     }
-    console.log(`\n  These ${coPrimaryPairs.length} pairs will collapse into ${coPrimaryPairs.length} joint journeys (saving ${coPrimaryPairs.length} cards vs today).`);
+    console.log(
+      `\n  These ${coPrimaryPairs.length} pairs will collapse into ${coPrimaryPairs.length} joint journeys (saving ${coPrimaryPairs.length} cards vs today).`
+    );
   }
 
   hdr("4 · Multi-territory franchisees (will fan out to N cards)");
   const multiTerritory: { name: string; territories: string[]; cpsRowCount: number }[] = [];
   for (const c of contactList) {
-    const slugs = c.ghl_contact_id ? ownersByGhl.get(c.ghl_contact_id) ?? [] : [];
+    const slugs = c.ghl_contact_id ? (ownersByGhl.get(c.ghl_contact_id) ?? []) : [];
     if (slugs.length < 2) continue;
     const cpsCount = activeCps.filter((r) => r.contact_id === c.id).length;
     multiTerritory.push({
@@ -152,7 +178,9 @@ async function main() {
     for (const m of multiTerritory) {
       const fanOut = Math.max(m.cpsRowCount, 1) * m.territories.length - m.cpsRowCount;
       extraCards += Math.max(fanOut, 0);
-      console.log(`  · ${m.name}: ${m.territories.length} territories [${m.territories.join(", ")}] · current pipeline rows: ${m.cpsRowCount}`);
+      console.log(
+        `  · ${m.name}: ${m.territories.length} territories [${m.territories.join(", ")}] · current pipeline rows: ${m.cpsRowCount}`
+      );
     }
     console.log(`\n  Runway stage will have +${extraCards} extra cards after migration.`);
   }
@@ -170,10 +198,15 @@ async function main() {
   console.log(`  Journeys to create:                      ${expectedJourneyCount}`);
   console.log(`  journey_contacts primary/co_primary rows: ${distinctPipelineContacts}`);
   console.log(`  journey_contacts leaf rows (linked):      ${leafLinks.length}`);
-  console.log(`  journey_pipeline_state rows to create:    ${activeCps.length + multiTerritory.reduce((s, m) => s + Math.max(m.territories.length - 1, 0), 0)} (baseline ${activeCps.length} + multi-territory fan-out)`);
+  console.log(
+    `  journey_pipeline_state rows to create:    ${activeCps.length + multiTerritory.reduce((s, m) => s + Math.max(m.territories.length - 1, 0), 0)} (baseline ${activeCps.length} + multi-territory fan-out)`
+  );
   console.log(`  is_converted_franchisee to flip true on:  ${roleFlips.length} contacts`);
 
   console.log("\n✔ Audit complete. Review above, then run the backfill migration.");
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

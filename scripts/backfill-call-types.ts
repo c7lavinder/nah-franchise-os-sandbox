@@ -36,13 +36,19 @@ async function main() {
 
   const { data: calls, error } = await supabase
     .from("calls")
-    .select("id, title, source, contact_id, hosted_by_user_id, read_ai_session_id, territory_ms_slug")
+    .select("id, title, source, contact_id, hosted_by_user_id, read_ai_session_id, TerritorySlug")
     .is("call_type_id", null)
     .is("deleted_at", null)
     .order("created_at", { ascending: true });
 
-  if (error) { console.error("Error fetching calls:", error.message); process.exit(1); }
-  if (!calls?.length) { console.log("No calls with NULL call_type_id."); return; }
+  if (error) {
+    console.error("Error fetching calls:", error.message);
+    process.exit(1);
+  }
+  if (!calls?.length) {
+    console.log("No calls with NULL call_type_id.");
+    return;
+  }
   console.log(`Found ${calls.length} calls with NULL call_type_id.\n`);
 
   const { data: callTypes } = await supabase.from("call_types").select("id, slug");
@@ -56,7 +62,7 @@ async function main() {
     // Rebuild NAH email list from call_participants → users.
     const { data: participants } = await supabase
       .from("call_participants")
-      .select("email, role, territory_ms_slug")
+      .select("email, role, TerritorySlug")
       .eq("call_id", call.id);
 
     const nahEmails = (participants ?? [])
@@ -73,16 +79,14 @@ async function main() {
       if (host?.email) nahEmails.push(host.email);
     }
 
-    const hasTerritoryOwner = !!call.territory_ms_slug ||
-      (participants ?? []).some((p) => !!p.territory_ms_slug);
+    const hasTerritoryOwner = !!call.TerritorySlug || (participants ?? []).some((p) => !!p.TerritorySlug);
 
     // is_internal: all recorded participants are NAH team AND there is at least one.
-    const isInternal = (participants ?? []).length > 0 &&
-      (participants ?? []).every((p) => p.role === "nah_team");
+    const isInternal = (participants ?? []).length > 0 && (participants ?? []).every((p) => p.role === "nah_team");
 
-    const hasExternal = (participants ?? []).some(
-      (p) => p.role === "prospect" || p.role === "franchisee",
-    ) || (!isInternal && !!call.contact_id);
+    const hasExternal =
+      (participants ?? []).some((p) => p.role === "prospect" || p.role === "franchisee") ||
+      (!isInternal && !!call.contact_id);
 
     const classification = classifyCallType({
       title: call.title ?? null,
@@ -106,7 +110,7 @@ async function main() {
     console.log(
       `[${LIVE ? "write" : "dry"}] ${call.id} source=${call.source ?? "null"} ` +
         `title=${JSON.stringify(call.title ?? "")} → slug=${classification.slug} ` +
-        `(${classification.reason})`,
+        `(${classification.reason})`
     );
 
     if (LIVE) {
@@ -135,4 +139,7 @@ async function main() {
   }
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

@@ -71,7 +71,10 @@ export async function GET(request: NextRequest) {
 
     for (const event of events) {
       const ghlEventId = event.id;
-      if (!ghlEventId) { skipped++; continue; }
+      if (!ghlEventId) {
+        skipped++;
+        continue;
+      }
 
       // Build participant signals from what GHL gives us.
       const ghlContactId = event.contactId;
@@ -79,8 +82,8 @@ export async function GET(request: NextRequest) {
 
       // Host — resolver will recognize as NAH team.
       const assignedUserId = (event as unknown as Record<string, unknown>).assignedUserId as string | undefined;
-      const hostedByUserId = assignedUserId ? userMap.get(assignedUserId) ?? null : null;
-      const hostEmail = assignedUserId ? userEmailMap.get(assignedUserId) ?? null : null;
+      const hostedByUserId = assignedUserId ? (userMap.get(assignedUserId) ?? null) : null;
+      const hostEmail = assignedUserId ? (userEmailMap.get(assignedUserId) ?? null) : null;
       if (hostEmail) signals.push({ email: hostEmail });
 
       // Contact — feed email + phone + name so the resolver can confirm or
@@ -103,7 +106,7 @@ export async function GET(request: NextRequest) {
 
       const match = await resolveCallParticipants(
         { participants: signals, meeting_title: event.title ?? null, source: "ghl_calendar" },
-        resolverDb,
+        resolverDb
       );
       const localContactId = match.contact_id;
 
@@ -112,7 +115,7 @@ export async function GET(request: NextRequest) {
         nah_emails: hostEmail ? [hostEmail] : [],
         is_internal: false,
         has_external_participant: !!localContactId,
-        has_territory_owner: !!match.territory_ms_slug,
+        has_territory_owner: !!match.TerritorySlug,
         source: "ghl_calendar",
       });
       const callTypeId = slugToCallTypeId.get(classification.slug) ?? null;
@@ -120,18 +123,24 @@ export async function GET(request: NextRequest) {
       const subTaskId = subTaskSlug ? (subTaskSlugMap.get(subTaskSlug) ?? null) : null;
 
       // Extract meeting link from event (GHL may include it as meetingLocation or other field)
-      const meetingLink = (event as unknown as Record<string, unknown>).meetingLocation as string ??
-        (event as unknown as Record<string, unknown>).meetLink as string ??
+      const meetingLink =
+        ((event as unknown as Record<string, unknown>).meetingLocation as string) ??
+        ((event as unknown as Record<string, unknown>).meetLink as string) ??
         null;
 
-      const status = event.status === "cancelled" ? "cancelled"
-        : event.status === "no-show" ? "missed"
-        : new Date(event.endTime) < now ? "completed"
-        : "scheduled";
+      const status =
+        event.status === "cancelled"
+          ? "cancelled"
+          : event.status === "no-show"
+            ? "missed"
+            : new Date(event.endTime) < now
+              ? "completed"
+              : "scheduled";
 
-      const durationSeconds = event.startTime && event.endTime
-        ? Math.round((new Date(event.endTime).getTime() - new Date(event.startTime).getTime()) / 1000)
-        : null;
+      const durationSeconds =
+        event.startTime && event.endTime
+          ? Math.round((new Date(event.endTime).getTime() - new Date(event.startTime).getTime()) / 1000)
+          : null;
 
       // Source jps directly from the shared resolver — same selection rule
       // used by every other entry point (prefer territory match, then
@@ -157,7 +166,7 @@ export async function GET(request: NextRequest) {
             `[sync-ghl-calendar] preserving match fields on call ${existing.id} ` +
               `(source=${existing.source ?? "null"}; cron would have set ` +
               `call_type=${classification.slug}, contact_id=${localContactId}, ` +
-              `territory=${match.territory_ms_slug})`,
+              `territory=${match.TerritorySlug})`
           );
           callTypePreserved++;
         }
@@ -176,7 +185,7 @@ export async function GET(request: NextRequest) {
           updatePayload.call_type_id = callTypeId;
           updatePayload.classification_reason = classification.reason;
           updatePayload.contact_id = localContactId;
-          updatePayload.territory_ms_slug = match.territory_ms_slug;
+          updatePayload.TerritorySlug = match.TerritorySlug;
           updatePayload.journey_pipeline_state_id = journeyPipelineStateId;
           updatePayload.match_confidence = match.confidence;
           updatePayload.match_reason = match.reason;
@@ -194,7 +203,7 @@ export async function GET(request: NextRequest) {
           .insert({
             ghl_event_id: ghlEventId,
             contact_id: localContactId,
-            territory_ms_slug: match.territory_ms_slug,
+            TerritorySlug: match.TerritorySlug,
             call_type_id: callTypeId,
             classification_reason: classification.reason,
             match_confidence: match.confidence,

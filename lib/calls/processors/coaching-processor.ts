@@ -20,7 +20,7 @@ export async function processCoachingCall(payload: ReadAIWebhookPayload, classif
     return;
   }
 
-  if (!classified.match.territory_ms_slug) return;
+  if (!classified.match.TerritorySlug) return;
 
   // 1. Classify call type
   const nahEmails = classified.match.participants
@@ -42,7 +42,7 @@ export async function processCoachingCall(payload: ReadAIWebhookPayload, classif
     .from("calls")
     .insert({
       contact_id: classified.match.contact_id,
-      territory_ms_slug: classified.match.territory_ms_slug,
+      TerritorySlug: classified.match.TerritorySlug,
       journey_pipeline_state_id: classified.match.journey_pipeline_state_id,
       coach_user_id: classified.coach_user_id,
       call_type_id: callType.id,

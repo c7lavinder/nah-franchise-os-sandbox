@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { EosTerritoryLeadChannel } from "@/types/database";
 
 interface Props {
-  msSlug: string;
+  TerritorySlug: string;
   channels: EosTerritoryLeadChannel[];
   onUpdate: () => void;
 }
@@ -20,31 +20,48 @@ const CHANNEL_HEADERS = [
 ];
 
 const CHANNEL_CHECKBOXES = [
-  "High Equity", "Absentee Owners", "Probates", "Evictions",
-  "City Citations", "Distressed Rentals", "Divorces", "Social Platforms",
-  "Birddogs", "Agent Listed", "FSBO", "Foreclosures",
-  "Brokered Auctions", "Wholesalers", "Agents Industry Network", "Homelight",
-  "Asset Managers", "Facebook Ads", "Google Ads", "Google Retargeting",
-  "Organic Search", "Google Map Pack", "Google Business", "Facebook",
-  "Instagram", "TikTok", "YouTube", "Google Business Profile",
+  "High Equity",
+  "Absentee Owners",
+  "Probates",
+  "Evictions",
+  "City Citations",
+  "Distressed Rentals",
+  "Divorces",
+  "Social Platforms",
+  "Birddogs",
+  "Agent Listed",
+  "FSBO",
+  "Foreclosures",
+  "Brokered Auctions",
+  "Wholesalers",
+  "Agents Industry Network",
+  "Homelight",
+  "Asset Managers",
+  "Facebook Ads",
+  "Google Ads",
+  "Google Retargeting",
+  "Organic Search",
+  "Google Map Pack",
+  "Google Business",
+  "Facebook",
+  "Instagram",
+  "TikTok",
+  "YouTube",
+  "Google Business Profile",
   "Other Social Media",
 ];
 
-export default function TerritoryEosLeadChannels({ msSlug, channels, onUpdate }: Props) {
+export default function TerritoryEosLeadChannels({ TerritorySlug, channels, onUpdate }: Props) {
   const [local, setLocal] = useState<EosTerritoryLeadChannel[]>(channels);
 
   const channelMap = new Map(local.map((ch) => [ch.channel_name, ch]));
 
   async function toggle(channel: EosTerritoryLeadChannel) {
-    setLocal((prev) =>
-      prev.map((c) => (c.id === channel.id ? { ...c, is_active: !c.is_active } : c))
-    );
-    await apiFetch(`/api/territories/${msSlug}/eos/lead-channels/${channel.id}`, {
+    setLocal((prev) => prev.map((c) => (c.id === channel.id ? { ...c, is_active: !c.is_active } : c)));
+    await apiFetch(`/api/territories/${TerritorySlug}/eos/lead-channels/${channel.id}`, {
       method: "POST",
     }).catch(() => {
-      setLocal((prev) =>
-        prev.map((c) => (c.id === channel.id ? { ...c, is_active: channel.is_active } : c))
-      );
+      setLocal((prev) => prev.map((c) => (c.id === channel.id ? { ...c, is_active: channel.is_active } : c)));
     });
     onUpdate();
   }

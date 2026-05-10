@@ -223,7 +223,7 @@ export async function POST(request: NextRequest) {
           const { data: contact } = await supabase
             .from("contacts")
             .select(
-              "opportunity_source, source, capital_availability, territory_status, business_ownership_experience, investment_timeline, motivation_clarity, trainual_completion_pct, created_at"
+              "opportunity_source, source, NonRetirementCapitalAvailable, territory_status, BriefWorkHistory, investment_timeline, WhatInterestsInOpportunity, trainual_completion_pct, created_at"
             )
             .eq("id", contactId)
             .single();

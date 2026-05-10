@@ -2,7 +2,7 @@
  * Backfill script — re-runs the shared resolver + the new journey-based
  * classifier against every non-deleted call and brings all of these in line:
  *
- *   - calls.contact_id / territory_ms_slug / journey_pipeline_state_id
+ *   - calls.contact_id / TerritorySlug / journey_pipeline_state_id
  *     (NULL for group + internal; primary from resolver for sales/onboarding/
  *     coaching)
  *   - calls.call_type_id (moved into its category under the new rule:
@@ -47,7 +47,7 @@ async function deriveCategory(
   externals: { journey_id: string | null }[],
   nahCount: number,
   territoryMsSlug: string | null,
-  db: ResolverDb,
+  db: ResolverDb
 ): Promise<{ category: CallCategory; distinctJourneys: number }> {
   const distinctIds = new Set(externals.map((p) => p.journey_id).filter((id): id is string => !!id));
   const count = distinctIds.size;
@@ -99,13 +99,19 @@ async function main() {
   const { data: calls, error } = await supabase
     .from("calls")
     .select(
-      "id, title, contact_id, territory_ms_slug, journey_pipeline_state_id, call_type_id, match_confidence, match_reason, source",
+      "id, title, contact_id, TerritorySlug, journey_pipeline_state_id, call_type_id, match_confidence, match_reason, source"
     )
     .is("deleted_at", null)
     .order("created_at", { ascending: true });
 
-  if (error) { console.error("Fetch failed:", error.message); process.exit(1); }
-  if (!calls?.length) { console.log("No calls to rematch."); return; }
+  if (error) {
+    console.error("Fetch failed:", error.message);
+    process.exit(1);
+  }
+  if (!calls?.length) {
+    console.log("No calls to rematch.");
+    return;
+  }
   console.log(`Scanning ${calls.length} calls.\n`);
 
   const db = createSupabaseResolverDb(supabase);
@@ -132,26 +138,20 @@ async function main() {
       phone: null,
     }));
 
-    const source = (call.source === "read_ai" || call.source === "ghl_calendar" || call.source === "manual")
-      ? call.source
-      : "manual";
+    const source =
+      call.source === "read_ai" || call.source === "ghl_calendar" || call.source === "manual" ? call.source : "manual";
 
     const result = await resolveCallParticipants(
       { participants: signals, meeting_title: call.title ?? null, source },
-      db,
+      db
     );
 
     // Derive category from the resolver's output + participant roles.
     const externals = result.participants.filter((p) => p.role !== "nah_team");
     const nahCount = result.participants.filter((p) => p.role === "nah_team").length;
-    const { category, distinctJourneys } = await deriveCategory(
-      externals,
-      nahCount,
-      result.territory_ms_slug,
-      db,
-    );
+    const { category, distinctJourneys } = await deriveCategory(externals, nahCount, result.TerritorySlug, db);
 
-    const oldSlug = call.call_type_id ? idToSlug.get(call.call_type_id) ?? null : null;
+    const oldSlug = call.call_type_id ? (idToSlug.get(call.call_type_id) ?? null) : null;
     const newSlug = slugForCategory(category, oldSlug);
     const newCallTypeId = slugToTypeId.get(newSlug) ?? call.call_type_id;
 
@@ -159,12 +159,12 @@ async function main() {
     // NULL — the junctions carry the full multi-entity truth.
     const forceNullPrimary = category === "group" || category === "internal";
     const targetContactId = forceNullPrimary ? null : result.contact_id;
-    const targetTerritory = forceNullPrimary ? null : result.territory_ms_slug;
+    const targetTerritory = forceNullPrimary ? null : result.TerritorySlug;
     const targetJps = forceNullPrimary ? null : result.journey_pipeline_state_id;
 
     const changed =
       targetContactId !== call.contact_id ||
-      targetTerritory !== call.territory_ms_slug ||
+      targetTerritory !== call.TerritorySlug ||
       targetJps !== call.journey_pipeline_state_id ||
       newCallTypeId !== call.call_type_id ||
       call.match_confidence !== result.confidence;
@@ -183,8 +183,8 @@ async function main() {
         `journeys=${distinctJourneys} ` +
         `slug: ${(oldSlug ?? "null").padEnd(20)} → ${newSlug.padEnd(20)} | ` +
         `contact ${(call.contact_id ?? "null").slice(0, 8)} → ${(targetContactId ?? "null").toString().slice(0, 8)} | ` +
-        `terr ${(call.territory_ms_slug ?? "null").padEnd(7)} → ${(targetTerritory ?? "null").toString().padEnd(7)} | ` +
-        `jps ${(call.journey_pipeline_state_id ?? "null").slice(0, 8)} → ${(targetJps ?? "null").toString().slice(0, 8)}`,
+        `terr ${(call.TerritorySlug ?? "null").padEnd(7)} → ${(targetTerritory ?? "null").toString().padEnd(7)} | ` +
+        `jps ${(call.journey_pipeline_state_id ?? "null").slice(0, 8)} → ${(targetJps ?? "null").toString().slice(0, 8)}`
     );
 
     if (LIVE) {
@@ -192,7 +192,7 @@ async function main() {
         .from("calls")
         .update({
           contact_id: targetContactId,
-          territory_ms_slug: targetTerritory,
+          TerritorySlug: targetTerritory,
           journey_pipeline_state_id: targetJps,
           call_type_id: newCallTypeId,
           match_confidence: result.confidence,
@@ -223,4 +223,7 @@ async function main() {
   }
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

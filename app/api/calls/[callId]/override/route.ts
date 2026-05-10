@@ -10,13 +10,13 @@ export const dynamic = "force-dynamic";
  * Accepts:
  *   call_type_id          — new call type
  *   contact_id            — new primary contact for the call
- *   territory_ms_slug     — new primary territory for the call
+ *   TerritorySlug     — new primary territory for the call
  *   participants          — per-row call_participants updates
  *     [{ id, contact_id }]  contact_id can be null to unmap
  *   territories           — full list of territories this call touches
  *     string[]              replaces call_territories rows for this call;
  *                           [] clears them all
- *   primary_territory_ms_slug — which territory in the list is primary
+ *   primary_TerritorySlug — which territory in the list is primary
  *                               (falls back to territories[0] or null)
  *   journeys              — full list of journeys this call advances
  *     [{ journey_id, journey_pipeline_state_id }]  replaces call_journeys
@@ -44,10 +44,10 @@ interface JourneyOverride {
 interface OverrideBody {
   call_type_id?: string | null;
   contact_id?: string | null;
-  territory_ms_slug?: string | null;
+  TerritorySlug?: string | null;
   participants?: ParticipantUpdate[];
   territories?: string[];
-  primary_territory_ms_slug?: string | null;
+  primary_TerritorySlug?: string | null;
   journeys?: JourneyOverride[];
   primary_journey_pipeline_state_id?: string | null;
 }
@@ -70,17 +70,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const {
     call_type_id,
     contact_id,
-    territory_ms_slug,
+    TerritorySlug,
     participants,
     territories,
-    primary_territory_ms_slug,
+    primary_TerritorySlug,
     journeys,
     primary_journey_pipeline_state_id,
   } = body;
 
   const hasCallTypeChange = call_type_id !== undefined;
   const hasContactChange = contact_id !== undefined;
-  const hasTerritoryChange = territory_ms_slug !== undefined;
+  const hasTerritoryChange = TerritorySlug !== undefined;
   const hasParticipantUpdates = Array.isArray(participants) && participants.length > 0;
   const hasTerritoriesList = Array.isArray(territories);
   const hasJourneysList = Array.isArray(journeys);
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           if (contact.ghl_contact_id) {
             const { data: owner } = await supabase
               .from("territory_owners")
-              .select("ms_slug")
+              .select("TerritorySlug")
               .eq("ghl_contact_id", contact.ghl_contact_id)
               .is("end_date", null)
               .maybeSingle();
@@ -150,15 +150,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   // ── Multi-territory sync: replace the full set in call_territories, and
-  //    keep calls.territory_ms_slug in sync with the chosen primary.
+  //    keep calls.TerritorySlug in sync with the chosen primary.
   let territoriesWritten = 0;
   let resolvedPrimary: string | null | undefined = undefined;
   if (hasTerritoriesList) {
     const unique = Array.from(new Set((territories ?? []).filter((s): s is string => !!s && typeof s === "string")));
     resolvedPrimary =
-      primary_territory_ms_slug && unique.includes(primary_territory_ms_slug)
-        ? primary_territory_ms_slug
-        : (unique[0] ?? null);
+      primary_TerritorySlug && unique.includes(primary_TerritorySlug) ? primary_TerritorySlug : (unique[0] ?? null);
 
     const { error: delErr } = await supabase.from("call_territories").delete().eq("call_id", callId);
     if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
@@ -166,7 +164,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (unique.length > 0) {
       const rows = unique.map((slug) => ({
         call_id: callId,
-        territory_ms_slug: slug,
+        TerritorySlug: slug,
         is_primary: slug === resolvedPrimary,
       }));
       const { error: insErr } = await supabase.from("call_territories").insert(rows);
@@ -220,8 +218,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (hasContactChange || hasTerritoryChange || hasParticipantUpdates || hasTerritoriesList || hasJourneysList) {
     if (hasContactChange) callUpdates.contact_id = contact_id;
-    if (hasTerritoryChange) callUpdates.territory_ms_slug = territory_ms_slug;
-    if (hasTerritoriesList) callUpdates.territory_ms_slug = resolvedPrimary;
+    if (hasTerritoryChange) callUpdates.TerritorySlug = TerritorySlug;
+    if (hasTerritoriesList) callUpdates.TerritorySlug = resolvedPrimary;
     if (hasJourneysList) callUpdates.journey_pipeline_state_id = resolvedPrimaryJps ?? null;
     // Any of these imply a human-confirmed match.
     callUpdates.match_confidence = 1.0;

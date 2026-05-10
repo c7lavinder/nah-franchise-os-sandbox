@@ -11,10 +11,10 @@ export const dynamic = "force-dynamic";
  * Request body:
  *   target_type:          'contact' | 'territory'
  *   target_contact_id?:   string (when target_type = 'contact' and scope = 'single')
- *   target_territory_slug?: string (when target_type = 'territory')
+ *   target_TerritorySlug?: string (when target_type = 'territory')
  *   target_scope?:        'single' | 'both'  ('both' only valid on partnership journeys)
  *
- * Missing body falls back to the extraction's stored contact_id / territory_slug.
+ * Missing body falls back to the extraction's stored contact_id / TerritorySlug.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -39,7 +39,7 @@ const FIELD_MAP: Record<string, string> = {
 interface SaveBody {
   target_type?: "contact" | "territory";
   target_contact_id?: string;
-  target_territory_slug?: string;
+  target_TerritorySlug?: string;
   target_scope?: "single" | "both";
 }
 
@@ -53,7 +53,7 @@ export async function POST(
 
   const { data: extraction } = await supabase
     .from("call_data_extractions")
-    .select("id, call_id, contact_id, journey_id, territory_ms_slug, field_key, field_category, extracted_value, target_scope")
+    .select("id, call_id, contact_id, journey_id, TerritorySlug, field_key, field_category, extracted_value, target_scope")
     .eq("id", extractionId)
     .eq("call_id", callId)
     .single();
@@ -68,10 +68,10 @@ export async function POST(
   const now = new Date().toISOString();
   const targetType: "contact" | "territory" =
     body.target_type
-    ?? (body.target_territory_slug ? "territory" : "contact");
+    ?? (body.target_TerritorySlug ? "territory" : "contact");
 
   if (targetType === "territory") {
-    const slug = body.target_territory_slug ?? extraction.territory_ms_slug;
+    const slug = body.target_TerritorySlug ?? extraction.TerritorySlug;
     if (!slug) {
       return NextResponse.json({ error: "No territory selected" }, { status: 400 });
     }
@@ -79,14 +79,14 @@ export async function POST(
       .from("territory_market_data")
       .upsert(
         {
-          territory_slug: slug,
+          TerritorySlug: slug,
           field_name: extraction.field_key,
           field_value: extraction.extracted_value,
           source: "scout_extraction",
           source_date: now,
           updated_at: now,
         },
-        { onConflict: "territory_slug,field_name" }
+        { onConflict: "TerritorySlug,field_name" }
       );
     if (error) {
       console.error("[save-extraction] territory upsert failed:", error.message);
@@ -96,7 +96,7 @@ export async function POST(
       .from("call_data_extractions")
       .update({
         saved_to_profile: true,
-        territory_ms_slug: slug,
+        TerritorySlug: slug,
         target_scope: null,
       })
       .eq("id", extractionId);

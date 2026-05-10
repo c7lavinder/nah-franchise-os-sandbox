@@ -27,16 +27,16 @@ export default function DataPointsTab({ contactId, territorySlug, entityType }: 
   const [loading, setLoading] = useState(true);
 
   const fetchSuggestions = useCallback(async () => {
-    const param = contactId
-      ? `contact_id=${contactId}`
-      : `territory_ms_slug=${territorySlug}`;
+    const param = contactId ? `contact_id=${contactId}` : `TerritorySlug=${territorySlug}`;
     try {
       const res = await apiFetch(`/api/suggestions?${param}`);
       if (res.ok) {
         const d = await res.json();
         setSuggestions(d.suggestions ?? []);
       }
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
     setLoading(false);
   }, [contactId, territorySlug]);
 
@@ -52,7 +52,9 @@ export default function DataPointsTab({ contactId, territorySlug, entityType }: 
         body: JSON.stringify({ suggestionId: id, finalValue: value, reviewerId: "current-user" }),
       });
       setSuggestions((prev) => prev.filter((s) => s.id !== id));
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
   }
 
   async function handleSkip(id: string) {
@@ -63,7 +65,9 @@ export default function DataPointsTab({ contactId, territorySlug, entityType }: 
         body: JSON.stringify({ suggestionId: id, reviewerId: "current-user" }),
       });
       setSuggestions((prev) => prev.filter((s) => s.id !== id));
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
   }
 
   if (loading) {
@@ -89,11 +93,7 @@ export default function DataPointsTab({ contactId, territorySlug, entityType }: 
         />
       </div>
 
-      <SuggestionCards
-        suggestions={suggestions}
-        onPush={handlePush}
-        onSkip={handleSkip}
-      />
+      <SuggestionCards suggestions={suggestions} onPush={handlePush} onSkip={handleSkip} />
     </div>
   );
 }

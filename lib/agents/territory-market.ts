@@ -14,12 +14,18 @@ import { MARKET_FIELDS } from "@/lib/territory/market-field-registry";
 const AGENT_MODEL = "claude-haiku-4-5-20251001";
 
 // Build the field list for the prompt from the registry
-const FIELD_LIST = MARKET_FIELDS
-  .filter((f) => f.populationSource !== "mastersuite" && f.populationSource !== "calculated")
+const FIELD_LIST = MARKET_FIELDS.filter(
+  (f) => f.populationSource !== "mastersuite" && f.populationSource !== "calculated"
+)
   .map((f) => {
-    const type = f.dataType === "currency" ? "(dollar amount)" :
-      f.dataType === "percentage" ? "(%)" :
-      f.dataType === "number" ? "(number)" : "(text)";
+    const type =
+      f.dataType === "currency"
+        ? "(dollar amount)"
+        : f.dataType === "percentage"
+          ? "(%)"
+          : f.dataType === "number"
+            ? "(number)"
+            : "(text)";
     return `- ${f.name}: ${f.label} ${type}${f.help ? ` — ${f.help}` : ""}`;
   })
   .join("\n");
@@ -41,15 +47,15 @@ Respond with ONLY valid JSON: { "findings": [...] }
 Be thorough — aim for 20-40+ fields. Use general market knowledge for the metro area.`;
 
 export async function runTerritoryMarketResearch(
-  msSlug: string
+  TerritorySlug: string
 ): Promise<{ suggestionsCreated: number; directWrites: number }> {
   const supabase = createServerClient();
 
   try {
     const { data: territory } = await supabase
       .from("territories")
-      .select("ms_slug, territory_name, region")
-      .eq("ms_slug", msSlug)
+      .select("TerritorySlug, Nickname, region")
+      .eq("TerritorySlug", TerritorySlug)
       .single();
 
     if (!territory) throw new Error("Territory not found");
@@ -61,7 +67,7 @@ export async function runTerritoryMarketResearch(
       messages: [
         {
           role: "user",
-          content: `${RESEARCH_PROMPT}\n\nTerritory: "${territory.territory_name}" (code: ${msSlug})\nRegion: ${territory.region ?? "unknown"}`,
+          content: `${RESEARCH_PROMPT}\n\nTerritory: "${territory.Nickname}" (code: ${TerritorySlug})\nRegion: ${territory.region ?? "unknown"}`,
         },
       ],
     });
@@ -86,25 +92,25 @@ export async function runTerritoryMarketResearch(
         // High confidence → write directly to territory_market_data
         await supabase.from("territory_market_data").upsert(
           {
-            territory_slug: msSlug,
+            TerritorySlug: TerritorySlug,
             field_name: f.field_name,
             field_value: f.suggested_value,
             source: "api",
             source_date: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
-          { onConflict: "territory_slug,field_name", ignoreDuplicates: false }
+          { onConflict: "TerritorySlug,field_name", ignoreDuplicates: false }
         );
         directWrites++;
       } else {
         // Medium/low → suggestion queue for human review
         await handleDuplicateFieldSuggestion({
-          territory_ms_slug: msSlug,
+          TerritorySlug: TerritorySlug,
           field_name: f.field_name,
           field_table: "territory_market_data",
           suggested_value: f.suggested_value,
           source: "agent_research",
-          source_id: `territory-market-${msSlug}`,
+          source_id: `territory-market-${TerritorySlug}`,
           evidence: f.evidence,
           confidence: f.confidence as "high" | "medium" | "low",
         });
@@ -116,8 +122,8 @@ export async function runTerritoryMarketResearch(
       integration_name: "territory-market",
       event_type: "research",
       status: "success",
-      payload_summary: `${directWrites} direct writes, ${suggestions} suggestions for ${msSlug}`,
-      related_ms_slug: msSlug,
+      payload_summary: `${directWrites} direct writes, ${suggestions} suggestions for ${TerritorySlug}`,
+      TerritorySlug: TerritorySlug,
     });
 
     return { suggestionsCreated: suggestions, directWrites };
@@ -128,7 +134,7 @@ export async function runTerritoryMarketResearch(
       event_type: "error",
       status: "failed",
       error_message: msg,
-      related_ms_slug: msSlug,
+      TerritorySlug: TerritorySlug,
     });
     throw err;
   }

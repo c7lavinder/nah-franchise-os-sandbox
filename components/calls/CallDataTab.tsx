@@ -14,12 +14,18 @@ interface Extraction {
   confidence: string | null;
   saved_to_profile: boolean;
   dismissed: boolean;
-  territory_ms_slug: string | null;
+  TerritorySlug: string | null;
   target_scope: "single" | "both" | null;
 }
 
-interface PartnerOption { id: string; name: string }
-interface TerritoryOption { ms_slug: string; territory_name: string }
+interface PartnerOption {
+  id: string;
+  name: string;
+}
+interface TerritoryOption {
+  TerritorySlug: string;
+  Nickname: string;
+}
 
 interface CallDataTabProps {
   callId: string;
@@ -114,9 +120,7 @@ export default function CallDataTab(props: CallDataTabProps) {
   if (state === "ready") {
     return (
       <div className="text-center py-12">
-        <p className="text-body-sm text-text-tertiary">
-          Generate on the Overview tab to unlock data extraction.
-        </p>
+        <p className="text-body-sm text-text-tertiary">Generate on the Overview tab to unlock data extraction.</p>
       </div>
     );
   }
@@ -167,12 +171,27 @@ export default function CallDataTab(props: CallDataTabProps) {
         </div>
       )}
 
-      {reviewed.length > 0 && <ReviewedBlock items={reviewed} partnerOptions={props.partnerOptions} linkedContacts={props.linkedContacts ?? []} callTerritories={props.callTerritories ?? []} onRefresh={props.onRefresh} />}
+      {reviewed.length > 0 && (
+        <ReviewedBlock
+          items={reviewed}
+          partnerOptions={props.partnerOptions}
+          linkedContacts={props.linkedContacts ?? []}
+          callTerritories={props.callTerritories ?? []}
+          onRefresh={props.onRefresh}
+        />
+      )}
     </div>
   );
 }
 
-function CategorySection({ category, items, partnerOptions, linkedContacts, callTerritories, onRefresh }: {
+function CategorySection({
+  category,
+  items,
+  partnerOptions,
+  linkedContacts,
+  callTerritories,
+  onRefresh,
+}: {
   category: string;
   items: Extraction[];
   partnerOptions: PartnerOption[];
@@ -191,8 +210,14 @@ function CategorySection({ category, items, partnerOptions, linkedContacts, call
       >
         <h3 className="text-body-sm font-medium text-text-primary">{meta.label}</h3>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-tertiary">{items.length}</span>
-          {open ? <ChevronDown size={14} className="text-text-tertiary" /> : <ChevronRight size={14} className="text-text-tertiary" />}
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-tertiary">
+            {items.length}
+          </span>
+          {open ? (
+            <ChevronDown size={14} className="text-text-tertiary" />
+          ) : (
+            <ChevronRight size={14} className="text-text-tertiary" />
+          )}
         </div>
       </button>
       {open && (
@@ -213,7 +238,13 @@ function CategorySection({ category, items, partnerOptions, linkedContacts, call
   );
 }
 
-function ReviewedBlock({ items, partnerOptions, linkedContacts, callTerritories, onRefresh }: {
+function ReviewedBlock({
+  items,
+  partnerOptions,
+  linkedContacts,
+  callTerritories,
+  onRefresh,
+}: {
   items: Extraction[];
   partnerOptions: PartnerOption[];
   linkedContacts: { id: string | null; name: string }[];
@@ -224,7 +255,11 @@ function ReviewedBlock({ items, partnerOptions, linkedContacts, callTerritories,
   return (
     <div className="border-t border-border-default pt-3">
       <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 w-full text-left">
-        {open ? <ChevronDown size={14} className="text-text-tertiary" /> : <ChevronRight size={14} className="text-text-tertiary" />}
+        {open ? (
+          <ChevronDown size={14} className="text-text-tertiary" />
+        ) : (
+          <ChevronRight size={14} className="text-text-tertiary" />
+        )}
         <span className="text-overline text-text-tertiary tracking-wider">REVIEWED</span>
         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-tertiary">{items.length}</span>
       </button>

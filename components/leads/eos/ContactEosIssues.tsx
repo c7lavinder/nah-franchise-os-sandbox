@@ -29,7 +29,7 @@ export default function ContactEosIssues({ contactId, carriedTerritoryName }: Pr
     const res = await apiFetch(`/api/contacts/${contactId}/eos/issues`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ issue_text: newText.trim() }),
+      body: JSON.stringify({ Issue: newText.trim() }),
     });
     if (res.ok) {
       const { issue } = await res.json();
@@ -44,9 +44,7 @@ export default function ContactEosIssues({ contactId, carriedTerritoryName }: Pr
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_done: !issue.is_done }),
     });
-    setIssues((prev) =>
-      prev.map((i) => (i.id === issue.id ? { ...i, is_done: !i.is_done } : i))
-    );
+    setIssues((prev) => prev.map((i) => (i.id === issue.id ? { ...i, is_done: !i.is_done } : i)));
   }
 
   async function deleteIssue(id: string) {
@@ -82,7 +80,7 @@ export default function ContactEosIssues({ contactId, carriedTerritoryName }: Pr
                 issue.is_done ? "line-through text-text-tertiary opacity-60" : "text-text-primary"
               }`}
             >
-              {issue.issue_text}
+              {issue.Issue}
             </span>
             <SourceBadge source={issue.source} />
             {carriedTerritoryName && (

@@ -107,12 +107,14 @@ export async function getContactPipelineStates(contactId: string): Promise<Conta
 
   const { data, error } = await supabase
     .from("journey_pipeline_state")
-    .select(`
-      id, journey_id, pipeline_id, territory_ms_slug, current_stage_id, current_sub_task_id,
+    .select(
+      `
+      id, journey_id, pipeline_id, TerritorySlug, current_stage_id, current_sub_task_id,
       current_sub_task_started_at, entered_pipeline_at, entered_current_stage_at,
       assigned_user_id, is_active, closed_reason, closed_at,
       pipelines (name, slug, sort_order)
-    `)
+    `
+    )
     .eq("journey_id", journey.id)
     .eq("is_active", true);
 
@@ -120,11 +122,14 @@ export async function getContactPipelineStates(contactId: string): Promise<Conta
 
   // Fold per-pipeline: prefer NULL-territory rows, else the first by id.
   // Preserves the one-row-per-pipeline contract the lead page expects.
-  const canonByPipeline = new Map<string, typeof data[number]>();
+  const canonByPipeline = new Map<string, (typeof data)[number]>();
   for (const row of data) {
     const existing = canonByPipeline.get(row.pipeline_id);
-    if (!existing) { canonByPipeline.set(row.pipeline_id, row); continue; }
-    if (row.territory_ms_slug === null && existing.territory_ms_slug !== null) {
+    if (!existing) {
+      canonByPipeline.set(row.pipeline_id, row);
+      continue;
+    }
+    if (row.TerritorySlug === null && existing.TerritorySlug !== null) {
       canonByPipeline.set(row.pipeline_id, row);
     }
   }
@@ -139,7 +144,7 @@ export async function getContactPipelineStates(contactId: string): Promise<Conta
   });
 
   return rows.map((row) => {
-    const pipeline = (row.pipelines as unknown) as { name: string; slug: string; sort_order?: number } | null;
+    const pipeline = row.pipelines as unknown as { name: string; slug: string; sort_order?: number } | null;
     return {
       id: row.id,
       contact_id: contactId,
@@ -179,7 +184,9 @@ export async function getSubTasksForStage(stageId: string): Promise<PipelineSubT
 
   const { data, error } = await supabase
     .from("pipeline_sub_tasks")
-    .select("id, slug, name, sort_order, state_type, first_state_label, second_state_label, default_logger_type, default_logger_user_id, is_required, stage_id")
+    .select(
+      "id, slug, name, sort_order, state_type, first_state_label, second_state_label, default_logger_type, default_logger_user_id, is_required, stage_id"
+    )
     .eq("stage_id", stageId)
     .order("sort_order");
 
@@ -192,19 +199,18 @@ export async function getSubTasksForStage(stageId: string): Promise<PipelineSubT
  * Phase 4 full cutover: the passed id is now a jps id (contract change).
  * Logs are queried by journey_pipeline_state_id (every row backfilled).
  */
-export async function getSubTaskLogs(
-  journeyPipelineStateId: string,
-  subTaskId?: string
-): Promise<SubTaskLog[]> {
+export async function getSubTaskLogs(journeyPipelineStateId: string, subTaskId?: string): Promise<SubTaskLog[]> {
   const supabase = createServerClient();
 
   let query = supabase
     .from("contact_sub_task_logs")
-    .select(`
+    .select(
+      `
       id, journey_pipeline_state_id, sub_task_id, logger_user_id,
       source, state_advance, content_type, content_text,
       content_file_url, content_link_url, metadata, created_at, deleted_at
-    `)
+    `
+    )
     .eq("journey_pipeline_state_id", journeyPipelineStateId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -251,10 +257,12 @@ export async function getStageHistory(journeyPipelineStateId: string): Promise<S
 
   const { data, error } = await supabase
     .from("pipeline_stage_history")
-    .select(`
+    .select(
+      `
       id, journey_pipeline_state_id, from_stage_id, to_stage_id,
       moved_by_user_id, reason, was_skip, was_revert, was_auto, created_at
-    `)
+    `
+    )
     .eq("journey_pipeline_state_id", journeyPipelineStateId)
     .order("created_at", { ascending: false });
 
@@ -270,7 +278,10 @@ export async function getStageHistory(journeyPipelineStateId: string): Promise<S
       ? supabase2.from("pipeline_stages").select("id, name").in("id", stageIds)
       : Promise.resolve({ data: [] as { id: string; name: string }[] }),
     userIds.length > 0
-      ? supabase2.from("users").select("id, full_name").in("id", userIds as string[])
+      ? supabase2
+          .from("users")
+          .select("id, full_name")
+          .in("id", userIds as string[])
       : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
   ]);
 
@@ -302,20 +313,12 @@ export async function resolveContactId(identifier: string): Promise<string | nul
 
   if (isUUID) {
     // Sprint 4A bugfix: try local UUID first
-    const { data } = await supabase
-      .from("contacts")
-      .select("id")
-      .eq("id", identifier)
-      .maybeSingle();
+    const { data } = await supabase.from("contacts").select("id").eq("id", identifier).maybeSingle();
     if (data) return data.id;
   }
 
   // Fall back to GHL contact ID lookup
-  const { data } = await supabase
-    .from("contacts")
-    .select("id")
-    .eq("ghl_contact_id", identifier)
-    .maybeSingle();
+  const { data } = await supabase.from("contacts").select("id").eq("ghl_contact_id", identifier).maybeSingle();
 
   return data?.id ?? null;
 }
@@ -341,7 +344,8 @@ export async function getContactByIdentifier(identifier: string): Promise<{
   const supabase = createServerClient();
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
 
-  const fields = "id, ghl_contact_id, first_name, last_name, email, phone, opportunity_source, sub_source, city, state, legal_entity, website, franchise_fee, royalty_pct, term_months";
+  const fields =
+    "id, ghl_contact_id, first_name, last_name, email, phone, opportunity_source, sub_source, city, state, legal_entity, website, franchise_fee, royalty_pct, term_months";
 
   if (isUUID) {
     const { data } = await supabase.from("contacts").select(fields).eq("id", identifier).maybeSingle();

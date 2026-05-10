@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     .from("calls")
     .select(
       `
-      id, contact_id, call_type_id, territory_ms_slug,
+      id, contact_id, call_type_id, TerritorySlug,
       scheduled_at, started_at, ended_at, duration_seconds,
       hosted_by_user_id, status, created_at,
       title, source, read_ai_session_id,
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
   const userIds = [...new Set(calls.map((c) => c.hosted_by_user_id).filter(Boolean))];
   const callTypeIds = [...new Set(calls.map((c) => c.call_type_id).filter(Boolean))];
   const sessionIds = calls.map((c) => c.read_ai_session_id).filter(Boolean) as string[];
-  const territorySlugs = [...new Set(calls.map((c) => c.territory_ms_slug).filter(Boolean))] as string[];
+  const territorySlugs = [...new Set(calls.map((c) => c.TerritorySlug).filter(Boolean))] as string[];
 
   // Run ALL enrichment in parallel
   const [contactRes, userRes, callTypeRes, sessionRes, territoryRes] = await Promise.all([
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
           .in("session_id", sessionIds)
       : Promise.resolve({ data: [] }),
     territorySlugs.length > 0
-      ? supabase.from("territories").select("ms_slug, territory_name").in("ms_slug", territorySlugs)
+      ? supabase.from("territories").select("TerritorySlug, Nickname").in("TerritorySlug", territorySlugs)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
 
   const territoryMap = new Map<string, string>();
   for (const t of territoryRes.data ?? []) {
-    territoryMap.set(t.ms_slug, t.territory_name);
+    territoryMap.set(t.TerritorySlug, t.Nickname);
   }
 
   // Build email→user map for all known users (for participant resolution)
@@ -276,7 +276,7 @@ export async function GET(request: NextRequest) {
       callTypeSlug: ctInfo?.slug ?? null,
       classifiedType: session?.call_type ?? null,
       platform: session?.platform ?? null,
-      territoryName: c.territory_ms_slug ? (territoryMap.get(c.territory_ms_slug) ?? null) : null,
+      territoryName: c.TerritorySlug ? (territoryMap.get(c.TerritorySlug) ?? null) : null,
       teamMembers,
       externalContacts,
       unmappedParticipants,

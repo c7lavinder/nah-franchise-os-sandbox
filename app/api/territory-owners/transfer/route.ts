@@ -1,26 +1,30 @@
 /**
  * POST /api/territory-owners/transfer — transfer territory ownership
  *
- * Body: { ms_slug, new_ghl_contact_id, transfer_notes? }
+ * Body: { TerritorySlug, new_ghl_contact_id, transfer_notes? }
  *
  * Ends current owner's record (sets end_date) and creates a new one.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 
 interface TransferBody {
-  ms_slug: string;
+  TerritorySlug: string;
   new_ghl_contact_id: string;
   transfer_notes?: string;
 }
 
 export async function POST(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   const body = (await request.json()) as TransferBody;
 
-  if (!body.ms_slug || !body.new_ghl_contact_id) {
-    return NextResponse.json({ error: "ms_slug and new_ghl_contact_id required" }, { status: 400 });
+  if (!body.TerritorySlug || !body.new_ghl_contact_id) {
+    return NextResponse.json({ error: "TerritorySlug and new_ghl_contact_id required" }, { status: 400 });
   }
 
   const supabase = createServerClient();
@@ -33,7 +37,7 @@ export async function POST(request: NextRequest) {
       end_date: today,
       transfer_notes: body.transfer_notes ?? "Transferred via admin",
     })
-    .eq("ms_slug", body.ms_slug)
+    .eq("TerritorySlug", body.TerritorySlug)
     .is("end_date", null);
 
   if (endError) {
@@ -44,7 +48,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase
     .from("territory_owners")
     .insert({
-      ms_slug: body.ms_slug,
+      TerritorySlug: body.TerritorySlug,
       ghl_contact_id: body.new_ghl_contact_id,
       role: "owner",
       start_date: today,

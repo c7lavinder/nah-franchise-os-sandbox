@@ -38,7 +38,7 @@ const JENNIFER_ID = "cece1ef4";
 const ELIDA_ID = "6429bd13";
 
 const DOUGLAS_WARD_JOURNEY = "ac8d7789-9c98-4eeb-94e2-b4b27c21de1e";
-const LARRY_RIFE_JOURNEY   = "36e7bc49-20da-4b6b-86fa-fcb2ba68960d";
+const LARRY_RIFE_JOURNEY = "36e7bc49-20da-4b6b-86fa-fcb2ba68960d";
 
 interface JourneyMerge {
   who: string;
@@ -47,18 +47,21 @@ interface JourneyMerge {
 }
 
 const JOURNEY_MERGES: JourneyMerge[] = [
-  { who: "Ryan Norman",    dropShort: "27a5640b", keepShort: "abd2fcd3" },
-  { who: "Alex Inanc",     dropShort: "0235de4d", keepShort: "251f4106" },
+  { who: "Ryan Norman", dropShort: "27a5640b", keepShort: "abd2fcd3" },
+  { who: "Alex Inanc", dropShort: "0235de4d", keepShort: "251f4106" },
   { who: "Latoya Johnson", dropShort: "2d496d60", keepShort: "dda0364d" },
-  { who: "Larry Rife",     dropShort: "627b0589", keepShort: "36e7bc49" },
-  { who: "John Adams",     dropShort: "be2a8354", keepShort: "7b704cd4" },
+  { who: "Larry Rife", dropShort: "627b0589", keepShort: "36e7bc49" },
+  { who: "John Adams", dropShort: "be2a8354", keepShort: "7b704cd4" },
 ];
 
 async function resolveContactShort(short: string): Promise<string | null> {
   const PAGE = 1000;
   let offset = 0;
   while (true) {
-    const { data } = await supabase.from("contacts").select("id").range(offset, offset + PAGE - 1);
+    const { data } = await supabase
+      .from("contacts")
+      .select("id")
+      .range(offset, offset + PAGE - 1);
     if (!data || data.length === 0) return null;
     const hit = data.find((c) => c.id.startsWith(short));
     if (hit) return hit.id;
@@ -71,7 +74,10 @@ async function resolveJourneyShort(short: string): Promise<{ id: string; name: s
   const PAGE = 1000;
   let offset = 0;
   while (true) {
-    const { data } = await supabase.from("journeys").select("id, name").range(offset, offset + PAGE - 1);
+    const { data } = await supabase
+      .from("journeys")
+      .select("id, name")
+      .range(offset, offset + PAGE - 1);
     if (!data || data.length === 0) return null;
     const hit = data.find((j) => j.id.startsWith(short));
     if (hit) return hit;
@@ -96,7 +102,9 @@ async function addMember(contactId: string, journeyId: string, role: string, dry
     return;
   }
   const { error } = await supabase.from("journey_contacts").insert({
-    journey_id: journeyId, contact_id: contactId, role,
+    journey_id: journeyId,
+    contact_id: contactId,
+    role,
   });
   if (error) console.log(`   ADD ERR ${error.message}`);
   else console.log(`   added as ${role}`);
@@ -126,7 +134,11 @@ async function deleteContact(contactId: string, dry: boolean): Promise<void> {
  *   3. Delete the drop journey — cascade removes its journey_contacts +
  *      any stranded jps rows from step 2.
  */
-async function mergeJourneys(drop: { id: string; name: string }, keep: { id: string; name: string }, dry: boolean): Promise<void> {
+async function mergeJourneys(
+  drop: { id: string; name: string },
+  keep: { id: string; name: string },
+  dry: boolean
+): Promise<void> {
   console.log(`   drop  ${drop.id.slice(0, 8)}  "${drop.name}"`);
   console.log(`   keep  ${keep.id.slice(0, 8)}  "${keep.name}"`);
 
@@ -134,8 +146,11 @@ async function mergeJourneys(drop: { id: string; name: string }, keep: { id: str
   const { data: cjRows } = await supabase.from("call_journeys").select("id, call_id").eq("journey_id", drop.id);
   for (const r of cjRows ?? []) {
     const { data: existing } = await supabase
-      .from("call_journeys").select("id")
-      .eq("call_id", r.call_id).eq("journey_id", keep.id).maybeSingle();
+      .from("call_journeys")
+      .select("id")
+      .eq("call_id", r.call_id)
+      .eq("journey_id", keep.id)
+      .maybeSingle();
     if (existing) {
       if (!dry) await supabase.from("call_journeys").delete().eq("id", r.id);
       console.log(`   ${dry ? "would delete" : "deleted"} duplicate call_journeys row`);
@@ -155,12 +170,13 @@ async function mergeJourneys(drop: { id: string; name: string }, keep: { id: str
   //    - Otherwise move it.
   const { data: dropJps } = await supabase
     .from("journey_pipeline_state")
-    .select("id, pipeline_id, territory_ms_slug, is_active, pipelines(slug)")
+    .select("id, pipeline_id, TerritorySlug, is_active, pipelines(slug)")
     .eq("journey_id", drop.id);
   const { data: keepJps } = await supabase
     .from("journey_pipeline_state")
-    .select("pipeline_id, territory_ms_slug, is_active, pipelines(slug)")
-    .eq("journey_id", keep.id).eq("is_active", true);
+    .select("pipeline_id, TerritorySlug, is_active, pipelines(slug)")
+    .eq("journey_id", keep.id)
+    .eq("is_active", true);
 
   const keepHasRealActivity = (keepJps ?? []).some((k) => {
     const slug = (k.pipelines as unknown as { slug: string } | null)?.slug;
@@ -169,16 +185,18 @@ async function mergeJourneys(drop: { id: string; name: string }, keep: { id: str
 
   for (const j of dropJps ?? []) {
     const dropSlug = (j.pipelines as unknown as { slug: string } | null)?.slug;
-    if ((dropSlug === "followup") && keepHasRealActivity) {
+    if (dropSlug === "followup" && keepHasRealActivity) {
       console.log(`   ${dry ? "would drop" : "dropping"} stale followup jps (keep is an active franchisee)`);
       continue;
     }
 
-    const conflict = (keepJps ?? []).some((k) =>
-      k.pipeline_id === j.pipeline_id && k.territory_ms_slug === j.territory_ms_slug
+    const conflict = (keepJps ?? []).some(
+      (k) => k.pipeline_id === j.pipeline_id && k.TerritorySlug === j.TerritorySlug
     );
     if (conflict) {
-      console.log(`   ${dry ? "would skip" : "skipped"} jps (duplicate slot on keep) pipeline=${dropSlug} territory=${j.territory_ms_slug ?? "—"}`);
+      console.log(
+        `   ${dry ? "would skip" : "skipped"} jps (duplicate slot on keep) pipeline=${dropSlug} territory=${j.TerritorySlug ?? "—"}`
+      );
       continue;
     }
 
@@ -187,7 +205,7 @@ async function mergeJourneys(drop: { id: string; name: string }, keep: { id: str
       if (error) console.log(`   jps move ERR ${error.message}`);
       else console.log(`   moved jps ${j.id.slice(0, 8)} (${dropSlug}) → keep`);
     } else {
-      console.log(`   would move jps ${j.id.slice(0, 8)} (${dropSlug}, territory=${j.territory_ms_slug ?? "—"}) → keep`);
+      console.log(`   would move jps ${j.id.slice(0, 8)} (${dropSlug}, territory=${j.TerritorySlug ?? "—"}) → keep`);
     }
   }
 

@@ -323,7 +323,7 @@ async function loadCallContext(
   if (contactIds.length > 0) {
     const { data: owners } = await supabase
       .from("territory_owners")
-      .select("ms_slug, territories ( territory_name )")
+      .select("TerritorySlug, territories ( Nickname )")
       .in(
         "ghl_contact_id",
         (await supabase.from("contacts").select("ghl_contact_id").in("id", contactIds)).data
@@ -333,7 +333,7 @@ async function loadCallContext(
       .is("end_date", null);
     for (const o of owners ?? []) {
       const t = Array.isArray(o.territories) ? o.territories[0] : o.territories;
-      const name = (t as { territory_name: string } | null)?.territory_name ?? o.ms_slug;
+      const name = (t as { Nickname: string } | null)?.Nickname ?? o.TerritorySlug;
       if (!territoryNames.includes(name)) territoryNames.push(name);
     }
   }
@@ -342,15 +342,15 @@ async function loadCallContext(
   const callTerritories: CallContext["callTerritories"] = [];
   const { data: ctRows } = await supabase
     .from("call_territories")
-    .select("territory_ms_slug, is_primary, territories ( territory_name )")
+    .select("TerritorySlug, is_primary, territories ( Nickname )")
     .eq("call_id", callId)
     .order("is_primary", { ascending: false });
   for (const r of ctRows ?? []) {
     const t = Array.isArray(r.territories) ? r.territories[0] : r.territories;
-    const name = (t as { territory_name: string } | null)?.territory_name ?? r.territory_ms_slug;
+    const name = (t as { Nickname: string } | null)?.Nickname ?? r.TerritorySlug;
     callTerritories.push({
-      ms_slug: r.territory_ms_slug,
-      territory_name: name,
+      TerritorySlug: r.TerritorySlug,
+      Nickname: name,
       is_primary: !!r.is_primary,
     });
     if (!territoryNames.includes(name)) territoryNames.push(name);
@@ -375,7 +375,7 @@ async function loadCallContext(
           `
           id,
           pipeline_id,
-          territory_ms_slug,
+          TerritorySlug,
           current_stage_id,
           current_sub_task_id,
           pipelines ( slug, name ),
@@ -394,7 +394,7 @@ async function loadCallContext(
           canonByPipeline.set(st.pipeline_id, st);
           continue;
         }
-        if (st.territory_ms_slug === null && existing.territory_ms_slug !== null) {
+        if (st.TerritorySlug === null && existing.TerritorySlug !== null) {
           canonByPipeline.set(st.pipeline_id, st);
         }
       }
@@ -489,7 +489,7 @@ async function loadCallContext(
       // Get their territories
       const { data: fOwners } = await supabase
         .from("territory_owners")
-        .select("ghl_contact_id, ms_slug, territories ( territory_name )")
+        .select("ghl_contact_id, TerritorySlug, territories ( Nickname )")
         .is("end_date", null);
 
       // Map contact_id → ghl_contact_id
@@ -500,7 +500,7 @@ async function loadCallContext(
       const ghlToTerritory = new Map<string, string>();
       for (const o of fOwners ?? []) {
         const t = Array.isArray(o.territories) ? o.territories[0] : o.territories;
-        ghlToTerritory.set(o.ghl_contact_id, (t as { territory_name: string } | null)?.territory_name ?? o.ms_slug);
+        ghlToTerritory.set(o.ghl_contact_id, (t as { Nickname: string } | null)?.Nickname ?? o.TerritorySlug);
       }
 
       // Get pipeline stage names
@@ -693,20 +693,20 @@ async function loadJourneyPartners(
 
 // ── Territory resolution helpers ──────────────────────────
 
-/** Build a map of territory_name (lowercase) → ms_slug and ms_slug (lowercase) → ms_slug */
+/** Build a map of Nickname (lowercase) → TerritorySlug and TerritorySlug (lowercase) → TerritorySlug */
 async function buildTerritoryMap(supabase: ReturnType<typeof createServerClient>): Promise<Map<string, string>> {
-  const { data: territories } = await supabase.from("territories").select("ms_slug, territory_name");
+  const { data: territories } = await supabase.from("territories").select("TerritorySlug, Nickname");
 
   const map = new Map<string, string>();
   for (const t of territories ?? []) {
     // Exact matches on both name and slug
-    map.set(t.territory_name.toLowerCase(), t.ms_slug);
-    map.set(t.ms_slug.toLowerCase(), t.ms_slug);
+    map.set(t.Nickname.toLowerCase(), t.TerritorySlug);
+    map.set(t.TerritorySlug.toLowerCase(), t.TerritorySlug);
   }
   return map;
 }
 
-/** Resolve a territory name/slug to ms_slug. Exact match only — no fuzzy matching. */
+/** Resolve a territory name/slug to TerritorySlug. Exact match only — no fuzzy matching. */
 function resolveTerritory(name: string, map: Map<string, string>): string | null {
   return map.get(name.toLowerCase()) ?? null;
 }
@@ -899,10 +899,10 @@ async function writeResults(
     const territoryMap = await buildTerritoryMap(supabase);
     const { data: callTerritoryRows } = await supabase
       .from("call_territories")
-      .select("territory_ms_slug, is_primary, territories ( territory_name )")
+      .select("TerritorySlug, is_primary, territories ( Nickname )")
       .eq("call_id", callId)
       .order("is_primary", { ascending: false });
-    const callTerritoryPrimary = (callTerritoryRows ?? []).find((r) => r.is_primary)?.territory_ms_slug ?? null;
+    const callTerritoryPrimary = (callTerritoryRows ?? []).find((r) => r.is_primary)?.TerritorySlug ?? null;
 
     // Journey cache — resolve once per contact_id used in extractions.
     const contactIdsInPlay = new Set<string>();
@@ -928,7 +928,7 @@ async function writeResults(
           if (matched) resolvedContactId = matched;
         }
 
-        // Resolve territory_ms_slug from target_territory if provided. If the
+        // Resolve TerritorySlug from target_territory if provided. If the
         // LLM leaves it blank on a territory-category extraction, fall back to
         // the call's primary territory so reports don't lose the datapoint.
         let resolvedTerritorySlug: string | null = null;
@@ -961,7 +961,7 @@ async function writeResults(
           extracted_value: e.extracted_value,
           confidence: e.confidence,
           source: "scout",
-          territory_ms_slug: resolvedTerritorySlug,
+          TerritorySlug: resolvedTerritorySlug,
           target_scope: resolvedTargetScope,
         };
       })
@@ -971,7 +971,7 @@ async function writeResults(
       // prospect. Without a scope pointer the predictive LLM can't use
       // the row downstream, and the chk_extraction_has_scope constraint
       // would reject it anyway.
-      .filter((r) => r.contact_id || r.journey_id || r.territory_ms_slug);
+      .filter((r) => r.contact_id || r.journey_id || r.TerritorySlug);
 
     if (rows.length > 0) {
       const { error: insertErr } = await supabase.from("call_data_extractions").insert(rows);

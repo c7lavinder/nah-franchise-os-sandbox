@@ -30,7 +30,7 @@ export async function processGroupCall(payload: ReadAIWebhookPayload, classified
     nah_emails: nahEmails,
     is_internal: isInternal,
     has_external_participant: !isInternal,
-    has_territory_owner: !!classified.match.territory_ms_slug,
+    has_territory_owner: !!classified.match.TerritorySlug,
     category: toClassifyCategory(classified.call_type),
     source: "read_ai",
   });
@@ -50,7 +50,7 @@ export async function processGroupCall(payload: ReadAIWebhookPayload, classified
     .from("calls")
     .insert({
       contact_id: null,
-      territory_ms_slug: null,
+      TerritorySlug: null,
       journey_pipeline_state_id: null,
       call_type_id: callType.id,
       classification_reason: classification.reason,

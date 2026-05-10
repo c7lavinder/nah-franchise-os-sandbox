@@ -56,7 +56,7 @@ export async function autoCreatePipelineState(contactId: string): Promise<string
     .from("journey_pipeline_state")
     .insert({
       journey_id: journeyId,
-      territory_ms_slug: null,
+      TerritorySlug: null,
       pipeline_id: SALES_PIPELINE_ID,
       current_stage_id: ENGAGEMENT_STAGE_ID,
       current_sub_task_id: outreachTask?.id ?? null,

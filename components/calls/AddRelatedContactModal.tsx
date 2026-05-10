@@ -33,8 +33,8 @@ interface Prefill {
 }
 
 interface TerritoryOption {
-  ms_slug: string;
-  territory_name: string;
+  TerritorySlug: string;
+  Nickname: string;
 }
 
 interface ContactOption {
@@ -150,11 +150,11 @@ export default function AddRelatedContactModal({
     void (async () => {
       const res = await apiFetch("/api/territories?status=active");
       if (!res.ok) return;
-      const data = await res.json() as { territories?: TerritoryOption[] };
+      const data = (await res.json()) as { territories?: TerritoryOption[] };
       const list = data.territories ?? [];
       setTerritories(list);
-      const fromCall = (callTerritorySlugs ?? []).find((s) => list.some((t) => t.ms_slug === s));
-      setTerritorySlug(fromCall ?? list[0]?.ms_slug ?? "");
+      const fromCall = (callTerritorySlugs ?? []).find((s) => list.some((t) => t.TerritorySlug === s));
+      setTerritorySlug(fromCall ?? list[0]?.TerritorySlug ?? "");
     })();
   }, [open, callTerritorySlugs]);
 
@@ -163,7 +163,9 @@ export default function AddRelatedContactModal({
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, [open]);
 
   // Keep the role select in-range when the user flips anchor.
@@ -235,23 +237,20 @@ export default function AddRelatedContactModal({
 
       // 2. Write the anchor row.
       if (anchor === "territory") {
-        const linkRes = await fetch(
-          `/api/territories/${encodeURIComponent(territorySlug)}/stakeholders`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              first_name: firstName.trim(),
-              last_name: lastName.trim(),
-              email: email.trim() || null,
-              phone: phone.trim() || null,
-              company: company.trim() || null,
-              role,
-              notes: notes.trim() || null,
-              contact_id: newContactId,
-            }),
-          },
-        );
+        const linkRes = await fetch(`/api/territories/${encodeURIComponent(territorySlug)}/stakeholders`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            email: email.trim() || null,
+            phone: phone.trim() || null,
+            company: company.trim() || null,
+            role,
+            notes: notes.trim() || null,
+            contact_id: newContactId,
+          }),
+        });
         if (!linkRes.ok) {
           const data = await linkRes.json().catch(() => ({}));
           setError(data.error ?? "Contact created, but ecosystem link failed — retry from the territory page.");
@@ -261,7 +260,7 @@ export default function AddRelatedContactModal({
       } else if (anchor === "journey") {
         // Find the target contact's active direct journey.
         const jRes = await apiFetch(`/api/contacts/${targetContactId}/journey`);
-        const jData = await jRes.json() as {
+        const jData = (await jRes.json()) as {
           journeys?: Array<{ journey_id: string; journey_name: string; role: string }>;
         };
         const direct = (jData.journeys ?? []).find((j) => j.role !== "stakeholder");
@@ -338,7 +337,9 @@ export default function AddRelatedContactModal({
       >
         <div className="flex items-center justify-between">
           <h3 className="text-body-sm font-medium text-text-primary">Add contact to ecosystem</h3>
-          <button type="button" onClick={onClose} className="btn-ghost p-1"><X size={14} /></button>
+          <button type="button" onClick={onClose} className="btn-ghost p-1">
+            <X size={14} />
+          </button>
         </div>
 
         {/* Anchor toggle */}
@@ -347,7 +348,9 @@ export default function AddRelatedContactModal({
             type="button"
             onClick={() => setAnchor("territory")}
             className={`px-2 py-1.5 text-[11px] rounded transition-colors ${
-              anchor === "territory" ? "bg-bg-primary text-text-primary shadow-sm" : "text-text-tertiary hover:text-text-primary"
+              anchor === "territory"
+                ? "bg-bg-primary text-text-primary shadow-sm"
+                : "text-text-tertiary hover:text-text-primary"
             }`}
           >
             Works at territory
@@ -356,7 +359,9 @@ export default function AddRelatedContactModal({
             type="button"
             onClick={() => setAnchor("journey")}
             className={`px-2 py-1.5 text-[11px] rounded transition-colors ${
-              anchor === "journey" ? "bg-bg-primary text-text-primary shadow-sm" : "text-text-tertiary hover:text-text-primary"
+              anchor === "journey"
+                ? "bg-bg-primary text-text-primary shadow-sm"
+                : "text-text-tertiary hover:text-text-primary"
             }`}
           >
             Journey partner
@@ -365,7 +370,9 @@ export default function AddRelatedContactModal({
             type="button"
             onClick={() => setAnchor("personal")}
             className={`px-2 py-1.5 text-[11px] rounded transition-colors ${
-              anchor === "personal" ? "bg-bg-primary text-text-primary shadow-sm" : "text-text-tertiary hover:text-text-primary"
+              anchor === "personal"
+                ? "bg-bg-primary text-text-primary shadow-sm"
+                : "text-text-tertiary hover:text-text-primary"
             }`}
           >
             Personal to contact
@@ -373,9 +380,12 @@ export default function AddRelatedContactModal({
         </div>
 
         <p className="text-[10px] text-text-tertiary leading-relaxed">
-          {anchor === "territory" && "Employees, contractors, agents — anchored to the territory. Stays when ownership changes."}
-          {anchor === "journey" && "Business partner on the franchise deal — added as 50/50 co-primary on the target's journey. Shows up on both the journey page and (once awarded) the territory's owners block."}
-          {anchor === "personal" && "Spouse, family, attorney — anchored to a specific contact. Doesn't survive a franchise sale."}
+          {anchor === "territory" &&
+            "Employees, contractors, agents — anchored to the territory. Stays when ownership changes."}
+          {anchor === "journey" &&
+            "Business partner on the franchise deal — added as 50/50 co-primary on the target's journey. Shows up on both the journey page and (once awarded) the territory's owners block."}
+          {anchor === "personal" &&
+            "Spouse, family, attorney — anchored to a specific contact. Doesn't survive a franchise sale."}
         </p>
 
         <div className="grid grid-cols-2 gap-2">
@@ -428,7 +438,9 @@ export default function AddRelatedContactModal({
               className="w-full bg-bg-primary border border-border-default rounded-md px-2.5 py-1.5 text-body-sm text-text-primary"
             >
               {(anchor === "territory" ? TERRITORY_ROLES : PERSONAL_ROLES).map((r) => (
-                <option key={r.value} value={r.value}>{r.label}</option>
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
               ))}
             </select>
           </label>
@@ -445,8 +457,8 @@ export default function AddRelatedContactModal({
               >
                 <option value="">— Pick a territory —</option>
                 {territories.map((t) => (
-                  <option key={t.ms_slug} value={t.ms_slug}>
-                    {t.territory_name} ({t.ms_slug})
+                  <option key={t.TerritorySlug} value={t.TerritorySlug}>
+                    {t.Nickname} ({t.TerritorySlug})
                   </option>
                 ))}
               </select>
@@ -497,7 +509,9 @@ export default function AddRelatedContactModal({
                 className="w-full bg-bg-primary border border-border-default rounded-md px-2.5 py-1.5 text-body-sm text-text-primary"
               >
                 {JOURNEY_RELATIONSHIP_ROLES.map((r) => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
                 ))}
               </select>
             </label>
@@ -553,7 +567,10 @@ function ContactPicker({
 
   useEffect(() => {
     if (!editing) return;
-    if (query.length < 2) { setResults([]); return; }
+    if (query.length < 2) {
+      setResults([]);
+      return;
+    }
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(async () => {
       const res = await apiFetch(`/api/contacts/search?q=${encodeURIComponent(query)}&limit=8`);
@@ -562,7 +579,9 @@ function ContactPicker({
         setResults((data.results ?? data.contacts ?? []) as ContactOption[]);
       }
     }, 250);
-    return () => { if (debounce.current) clearTimeout(debounce.current); };
+    return () => {
+      if (debounce.current) clearTimeout(debounce.current);
+    };
   }, [editing, query]);
 
   const showResults = useMemo(() => editing && query.length >= 2, [editing, query]);
@@ -575,7 +594,11 @@ function ContactPicker({
           <span className="flex-1 text-body-sm text-text-primary truncate">{selectedName ?? selectedId}</span>
           <button
             type="button"
-            onClick={() => { setEditing(true); setQuery(""); setResults([]); }}
+            onClick={() => {
+              setEditing(true);
+              setQuery("");
+              setResults([]);
+            }}
             className="text-caption text-nah-blue hover:underline"
           >
             Change
@@ -609,14 +632,14 @@ function ContactPicker({
                   <div className="text-text-primary font-medium">{c.name}</div>
                   {(c.email || c.phone) && (
                     <div className="text-caption text-text-tertiary truncate">
-                      {c.email ?? ""}{c.email && c.phone ? " · " : ""}{c.phone ?? ""}
+                      {c.email ?? ""}
+                      {c.email && c.phone ? " · " : ""}
+                      {c.phone ?? ""}
                     </div>
                   )}
                 </button>
               ))}
-              {results.length === 0 && (
-                <div className="px-3 py-2 text-caption text-text-tertiary">No matches.</div>
-              )}
+              {results.length === 0 && <div className="px-3 py-2 text-caption text-text-tertiary">No matches.</div>}
             </div>
           )}
         </div>

@@ -43,8 +43,8 @@ interface GradeRow {
   john_grade: number | null;
 }
 export interface TerritoryInventory {
-  ms_slug: string;
-  territory_name: string;
+  TerritorySlug: string;
+  Nickname: string;
   purchased_ytd: number;
   sold_ytd: number;
   active_deals: number;
@@ -74,7 +74,16 @@ interface Props {
 type TabKey = "contacts" | "profile" | "eos";
 
 export default function RichContactPage({
-  contactId, displayName, role, contact, activeJourney, memberships, territoryInventory, grades, currentStage, currentPipelineSlug,
+  contactId,
+  displayName,
+  role,
+  contact,
+  activeJourney,
+  memberships,
+  territoryInventory,
+  grades,
+  currentStage,
+  currentPipelineSlug,
 }: Props) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>("contacts");
@@ -85,13 +94,23 @@ export default function RichContactPage({
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
       <div className="flex items-start gap-4">
-        <button onClick={() => router.back()} className="mt-1 text-text-tertiary hover:text-text-primary" aria-label="Back"><ArrowLeft size={20} /></button>
+        <button
+          onClick={() => router.back()}
+          className="mt-1 text-text-tertiary hover:text-text-primary"
+          aria-label="Back"
+        >
+          <ArrowLeft size={20} />
+        </button>
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold text-text-primary">{displayName}</h1>
-            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-              isFranchisee ? "bg-success/10 text-success" : "bg-nah-blue/10 text-nah-blue"
-            }`}>{label}</span>
+            <span
+              className={`px-2 py-0.5 rounded text-xs font-medium ${
+                isFranchisee ? "bg-success/10 text-success" : "bg-nah-blue/10 text-nah-blue"
+              }`}
+            >
+              {label}
+            </span>
             <Link href={journeyHref} className="text-caption text-nah-blue hover:underline">
               Open journey →
             </Link>
@@ -106,41 +125,45 @@ export default function RichContactPage({
             <ContactEmailsPanel contactId={contactId} initialPrimaryEmail={contact.email} />
             {contact.phone && (
               <div>
-                <dt className="text-text-tertiary text-[10px] flex items-center gap-1"><Phone size={10} /> Phone</dt>
+                <dt className="text-text-tertiary text-[10px] flex items-center gap-1">
+                  <Phone size={10} /> Phone
+                </dt>
                 <dd className="text-text-primary">{formatPhone(contact.phone)}</dd>
               </div>
             )}
             {(contact.city || contact.state) && (
               <div>
-                <dt className="text-text-tertiary text-[10px] flex items-center gap-1"><MapPin size={10} /> Location</dt>
-                <dd className="text-text-primary">{[capitalizeName(contact.city ?? ""), contact.state?.toUpperCase()].filter(Boolean).join(", ")}</dd>
+                <dt className="text-text-tertiary text-[10px] flex items-center gap-1">
+                  <MapPin size={10} /> Location
+                </dt>
+                <dd className="text-text-primary">
+                  {[capitalizeName(contact.city ?? ""), contact.state?.toUpperCase()].filter(Boolean).join(", ")}
+                </dd>
               </div>
             )}
           </dl>
         </div>
       </div>
 
-      {isFranchisee && territoryInventory.length > 0 && (
-        <InventoryCard territories={territoryInventory} />
-      )}
+      {isFranchisee && territoryInventory.length > 0 && <InventoryCard territories={territoryInventory} />}
 
-      {isFranchisee && grades.length > 0 && (
-        <GradesCard grades={grades} />
-      )}
+      {isFranchisee && grades.length > 0 && <GradesCard grades={grades} />}
 
       <div className="flex gap-1 border-b border-border-default">
-        {([
+        {[
           { key: "contacts" as const, label: "Contacts", icon: Users },
           { key: "profile" as const, label: "Profile", icon: Goal },
           { key: "eos" as const, label: "Personal EOS", icon: TrendingUp },
-        ]).map((tab) => {
+        ].map((tab) => {
           const Icon = tab.icon;
           return (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`px-4 py-2 text-body-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-                activeTab === tab.key ? "border-nah-orange text-nah-orange" : "border-transparent text-text-tertiary hover:text-text-primary"
+                activeTab === tab.key
+                  ? "border-nah-orange text-nah-orange"
+                  : "border-transparent text-text-tertiary hover:text-text-primary"
               }`}
             >
               <Icon size={14} />
@@ -166,7 +189,7 @@ function InventoryCard({ territories }: { territories: TerritoryInventory[] }) {
       sold: acc.sold + (t.sold_ytd ?? 0),
       active: acc.active + (t.active_deals ?? 0),
     }),
-    { purchased: 0, sold: 0, active: 0 },
+    { purchased: 0, sold: 0, active: 0 }
   );
   // Average conv rate / profit across territories that have values.
   const convValues = territories.map((t) => t.conv_rate).filter((v): v is number => v !== null);
@@ -178,7 +201,9 @@ function InventoryCard({ territories }: { territories: TerritoryInventory[] }) {
     <div className="bg-bg-primary border border-border-default rounded-lg p-5">
       <div className="flex items-center gap-2 mb-4">
         <Activity size={18} className="text-info" />
-        <h2 className="text-body-sm font-semibold">Inventory — across {territories.length} territor{territories.length === 1 ? "y" : "ies"}</h2>
+        <h2 className="text-body-sm font-semibold">
+          Inventory — across {territories.length} territor{territories.length === 1 ? "y" : "ies"}
+        </h2>
       </div>
       <div className="text-center mb-4">
         <div className="text-4xl font-bold text-text-primary">{totals.purchased}</div>
@@ -188,7 +213,10 @@ function InventoryCard({ territories }: { territories: TerritoryInventory[] }) {
         <StatCard label="Sold YTD" value={`${totals.sold}`} />
         <StatCard label="Active Deals" value={`${totals.active}`} />
         <StatCard label="Avg Conv. Rate" value={avgConv === null ? "—" : `${avgConv}%`} />
-        <StatCard label="Avg Profit/Flip" value={avgProfit === null ? "—" : `$${Math.round(avgProfit).toLocaleString()}`} />
+        <StatCard
+          label="Avg Profit/Flip"
+          value={avgProfit === null ? "—" : `$${Math.round(avgProfit).toLocaleString()}`}
+        />
       </div>
       {territories.length > 1 && (
         <div className="border-t border-border-default pt-3">
@@ -207,17 +235,24 @@ function InventoryCard({ territories }: { territories: TerritoryInventory[] }) {
               </thead>
               <tbody>
                 {territories.map((t) => (
-                  <tr key={t.ms_slug} className="border-t border-border-default/50">
+                  <tr key={t.TerritorySlug} className="border-t border-border-default/50">
                     <td className="py-1 pr-3 font-medium">
-                      <Link href={`/territories/${t.ms_slug}`} className="text-nah-blue hover:underline" target="_blank" rel="noopener noreferrer">
-                        {t.territory_name}
+                      <Link
+                        href={`/territories/${t.TerritorySlug}`}
+                        className="text-nah-blue hover:underline"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {t.Nickname}
                       </Link>
                     </td>
                     <td className="py-1 px-2 text-right">{t.purchased_ytd}</td>
                     <td className="py-1 px-2 text-right">{t.sold_ytd}</td>
                     <td className="py-1 px-2 text-right">{t.active_deals}</td>
                     <td className="py-1 px-2 text-right">{t.conv_rate === null ? "—" : `${t.conv_rate}%`}</td>
-                    <td className="py-1 px-2 text-right">{t.avg_profit === null ? "—" : `$${Math.round(t.avg_profit).toLocaleString()}`}</td>
+                    <td className="py-1 px-2 text-right">
+                      {t.avg_profit === null ? "—" : `$${Math.round(t.avg_profit).toLocaleString()}`}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -258,8 +293,12 @@ function GradesCard({ grades }: { grades: GradeRow[] }) {
             <tr className="text-left text-caption text-text-tertiary border-b border-border-default">
               <th className="py-2 pr-4">Year</th>
               {[1, 2, 3, 4].flatMap((q) => [
-                <th key={`q${q}s`} className="py-2 px-2">Q{q} Self</th>,
-                <th key={`q${q}j`} className="py-2 px-2">Q{q} John</th>,
+                <th key={`q${q}s`} className="py-2 px-2">
+                  Q{q} Self
+                </th>,
+                <th key={`q${q}j`} className="py-2 px-2">
+                  Q{q} John
+                </th>,
               ])}
             </tr>
           </thead>
@@ -314,11 +353,17 @@ function ContactsNetworkPanel({ memberships }: { memberships: Membership[] }) {
               >
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-body-sm font-medium text-text-primary truncate">{capitalizeName(j.name)}</span>
-                  <span className={`text-[10px] px-1.5 rounded shrink-0 ${
-                    j.status === "active" ? "bg-success/10 text-success"
-                    : j.status === "closed" ? "bg-text-tertiary/10 text-text-tertiary"
-                    : "bg-nah-blue/10 text-nah-blue"
-                  }`}>{j.status}</span>
+                  <span
+                    className={`text-[10px] px-1.5 rounded shrink-0 ${
+                      j.status === "active"
+                        ? "bg-success/10 text-success"
+                        : j.status === "closed"
+                          ? "bg-text-tertiary/10 text-text-tertiary"
+                          : "bg-nah-blue/10 text-nah-blue"
+                    }`}
+                  >
+                    {j.status}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-caption text-text-tertiary">
                   <span className="uppercase tracking-wider">{m.role.replace(/_/g, " ")}</span>
@@ -361,11 +406,14 @@ function ContactProfilePanel({ contactId }: { contactId: string }) {
     setSaving(true);
     try {
       await apiFetch(`/api/contacts/${contactId}/profile`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: pending }),
       });
       setPending({});
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) return <div className="text-caption text-text-tertiary py-8 text-center">Loading profile…</div>;
@@ -385,8 +433,14 @@ function ContactProfilePanel({ contactId }: { contactId: string }) {
     <div className="space-y-4">
       {Object.keys(pending).length > 0 && (
         <div className="flex items-center justify-end gap-2">
-          <span className="text-caption text-text-tertiary">{Object.keys(pending).length} unsaved change{Object.keys(pending).length === 1 ? "" : "s"}</span>
-          <button onClick={save} disabled={saving} className="px-3 py-1.5 bg-nah-orange text-white text-caption rounded-md disabled:opacity-50">
+          <span className="text-caption text-text-tertiary">
+            {Object.keys(pending).length} unsaved change{Object.keys(pending).length === 1 ? "" : "s"}
+          </span>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="px-3 py-1.5 bg-nah-orange text-white text-caption rounded-md disabled:opacity-50"
+          >
             {saving ? "Saving…" : "Save"}
           </button>
         </div>
@@ -394,20 +448,33 @@ function ContactProfilePanel({ contactId }: { contactId: string }) {
       {categories.map((cat) => {
         const fields = PROFILE_FIELDS.filter((f) => f.category === cat);
         if (fields.length === 0) return null;
-        return <ProfileSection key={cat} category={cat} fields={fields} values={values} onFieldChange={handleFieldChange} saving={saving} />;
+        return (
+          <ProfileSection
+            key={cat}
+            category={cat}
+            fields={fields}
+            values={values}
+            onFieldChange={handleFieldChange}
+            saving={saving}
+          />
+        );
       })}
 
       {capturedExtras.length > 0 && (
         <div className="border border-border-default rounded-lg overflow-hidden">
           <div className="px-4 py-2 bg-bg-secondary border-b border-border-default">
             <h3 className="text-body-sm font-medium text-text-primary">Captured by Scout</h3>
-            <p className="text-[10px] text-text-tertiary mt-0.5">Fields pushed from call extractions that aren&apos;t in the standard profile registry yet.</p>
+            <p className="text-[10px] text-text-tertiary mt-0.5">
+              Fields pushed from call extractions that aren&apos;t in the standard profile registry yet.
+            </p>
           </div>
           <div className="divide-y divide-border-default">
             {capturedExtras.map(([name, value]) => (
               <div key={name} className="flex items-start justify-between gap-4 px-4 py-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-caption text-text-tertiary">{name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</p>
+                  <p className="text-caption text-text-tertiary">
+                    {name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </p>
                   <p className="text-body-sm text-text-primary">{String(value)}</p>
                 </div>
               </div>
@@ -418,4 +485,3 @@ function ContactProfilePanel({ contactId }: { contactId: string }) {
     </div>
   );
 }
-

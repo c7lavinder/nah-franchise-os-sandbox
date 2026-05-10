@@ -35,34 +35,33 @@ interface EosData {
 }
 
 interface Props {
-  msSlug: string;
+  TerritorySlug: string;
   carriedFromContactName?: string | null;
 }
 
 const BANNER_KEY_PREFIX = "eos_carry_dismissed_";
 
-export default function TerritoryEosTab({ msSlug, carriedFromContactName }: Props) {
+export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName }: Props) {
   const [data, setData] = useState<EosData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBanner, setShowBanner] = useState(false);
 
   const fetchData = useCallback(async () => {
-    const res = await apiFetch(`/api/territories/${msSlug}/eos`);
+    const res = await apiFetch(`/api/territories/${TerritorySlug}/eos`);
     if (res.ok) {
       const d: EosData = await res.json();
       setData(d);
 
       // Show carry-forward banner if there are carried items and not yet dismissed
       if (carriedFromContactName) {
-        const dismissed = localStorage.getItem(`${BANNER_KEY_PREFIX}${msSlug}`);
+        const dismissed = localStorage.getItem(`${BANNER_KEY_PREFIX}${TerritorySlug}`);
         const hasCarried =
-          d.issues.some((i) => i.source === "carried_forward") ||
-          d.todos.some((t) => t.source === "carried_forward");
+          d.issues.some((i) => i.source === "carried_forward") || d.todos.some((t) => t.source === "carried_forward");
         if (hasCarried && !dismissed) setShowBanner(true);
       }
     }
     setLoading(false);
-  }, [msSlug, carriedFromContactName]);
+  }, [TerritorySlug, carriedFromContactName]);
 
   useEffect(() => {
     fetchData();
@@ -70,7 +69,7 @@ export default function TerritoryEosTab({ msSlug, carriedFromContactName }: Prop
 
   function dismissBanner() {
     setShowBanner(false);
-    localStorage.setItem(`${BANNER_KEY_PREFIX}${msSlug}`, "1");
+    localStorage.setItem(`${BANNER_KEY_PREFIX}${TerritorySlug}`, "1");
   }
 
   // no-op refresh — child components manage their own local state
@@ -86,11 +85,7 @@ export default function TerritoryEosTab({ msSlug, carriedFromContactName }: Prop
   }
 
   if (!data) {
-    return (
-      <div className="text-center py-12 text-text-tertiary text-body-sm">
-        Failed to load EOS data.
-      </div>
-    );
+    return <div className="text-center py-12 text-text-tertiary text-body-sm">Failed to load EOS data.</div>;
   }
 
   return (
@@ -98,7 +93,8 @@ export default function TerritoryEosTab({ msSlug, carriedFromContactName }: Prop
       {showBanner && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-body-sm text-amber-800">
-            EOS seeded from <span className="font-semibold">{carriedFromContactName}</span>&apos;s sales profile — review and update below.
+            EOS seeded from <span className="font-semibold">{carriedFromContactName}</span>&apos;s sales profile —
+            review and update below.
           </p>
           <button onClick={dismissBanner} className="text-amber-600 hover:text-amber-800 shrink-0">
             <X className="h-4 w-4" />
@@ -107,36 +103,36 @@ export default function TerritoryEosTab({ msSlug, carriedFromContactName }: Prop
       )}
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosGoals msSlug={msSlug} goals={data.goals} onUpdate={handleUpdate} />
+        <TerritoryEosGoals TerritorySlug={TerritorySlug} goals={data.goals} onUpdate={handleUpdate} />
       </div>
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosScorecard msSlug={msSlug} scorecard={data.scorecard} onUpdate={handleUpdate} />
+        <TerritoryEosScorecard TerritorySlug={TerritorySlug} scorecard={data.scorecard} onUpdate={handleUpdate} />
       </div>
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosMonthlySpend msSlug={msSlug} budgets={data.budgets} onUpdate={handleUpdate} />
+        <TerritoryEosMonthlySpend TerritorySlug={TerritorySlug} budgets={data.budgets} onUpdate={handleUpdate} />
       </div>
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosLeadChannels msSlug={msSlug} channels={data.leadChannels} onUpdate={handleUpdate} />
+        <TerritoryEosLeadChannels TerritorySlug={TerritorySlug} channels={data.leadChannels} onUpdate={handleUpdate} />
       </div>
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosHabits msSlug={msSlug} habits={data.habits} onUpdate={handleUpdate} />
+        <TerritoryEosHabits TerritorySlug={TerritorySlug} habits={data.habits} onUpdate={handleUpdate} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
         <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-          <TerritoryEosRocks msSlug={msSlug} rocks={data.rocks} onUpdate={handleUpdate} />
+          <TerritoryEosRocks TerritorySlug={TerritorySlug} rocks={data.rocks} onUpdate={handleUpdate} />
         </div>
 
         <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-          <TerritoryEosIssues msSlug={msSlug} issues={data.issues} onUpdate={handleUpdate} />
+          <TerritoryEosIssues TerritorySlug={TerritorySlug} issues={data.issues} onUpdate={handleUpdate} />
         </div>
 
         <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-          <TerritoryEosTodos msSlug={msSlug} todos={data.todos} onUpdate={handleUpdate} />
+          <TerritoryEosTodos TerritorySlug={TerritorySlug} todos={data.todos} onUpdate={handleUpdate} />
         </div>
       </div>
     </div>

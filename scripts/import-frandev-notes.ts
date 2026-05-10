@@ -13,10 +13,7 @@
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 
 const FRANDEV_KB_DOCS = [
   {
@@ -72,7 +69,7 @@ The NAH franchise sales process is a mutual vetting process, not a traditional s
 - **Key message**: Include spouse early — don't let this fester as a hidden blocker
 
 ### Capital Timeline Issue
-From Frandev meeting (2026-03-27): Capital timing is a recurring pattern — many prospects have the funds but the timeline to access them (ROBS processing, SBA approval) creates a multi-month gap. Scout should track capital_timeline separately from capital_availability.`,
+From Frandev meeting (2026-03-27): Capital timing is a recurring pattern — many prospects have the funds but the timeline to access them (ROBS processing, SBA approval) creates a multi-month gap. Scout should track capital_timeline separately from NonRetirementCapitalAvailable.`,
   },
   {
     title: "Red Flags and Dropout Patterns",

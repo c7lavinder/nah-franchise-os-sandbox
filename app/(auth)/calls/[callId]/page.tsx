@@ -53,7 +53,7 @@ interface RawParticipant {
   contact_id: string | null;
   contact_name: string | null;
   contact_phone: string | null;
-  territory_ms_slug: string | null;
+  TerritorySlug: string | null;
 }
 
 interface CoachingData {
@@ -65,8 +65,8 @@ interface CoachingData {
 }
 
 interface CallTerritoryRef {
-  ms_slug: string;
-  territory_name: string;
+  TerritorySlug: string;
+  Nickname: string;
   is_primary: boolean;
 }
 
@@ -75,8 +75,8 @@ interface CallJourneyRef {
   journey_pipeline_state_id: string;
   journey_name: string;
   stage_name: string | null;
-  territory_ms_slug: string | null;
-  territory_name: string | null;
+  TerritorySlug: string | null;
+  Nickname: string | null;
   is_primary: boolean;
 }
 
@@ -105,7 +105,7 @@ interface CallDetail {
   title: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
-  territory_ms_slug: string | null;
+  TerritorySlug: string | null;
   territoryName: string | null;
   coach_user_id: string | null;
   coachName: string | null;
@@ -173,7 +173,7 @@ interface Extraction {
   confidence: string | null;
   saved_to_profile: boolean;
   dismissed: boolean;
-  territory_ms_slug: string | null;
+  TerritorySlug: string | null;
   target_scope: "single" | "both" | null;
 }
 
@@ -299,7 +299,7 @@ export default function CallDetailPage() {
               currentCallTypeId={call.call_type_id}
               currentCallTypeSlug={call.callTypeSlug}
               currentContactId={call.contact_id}
-              currentTerritorySlug={call.territory_ms_slug}
+              currentTerritorySlug={call.TerritorySlug}
               participants={call.rawParticipants ?? []}
               onChange={() => void fetchDetail()}
             />
@@ -499,17 +499,17 @@ export default function CallDetailPage() {
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {call.callTerritories.map((t) => (
                     <Link
-                      key={t.ms_slug}
-                      href={`/territories/${t.ms_slug}`}
+                      key={t.TerritorySlug}
+                      href={`/territories/${t.TerritorySlug}`}
                       className="inline-flex items-center gap-[5px] text-[12px] font-medium px-[9px] py-[3px] rounded-full bg-[#FAEEDA] text-[#633806] hover:bg-[#FAC775] transition-colors"
                     >
-                      {t.territory_name}
+                      {t.Nickname}
                     </Link>
                   ))}
                 </div>
               </div>
             </>
-          ) : call.territory_ms_slug ? (
+          ) : call.TerritorySlug ? (
             <>
               <div className="w-px h-8 bg-border-default" />
               <div>
@@ -517,10 +517,10 @@ export default function CallDetailPage() {
                   Territory
                 </div>
                 <Link
-                  href={`/territories/${call.territory_ms_slug}`}
+                  href={`/territories/${call.TerritorySlug}`}
                   className="inline-flex items-center gap-[5px] text-[12px] font-medium px-[9px] py-[3px] rounded-full bg-[#FAEEDA] text-[#633806] hover:bg-[#FAC775] transition-colors"
                 >
-                  {call.territoryName ?? call.territory_ms_slug}
+                  {call.territoryName ?? call.TerritorySlug}
                 </Link>
               </div>
             </>
@@ -554,7 +554,7 @@ export default function CallDetailPage() {
                       }
                       primaryContactId={call.contact_id}
                       primaryContactName={call.contactName}
-                      callTerritories={(call.callTerritories ?? []).map((t) => t.ms_slug)}
+                      callTerritories={(call.callTerritories ?? []).map((t) => t.TerritorySlug)}
                       callJourneys={call.callJourneys ?? []}
                       onMapped={() => void fetchDetail()}
                     />
@@ -593,8 +593,8 @@ export default function CallDetailPage() {
         partnerOptions={buildPartnerOptions(call)}
         linkedContacts={(call.linkedContacts ?? []).map((c) => ({ id: c.id, name: c.name }))}
         callTerritories={(call.callTerritories ?? []).map((t) => ({
-          ms_slug: t.ms_slug,
-          territory_name: t.territory_name,
+          TerritorySlug: t.TerritorySlug,
+          Nickname: t.Nickname,
         }))}
         participantNames={buildSpeakerNames(call)}
         callTypeSlug={call.callTypeSlug}

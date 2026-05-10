@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { EosTerritoryHabit, EosHabitGrade } from "@/types/database";
 
 interface Props {
-  msSlug: string;
+  TerritorySlug: string;
   habits: EosTerritoryHabit[];
   onUpdate: () => void;
 }
@@ -20,15 +20,13 @@ const GRADE_COLORS: Record<EosHabitGrade, string> = {
   F: "bg-red-500 text-white",
 };
 
-export default function TerritoryEosHabits({ msSlug, habits, onUpdate }: Props) {
+export default function TerritoryEosHabits({ TerritorySlug, habits, onUpdate }: Props) {
   const [local, setLocal] = useState<EosTerritoryHabit[]>(habits);
 
   async function setGrade(habit: EosTerritoryHabit, grade: EosHabitGrade) {
     const newGrade = habit.grade === grade ? null : grade;
-    setLocal((prev) =>
-      prev.map((h) => (h.id === habit.id ? { ...h, grade: newGrade } : h))
-    );
-    await apiFetch(`/api/territories/${msSlug}/eos/habits/${habit.id}`, {
+    setLocal((prev) => prev.map((h) => (h.id === habit.id ? { ...h, grade: newGrade } : h)));
+    await apiFetch(`/api/territories/${TerritorySlug}/eos/habits/${habit.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ grade: newGrade }),
@@ -49,9 +47,7 @@ export default function TerritoryEosHabits({ msSlug, habits, onUpdate }: Props) 
                   key={g}
                   onClick={() => setGrade(h, g)}
                   className={`w-8 h-8 rounded-md text-xs font-bold transition-all ${
-                    h.grade === g
-                      ? GRADE_COLORS[g]
-                      : "bg-bg-secondary text-text-tertiary hover:bg-bg-tertiary"
+                    h.grade === g ? GRADE_COLORS[g] : "bg-bg-secondary text-text-tertiary hover:bg-bg-tertiary"
                   }`}
                 >
                   {g}

@@ -68,10 +68,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!localId) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
 
   const body = (await request.json()) as Record<string, unknown>;
-  // Territory + territory_slug intentionally removed — territory is now sourced
-  // from journey_pipeline_state.territory_ms_slug, not a contact column.
+  // Territory + TerritorySlug intentionally removed — territory is now sourced
+  // from journey_pipeline_state.TerritorySlug, not a contact column.
   // EOS carry-forward moved to the pipeline advance/auto-advance paths where
-  // a jps row first gets a non-null territory_ms_slug.
+  // a jps row first gets a non-null TerritorySlug.
   const allowed = [
     "first_name",
     "last_name",

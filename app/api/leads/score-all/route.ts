@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     const { data: contacts, error } = await supabase
       .from("contacts")
       .select(
-        "id, source, opportunity_source, capital_availability, territory_status, business_ownership_experience, investment_timeline, motivation_clarity, trainual_completion_pct, created_at"
+        "id, source, opportunity_source, NonRetirementCapitalAvailable, territory_status, BriefWorkHistory, investment_timeline, WhatInterestsInOpportunity, trainual_completion_pct, created_at"
       )
       .eq("is_converted_franchisee", false)
       .is("merged_into_contact_id", null);

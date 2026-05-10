@@ -5,20 +5,18 @@ import { useState, useRef } from "react";
 import type { EosTerritoryScorecard } from "@/types/database";
 
 interface Props {
-  msSlug: string;
+  TerritorySlug: string;
   scorecard: EosTerritoryScorecard[];
   onUpdate: () => void;
 }
 
-export default function TerritoryEosScorecard({ msSlug, scorecard, onUpdate }: Props) {
+export default function TerritoryEosScorecard({ TerritorySlug, scorecard, onUpdate }: Props) {
   const [local, setLocal] = useState<EosTerritoryScorecard[]>(scorecard);
   const [saving, setSaving] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleChange(metricKey: string, value: string) {
-    setLocal((prev) =>
-      prev.map((s) => (s.metric_key === metricKey ? { ...s, goal_value: value } : s))
-    );
+    setLocal((prev) => prev.map((s) => (s.metric_key === metricKey ? { ...s, goal_value: value } : s)));
   }
 
   function handleBlur(metricKey: string) {
@@ -27,7 +25,7 @@ export default function TerritoryEosScorecard({ msSlug, scorecard, onUpdate }: P
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setSaving(true);
-      await apiFetch(`/api/territories/${msSlug}/eos/scorecard/${metricKey}`, {
+      await apiFetch(`/api/territories/${TerritorySlug}/eos/scorecard/${metricKey}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal_value: row.goal_value }),

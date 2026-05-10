@@ -5,7 +5,7 @@ import { useState, useRef } from "react";
 import type { EosTerritoryGoal } from "@/types/database";
 
 interface Props {
-  msSlug: string;
+  TerritorySlug: string;
   goals: EosTerritoryGoal[];
   onUpdate: () => void;
 }
@@ -19,15 +19,13 @@ const GOAL_LABELS: Record<string, string> = {
 const COL_HEADERS = ["Actual", "Current Year", "Year 5", "Year 25"];
 const COL_KEYS: (keyof EosTerritoryGoal)[] = ["actual", "current_year_goal", "year_5_goal", "year_25_goal"];
 
-export default function TerritoryEosGoals({ msSlug, goals, onUpdate }: Props) {
+export default function TerritoryEosGoals({ TerritorySlug, goals, onUpdate }: Props) {
   const [local, setLocal] = useState<EosTerritoryGoal[]>(goals);
   const [saving, setSaving] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleChange(goalType: string, colKey: string, value: string) {
-    setLocal((prev) =>
-      prev.map((g) => (g.goal_type === goalType ? { ...g, [colKey]: value } : g))
-    );
+    setLocal((prev) => prev.map((g) => (g.goal_type === goalType ? { ...g, [colKey]: value } : g)));
   }
 
   function handleBlur(goalType: string) {
@@ -36,7 +34,7 @@ export default function TerritoryEosGoals({ msSlug, goals, onUpdate }: Props) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setSaving(true);
-      await apiFetch(`/api/territories/${msSlug}/eos/goals`, {
+      await apiFetch(`/api/territories/${TerritorySlug}/eos/goals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -73,9 +71,7 @@ export default function TerritoryEosGoals({ msSlug, goals, onUpdate }: Props) {
           <tbody>
             {local.map((g) => (
               <tr key={g.goal_type} className="border-b border-border-primary/50">
-                <td className="py-2 pr-3 font-medium text-text-primary">
-                  {GOAL_LABELS[g.goal_type] ?? g.goal_type}
-                </td>
+                <td className="py-2 pr-3 font-medium text-text-primary">{GOAL_LABELS[g.goal_type] ?? g.goal_type}</td>
                 {COL_KEYS.map((col, ci) => (
                   <td key={col} className="py-2 px-2">
                     {ci === 0 ? (

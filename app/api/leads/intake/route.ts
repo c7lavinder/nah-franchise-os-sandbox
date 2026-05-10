@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
           if (engagementStage) {
             await supabase.from("journey_pipeline_state").insert({
               journey_id: journeyId,
-              territory_ms_slug: null,
+              TerritorySlug: null,
               pipeline_id: salesPipeline.id,
               current_stage_id: engagementStage.id,
               is_active: true,

@@ -7,12 +7,12 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 interface TerritoryCard {
-  ms_slug: string;
-  territory_name: string;
+  TerritorySlug: string;
+  Nickname: string;
   status: string;
   owner_name: string | null;
   owner_ghl_contact_id: string | null;
-  awarded_date: string | null;
+  FranchiseAgreementDate: string | null;
   stage_name: string | null;
   stage_slug: string | null;
   pipeline_slug: string | null;
@@ -74,8 +74,8 @@ export default function TerritoryCardList({ status, statusFilter, stageId, searc
     ? cards.filter((c) => {
         const q = searchQuery.toLowerCase();
         return (
-          c.territory_name.toLowerCase().includes(q) ||
-          c.ms_slug.toLowerCase().includes(q) ||
+          c.Nickname.toLowerCase().includes(q) ||
+          c.TerritorySlug.toLowerCase().includes(q) ||
           (c.owner_name?.toLowerCase().includes(q) ?? false)
         );
       })
@@ -85,7 +85,7 @@ export default function TerritoryCardList({ status, statusFilter, stageId, searc
     let cmp = 0;
     switch (sortField) {
       case "name":
-        cmp = a.territory_name.localeCompare(b.territory_name);
+        cmp = a.Nickname.localeCompare(b.Nickname);
         break;
       case "status":
         cmp = a.status.localeCompare(b.status);
@@ -164,8 +164,8 @@ export default function TerritoryCardList({ status, statusFilter, stageId, searc
 
           return (
             <Link
-              key={card.ms_slug}
-              href={`/territories/${card.ms_slug}`}
+              key={card.TerritorySlug}
+              href={`/territories/${card.TerritorySlug}`}
               className={`
                 grid items-center gap-2 px-3 py-2.5 hover:bg-bg-hover transition-colors
                 grid-cols-[1fr_72px_110px_140px_16px]
@@ -174,8 +174,10 @@ export default function TerritoryCardList({ status, statusFilter, stageId, searc
             >
               {/* Name + slug */}
               <p className="text-body-sm text-text-primary font-medium truncate min-w-0">
-                {card.territory_name}
-                <span className="text-[10px] text-text-tertiary font-mono font-normal ml-1.5">{card.ms_slug}</span>
+                {card.Nickname}
+                <span className="text-[10px] text-text-tertiary font-mono font-normal ml-1.5">
+                  {card.TerritorySlug}
+                </span>
               </p>
 
               {/* Status badge */}

@@ -51,7 +51,7 @@ export default function StageActionButtons({
       const res = await apiFetch(`/api/contacts/${contactId}/pipelines/${pipelineId}/advance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ force, reason: reason || undefined, territory_ms_slug: territoryMsSlug ?? undefined }),
+        body: JSON.stringify({ force, reason: reason || undefined, TerritorySlug: territoryMsSlug ?? undefined }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -69,14 +69,17 @@ export default function StageActionButtons({
   }
 
   async function handleRevert() {
-    if (!reason.trim()) { setError("Reason is required for revert"); return; }
+    if (!reason.trim()) {
+      setError("Reason is required for revert");
+      return;
+    }
     setLoading("revert");
     setError(null);
     try {
       const res = await apiFetch(`/api/contacts/${contactId}/pipelines/${pipelineId}/revert`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason, territory_ms_slug: territoryMsSlug ?? undefined }),
+        body: JSON.stringify({ reason, TerritorySlug: territoryMsSlug ?? undefined }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -104,7 +107,7 @@ export default function StageActionButtons({
       const res = await apiFetch(`/api/contacts/${contactId}/pipelines/${pipelineId}/drop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destination, reason: reason || undefined, territory_ms_slug: territoryMsSlug ?? undefined }),
+        body: JSON.stringify({ destination, reason: reason || undefined, TerritorySlug: territoryMsSlug ?? undefined }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -144,17 +147,31 @@ export default function StageActionButtons({
         />
         {error && <p className="text-caption text-danger mb-2">{error}</p>}
         <div className="flex gap-2">
-          <button onClick={() => { setConfirmAction(null); setReason(""); setError(null); }} className="btn-ghost px-3 py-1.5 text-caption">Cancel</button>
+          <button
+            onClick={() => {
+              setConfirmAction(null);
+              setReason("");
+              setError(null);
+            }}
+            className="btn-ghost px-3 py-1.5 text-caption"
+          >
+            Cancel
+          </button>
           <button
             onClick={() =>
-              isRevert ? handleRevert() :
-              confirmAction === "drop_followup" ? handleDrop("followup") :
-              confirmAction === "drop_nurture" ? handleDrop("nurture") :
-              handleAdvance(true)
+              isRevert
+                ? handleRevert()
+                : confirmAction === "drop_followup"
+                  ? handleDrop("followup")
+                  : confirmAction === "drop_nurture"
+                    ? handleDrop("nurture")
+                    : handleAdvance(true)
             }
             disabled={!!loading}
             className={`px-3 py-1.5 text-caption font-medium rounded-md ml-auto flex items-center gap-1 ${
-              isRevert || isDrop ? "bg-danger/10 text-danger hover:bg-danger/20" : "bg-warning/10 text-warning hover:bg-warning/20"
+              isRevert || isDrop
+                ? "bg-danger/10 text-danger hover:bg-danger/20"
+                : "bg-warning/10 text-warning hover:bg-warning/20"
             }`}
           >
             {loading && <Loader2 size={12} className="animate-spin" />}

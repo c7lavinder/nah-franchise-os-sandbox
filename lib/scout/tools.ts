@@ -33,7 +33,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
         id: {
           type: "string",
           description:
-            "Entity identifier — GHL contact ID for contact, ms_slug for territory, UUID for journey, opportunity ID for opportunity",
+            "Entity identifier — GHL contact ID for contact, TerritorySlug for territory, UUID for journey, opportunity ID for opportunity",
         },
       },
       required: ["type", "id"],
@@ -369,7 +369,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
       type: "object",
       properties: {
         entity_type: { type: "string", description: "contact | territory", enum: ["contact", "territory"] },
-        entity_id: { type: "string", description: "Contact UUID or territory ms_slug" },
+        entity_id: { type: "string", description: "Contact UUID or territory TerritorySlug" },
         entity_name: { type: "string", description: "Display name" },
         section: {
           type: "string",
@@ -390,14 +390,14 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     input_schema: {
       type: "object",
       properties: {
-        territory_slug: { type: "string", description: "Territory ms_slug" },
-        territory_name: { type: "string", description: "Display name" },
+        TerritorySlug: { type: "string", description: "Territory TerritorySlug" },
+        Nickname: { type: "string", description: "Display name" },
         updates: {
           type: "string",
           description: "JSON array of {fieldName, value, reason}",
         },
       },
-      required: ["territory_slug", "territory_name", "updates"],
+      required: ["TerritorySlug", "Nickname", "updates"],
     },
   },
   {

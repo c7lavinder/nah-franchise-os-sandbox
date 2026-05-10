@@ -1,12 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId } = await params;
   const supabase = createServerClient();
 
@@ -21,11 +19,11 @@ export async function GET(
   // Get territories owned by this contact
   const { data: ownerships } = await supabase
     .from("territory_owners")
-    .select("ms_slug")
+    .select("TerritorySlug")
     .eq("ghl_contact_id", ghlContactId)
     .is("end_date", null);
 
-  const slugs = (ownerships ?? []).map((o) => o.ms_slug);
+  const slugs = (ownerships ?? []).map((o) => o.TerritorySlug);
   if (slugs.length === 0) {
     return NextResponse.json({ territories: [] });
   }
@@ -33,36 +31,38 @@ export async function GET(
   // Get territory details
   const { data: territories } = await supabase
     .from("territories")
-    .select("ms_slug, territory_name, status, region, awarded_date")
-    .in("ms_slug", slugs);
+    .select("TerritorySlug, Nickname, status, region, FranchiseAgreementDate")
+    .in("TerritorySlug", slugs);
 
   // Get territory profiles
   const { data: profiles } = await supabase
     .from("territory_profile")
-    .select("ms_slug, population, median_home_value, median_household_income, territory_value_est, market_type, flip_activity_score, competitor_presence, local_market_notes")
-    .in("ms_slug", slugs);
+    .select(
+      "TerritorySlug, population, median_home_value, median_household_income, territory_value_est, market_type, flip_activity_score, competitor_presence, local_market_notes"
+    )
+    .in("TerritorySlug", slugs);
 
-  const profileMap = new Map<string, (typeof profiles extends (infer T)[] | null ? T : never)>();
-  for (const p of profiles ?? []) profileMap.set(p.ms_slug, p);
+  const profileMap = new Map<string, typeof profiles extends (infer T)[] | null ? T : never>();
+  for (const p of profiles ?? []) profileMap.set(p.TerritorySlug, p);
 
   // Get grades
   const { data: grades } = await supabase
     .from("territory_grades")
-    .select("ms_slug, year, quarter, houses_purchased, revenue, grade")
-    .in("ms_slug", slugs)
+    .select("TerritorySlug, year, quarter, houses_purchased, revenue, grade")
+    .in("TerritorySlug", slugs)
     .order("year", { ascending: false })
     .order("quarter", { ascending: false });
 
   const gradeMap = new Map<string, typeof grades>();
   for (const g of grades ?? []) {
-    if (!gradeMap.has(g.ms_slug)) gradeMap.set(g.ms_slug, []);
-    gradeMap.get(g.ms_slug)!.push(g);
+    if (!gradeMap.has(g.TerritorySlug)) gradeMap.set(g.TerritorySlug, []);
+    gradeMap.get(g.TerritorySlug)!.push(g);
   }
 
   const result = (territories ?? []).map((t) => ({
     ...t,
-    profile: profileMap.get(t.ms_slug) ?? null,
-    grades: gradeMap.get(t.ms_slug) ?? [],
+    profile: profileMap.get(t.TerritorySlug) ?? null,
+    grades: gradeMap.get(t.TerritorySlug) ?? [],
   }));
 
   return NextResponse.json({ territories: result });

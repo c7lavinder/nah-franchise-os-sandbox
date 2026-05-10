@@ -14,43 +14,39 @@ import type { ResolveResult } from "../resolve-participants";
 export async function upsertCallJunctions(
   supabase: SupabaseClient,
   callId: string,
-  match: ResolveResult,
+  match: ResolveResult
 ): Promise<void> {
   await upsertTerritories(supabase, callId, match);
   await upsertJourneys(supabase, callId, match);
 }
 
-async function upsertTerritories(
-  supabase: SupabaseClient,
-  callId: string,
-  match: ResolveResult,
-): Promise<void> {
+async function upsertTerritories(supabase: SupabaseClient, callId: string, match: ResolveResult): Promise<void> {
   const slugs = new Set<string>();
   for (const p of match.participants) {
-    if (p.territory_ms_slug) slugs.add(p.territory_ms_slug);
+    if (p.TerritorySlug) slugs.add(p.TerritorySlug);
   }
-  if (match.territory_ms_slug) slugs.add(match.territory_ms_slug);
+  if (match.TerritorySlug) slugs.add(match.TerritorySlug);
   if (slugs.size === 0) return;
 
   const { data: existing } = await supabase
     .from("call_territories")
-    .select("territory_ms_slug, is_primary")
+    .select("TerritorySlug, is_primary")
     .eq("call_id", callId);
 
-  const existingSlugs = new Set((existing ?? []).map((r) => r.territory_ms_slug));
+  const existingSlugs = new Set((existing ?? []).map((r) => r.TerritorySlug));
   const hasPrimary = (existing ?? []).some((r) => r.is_primary);
 
   const rowsToInsert: {
     call_id: string;
-    territory_ms_slug: string;
+    TerritorySlug: string;
     is_primary: boolean;
   }[] = [];
   for (const slug of slugs) {
     if (existingSlugs.has(slug)) continue;
     rowsToInsert.push({
       call_id: callId,
-      territory_ms_slug: slug,
-      is_primary: !hasPrimary && slug === match.territory_ms_slug,
+      TerritorySlug: slug,
+      is_primary: !hasPrimary && slug === match.TerritorySlug,
     });
   }
 
@@ -59,11 +55,7 @@ async function upsertTerritories(
   }
 }
 
-async function upsertJourneys(
-  supabase: SupabaseClient,
-  callId: string,
-  match: ResolveResult,
-): Promise<void> {
+async function upsertJourneys(supabase: SupabaseClient, callId: string, match: ResolveResult): Promise<void> {
   const picks = new Map<string, { journey_id: string }>();
   for (const p of match.participants) {
     if (p.journey_pipeline_state_id && p.journey_id) {

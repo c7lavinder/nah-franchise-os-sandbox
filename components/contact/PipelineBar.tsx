@@ -51,8 +51,8 @@ interface StageAPI {
 }
 
 interface TerritoryState {
-  ms_slug: string;
-  territory_name: string;
+  TerritorySlug: string;
+  Nickname: string;
   stage_id: string;
   stage_name: string;
   jps_id: string;
@@ -124,7 +124,7 @@ export default function PipelineBar({
 
   // Resolve which territory is focused. Default: first territory. Respect URL.
   const activeTerritory = hasMultipleTerritories
-    ? (territories.find((t) => t.ms_slug === territorySlug) ?? territories[0])
+    ? (territories.find((t) => t.TerritorySlug === territorySlug) ?? territories[0])
     : null;
 
   // Override displayed stage with the focused territory's stage for runway/onboarding.
@@ -194,18 +194,16 @@ export default function PipelineBar({
         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
           <span className="text-[10px] font-semibold text-text-tertiary tracking-wider mr-1">TERRITORY:</span>
           {territories.map((t) => {
-            const isActive = activeTerritory?.ms_slug === t.ms_slug;
+            const isActive = activeTerritory?.TerritorySlug === t.TerritorySlug;
             return (
               <button
-                key={t.ms_slug}
-                onClick={() => handleTerritoryChange(t.ms_slug)}
+                key={t.TerritorySlug}
+                onClick={() => handleTerritoryChange(t.TerritorySlug)}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-caption font-medium transition-colors ${
-                  isActive
-                    ? "bg-nah-orange text-white"
-                    : "bg-bg-hover text-text-tertiary hover:text-text-primary"
+                  isActive ? "bg-nah-orange text-white" : "bg-bg-hover text-text-tertiary hover:text-text-primary"
                 }`}
               >
-                {t.territory_name}
+                {t.Nickname}
                 <span className={`text-[10px] font-normal ${isActive ? "text-white/75" : "text-text-tertiary"}`}>
                   · {t.stage_name}
                 </span>
@@ -224,16 +222,23 @@ export default function PipelineBar({
           {selected.stages.map((stage) => {
             const logsMap = new Map(Object.entries(stage.logsBySubTask));
             const state: CircleState = computeStageVisualState(
-              stage, displayStageId, currentSortOrder, stage.subTasks, logsMap
+              stage,
+              displayStageId,
+              currentSortOrder,
+              stage.subTasks,
+              logsMap
             );
             const isCurrent = stage.id === displayStageId;
 
             const isPassed = stage.sort_order < currentSortOrder;
             const requiredTasks = stage.subTasks.filter((t) => t.is_required);
-            const hasMissingLogs = isPassed && requiredTasks.length > 0 && requiredTasks.some((t) => {
-              const logs = (logsMap.get(t.id) ?? []).filter((l) => !l.deleted_at);
-              return logs.length === 0;
-            });
+            const hasMissingLogs =
+              isPassed &&
+              requiredTasks.length > 0 &&
+              requiredTasks.some((t) => {
+                const logs = (logsMap.get(t.id) ?? []).filter((l) => !l.deleted_at);
+                return logs.length === 0;
+              });
 
             return (
               <StageCircle
@@ -264,7 +269,7 @@ export default function PipelineBar({
         allSubTasksComplete={allComplete}
         isFirstStage={currentIdx === 0}
         isLastStage={currentIdx === selected.stages.length - 1}
-        territoryMsSlug={activeTerritory?.ms_slug ?? null}
+        territoryMsSlug={activeTerritory?.TerritorySlug ?? null}
         onRefresh={onRefresh}
       />
 

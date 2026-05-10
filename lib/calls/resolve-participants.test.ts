@@ -33,13 +33,13 @@ interface Fixture {
   contacts: ContactMatch[];
   teamEmails: Set<string>;
   teamUsers: Map<string, { id: string; full_name: string }>;
-  territories: Map<string, string>; // ghl_contact_id -> ms_slug
+  territories: Map<string, string>; // ghl_contact_id -> TerritorySlug
   journeys?: JourneyFixture[];
   journeyMembers?: Map<string, string[]>; // contact_id -> journey_ids (non-primary)
   jps?: JpsFixture[];
   /** Journey ids that have an active jps in the runway pipeline. */
   inRunway?: Set<string>;
-  /** contact_id -> ms_slugs where they're an active territory stakeholder. */
+  /** contact_id -> TerritorySlugs where they're an active territory stakeholder. */
   stakeholderTerritories?: Map<string, string[]>;
 }
 
@@ -58,7 +58,7 @@ function makeDb(fx: Fixture): ResolverDb {
       return fx.contacts.filter(
         (c) =>
           (c.first_name ?? "").toLowerCase().includes(first.toLowerCase()) &&
-          (c.last_name ?? "").toLowerCase().includes(last.toLowerCase()),
+          (c.last_name ?? "").toLowerCase().includes(last.toLowerCase())
       );
     },
     async getActiveTerritoryForContact(ghl) {
@@ -99,7 +99,7 @@ function makeDb(fx: Fixture): ResolverDb {
       return {
         journey_id: chosen.id,
         journey_pipeline_state_id: rows[0].id,
-        territory_ms_slug: rows[0].territoryMsSlug ?? null,
+        TerritorySlug: rows[0].territoryMsSlug ?? null,
       };
     },
     async getJourneyForStakeholderContact(contactId): Promise<JourneyPick | null> {
@@ -113,7 +113,7 @@ function makeDb(fx: Fixture): ResolverDb {
       return {
         journey_id: first.journeyId,
         journey_pipeline_state_id: first.id,
-        territory_ms_slug: first.territoryMsSlug ?? null,
+        TerritorySlug: first.territoryMsSlug ?? null,
       };
     },
     async isJourneyInRunway(journeyId) {
@@ -208,10 +208,7 @@ describe("resolveCallParticipants", () => {
       teamUsers: new Map(),
       territories: new Map(),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "jane@acme.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "jane@acme.com" }] }), db);
     expect(r.contact_id).toBe("c1");
     expect(r.confidence).toBe(1.0);
     expect(r.reason).toMatch(/matched contact by email/);
@@ -225,10 +222,7 @@ describe("resolveCallParticipants", () => {
       teamUsers: new Map([["matt@newagainhouses.com", { id: "u1", full_name: "Matt Lavinder" }]]),
       territories: new Map(),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "Matt@newagainhouses.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "Matt@newagainhouses.com" }] }), db);
     expect(r.contact_id).toBeNull();
     expect(r.participants[0].role).toBe("nah_team");
     expect(r.participants[0].user_id).toBe("u1");
@@ -244,7 +238,7 @@ describe("resolveCallParticipants", () => {
     });
     const r = await resolveCallParticipants(
       baseInput({ participants: [{ email: "unknown@x.com", phone: "6155550100" }] }),
-      db,
+      db
     );
     expect(r.contact_id).toBe("c2");
     expect(r.confidence).toBe(0.9);
@@ -258,10 +252,7 @@ describe("resolveCallParticipants", () => {
       teamUsers: new Map(),
       territories: new Map(),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ phone: "+1 615 555 9999" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ phone: "+1 615 555 9999" }] }), db);
     expect(r.contact_id).toBe("c3");
     expect(r.confidence).toBe(0.9);
   });
@@ -273,10 +264,7 @@ describe("resolveCallParticipants", () => {
       teamUsers: new Map(),
       territories: new Map(),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ name: "Alice Johnson" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ name: "Alice Johnson" }] }), db);
     expect(r.contact_id).toBe("c4");
     expect(r.confidence).toBe(0.6);
     expect(r.reason).toMatch(/fuzzy name/);
@@ -289,10 +277,7 @@ describe("resolveCallParticipants", () => {
       teamUsers: new Map(),
       territories: new Map(),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ name: "Alice" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ name: "Alice" }] }), db);
     expect(r.contact_id).toBeNull();
     expect(r.confidence).toBe(0);
   });
@@ -304,10 +289,7 @@ describe("resolveCallParticipants", () => {
       teamUsers: new Map(),
       territories: new Map(),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ name: "John D. Smith" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ name: "John D. Smith" }] }), db);
     expect(r.contact_id).toBe("c6");
     expect(r.confidence).toBe(0.6);
   });
@@ -322,10 +304,7 @@ describe("resolveCallParticipants", () => {
       teamUsers: new Map(),
       territories: new Map(),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "dupe@x.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "dupe@x.com" }] }), db);
     expect(r.contact_id).toBe("new");
     expect(r.reason).toMatch(/2 contacts matched email, picked most recent/);
   });
@@ -337,12 +316,9 @@ describe("resolveCallParticipants", () => {
       teamUsers: new Map(),
       territories: new Map([["ghl1", "tn-chattanooga"]]),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "owner@x.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "owner@x.com" }] }), db);
     expect(r.contact_id).toBe("fr1");
-    expect(r.territory_ms_slug).toBe("tn-chattanooga");
+    expect(r.TerritorySlug).toBe("tn-chattanooga");
     expect(r.participants[0].role).toBe("franchisee");
   });
 
@@ -353,12 +329,9 @@ describe("resolveCallParticipants", () => {
       teamUsers: new Map(),
       territories: new Map(),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "prospect@x.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "prospect@x.com" }] }), db);
     expect(r.participants[0].role).toBe("prospect");
-    expect(r.territory_ms_slug).toBeNull();
+    expect(r.TerritorySlug).toBeNull();
   });
 
   it("two participants match different contacts by email → picks most recent across both", async () => {
@@ -373,7 +346,7 @@ describe("resolveCallParticipants", () => {
     });
     const r = await resolveCallParticipants(
       baseInput({ participants: [{ email: "a@x.com" }, { email: "b@x.com" }] }),
-      db,
+      db
     );
     expect(r.contact_id).toBe("b");
     expect(r.reason).toMatch(/2 contacts matched email, picked most recent/);
@@ -386,10 +359,7 @@ describe("resolveCallParticipants", () => {
       teamUsers: new Map(),
       territories: new Map(),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "stranger@unknown.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "stranger@unknown.com" }] }), db);
     expect(r.contact_id).toBeNull();
     expect(r.confidence).toBe(0);
     expect(r.participants[0].role).toBe("unknown");
@@ -403,31 +373,22 @@ describe("resolveCallParticipants", () => {
       teamUsers: new Map(),
       territories: new Map(),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "MiXeD@X.COM" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "MiXeD@X.COM" }] }), db);
     expect(r.contact_id).toBe("ci1");
   });
 
   it("email wins over phone when both would match different contacts", async () => {
     const db = makeDb({
-      contacts: [
-        c({ id: "by-email", email: "e@x.com" }),
-        c({ id: "by-phone", phone: "6155550000" }),
-      ],
+      contacts: [c({ id: "by-email", email: "e@x.com" }), c({ id: "by-phone", phone: "6155550000" })],
       teamEmails: new Set(),
       teamUsers: new Map(),
       territories: new Map(),
     });
     const r = await resolveCallParticipants(
       baseInput({
-        participants: [
-          { email: "e@x.com" },
-          { phone: "6155550000" },
-        ],
+        participants: [{ email: "e@x.com" }, { phone: "6155550000" }],
       }),
-      db,
+      db
     );
     expect(r.contact_id).toBe("by-email");
     expect(r.confidence).toBe(1.0);
@@ -442,12 +403,9 @@ describe("resolveCallParticipants", () => {
     });
     const r = await resolveCallParticipants(
       baseInput({
-        participants: [
-          { email: "matt@newagainhouses.com" },
-          { email: "prospect@x.com" },
-        ],
+        participants: [{ email: "matt@newagainhouses.com" }, { email: "prospect@x.com" }],
       }),
-      db,
+      db
     );
     expect(r.contact_id).toBe("pp");
     expect(r.participants).toHaveLength(2);
@@ -462,10 +420,7 @@ describe("resolveCallParticipants", () => {
       teamUsers: new Map(),
       territories: new Map(),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ phone: "555-1212" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ phone: "555-1212" }] }), db);
     expect(r.contact_id).toBeNull();
     expect(r.participants[0].match_method).toBe("none");
   });
@@ -484,14 +439,23 @@ describe("resolveCallParticipants — journey selection", () => {
       ],
       journeyMembers: new Map([["c1", ["j-member"]]]),
       jps: [
-        { id: "jps-primary", journeyId: "j-primary", territoryMsSlug: null, updatedAt: "2026-01-01T00:00:00Z", isActive: true },
-        { id: "jps-member", journeyId: "j-member", territoryMsSlug: null, updatedAt: "2026-06-01T00:00:00Z", isActive: true },
+        {
+          id: "jps-primary",
+          journeyId: "j-primary",
+          territoryMsSlug: null,
+          updatedAt: "2026-01-01T00:00:00Z",
+          isActive: true,
+        },
+        {
+          id: "jps-member",
+          journeyId: "j-member",
+          territoryMsSlug: null,
+          updatedAt: "2026-06-01T00:00:00Z",
+          isActive: true,
+        },
       ],
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "a@x.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "a@x.com" }] }), db);
     expect(r.journey_id).toBe("j-primary");
     expect(r.journey_pipeline_state_id).toBe("jps-primary");
   });
@@ -506,15 +470,24 @@ describe("resolveCallParticipants — journey selection", () => {
       journeyMembers: new Map(),
       jps: [
         { id: "jps-null", journeyId: "j1", territoryMsSlug: null, updatedAt: "2026-06-01T00:00:00Z", isActive: true },
-        { id: "jps-chat", journeyId: "j1", territoryMsSlug: "tn-chat", updatedAt: "2026-01-01T00:00:00Z", isActive: true },
-        { id: "jps-other", journeyId: "j1", territoryMsSlug: "tn-other", updatedAt: "2026-07-01T00:00:00Z", isActive: true },
+        {
+          id: "jps-chat",
+          journeyId: "j1",
+          territoryMsSlug: "tn-chat",
+          updatedAt: "2026-01-01T00:00:00Z",
+          isActive: true,
+        },
+        {
+          id: "jps-other",
+          journeyId: "j1",
+          territoryMsSlug: "tn-other",
+          updatedAt: "2026-07-01T00:00:00Z",
+          isActive: true,
+        },
       ],
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "owner@x.com" }] }),
-      db,
-    );
-    expect(r.territory_ms_slug).toBe("tn-chat");
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "owner@x.com" }] }), db);
+    expect(r.TerritorySlug).toBe("tn-chat");
     expect(r.journey_id).toBe("j1");
     expect(r.journey_pipeline_state_id).toBe("jps-chat");
   });
@@ -531,15 +504,24 @@ describe("resolveCallParticipants — journey selection", () => {
       journeys: [{ id: "j1", primaryContactId: "c1", updatedAt: "2026-01-01T00:00:00Z" }],
       journeyMembers: new Map(),
       jps: [
-        { id: "jps-onboarding", journeyId: "j1", territoryMsSlug: "tn-nash", updatedAt: "2026-06-01T00:00:00Z", isActive: true },
-        { id: "jps-sales-closed", journeyId: "j1", territoryMsSlug: null, updatedAt: "2026-01-01T00:00:00Z", isActive: true },
+        {
+          id: "jps-onboarding",
+          journeyId: "j1",
+          territoryMsSlug: "tn-nash",
+          updatedAt: "2026-06-01T00:00:00Z",
+          isActive: true,
+        },
+        {
+          id: "jps-sales-closed",
+          journeyId: "j1",
+          territoryMsSlug: null,
+          updatedAt: "2026-01-01T00:00:00Z",
+          isActive: true,
+        },
       ],
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "a@x.com" }] }),
-      db,
-    );
-    expect(r.territory_ms_slug).toBe("tn-nash");
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "a@x.com" }] }), db);
+    expect(r.TerritorySlug).toBe("tn-nash");
     expect(r.journey_pipeline_state_id).toBe("jps-onboarding");
   });
 
@@ -556,10 +538,7 @@ describe("resolveCallParticipants — journey selection", () => {
         { id: "jps-new", journeyId: "j1", territoryMsSlug: "b", updatedAt: "2026-06-01T00:00:00Z", isActive: true },
       ],
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "a@x.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "a@x.com" }] }), db);
     expect(r.journey_pipeline_state_id).toBe("jps-new");
   });
 
@@ -573,10 +552,7 @@ describe("resolveCallParticipants — journey selection", () => {
       journeyMembers: new Map(),
       jps: [],
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "a@x.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "a@x.com" }] }), db);
     expect(r.contact_id).toBe("c1");
     expect(r.journey_id).toBeNull();
     expect(r.journey_pipeline_state_id).toBeNull();
@@ -584,10 +560,7 @@ describe("resolveCallParticipants — journey selection", () => {
 
   it("group call: each participant gets their own journey pick", async () => {
     const db = makeDb({
-      contacts: [
-        c({ id: "p1", email: "p1@x.com" }),
-        c({ id: "p2", email: "p2@x.com" }),
-      ],
+      contacts: [c({ id: "p1", email: "p1@x.com" }), c({ id: "p2", email: "p2@x.com" })],
       teamEmails: new Set(),
       teamUsers: new Map(),
       territories: new Map(),
@@ -603,7 +576,7 @@ describe("resolveCallParticipants — journey selection", () => {
     });
     const r = await resolveCallParticipants(
       baseInput({ participants: [{ email: "p1@x.com" }, { email: "p2@x.com" }] }),
-      db,
+      db
     );
     expect(r.participants).toHaveLength(2);
     const p1 = r.participants.find((p) => p.contact_id === "p1");
@@ -623,14 +596,17 @@ describe("resolveCallParticipants — journey selection", () => {
       journeys: [{ id: "j1", primaryContactId: "c1", updatedAt: "2026-01-01T00:00:00Z" }],
       journeyMembers: new Map(),
       jps: [
-        { id: "jps-inactive", journeyId: "j1", territoryMsSlug: null, updatedAt: "2026-06-01T00:00:00Z", isActive: false },
+        {
+          id: "jps-inactive",
+          journeyId: "j1",
+          territoryMsSlug: null,
+          updatedAt: "2026-06-01T00:00:00Z",
+          isActive: false,
+        },
         { id: "jps-active", journeyId: "j1", territoryMsSlug: "tn", updatedAt: "2026-01-01T00:00:00Z", isActive: true },
       ],
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "a@x.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "a@x.com" }] }), db);
     expect(r.journey_pipeline_state_id).toBe("jps-active");
   });
 
@@ -646,15 +622,18 @@ describe("resolveCallParticipants — journey selection", () => {
       journeys: [{ id: "j1", primaryContactId: "nicki", updatedAt: "2026-01-01T00:00:00Z" }],
       journeyMembers: new Map(),
       jps: [
-        { id: "jps-chs", journeyId: "j1", territoryMsSlug: "CHARSC", updatedAt: "2026-01-01T00:00:00Z", isActive: true },
+        {
+          id: "jps-chs",
+          journeyId: "j1",
+          territoryMsSlug: "CHARSC",
+          updatedAt: "2026-01-01T00:00:00Z",
+          isActive: true,
+        },
       ],
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "ncates@x.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "ncates@x.com" }] }), db);
     expect(r.contact_id).toBe("nicki");
-    expect(r.territory_ms_slug).toBe("CHARSC");
+    expect(r.TerritorySlug).toBe("CHARSC");
     expect(r.journey_pipeline_state_id).toBe("jps-chs");
     expect(r.participants[0].role).toBe("franchisee");
   });
@@ -669,10 +648,7 @@ describe("resolveCallParticipants — journey selection", () => {
       journeyMembers: new Map(),
       jps: [],
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "matt@newagainhouses.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "matt@newagainhouses.com" }] }), db);
     expect(r.participants[0].role).toBe("nah_team");
     expect(r.participants[0].journey_id).toBeNull();
     expect(r.participants[0].journey_pipeline_state_id).toBeNull();
@@ -691,18 +667,21 @@ describe("resolveCallParticipants — journey selection", () => {
       journeys: [{ id: "j-brian", primaryContactId: "brian", updatedAt: "2026-01-01T00:00:00Z" }],
       journeyMembers: new Map(),
       jps: [
-        { id: "jps-bllngs", journeyId: "j-brian", territoryMsSlug: "BLLNGS", updatedAt: "2026-04-01T00:00:00Z", isActive: true },
+        {
+          id: "jps-bllngs",
+          journeyId: "j-brian",
+          territoryMsSlug: "BLLNGS",
+          updatedAt: "2026-04-01T00:00:00Z",
+          isActive: true,
+        },
       ],
       stakeholderTerritories: new Map([["brett", ["BLLNGS"]]]),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "brett@x.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "brett@x.com" }] }), db);
     expect(r.contact_id).toBe("brett");
     expect(r.journey_id).toBe("j-brian");
     expect(r.journey_pipeline_state_id).toBe("jps-bllngs");
-    expect(r.territory_ms_slug).toBe("BLLNGS");
+    expect(r.TerritorySlug).toBe("BLLNGS");
     expect(r.participants[0].role).toBe("franchisee");
   });
 
@@ -721,14 +700,17 @@ describe("resolveCallParticipants — journey selection", () => {
       journeyMembers: new Map(),
       jps: [
         { id: "jps-own", journeyId: "j-own", territoryMsSlug: null, updatedAt: "2026-06-01T00:00:00Z", isActive: true },
-        { id: "jps-other", journeyId: "j-other", territoryMsSlug: "OTHER", updatedAt: "2026-01-01T00:00:00Z", isActive: true },
+        {
+          id: "jps-other",
+          journeyId: "j-other",
+          territoryMsSlug: "OTHER",
+          updatedAt: "2026-01-01T00:00:00Z",
+          isActive: true,
+        },
       ],
       stakeholderTerritories: new Map([["c1", ["OTHER"]]]),
     });
-    const r = await resolveCallParticipants(
-      baseInput({ participants: [{ email: "a@x.com" }] }),
-      db,
-    );
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "a@x.com" }] }), db);
     expect(r.journey_id).toBe("j-own");
     expect(r.journey_pipeline_state_id).toBe("jps-own");
   });

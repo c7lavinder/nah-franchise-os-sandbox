@@ -3,17 +3,15 @@
  *
  * Resolution order:
  * 1. Check contact_zorakle_data for this ghl_contact_id
- * 2. If not found, check zorakle_profiles via territory_owners → ms_slug
+ * 2. If not found, check zorakle_profiles via territory_owners → TerritorySlug
  * 3. If neither, return null
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId } = await params;
   const supabase = createServerClient();
 
@@ -39,17 +37,17 @@ export async function GET(
   // 2. Check zorakle_profiles via territory_owners
   const { data: ownerRow } = await supabase
     .from("territory_owners")
-    .select("ms_slug")
+    .select("TerritorySlug")
     .eq("ghl_contact_id", ghlContactId)
     .is("end_date", null)
     .limit(1)
     .maybeSingle();
 
-  if (ownerRow?.ms_slug) {
+  if (ownerRow?.TerritorySlug) {
     const { data: zorakle } = await supabase
       .from("zorakle_profiles")
       .select("*")
-      .eq("ms_slug", ownerRow.ms_slug)
+      .eq("TerritorySlug", ownerRow.TerritorySlug)
       .limit(1)
       .maybeSingle();
 

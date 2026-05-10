@@ -164,7 +164,7 @@ export interface DraftedProfileUpdatePayload {
 export interface DraftedEosUpdatePayload {
   actionType: "eos_update";
   entityType: "contact" | "territory";
-  /** Contact ID (for contact EOS) or territory ms_slug (for territory EOS) */
+  /** Contact ID (for contact EOS) or territory TerritorySlug (for territory EOS) */
   entityId: string;
   section: "goals" | "issues" | "todos" | "scorecard" | "budgets" | "habits" | "rocks" | "lead_channels";
   updates: { fieldName: string; value: string; reason: string }[];

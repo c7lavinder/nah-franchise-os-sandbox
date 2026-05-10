@@ -19,7 +19,7 @@ async function main() {
   const { data: contacts, error } = await supabase
     .from("contacts")
     .select(
-      "id, source, opportunity_source, capital_availability, territory_status, business_ownership_experience, investment_timeline, motivation_clarity, trainual_completion_pct, created_at, scout_lead_score"
+      "id, source, opportunity_source, NonRetirementCapitalAvailable, territory_status, BriefWorkHistory, investment_timeline, WhatInterestsInOpportunity, trainual_completion_pct, created_at, scout_lead_score"
     )
     .is("scout_lead_score", null)
     .eq("is_converted_franchisee", false)

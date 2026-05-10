@@ -21,7 +21,11 @@ const FRANCHISEE_PIPELINES = new Set(["runway", "onboarding"]);
 const PROSPECT_PIPELINES = new Set(["sales", "followup"]);
 
 async function simulate(contactId: string): Promise<void> {
-  const { data: contact } = await s.from("contacts").select("id, first_name, last_name").eq("id", contactId).maybeSingle();
+  const { data: contact } = await s
+    .from("contacts")
+    .select("id, first_name, last_name")
+    .eq("id", contactId)
+    .maybeSingle();
   if (!contact) return;
   const name = `${contact.first_name} ${contact.last_name}`;
 
@@ -32,7 +36,8 @@ async function simulate(contactId: string): Promise<void> {
   const primaryJourneys = primaryJourneysRes.data ?? [];
   const memberships = memberRowsRes.data ?? [];
 
-  const roleRank = (r: string): number => r === "primary" ? 3 : r === "co_primary" ? 2 : r === "business_partner" ? 1 : 0;
+  const roleRank = (r: string): number =>
+    r === "primary" ? 3 : r === "co_primary" ? 2 : r === "business_partner" ? 1 : 0;
   const joined = new Map<string, { id: string; role: string }>();
   for (const j of primaryJourneys) joined.set(j.id, { id: j.id, role: "primary" });
   for (const m of memberships) {
@@ -48,15 +53,22 @@ async function simulate(contactId: string): Promise<void> {
     return;
   }
 
-  const { data: jps } = await s.from("journey_pipeline_state")
-    .select("journey_id, pipelines(slug), territory_ms_slug").in("journey_id", ids).eq("is_active", true);
+  const { data: jps } = await s
+    .from("journey_pipeline_state")
+    .select("journey_id, pipelines(slug), TerritorySlug")
+    .in("journey_id", ids)
+    .eq("is_active", true);
   const slugsByJourney = new Map<string, Set<string>>();
   const terrsByJourney = new Map<string, Set<string>>();
-  for (const r of (jps ?? []) as unknown as Array<{ journey_id: string; pipelines: { slug: string } | null; territory_ms_slug: string | null }>) {
+  for (const r of (jps ?? []) as unknown as Array<{
+    journey_id: string;
+    pipelines: { slug: string } | null;
+    TerritorySlug: string | null;
+  }>) {
     if (!slugsByJourney.has(r.journey_id)) slugsByJourney.set(r.journey_id, new Set());
     if (r.pipelines?.slug) slugsByJourney.get(r.journey_id)!.add(r.pipelines.slug);
     if (!terrsByJourney.has(r.journey_id)) terrsByJourney.set(r.journey_id, new Set());
-    if (r.territory_ms_slug) terrsByJourney.get(r.journey_id)!.add(r.territory_ms_slug);
+    if (r.TerritorySlug) terrsByJourney.get(r.journey_id)!.add(r.TerritorySlug);
   }
 
   const kinds: Array<{ jid: string; kind: string; role: string; territories: string[] }> = [];
@@ -78,27 +90,33 @@ async function simulate(contactId: string): Promise<void> {
     return;
   }
 
-  const terrs = activeMatch.kind === "franchisee"
-    ? [...new Set(kinds.filter((k) => k.kind === "franchisee").flatMap((k) => k.territories))]
-    : [];
-  console.log(`${name.padEnd(28)} → RICH ${activeMatch.kind.toUpperCase().padEnd(10)} role=${activeMatch.role.padEnd(16)} territories=[${terrs.join(", ")}]`);
+  const terrs =
+    activeMatch.kind === "franchisee"
+      ? [...new Set(kinds.filter((k) => k.kind === "franchisee").flatMap((k) => k.territories))]
+      : [];
+  console.log(
+    `${name.padEnd(28)} → RICH ${activeMatch.kind.toUpperCase().padEnd(10)} role=${activeMatch.role.padEnd(16)} territories=[${terrs.join(", ")}]`
+  );
 }
 
 (async () => {
   // A mix: franchisees (co_primary, primary, business_partner), prospects, side members, strays.
   const tests = [
     "ff11625c-f6ae-4d47-9405-cb75c057f6eb", // Shannon Smylie — co_primary of MURFTN
-    "b446b0a7",                              // Traci Owor — co_primary of partnership journey (no territory)
+    "b446b0a7", // Traci Owor — co_primary of partnership journey (no territory)
     "577186a8-e5ba-45a0-b6a2-61ff37859757", // Stephanie Hall — family of real Tim Hall journey
-    "1e88e500",                              // Arthur W — prospect (single-letter lastname lead)
-    "97292899",                              // Larry Rife — primary franchisee
+    "1e88e500", // Arthur W — prospect (single-letter lastname lead)
+    "97292899", // Larry Rife — primary franchisee
   ];
   // Resolve shortened IDs
   const PAGE = 1000;
   const all: Array<{ id: string }> = [];
   let offset = 0;
   while (true) {
-    const { data } = await s.from("contacts").select("id").range(offset, offset + PAGE - 1);
+    const { data } = await s
+      .from("contacts")
+      .select("id")
+      .range(offset, offset + PAGE - 1);
     if (!data || data.length === 0) break;
     all.push(...data);
     if (data.length < PAGE) break;
@@ -106,7 +124,10 @@ async function simulate(contactId: string): Promise<void> {
   }
   for (const t of tests) {
     const full = t.length === 36 ? t : all.find((c) => c.id.startsWith(t))?.id;
-    if (!full) { console.log(`${t} not found`); continue; }
+    if (!full) {
+      console.log(`${t} not found`);
+      continue;
+    }
     await simulate(full);
   }
 })();

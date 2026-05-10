@@ -19,10 +19,14 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   try {
     const supabase = createServerClient();
 
@@ -65,7 +69,7 @@ export async function GET(request: NextRequest) {
         if (status) {
           const { count } = await supabase
             .from("territories")
-            .select("ms_slug", { count: "exact", head: true })
+            .select("TerritorySlug", { count: "exact", head: true })
             .eq("status", status);
           countMap.set(stage.id, count ?? 0);
         }
@@ -77,9 +81,7 @@ export async function GET(request: NextRequest) {
     // count gives the right "territories in stage" number without a special
     // case. Sales / Followup / other contact pipelines keep one jps row per
     // (journey, pipeline) so the numbers match 1:1 with the old cps counts.
-    const remainingStageIds = (stages ?? [])
-      .filter((s) => !countMap.has(s.id))
-      .map((s) => s.id);
+    const remainingStageIds = (stages ?? []).filter((s) => !countMap.has(s.id)).map((s) => s.id);
 
     const countPromises = remainingStageIds.map(async (stageId) => {
       const { count } = await supabase

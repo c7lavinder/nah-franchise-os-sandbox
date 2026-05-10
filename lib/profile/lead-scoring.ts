@@ -248,26 +248,26 @@ export function calculateLeadScore(input: ScoringInput): ScoreResult {
 export function buildScoringInputFromContact(contact: {
   source?: string | null;
   opportunity_source?: string | null;
-  capital_availability?: string | null;
+  NonRetirementCapitalAvailable?: string | null;
   territory_status?: string | null;
-  business_ownership_experience?: string | null;
+  BriefWorkHistory?: string | null;
   investment_timeline?: string | null;
-  motivation_clarity?: string | null;
+  WhatInterestsInOpportunity?: string | null;
   trainual_completion_pct?: number | null;
   created_at: string;
 }): ScoringInput {
   return {
     source: contact.opportunity_source ?? contact.source ?? null,
-    capitalAvailability: contact.capital_availability ?? null,
+    capitalAvailability: contact.NonRetirementCapitalAvailable ?? null,
     capitalSource: null,
     territoryStatus: contact.territory_status ?? null,
     lastTouchDate: null,
     daysSinceAdded: Math.floor((Date.now() - new Date(contact.created_at).getTime()) / (1000 * 60 * 60 * 24)),
     contactAttemptCount: null,
-    businessOwnershipExperience: contact.business_ownership_experience ?? null,
+    businessOwnershipExperience: contact.BriefWorkHistory ?? null,
     investmentTimeline: contact.investment_timeline ?? null,
     timelineToOpen: null,
-    motivationClarity: contact.motivation_clarity ?? null,
+    motivationClarity: contact.WhatInterestsInOpportunity ?? null,
     trainualCompletion: contact.trainual_completion_pct ?? null,
   };
 }

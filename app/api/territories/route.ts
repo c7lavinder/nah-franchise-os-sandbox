@@ -12,13 +12,13 @@ export async function GET(request: NextRequest) {
   const status = request.nextUrl.searchParams.get("status");
   const supabase = createServerClient();
 
-  let query = supabase.from("territories").select("ms_slug, territory_name, status, region");
+  let query = supabase.from("territories").select("TerritorySlug, Nickname, status, region");
 
   if (status) {
     query = query.eq("status", status);
   }
 
-  const { data, error } = await query.order("territory_name");
+  const { data, error } = await query.order("Nickname");
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/territories — create a new territory and optionally assign an owner.
- * Body: { ms_slug, territory_name, region?, ghl_contact_id? }
+ * Body: { TerritorySlug, Nickname, region?, ghl_contact_id? }
  */
 export async function POST(request: NextRequest) {
   const user = await requireAuth(request);
@@ -39,23 +39,23 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { ms_slug, territory_name, region, ghl_contact_id } = body as {
-    ms_slug: string;
-    territory_name: string;
+  const { TerritorySlug, Nickname, region, ghl_contact_id } = body as {
+    TerritorySlug: string;
+    Nickname: string;
     region?: string;
     ghl_contact_id?: string;
   };
 
-  if (!ms_slug || !territory_name) {
-    return NextResponse.json({ error: "ms_slug and territory_name are required" }, { status: 400 });
+  if (!TerritorySlug || !Nickname) {
+    return NextResponse.json({ error: "TerritorySlug and Nickname are required" }, { status: 400 });
   }
 
   const supabase = createServerClient();
 
   // Create territory
   const { error: tErr } = await supabase.from("territories").insert({
-    ms_slug,
-    territory_name,
+    TerritorySlug,
+    Nickname,
     region: region ?? null,
     status: "active",
   });
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
   // Assign owner if provided
   if (ghl_contact_id) {
     const { error: oErr } = await supabase.from("territory_owners").insert({
-      ms_slug,
+      TerritorySlug,
       ghl_contact_id,
       role: "owner",
       start_date: new Date().toISOString().split("T")[0],
@@ -80,5 +80,5 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ms_slug, territory_name, success: true });
+  return NextResponse.json({ TerritorySlug, Nickname, success: true });
 }

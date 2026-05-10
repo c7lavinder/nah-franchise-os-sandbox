@@ -28,8 +28,8 @@ export interface SplitMember {
 }
 
 export interface SplitTerritory {
-  ms_slug: string;
-  territory_name: string;
+  TerritorySlug: string;
+  Nickname: string;
 }
 
 interface SplitJourneyModalProps {
@@ -67,7 +67,7 @@ export default function SplitJourneyModal({
   const [territorySide, setTerritorySide] = useState<Record<string, Side>>(() => {
     const out: Record<string, Side> = {};
     territories.forEach((t, i) => {
-      out[t.ms_slug] = i < Math.ceil(territories.length / 2) ? "A" : "B";
+      out[t.TerritorySlug] = i < Math.ceil(territories.length / 2) ? "A" : "B";
     });
     return out;
   });
@@ -91,8 +91,10 @@ export default function SplitJourneyModal({
     nameB.trim().length > 0 &&
     membersA.length >= 1 &&
     membersB.length >= 1 &&
-    primaryA && membersA.some((m) => m.contact_id === primaryA) &&
-    primaryB && membersB.some((m) => m.contact_id === primaryB);
+    primaryA &&
+    membersA.some((m) => m.contact_id === primaryA) &&
+    primaryB &&
+    membersB.some((m) => m.contact_id === primaryB);
 
   async function handleSubmit() {
     if (!canSubmit || submitting) return;
@@ -109,18 +111,26 @@ export default function SplitJourneyModal({
               name: nameA.trim(),
               primary_contact_id: primaryA,
               member_contact_ids: membersA.map((m) => m.contact_id),
-              territory_ms_slugs: territories.filter((t) => territorySide[t.ms_slug] === "A").map((t) => t.ms_slug),
+              TerritorySlugs: territories
+                .filter((t) => territorySide[t.TerritorySlug] === "A")
+                .map((t) => t.TerritorySlug),
             },
             {
               name: nameB.trim(),
               primary_contact_id: primaryB,
               member_contact_ids: membersB.map((m) => m.contact_id),
-              territory_ms_slugs: territories.filter((t) => territorySide[t.ms_slug] === "B").map((t) => t.ms_slug),
+              TerritorySlugs: territories
+                .filter((t) => territorySide[t.TerritorySlug] === "B")
+                .map((t) => t.TerritorySlug),
             },
           ],
         }),
       });
-      const payload = (await res.json()) as { success?: boolean; error?: string; new_journeys?: { id: string; primary_contact_id: string }[] };
+      const payload = (await res.json()) as {
+        success?: boolean;
+        error?: string;
+        new_journeys?: { id: string; primary_contact_id: string }[];
+      };
       if (!res.ok || !payload.success) {
         setError(payload.error ?? "Failed to split journey");
         return;
@@ -146,7 +156,7 @@ export default function SplitJourneyModal({
     setName: (s: string) => void,
     sideMembers: SplitMember[],
     primary: string,
-    setPrimary: (s: string) => void,
+    setPrimary: (s: string) => void
   ) => (
     <div className="flex-1 bg-bg-tertiary border border-border-default rounded-lg p-3">
       <div className="flex items-center gap-2 mb-2">
@@ -189,9 +199,13 @@ export default function SplitJourneyModal({
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-default">
           <div>
             <h2 className="text-h3 text-text-primary font-medium">Split Journey</h2>
-            <p className="text-caption text-text-tertiary">{originalName} will close. Two new journeys will be created.</p>
+            <p className="text-caption text-text-tertiary">
+              {originalName} will close. Two new journeys will be created.
+            </p>
           </div>
-          <button onClick={onClose} className="btn-ghost p-1.5"><X size={18} /></button>
+          <button onClick={onClose} className="btn-ghost p-1.5">
+            <X size={18} />
+          </button>
         </div>
 
         <div className="p-4 space-y-4">
@@ -221,7 +235,9 @@ export default function SplitJourneyModal({
                           }}
                           className={`px-2.5 py-0.5 rounded text-caption font-medium transition-colors ${
                             side === s
-                              ? (s === "A" ? "bg-nah-blue text-white" : "bg-nah-orange text-white")
+                              ? s === "A"
+                                ? "bg-nah-blue text-white"
+                                : "bg-nah-orange text-white"
                               : "bg-bg-hover text-text-tertiary hover:text-text-primary"
                           }`}
                         >
@@ -240,19 +256,21 @@ export default function SplitJourneyModal({
               <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-2">TERRITORIES</h3>
               <div className="space-y-1">
                 {territories.map((t) => {
-                  const side = territorySide[t.ms_slug];
+                  const side = territorySide[t.TerritorySlug];
                   return (
-                    <div key={t.ms_slug} className="flex items-center gap-3 py-1.5 px-2 bg-bg-tertiary rounded">
-                      <span className="text-body-sm text-text-primary flex-1">{t.territory_name}</span>
-                      <span className="text-[10px] text-text-tertiary">{t.ms_slug}</span>
+                    <div key={t.TerritorySlug} className="flex items-center gap-3 py-1.5 px-2 bg-bg-tertiary rounded">
+                      <span className="text-body-sm text-text-primary flex-1">{t.Nickname}</span>
+                      <span className="text-[10px] text-text-tertiary">{t.TerritorySlug}</span>
                       <div className="flex gap-1">
                         {(["A", "B"] as Side[]).map((s) => (
                           <button
                             key={s}
-                            onClick={() => setTerritorySide((prev) => ({ ...prev, [t.ms_slug]: s }))}
+                            onClick={() => setTerritorySide((prev) => ({ ...prev, [t.TerritorySlug]: s }))}
                             className={`px-2.5 py-0.5 rounded text-caption font-medium transition-colors ${
                               side === s
-                                ? (s === "A" ? "bg-nah-blue text-white" : "bg-nah-orange text-white")
+                                ? s === "A"
+                                  ? "bg-nah-blue text-white"
+                                  : "bg-nah-orange text-white"
                                 : "bg-bg-hover text-text-tertiary hover:text-text-primary"
                             }`}
                           >
@@ -268,7 +286,9 @@ export default function SplitJourneyModal({
           )}
 
           <div>
-            <label className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-1 block">REASON (optional)</label>
+            <label className="text-[10px] font-semibold text-text-tertiary tracking-wider mb-1 block">
+              REASON (optional)
+            </label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -282,7 +302,9 @@ export default function SplitJourneyModal({
         </div>
 
         <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border-default">
-          <button onClick={onClose} className="btn-ghost px-3 py-1.5 text-caption">Cancel</button>
+          <button onClick={onClose} className="btn-ghost px-3 py-1.5 text-caption">
+            Cancel
+          </button>
           <button
             onClick={() => void handleSubmit()}
             disabled={!canSubmit || submitting}

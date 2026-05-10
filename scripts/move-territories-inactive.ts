@@ -2,7 +2,7 @@
  * Move territories (+ their journeys) to the Inactive stage on the territories
  * pipeline, and deactivate their onboarding/runway pipeline-state rows.
  *
- * Input: list of territory ms_slugs to mark inactive.
+ * Input: list of territory TerritorySlugs to mark inactive.
  * Per territory:
  *   1. territories.status → 'inactive'
  *   2. All active onboarding + runway journey_pipeline_state rows for the
@@ -42,22 +42,22 @@ async function main() {
 
   const { data: jpsRows, error: jpsErr } = await s
     .from("journey_pipeline_state")
-    .select("id, journey_id, territory_ms_slug, pipeline_id, current_stage_id, is_active")
-    .in("territory_ms_slug", TARGET_SLUGS)
+    .select("id, journey_id, TerritorySlug, pipeline_id, current_stage_id, is_active")
+    .in("TerritorySlug", TARGET_SLUGS)
     .eq("is_active", true);
   if (jpsErr) throw jpsErr;
 
   const journeysByTerritory = new Map<string, Set<string>>();
   for (const row of jpsRows ?? []) {
-    if (!row.territory_ms_slug) continue;
-    if (!journeysByTerritory.has(row.territory_ms_slug)) {
-      journeysByTerritory.set(row.territory_ms_slug, new Set());
+    if (!row.TerritorySlug) continue;
+    if (!journeysByTerritory.has(row.TerritorySlug)) {
+      journeysByTerritory.set(row.TerritorySlug, new Set());
     }
-    journeysByTerritory.get(row.territory_ms_slug)!.add(row.journey_id);
+    journeysByTerritory.get(row.TerritorySlug)!.add(row.journey_id);
   }
 
   const deactivations: Array<{ id: string; territory: string; pipeline: string }> = [];
-  const inserts: Array<{ journey_id: string; territory_ms_slug: string }> = [];
+  const inserts: Array<{ journey_id: string; TerritorySlug: string }> = [];
 
   for (const slug of TARGET_SLUGS) {
     const journeyIds = Array.from(journeysByTerritory.get(slug) ?? []);
@@ -66,8 +66,8 @@ async function main() {
       const toDeactivate = (jpsRows ?? []).filter(
         (r) =>
           r.journey_id === journeyId &&
-          r.territory_ms_slug === slug &&
-          (r.pipeline_id === ONBOARDING_PIPELINE || r.pipeline_id === RUNWAY_PIPELINE),
+          r.TerritorySlug === slug &&
+          (r.pipeline_id === ONBOARDING_PIPELINE || r.pipeline_id === RUNWAY_PIPELINE)
       );
       for (const row of toDeactivate) {
         const pipelineName = row.pipeline_id === ONBOARDING_PIPELINE ? "onboarding" : "runway";
@@ -79,7 +79,7 @@ async function main() {
         .from("journey_pipeline_state")
         .select("id, current_stage_id, is_active")
         .eq("journey_id", journeyId)
-        .eq("territory_ms_slug", slug)
+        .eq("TerritorySlug", slug)
         .eq("pipeline_id", TERRITORIES_PIPELINE)
         .eq("is_active", true)
         .maybeSingle();
@@ -90,11 +90,11 @@ async function main() {
         } else {
           console.log(`   update existing territories JPS ${existingInactive.id} → Inactive`);
           deactivations.push({ id: existingInactive.id, territory: slug, pipeline: "territories (update)" });
-          inserts.push({ journey_id: journeyId, territory_ms_slug: slug });
+          inserts.push({ journey_id: journeyId, TerritorySlug: slug });
         }
       } else {
         console.log(`   insert territories JPS (journey=${journeyId}, Inactive)`);
-        inserts.push({ journey_id: journeyId, territory_ms_slug: slug });
+        inserts.push({ journey_id: journeyId, TerritorySlug: slug });
       }
     }
   }
@@ -123,15 +123,15 @@ async function main() {
   for (const ins of inserts) {
     const { error } = await s.from("journey_pipeline_state").insert({
       journey_id: ins.journey_id,
-      territory_ms_slug: ins.territory_ms_slug,
+      TerritorySlug: ins.TerritorySlug,
       pipeline_id: TERRITORIES_PIPELINE,
       current_stage_id: INACTIVE_STAGE,
       is_active: true,
     });
     if (error) {
-      console.error(`FAIL insert territories JPS ${ins.territory_ms_slug}:`, error.message);
+      console.error(`FAIL insert territories JPS ${ins.TerritorySlug}:`, error.message);
     } else {
-      console.log(`ok insert territories JPS ${ins.territory_ms_slug} at Inactive`);
+      console.log(`ok insert territories JPS ${ins.TerritorySlug} at Inactive`);
     }
   }
 
@@ -139,7 +139,7 @@ async function main() {
   const { error: terrErr } = await s
     .from("territories")
     .update({ status: "inactive" })
-    .in("ms_slug", TARGET_SLUGS);
+    .in("TerritorySlug", TARGET_SLUGS);
   if (terrErr) {
     console.error("FAIL territories.status update:", terrErr.message);
   } else {

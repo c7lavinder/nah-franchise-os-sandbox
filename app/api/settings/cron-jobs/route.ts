@@ -159,6 +159,31 @@ const CRON_DEFINITIONS = [
     category: "pipeline",
     frequency: "Every 30 minutes",
   },
+  {
+    path: "/frandev/api/cron/sync-ms-properties",
+    name: "MasterSuite Property Sync",
+    schedule: "*/15 * * * *",
+    description:
+      "Incremental sync of property data from MasterSuite — properties, calculations, inventory, status history",
+    category: "pipeline",
+    frequency: "Every 15 minutes",
+  },
+  {
+    path: "/frandev/api/cron/sync-ms-territories",
+    name: "MasterSuite Territory Sync",
+    schedule: "0 */6 * * *",
+    description: "Sync all 88 territories from MasterSuite — owner info, compliance, dates, marketing, vendor accounts",
+    category: "pipeline",
+    frequency: "Every 6 hours",
+  },
+  {
+    path: "/frandev/api/cron/sync-ms-lead-list",
+    name: "MasterSuite Lead List Counts",
+    schedule: "0 1 * * *",
+    description: "Full recount of Lead List entries by territory, month, LeadCategory, and LeadType",
+    category: "pipeline",
+    frequency: "Daily at 1:00 AM",
+  },
 ];
 
 export async function GET(request: NextRequest) {

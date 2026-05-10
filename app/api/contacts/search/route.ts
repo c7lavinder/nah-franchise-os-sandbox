@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     ghlIds.length > 0
       ? supabase
           .from("territory_owners")
-          .select("ghl_contact_id, ms_slug, territories(territory_name)")
+          .select("ghl_contact_id, TerritorySlug, territories(Nickname)")
           .in("ghl_contact_id", ghlIds)
           .is("end_date", null)
       : Promise.resolve({ data: [] }),
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     contactIds.length > 0
       ? supabase
           .from("territory_stakeholders")
-          .select("contact_id, role, ms_slug, territories(territory_name)")
+          .select("contact_id, role, TerritorySlug, territories(Nickname)")
           .in("contact_id", contactIds)
           .eq("is_active", true)
       : Promise.resolve({ data: [] }),
@@ -88,11 +88,11 @@ export async function GET(request: NextRequest) {
   const ownerMap = new Map<string, string>(); // ghl_contact_id → territory name
   for (const o of (ownerRes.data ?? []) as unknown as {
     ghl_contact_id: string;
-    ms_slug: string;
-    territories: { territory_name: string } | { territory_name: string }[] | null;
+    TerritorySlug: string;
+    territories: { Nickname: string } | { Nickname: string }[] | null;
   }[]) {
     const t = Array.isArray(o.territories) ? o.territories[0] : o.territories;
-    ownerMap.set(o.ghl_contact_id, t?.territory_name ?? o.ms_slug);
+    ownerMap.set(o.ghl_contact_id, t?.Nickname ?? o.TerritorySlug);
   }
 
   const journeyMap = new Map<string, { role: string; name: string }>(); // contact_id → journey info
@@ -110,12 +110,12 @@ export async function GET(request: NextRequest) {
   for (const s of (stakeholderRes.data ?? []) as unknown as {
     contact_id: string;
     role: string;
-    ms_slug: string;
-    territories: { territory_name: string } | { territory_name: string }[] | null;
+    TerritorySlug: string;
+    territories: { Nickname: string } | { Nickname: string }[] | null;
   }[]) {
     if (stakeholderMap.has(s.contact_id)) continue;
     const t = Array.isArray(s.territories) ? s.territories[0] : s.territories;
-    stakeholderMap.set(s.contact_id, { role: s.role, territory: t?.territory_name ?? s.ms_slug });
+    stakeholderMap.set(s.contact_id, { role: s.role, territory: t?.Nickname ?? s.TerritorySlug });
   }
 
   const results = (contacts ?? []).map((c) => {

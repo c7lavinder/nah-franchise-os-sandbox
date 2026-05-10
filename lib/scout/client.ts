@@ -253,7 +253,7 @@ async function loadKnowledgeBase(pageContext?: ScoutConversationInput["pageConte
 
 /**
  * Format the page context as a one-line directive in the system prompt.
- * Lets Scout pre-fill contact_id / territory_slug without asking.
+ * Lets Scout pre-fill contact_id / TerritorySlug without asking.
  */
 function formatPageContextForPrompt(ctx?: ScoutConversationInput["pageContext"]): string {
   if (!ctx || !ctx.page || ctx.page === "other" || ctx.page === "scout") return "";

@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 import {
   resolveContactId,
   getContactByIdentifier,
@@ -26,8 +27,8 @@ import {
 } from "@/lib/contacts/pipeline-state";
 
 interface TerritoryState {
-  ms_slug: string;
-  territory_name: string;
+  TerritorySlug: string;
+  Nickname: string;
   stage_id: string;
   stage_name: string;
   jps_id: string;
@@ -36,10 +37,7 @@ interface TerritoryState {
   current_sub_task_started_at: string | null;
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   try {
     const { contactId: ghlContactId } = await params;
 
@@ -62,7 +60,7 @@ export async function GET(
     type JpsRow = {
       id: string;
       pipeline_id: string;
-      territory_ms_slug: string | null;
+      TerritorySlug: string | null;
       current_stage_id: string;
       current_sub_task_id: string | null;
       current_sub_task_started_at: string | null;
@@ -72,29 +70,28 @@ export async function GET(
     if (journey?.id) {
       const { data } = await supabase
         .from("journey_pipeline_state")
-        .select("id, pipeline_id, territory_ms_slug, current_stage_id, current_sub_task_id, current_sub_task_started_at, entered_current_stage_at")
+        .select(
+          "id, pipeline_id, TerritorySlug, current_stage_id, current_sub_task_id, current_sub_task_started_at, entered_current_stage_at"
+        )
         .eq("journey_id", journey.id)
         .eq("is_active", true);
       jpsRows = (data ?? []) as JpsRow[];
     }
 
-    const allTerritorySlugs = [...new Set(jpsRows.map((r) => r.territory_ms_slug).filter(Boolean) as string[])];
+    const allTerritorySlugs = [...new Set(jpsRows.map((r) => r.TerritorySlug).filter(Boolean) as string[])];
     const territoryNameMap = new Map<string, string>();
     if (allTerritorySlugs.length > 0) {
       const { data: territories } = await supabase
         .from("territories")
-        .select("ms_slug, territory_name")
-        .in("ms_slug", allTerritorySlugs);
-      for (const t of territories ?? []) territoryNameMap.set(t.ms_slug, t.territory_name);
+        .select("TerritorySlug, Nickname")
+        .in("TerritorySlug", allTerritorySlugs);
+      for (const t of territories ?? []) territoryNameMap.set(t.TerritorySlug, t.Nickname);
     }
 
     const allStageIds = [...new Set(jpsRows.map((r) => r.current_stage_id))];
     const stageNameMap = new Map<string, string>();
     if (allStageIds.length > 0) {
-      const { data: stages } = await supabase
-        .from("pipeline_stages")
-        .select("id, name")
-        .in("id", allStageIds);
+      const { data: stages } = await supabase.from("pipeline_stages").select("id, name").in("id", allStageIds);
       for (const s of stages ?? []) stageNameMap.set(s.id, s.name);
     }
 
@@ -125,12 +122,12 @@ export async function GET(
 
         // Territory list for this pipeline: only populated when jps has per-
         // territory rows (runway/onboarding). Sales/followup jps rows carry
-        // territory_ms_slug=null, so this stays empty and the UI hides the picker.
+        // TerritorySlug=null, so this stays empty and the UI hides the picker.
         const territories: TerritoryState[] = jpsRows
-          .filter((r) => r.pipeline_id === state.pipeline_id && r.territory_ms_slug)
+          .filter((r) => r.pipeline_id === state.pipeline_id && r.TerritorySlug)
           .map((r) => ({
-            ms_slug: r.territory_ms_slug as string,
-            territory_name: territoryNameMap.get(r.territory_ms_slug as string) ?? (r.territory_ms_slug as string),
+            TerritorySlug: r.TerritorySlug as string,
+            Nickname: territoryNameMap.get(r.TerritorySlug as string) ?? (r.TerritorySlug as string),
             stage_id: r.current_stage_id,
             stage_name: stageNameMap.get(r.current_stage_id) ?? "Unknown",
             jps_id: r.id,
@@ -138,7 +135,7 @@ export async function GET(
             current_sub_task_id: r.current_sub_task_id,
             current_sub_task_started_at: r.current_sub_task_started_at,
           }))
-          .sort((a, b) => a.territory_name.localeCompare(b.territory_name));
+          .sort((a, b) => a.Nickname.localeCompare(b.Nickname));
 
         return {
           ...state,

@@ -15,16 +15,18 @@ export async function GET(request: NextRequest) {
   const supabase = createServerClient();
   const { data: territories } = await supabase
     .from("territories")
-    .select("ms_slug")
+    .select("TerritorySlug")
     .eq("status", "active")
     .limit(80);
 
   let processed = 0;
   for (const t of territories ?? []) {
     try {
-      await runTerritoryMarketResearch(t.ms_slug);
+      await runTerritoryMarketResearch(t.TerritorySlug);
       processed++;
-    } catch { /* logged internally */ }
+    } catch {
+      /* logged internally */
+    }
   }
 
   return NextResponse.json({ processed });

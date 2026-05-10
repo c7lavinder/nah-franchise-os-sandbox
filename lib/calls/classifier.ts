@@ -240,7 +240,7 @@ export async function classifyCall(payload: ReadAIWebhookPayload): Promise<Class
   // 1-journey case — Sales / Onboarding / Coaching by stage.
   if (distinctJourneyCount === 1 && firstExternal) {
     const onlyJourneyId = [...distinctJourneyIds][0];
-    const hasTerritory = !!match.territory_ms_slug;
+    const hasTerritory = !!match.TerritorySlug;
     const inRunway = await db.isJourneyInRunway(onlyJourneyId);
 
     if (!hasTerritory) {

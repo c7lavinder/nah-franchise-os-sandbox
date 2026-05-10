@@ -29,7 +29,7 @@ export default function ContactEosTodos({ contactId, carriedTerritoryName }: Pro
     const res = await apiFetch(`/api/contacts/${contactId}/eos/todos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ todo_text: newText.trim() }),
+      body: JSON.stringify({ Todo: newText.trim() }),
     });
     if (res.ok) {
       const { todo } = await res.json();
@@ -44,9 +44,7 @@ export default function ContactEosTodos({ contactId, carriedTerritoryName }: Pro
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_done: !todo.is_done }),
     });
-    setTodos((prev) =>
-      prev.map((t) => (t.id === todo.id ? { ...t, is_done: !t.is_done } : t))
-    );
+    setTodos((prev) => prev.map((t) => (t.id === todo.id ? { ...t, is_done: !t.is_done } : t)));
   }
 
   async function deleteTodo(id: string) {
@@ -82,7 +80,7 @@ export default function ContactEosTodos({ contactId, carriedTerritoryName }: Pro
                 todo.is_done ? "line-through text-text-tertiary opacity-60" : "text-text-primary"
               }`}
             >
-              {todo.todo_text}
+              {todo.Todo}
             </span>
             <SourceBadge source={todo.source} />
             {carriedTerritoryName && (

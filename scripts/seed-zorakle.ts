@@ -2,7 +2,7 @@
  * Seed Zorakle Profiles from zorakle-master-final.json
  *
  * Computes fit_score + risk_flag for every record on insert.
- * Records with ms_slug = 'UNKNOWN' → stored as NULL FK (not rejected).
+ * Records with TerritorySlug = 'UNKNOWN' → stored as NULL FK (not rejected).
  * Idempotent — uses full_name + batch as dedup key.
  *
  * Usage: npx tsx scripts/seed-zorakle.ts
@@ -13,13 +13,10 @@ import * as fs from "fs";
 import { createClient } from "@supabase/supabase-js";
 import { computeFitScore, computeRiskFlag } from "../lib/zorakle";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 
 interface ZorakleRecord {
-  ms_slug: string;
+  TerritorySlug: string;
   full_name: string;
   batch: string;
   eclipse_overall: number | null;
@@ -53,8 +50,8 @@ async function main() {
 
   for (const rec of records) {
     // UNKNOWN → NULL
-    const msSlug = rec.ms_slug === "UNKNOWN" ? null : rec.ms_slug;
-    if (msSlug === null) nullSlugCount++;
+    const TerritorySlug = rec.TerritorySlug === "UNKNOWN" ? null : rec.TerritorySlug;
+    if (TerritorySlug === null) nullSlugCount++;
 
     // Compute fit_score and risk_flag
     const fitScore = computeFitScore({
@@ -86,7 +83,7 @@ async function main() {
     }
 
     const { error } = await supabase.from("zorakle_profiles").insert({
-      ms_slug: msSlug,
+      TerritorySlug: TerritorySlug,
       full_name: rec.full_name,
       batch: rec.batch,
       eclipse_overall: rec.eclipse_overall,
@@ -115,7 +112,7 @@ async function main() {
   console.log(`Inserted: ${inserted}`);
   console.log(`Skipped (already exist): ${skipped}`);
   console.log(`Errors: ${errors}`);
-  console.log(`NULL ms_slug (UNKNOWN): ${nullSlugCount}`);
+  console.log(`NULL TerritorySlug (UNKNOWN): ${nullSlugCount}`);
   console.log(`\nRisk flag distribution:`);
   for (const [flag, count] of Object.entries(riskCounts).sort()) {
     console.log(`  ${flag}: ${count}`);

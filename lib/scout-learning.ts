@@ -17,7 +17,7 @@ export async function writeSuggestionOutcome(data: {
   call_id?: string;
   call_type?: string;
   contact_id?: string;
-  territory_ms_slug?: string;
+  TerritorySlug?: string;
   pipeline_stage?: string;
   field_name: string;
   suggested_value: string;
@@ -29,9 +29,7 @@ export async function writeSuggestionOutcome(data: {
   const supabase = createServerClient();
 
   const editDiff =
-    data.outcome === "edited_pushed" && data.final_value
-      ? { from: data.suggested_value, to: data.final_value }
-      : null;
+    data.outcome === "edited_pushed" && data.final_value ? { from: data.suggested_value, to: data.final_value } : null;
 
   await supabase.from("suggestion_feedback").insert({
     suggestion_type: "data_update",
@@ -44,7 +42,7 @@ export async function writeSuggestionOutcome(data: {
     edit_delta: editDiff,
     call_type: data.call_type ?? null,
     pipeline_stage: data.pipeline_stage ?? null,
-    territory_ms_slug: data.territory_ms_slug ?? null,
+    TerritorySlug: data.TerritorySlug ?? null,
     field_name: data.field_name,
     suggested_value: data.suggested_value,
     final_value: data.final_value ?? null,
@@ -111,8 +109,7 @@ export async function getSuggestionContext(callType: string): Promise<string> {
     const pushRate = s.pushed / s.total;
     const skipRate = s.skipped / s.total;
     const editRate = s.edited / s.total;
-    if (skipRate >= 0.7)
-      lines.push(`- ${field}: skipped ${Math.round(skipRate * 100)}% — only suggest if explicit.`);
+    if (skipRate >= 0.7) lines.push(`- ${field}: skipped ${Math.round(skipRate * 100)}% — only suggest if explicit.`);
     else if (pushRate >= 0.85 && editRate <= 0.1)
       lines.push(`- ${field}: ${Math.round(pushRate * 100)}% pushed — suggest confidently.`);
     else if (editRate >= 0.3 && s.editExamples.length > 0)
@@ -128,10 +125,7 @@ export async function getSuggestionContext(callType: string): Promise<string> {
 // Badge count for profile tabs
 // ─────────────────────────────────────────────────────────
 
-export async function getPendingSuggestionCount(
-  contactId?: string,
-  territorySlug?: string
-): Promise<number> {
+export async function getPendingSuggestionCount(contactId?: string, territorySlug?: string): Promise<number> {
   const supabase = createServerClient();
 
   let query = supabase
@@ -140,7 +134,7 @@ export async function getPendingSuggestionCount(
     .eq("status", "pending");
 
   if (contactId) query = query.eq("contact_id", contactId);
-  else if (territorySlug) query = query.eq("territory_ms_slug", territorySlug);
+  else if (territorySlug) query = query.eq("TerritorySlug", territorySlug);
   else return 0;
 
   const { count } = await query;
@@ -151,18 +145,10 @@ export async function getPendingSuggestionCount(
 // Push a suggestion — writes to correct table
 // ─────────────────────────────────────────────────────────
 
-export async function pushSuggestion(
-  suggestionId: string,
-  finalValue: string,
-  reviewerId: string
-): Promise<void> {
+export async function pushSuggestion(suggestionId: string, finalValue: string, reviewerId: string): Promise<void> {
   const supabase = createServerClient();
 
-  const { data: sug } = await supabase
-    .from("data_update_suggestions")
-    .select("*")
-    .eq("id", suggestionId)
-    .single();
+  const { data: sug } = await supabase.from("data_update_suggestions").select("*").eq("id", suggestionId).single();
 
   if (!sug) return;
 
@@ -179,14 +165,14 @@ export async function pushSuggestion(
       },
       { onConflict: "contact_id,field_name" }
     );
-  } else if (sug.field_table === "territory_profile" && sug.territory_ms_slug) {
+  } else if (sug.field_table === "territory_profile" && sug.TerritorySlug) {
     await supabase
       .from("territory_profile")
       .update({
         [sug.field_name]: finalValue,
         updated_at: new Date().toISOString(),
       })
-      .eq("ms_slug", sug.territory_ms_slug);
+      .eq("TerritorySlug", sug.TerritorySlug);
   }
 
   await writeSuggestionOutcome({
@@ -197,7 +183,7 @@ export async function pushSuggestion(
     final_value: finalValue,
     reviewer_id: reviewerId,
     contact_id: sug.contact_id,
-    territory_ms_slug: sug.territory_ms_slug,
+    TerritorySlug: sug.TerritorySlug,
   });
 }
 
@@ -207,7 +193,7 @@ export async function pushSuggestion(
 
 export async function handleDuplicateFieldSuggestion(newSug: {
   contact_id?: string;
-  territory_ms_slug?: string;
+  TerritorySlug?: string;
   field_name: string;
   field_table: string;
   suggested_value: string;
@@ -218,9 +204,7 @@ export async function handleDuplicateFieldSuggestion(newSug: {
 }): Promise<string> {
   const supabase = createServerClient();
 
-  const entityFilter = newSug.contact_id
-    ? { contact_id: newSug.contact_id }
-    : { territory_ms_slug: newSug.territory_ms_slug };
+  const entityFilter = newSug.contact_id ? { contact_id: newSug.contact_id } : { TerritorySlug: newSug.TerritorySlug };
 
   const { data: existing } = await supabase
     .from("data_update_suggestions")
@@ -243,10 +227,7 @@ export async function handleDuplicateFieldSuggestion(newSug: {
       .from("data_update_suggestions")
       .update({
         suggested_value: `${existing.suggested_value} · ${newSug.suggested_value}`,
-        combined_sources: [
-          ...(existing.combined_sources || []),
-          newSug.source_id || newSug.source,
-        ],
+        combined_sources: [...(existing.combined_sources || []), newSug.source_id || newSug.source],
         updated_at: new Date().toISOString(),
       })
       .eq("id", existing.id);

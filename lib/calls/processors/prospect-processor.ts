@@ -49,7 +49,7 @@ export async function processProspectCall(payload: ReadAIWebhookPayload, classif
     nah_emails: nahEmails,
     is_internal: false,
     has_external_participant: true,
-    has_territory_owner: !!classified.match.territory_ms_slug,
+    has_territory_owner: !!classified.match.TerritorySlug,
     category: toClassifyCategory(classified.call_type),
     source: "read_ai",
   });
@@ -75,7 +75,7 @@ export async function processProspectCall(payload: ReadAIWebhookPayload, classif
       classification_reason: classification.reason,
       match_confidence: classified.match.confidence,
       match_reason: classified.match.reason,
-      territory_ms_slug: classified.match.territory_ms_slug,
+      TerritorySlug: classified.match.TerritorySlug,
       journey_pipeline_state_id: classified.match.journey_pipeline_state_id,
       read_ai_session_id: payload.session_id,
       title: standardizeTitle(

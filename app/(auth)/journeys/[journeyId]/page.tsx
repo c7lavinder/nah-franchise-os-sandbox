@@ -6,7 +6,7 @@
  * a per-contact sub-tab strip when the journey has 2+ members.
  *
  * Query params:
- *   territory — focus the Territories tab on a specific ms_slug (forwarded
+ *   territory — focus the Territories tab on a specific TerritorySlug (forwarded
  *               to the client component).
  *   message   — open the Messages tab and highlight a specific message.
  */

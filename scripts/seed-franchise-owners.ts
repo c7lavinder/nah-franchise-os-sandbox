@@ -12,13 +12,10 @@ import "dotenv/config";
 import * as fs from "fs";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 
 interface OwnerRow {
-  ms_slug: string;
+  TerritorySlug: string;
   full_name: string;
   status: string;
   ct_id: string;
@@ -60,43 +57,39 @@ async function main() {
   let errors = 0;
 
   for (const row of rows) {
-    if (!row.ms_slug) continue;
+    if (!row.TerritorySlug) continue;
 
     // 1. Upsert territory
-    const { error: tErr } = await supabase
-      .from("territories")
-      .upsert(
-        {
-          ms_slug: row.ms_slug,
-          territory_name: row.ms_slug, // Will be human-named later
-          status: row.status || "active",
-        },
-        { onConflict: "ms_slug" }
-      );
+    const { error: tErr } = await supabase.from("territories").upsert(
+      {
+        TerritorySlug: row.TerritorySlug,
+        Nickname: row.TerritorySlug, // Will be human-named later
+        status: row.status || "active",
+      },
+      { onConflict: "TerritorySlug" }
+    );
 
     if (tErr) {
-      console.error(`  Territory ${row.ms_slug}: ${tErr.message}`);
+      console.error(`  Territory ${row.TerritorySlug}: ${tErr.message}`);
       errors++;
       continue;
     }
     territoriesUpserted++;
 
     // 2. Upsert franchise_owner
-    const { error: oErr } = await supabase
-      .from("franchise_owners")
-      .upsert(
-        {
-          ms_slug: row.ms_slug,
-          full_name: row.full_name,
-          status: row.status || "active",
-          ct_id: row.ct_id || null,
-          ct_email: row.ct_email || null,
-        },
-        { onConflict: "ms_slug" }
-      );
+    const { error: oErr } = await supabase.from("franchise_owners").upsert(
+      {
+        TerritorySlug: row.TerritorySlug,
+        full_name: row.full_name,
+        status: row.status || "active",
+        ct_id: row.ct_id || null,
+        ct_email: row.ct_email || null,
+      },
+      { onConflict: "TerritorySlug" }
+    );
 
     if (oErr) {
-      console.error(`  Owner ${row.ms_slug}: ${oErr.message}`);
+      console.error(`  Owner ${row.TerritorySlug}: ${oErr.message}`);
       errors++;
       continue;
     }
@@ -105,10 +98,7 @@ async function main() {
     // 3. Create territory_profile shell if not exists
     const { error: pErr } = await supabase
       .from("territory_profile")
-      .upsert(
-        { ms_slug: row.ms_slug },
-        { onConflict: "ms_slug" }
-      );
+      .upsert({ TerritorySlug: row.TerritorySlug }, { onConflict: "TerritorySlug" });
 
     if (!pErr) profilesCreated++;
   }

@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     const { data: contacts } = await supabase
       .from("contacts")
       .select(
-        "ghl_contact_id, first_name, last_name, email, phone, source, opportunity_source, territory_interest, capital_availability, territory_status, business_ownership_experience, investment_timeline, motivation_clarity, trainual_completion_pct, scout_lead_score, created_at"
+        "ghl_contact_id, first_name, last_name, email, phone, source, opportunity_source, territory_interest, NonRetirementCapitalAvailable, territory_status, BriefWorkHistory, investment_timeline, WhatInterestsInOpportunity, trainual_completion_pct, scout_lead_score, created_at"
       )
       .in("ghl_contact_id", ids);
 

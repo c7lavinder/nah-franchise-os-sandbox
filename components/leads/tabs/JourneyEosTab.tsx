@@ -26,8 +26,8 @@ import EosTab from "@/components/leads/tabs/EosTab";
 import TerritoryEosTab from "@/components/territories/tabs/EosTab";
 
 interface JourneyTerritory {
-  ms_slug: string;
-  territory_name: string;
+  TerritorySlug: string;
+  Nickname: string;
 }
 
 export interface CoreMember {
@@ -58,13 +58,10 @@ export default function JourneyEosTab({
 }: Props) {
   // Ensure the primary contact is always in the list even if the parent
   // didn't pass coreMembers (defensive for legacy callers).
-  const effectiveMembers: CoreMember[] = coreMembers.length > 0
-    ? coreMembers
-    : [{ contactId, name: primaryContactName ?? "Primary" }];
+  const effectiveMembers: CoreMember[] =
+    coreMembers.length > 0 ? coreMembers : [{ contactId, name: primaryContactName ?? "Primary" }];
 
-  const [selectedContactId, setSelectedContactId] = useState<string>(
-    effectiveMembers[0]?.contactId ?? contactId,
-  );
+  const [selectedContactId, setSelectedContactId] = useState<string>(effectiveMembers[0]?.contactId ?? contactId);
 
   // Keep the selected contact in sync if the member set changes (e.g. a
   // new co-owner was just added mid-session).
@@ -76,16 +73,15 @@ export default function JourneyEosTab({
 
   // Resolve the focused territory. Prefer the externally-controlled slug;
   // fall back to the first awarded so the territory view never renders empty.
-  const resolvedTerritory = awardedTerritories.find((t) => t.ms_slug === focusedTerritorySlug)
-    ?? awardedTerritories[0]
-    ?? null;
+  const resolvedTerritory =
+    awardedTerritories.find((t) => t.TerritorySlug === focusedTerritorySlug) ?? awardedTerritories[0] ?? null;
 
   useEffect(() => {
     if (awardedTerritories.length === 0) return;
     if (!resolvedTerritory) return;
-    if (focusedTerritorySlug && focusedTerritorySlug !== resolvedTerritory.ms_slug) {
-      const stillAwarded = awardedTerritories.some((t) => t.ms_slug === focusedTerritorySlug);
-      if (!stillAwarded) onTerritoryChange(resolvedTerritory.ms_slug);
+    if (focusedTerritorySlug && focusedTerritorySlug !== resolvedTerritory.TerritorySlug) {
+      const stillAwarded = awardedTerritories.some((t) => t.TerritorySlug === focusedTerritorySlug);
+      if (!stillAwarded) onTerritoryChange(resolvedTerritory.TerritorySlug);
     }
   }, [focusedTerritorySlug, resolvedTerritory, awardedTerritories, onTerritoryChange]);
 
@@ -115,9 +111,7 @@ export default function JourneyEosTab({
               key={it.id}
               onClick={() => onSelect(it.id)}
               className={`px-2.5 py-1 rounded-full text-caption font-medium transition-colors ${
-                active
-                  ? "bg-nah-orange text-white"
-                  : "bg-bg-hover text-text-tertiary hover:text-text-primary"
+                active ? "bg-nah-orange text-white" : "bg-bg-hover text-text-tertiary hover:text-text-primary"
               }`}
             >
               {it.label}
@@ -147,23 +141,21 @@ export default function JourneyEosTab({
         {/* Personal EOS is contact-scoped only — no carriedTerritoryName,
             since personal goals/issues/todos follow the person, not the
             territory. The territory-linked view lives below. */}
-        <EosTab
-          key={selectedContactId}
-          contactId={selectedContactId}
-          carriedTerritoryName={null}
-        />
+        <EosTab key={selectedContactId} contactId={selectedContactId} carriedTerritoryName={null} />
       </section>
 
       {awardedTerritories.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] font-semibold text-text-tertiary tracking-wider">TERRITORY EOS</span>
-            <span className="text-[10px] text-text-tertiary">— operational: rocks, scorecard, marketing spend, etc.</span>
+            <span className="text-[10px] text-text-tertiary">
+              — operational: rocks, scorecard, marketing spend, etc.
+            </span>
             {showTerritoryTabs && resolvedTerritory && (
               <div className="ml-auto">
                 <SubTabStrip
-                  items={awardedTerritories.map((t) => ({ id: t.ms_slug, label: t.territory_name }))}
-                  activeId={resolvedTerritory.ms_slug}
+                  items={awardedTerritories.map((t) => ({ id: t.TerritorySlug, label: t.Nickname }))}
+                  activeId={resolvedTerritory.TerritorySlug}
                   onSelect={onTerritoryChange}
                 />
               </div>
@@ -171,8 +163,8 @@ export default function JourneyEosTab({
           </div>
           {resolvedTerritory && (
             <TerritoryEosTab
-              key={resolvedTerritory.ms_slug}
-              msSlug={resolvedTerritory.ms_slug}
+              key={resolvedTerritory.TerritorySlug}
+              TerritorySlug={resolvedTerritory.TerritorySlug}
               carriedFromContactName={primaryContactName}
             />
           )}

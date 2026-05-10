@@ -142,8 +142,8 @@ interface PipelineStateAPI {
   }[];
   stageHistory: StageHistoryEntry[];
   territories?: {
-    ms_slug: string;
-    territory_name: string;
+    TerritorySlug: string;
+    Nickname: string;
     stage_id: string;
     stage_name: string;
     jps_id: string;
@@ -508,19 +508,19 @@ export default function LeadDetailView({
   // the journey's first active runway/onboarding jps row with a territory,
   // replacing the old contacts.territory column.
   const carriedTerritoryName =
-    pipelineStates.flatMap((p) => p.territories ?? []).find((t) => t.territory_name)?.territory_name ?? null;
+    pipelineStates.flatMap((p) => p.territories ?? []).find((t) => t.Nickname)?.Nickname ?? null;
 
   // Collect unique awarded territories across every pipeline-state row so
   // the EOS tab knows whether to show contact-scoped (pre-award) or
   // territory-scoped (post-award) EOS, and which territories to pick from.
   const awardedTerritories = (() => {
     const seen = new Set<string>();
-    const out: { ms_slug: string; territory_name: string }[] = [];
+    const out: { TerritorySlug: string; Nickname: string }[] = [];
     for (const ps of pipelineStates) {
       for (const t of ps.territories ?? []) {
-        if (!seen.has(t.ms_slug)) {
-          seen.add(t.ms_slug);
-          out.push({ ms_slug: t.ms_slug, territory_name: t.territory_name });
+        if (!seen.has(t.TerritorySlug)) {
+          seen.add(t.TerritorySlug);
+          out.push({ TerritorySlug: t.TerritorySlug, Nickname: t.Nickname });
         }
       }
     }
@@ -1050,9 +1050,9 @@ export default function LeadDetailView({
             const out: SplitTerritory[] = [];
             for (const ps of pipelineStates) {
               for (const t of ps.territories ?? []) {
-                if (!seen.has(t.ms_slug)) {
-                  seen.add(t.ms_slug);
-                  out.push({ ms_slug: t.ms_slug, territory_name: t.territory_name });
+                if (!seen.has(t.TerritorySlug)) {
+                  seen.add(t.TerritorySlug);
+                  out.push({ TerritorySlug: t.TerritorySlug, Nickname: t.Nickname });
                 }
               }
             }

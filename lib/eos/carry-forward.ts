@@ -1,7 +1,7 @@
 /**
  * Carry-forward: copies contact EOS data into territory EOS as seed data.
  *
- * Trigger: when territory_slug is first assigned to a contact.
+ * Trigger: when TerritorySlug is first assigned to a contact.
  * Rules:
  *   - Contact EOS records are never deleted — they stay as sales history
  *   - Carried items get source='carried_forward' + origin_contact_id FK
@@ -21,14 +21,14 @@ export async function carryForwardContactEos(
   const { data: existingCarried } = await supabase
     .from("eos_territory_issues")
     .select("id")
-    .eq("territory_slug", territorySlug)
+    .eq("TerritorySlug", territorySlug)
     .eq("origin_contact_id", contactId)
     .limit(1);
 
   const { data: existingTodos } = await supabase
     .from("eos_territory_todos")
     .select("id")
-    .eq("territory_slug", territorySlug)
+    .eq("TerritorySlug", territorySlug)
     .eq("origin_contact_id", contactId)
     .limit(1);
 
@@ -38,19 +38,9 @@ export async function carryForwardContactEos(
 
   // 1. Fetch contact EOS data
   const [goalsRes, issuesRes, todosRes] = await Promise.all([
-    supabase
-      .from("eos_contact_goals")
-      .select("*")
-      .eq("contact_id", contactId)
-      .maybeSingle(),
-    supabase
-      .from("eos_contact_issues")
-      .select("*")
-      .eq("contact_id", contactId),
-    supabase
-      .from("eos_contact_todos")
-      .select("*")
-      .eq("contact_id", contactId),
+    supabase.from("eos_contact_goals").select("*").eq("contact_id", contactId).maybeSingle(),
+    supabase.from("eos_contact_issues").select("*").eq("contact_id", contactId),
+    supabase.from("eos_contact_todos").select("*").eq("contact_id", contactId),
   ]);
 
   const goals = goalsRes.data;
@@ -64,23 +54,21 @@ export async function carryForwardContactEos(
 
   // 2. Seed territory goals — qol_goal only
   if (goals?.qol_goal) {
-    await supabase
-      .from("eos_territory_goals")
-      .upsert(
-        {
-          territory_slug: territorySlug,
-          goal_type: "quality_of_life",
-          current_year_goal: goals.qol_goal,
-        },
-        { onConflict: "territory_slug,goal_type", ignoreDuplicates: true }
-      );
+    await supabase.from("eos_territory_goals").upsert(
+      {
+        TerritorySlug: territorySlug,
+        goal_type: "quality_of_life",
+        current_year_goal: goals.qol_goal,
+      },
+      { onConflict: "TerritorySlug,goal_type", ignoreDuplicates: true }
+    );
   }
 
   // 3. Copy issues → territory issues
   if (issues.length > 0) {
     const issueRows = issues.map((issue) => ({
-      territory_slug: territorySlug,
-      issue_text: issue.issue_text,
+      TerritorySlug: territorySlug,
+      Issue: issue.Issue,
       source: "carried_forward" as const,
       origin_contact_id: contactId,
     }));
@@ -90,8 +78,8 @@ export async function carryForwardContactEos(
   // 4. Copy todos → territory todos
   if (todos.length > 0) {
     const todoRows = todos.map((todo) => ({
-      territory_slug: territorySlug,
-      todo_text: todo.todo_text,
+      TerritorySlug: territorySlug,
+      Todo: todo.Todo,
       owner_user_id: todo.owner_user_id,
       source: "carried_forward" as const,
       origin_contact_id: contactId,

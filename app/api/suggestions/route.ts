@@ -1,20 +1,24 @@
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/suggestions?contact_id=X or ?territory_ms_slug=X
+ * GET /api/suggestions?contact_id=X or ?TerritorySlug=X
  * Returns pending data_update_suggestions for the entity.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   const contactId = request.nextUrl.searchParams.get("contact_id");
-  const territorySlug = request.nextUrl.searchParams.get("territory_ms_slug");
+  const territorySlug = request.nextUrl.searchParams.get("TerritorySlug");
 
   if (!contactId && !territorySlug) {
-    return NextResponse.json({ error: "contact_id or territory_ms_slug required" }, { status: 400 });
+    return NextResponse.json({ error: "contact_id or TerritorySlug required" }, { status: 400 });
   }
 
   const supabase = createServerClient();
@@ -25,7 +29,7 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false });
 
   if (contactId) query = query.eq("contact_id", contactId);
-  else if (territorySlug) query = query.eq("territory_ms_slug", territorySlug);
+  else if (territorySlug) query = query.eq("TerritorySlug", territorySlug);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

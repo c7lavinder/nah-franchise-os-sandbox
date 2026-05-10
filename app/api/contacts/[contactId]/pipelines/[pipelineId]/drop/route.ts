@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 
 const FOLLOWUP_PIPELINE_ID = "a0000000-0000-0000-0000-000000000002";
@@ -27,10 +28,10 @@ export async function POST(
 ) {
   try {
     const { contactId: rawId, pipelineId } = await params;
-    const { destination, reason, territory_ms_slug } = (await request.json()) as {
+    const { destination, reason, TerritorySlug } = (await request.json()) as {
       destination: "followup" | "nurture";
       reason?: string;
-      territory_ms_slug?: string | null;
+      TerritorySlug?: string | null;
     };
     const supabase = createServerClient();
 
@@ -53,22 +54,25 @@ export async function POST(
     const targetStageId = destination === "followup" ? FOLLOWUP_STAGE_ID : NURTURE_STAGE_ID;
 
     // Per-territory: close just the one jps row. No Follow-up spawn.
-    if (territory_ms_slug) {
+    if (TerritorySlug) {
       const { data: jps } = await supabase
         .from("journey_pipeline_state")
         .select("id, current_stage_id")
         .eq("journey_id", journey.id)
         .eq("pipeline_id", pipelineId)
-        .eq("territory_ms_slug", territory_ms_slug)
+        .eq("TerritorySlug", TerritorySlug)
         .eq("is_active", true)
         .maybeSingle();
       if (!jps) return NextResponse.json({ error: "No active state for territory" }, { status: 404 });
 
-      await supabase.from("journey_pipeline_state").update({
-        is_active: false,
-        closed_reason: closedReason,
-        closed_at: now,
-      }).eq("id", jps.id);
+      await supabase
+        .from("journey_pipeline_state")
+        .update({
+          is_active: false,
+          closed_reason: closedReason,
+          closed_at: now,
+        })
+        .eq("id", jps.id);
 
       await supabase.from("pipeline_stage_history").insert({
         journey_pipeline_state_id: jps.id,
@@ -97,11 +101,14 @@ export async function POST(
 
     const jpsIds = jpsRows.map((r) => r.id);
 
-    await supabase.from("journey_pipeline_state").update({
-      is_active: false,
-      closed_reason: closedReason,
-      closed_at: now,
-    }).in("id", jpsIds);
+    await supabase
+      .from("journey_pipeline_state")
+      .update({
+        is_active: false,
+        closed_reason: closedReason,
+        closed_at: now,
+      })
+      .in("id", jpsIds);
 
     await supabase.from("pipeline_stage_history").insert(
       jpsRows.map((r) => ({
@@ -130,7 +137,7 @@ export async function POST(
         .insert({
           journey_id: journey.id,
           pipeline_id: FOLLOWUP_PIPELINE_ID,
-          territory_ms_slug: null,
+          TerritorySlug: null,
           current_stage_id: targetStageId,
           current_sub_task_id: null,
           current_sub_task_started_at: null,

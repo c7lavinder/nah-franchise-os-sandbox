@@ -158,10 +158,10 @@ export async function checkAutoAdvance(jpsId: string, currentStageId: string): P
           if (contact?.ghl_contact_id) {
             const { data: owners } = await supabase
               .from("territory_owners")
-              .select("ms_slug")
+              .select("TerritorySlug")
               .eq("ghl_contact_id", contact.ghl_contact_id)
               .is("end_date", null);
-            const slugs = (owners ?? []).map((o) => o.ms_slug);
+            const slugs = (owners ?? []).map((o) => o.TerritorySlug);
             spawnSlugs = slugs.length > 0 ? slugs : [null];
           }
         }
@@ -170,7 +170,7 @@ export async function checkAutoAdvance(jpsId: string, currentStageId: string): P
       await supabase.from("journey_pipeline_state").insert(
         spawnSlugs.map((slug) => ({
           journey_id: rootJps.journey_id,
-          territory_ms_slug: slug,
+          TerritorySlug: slug,
           pipeline_id: spawnPipelineId,
           current_stage_id: spawnStages[0].id,
           current_sub_task_id: spawnTasks?.[0]?.id ?? null,

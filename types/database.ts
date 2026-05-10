@@ -220,7 +220,7 @@ export type MarketDataSource =
 /** Territory market data — EAV row */
 export interface TerritoryMarketData {
   id: string;
-  territory_slug: string;
+  TerritorySlug: string;
   field_name: string;
   field_value: string | null;
   source: MarketDataSource;
@@ -250,7 +250,7 @@ export interface EosContactGoals {
 export interface EosContactIssue {
   id: string;
   contact_id: string;
-  issue_text: string;
+  Issue: string;
   is_done: boolean;
   source: EosSource;
   created_at: string;
@@ -261,7 +261,7 @@ export interface EosContactIssue {
 export interface EosContactTodo {
   id: string;
   contact_id: string;
-  todo_text: string;
+  Todo: string;
   is_done: boolean;
   owner_user_id: string | null;
   source: EosSource;
@@ -286,7 +286,7 @@ export interface EosContactHabit {
 /** Territory EOS — goals (3 rows per territory: houses, profit, qol) */
 export interface EosTerritoryGoal {
   id: string;
-  territory_slug: string;
+  TerritorySlug: string;
   goal_type: EosGoalType;
   actual: string | null;
   current_year_goal: string | null;
@@ -298,7 +298,7 @@ export interface EosTerritoryGoal {
 /** Territory EOS — scorecard metrics */
 export interface EosTerritoryScorecard {
   id: string;
-  territory_slug: string;
+  TerritorySlug: string;
   metric_key: string;
   metric_label: string;
   goal_value: string | null;
@@ -309,7 +309,7 @@ export interface EosTerritoryScorecard {
 /** Territory EOS — budget line items */
 export interface EosTerritoryBudget {
   id: string;
-  territory_slug: string;
+  TerritorySlug: string;
   description: string;
   amount: number;
   sort_order: number;
@@ -319,7 +319,7 @@ export interface EosTerritoryBudget {
 /** Territory EOS — lead channels */
 export interface EosTerritoryLeadChannel {
   id: string;
-  territory_slug: string;
+  TerritorySlug: string;
   channel_name: string;
   is_active: boolean;
   sort_order: number;
@@ -329,7 +329,7 @@ export interface EosTerritoryLeadChannel {
 /** Territory EOS — habits */
 export interface EosTerritoryHabit {
   id: string;
-  territory_slug: string;
+  TerritorySlug: string;
   habit_key: string;
   habit_label: string;
   grade: EosHabitGrade | null;
@@ -340,8 +340,8 @@ export interface EosTerritoryHabit {
 /** Territory EOS — rocks (90-day priorities) */
 export interface EosTerritoryRock {
   id: string;
-  territory_slug: string;
-  rock_text: string;
+  TerritorySlug: string;
+  Rock: string;
   status: EosRockStatus;
   quarter: number | null;
   year: number | null;
@@ -352,8 +352,8 @@ export interface EosTerritoryRock {
 /** Territory EOS — issues */
 export interface EosTerritoryIssue {
   id: string;
-  territory_slug: string;
-  issue_text: string;
+  TerritorySlug: string;
+  Issue: string;
   is_done: boolean;
   source: EosTerritorySource;
   origin_contact_id: string | null;
@@ -364,8 +364,8 @@ export interface EosTerritoryIssue {
 /** Territory EOS — todos */
 export interface EosTerritoryTodo {
   id: string;
-  territory_slug: string;
-  todo_text: string;
+  TerritorySlug: string;
+  Todo: string;
   is_done: boolean;
   owner_user_id: string | null;
   source: EosTerritorySource;

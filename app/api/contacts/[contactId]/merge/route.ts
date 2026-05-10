@@ -20,7 +20,8 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";
+import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 
@@ -35,10 +36,7 @@ interface StepResult {
   detail?: string;
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { contactId: string } },
-) {
+export async function POST(request: NextRequest, { params }: { params: { contactId: string } }) {
   const dupRaw = params.contactId;
   const body = (await request.json()) as MergeBody;
   if (!body.keepContactId) {
@@ -72,15 +70,12 @@ export async function POST(
   // Refuse to merge if either side is already merged. Lets us avoid
   // chains and lost-pointer surprises.
   if (dup?.merged_into_contact_id) {
-    return NextResponse.json(
-      { error: `${dupName} is already merged into another contact.` },
-      { status: 409 },
-    );
+    return NextResponse.json({ error: `${dupName} is already merged into another contact.` }, { status: 409 });
   }
   if (keep?.merged_into_contact_id) {
     return NextResponse.json(
       { error: `${keepName} is itself a merged-out duplicate. Pick the canonical contact instead.` },
-      { status: 409 },
+      { status: 409 }
     );
   }
 
@@ -101,10 +96,7 @@ export async function POST(
   //    partial-unique index on (contact_id, email) doesn't fire when both
   //    sides happen to share an address.
   try {
-    const { data: keepEmails } = await supabase
-      .from("contact_emails")
-      .select("email")
-      .eq("contact_id", keepLocalId);
+    const { data: keepEmails } = await supabase.from("contact_emails").select("email").eq("contact_id", keepLocalId);
     const existing = new Set((keepEmails ?? []).map((r) => r.email));
 
     const { data: dupEmails } = await supabase
@@ -120,10 +112,7 @@ export async function POST(
         dropped++;
       } else {
         // Force is_primary false on transfer — keeper's primary stays primary
-        await supabase
-          .from("contact_emails")
-          .update({ contact_id: keepLocalId, is_primary: false })
-          .eq("id", row.id);
+        await supabase.from("contact_emails").update({ contact_id: keepLocalId, is_primary: false }).eq("id", row.id);
         moved++;
       }
     }
@@ -190,8 +179,7 @@ export async function POST(
   const ONE_TO_ONE_TABLES = ["candidate_intelligence", "eos_contact_goals"];
   for (const table of ONE_TO_ONE_TABLES) {
     try {
-      const { data: keeperRow } = await supabase
-        .from(table).select("id").eq("contact_id", keepLocalId).maybeSingle();
+      const { data: keeperRow } = await supabase.from(table).select("id").eq("contact_id", keepLocalId).maybeSingle();
       if (keeperRow) {
         steps.push({ step: table, ok: true, detail: "keeper kept (had own)" });
         continue;
@@ -301,11 +289,11 @@ export async function POST(
         .update({ ghl_contact_id: keep.ghl_contact_id })
         .eq("ghl_contact_id", dup.ghl_contact_id)
         .is("end_date", null)
-        .select("ms_slug");
+        .select("TerritorySlug");
       if (error) throw new Error(error.message);
       const transferred = (data ?? []).length;
       if (transferred > 0) {
-        const slugs = (data ?? []).map((r) => (r as { ms_slug: string }).ms_slug).join(", ");
+        const slugs = (data ?? []).map((r) => (r as { TerritorySlug: string }).TerritorySlug).join(", ");
         steps.push({
           step: "territory_owners",
           ok: true,

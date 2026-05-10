@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
     const { data: sbContacts } = await supabase
       .from("contacts")
       .select(
-        "ghl_contact_id, source, opportunity_source, capital_availability, territory_status, business_ownership_experience, investment_timeline, motivation_clarity, trainual_completion_pct, scout_lead_score, created_at"
+        "ghl_contact_id, source, opportunity_source, NonRetirementCapitalAvailable, territory_status, BriefWorkHistory, investment_timeline, WhatInterestsInOpportunity, trainual_completion_pct, scout_lead_score, created_at"
       )
       .in("ghl_contact_id", ghlIds);
 

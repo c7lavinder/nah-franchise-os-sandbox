@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 
 export async function POST(
@@ -21,9 +22,9 @@ export async function POST(
 ) {
   try {
     const { contactId: rawId, pipelineId } = await params;
-    const { reason, territory_ms_slug } = (await request.json()) as {
+    const { reason, TerritorySlug } = (await request.json()) as {
       reason: string;
-      territory_ms_slug?: string | null;
+      TerritorySlug?: string | null;
     };
     const supabase = createServerClient();
 
@@ -44,19 +45,21 @@ export async function POST(
     }
 
     const { data: journey } = await supabase
-      .from("journeys").select("id")
-      .eq("primary_contact_id", localContactId).maybeSingle();
+      .from("journeys")
+      .select("id")
+      .eq("primary_contact_id", localContactId)
+      .maybeSingle();
     if (!journey?.id) return NextResponse.json({ error: "No journey for contact" }, { status: 404 });
 
     const now = new Date().toISOString();
 
-    if (territory_ms_slug) {
+    if (TerritorySlug) {
       const { data: jps } = await supabase
         .from("journey_pipeline_state")
         .select("id, current_stage_id")
         .eq("journey_id", journey.id)
         .eq("pipeline_id", pipelineId)
-        .eq("territory_ms_slug", territory_ms_slug)
+        .eq("TerritorySlug", TerritorySlug)
         .eq("is_active", true)
         .maybeSingle();
       if (!jps) return NextResponse.json({ error: "No active state for territory" }, { status: 404 });
@@ -69,14 +72,20 @@ export async function POST(
 
       const { data: prevTasks } = await supabase
         .from("pipeline_sub_tasks")
-        .select("id").eq("stage_id", prevStage.id).order("sort_order").limit(1);
+        .select("id")
+        .eq("stage_id", prevStage.id)
+        .order("sort_order")
+        .limit(1);
 
-      await supabase.from("journey_pipeline_state").update({
-        current_stage_id: prevStage.id,
-        entered_current_stage_at: now,
-        current_sub_task_id: prevTasks?.[0]?.id ?? null,
-        current_sub_task_started_at: now,
-      }).eq("id", jps.id);
+      await supabase
+        .from("journey_pipeline_state")
+        .update({
+          current_stage_id: prevStage.id,
+          entered_current_stage_at: now,
+          current_sub_task_id: prevTasks?.[0]?.id ?? null,
+          current_sub_task_started_at: now,
+        })
+        .eq("id", jps.id);
 
       await supabase.from("pipeline_stage_history").insert({
         journey_pipeline_state_id: jps.id,
@@ -94,7 +103,7 @@ export async function POST(
     // Contact-wide: revert every active jps row together.
     const { data: jpsRows } = await supabase
       .from("journey_pipeline_state")
-      .select("id, current_stage_id, territory_ms_slug")
+      .select("id, current_stage_id, TerritorySlug")
       .eq("journey_id", journey.id)
       .eq("pipeline_id", pipelineId)
       .eq("is_active", true);
@@ -102,7 +111,7 @@ export async function POST(
       return NextResponse.json({ error: "No active pipeline state" }, { status: 404 });
     }
 
-    const canonical = jpsRows.find((r) => r.territory_ms_slug === null) ?? jpsRows[0];
+    const canonical = jpsRows.find((r) => r.TerritorySlug === null) ?? jpsRows[0];
     const currentIdx = stages.findIndex((s) => s.id === canonical.current_stage_id);
     if (currentIdx <= 0) {
       return NextResponse.json({ error: "Cannot revert from the first stage" }, { status: 400 });
@@ -112,16 +121,22 @@ export async function POST(
 
     const { data: prevTasks } = await supabase
       .from("pipeline_sub_tasks")
-      .select("id").eq("stage_id", prevStage.id).order("sort_order").limit(1);
+      .select("id")
+      .eq("stage_id", prevStage.id)
+      .order("sort_order")
+      .limit(1);
 
     const jpsIds = jpsRows.map((r) => r.id);
 
-    await supabase.from("journey_pipeline_state").update({
-      current_stage_id: prevStage.id,
-      entered_current_stage_at: now,
-      current_sub_task_id: prevTasks?.[0]?.id ?? null,
-      current_sub_task_started_at: now,
-    }).in("id", jpsIds);
+    await supabase
+      .from("journey_pipeline_state")
+      .update({
+        current_stage_id: prevStage.id,
+        entered_current_stage_at: now,
+        current_sub_task_id: prevTasks?.[0]?.id ?? null,
+        current_sub_task_started_at: now,
+      })
+      .in("id", jpsIds);
 
     await supabase.from("pipeline_stage_history").insert(
       jpsRows.map((r) => ({

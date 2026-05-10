@@ -52,7 +52,7 @@ interface Extraction {
   confidence: string | null;
   saved_to_profile: boolean;
   dismissed: boolean;
-  territory_ms_slug: string | null;
+  TerritorySlug: string | null;
   target_scope: "single" | "both" | null;
 }
 
@@ -62,8 +62,8 @@ interface LinkedContact {
 }
 
 interface CallTerritory {
-  ms_slug: string;
-  territory_name: string;
+  TerritorySlug: string;
+  Nickname: string;
 }
 
 interface CallDetailTabsProps {
@@ -170,13 +170,13 @@ export default function CallDetailTabs(props: CallDetailTabsProps) {
 
     for (const territory of territories) {
       const terrExtractions = props.dataExtractions.filter(
-        (e) => e.territory_ms_slug === territory.ms_slug && isTerritoryCat(e.field_category)
+        (e) => e.TerritorySlug === territory.TerritorySlug && isTerritoryCat(e.field_category)
       );
       const pending = terrExtractions.filter((e) => !e.saved_to_profile && !e.dismissed).length;
 
       tabs.push({
-        key: `territory:${territory.ms_slug}`,
-        label: territory.territory_name,
+        key: `territory:${territory.TerritorySlug}`,
+        label: territory.Nickname,
         icon: MapPin,
         badge: pending || undefined,
       });
@@ -404,16 +404,16 @@ function getUniqueTerritories(callTerritories: CallTerritory[], extractions: Ext
   const map = new Map<string, string>();
 
   for (const t of callTerritories) {
-    map.set(t.ms_slug, t.territory_name);
+    map.set(t.TerritorySlug, t.Nickname);
   }
 
   for (const e of extractions) {
-    if (e.territory_ms_slug && isTerritoryCat(e.field_category) && !map.has(e.territory_ms_slug)) {
-      map.set(e.territory_ms_slug, e.territory_ms_slug);
+    if (e.TerritorySlug && isTerritoryCat(e.field_category) && !map.has(e.TerritorySlug)) {
+      map.set(e.TerritorySlug, e.TerritorySlug);
     }
   }
 
-  return Array.from(map.entries()).map(([ms_slug, territory_name]) => ({ ms_slug, territory_name }));
+  return Array.from(map.entries()).map(([TerritorySlug, Nickname]) => ({ TerritorySlug, Nickname }));
 }
 
 // ─── Per-Contact Tab Content ─────────────────────────────
@@ -570,11 +570,11 @@ function TerritoryTabContent({
   onRefresh,
 }: TerritoryTabContentProps) {
   const slug = tabKey.replace("territory:", "");
-  const territory = callTerritories.find((t) => t.ms_slug === slug);
+  const territory = callTerritories.find((t) => t.TerritorySlug === slug);
 
   // Filter territory-specific extractions
   const filteredExtractions = dataExtractions.filter(
-    (e) => e.territory_ms_slug === slug && isTerritoryCat(e.field_category)
+    (e) => e.TerritorySlug === slug && isTerritoryCat(e.field_category)
   );
 
   return (
@@ -585,7 +585,7 @@ function TerritoryTabContent({
           <MapPin size={18} />
         </div>
         <div>
-          <h3 className="text-body font-semibold text-text-primary">{territory?.territory_name ?? slug}</h3>
+          <h3 className="text-body font-semibold text-text-primary">{territory?.Nickname ?? slug}</h3>
           <p className="text-caption text-text-tertiary">
             {filteredExtractions.length} data point{filteredExtractions.length !== 1 ? "s" : ""} extracted
           </p>

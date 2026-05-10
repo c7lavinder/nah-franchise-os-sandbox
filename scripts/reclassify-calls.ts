@@ -150,11 +150,11 @@ async function main() {
     // Get territories
     const { data: territories } = await supabase
       .from("call_territories")
-      .select("territory_ms_slug, territories ( territory_name )")
+      .select("TerritorySlug, territories ( Nickname )")
       .eq("call_id", call.id);
     const territoryNames = (territories ?? []).map((t) => {
       const terr = Array.isArray(t.territories) ? t.territories[0] : t.territories;
-      return (terr as { territory_name: string } | null)?.territory_name ?? t.territory_ms_slug;
+      return (terr as { Nickname: string } | null)?.Nickname ?? t.TerritorySlug;
     });
 
     const newSlug = await classifyCall(

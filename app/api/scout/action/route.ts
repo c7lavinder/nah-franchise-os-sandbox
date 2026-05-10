@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
               for (const u of eosPayload.updates) {
                 await supabaseEos.from("eos_contact_issues").insert({
                   contact_id: eosPayload.entityId,
-                  issue_text: u.value,
+                  Issue: u.value,
                   source: "ai",
                 });
               }
@@ -238,7 +238,7 @@ export async function POST(request: NextRequest) {
               for (const u of eosPayload.updates) {
                 await supabaseEos.from("eos_contact_todos").insert({
                   contact_id: eosPayload.entityId,
-                  todo_text: u.value,
+                  Todo: u.value,
                   source: "ai",
                 });
               }
@@ -250,27 +250,27 @@ export async function POST(request: NextRequest) {
               for (const u of eosPayload.updates) {
                 await supabaseEos.from("eos_territory_goals").upsert(
                   {
-                    territory_slug: slug,
+                    TerritorySlug: slug,
                     goal_type: u.fieldName,
                     current_year_goal: u.value,
                     updated_at: new Date().toISOString(),
                   },
-                  { onConflict: "territory_slug,goal_type" }
+                  { onConflict: "TerritorySlug,goal_type" }
                 );
               }
             } else if (eosPayload.section === "issues") {
               for (const u of eosPayload.updates) {
                 await supabaseEos.from("eos_territory_issues").insert({
-                  territory_slug: slug,
-                  issue_text: u.value,
+                  TerritorySlug: slug,
+                  Issue: u.value,
                   source: "ai",
                 });
               }
             } else if (eosPayload.section === "todos") {
               for (const u of eosPayload.updates) {
                 await supabaseEos.from("eos_territory_todos").insert({
-                  territory_slug: slug,
-                  todo_text: u.value,
+                  TerritorySlug: slug,
+                  Todo: u.value,
                   source: "ai",
                 });
               }
@@ -278,8 +278,8 @@ export async function POST(request: NextRequest) {
               const now = new Date();
               for (const u of eosPayload.updates) {
                 await supabaseEos.from("eos_territory_rocks").insert({
-                  territory_slug: slug,
-                  rock_text: u.value,
+                  TerritorySlug: slug,
+                  Rock: u.value,
                   quarter: Math.ceil((now.getMonth() + 1) / 3),
                   year: now.getFullYear(),
                 });
@@ -292,7 +292,7 @@ export async function POST(request: NextRequest) {
                     goal_value: u.value,
                     updated_at: new Date().toISOString(),
                   })
-                  .eq("territory_slug", slug)
+                  .eq("TerritorySlug", slug)
                   .eq("metric_key", u.fieldName);
               }
             } else if (eosPayload.section === "habits") {
@@ -303,7 +303,7 @@ export async function POST(request: NextRequest) {
                     grade: u.value,
                     updated_at: new Date().toISOString(),
                   })
-                  .eq("territory_slug", slug)
+                  .eq("TerritorySlug", slug)
                   .eq("habit_key", u.fieldName);
               }
             }
@@ -318,13 +318,13 @@ export async function POST(request: NextRequest) {
           for (const u of mdPayload.fields) {
             await supabaseMd.from("territory_market_data").upsert(
               {
-                territory_slug: mdPayload.territorySlug,
+                TerritorySlug: mdPayload.territorySlug,
                 field_name: u.fieldName,
                 field_value: u.value,
                 source: "scout",
                 updated_at: new Date().toISOString(),
               },
-              { onConflict: "territory_slug,field_name" }
+              { onConflict: "TerritorySlug,field_name" }
             );
           }
           ghlResponse = { updated: mdPayload.fields.length };

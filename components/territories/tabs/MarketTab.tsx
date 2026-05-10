@@ -3,9 +3,21 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Loader2, MapPin, Users, TrendingUp, Home, BarChart3,
-  Repeat, Briefcase, Wrench, Target, DollarSign,
-  ChevronDown, ChevronRight, Pencil, X,
+  Loader2,
+  MapPin,
+  Users,
+  TrendingUp,
+  Home,
+  BarChart3,
+  Repeat,
+  Briefcase,
+  Wrench,
+  Target,
+  DollarSign,
+  ChevronDown,
+  ChevronRight,
+  Pencil,
+  X,
 } from "lucide-react";
 import SourceBadge from "@/components/ui/SourceBadge";
 import {
@@ -16,14 +28,22 @@ import {
 } from "@/lib/territory/market-field-registry";
 
 interface Props {
-  msSlug: string;
+  TerritorySlug: string;
 }
 
 type FieldData = Record<string, { value: string | null; source: string; updated_at: string }>;
 
 const ICON_MAP: Record<string, typeof MapPin> = {
-  MapPin, Users, TrendingUp, Home, BarChart3,
-  Repeat, Briefcase, Wrench, Target, DollarSign,
+  MapPin,
+  Users,
+  TrendingUp,
+  Home,
+  BarChart3,
+  Repeat,
+  Briefcase,
+  Wrench,
+  Target,
+  DollarSign,
 };
 
 function formatDisplay(field: MarketField, raw: string | null): string {
@@ -33,7 +53,9 @@ function formatDisplay(field: MarketField, raw: string | null): string {
     try {
       const arr = JSON.parse(raw) as string[];
       return arr.length > 0 ? arr.join(", ") : "—";
-    } catch { return raw; }
+    } catch {
+      return raw;
+    }
   }
   const num = Number(raw);
   if (field.dataType === "currency" && !isNaN(num)) return `$${num.toLocaleString("en-US")}`;
@@ -46,12 +68,12 @@ function MarketSection({
   category,
   fields,
   data,
-  msSlug,
+  TerritorySlug,
 }: {
   category: (typeof MARKET_CATEGORIES)[number];
   fields: MarketField[];
   data: FieldData;
-  msSlug: string;
+  TerritorySlug: string;
 }) {
   const [expanded, setExpanded] = useState(true);
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -65,7 +87,7 @@ function MarketSection({
 
   async function saveField(fieldName: string, value: string) {
     setSaving(true);
-    await apiFetch(`/api/territories/${msSlug}/market-data`, {
+    await apiFetch(`/api/territories/${TerritorySlug}/market-data`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ field_name: fieldName, field_value: value || null, source: "manual" }),
@@ -92,7 +114,9 @@ function MarketSection({
         >
           <option value="">— Select —</option>
           {field.options.map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
           ))}
         </select>
       );
@@ -101,15 +125,18 @@ function MarketSection({
     // Multi-select toggle buttons
     if (field.dataType === "multi_select" && field.options) {
       let selected: string[] = [];
-      try { selected = JSON.parse(currentValue || "[]"); } catch { /* empty */ }
+      try {
+        selected = JSON.parse(currentValue || "[]");
+      } catch {
+        /* empty */
+      }
       return (
         <div className="flex flex-wrap gap-1">
           {field.options.map((opt) => (
-            <button key={opt}
+            <button
+              key={opt}
               onClick={() => {
-                const updated = selected.includes(opt)
-                  ? selected.filter((s) => s !== opt)
-                  : [...selected, opt];
+                const updated = selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt];
                 saveField(field.name, JSON.stringify(updated));
               }}
               className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
@@ -117,9 +144,13 @@ function MarketSection({
                   ? "bg-nah-blue text-white"
                   : "bg-bg-secondary text-text-tertiary hover:bg-bg-tertiary"
               }`}
-            >{opt}</button>
+            >
+              {opt}
+            </button>
           ))}
-          <button onClick={() => setEditingField(null)} className="text-text-tertiary text-[10px] ml-1">done</button>
+          <button onClick={() => setEditingField(null)} className="text-text-tertiary text-[10px] ml-1">
+            done
+          </button>
         </div>
       );
     }
@@ -127,17 +158,29 @@ function MarketSection({
     // Tags
     if (field.dataType === "tags") {
       let tags: string[] = [];
-      try { tags = JSON.parse(currentValue || "[]"); } catch { /* empty */ }
+      try {
+        tags = JSON.parse(currentValue || "[]");
+      } catch {
+        /* empty */
+      }
       return (
         <div>
           <div className="flex flex-wrap gap-1 mb-1">
             {tags.map((tag) => (
-              <span key={tag} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-bg-secondary text-body-sm text-text-primary">
+              <span
+                key={tag}
+                className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-bg-secondary text-body-sm text-text-primary"
+              >
                 {tag}
-                <button onClick={() => {
-                  const updated = tags.filter((t) => t !== tag);
-                  saveField(field.name, JSON.stringify(updated));
-                }} className="text-text-tertiary hover:text-red-500"><X className="h-3 w-3" /></button>
+                <button
+                  onClick={() => {
+                    const updated = tags.filter((t) => t !== tag);
+                    saveField(field.name, JSON.stringify(updated));
+                  }}
+                  className="text-text-tertiary hover:text-red-500"
+                >
+                  <X className="h-3 w-3" />
+                </button>
               </span>
             ))}
           </div>
@@ -165,7 +208,11 @@ function MarketSection({
     // Default: text / number / currency / percentage
     return (
       <input
-        type={field.dataType === "number" || field.dataType === "currency" || field.dataType === "percentage" ? "text" : "text"}
+        type={
+          field.dataType === "number" || field.dataType === "currency" || field.dataType === "percentage"
+            ? "text"
+            : "text"
+        }
         className="input text-body-sm py-1 w-full"
         defaultValue={currentValue}
         autoFocus
@@ -198,7 +245,11 @@ function MarketSection({
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 px-4 py-3 bg-bg-secondary hover:bg-bg-hover transition-colors"
       >
-        {expanded ? <ChevronDown size={14} className="text-text-tertiary" /> : <ChevronRight size={14} className="text-text-tertiary" />}
+        {expanded ? (
+          <ChevronDown size={14} className="text-text-tertiary" />
+        ) : (
+          <ChevronRight size={14} className="text-text-tertiary" />
+        )}
         <Icon size={16} className="text-nah-blue" />
         <span className="text-body-sm font-medium text-text-primary">{category.label}</span>
         <span className="text-caption text-text-tertiary ml-auto">
@@ -221,9 +272,7 @@ function MarketSection({
                 {/* Label */}
                 <div className="w-44 flex-shrink-0">
                   <span className="text-caption text-text-secondary">{field.label}</span>
-                  {field.help && (
-                    <span className="text-[10px] text-text-tertiary block">{field.help}</span>
-                  )}
+                  {field.help && <span className="text-[10px] text-text-tertiary block">{field.help}</span>}
                 </div>
 
                 {/* Value / Editor */}
@@ -259,18 +308,18 @@ function MarketSection({
   );
 }
 
-export default function MarketTab({ msSlug }: Props) {
+export default function MarketTab({ TerritorySlug }: Props) {
   const [data, setData] = useState<FieldData>({});
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
-    const res = await apiFetch(`/api/territories/${msSlug}/market-data`);
+    const res = await apiFetch(`/api/territories/${TerritorySlug}/market-data`);
     if (res.ok) {
       const d = await res.json();
       setData(d.fields ?? {});
     }
     setLoading(false);
-  }, [msSlug]);
+  }, [TerritorySlug]);
 
   useEffect(() => {
     fetchData();
@@ -297,15 +346,7 @@ export default function MarketTab({ msSlug }: Props) {
       {MARKET_CATEGORIES.map((cat) => {
         const fields = MARKET_FIELDS.filter((f) => f.category === cat.key);
         if (fields.length === 0) return null;
-        return (
-          <MarketSection
-            key={cat.key}
-            category={cat}
-            fields={fields}
-            data={data}
-            msSlug={msSlug}
-          />
-        );
+        return <MarketSection key={cat.key} category={cat} fields={fields} data={data} TerritorySlug={TerritorySlug} />;
       })}
     </div>
   );

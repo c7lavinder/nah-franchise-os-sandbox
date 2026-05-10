@@ -7,21 +7,21 @@ import SourceBadge from "@/components/ui/SourceBadge";
 import type { EosTerritoryIssue } from "@/types/database";
 
 interface Props {
-  msSlug: string;
+  TerritorySlug: string;
   issues: EosTerritoryIssue[];
   onUpdate: () => void;
 }
 
-export default function TerritoryEosIssues({ msSlug, issues, onUpdate }: Props) {
+export default function TerritoryEosIssues({ TerritorySlug, issues, onUpdate }: Props) {
   const [local, setLocal] = useState<EosTerritoryIssue[]>(issues);
   const [newText, setNewText] = useState("");
 
   async function addIssue() {
     if (!newText.trim()) return;
-    const res = await apiFetch(`/api/territories/${msSlug}/eos/issues`, {
+    const res = await apiFetch(`/api/territories/${TerritorySlug}/eos/issues`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ issue_text: newText.trim() }),
+      body: JSON.stringify({ Issue: newText.trim() }),
     });
     if (res.ok) {
       const { issue } = await res.json();
@@ -32,19 +32,17 @@ export default function TerritoryEosIssues({ msSlug, issues, onUpdate }: Props) 
   }
 
   async function toggleDone(issue: EosTerritoryIssue) {
-    await apiFetch(`/api/territories/${msSlug}/eos/issues/${issue.id}`, {
+    await apiFetch(`/api/territories/${TerritorySlug}/eos/issues/${issue.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_done: !issue.is_done }),
     });
-    setLocal((prev) =>
-      prev.map((i) => (i.id === issue.id ? { ...i, is_done: !i.is_done } : i))
-    );
+    setLocal((prev) => prev.map((i) => (i.id === issue.id ? { ...i, is_done: !i.is_done } : i)));
     onUpdate();
   }
 
   async function deleteIssue(id: string) {
-    await apiFetch(`/api/territories/${msSlug}/eos/issues/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/territories/${TerritorySlug}/eos/issues/${id}`, { method: "DELETE" });
     setLocal((prev) => prev.filter((i) => i.id !== id));
     onUpdate();
   }
@@ -54,15 +52,20 @@ export default function TerritoryEosIssues({ msSlug, issues, onUpdate }: Props) 
       <h3 className="text-body-sm font-semibold text-text-primary mb-2">Issues</h3>
       <ul className="space-y-1">
         {local.map((issue) => (
-          <li key={issue.id} className="group flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-bg-secondary transition-colors">
+          <li
+            key={issue.id}
+            className="group flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-bg-secondary transition-colors"
+          >
             <input
               type="checkbox"
               checked={issue.is_done}
               onChange={() => toggleDone(issue)}
               className="mt-0.5 h-4 w-4 rounded border-border-primary text-nah-blue focus:ring-nah-blue/30"
             />
-            <span className={`flex-1 text-body-sm ${issue.is_done ? "line-through text-text-tertiary opacity-60" : "text-text-primary"}`}>
-              {issue.issue_text}
+            <span
+              className={`flex-1 text-body-sm ${issue.is_done ? "line-through text-text-tertiary opacity-60" : "text-text-primary"}`}
+            >
+              {issue.Issue}
             </span>
             <SourceBadge source={issue.source} />
             <button

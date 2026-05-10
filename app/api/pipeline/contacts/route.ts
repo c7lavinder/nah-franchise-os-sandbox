@@ -26,7 +26,7 @@ const PAGE_SIZE = 1000;
 const SELECT_FIELDS = `
   id,
   journey_id,
-  territory_ms_slug,
+  TerritorySlug,
   pipeline_id,
   current_stage_id,
   current_sub_task_id,
@@ -252,7 +252,7 @@ export async function GET(request: NextRequest) {
         ghlContactId: (contact?.ghl_contact_id ?? null) as string | null,
         journeyId: row.journey_id as string,
         journeySlug: journey?.slug ?? null,
-        territoryMsSlug: (row.territory_ms_slug as string | null) ?? null,
+        territoryMsSlug: (row.TerritorySlug as string | null) ?? null,
         name,
         email: contact?.email ?? null,
         phone: contact?.phone ?? null,

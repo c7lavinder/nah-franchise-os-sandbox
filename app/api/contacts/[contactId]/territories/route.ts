@@ -9,12 +9,10 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId } = await params;
   const supabase = createServerClient();
 
@@ -25,24 +23,16 @@ export async function GET(
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (uuidRegex.test(contactId)) {
     localId = contactId;
-    const { data } = await supabase
-      .from("contacts")
-      .select("ghl_contact_id")
-      .eq("id", contactId)
-      .single();
+    const { data } = await supabase.from("contacts").select("ghl_contact_id").eq("id", contactId).single();
     if (data) ghlContactId = data.ghl_contact_id;
   } else {
-    const { data } = await supabase
-      .from("contacts")
-      .select("id")
-      .eq("ghl_contact_id", contactId)
-      .maybeSingle();
+    const { data } = await supabase.from("contacts").select("id").eq("ghl_contact_id", contactId).maybeSingle();
     localId = data?.id ?? null;
   }
 
   const { data: ownerRows, error } = await supabase
     .from("territory_owners")
-    .select("*, territories (ms_slug, territory_name, status)")
+    .select("*, territories (TerritorySlug, Nickname, status)")
     .eq("ghl_contact_id", ghlContactId)
     .order("start_date", { ascending: false });
 
@@ -52,20 +42,20 @@ export async function GET(
 
   const current = (ownerRows ?? []).filter((r) => r.end_date === null);
   const former = (ownerRows ?? []).filter((r) => r.end_date !== null);
-  const ownedSlugs = new Set(current.map((r) => r.ms_slug));
+  const ownedSlugs = new Set(current.map((r) => r.TerritorySlug));
 
   // Pull stakeholder-linked territories. De-dupe against owned.
   let stakeholderCurrent: Array<Record<string, unknown>> = [];
   if (localId) {
     const { data: stakeRows } = await supabase
       .from("territory_stakeholders")
-      .select("ms_slug, role, territories (ms_slug, territory_name, status)")
+      .select("TerritorySlug, role, territories (TerritorySlug, Nickname, status)")
       .eq("contact_id", localId)
       .eq("is_active", true);
     stakeholderCurrent = (stakeRows ?? [])
-      .filter((r) => !ownedSlugs.has(r.ms_slug))
+      .filter((r) => !ownedSlugs.has(r.TerritorySlug))
       .map((r) => ({
-        ms_slug: r.ms_slug,
+        TerritorySlug: r.TerritorySlug,
         ghl_contact_id: ghlContactId,
         role: r.role,
         start_date: null,

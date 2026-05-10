@@ -52,7 +52,7 @@ export interface ResolvedCallParticipant {
   user_id: string | null;
   contact_id: string | null;
   contact_ghl_id: string | null;
-  territory_ms_slug: string | null;
+  TerritorySlug: string | null;
   journey_id: string | null;
   journey_pipeline_state_id: string | null;
   match_method: MatchMethod;
@@ -60,7 +60,7 @@ export interface ResolvedCallParticipant {
 
 export interface ResolveResult {
   contact_id: string | null;
-  territory_ms_slug: string | null;
+  TerritorySlug: string | null;
   journey_id: string | null;
   journey_pipeline_state_id: string | null;
   confidence: number;
@@ -82,7 +82,7 @@ export interface JourneyPick {
    *  Used by the resolver when the contact isn't directly listed as a
    *  territory_owner — e.g., a journey's driver/spouse who shares the
    *  franchisee's journey but isn't the GHL owner of record. */
-  territory_ms_slug: string | null;
+  TerritorySlug: string | null;
 }
 
 export interface ResolverDb {
@@ -209,7 +209,7 @@ export async function resolveCallParticipants(input: ResolveInput, db: ResolverD
         user_id: user?.id ?? null,
         contact_id: null,
         contact_ghl_id: null,
-        territory_ms_slug: null,
+        TerritorySlug: null,
         journey_id: null,
         journey_pipeline_state_id: null,
         match_method: "email",
@@ -234,7 +234,7 @@ export async function resolveCallParticipants(input: ResolveInput, db: ResolverD
             user_id: user.id,
             contact_id: null,
             contact_ghl_id: null,
-            territory_ms_slug: null,
+            TerritorySlug: null,
             journey_id: null,
             journey_pipeline_state_id: null,
             match_method: "name",
@@ -294,7 +294,7 @@ export async function resolveCallParticipants(input: ResolveInput, db: ResolverD
       }
       // Contact isn't listed as owner but their journey's jps has a territory
       // (common for journey drivers / spouses / stakeholders) — honor it.
-      const territory = ownedTerritory ?? journey?.territory_ms_slug ?? null;
+      const territory = ownedTerritory ?? journey?.TerritorySlug ?? null;
       const role: ParticipantRole = territory ? "franchisee" : "prospect";
       const displayName =
         [participantWinner.first_name, participantWinner.last_name].filter(Boolean).join(" ").trim() ||
@@ -307,7 +307,7 @@ export async function resolveCallParticipants(input: ResolveInput, db: ResolverD
         user_id: null,
         contact_id: participantWinner.id,
         contact_ghl_id: participantWinner.ghl_contact_id,
-        territory_ms_slug: territory,
+        TerritorySlug: territory,
         journey_id: journey?.journey_id ?? null,
         journey_pipeline_state_id: journey?.journey_pipeline_state_id ?? null,
         match_method: participantMethod,
@@ -321,7 +321,7 @@ export async function resolveCallParticipants(input: ResolveInput, db: ResolverD
         user_id: null,
         contact_id: null,
         contact_ghl_id: null,
-        territory_ms_slug: null,
+        TerritorySlug: null,
         journey_id: null,
         journey_pipeline_state_id: null,
         match_method: "none",
@@ -333,7 +333,7 @@ export async function resolveCallParticipants(input: ResolveInput, db: ResolverD
   // across every contact matched at that tier (dedupe by id first so
   // duplicate participants hitting the same contact don't inflate the count).
   let contact_id: string | null = null;
-  let territory_ms_slug: string | null = null;
+  let TerritorySlug: string | null = null;
   let journey_id: string | null = null;
   let journey_pipeline_state_id: string | null = null;
   let confidence = 0;
@@ -359,14 +359,14 @@ export async function resolveCallParticipants(input: ResolveInput, db: ResolverD
 
   if (contact_id) {
     const cp = perParticipant.find((p) => p.contact_id === contact_id);
-    if (cp?.territory_ms_slug) territory_ms_slug = cp.territory_ms_slug;
+    if (cp?.TerritorySlug) TerritorySlug = cp.TerritorySlug;
     if (cp?.journey_id) journey_id = cp.journey_id;
     if (cp?.journey_pipeline_state_id) journey_pipeline_state_id = cp.journey_pipeline_state_id;
   }
 
   return {
     contact_id,
-    territory_ms_slug,
+    TerritorySlug,
     journey_id,
     journey_pipeline_state_id,
     confidence,
@@ -418,11 +418,11 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
     async getActiveTerritoryForContact(ghlContactId) {
       const { data } = await supabase
         .from("territory_owners")
-        .select("ms_slug")
+        .select("TerritorySlug")
         .eq("ghl_contact_id", ghlContactId)
         .is("end_date", null)
         .maybeSingle();
-      return data?.ms_slug ?? null;
+      return data?.TerritorySlug ?? null;
     },
     async getActiveJourneyForContact(contactId, territoryMsSlug) {
       // 1. Gather candidate active journeys: ones where the contact is the
@@ -470,7 +470,7 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
       //    the pre-award NULL-territory row; then the most-recently-updated active.
       const { data: jpsRows } = await supabase
         .from("journey_pipeline_state")
-        .select("id, territory_ms_slug, updated_at, is_active")
+        .select("id, TerritorySlug, updated_at, is_active")
         .eq("journey_id", journey.id)
         .eq("is_active", true);
 
@@ -482,8 +482,8 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
       //      journey's current stage (onboarding/runway) instead of a stale
       //      pre-award sales row that lingers after the journey advances.
       const ranked = [...jpsRows].sort((a, b) => {
-        const aTerrMatch = territoryMsSlug !== null && a.territory_ms_slug === territoryMsSlug ? 1 : 0;
-        const bTerrMatch = territoryMsSlug !== null && b.territory_ms_slug === territoryMsSlug ? 1 : 0;
+        const aTerrMatch = territoryMsSlug !== null && a.TerritorySlug === territoryMsSlug ? 1 : 0;
+        const bTerrMatch = territoryMsSlug !== null && b.TerritorySlug === territoryMsSlug ? 1 : 0;
         if (aTerrMatch !== bTerrMatch) return bTerrMatch - aTerrMatch;
         return b.updated_at.localeCompare(a.updated_at);
       });
@@ -491,24 +491,24 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
       return {
         journey_id: journey.id,
         journey_pipeline_state_id: ranked[0].id,
-        territory_ms_slug: ranked[0].territory_ms_slug ?? null,
+        TerritorySlug: ranked[0].TerritorySlug ?? null,
       };
     },
     async getJourneyForStakeholderContact(contactId) {
       // 1. Find territories where this contact is an active stakeholder.
       const { data: stakeRows } = await supabase
         .from("territory_stakeholders")
-        .select("ms_slug")
+        .select("TerritorySlug")
         .eq("contact_id", contactId)
         .eq("is_active", true);
-      const slugs = [...new Set((stakeRows ?? []).map((r) => r.ms_slug))];
+      const slugs = [...new Set((stakeRows ?? []).map((r) => r.TerritorySlug))];
       if (slugs.length === 0) return null;
 
       // 2. Find active journey_pipeline_state rows on any of those territories.
       const { data: jpsRows } = await supabase
         .from("journey_pipeline_state")
-        .select("id, journey_id, territory_ms_slug, updated_at")
-        .in("territory_ms_slug", slugs)
+        .select("id, journey_id, TerritorySlug, updated_at")
+        .in("TerritorySlug", slugs)
         .eq("is_active", true)
         .order("updated_at", { ascending: false })
         .limit(1);
@@ -518,7 +518,7 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
       return {
         journey_id: jps.journey_id,
         journey_pipeline_state_id: jps.id,
-        territory_ms_slug: jps.territory_ms_slug ?? null,
+        TerritorySlug: jps.TerritorySlug ?? null,
       };
     },
     async isJourneyInRunway(journeyId) {

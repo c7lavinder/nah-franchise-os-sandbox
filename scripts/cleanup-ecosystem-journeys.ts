@@ -61,27 +61,36 @@ interface FkMove {
 }
 
 const FK_MOVES: FkMove[] = [
-  { table: "territory_stakeholders",   fkColumn: "contact_id",         fkType: "contact_id" },
-  { table: "journey_contacts",         fkColumn: "contact_id",         fkType: "contact_id", uniqueCols: ["journey_id", "contact_id"] },
-  { table: "journeys",                 fkColumn: "primary_contact_id", fkType: "contact_id" },
-  { table: "contact_related_people",   fkColumn: "contact_id",         fkType: "contact_id" },
-  { table: "contact_related_people",   fkColumn: "linked_contact_id",  fkType: "contact_id" },
-  { table: "call_participants",        fkColumn: "contact_id",         fkType: "contact_id" },
-  { table: "calls",                    fkColumn: "contact_id",         fkType: "contact_id" },
-  { table: "contact_emails",           fkColumn: "contact_id",         fkType: "contact_id", uniqueCols: ["contact_id", "email"] },
-  { table: "contact_profile_fields",   fkColumn: "contact_id",         fkType: "contact_id", uniqueCols: ["contact_id", "field_slug"] },
-  { table: "eos_contact_goals",        fkColumn: "contact_id",         fkType: "contact_id", uniqueCols: ["contact_id"] },
-  { table: "contact_activity_messages",fkColumn: "contact_id",         fkType: "contact_id" },
-  { table: "contact_team_members",     fkColumn: "contact_id",         fkType: "contact_id" },
-  { table: "call_review_packages",     fkColumn: "contact_id",         fkType: "contact_id" },
-  { table: "embeddings",               fkColumn: "contact_id",         fkType: "contact_id" },
-  { table: "notifications",            fkColumn: "contact_id",         fkType: "contact_id" },
-  { table: "ghl_sync_queue",           fkColumn: "contact_id",         fkType: "contact_id" },
-  { table: "ghl_action_drafts",        fkColumn: "contact_id",         fkType: "contact_id" },
+  { table: "territory_stakeholders", fkColumn: "contact_id", fkType: "contact_id" },
+  { table: "journey_contacts", fkColumn: "contact_id", fkType: "contact_id", uniqueCols: ["journey_id", "contact_id"] },
+  { table: "journeys", fkColumn: "primary_contact_id", fkType: "contact_id" },
+  { table: "contact_related_people", fkColumn: "contact_id", fkType: "contact_id" },
+  { table: "contact_related_people", fkColumn: "linked_contact_id", fkType: "contact_id" },
+  { table: "call_participants", fkColumn: "contact_id", fkType: "contact_id" },
+  { table: "calls", fkColumn: "contact_id", fkType: "contact_id" },
+  { table: "contact_emails", fkColumn: "contact_id", fkType: "contact_id", uniqueCols: ["contact_id", "email"] },
+  {
+    table: "contact_profile_fields",
+    fkColumn: "contact_id",
+    fkType: "contact_id",
+    uniqueCols: ["contact_id", "field_slug"],
+  },
+  { table: "eos_contact_goals", fkColumn: "contact_id", fkType: "contact_id", uniqueCols: ["contact_id"] },
+  { table: "contact_activity_messages", fkColumn: "contact_id", fkType: "contact_id" },
+  { table: "contact_team_members", fkColumn: "contact_id", fkType: "contact_id" },
+  { table: "call_review_packages", fkColumn: "contact_id", fkType: "contact_id" },
+  { table: "embeddings", fkColumn: "contact_id", fkType: "contact_id" },
+  { table: "notifications", fkColumn: "contact_id", fkType: "contact_id" },
+  { table: "ghl_sync_queue", fkColumn: "contact_id", fkType: "contact_id" },
+  { table: "ghl_action_drafts", fkColumn: "contact_id", fkType: "contact_id" },
 ];
 
 async function moveFkRows(
-  db: SupabaseClient, move: FkMove, fromValue: string, toValue: string, dryRun: boolean,
+  db: SupabaseClient,
+  move: FkMove,
+  fromValue: string,
+  toValue: string,
+  dryRun: boolean
 ): Promise<{ moved: number; skippedCollision: number; error?: string }> {
   const col = move.fkColumn;
   const { data: rows, error } = await db.from(move.table).select("*").eq(col, fromValue);
@@ -100,7 +109,10 @@ async function moveFkRows(
       }
       const { data: collision } = await probe;
       if (collision && collision.length > 0 && (collision[0] as { id: string }).id !== (r as { id: string }).id) {
-        await db.from(move.table).delete().eq("id", (r as { id: string }).id);
+        await db
+          .from(move.table)
+          .delete()
+          .eq("id", (r as { id: string }).id);
         skipped += 1;
         continue;
       }
@@ -108,10 +120,16 @@ async function moveFkRows(
     const rowId = (r as { id?: string }).id;
     let upErr: { message: string } | null = null;
     if (rowId) {
-      const res = await db.from(move.table).update({ [col]: toValue }).eq("id", rowId);
+      const res = await db
+        .from(move.table)
+        .update({ [col]: toValue })
+        .eq("id", rowId);
       upErr = res.error;
     } else {
-      const res = await db.from(move.table).update({ [col]: toValue }).eq(col, fromValue);
+      const res = await db
+        .from(move.table)
+        .update({ [col]: toValue })
+        .eq(col, fromValue);
       upErr = res.error;
     }
     if (upErr) return { moved, skippedCollision: skipped, error: `${move.table}: ${upErr.message}` };
@@ -130,9 +148,7 @@ async function archiveJourney(journeyId: string, dryRun: boolean): Promise<void>
   console.log(`       archived journey ${journeyId.slice(0, 8)}`);
 }
 
-async function mergeContact(
-  dup: Contact, keep: Contact, dryRun: boolean,
-): Promise<void> {
+async function mergeContact(dup: Contact, keep: Contact, dryRun: boolean): Promise<void> {
   console.log(`     keep ${keep.id.slice(0, 8)} (${keep.email}, created ${keep.created_at.slice(0, 10)})`);
   console.log(`     drop ${dup.id.slice(0, 8)} (${dup.email}, created ${dup.created_at.slice(0, 10)})`);
 
@@ -142,7 +158,10 @@ async function mergeContact(
       console.log(`       would absorb email ${dup.email} into ${keep.id.slice(0, 8)}`);
     } else {
       const { error: emErr } = await supabase.from("contact_emails").insert({
-        contact_id: keep.id, email: dup.email, is_primary: false, source: "merge",
+        contact_id: keep.id,
+        email: dup.email,
+        is_primary: false,
+        source: "merge",
       });
       if (emErr && !emErr.message.toLowerCase().includes("duplicate")) {
         console.log(`       email-add warn: ${emErr.message}`);
@@ -157,7 +176,9 @@ async function mergeContact(
     const result = await moveFkRows(supabase, move, fromValue, toValue, dryRun);
     if (result.moved > 0 || result.skippedCollision > 0 || result.error) {
       const prefix = dryRun ? "       would move" : "       moved";
-      console.log(`${prefix} ${move.table}.${move.fkColumn}: ${result.moved}${result.skippedCollision ? ` (+${result.skippedCollision} collisions)` : ""}${result.error ? ` — ERR ${result.error}` : ""}`);
+      console.log(
+        `${prefix} ${move.table}.${move.fkColumn}: ${result.moved}${result.skippedCollision ? ` (+${result.skippedCollision} collisions)` : ""}${result.error ? ` — ERR ${result.error}` : ""}`
+      );
     }
   }
 
@@ -194,7 +215,10 @@ async function backfillCallParticipantEmails(keptContactId: string, dryRun: bool
       console.log(`         would add ${email}`);
     } else {
       const { error } = await supabase.from("contact_emails").insert({
-        contact_id: keptContactId, email, is_primary: false, source: "merge",
+        contact_id: keptContactId,
+        email,
+        is_primary: false,
+        source: "merge",
       });
       if (error && !error.message.toLowerCase().includes("duplicate")) {
         console.log(`         add-email warn ${email}: ${error.message}`);
@@ -238,21 +262,19 @@ async function main(): Promise<void> {
   // legit franchisee ownership. "family" and "partner" are ambiguous — they
   // can be legitimate co-primaries on a partnership journey — so we skip
   // them and let the rep reconcile by hand if needed.
-  const NON_JOURNEY_ROLES = new Set([
-    "employee", "contractor", "agent", "lender", "lawyer", "other",
-  ]);
+  const NON_JOURNEY_ROLES = new Set(["employee", "contractor", "agent", "lender", "lawyer", "other"]);
 
   const { data: stakeRows } = await supabase
     .from("territory_stakeholders")
-    .select("contact_id, ms_slug, role")
+    .select("contact_id, TerritorySlug, role")
     .not("contact_id", "is", null)
     .eq("is_active", true);
-  const stakeholderIds = Array.from(new Set(
-    (stakeRows ?? [])
-      .filter((r) => NON_JOURNEY_ROLES.has(r.role))
-      .map((r) => r.contact_id as string),
-  ));
-  console.log(`Found ${stakeholderIds.length} contact(s) in roles that can't own a journey (employee/contractor/agent/lender/lawyer/other).\n`);
+  const stakeholderIds = Array.from(
+    new Set((stakeRows ?? []).filter((r) => NON_JOURNEY_ROLES.has(r.role)).map((r) => r.contact_id as string))
+  );
+  console.log(
+    `Found ${stakeholderIds.length} contact(s) in roles that can't own a journey (employee/contractor/agent/lender/lawyer/other).\n`
+  );
 
   for (const contactId of stakeholderIds) {
     const contact = byId.get(contactId);

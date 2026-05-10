@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   const [contacts, territories, users, kbDocs, suggestions, recentCronLogs] = await Promise.all([
     supabase.from("contacts").select("id", { count: "exact", head: true }),
-    supabase.from("territories").select("ms_slug", { count: "exact", head: true }),
+    supabase.from("territories").select("TerritorySlug", { count: "exact", head: true }),
     supabase.from("users").select("id", { count: "exact", head: true }).eq("is_active", true),
     supabase.from("knowledge_documents").select("id", { count: "exact", head: true }).eq("is_active", true),
     supabase.from("data_update_suggestions").select("id", { count: "exact", head: true }).eq("status", "pending"),

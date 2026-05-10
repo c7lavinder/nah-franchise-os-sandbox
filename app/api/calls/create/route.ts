@@ -21,29 +21,24 @@ import {
 import { upsertCallJunctions } from "@/lib/calls/processors/upsert-call-junctions";
 
 export async function POST(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   const supabase = createServerClient();
 
   const body = await request.json();
-  const {
-    title,
-    contact_id,
-    call_type_id,
-    hosted_by_user_id,
-    scheduled_at,
-    started_at,
-    duration_minutes,
-    notes,
-  } = body as {
-    title?: string;
-    contact_id?: string;
-    call_type_id?: string;
-    hosted_by_user_id?: string;
-    scheduled_at?: string;
-    started_at?: string;
-    duration_minutes?: number;
-    notes?: string;
-  };
+  const { title, contact_id, call_type_id, hosted_by_user_id, scheduled_at, started_at, duration_minutes, notes } =
+    body as {
+      title?: string;
+      contact_id?: string;
+      call_type_id?: string;
+      hosted_by_user_id?: string;
+      scheduled_at?: string;
+      started_at?: string;
+      duration_minutes?: number;
+      notes?: string;
+    };
 
   if (!title?.trim()) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -62,7 +57,7 @@ export async function POST(request: NextRequest) {
   // end; start empty and populate below.
   let junctionMatch: import("@/lib/calls/resolve-participants").ResolveResult = {
     contact_id: null,
-    territory_ms_slug: null,
+    TerritorySlug: null,
     journey_id: null,
     journey_pipeline_state_id: null,
     confidence: 0,
@@ -91,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     junctionMatch = {
       contact_id: finalContactId,
-      territory_ms_slug: finalTerritorySlug,
+      TerritorySlug: finalTerritorySlug,
       journey_id: journey?.journey_id ?? null,
       journey_pipeline_state_id: finalJourneyPipelineStateId,
       confidence: matchConfidence,
@@ -102,19 +97,15 @@ export async function POST(request: NextRequest) {
     // No user override — ask the resolver with what little we have.
     const signals: ParticipantSignal[] = [];
     if (hosted_by_user_id) {
-      const { data: hostUser } = await supabase
-        .from("users")
-        .select("email")
-        .eq("id", hosted_by_user_id)
-        .maybeSingle();
+      const { data: hostUser } = await supabase.from("users").select("email").eq("id", hosted_by_user_id).maybeSingle();
       if (hostUser?.email) signals.push({ email: hostUser.email });
     }
     const match = await resolveCallParticipants(
       { participants: signals, meeting_title: title.trim(), source: "manual" },
-      resolverDb,
+      resolverDb
     );
     finalContactId = match.contact_id;
-    finalTerritorySlug = match.territory_ms_slug;
+    finalTerritorySlug = match.TerritorySlug;
     finalJourneyPipelineStateId = match.journey_pipeline_state_id;
     matchConfidence = match.confidence;
     matchReason = match.reason;
@@ -131,11 +122,7 @@ export async function POST(request: NextRequest) {
   } else {
     let hostEmail: string | null = null;
     if (hosted_by_user_id) {
-      const { data: hostUser } = await supabase
-        .from("users")
-        .select("email")
-        .eq("id", hosted_by_user_id)
-        .maybeSingle();
+      const { data: hostUser } = await supabase.from("users").select("email").eq("id", hosted_by_user_id).maybeSingle();
       hostEmail = hostUser?.email ?? null;
     }
 
@@ -157,7 +144,7 @@ export async function POST(request: NextRequest) {
     .insert({
       title: title.trim(),
       contact_id: finalContactId,
-      territory_ms_slug: finalTerritorySlug,
+      TerritorySlug: finalTerritorySlug,
       journey_pipeline_state_id: finalJourneyPipelineStateId,
       call_type_id: finalCallTypeId,
       classification_reason: classificationReason,

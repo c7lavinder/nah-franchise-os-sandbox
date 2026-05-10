@@ -200,7 +200,7 @@ async function executeSearchContacts(input: Record<string, unknown>): Promise<To
     // Search Supabase contacts — split multi-word queries to match first + last name
     const words = query.split(/\s+/).filter((w) => w.length > 0);
     const select =
-      "id, ghl_contact_id, first_name, last_name, email, phone, city, state, opportunity_source, territory_interest, capital_availability, scout_lead_score";
+      "id, ghl_contact_id, first_name, last_name, email, phone, city, state, opportunity_source, territory_interest, NonRetirementCapitalAvailable, scout_lead_score";
 
     let data: any[] | null = null;
     let error: any = null;
@@ -271,7 +271,7 @@ async function executeSearchContacts(input: Record<string, unknown>): Promise<To
       state: c.state,
       source: c.opportunity_source,
       territoryInterest: c.territory_interest,
-      capitalAvailability: c.capital_availability,
+      capitalAvailability: c.NonRetirementCapitalAvailable,
       leadScore: c.scout_lead_score,
     }));
 
@@ -479,7 +479,7 @@ async function executeGetContactInsights(input: Record<string, unknown>): Promis
     const { data: calls } = await supabase
       .from("calls")
       .select(
-        "contact_id, started_at, coaching_score, ai_summary, contacts!inner(id, first_name, last_name, ghl_contact_id, scout_lead_score, territory_interest, capital_availability)"
+        "contact_id, started_at, coaching_score, ai_summary, contacts!inner(id, first_name, last_name, ghl_contact_id, scout_lead_score, territory_interest, NonRetirementCapitalAvailable)"
       )
       .not("contact_id", "is", null)
       .gte("started_at", cutoff);
@@ -514,7 +514,7 @@ async function executeGetContactInsights(input: Record<string, unknown>): Promis
         summaries: [] as string[],
         leadScore: c.scout_lead_score,
         territory: c.territory_interest,
-        capital: c.capital_availability,
+        capital: c.NonRetirementCapitalAvailable,
       };
 
       existing.callCount++;
@@ -811,9 +811,9 @@ async function executeGetNextAction(input: Record<string, unknown>): Promise<Too
 
     const qualificationFields: [string, string][] = [
       ["territory_interest", "Where do they want their territory?"],
-      ["capital_availability", "Have they confirmed capital?"],
-      ["business_ownership_experience", "Prior business ownership?"],
-      ["motivation_clarity", "How strong is their motivation?"],
+      ["NonRetirementCapitalAvailable", "Have they confirmed capital?"],
+      ["BriefWorkHistory", "Prior business ownership?"],
+      ["WhatInterestsInOpportunity", "How strong is their motivation?"],
     ];
 
     const complianceFields: [string, string][] = [["nda_status", "NDA signed?"]];
@@ -861,7 +861,7 @@ async function executeGetNextAction(input: Record<string, unknown>): Promise<Too
       `  Days since added: ${daysSinceAdded}`,
       `  Lead score: ${c.scout_lead_score ?? "Not scored"}`,
       `  Territory interest: ${c.territory_interest ?? "Not set"}`,
-      `  Capital: ${c.capital_availability ?? "Unknown"}`,
+      `  Capital: ${c.NonRetirementCapitalAvailable ?? "Unknown"}`,
       `  Timeline: ${c.investment_timeline ?? "Unknown"}`,
       `  Trainual: ${c.trainual_completion_pct ? `${c.trainual_completion_pct}%` : "Not tracked"}`,
       `  NDA: ${c.nda_status ?? "Not set"}`,
@@ -1411,8 +1411,8 @@ async function executeDraftEosUpdate(input: Record<string, unknown>): Promise<To
 }
 
 async function executeDraftMarketDataUpdate(input: Record<string, unknown>): Promise<ToolExecutionResult> {
-  const territorySlug = input.territory_slug as string;
-  const territoryName = input.territory_name as string;
+  const territorySlug = input.TerritorySlug as string;
+  const territoryName = input.Nickname as string;
   const updatesRaw = input.updates as string;
 
   let updates: { fieldName: string; value: string; reason: string }[];

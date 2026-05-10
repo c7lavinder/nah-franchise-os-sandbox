@@ -11,13 +11,16 @@ import { Check, Pencil, X, Loader2, AlertTriangle, Sparkles, Users } from "lucid
  */
 function ConfidenceBadge({ confidence }: { confidence: string | null }) {
   const c = (confidence ?? "high").toLowerCase();
-  const styles = c === "low"
-    ? "bg-danger/10 text-danger border-danger/30"
-    : c === "medium"
-    ? "bg-warning/15 text-warning border-warning/40"
-    : "bg-success/15 text-success border-success/40";
+  const styles =
+    c === "low"
+      ? "bg-danger/10 text-danger border-danger/30"
+      : c === "medium"
+        ? "bg-warning/15 text-warning border-warning/40"
+        : "bg-success/15 text-success border-success/40";
   return (
-    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border flex-shrink-0 uppercase tracking-wider font-semibold ${styles}`}>
+    <span
+      className={`text-[10px] px-1.5 py-0.5 rounded-full border flex-shrink-0 uppercase tracking-wider font-semibold ${styles}`}
+    >
       {c}
     </span>
   );
@@ -26,17 +29,23 @@ function ConfidenceBadge({ confidence }: { confidence: string | null }) {
 /** Target badge — clickable on pending rows so the rep can reassign a push to
  *  a different contact or a territory with one click. Color-coded: blue =
  *  contact, orange = territory, purple = both primaries on a partnership. */
-function TargetBadge({ kind, label, onClick, editable }: {
+function TargetBadge({
+  kind,
+  label,
+  onClick,
+  editable,
+}: {
   kind: "contact" | "territory" | "partnership";
   label: string;
   onClick?: () => void;
   editable?: boolean;
 }) {
-  const styles = kind === "territory"
-    ? "bg-nah-orange/10 text-nah-orange border-nah-orange/30"
-    : kind === "partnership"
-    ? "bg-scout-purple/10 text-scout-purple border-scout-purple/30"
-    : "bg-nah-blue/10 text-nah-blue border-nah-blue/30";
+  const styles =
+    kind === "territory"
+      ? "bg-nah-orange/10 text-nah-orange border-nah-orange/30"
+      : kind === "partnership"
+        ? "bg-scout-purple/10 text-scout-purple border-scout-purple/30"
+        : "bg-nah-blue/10 text-nah-blue border-nah-blue/30";
   const prefix = kind === "territory" ? "→ Territory" : kind === "partnership" ? "→ Partnership" : "→ Contact";
   const interactive = editable ? "cursor-pointer hover:opacity-80" : "";
   const suffix = editable ? " ▾" : "";
@@ -45,7 +54,8 @@ function TargetBadge({ kind, label, onClick, editable }: {
       onClick={onClick}
       className={`text-[10px] px-1.5 py-0.5 rounded-full border flex-shrink-0 font-medium ${styles} ${interactive}`}
     >
-      {prefix}: {label}{suffix}
+      {prefix}: {label}
+      {suffix}
     </span>
   );
 }
@@ -60,12 +70,18 @@ interface ExtractionData {
   confidence: string | null;
   saved_to_profile: boolean;
   dismissed: boolean;
-  territory_ms_slug: string | null;
+  TerritorySlug: string | null;
   target_scope: "single" | "both" | null;
 }
 
-interface PartnerOption { id: string; name: string }
-interface TerritoryOption { ms_slug: string; territory_name: string }
+interface PartnerOption {
+  id: string;
+  name: string;
+}
+interface TerritoryOption {
+  TerritorySlug: string;
+  Nickname: string;
+}
 
 interface CallDataFieldProps {
   extraction: ExtractionData;
@@ -93,7 +109,7 @@ const FIELD_LABELS: Record<string, string> = {
   capital_range: "Capital Range",
   lead_source: "Lead Source",
   competitors_mentioned: "Competitors Mentioned",
-  stated_why: "Stated \"Why\"",
+  stated_why: 'Stated "Why"',
   risk_tolerance: "Risk Tolerance",
   family_situation: "Family Situation",
   prior_business_ownership: "Prior Business Ownership",
@@ -102,14 +118,15 @@ const FIELD_LABELS: Record<string, string> = {
   availability_confirmed: "Availability Confirmed",
 };
 
-const IMPORTANT_FIELDS = new Set([
-  "capital_range",
-  "timeline_intent",
-  "stated_why",
-  "market_interest",
-]);
+const IMPORTANT_FIELDS = new Set(["capital_range", "timeline_intent", "stated_why", "market_interest"]);
 
-export default function CallDataField({ extraction, partnerOptions, linkedContacts, callTerritories, onAction }: CallDataFieldProps) {
+export default function CallDataField({
+  extraction,
+  partnerOptions,
+  linkedContacts,
+  callTerritories,
+  onAction,
+}: CallDataFieldProps) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(extraction.extracted_value ?? "");
   const [loading, setLoading] = useState<string | null>(null);
@@ -122,14 +139,15 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
   const isImportant = IMPORTANT_FIELDS.has(extraction.field_key);
 
   // Target label — always show where this extraction is being pushed.
-  const isTerritoryField = extraction.field_category.startsWith("territory") || extraction.field_category.startsWith("business_");
-  const territoryName = extraction.territory_ms_slug
-    ? callTerritories?.find((t) => t.ms_slug === extraction.territory_ms_slug)?.territory_name ?? extraction.territory_ms_slug
+  const isTerritoryField =
+    extraction.field_category.startsWith("territory") || extraction.field_category.startsWith("business_");
+  const territoryName = extraction.TerritorySlug
+    ? (callTerritories?.find((t) => t.TerritorySlug === extraction.TerritorySlug)?.Nickname ?? extraction.TerritorySlug)
     : null;
   const contactName = extraction.contact_id
-    ? linkedContacts?.find((c) => c.id === extraction.contact_id)?.name
-      ?? partnerOptions?.find((p) => p.id === extraction.contact_id)?.name
-      ?? null
+    ? (linkedContacts?.find((c) => c.id === extraction.contact_id)?.name ??
+      partnerOptions?.find((p) => p.id === extraction.contact_id)?.name ??
+      null)
     : null;
 
   // Picker options: every contact + every territory on the call. Always
@@ -147,9 +165,9 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
     if (extraction.target_scope === "both" && hasPartnership) {
       return { kind: "both", label: "Both primaries" };
     }
-    if (extraction.territory_ms_slug) {
-      const t = territoryChoices.find((t) => t.ms_slug === extraction.territory_ms_slug);
-      if (t) return { kind: "territory", territorySlug: t.ms_slug, label: t.territory_name };
+    if (extraction.TerritorySlug) {
+      const t = territoryChoices.find((t) => t.TerritorySlug === extraction.TerritorySlug);
+      if (t) return { kind: "territory", territorySlug: t.TerritorySlug, label: t.Nickname };
     }
     if (extraction.contact_id) {
       const c = contactChoices.find((c) => c.id === extraction.contact_id);
@@ -157,7 +175,11 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
     }
     // Scout didn't route — default by field category.
     if (isTerritoryField && territoryChoices[0]) {
-      return { kind: "territory", territorySlug: territoryChoices[0].ms_slug, label: territoryChoices[0].territory_name };
+      return {
+        kind: "territory",
+        territorySlug: territoryChoices[0].TerritorySlug,
+        label: territoryChoices[0].Nickname,
+      };
     }
     if (contactChoices[0]) {
       return { kind: "contact", contactId: contactChoices[0].id, label: contactChoices[0].name };
@@ -169,22 +191,26 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
 
   // Done state
   if (isDone) {
-    const doneIsTerritory = extraction.field_category.startsWith("territory") || extraction.field_category.startsWith("business_");
-    const doneTerritoryName = extraction.territory_ms_slug
-      ? callTerritories?.find((t) => t.ms_slug === extraction.territory_ms_slug)?.territory_name ?? extraction.territory_ms_slug
+    const doneIsTerritory =
+      extraction.field_category.startsWith("territory") || extraction.field_category.startsWith("business_");
+    const doneTerritoryName = extraction.TerritorySlug
+      ? (callTerritories?.find((t) => t.TerritorySlug === extraction.TerritorySlug)?.Nickname ??
+        extraction.TerritorySlug)
       : null;
     const doneContactName = extraction.contact_id
-      ? linkedContacts?.find((c) => c.id === extraction.contact_id)?.name
-        ?? partnerOptions?.find((p) => p.id === extraction.contact_id)?.name
-        ?? null
+      ? (linkedContacts?.find((c) => c.id === extraction.contact_id)?.name ??
+        partnerOptions?.find((p) => p.id === extraction.contact_id)?.name ??
+        null)
       : null;
     const doneTargetKind: "contact" | "territory" = doneIsTerritory ? "territory" : "contact";
     const doneTargetLabel = doneIsTerritory ? (doneTerritoryName ?? "Unassigned") : (doneContactName ?? "Unassigned");
 
     return (
-      <div className={`flex items-start gap-3 py-2 border-b border-border-default last:border-b-0 ${
-        extraction.dismissed ? "opacity-50" : "opacity-70"
-      }`}>
+      <div
+        className={`flex items-start gap-3 py-2 border-b border-border-default last:border-b-0 ${
+          extraction.dismissed ? "opacity-50" : "opacity-70"
+        }`}
+      >
         <div className="mt-0.5">
           {extraction.dismissed ? (
             <X size={12} className="text-text-tertiary" />
@@ -240,7 +266,7 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
         body.target_scope = "single";
       } else if (pick.kind === "territory") {
         body.target_type = "territory";
-        body.target_territory_slug = pick.territorySlug;
+        body.target_TerritorySlug = pick.territorySlug;
       } else {
         body.target_type = "contact";
         body.target_scope = "both";
@@ -251,7 +277,9 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
         body: JSON.stringify(body),
       });
       if (res.ok) onAction();
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
     setLoading(null);
   }
 
@@ -263,8 +291,13 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "edit_save", field_value: editValue }),
       });
-      if (res.ok) { setEditing(false); onAction(); }
-    } catch { /* silent */ }
+      if (res.ok) {
+        setEditing(false);
+        onAction();
+      }
+    } catch {
+      /* silent */
+    }
     setLoading(null);
   }
 
@@ -277,7 +310,9 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
         body: JSON.stringify({ action: "skip" }),
       });
       if (res.ok) onAction();
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
     setLoading(null);
   }
 
@@ -299,7 +334,9 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
         if (data.fields?.field_value) setEditValue(data.fields.field_value);
         setAiInstruction("");
       }
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
     setAiLoading(false);
   }
 
@@ -318,12 +355,7 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
             <p className="text-caption text-text-tertiary capitalize">{label}</p>
             {!editing && <ConfidenceBadge confidence={extraction.confidence} />}
             {!editing && (
-              <TargetBadge
-                kind={targetKind}
-                label={targetLabel}
-                editable
-                onClick={() => setPickerOpen((v) => !v)}
-              />
+              <TargetBadge kind={targetKind} label={targetLabel} editable onClick={() => setPickerOpen((v) => !v)} />
             )}
           </div>
           {editing ? (
@@ -346,7 +378,9 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
                     onChange={(e) => setAiInstruction(e.target.value)}
                     placeholder="e.g. Shorten to key phrase only..."
                     className="flex-1 bg-bg-primary border border-border-default rounded-md px-2 py-1.5 text-body-sm text-text-primary placeholder:text-text-tertiary"
-                    onKeyDown={(e) => { if (e.key === "Enter") void handleAiRewrite(); }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void handleAiRewrite();
+                    }}
                   />
                   <button
                     onClick={() => void handleAiRewrite()}
@@ -359,20 +393,29 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => void handleEditSave()} disabled={loading !== null}
-                  className="btn-primary px-3 py-1 text-caption flex items-center gap-1">
+                <button
+                  onClick={() => void handleEditSave()}
+                  disabled={loading !== null}
+                  className="btn-primary px-3 py-1 text-caption flex items-center gap-1"
+                >
                   {loading === "edit" ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
                   Save to Profile
                 </button>
-                <button onClick={() => { setEditing(false); setEditValue(extraction.extracted_value ?? ""); }}
-                  className="btn-ghost px-3 py-1 text-caption">Cancel</button>
+                <button
+                  onClick={() => {
+                    setEditing(false);
+                    setEditValue(extraction.extracted_value ?? "");
+                  }}
+                  className="btn-ghost px-3 py-1 text-caption"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           ) : (
             <p className="text-body-sm text-text-primary mt-0.5">{extraction.extracted_value}</p>
           )}
         </div>
-
       </div>
 
       {/* Unified target picker — dropdown with every contact + every territory
@@ -382,14 +425,19 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
         <div className="mt-2 bg-white border border-border-default rounded-md p-2 space-y-1 shadow-sm">
           {contactChoices.length > 0 && (
             <>
-              <div className="text-[9px] font-semibold uppercase tracking-wider text-text-tertiary px-1 pb-0.5">Contacts</div>
+              <div className="text-[9px] font-semibold uppercase tracking-wider text-text-tertiary px-1 pb-0.5">
+                Contacts
+              </div>
               <div className="flex flex-wrap gap-1">
                 {contactChoices.map((c) => {
                   const selected = pick.kind === "contact" && pick.contactId === c.id;
                   return (
                     <button
                       key={c.id}
-                      onClick={() => { setPick({ kind: "contact", contactId: c.id, label: c.name }); setPickerOpen(false); }}
+                      onClick={() => {
+                        setPick({ kind: "contact", contactId: c.id, label: c.name });
+                        setPickerOpen(false);
+                      }}
                       className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
                         selected ? "bg-nah-blue text-white" : "bg-nah-blue/10 text-nah-blue hover:bg-nah-blue/20"
                       }`}
@@ -403,19 +451,26 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
           )}
           {territoryChoices.length > 0 && (
             <>
-              <div className="text-[9px] font-semibold uppercase tracking-wider text-text-tertiary px-1 pt-1 pb-0.5">Territories</div>
+              <div className="text-[9px] font-semibold uppercase tracking-wider text-text-tertiary px-1 pt-1 pb-0.5">
+                Territories
+              </div>
               <div className="flex flex-wrap gap-1">
                 {territoryChoices.map((t) => {
-                  const selected = pick.kind === "territory" && pick.territorySlug === t.ms_slug;
+                  const selected = pick.kind === "territory" && pick.territorySlug === t.TerritorySlug;
                   return (
                     <button
-                      key={t.ms_slug}
-                      onClick={() => { setPick({ kind: "territory", territorySlug: t.ms_slug, label: t.territory_name }); setPickerOpen(false); }}
+                      key={t.TerritorySlug}
+                      onClick={() => {
+                        setPick({ kind: "territory", territorySlug: t.TerritorySlug, label: t.Nickname });
+                        setPickerOpen(false);
+                      }}
                       className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
-                        selected ? "bg-nah-orange text-white" : "bg-nah-orange/10 text-nah-orange hover:bg-nah-orange/20"
+                        selected
+                          ? "bg-nah-orange text-white"
+                          : "bg-nah-orange/10 text-nah-orange hover:bg-nah-orange/20"
                       }`}
                     >
-                      {t.territory_name}
+                      {t.Nickname}
                     </button>
                   );
                 })}
@@ -424,11 +479,18 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
           )}
           {hasPartnership && (
             <>
-              <div className="text-[9px] font-semibold uppercase tracking-wider text-text-tertiary px-1 pt-1 pb-0.5">Partnership</div>
+              <div className="text-[9px] font-semibold uppercase tracking-wider text-text-tertiary px-1 pt-1 pb-0.5">
+                Partnership
+              </div>
               <button
-                onClick={() => { setPick({ kind: "both", label: "Both primaries" }); setPickerOpen(false); }}
+                onClick={() => {
+                  setPick({ kind: "both", label: "Both primaries" });
+                  setPickerOpen(false);
+                }}
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors flex items-center gap-1 ${
-                  pick.kind === "both" ? "bg-scout-purple text-white" : "bg-scout-purple/10 text-scout-purple hover:bg-scout-purple/20"
+                  pick.kind === "both"
+                    ? "bg-scout-purple text-white"
+                    : "bg-scout-purple/10 text-scout-purple hover:bg-scout-purple/20"
                 }`}
               >
                 <Users size={9} /> Both primaries
@@ -453,12 +515,18 @@ export default function CallDataField({ extraction, partnerOptions, linkedContac
             {loading === "push" ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
             Push to Profile
           </button>
-          <button onClick={() => setEditing(true)} disabled={loading !== null}
-            className="btn-ghost px-3 py-1 text-caption flex items-center gap-1">
+          <button
+            onClick={() => setEditing(true)}
+            disabled={loading !== null}
+            className="btn-ghost px-3 py-1 text-caption flex items-center gap-1"
+          >
             <Pencil size={12} /> Edit
           </button>
-          <button onClick={() => void handleSkip()} disabled={loading !== null}
-            className="btn-ghost px-3 py-1 text-caption flex items-center gap-1 text-text-tertiary">
+          <button
+            onClick={() => void handleSkip()}
+            disabled={loading !== null}
+            className="btn-ghost px-3 py-1 text-caption flex items-center gap-1 text-text-tertiary"
+          >
             {loading === "skip" ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
             Skip
           </button>

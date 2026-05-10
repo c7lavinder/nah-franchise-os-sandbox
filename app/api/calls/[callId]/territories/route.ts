@@ -8,18 +8,16 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ callId: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ callId: string }> }) {
   const { callId } = await params;
   const supabase = createServerClient();
 
   const { data, error } = await supabase
     .from("call_territories")
-    .select("territory_ms_slug, is_primary")
+    .select("TerritorySlug, is_primary")
     .eq("call_id", callId)
     .order("is_primary", { ascending: false });
 

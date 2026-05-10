@@ -6,30 +6,30 @@ import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 
 /** POST — create a new contact todo */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+export async function POST(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   const { contactId: rawId } = await params;
   const supabase = createServerClient();
   const localId = await resolveContactId(rawId);
   if (!localId) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
 
-  const body = await request.json() as {
-    todo_text?: string;
+  const body = (await request.json()) as {
+    Todo?: string;
     owner_user_id?: string;
     source?: string;
   };
-  if (!body.todo_text?.trim()) {
-    return NextResponse.json({ error: "todo_text is required" }, { status: 400 });
+  if (!body.Todo?.trim()) {
+    return NextResponse.json({ error: "Todo is required" }, { status: 400 });
   }
 
   const { data, error } = await supabase
     .from("eos_contact_todos")
     .insert({
       contact_id: localId,
-      todo_text: body.todo_text.trim(),
+      Todo: body.Todo.trim(),
       owner_user_id: body.owner_user_id ?? null,
       source: body.source ?? "manual",
     })

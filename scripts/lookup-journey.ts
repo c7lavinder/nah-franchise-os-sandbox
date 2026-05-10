@@ -15,21 +15,27 @@ async function main() {
   const { data: j } = await supabase
     .from("journeys")
     .select("id, name, status, primary_contact_id")
-    .eq("id", id).maybeSingle();
+    .eq("id", id)
+    .maybeSingle();
   console.log("Journey:", j);
   if (!j) return;
   const { data: primary } = await supabase
-    .from("contacts").select("first_name, last_name, ghl_contact_id").eq("id", j.primary_contact_id).maybeSingle();
+    .from("contacts")
+    .select("first_name, last_name, ghl_contact_id")
+    .eq("id", j.primary_contact_id)
+    .maybeSingle();
   console.log("Primary contact:", primary);
   const { data: members } = await supabase
     .from("journey_contacts")
     .select("role, contacts(first_name, last_name)")
-    .eq("journey_id", id).is("left_at", null);
+    .eq("journey_id", id)
+    .is("left_at", null);
   console.log("Members:", members);
   const { data: jps } = await supabase
     .from("journey_pipeline_state")
-    .select("territory_ms_slug, pipelines(slug), pipeline_stages(name), is_active")
-    .eq("journey_id", id).eq("is_active", true);
+    .select("TerritorySlug, pipelines(slug), pipeline_stages(name), is_active")
+    .eq("journey_id", id)
+    .eq("is_active", true);
   console.log("Active pipeline states:", jps);
 }
 void main();

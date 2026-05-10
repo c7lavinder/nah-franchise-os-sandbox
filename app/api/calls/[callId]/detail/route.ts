@@ -49,30 +49,33 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   let territoryName = null;
-  if (call.territory_ms_slug) {
+  if (call.TerritorySlug) {
     const { data: t } = await supabase
       .from("territories")
-      .select("territory_name")
-      .eq("ms_slug", call.territory_ms_slug)
+      .select("Nickname")
+      .eq("TerritorySlug", call.TerritorySlug)
       .single();
-    if (t) territoryName = t.territory_name;
+    if (t) territoryName = t.Nickname;
   }
 
   // Full multi-territory list attached to this call.
   const { data: ctRows } = await supabase
     .from("call_territories")
-    .select("territory_ms_slug, is_primary")
+    .select("TerritorySlug, is_primary")
     .eq("call_id", callId)
     .order("is_primary", { ascending: false });
-  const ctSlugs = (ctRows ?? []).map((r) => r.territory_ms_slug);
+  const ctSlugs = (ctRows ?? []).map((r) => r.TerritorySlug);
   const ctNameMap = new Map<string, string>();
   if (ctSlugs.length > 0) {
-    const { data: tRows } = await supabase.from("territories").select("ms_slug, territory_name").in("ms_slug", ctSlugs);
-    for (const t of tRows ?? []) ctNameMap.set(t.ms_slug, t.territory_name);
+    const { data: tRows } = await supabase
+      .from("territories")
+      .select("TerritorySlug, Nickname")
+      .in("TerritorySlug", ctSlugs);
+    for (const t of tRows ?? []) ctNameMap.set(t.TerritorySlug, t.Nickname);
   }
   const callTerritories = (ctRows ?? []).map((r) => ({
-    ms_slug: r.territory_ms_slug,
-    territory_name: ctNameMap.get(r.territory_ms_slug) ?? r.territory_ms_slug,
+    TerritorySlug: r.TerritorySlug,
+    Nickname: ctNameMap.get(r.TerritorySlug) ?? r.TerritorySlug,
     is_primary: r.is_primary,
   }));
 
@@ -89,21 +92,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { data: jRows } = await supabase.from("journeys").select("id, name").in("id", cjJourneyIds);
     for (const j of jRows ?? []) journeyNameMap.set(j.id, j.name);
   }
-  const jpsDetailMap = new Map<string, { stage: string | null; territory_ms_slug: string | null }>();
+  const jpsDetailMap = new Map<string, { stage: string | null; TerritorySlug: string | null }>();
   if (cjJpsIds.length > 0) {
     const { data: jpsRows } = await supabase
       .from("journey_pipeline_state")
-      .select("id, territory_ms_slug, pipeline_stages(name)")
+      .select("id, TerritorySlug, pipeline_stages(name)")
       .in("id", cjJpsIds);
     for (const r of (jpsRows ?? []) as unknown as {
       id: string;
-      territory_ms_slug: string | null;
+      TerritorySlug: string | null;
       pipeline_stages: { name: string } | { name: string }[] | null;
     }[]) {
       const stageName = Array.isArray(r.pipeline_stages)
         ? (r.pipeline_stages[0]?.name ?? null)
         : (r.pipeline_stages?.name ?? null);
-      jpsDetailMap.set(r.id, { stage: stageName, territory_ms_slug: r.territory_ms_slug });
+      jpsDetailMap.set(r.id, { stage: stageName, TerritorySlug: r.TerritorySlug });
     }
   }
   // Dedupe by journey_id — a journey with multiple active jps rows (e.g.
@@ -124,8 +127,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       journey_pipeline_state_id: r.journey_pipeline_state_id,
       journey_name: journeyNameMap.get(r.journey_id) ?? "Journey",
       stage_name: jps?.stage ?? null,
-      territory_ms_slug: jps?.territory_ms_slug ?? null,
-      territory_name: jps?.territory_ms_slug ? (ctNameMap.get(jps.territory_ms_slug) ?? null) : null,
+      TerritorySlug: jps?.TerritorySlug ?? null,
+      Nickname: jps?.TerritorySlug ? (ctNameMap.get(jps.TerritorySlug) ?? null) : null,
       is_primary: r.is_primary,
     };
   });
@@ -224,15 +227,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
-  // Active-territory lookup: ghl_contact_id → ms_slug
+  // Active-territory lookup: ghl_contact_id → TerritorySlug
   const ghlToTerritory = new Map<string, string>();
   if (ghlContactIdByLocal.size > 0) {
     const { data: owners } = await supabase
       .from("territory_owners")
-      .select("ghl_contact_id, ms_slug")
+      .select("ghl_contact_id, TerritorySlug")
       .in("ghl_contact_id", Array.from(ghlContactIdByLocal.values()))
       .is("end_date", null);
-    for (const o of owners ?? []) ghlToTerritory.set(o.ghl_contact_id, o.ms_slug);
+    for (const o of owners ?? []) ghlToTerritory.set(o.ghl_contact_id, o.TerritorySlug);
   }
 
   const teamMembers = (participants ?? [])
@@ -312,7 +315,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       contact_id: p.contact_id,
       contact_name: contact?.name ?? null,
       contact_phone: contact?.phone ?? null,
-      territory_ms_slug: territory,
+      TerritorySlug: territory,
     };
   });
 

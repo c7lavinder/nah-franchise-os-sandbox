@@ -82,12 +82,12 @@ export async function POST(
     // preferred so sales/followup always hits the single journey-level row.
     const { data: jpsRows } = await supabase
       .from("journey_pipeline_state")
-      .select("id, current_sub_task_id, current_stage_id, territory_ms_slug")
+      .select("id, current_sub_task_id, current_stage_id, TerritorySlug")
       .eq("journey_id", journey.id)
       .eq("pipeline_id", stage.pipeline_id)
       .eq("is_active", true);
     const rows = jpsRows ?? [];
-    const pipelineState = rows.find((r) => r.territory_ms_slug === null) ?? rows[0] ?? null;
+    const pipelineState = rows.find((r) => r.TerritorySlug === null) ?? rows[0] ?? null;
     if (!pipelineState) {
       return NextResponse.json({ error: "No active pipeline state for this contact" }, { status: 404 });
     }

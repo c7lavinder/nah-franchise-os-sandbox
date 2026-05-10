@@ -112,11 +112,11 @@ describe("buildScoringInputFromContact", () => {
   it("maps contact fields to scoring input", () => {
     const contact = {
       opportunity_source: "Referral",
-      capital_availability: "Confirmed",
+      NonRetirementCapitalAvailable: "Confirmed",
       territory_status: "Available",
-      business_ownership_experience: "Yes",
+      BriefWorkHistory: "Yes",
       investment_timeline: "1-3 months",
-      motivation_clarity: "Strong",
+      WhatInterestsInOpportunity: "Strong",
       trainual_completion_pct: 75,
       created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
     };

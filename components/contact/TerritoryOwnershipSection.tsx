@@ -5,16 +5,16 @@ import { useState, useEffect, useCallback } from "react";
 import { MapPin, Plus, ArrowRightLeft, Ban } from "lucide-react";
 
 interface TerritoryOwnership {
-  ms_slug: string;
+  TerritorySlug: string;
   role: string;
   start_date: string;
   end_date: string | null;
-  territories: { ms_slug: string; territory_name: string; status: string } | null;
+  territories: { TerritorySlug: string; Nickname: string; status: string } | null;
 }
 
 interface TerritoryOption {
-  ms_slug: string;
-  territory_name: string;
+  TerritorySlug: string;
+  Nickname: string;
 }
 
 interface Props {
@@ -26,7 +26,12 @@ interface Props {
   onTerritoryChange?: (slug: string | null) => void;
 }
 
-export default function TerritoryOwnershipSection({ contactId, ghlContactId, focusedTerritorySlug, onTerritoryChange }: Props) {
+export default function TerritoryOwnershipSection({
+  contactId,
+  ghlContactId,
+  focusedTerritorySlug,
+  onTerritoryChange,
+}: Props) {
   const [current, setCurrent] = useState<TerritoryOwnership[]>([]);
   const [former, setFormer] = useState<TerritoryOwnership[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +83,7 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
     const res = await apiFetch("/api/territory-owners/assign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ms_slug: selectedSlug, ghl_contact_id: ghlContactId, role: assignRole }),
+      body: JSON.stringify({ TerritorySlug: selectedSlug, ghl_contact_id: ghlContactId, role: assignRole }),
     });
     setAssigning(false);
     if (res.ok) {
@@ -95,7 +100,7 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ms_slug: transferSlug,
+        TerritorySlug: transferSlug,
         new_ghl_contact_id: transferContactId,
         transfer_notes: transferNotes || undefined,
       }),
@@ -122,13 +127,16 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
   // the active tab index from the slug; otherwise use internal state.
   const controlled = focusedTerritorySlug !== undefined;
   const controlledIdx = controlled
-    ? Math.max(0, allTabs.findIndex((t) => t.ms_slug === focusedTerritorySlug))
+    ? Math.max(
+        0,
+        allTabs.findIndex((t) => t.TerritorySlug === focusedTerritorySlug)
+      )
     : internalTab;
   const activeTab = controlled ? controlledIdx : internalTab;
   const active = allTabs[activeTab];
 
   const handleTabClick = (i: number) => {
-    if (onTerritoryChange) onTerritoryChange(allTabs[i]?.ms_slug ?? null);
+    if (onTerritoryChange) onTerritoryChange(allTabs[i]?.TerritorySlug ?? null);
     if (!controlled) setInternalTab(i);
   };
 
@@ -147,7 +155,7 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
             <>
               <button
                 onClick={() => {
-                  setTransferSlug(active.ms_slug);
+                  setTransferSlug(active.TerritorySlug);
                   setShowTransfer(true);
                 }}
                 className="btn-ghost p-1.5"
@@ -158,7 +166,7 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
               {active.territories?.status === "active" && (
                 <button
                   onClick={async () => {
-                    const res = await apiFetch(`/api/territories/${active.ms_slug}/status`, {
+                    const res = await apiFetch(`/api/territories/${active.TerritorySlug}/status`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ status: "inactive" }),
@@ -181,7 +189,7 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
         <div className="flex gap-1 px-4 pt-2 border-b border-border-default">
           {allTabs.map((t, i) => (
             <button
-              key={t.ms_slug + (t.end_date ?? "")}
+              key={t.TerritorySlug + (t.end_date ?? "")}
               onClick={() => handleTabClick(i)}
               className={`px-3 py-1.5 text-caption rounded-t-md transition-colors ${
                 i === activeTab
@@ -189,7 +197,7 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
                   : "text-text-tertiary hover:text-text-primary"
               }`}
             >
-              {t.territories?.territory_name ?? t.ms_slug}
+              {t.territories?.Nickname ?? t.TerritorySlug}
               {!t.isCurrent && <span className="ml-1 text-text-tertiary">(Former)</span>}
             </button>
           ))}
@@ -202,23 +210,24 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
           <div className="flex items-center justify-between">
             <div>
               <a
-                href={`/territories/${active.ms_slug}`}
+                href={`/territories/${active.TerritorySlug}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-body-sm font-medium text-nah-blue hover:underline"
               >
-                {active.territories?.territory_name ?? active.ms_slug}
+                {active.territories?.Nickname ?? active.TerritorySlug}
               </a>
               <div className="text-caption text-text-tertiary">
-                {active.isCurrent ? "Current" : "Former"} {active.role} since {new Date(active.start_date).toLocaleDateString()}
+                {active.isCurrent ? "Current" : "Former"} {active.role} since{" "}
+                {new Date(active.start_date).toLocaleDateString()}
                 {active.end_date && ` — ended ${new Date(active.end_date).toLocaleDateString()}`}
               </div>
             </div>
-            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-              active.territories?.status === "active"
-                ? "bg-green-100 text-green-800"
-                : "bg-gray-100 text-gray-600"
-            }`}>
+            <span
+              className={`px-2 py-0.5 rounded text-xs font-medium ${
+                active.territories?.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+              }`}
+            >
               {active.territories?.status ?? "unknown"}
             </span>
           </div>
@@ -245,8 +254,14 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
 
       {/* Assign Modal */}
       {showAssign && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowAssign(false)}>
-          <div className="bg-bg-primary border border-border-default rounded-lg p-6 w-[400px] shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
+          onClick={() => setShowAssign(false)}
+        >
+          <div
+            className="bg-bg-primary border border-border-default rounded-lg p-6 w-[400px] shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-h3 text-text-primary mb-4">Assign Territory</h3>
             <div className="space-y-3">
               <div>
@@ -258,7 +273,9 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
                 >
                   <option value="">Select territory...</option>
                   {territories.map((t) => (
-                    <option key={t.ms_slug} value={t.ms_slug}>{t.territory_name} ({t.ms_slug})</option>
+                    <option key={t.TerritorySlug} value={t.TerritorySlug}>
+                      {t.Nickname} ({t.TerritorySlug})
+                    </option>
                   ))}
                 </select>
               </div>
@@ -275,7 +292,9 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowAssign(false)} className="btn-secondary text-body-sm">Cancel</button>
+              <button onClick={() => setShowAssign(false)} className="btn-secondary text-body-sm">
+                Cancel
+              </button>
               <button onClick={handleAssign} disabled={!selectedSlug || assigning} className="btn-primary text-body-sm">
                 {assigning ? "Assigning..." : "Assign"}
               </button>
@@ -286,8 +305,14 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
 
       {/* Transfer Modal */}
       {showTransfer && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowTransfer(false)}>
-          <div className="bg-bg-primary border border-border-default rounded-lg p-6 w-[400px] shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
+          onClick={() => setShowTransfer(false)}
+        >
+          <div
+            className="bg-bg-primary border border-border-default rounded-lg p-6 w-[400px] shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-h3 text-text-primary mb-4">Transfer Territory</h3>
             <p className="text-caption text-text-tertiary mb-3">
               Transferring <strong>{transferSlug}</strong> to a new owner.
@@ -314,8 +339,14 @@ export default function TerritoryOwnershipSection({ contactId, ghlContactId, foc
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowTransfer(false)} className="btn-secondary text-body-sm">Cancel</button>
-              <button onClick={handleTransfer} disabled={!transferContactId || transferring} className="btn-primary text-body-sm">
+              <button onClick={() => setShowTransfer(false)} className="btn-secondary text-body-sm">
+                Cancel
+              </button>
+              <button
+                onClick={handleTransfer}
+                disabled={!transferContactId || transferring}
+                className="btn-primary text-body-sm"
+              >
                 {transferring ? "Transferring..." : "Transfer"}
               </button>
             </div>

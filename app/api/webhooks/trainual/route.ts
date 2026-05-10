@@ -8,7 +8,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";import { createServerClient } from "@/lib/supabase/server";
+import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";
+import { createServerClient } from "@/lib/supabase/server";
 import { checkAutoAdvance } from "@/lib/contacts/auto-advance";
 
 /** Map Trainual module/course names to sub-task names (case-insensitive matching) */
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
   // Find the active territory for this contact via territory_owners
   const { data: ownership } = await supabase
     .from("territory_owners")
-    .select("ms_slug")
+    .select("TerritorySlug")
     .eq("ghl_contact_id", contact.ghl_contact_id)
     .is("end_date", null)
     .limit(1)
@@ -145,19 +146,21 @@ export async function POST(request: NextRequest) {
 
   // Find the canonical active jps row for (journey, pipeline).
   const { data: journey } = await supabase
-    .from("journeys").select("id")
-    .eq("primary_contact_id", contact.id).maybeSingle();
+    .from("journeys")
+    .select("id")
+    .eq("primary_contact_id", contact.id)
+    .maybeSingle();
 
   let pipelineState: { id: string; current_stage_id: string } | null = null;
   if (journey?.id) {
     const { data: rows } = await supabase
       .from("journey_pipeline_state")
-      .select("id, current_stage_id, territory_ms_slug")
+      .select("id, current_stage_id, TerritorySlug")
       .eq("journey_id", journey.id)
       .eq("pipeline_id", stageData.pipeline_id)
       .eq("is_active", true);
     const list = rows ?? [];
-    const canon = list.find((r) => r.territory_ms_slug === null) ?? list[0];
+    const canon = list.find((r) => r.TerritorySlug === null) ?? list[0];
     if (canon) pipelineState = { id: canon.id, current_stage_id: canon.current_stage_id };
   }
 

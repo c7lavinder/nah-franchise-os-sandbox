@@ -1,5 +1,5 @@
 /**
- * Post-drop sanity: columns contacts.territory + contacts.territory_slug
+ * Post-drop sanity: columns contacts.territory + contacts.TerritorySlug
  * should be gone after 20260422700000_drop_contact_territory_columns.sql.
  */
 
@@ -17,9 +17,15 @@ const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE
 
 async function main() {
   const { error: territoryErr } = await supabase.from("contacts").select("territory").limit(1);
-  const { error: slugErr } = await supabase.from("contacts").select("territory_slug").limit(1);
-  console.log(territoryErr ? `contacts.territory: gone (${territoryErr.message.slice(0, 70)})` : "contacts.territory: STILL PRESENT");
-  console.log(slugErr ? `contacts.territory_slug: gone (${slugErr.message.slice(0, 70)})` : "contacts.territory_slug: STILL PRESENT");
+  const { error: slugErr } = await supabase.from("contacts").select("TerritorySlug").limit(1);
+  console.log(
+    territoryErr
+      ? `contacts.territory: gone (${territoryErr.message.slice(0, 70)})`
+      : "contacts.territory: STILL PRESENT"
+  );
+  console.log(
+    slugErr ? `contacts.TerritorySlug: gone (${slugErr.message.slice(0, 70)})` : "contacts.TerritorySlug: STILL PRESENT"
+  );
 
   const { count, error } = await supabase.from("contacts").select("id", { count: "exact", head: true });
   console.log(error ? `contacts table read ERR: ${error.message}` : `contacts table read: ${count} rows, still intact`);

@@ -49,21 +49,29 @@ function parseCsvLine(line: string): string[] {
   for (let i = 0; i < line.length; i++) {
     const c = line[i];
     if (c === '"') {
-      if (inQ && line[i + 1] === '"') { buf += '"'; i++; }
-      else inQ = !inQ;
-    } else if (c === "," && !inQ) { out.push(buf); buf = ""; }
-    else buf += c;
+      if (inQ && line[i + 1] === '"') {
+        buf += '"';
+        i++;
+      } else inQ = !inQ;
+    } else if (c === "," && !inQ) {
+      out.push(buf);
+      buf = "";
+    } else buf += c;
   }
   out.push(buf);
   return out;
 }
 
-interface CsvRow { slug: string; pipeline: string; stage: string }
+interface CsvRow {
+  slug: string;
+  pipeline: string;
+  stage: string;
+}
 
 function loadCsv(): CsvRow[] {
   const raw = fs.readFileSync(
     path.resolve(process.cwd(), "Onboarding_Runway NAH Franchise Locations a.o. 03.27.26 - Franchise Locations.csv"),
-    "utf8",
+    "utf8"
   );
   const rows: CsvRow[] = [];
   for (const line of raw.split("\n")) {
@@ -81,7 +89,10 @@ function loadCsv(): CsvRow[] {
 
   // Manual overrides.
   for (const r of rows) {
-    if (r.slug === "MYTBCH") { r.pipeline = "Runway"; r.stage = "First Offer"; }
+    if (r.slug === "MYTBCH") {
+      r.pipeline = "Runway";
+      r.stage = "First Offer";
+    }
   }
   return rows;
 }
@@ -102,36 +113,55 @@ function targetFor(row: CsvRow): TargetState {
 
   // Runway pipeline variants.
   if (pipe === "runway") {
-    if (stage === "Running") return { kind: "rows", rows: [
-      { pipelineSlug: "onboarding", stageName: "Onboarded" },
-      { pipelineSlug: "runway", stageName: "Running" },
-    ] };
-    if (stage === "Onboarded" || stage === "First Offer") return { kind: "rows", rows: [
-      { pipelineSlug: "onboarding", stageName: "Onboarded" },
-      { pipelineSlug: "runway", stageName: "First Offer" },
-    ] };
-    if (stage === "First Purchase") return { kind: "rows", rows: [
-      { pipelineSlug: "onboarding", stageName: "Onboarded" },
-      { pipelineSlug: "runway", stageName: "First Purchase" },
-    ] };
-    if (stage === "Inventory Building") return { kind: "rows", rows: [
-      { pipelineSlug: "onboarding", stageName: "Onboarded" },
-      { pipelineSlug: "runway", stageName: "Inventory Building" },
-    ] };
+    if (stage === "Running")
+      return {
+        kind: "rows",
+        rows: [
+          { pipelineSlug: "onboarding", stageName: "Onboarded" },
+          { pipelineSlug: "runway", stageName: "Running" },
+        ],
+      };
+    if (stage === "Onboarded" || stage === "First Offer")
+      return {
+        kind: "rows",
+        rows: [
+          { pipelineSlug: "onboarding", stageName: "Onboarded" },
+          { pipelineSlug: "runway", stageName: "First Offer" },
+        ],
+      };
+    if (stage === "First Purchase")
+      return {
+        kind: "rows",
+        rows: [
+          { pipelineSlug: "onboarding", stageName: "Onboarded" },
+          { pipelineSlug: "runway", stageName: "First Purchase" },
+        ],
+      };
+    if (stage === "Inventory Building")
+      return {
+        kind: "rows",
+        rows: [
+          { pipelineSlug: "onboarding", stageName: "Onboarded" },
+          { pipelineSlug: "runway", stageName: "Inventory Building" },
+        ],
+      };
     return { kind: "skip", reason: `unknown Runway stage "${stage}"` };
   }
 
   // Onboarding pipeline variants.
   if (pipe === "onboarding") {
     // User-specified: Onboarding/First Offer ⇒ onboarded + first offer runway.
-    if (stage === "First Offer") return { kind: "rows", rows: [
-      { pipelineSlug: "onboarding", stageName: "Onboarded" },
-      { pipelineSlug: "runway", stageName: "First Offer" },
-    ] };
+    if (stage === "First Offer")
+      return {
+        kind: "rows",
+        rows: [
+          { pipelineSlug: "onboarding", stageName: "Onboarded" },
+          { pipelineSlug: "runway", stageName: "First Offer" },
+        ],
+      };
     // Straight onboarding stages with no runway presence yet.
-    if (["Setup", "Training", "Launch Prep", "Onboarded"].includes(stage)) return { kind: "rows", rows: [
-      { pipelineSlug: "onboarding", stageName: stage },
-    ] };
+    if (["Setup", "Training", "Launch Prep", "Onboarded"].includes(stage))
+      return { kind: "rows", rows: [{ pipelineSlug: "onboarding", stageName: stage }] };
     return { kind: "skip", reason: `unknown Onboarding stage "${stage}"` };
   }
 
@@ -140,12 +170,19 @@ function targetFor(row: CsvRow): TargetState {
 
 // ─── DB helpers ──────────────────────────────────────────────────────
 
-interface Pipe { id: string; slug: string }
-interface Stage { id: string; name: string; pipeline_id: string }
+interface Pipe {
+  id: string;
+  slug: string;
+}
+interface Stage {
+  id: string;
+  name: string;
+  pipeline_id: string;
+}
 interface Jps {
   id: string;
   journey_id: string;
-  territory_ms_slug: string | null;
+  TerritorySlug: string | null;
   pipeline_id: string;
   current_stage_id: string;
   is_active: boolean;
@@ -173,9 +210,10 @@ async function loadJpsForTerritories(slugs: string[]): Promise<Jps[]> {
   const pageSize = 500;
   for (let i = 0; i < slugs.length; i += pageSize) {
     const chunk = slugs.slice(i, i + pageSize);
-    const { data, error } = await s.from("journey_pipeline_state")
-      .select("id, journey_id, territory_ms_slug, pipeline_id, current_stage_id, is_active")
-      .in("territory_ms_slug", chunk);
+    const { data, error } = await s
+      .from("journey_pipeline_state")
+      .select("id, journey_id, TerritorySlug, pipeline_id, current_stage_id, is_active")
+      .in("TerritorySlug", chunk);
     if (error) throw new Error(JSON.stringify(error));
     out.push(...((data ?? []) as Jps[]));
   }
@@ -190,12 +228,12 @@ async function main() {
   const { pipeBySlug, stageByKey } = await loadLookups();
   const allJps = await loadJpsForTerritories(csv.map((r) => r.slug));
 
-  // Group jps by (territory_slug → journey_id → pipeline_slug → row)
+  // Group jps by (TerritorySlug → journey_id → pipeline_slug → row)
   const bySlug = new Map<string, Jps[]>();
   for (const j of allJps) {
-    if (!j.territory_ms_slug) continue;
-    if (!bySlug.has(j.territory_ms_slug)) bySlug.set(j.territory_ms_slug, []);
-    bySlug.get(j.territory_ms_slug)!.push(j);
+    if (!j.TerritorySlug) continue;
+    if (!bySlug.has(j.TerritorySlug)) bySlug.set(j.TerritorySlug, []);
+    bySlug.get(j.TerritorySlug)!.push(j);
   }
 
   let changes = 0;
@@ -251,7 +289,9 @@ async function main() {
         if (!wantedStageId) {
           // Pipeline isn't in target — deactivate.
           if (j.is_active) {
-            console.log(`  ${row.slug} j=${journeyId.slice(0,8)} pipe=${pipe.slug}: is_active true → false (not in target)`);
+            console.log(
+              `  ${row.slug} j=${journeyId.slice(0, 8)} pipe=${pipe.slug}: is_active true → false (not in target)`
+            );
             if (!DRY) {
               const { error } = await s.from("journey_pipeline_state").update({ is_active: false }).eq("id", j.id);
               if (error) throw new Error(JSON.stringify(error));
@@ -262,13 +302,18 @@ async function main() {
           // Update stage + activate.
           const fromStage = [...stageByKey.entries()].find(([, st]) => st.id === j.current_stage_id)?.[1];
           const toStage = [...stageByKey.entries()].find(([, st]) => st.id === wantedStageId)?.[1];
-          console.log(`  ${row.slug} j=${journeyId.slice(0,8)} pipe=${pipe.slug}: ${fromStage?.name ?? "?"} → ${toStage?.name ?? "?"}`);
+          console.log(
+            `  ${row.slug} j=${journeyId.slice(0, 8)} pipe=${pipe.slug}: ${fromStage?.name ?? "?"} → ${toStage?.name ?? "?"}`
+          );
           if (!DRY) {
-            const { error } = await s.from("journey_pipeline_state").update({
-              current_stage_id: wantedStageId,
-              is_active: true,
-              entered_current_stage_at: new Date().toISOString(),
-            }).eq("id", j.id);
+            const { error } = await s
+              .from("journey_pipeline_state")
+              .update({
+                current_stage_id: wantedStageId,
+                is_active: true,
+                entered_current_stage_at: new Date().toISOString(),
+              })
+              .eq("id", j.id);
             if (error) throw new Error(JSON.stringify(error));
           }
           changes++;
@@ -285,11 +330,11 @@ async function main() {
         });
         if (hasActive) continue;
         const stageName = [...stageByKey.entries()].find(([, st]) => st.id === stageId)?.[1].name;
-        console.log(`  ${row.slug} j=${journeyId.slice(0,8)} pipe=${pipeSlug}: INSERT at ${stageName}`);
+        console.log(`  ${row.slug} j=${journeyId.slice(0, 8)} pipe=${pipeSlug}: INSERT at ${stageName}`);
         if (!DRY) {
           const { error } = await s.from("journey_pipeline_state").insert({
             journey_id: journeyId,
-            territory_ms_slug: row.slug,
+            TerritorySlug: row.slug,
             pipeline_id: pipe.id,
             current_stage_id: stageId,
             is_active: true,

@@ -48,9 +48,9 @@ export function buildPrompt(ctx: CallContext): string {
   // to route each territory-specific extraction to the right one.
   const callTerritoryBlock =
     ctx.callTerritories.length > 1
-      ? `\n**THIS CALL SPANS MULTIPLE TERRITORIES.** For every territory-specific data point (population, ARV, deals, contractors, market metrics, rocks, issues, todos), set target_territory to one of these EXACT names:\n${ctx.callTerritories.map((t) => `  - ${t.territory_name}${t.is_primary ? " (primary)" : ""}`).join("\n")}\nDo not leave target_territory null when the context makes clear which territory is being discussed. Listen for territory-specific cues ("in Cincinnati we...", "over in Dayton...") and attribute the extraction accordingly. If ambiguous, use the primary territory.`
+      ? `\n**THIS CALL SPANS MULTIPLE TERRITORIES.** For every territory-specific data point (population, ARV, deals, contractors, market metrics, rocks, issues, todos), set target_territory to one of these EXACT names:\n${ctx.callTerritories.map((t) => `  - ${t.Nickname}${t.is_primary ? " (primary)" : ""}`).join("\n")}\nDo not leave target_territory null when the context makes clear which territory is being discussed. Listen for territory-specific cues ("in Cincinnati we...", "over in Dayton...") and attribute the extraction accordingly. If ambiguous, use the primary territory.`
       : ctx.callTerritories.length === 1
-        ? `\nCall is mapped to territory: ${ctx.callTerritories[0].territory_name}. Use this exact name in target_territory for any territory-specific extraction.`
+        ? `\nCall is mapped to territory: ${ctx.callTerritories[0].Nickname}. Use this exact name in target_territory for any territory-specific extraction.`
         : "";
 
   const contactTypeNote = isProspect

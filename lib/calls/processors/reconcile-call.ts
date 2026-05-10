@@ -4,16 +4,12 @@
  * AFTER the call's webhook arrived.
  *
  * Delegates to the shared participant resolver; only writes to rows that are
- * still missing contact_id / territory_ms_slug so we never clobber a prior
+ * still missing contact_id / TerritorySlug so we never clobber a prior
  * higher-signal match.
  */
 
 import { createServerClient } from "@/lib/supabase/server";
-import {
-  resolveCallParticipants,
-  createSupabaseResolverDb,
-  type ParticipantSignal,
-} from "../resolve-participants";
+import { resolveCallParticipants, createSupabaseResolverDb, type ParticipantSignal } from "../resolve-participants";
 import { upsertCallJunctions } from "./upsert-call-junctions";
 
 export async function reconcileCall(callId: string): Promise<void> {
@@ -35,10 +31,7 @@ export async function reconcileCall(callId: string): Promise<void> {
   }));
 
   const db = createSupabaseResolverDb(supabase);
-  const result = await resolveCallParticipants(
-    { participants: signals, meeting_title: null, source: "read_ai" },
-    db,
-  );
+  const result = await resolveCallParticipants({ participants: signals, meeting_title: null, source: "read_ai" }, db);
 
   // Update participant rows whose signal now resolves.
   for (let i = 0; i < orphans.length; i++) {
@@ -71,16 +64,16 @@ export async function reconcileCall(callId: string): Promise<void> {
   }
 
   // Call-level update — only fill in if still null on the row.
-  if (result.contact_id || result.territory_ms_slug || result.journey_pipeline_state_id) {
+  if (result.contact_id || result.TerritorySlug || result.journey_pipeline_state_id) {
     const { data: call } = await supabase
       .from("calls")
-      .select("contact_id, territory_ms_slug, journey_pipeline_state_id")
+      .select("contact_id, TerritorySlug, journey_pipeline_state_id")
       .eq("id", callId)
       .single();
     if (call) {
       const callUpdates: Record<string, unknown> = {};
       if (!call.contact_id && result.contact_id) callUpdates.contact_id = result.contact_id;
-      if (!call.territory_ms_slug && result.territory_ms_slug) callUpdates.territory_ms_slug = result.territory_ms_slug;
+      if (!call.TerritorySlug && result.TerritorySlug) callUpdates.TerritorySlug = result.TerritorySlug;
       if (!call.journey_pipeline_state_id && result.journey_pipeline_state_id) {
         callUpdates.journey_pipeline_state_id = result.journey_pipeline_state_id;
       }

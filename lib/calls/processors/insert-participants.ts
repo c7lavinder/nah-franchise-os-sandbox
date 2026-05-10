@@ -6,19 +6,13 @@
 import { createServerClient } from "@/lib/supabase/server";
 import type { ResolvedParticipant } from "../classifier";
 
-export async function insertCallParticipants(
-  callId: string,
-  resolved: ResolvedParticipant[],
-): Promise<void> {
+export async function insertCallParticipants(callId: string, resolved: ResolvedParticipant[]): Promise<void> {
   if (resolved.length === 0) return;
 
   const supabase = createServerClient();
 
   // Check for existing participants to prevent duplicates on replay
-  const { data: existing } = await supabase
-    .from("call_participants")
-    .select("email")
-    .eq("call_id", callId);
+  const { data: existing } = await supabase.from("call_participants").select("email").eq("call_id", callId);
 
   const existingEmails = new Set((existing ?? []).map((p) => p.email?.toLowerCase()));
 
@@ -42,15 +36,14 @@ export async function insertCallParticipants(
   }
 
   if (existing && existing.length > 0 && newRows.length === 0) {
-    console.warn(`[insert-participants] callId=${callId} all ${resolved.length} participants already exist — skipping (idempotent)`);
+    console.warn(
+      `[insert-participants] callId=${callId} all ${resolved.length} participants already exist — skipping (idempotent)`
+    );
   }
 
   // Update call territory if a franchisee participant has one
-  const franchisee = resolved.find((p) => p.role === "franchisee" && p.territory_ms_slug);
-  if (franchisee?.territory_ms_slug) {
-    await supabase
-      .from("calls")
-      .update({ territory_ms_slug: franchisee.territory_ms_slug })
-      .eq("id", callId);
+  const franchisee = resolved.find((p) => p.role === "franchisee" && p.TerritorySlug);
+  if (franchisee?.TerritorySlug) {
+    await supabase.from("calls").update({ TerritorySlug: franchisee.TerritorySlug }).eq("id", callId);
   }
 }

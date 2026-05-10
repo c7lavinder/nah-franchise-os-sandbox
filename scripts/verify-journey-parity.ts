@@ -19,10 +19,16 @@ interface Row {
   count: number;
 }
 
-function hdr(title: string) { console.log(`\n━━ ${title} ━━`); }
+function hdr(title: string) {
+  console.log(`\n━━ ${title} ━━`);
+}
 
 // PostgREST caps selects at 1000 rows by default — pagination matters.
-async function fetchAll<T>(table: string, select: string, filter?: (q: ReturnType<typeof supabase.from>) => ReturnType<typeof supabase.from>): Promise<T[]> {
+async function fetchAll<T>(
+  table: string,
+  select: string,
+  filter?: (q: ReturnType<typeof supabase.from>) => ReturnType<typeof supabase.from>
+): Promise<T[]> {
   const rows: T[] = [];
   let offset = 0;
   while (true) {
@@ -39,12 +45,13 @@ async function fetchAll<T>(table: string, select: string, filter?: (q: ReturnTyp
 }
 
 async function stageCountsFromContactSide(): Promise<Map<string, number>> {
-  const data = await fetchAll<{ current_stage_id: string }>(
-    "contact_pipeline_state",
-    "current_stage_id",
-    (q) => q.eq("is_active", true),
+  const data = await fetchAll<{ current_stage_id: string }>("contact_pipeline_state", "current_stage_id", (q) =>
+    q.eq("is_active", true)
   );
-  const stages = await fetchAll<{ id: string; name: string; pipeline_id: string }>("pipeline_stages", "id, name, pipeline_id");
+  const stages = await fetchAll<{ id: string; name: string; pipeline_id: string }>(
+    "pipeline_stages",
+    "id, name, pipeline_id"
+  );
   const pipelines = await fetchAll<{ id: string; slug: string }>("pipelines", "id, slug");
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const pipeById = new Map(pipelines.map((p) => [p.id, p]));
@@ -60,12 +67,13 @@ async function stageCountsFromContactSide(): Promise<Map<string, number>> {
 }
 
 async function stageCountsFromJourneySide(): Promise<Map<string, number>> {
-  const data = await fetchAll<{ current_stage_id: string }>(
-    "journey_pipeline_state",
-    "current_stage_id",
-    (q) => q.eq("is_active", true),
+  const data = await fetchAll<{ current_stage_id: string }>("journey_pipeline_state", "current_stage_id", (q) =>
+    q.eq("is_active", true)
   );
-  const stages = await fetchAll<{ id: string; name: string; pipeline_id: string }>("pipeline_stages", "id, name, pipeline_id");
+  const stages = await fetchAll<{ id: string; name: string; pipeline_id: string }>(
+    "pipeline_stages",
+    "id, name, pipeline_id"
+  );
   const pipelines = await fetchAll<{ id: string; slug: string }>("pipelines", "id, slug");
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const pipeById = new Map(pipelines.map((p) => [p.id, p]));
@@ -81,15 +89,28 @@ async function stageCountsFromJourneySide(): Promise<Map<string, number>> {
 }
 
 async function main() {
-  const [journeyCount, primaryCount, jpsActive, contactsCount, franchiseeCount, extractionsMissing, actionsMissing] = await Promise.all([
-    supabase.from("journeys").select("id", { count: "exact", head: true }),
-    supabase.from("journey_contacts").select("id", { count: "exact", head: true }).eq("role", "primary").is("left_at", null),
-    supabase.from("journey_pipeline_state").select("id", { count: "exact", head: true }).eq("is_active", true),
-    supabase.from("contacts").select("id", { count: "exact", head: true }),
-    supabase.from("contacts").select("id", { count: "exact", head: true }).eq("is_converted_franchisee", true),
-    supabase.from("call_data_extractions").select("id", { count: "exact", head: true }).is("journey_id", null).not("contact_id", "is", null),
-    supabase.from("call_action_items").select("id", { count: "exact", head: true }).is("journey_id", null).not("contact_id", "is", null),
-  ]);
+  const [journeyCount, primaryCount, jpsActive, contactsCount, franchiseeCount, extractionsMissing, actionsMissing] =
+    await Promise.all([
+      supabase.from("journeys").select("id", { count: "exact", head: true }),
+      supabase
+        .from("journey_contacts")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "primary")
+        .is("left_at", null),
+      supabase.from("journey_pipeline_state").select("id", { count: "exact", head: true }).eq("is_active", true),
+      supabase.from("contacts").select("id", { count: "exact", head: true }),
+      supabase.from("contacts").select("id", { count: "exact", head: true }).eq("is_converted_franchisee", true),
+      supabase
+        .from("call_data_extractions")
+        .select("id", { count: "exact", head: true })
+        .is("journey_id", null)
+        .not("contact_id", "is", null),
+      supabase
+        .from("call_action_items")
+        .select("id", { count: "exact", head: true })
+        .is("journey_id", null)
+        .not("contact_id", "is", null),
+    ]);
 
   hdr("1 · Totals");
   console.log(`  journeys:                                ${journeyCount.count ?? 0}`);
@@ -123,7 +144,9 @@ async function main() {
   if (driftCount === 0) {
     console.log("\n  ✔ Every stage matches exactly. Pipeline page will render identically.");
   } else {
-    console.log(`\n  ⚠ ${driftCount} stage(s) have different counts. Investigate each non-zero delta before shipping Phase 2.`);
+    console.log(
+      `\n  ⚠ ${driftCount} stage(s) have different counts. Investigate each non-zero delta before shipping Phase 2.`
+    );
   }
 
   hdr("4 · Data-lake scope guard (extractions with zero scope)");
@@ -132,7 +155,7 @@ async function main() {
     .select("id", { count: "exact", head: true })
     .is("contact_id", null)
     .is("journey_id", null)
-    .is("territory_ms_slug", null);
+    .is("TerritorySlug", null);
   console.log(`  Orphan extractions (no scope set): ${orphan ?? 0}`);
   if ((orphan ?? 0) > 0) {
     console.log("  ⚠ These rows violate the scope invariant. Fix or delete before adding the CHECK constraint.");
@@ -141,4 +164,7 @@ async function main() {
   }
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

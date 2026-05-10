@@ -40,7 +40,7 @@ export async function getDailyHQScorecard() {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   // New Prospects: journeys that entered the Sales pipeline in last 30 days.
-  // Phase 4 read migration. Sales jps rows have territory_ms_slug = NULL so
+  // Phase 4 read migration. Sales jps rows have TerritorySlug = NULL so
   // this counts journeys, not territories.
   const { count: newProspectCount } = await supabase
     .from("journey_pipeline_state")
@@ -51,7 +51,7 @@ export async function getDailyHQScorecard() {
   // Active Franchisees
   const { count: activeFranchisees } = await supabase
     .from("territories")
-    .select("ms_slug", { count: "exact", head: true })
+    .select("TerritorySlug", { count: "exact", head: true })
     .eq("status", "active");
 
   // High Performers: territories with 10+ houses in trailing 12 months
@@ -62,12 +62,12 @@ export async function getDailyHQScorecard() {
 
   const { data: grades } = await supabase
     .from("territory_grades")
-    .select("ms_slug, houses_purchased")
+    .select("TerritorySlug, houses_purchased")
     .gte("year", currentYear - 1);
 
   const housesByTerritory: Record<string, number> = {};
   for (const g of grades ?? []) {
-    housesByTerritory[g.ms_slug] = (housesByTerritory[g.ms_slug] ?? 0) + (g.houses_purchased ?? 0);
+    housesByTerritory[g.TerritorySlug] = (housesByTerritory[g.TerritorySlug] ?? 0) + (g.houses_purchased ?? 0);
   }
   const highPerformers = Object.values(housesByTerritory).filter((h) => h >= 10).length;
 
@@ -83,13 +83,20 @@ export async function getDailyHQScorecard() {
 // ─────────────────────────────────────────────
 
 const CALL_SUB_TASK_SLUGS = [
-  "intro_call", "intro-call",
-  "matt_call", "matt-call",
-  "sam_call", "sam-call",
-  "mark_call", "mark-call",
-  "fdd_review_call", "fdd-review-call",
-  "territory_call", "territory-call",
-  "matt_final_call", "matt-final-call",
+  "intro_call",
+  "intro-call",
+  "matt_call",
+  "matt-call",
+  "sam_call",
+  "sam-call",
+  "mark_call",
+  "mark-call",
+  "fdd_review_call",
+  "fdd-review-call",
+  "territory_call",
+  "territory-call",
+  "matt_final_call",
+  "matt-final-call",
 ];
 
 export async function getCallsScorecard() {
@@ -107,8 +114,8 @@ export async function getCallsScorecard() {
     .is("deleted_at", null)
     .or(
       `and(scheduled_at.gte.${calendarWeek.start.toISOString()},scheduled_at.lte.${calendarWeek.end.toISOString()}),` +
-      `and(started_at.gte.${calendarWeek.start.toISOString()},started_at.lte.${calendarWeek.end.toISOString()}),` +
-      `and(created_at.gte.${calendarWeek.start.toISOString()},created_at.lte.${calendarWeek.end.toISOString()})`,
+        `and(started_at.gte.${calendarWeek.start.toISOString()},started_at.lte.${calendarWeek.end.toISOString()}),` +
+        `and(created_at.gte.${calendarWeek.start.toISOString()},created_at.lte.${calendarWeek.end.toISOString()})`
     );
 
   const callsCompleted = (weekCandidates ?? []).filter((c) => {
@@ -174,9 +181,7 @@ export async function getPipelineScorecard() {
   function stageIdsFor(pipelineSlug: string): string[] {
     const pid = pipelineIdBySlug.get(pipelineSlug);
     if (!pid) return ["__none__"];
-    const ids = (allStages ?? [])
-      .filter((s) => s.pipeline_id === pid)
-      .map((s) => s.id);
+    const ids = (allStages ?? []).filter((s) => s.pipeline_id === pid).map((s) => s.id);
     return ids.length > 0 ? ids : ["__none__"];
   }
 

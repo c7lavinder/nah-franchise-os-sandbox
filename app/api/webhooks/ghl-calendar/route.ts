@@ -116,7 +116,7 @@ async function processWebhook(body: GHLCalendarWebhookPayload, supabase: ReturnT
       nah_emails: hostEmail ? [hostEmail] : [],
       is_internal: false,
       has_external_participant: !!localContactId,
-      has_territory_owner: !!match.territory_ms_slug,
+      has_territory_owner: !!match.TerritorySlug,
       source: "ghl_calendar",
     });
     const callTypeId = slugToCallTypeId.get(classification.slug) ?? null;
@@ -171,7 +171,7 @@ async function processWebhook(body: GHLCalendarWebhookPayload, supabase: ReturnT
         updatePayload.call_type_id = callTypeId;
         updatePayload.classification_reason = classification.reason;
         updatePayload.contact_id = localContactId;
-        updatePayload.territory_ms_slug = match.territory_ms_slug;
+        updatePayload.TerritorySlug = match.TerritorySlug;
         updatePayload.journey_pipeline_state_id = journeyPipelineStateId;
         updatePayload.match_confidence = match.confidence;
         updatePayload.match_reason = match.reason;
@@ -187,7 +187,7 @@ async function processWebhook(body: GHLCalendarWebhookPayload, supabase: ReturnT
         .insert({
           ghl_event_id: ghlEventId,
           contact_id: localContactId,
-          territory_ms_slug: match.territory_ms_slug,
+          TerritorySlug: match.TerritorySlug,
           call_type_id: callTypeId,
           classification_reason: classification.reason,
           match_confidence: match.confidence,

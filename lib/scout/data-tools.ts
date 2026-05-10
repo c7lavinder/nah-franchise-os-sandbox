@@ -15,11 +15,7 @@ import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { generateFlags } from "@/lib/intelligence/flags";
 import { getScoreRecommendations } from "@/lib/intelligence/recommendations";
-import type {
-  CandidateIntelligence,
-  CallLog,
-  ObjectionRegistry,
-} from "@/lib/intelligence/types";
+import type { CandidateIntelligence, CallLog, ObjectionRegistry } from "@/lib/intelligence/types";
 
 // ════════════════════════════════════════════════════════════════════
 // SHARED TYPES
@@ -106,15 +102,15 @@ const ENTITIES: Record<QueryEntity, EntityConfig> = {
   territories: {
     table: "territories",
     filterable: {
-      ms_slug: "ms_slug",
-      territory_name: "territory_name",
+      TerritorySlug: "TerritorySlug",
+      Nickname: "Nickname",
       region: "region",
       status: "status",
-      awarded_date: "awarded_date",
+      FranchiseAgreementDate: "FranchiseAgreementDate",
     },
     groupable: ["status", "region"],
     aggregatable: [],
-    defaultOrder: { field: "territory_name", direction: "asc" },
+    defaultOrder: { field: "Nickname", direction: "asc" },
   },
   opportunities: {
     // GHL-backed — query() short-circuits to a GHL fetch for this one
@@ -236,10 +232,7 @@ export async function executeQuery(spec: QuerySpec): Promise<string> {
   });
 }
 
-async function executeOpportunityQuery(
-  spec: QuerySpec,
-  _cfg: EntityConfig
-): Promise<string> {
+async function executeOpportunityQuery(spec: QuerySpec, _cfg: EntityConfig): Promise<string> {
   // GHL search supports a small subset of filters
   const params: Parameters<typeof ghl.searchOpportunities>[0] = {};
   for (const f of spec.filters ?? []) {
@@ -292,7 +285,8 @@ export async function executeAggregate(spec: AggregateSpec): Promise<string> {
   // Opportunities aren't aggregated server-side (would require pulling everything from GHL).
   if (spec.entity === "opportunities") {
     return JSON.stringify({
-      error: "Aggregations on 'opportunities' aren't supported — use query() then summarize, or use a Supabase-backed entity.",
+      error:
+        "Aggregations on 'opportunities' aren't supported — use query() then summarize, or use a Supabase-backed entity.",
     });
   }
 
@@ -449,7 +443,12 @@ async function getContactProfile(contactId: string): Promise<string> {
 
     const [intelRes, callsRes, objRes, journeysRes] = await Promise.all([
       supabase.from("candidate_intelligence").select("*").eq("contact_id", contactId).single(),
-      supabase.from("call_logs").select("*").eq("contact_id", contactId).order("called_at", { ascending: false }).limit(5),
+      supabase
+        .from("call_logs")
+        .select("*")
+        .eq("contact_id", contactId)
+        .order("called_at", { ascending: false })
+        .limit(5),
       supabase.from("objection_registry").select("*").eq("contact_id", contactId).eq("resolved", false),
       supabase
         .from("journey_contacts")
@@ -523,23 +522,30 @@ async function getTerritoryProfile(slug: string): Promise<string> {
       todosRes,
       statesRes,
     ] = await Promise.all([
-      supabase.from("territories").select("*").eq("ms_slug", slug).single(),
+      supabase.from("territories").select("*").eq("TerritorySlug", slug).single(),
       supabase
         .from("territory_owners")
         .select("ghl_contact_id, role, start_date, end_date, transfer_notes")
-        .eq("ms_slug", slug)
+        .eq("TerritorySlug", slug)
         .is("end_date", null),
-      supabase.from("territory_market_data").select("field_name, field_value, source, source_date").eq("territory_slug", slug),
-      supabase.from("eos_territory_goals").select("*").eq("territory_slug", slug),
-      supabase.from("eos_territory_scorecard").select("*").eq("territory_slug", slug).order("sort_order"),
-      supabase.from("eos_territory_habits").select("*").eq("territory_slug", slug).order("sort_order"),
-      supabase.from("eos_territory_rocks").select("*").eq("territory_slug", slug).order("created_at", { ascending: false }),
-      supabase.from("eos_territory_issues").select("*").eq("territory_slug", slug).eq("is_done", false),
-      supabase.from("eos_territory_todos").select("*").eq("territory_slug", slug).eq("is_done", false),
+      supabase
+        .from("territory_market_data")
+        .select("field_name, field_value, source, source_date")
+        .eq("TerritorySlug", slug),
+      supabase.from("eos_territory_goals").select("*").eq("TerritorySlug", slug),
+      supabase.from("eos_territory_scorecard").select("*").eq("TerritorySlug", slug).order("sort_order"),
+      supabase.from("eos_territory_habits").select("*").eq("TerritorySlug", slug).order("sort_order"),
+      supabase
+        .from("eos_territory_rocks")
+        .select("*")
+        .eq("TerritorySlug", slug)
+        .order("created_at", { ascending: false }),
+      supabase.from("eos_territory_issues").select("*").eq("TerritorySlug", slug).eq("is_done", false),
+      supabase.from("eos_territory_todos").select("*").eq("TerritorySlug", slug).eq("is_done", false),
       supabase
         .from("journey_pipeline_state")
         .select("journey_id, current_stage_id, entered_current_stage_at, pipeline_stages(name), pipelines(name)")
-        .eq("territory_ms_slug", slug)
+        .eq("TerritorySlug", slug)
         .eq("is_active", true),
     ]);
 
@@ -577,12 +583,16 @@ async function getJourneyProfile(journeyId: string): Promise<string> {
       supabase.from("journeys").select("*").eq("id", journeyId).single(),
       supabase
         .from("journey_contacts")
-        .select("contact_id, role, is_primary_decision_maker, role_notes, joined_at, contacts(first_name, last_name, email, phone)")
+        .select(
+          "contact_id, role, is_primary_decision_maker, role_notes, joined_at, contacts(first_name, last_name, email, phone)"
+        )
         .eq("journey_id", journeyId)
         .is("left_at", null),
       supabase
         .from("journey_pipeline_state")
-        .select("territory_ms_slug, current_stage_id, entered_current_stage_at, entered_pipeline_at, pipeline_stages(name), pipelines(name)")
+        .select(
+          "TerritorySlug, current_stage_id, entered_current_stage_at, entered_pipeline_at, pipeline_stages(name), pipelines(name)"
+        )
         .eq("journey_id", journeyId)
         .eq("is_active", true),
       supabase

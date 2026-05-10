@@ -246,7 +246,7 @@ export type Database = {
           saved_to_profile: boolean;
           source: string;
           target_scope: string | null;
-          territory_ms_slug: string | null;
+          TerritorySlug: string | null;
         };
         Insert: {
           call_id: string;
@@ -262,7 +262,7 @@ export type Database = {
           saved_to_profile?: boolean;
           source?: string;
           target_scope?: string | null;
-          territory_ms_slug?: string | null;
+          TerritorySlug?: string | null;
         };
         Update: {
           call_id?: string;
@@ -278,7 +278,7 @@ export type Database = {
           saved_to_profile?: boolean;
           source?: string;
           target_scope?: string | null;
-          territory_ms_slug?: string | null;
+          TerritorySlug?: string | null;
         };
         Relationships: [
           {
@@ -303,39 +303,39 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "call_data_extractions_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "call_data_extractions_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "call_data_extractions_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "call_data_extractions_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "call_data_extractions_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "call_data_extractions_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "call_data_extractions_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "call_data_extractions_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "call_data_extractions_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "call_data_extractions_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -637,21 +637,21 @@ export type Database = {
           created_at: string;
           id: string;
           is_primary: boolean;
-          territory_ms_slug: string;
+          TerritorySlug: string;
         };
         Insert: {
           call_id: string;
           created_at?: string;
           id?: string;
           is_primary?: boolean;
-          territory_ms_slug: string;
+          TerritorySlug: string;
         };
         Update: {
           call_id?: string;
           created_at?: string;
           id?: string;
           is_primary?: boolean;
-          territory_ms_slug?: string;
+          TerritorySlug?: string;
         };
         Relationships: [
           {
@@ -662,39 +662,39 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "call_territories_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "call_territories_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "call_territories_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "call_territories_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "call_territories_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "call_territories_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "call_territories_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "call_territories_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "call_territories_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "call_territories_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -806,7 +806,7 @@ export type Database = {
           sub_task_id: string | null;
           summary: string | null;
           summary_bullets: string[] | null;
-          territory_ms_slug: string | null;
+          TerritorySlug: string | null;
           title: string | null;
           updated_at: string;
         };
@@ -846,7 +846,7 @@ export type Database = {
           sub_task_id?: string | null;
           summary?: string | null;
           summary_bullets?: string[] | null;
-          territory_ms_slug?: string | null;
+          TerritorySlug?: string | null;
           title?: string | null;
           updated_at?: string;
         };
@@ -886,7 +886,7 @@ export type Database = {
           sub_task_id?: string | null;
           summary?: string | null;
           summary_bullets?: string[] | null;
-          territory_ms_slug?: string | null;
+          TerritorySlug?: string | null;
           title?: string | null;
           updated_at?: string;
         };
@@ -934,39 +934,39 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "calls_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "calls_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "calls_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "calls_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "calls_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "calls_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "calls_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "calls_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "calls_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "calls_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -1145,7 +1145,7 @@ export type Database = {
           ended_at: string | null;
           id: string;
           specialty: string | null;
-          territory_ms_slug: string;
+          TerritorySlug: string;
         };
         Insert: {
           assigned_at?: string | null;
@@ -1153,7 +1153,7 @@ export type Database = {
           ended_at?: string | null;
           id?: string;
           specialty?: string | null;
-          territory_ms_slug: string;
+          TerritorySlug: string;
         };
         Update: {
           assigned_at?: string | null;
@@ -1161,43 +1161,43 @@ export type Database = {
           ended_at?: string | null;
           id?: string;
           specialty?: string | null;
-          territory_ms_slug?: string;
+          TerritorySlug?: string;
         };
         Relationships: [
           {
-            foreignKeyName: "coach_assignments_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "coach_assignments_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "coach_assignments_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "coach_assignments_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "coach_assignments_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "coach_assignments_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "coach_assignments_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "coach_assignments_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "coach_assignments_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "coach_assignments_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -1743,12 +1743,12 @@ export type Database = {
       contacts: {
         Row: {
           address: string | null;
-          business_ownership_experience: string | null;
-          capital_availability: string | null;
+          BriefWorkHistory: string | null;
+          NonRetirementCapitalAvailable: string | null;
           city: string | null;
           clickx_package: string | null;
           converted_at: string | null;
-          counties_priority: string | null;
+          CountiesInterestedIn: string | null;
           created_at: string;
           ecosystem_partners: string | null;
           email: string | null;
@@ -1757,9 +1757,9 @@ export type Database = {
           framing_call_logged: boolean | null;
           franchise_fee: number | null;
           franchise_start_date: string | null;
-          franchisee_2_email: string | null;
-          franchisee_2_name: string | null;
-          franchisee_2_phone: string | null;
+          PartnerEmail: string | null;
+          PartnerName: string | null;
+          PartnerPhone: string | null;
           ghl_contact_id: string;
           happyfox_url: string | null;
           id: string;
@@ -1770,12 +1770,12 @@ export type Database = {
           last_synced_at: string | null;
           lead_manager_email: string | null;
           lead_manager_name: string | null;
-          lead_source_detail: string | null;
+          LeadSource: string | null;
           legal_entity: string | null;
           marketing_phone: string | null;
           merged_at: string | null;
           merged_into_contact_id: string | null;
-          motivation_clarity: string | null;
+          WhatInterestsInOpportunity: string | null;
           nda_status: string | null;
           needs_review: boolean | null;
           nexa_phone: string | null;
@@ -1808,12 +1808,12 @@ export type Database = {
         };
         Insert: {
           address?: string | null;
-          business_ownership_experience?: string | null;
-          capital_availability?: string | null;
+          BriefWorkHistory?: string | null;
+          NonRetirementCapitalAvailable?: string | null;
           city?: string | null;
           clickx_package?: string | null;
           converted_at?: string | null;
-          counties_priority?: string | null;
+          CountiesInterestedIn?: string | null;
           created_at?: string;
           ecosystem_partners?: string | null;
           email?: string | null;
@@ -1822,9 +1822,9 @@ export type Database = {
           framing_call_logged?: boolean | null;
           franchise_fee?: number | null;
           franchise_start_date?: string | null;
-          franchisee_2_email?: string | null;
-          franchisee_2_name?: string | null;
-          franchisee_2_phone?: string | null;
+          PartnerEmail?: string | null;
+          PartnerName?: string | null;
+          PartnerPhone?: string | null;
           ghl_contact_id: string;
           happyfox_url?: string | null;
           id?: string;
@@ -1835,12 +1835,12 @@ export type Database = {
           last_synced_at?: string | null;
           lead_manager_email?: string | null;
           lead_manager_name?: string | null;
-          lead_source_detail?: string | null;
+          LeadSource?: string | null;
           legal_entity?: string | null;
           marketing_phone?: string | null;
           merged_at?: string | null;
           merged_into_contact_id?: string | null;
-          motivation_clarity?: string | null;
+          WhatInterestsInOpportunity?: string | null;
           nda_status?: string | null;
           needs_review?: boolean | null;
           nexa_phone?: string | null;
@@ -1873,12 +1873,12 @@ export type Database = {
         };
         Update: {
           address?: string | null;
-          business_ownership_experience?: string | null;
-          capital_availability?: string | null;
+          BriefWorkHistory?: string | null;
+          NonRetirementCapitalAvailable?: string | null;
           city?: string | null;
           clickx_package?: string | null;
           converted_at?: string | null;
-          counties_priority?: string | null;
+          CountiesInterestedIn?: string | null;
           created_at?: string;
           ecosystem_partners?: string | null;
           email?: string | null;
@@ -1887,9 +1887,9 @@ export type Database = {
           framing_call_logged?: boolean | null;
           franchise_fee?: number | null;
           franchise_start_date?: string | null;
-          franchisee_2_email?: string | null;
-          franchisee_2_name?: string | null;
-          franchisee_2_phone?: string | null;
+          PartnerEmail?: string | null;
+          PartnerName?: string | null;
+          PartnerPhone?: string | null;
           ghl_contact_id?: string;
           happyfox_url?: string | null;
           id?: string;
@@ -1900,12 +1900,12 @@ export type Database = {
           last_synced_at?: string | null;
           lead_manager_email?: string | null;
           lead_manager_name?: string | null;
-          lead_source_detail?: string | null;
+          LeadSource?: string | null;
           legal_entity?: string | null;
           marketing_phone?: string | null;
           merged_at?: string | null;
           merged_into_contact_id?: string | null;
-          motivation_clarity?: string | null;
+          WhatInterestsInOpportunity?: string | null;
           nda_status?: string | null;
           needs_review?: boolean | null;
           nexa_phone?: string | null;
@@ -1999,7 +1999,7 @@ export type Database = {
           status: string;
           suggested_value: string;
           superseded_by: string | null;
-          territory_ms_slug: string | null;
+          TerritorySlug: string | null;
           updated_at: string | null;
         };
         Insert: {
@@ -2021,7 +2021,7 @@ export type Database = {
           status?: string;
           suggested_value: string;
           superseded_by?: string | null;
-          territory_ms_slug?: string | null;
+          TerritorySlug?: string | null;
           updated_at?: string | null;
         };
         Update: {
@@ -2043,7 +2043,7 @@ export type Database = {
           status?: string;
           suggested_value?: string;
           superseded_by?: string | null;
-          territory_ms_slug?: string | null;
+          TerritorySlug?: string | null;
           updated_at?: string | null;
         };
         Relationships: [
@@ -2062,39 +2062,39 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "data_update_suggestions_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "data_update_suggestions_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "data_update_suggestions_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "data_update_suggestions_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "data_update_suggestions_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "data_update_suggestions_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "data_update_suggestions_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "data_update_suggestions_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "data_update_suggestions_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "data_update_suggestions_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -2230,7 +2230,7 @@ export type Database = {
           created_at: string | null;
           id: string;
           is_done: boolean | null;
-          issue_text: string;
+          Issue: string;
           source: string | null;
           updated_at: string | null;
         };
@@ -2239,7 +2239,7 @@ export type Database = {
           created_at?: string | null;
           id?: string;
           is_done?: boolean | null;
-          issue_text: string;
+          Issue: string;
           source?: string | null;
           updated_at?: string | null;
         };
@@ -2248,7 +2248,7 @@ export type Database = {
           created_at?: string | null;
           id?: string;
           is_done?: boolean | null;
-          issue_text?: string;
+          Issue?: string;
           source?: string | null;
           updated_at?: string | null;
         };
@@ -2270,7 +2270,7 @@ export type Database = {
           is_done: boolean | null;
           owner_user_id: string | null;
           source: string | null;
-          todo_text: string;
+          Todo: string;
           updated_at: string | null;
         };
         Insert: {
@@ -2280,7 +2280,7 @@ export type Database = {
           is_done?: boolean | null;
           owner_user_id?: string | null;
           source?: string | null;
-          todo_text: string;
+          Todo: string;
           updated_at?: string | null;
         };
         Update: {
@@ -2290,7 +2290,7 @@ export type Database = {
           is_done?: boolean | null;
           owner_user_id?: string | null;
           source?: string | null;
-          todo_text?: string;
+          Todo?: string;
           updated_at?: string | null;
         };
         Relationships: [
@@ -2316,7 +2316,7 @@ export type Database = {
           description: string;
           id: string;
           sort_order: number | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at: string | null;
         };
         Insert: {
@@ -2324,7 +2324,7 @@ export type Database = {
           description: string;
           id?: string;
           sort_order?: number | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at?: string | null;
         };
         Update: {
@@ -2332,7 +2332,7 @@ export type Database = {
           description?: string;
           id?: string;
           sort_order?: number | null;
-          territory_slug?: string;
+          TerritorySlug?: string;
           updated_at?: string | null;
         };
         Relationships: [];
@@ -2343,7 +2343,7 @@ export type Database = {
           current_year_goal: string | null;
           goal_type: string;
           id: string;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at: string | null;
           year_25_goal: string | null;
           year_5_goal: string | null;
@@ -2353,7 +2353,7 @@ export type Database = {
           current_year_goal?: string | null;
           goal_type: string;
           id?: string;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at?: string | null;
           year_25_goal?: string | null;
           year_5_goal?: string | null;
@@ -2363,7 +2363,7 @@ export type Database = {
           current_year_goal?: string | null;
           goal_type?: string;
           id?: string;
-          territory_slug?: string;
+          TerritorySlug?: string;
           updated_at?: string | null;
           year_25_goal?: string | null;
           year_5_goal?: string | null;
@@ -2377,7 +2377,7 @@ export type Database = {
           habit_label: string;
           id: string;
           sort_order: number | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at: string | null;
         };
         Insert: {
@@ -2386,7 +2386,7 @@ export type Database = {
           habit_label: string;
           id?: string;
           sort_order?: number | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at?: string | null;
         };
         Update: {
@@ -2395,7 +2395,7 @@ export type Database = {
           habit_label?: string;
           id?: string;
           sort_order?: number | null;
-          territory_slug?: string;
+          TerritorySlug?: string;
           updated_at?: string | null;
         };
         Relationships: [];
@@ -2405,30 +2405,30 @@ export type Database = {
           created_at: string | null;
           id: string;
           is_done: boolean | null;
-          issue_text: string;
+          Issue: string;
           origin_contact_id: string | null;
           source: string | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at: string | null;
         };
         Insert: {
           created_at?: string | null;
           id?: string;
           is_done?: boolean | null;
-          issue_text: string;
+          Issue: string;
           origin_contact_id?: string | null;
           source?: string | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at?: string | null;
         };
         Update: {
           created_at?: string | null;
           id?: string;
           is_done?: boolean | null;
-          issue_text?: string;
+          Issue?: string;
           origin_contact_id?: string | null;
           source?: string | null;
-          territory_slug?: string;
+          TerritorySlug?: string;
           updated_at?: string | null;
         };
         Relationships: [
@@ -2447,7 +2447,7 @@ export type Database = {
           id: string;
           is_active: boolean | null;
           sort_order: number | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at: string | null;
         };
         Insert: {
@@ -2455,7 +2455,7 @@ export type Database = {
           id?: string;
           is_active?: boolean | null;
           sort_order?: number | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at?: string | null;
         };
         Update: {
@@ -2463,7 +2463,7 @@ export type Database = {
           id?: string;
           is_active?: boolean | null;
           sort_order?: number | null;
-          territory_slug?: string;
+          TerritorySlug?: string;
           updated_at?: string | null;
         };
         Relationships: [];
@@ -2473,9 +2473,9 @@ export type Database = {
           created_at: string | null;
           id: string;
           quarter: number | null;
-          rock_text: string;
+          Rock: string;
           status: string | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at: string | null;
           year: number | null;
         };
@@ -2483,9 +2483,9 @@ export type Database = {
           created_at?: string | null;
           id?: string;
           quarter?: number | null;
-          rock_text: string;
+          Rock: string;
           status?: string | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at?: string | null;
           year?: number | null;
         };
@@ -2493,9 +2493,9 @@ export type Database = {
           created_at?: string | null;
           id?: string;
           quarter?: number | null;
-          rock_text?: string;
+          Rock?: string;
           status?: string | null;
-          territory_slug?: string;
+          TerritorySlug?: string;
           updated_at?: string | null;
           year?: number | null;
         };
@@ -2508,7 +2508,7 @@ export type Database = {
           metric_key: string;
           metric_label: string;
           sort_order: number | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at: string | null;
         };
         Insert: {
@@ -2517,7 +2517,7 @@ export type Database = {
           metric_key: string;
           metric_label: string;
           sort_order?: number | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at?: string | null;
         };
         Update: {
@@ -2526,7 +2526,7 @@ export type Database = {
           metric_key?: string;
           metric_label?: string;
           sort_order?: number | null;
-          territory_slug?: string;
+          TerritorySlug?: string;
           updated_at?: string | null;
         };
         Relationships: [];
@@ -2539,8 +2539,8 @@ export type Database = {
           origin_contact_id: string | null;
           owner_user_id: string | null;
           source: string | null;
-          territory_slug: string;
-          todo_text: string;
+          TerritorySlug: string;
+          Todo: string;
           updated_at: string | null;
         };
         Insert: {
@@ -2550,8 +2550,8 @@ export type Database = {
           origin_contact_id?: string | null;
           owner_user_id?: string | null;
           source?: string | null;
-          territory_slug: string;
-          todo_text: string;
+          TerritorySlug: string;
+          Todo: string;
           updated_at?: string | null;
         };
         Update: {
@@ -2561,8 +2561,8 @@ export type Database = {
           origin_contact_id?: string | null;
           owner_user_id?: string | null;
           source?: string | null;
-          territory_slug?: string;
-          todo_text?: string;
+          TerritorySlug?: string;
+          Todo?: string;
           updated_at?: string | null;
         };
         Relationships: [
@@ -2589,7 +2589,7 @@ export type Database = {
           ct_id: string | null;
           full_name: string;
           ghl_contact_id: string | null;
-          ms_slug: string;
+          TerritorySlug: string;
           status: string;
           updated_at: string;
         };
@@ -2599,7 +2599,7 @@ export type Database = {
           ct_id?: string | null;
           full_name: string;
           ghl_contact_id?: string | null;
-          ms_slug: string;
+          TerritorySlug: string;
           status?: string;
           updated_at?: string;
         };
@@ -2609,7 +2609,7 @@ export type Database = {
           ct_id?: string | null;
           full_name?: string;
           ghl_contact_id?: string | null;
-          ms_slug?: string;
+          TerritorySlug?: string;
           status?: string;
           updated_at?: string;
         };
@@ -2622,39 +2622,39 @@ export type Database = {
             referencedColumns: ["ghl_contact_id"];
           },
           {
-            foreignKeyName: "franchise_owners_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "franchise_owners_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: true;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "franchise_owners_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "franchise_owners_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: true;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "franchise_owners_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "franchise_owners_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: true;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "franchise_owners_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "franchise_owners_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: true;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "franchise_owners_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "franchise_owners_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: true;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -2984,7 +2984,7 @@ export type Database = {
           integration_name: string;
           payload_summary: string | null;
           related_contact_id: string | null;
-          related_ms_slug: string | null;
+          TerritorySlug: string | null;
           status: string;
         };
         Insert: {
@@ -2995,7 +2995,7 @@ export type Database = {
           integration_name: string;
           payload_summary?: string | null;
           related_contact_id?: string | null;
-          related_ms_slug?: string | null;
+          TerritorySlug?: string | null;
           status: string;
         };
         Update: {
@@ -3006,7 +3006,7 @@ export type Database = {
           integration_name?: string;
           payload_summary?: string | null;
           related_contact_id?: string | null;
-          related_ms_slug?: string | null;
+          TerritorySlug?: string | null;
           status?: string;
         };
         Relationships: [
@@ -3018,39 +3018,39 @@ export type Database = {
             referencedColumns: ["ghl_contact_id"];
           },
           {
-            foreignKeyName: "integration_logs_related_ms_slug_fkey";
-            columns: ["related_ms_slug"];
+            foreignKeyName: "integration_logs_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "integration_logs_related_ms_slug_fkey";
-            columns: ["related_ms_slug"];
+            foreignKeyName: "integration_logs_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "integration_logs_related_ms_slug_fkey";
-            columns: ["related_ms_slug"];
+            foreignKeyName: "integration_logs_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "integration_logs_related_ms_slug_fkey";
-            columns: ["related_ms_slug"];
+            foreignKeyName: "integration_logs_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "integration_logs_related_ms_slug_fkey";
-            columns: ["related_ms_slug"];
+            foreignKeyName: "integration_logs_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -3123,7 +3123,7 @@ export type Database = {
           is_active: boolean;
           journey_id: string;
           pipeline_id: string;
-          territory_ms_slug: string | null;
+          TerritorySlug: string | null;
           updated_at: string;
         };
         Insert: {
@@ -3140,7 +3140,7 @@ export type Database = {
           is_active?: boolean;
           journey_id: string;
           pipeline_id: string;
-          territory_ms_slug?: string | null;
+          TerritorySlug?: string | null;
           updated_at?: string;
         };
         Update: {
@@ -3157,7 +3157,7 @@ export type Database = {
           is_active?: boolean;
           journey_id?: string;
           pipeline_id?: string;
-          territory_ms_slug?: string | null;
+          TerritorySlug?: string | null;
           updated_at?: string;
         };
         Relationships: [
@@ -3197,39 +3197,39 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "journey_pipeline_state_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "journey_pipeline_state_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "journey_pipeline_state_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "journey_pipeline_state_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "journey_pipeline_state_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "journey_pipeline_state_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "journey_pipeline_state_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "journey_pipeline_state_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "journey_pipeline_state_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "journey_pipeline_state_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -4369,7 +4369,7 @@ export type Database = {
           suggested_value: string | null;
           suggestion_id: string | null;
           suggestion_type: string;
-          territory_ms_slug: string | null;
+          TerritorySlug: string | null;
         };
         Insert: {
           accepted_value?: Json | null;
@@ -4391,7 +4391,7 @@ export type Database = {
           suggested_value?: string | null;
           suggestion_id?: string | null;
           suggestion_type: string;
-          territory_ms_slug?: string | null;
+          TerritorySlug?: string | null;
         };
         Update: {
           accepted_value?: Json | null;
@@ -4413,7 +4413,7 @@ export type Database = {
           suggested_value?: string | null;
           suggestion_id?: string | null;
           suggestion_type?: string;
-          territory_ms_slug?: string | null;
+          TerritorySlug?: string | null;
         };
         Relationships: [
           {
@@ -4438,39 +4438,39 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "suggestion_feedback_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "suggestion_feedback_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "suggestion_feedback_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "suggestion_feedback_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "suggestion_feedback_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "suggestion_feedback_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "suggestion_feedback_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "suggestion_feedback_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "suggestion_feedback_territory_ms_slug_fkey";
-            columns: ["territory_ms_slug"];
+            foreignKeyName: "suggestion_feedback_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -4530,30 +4530,30 @@ export type Database = {
       };
       territories: {
         Row: {
-          awarded_date: string | null;
+          FranchiseAgreementDate: string | null;
           created_at: string;
-          ms_slug: string;
+          TerritorySlug: string;
           region: string | null;
           status: string;
-          territory_name: string;
+          Nickname: string;
           updated_at: string;
         };
         Insert: {
-          awarded_date?: string | null;
+          FranchiseAgreementDate?: string | null;
           created_at?: string;
-          ms_slug: string;
+          TerritorySlug: string;
           region?: string | null;
           status?: string;
-          territory_name: string;
+          Nickname: string;
           updated_at?: string;
         };
         Update: {
-          awarded_date?: string | null;
+          FranchiseAgreementDate?: string | null;
           created_at?: string;
-          ms_slug?: string;
+          TerritorySlug?: string;
           region?: string | null;
           status?: string;
-          territory_name?: string;
+          Nickname?: string;
           updated_at?: string;
         };
         Relationships: [];
@@ -4563,7 +4563,7 @@ export type Database = {
           created_at: string;
           ghl_contact_id: string;
           id: string;
-          ms_slug: string;
+          TerritorySlug: string;
           status: string;
           updated_at: string;
         };
@@ -4571,7 +4571,7 @@ export type Database = {
           created_at?: string;
           ghl_contact_id: string;
           id?: string;
-          ms_slug: string;
+          TerritorySlug: string;
           status?: string;
           updated_at?: string;
         };
@@ -4579,7 +4579,7 @@ export type Database = {
           created_at?: string;
           ghl_contact_id?: string;
           id?: string;
-          ms_slug?: string;
+          TerritorySlug?: string;
           status?: string;
           updated_at?: string;
         };
@@ -4592,39 +4592,39 @@ export type Database = {
             referencedColumns: ["ghl_contact_id"];
           },
           {
-            foreignKeyName: "territory_candidates_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_candidates_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_candidates_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_candidates_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_candidates_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_candidates_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_candidates_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_candidates_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_candidates_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_candidates_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -4634,7 +4634,7 @@ export type Database = {
           houses_purchased: number | null;
           id: string;
           john_grade: number | null;
-          ms_slug: string;
+          TerritorySlug: string;
           notes: string | null;
           quarter: number;
           self_grade: number | null;
@@ -4645,7 +4645,7 @@ export type Database = {
           houses_purchased?: number | null;
           id?: string;
           john_grade?: number | null;
-          ms_slug: string;
+          TerritorySlug: string;
           notes?: string | null;
           quarter: number;
           self_grade?: number | null;
@@ -4656,7 +4656,7 @@ export type Database = {
           houses_purchased?: number | null;
           id?: string;
           john_grade?: number | null;
-          ms_slug?: string;
+          TerritorySlug?: string;
           notes?: string | null;
           quarter?: number;
           self_grade?: number | null;
@@ -4664,39 +4664,39 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "territory_grades_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_grades_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_grades_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_grades_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_grades_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_grades_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_grades_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_grades_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_grades_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_grades_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -4707,7 +4707,7 @@ export type Database = {
           id: string;
           source: string | null;
           source_date: string | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at: string | null;
           updated_by: string | null;
         };
@@ -4717,7 +4717,7 @@ export type Database = {
           id?: string;
           source?: string | null;
           source_date?: string | null;
-          territory_slug: string;
+          TerritorySlug: string;
           updated_at?: string | null;
           updated_by?: string | null;
         };
@@ -4727,7 +4727,7 @@ export type Database = {
           id?: string;
           source?: string | null;
           source_date?: string | null;
-          territory_slug?: string;
+          TerritorySlug?: string;
           updated_at?: string | null;
           updated_by?: string | null;
         };
@@ -4747,7 +4747,7 @@ export type Database = {
           end_date: string | null;
           ghl_contact_id: string | null;
           id: string;
-          ms_slug: string;
+          TerritorySlug: string;
           role: string;
           start_date: string;
           transfer_notes: string | null;
@@ -4757,7 +4757,7 @@ export type Database = {
           end_date?: string | null;
           ghl_contact_id?: string | null;
           id?: string;
-          ms_slug: string;
+          TerritorySlug: string;
           role?: string;
           start_date?: string;
           transfer_notes?: string | null;
@@ -4767,7 +4767,7 @@ export type Database = {
           end_date?: string | null;
           ghl_contact_id?: string | null;
           id?: string;
-          ms_slug?: string;
+          TerritorySlug?: string;
           role?: string;
           start_date?: string;
           transfer_notes?: string | null;
@@ -4781,39 +4781,39 @@ export type Database = {
             referencedColumns: ["ghl_contact_id"];
           },
           {
-            foreignKeyName: "territory_owners_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_owners_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_owners_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_owners_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_owners_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_owners_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_owners_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_owners_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_owners_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_owners_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -4834,7 +4834,7 @@ export type Database = {
           leads_received_ytd: number | null;
           local_market_notes: string | null;
           market_type: string | null;
-          ms_slug: string;
+          TerritorySlug: string;
           projected_purchases: number | null;
           revenue_ytd: number | null;
           stage3_pct: number | null;
@@ -4859,7 +4859,7 @@ export type Database = {
           leads_received_ytd?: number | null;
           local_market_notes?: string | null;
           market_type?: string | null;
-          ms_slug: string;
+          TerritorySlug: string;
           projected_purchases?: number | null;
           revenue_ytd?: number | null;
           stage3_pct?: number | null;
@@ -4884,7 +4884,7 @@ export type Database = {
           leads_received_ytd?: number | null;
           local_market_notes?: string | null;
           market_type?: string | null;
-          ms_slug?: string;
+          TerritorySlug?: string;
           projected_purchases?: number | null;
           revenue_ytd?: number | null;
           stage3_pct?: number | null;
@@ -4895,39 +4895,39 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "territory_profile_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_profile_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: true;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_profile_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_profile_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: true;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_profile_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_profile_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: true;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_profile_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_profile_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: true;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_profile_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_profile_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: true;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -4941,7 +4941,7 @@ export type Database = {
           id: string;
           is_active: boolean;
           last_name: string | null;
-          ms_slug: string;
+          TerritorySlug: string;
           notes: string | null;
           phone: string | null;
           role: string;
@@ -4956,7 +4956,7 @@ export type Database = {
           id?: string;
           is_active?: boolean;
           last_name?: string | null;
-          ms_slug: string;
+          TerritorySlug: string;
           notes?: string | null;
           phone?: string | null;
           role?: string;
@@ -4971,7 +4971,7 @@ export type Database = {
           id?: string;
           is_active?: boolean;
           last_name?: string | null;
-          ms_slug?: string;
+          TerritorySlug?: string;
           notes?: string | null;
           phone?: string | null;
           role?: string;
@@ -4986,39 +4986,39 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "territory_stakeholders_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_stakeholders_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_stakeholders_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_stakeholders_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_stakeholders_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_stakeholders_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_stakeholders_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_stakeholders_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "territory_stakeholders_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "territory_stakeholders_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -5740,7 +5740,7 @@ export type Database = {
           eclipse_overall: number | null;
           full_name: string;
           id: string;
-          ms_slug: string | null;
+          TerritorySlug: string | null;
           sales_score: number | null;
           spoton_drive_id: string | null;
           stages_score: number | null;
@@ -5759,7 +5759,7 @@ export type Database = {
           eclipse_overall?: number | null;
           full_name: string;
           id?: string;
-          ms_slug?: string | null;
+          TerritorySlug?: string | null;
           sales_score?: number | null;
           spoton_drive_id?: string | null;
           stages_score?: number | null;
@@ -5778,7 +5778,7 @@ export type Database = {
           eclipse_overall?: number | null;
           full_name?: string;
           id?: string;
-          ms_slug?: string | null;
+          TerritorySlug?: string | null;
           sales_score?: number | null;
           spoton_drive_id?: string | null;
           stages_score?: number | null;
@@ -5808,7 +5808,7 @@ export type Database = {
           fit_score: number | null;
           full_name: string;
           id: string;
-          ms_slug: string | null;
+          TerritorySlug: string | null;
           risk_flag: string | null;
           sales_score: number | null;
           spoton_drive_id: string | null;
@@ -5828,7 +5828,7 @@ export type Database = {
           fit_score?: number | null;
           full_name: string;
           id?: string;
-          ms_slug?: string | null;
+          TerritorySlug?: string | null;
           risk_flag?: string | null;
           sales_score?: number | null;
           spoton_drive_id?: string | null;
@@ -5848,7 +5848,7 @@ export type Database = {
           fit_score?: number | null;
           full_name?: string;
           id?: string;
-          ms_slug?: string | null;
+          TerritorySlug?: string | null;
           risk_flag?: string | null;
           sales_score?: number | null;
           spoton_drive_id?: string | null;
@@ -5859,39 +5859,39 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "zorakle_profiles_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "zorakle_profiles_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "contact_territory_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "zorakle_profiles_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "zorakle_profiles_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "current_territory_owners";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "zorakle_profiles_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "zorakle_profiles_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territories";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "zorakle_profiles_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "zorakle_profiles_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_ownership_history";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
           {
-            foreignKeyName: "zorakle_profiles_ms_slug_fkey";
-            columns: ["ms_slug"];
+            foreignKeyName: "zorakle_profiles_TerritorySlug_fkey";
+            columns: ["TerritorySlug"];
             isOneToOne: false;
             referencedRelation: "territory_performance";
-            referencedColumns: ["ms_slug"];
+            referencedColumns: ["TerritorySlug"];
           },
         ];
       };
@@ -5903,10 +5903,10 @@ export type Database = {
           end_date: string | null;
           ghl_contact_id: string | null;
           is_current: boolean | null;
-          ms_slug: string | null;
+          TerritorySlug: string | null;
           role: string | null;
           start_date: string | null;
-          territory_name: string | null;
+          Nickname: string | null;
           transfer_notes: string | null;
         };
         Relationships: [
@@ -5925,13 +5925,13 @@ export type Database = {
           first_name: string | null;
           ghl_contact_id: string | null;
           last_name: string | null;
-          ms_slug: string | null;
+          TerritorySlug: string | null;
           owner_record_id: string | null;
           phone: string | null;
           region: string | null;
           role: string | null;
           start_date: string | null;
-          territory_name: string | null;
+          Nickname: string | null;
           territory_status: string | null;
         };
         Relationships: [
@@ -5949,11 +5949,11 @@ export type Database = {
           days_owned: number | null;
           end_date: string | null;
           ghl_contact_id: string | null;
-          ms_slug: string | null;
+          TerritorySlug: string | null;
           owner_name: string | null;
           role: string | null;
           start_date: string | null;
-          territory_name: string | null;
+          Nickname: string | null;
           transfer_notes: string | null;
         };
         Relationships: [
@@ -5975,9 +5975,9 @@ export type Database = {
           houses_purchased_ytd: number | null;
           houses_sold_ytd: number | null;
           lead_conversion_rate: number | null;
-          ms_slug: string | null;
+          TerritorySlug: string | null;
           status: string | null;
-          territory_name: string | null;
+          Nickname: string | null;
           velocity_status: string | null;
         };
         Relationships: [

@@ -7,21 +7,21 @@ import SourceBadge from "@/components/ui/SourceBadge";
 import type { EosTerritoryTodo } from "@/types/database";
 
 interface Props {
-  msSlug: string;
+  TerritorySlug: string;
   todos: EosTerritoryTodo[];
   onUpdate: () => void;
 }
 
-export default function TerritoryEosTodos({ msSlug, todos, onUpdate }: Props) {
+export default function TerritoryEosTodos({ TerritorySlug, todos, onUpdate }: Props) {
   const [local, setLocal] = useState<EosTerritoryTodo[]>(todos);
   const [newText, setNewText] = useState("");
 
   async function addTodo() {
     if (!newText.trim()) return;
-    const res = await apiFetch(`/api/territories/${msSlug}/eos/todos`, {
+    const res = await apiFetch(`/api/territories/${TerritorySlug}/eos/todos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ todo_text: newText.trim() }),
+      body: JSON.stringify({ Todo: newText.trim() }),
     });
     if (res.ok) {
       const { todo } = await res.json();
@@ -32,19 +32,17 @@ export default function TerritoryEosTodos({ msSlug, todos, onUpdate }: Props) {
   }
 
   async function toggleDone(todo: EosTerritoryTodo) {
-    await apiFetch(`/api/territories/${msSlug}/eos/todos/${todo.id}`, {
+    await apiFetch(`/api/territories/${TerritorySlug}/eos/todos/${todo.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_done: !todo.is_done }),
     });
-    setLocal((prev) =>
-      prev.map((t) => (t.id === todo.id ? { ...t, is_done: !t.is_done } : t))
-    );
+    setLocal((prev) => prev.map((t) => (t.id === todo.id ? { ...t, is_done: !t.is_done } : t)));
     onUpdate();
   }
 
   async function deleteTodo(id: string) {
-    await apiFetch(`/api/territories/${msSlug}/eos/todos/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/territories/${TerritorySlug}/eos/todos/${id}`, { method: "DELETE" });
     setLocal((prev) => prev.filter((t) => t.id !== id));
     onUpdate();
   }
@@ -54,15 +52,20 @@ export default function TerritoryEosTodos({ msSlug, todos, onUpdate }: Props) {
       <h3 className="text-body-sm font-semibold text-text-primary mb-2">To-Dos</h3>
       <ul className="space-y-1">
         {local.map((todo) => (
-          <li key={todo.id} className="group flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-bg-secondary transition-colors">
+          <li
+            key={todo.id}
+            className="group flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-bg-secondary transition-colors"
+          >
             <input
               type="checkbox"
               checked={todo.is_done}
               onChange={() => toggleDone(todo)}
               className="mt-0.5 h-4 w-4 rounded border-border-primary text-nah-blue focus:ring-nah-blue/30"
             />
-            <span className={`flex-1 text-body-sm ${todo.is_done ? "line-through text-text-tertiary opacity-60" : "text-text-primary"}`}>
-              {todo.todo_text}
+            <span
+              className={`flex-1 text-body-sm ${todo.is_done ? "line-through text-text-tertiary opacity-60" : "text-text-primary"}`}
+            >
+              {todo.Todo}
             </span>
             <SourceBadge source={todo.source} />
             <button

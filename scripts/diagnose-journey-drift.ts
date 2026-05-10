@@ -15,8 +15,14 @@ async function fetchAll<T>(table: string, select: string): Promise<T[]> {
   const rows: T[] = [];
   let offset = 0;
   while (true) {
-    const { data, error } = await supabase.from(table).select(select).range(offset, offset + 999);
-    if (error) { console.error(error); process.exit(1); }
+    const { data, error } = await supabase
+      .from(table)
+      .select(select)
+      .range(offset, offset + 999);
+    if (error) {
+      console.error(error);
+      process.exit(1);
+    }
     if (!data || data.length === 0) break;
     rows.push(...(data as unknown as T[]));
     if (data.length < 1000) break;
@@ -25,18 +31,46 @@ async function fetchAll<T>(table: string, select: string): Promise<T[]> {
   return rows;
 }
 
-interface CpsRow { id: string; contact_id: string; pipeline_id: string; current_stage_id: string; is_active: boolean }
-interface JpsRow { id: string; journey_id: string; pipeline_id: string; current_stage_id: string; territory_ms_slug: string | null; is_active: boolean }
-interface JourneyRow { id: string; primary_contact_id: string }
-interface StageRow { id: string; name: string; pipeline_id: string }
-interface PipelineRow { id: string; slug: string }
+interface CpsRow {
+  id: string;
+  contact_id: string;
+  pipeline_id: string;
+  current_stage_id: string;
+  is_active: boolean;
+}
+interface JpsRow {
+  id: string;
+  journey_id: string;
+  pipeline_id: string;
+  current_stage_id: string;
+  TerritorySlug: string | null;
+  is_active: boolean;
+}
+interface JourneyRow {
+  id: string;
+  primary_contact_id: string;
+}
+interface StageRow {
+  id: string;
+  name: string;
+  pipeline_id: string;
+}
+interface PipelineRow {
+  id: string;
+  slug: string;
+}
 
-function hdr(title: string) { console.log(`\n━━ ${title} ━━`); }
+function hdr(title: string) {
+  console.log(`\n━━ ${title} ━━`);
+}
 
 async function main() {
   const [cps, jps, journeys, stages, pipelines] = await Promise.all([
     fetchAll<CpsRow>("contact_pipeline_state", "id, contact_id, pipeline_id, current_stage_id, is_active"),
-    fetchAll<JpsRow>("journey_pipeline_state", "id, journey_id, pipeline_id, current_stage_id, territory_ms_slug, is_active"),
+    fetchAll<JpsRow>(
+      "journey_pipeline_state",
+      "id, journey_id, pipeline_id, current_stage_id, TerritorySlug, is_active"
+    ),
     fetchAll<JourneyRow>("journeys", "id, primary_contact_id"),
     fetchAll<StageRow>("pipeline_stages", "id, name, pipeline_id"),
     fetchAll<PipelineRow>("pipelines", "id, slug"),
@@ -73,31 +107,37 @@ async function main() {
     const b = cpsByStage.get(k) ?? 0;
     const a = jpsByStage.get(k) ?? 0;
     const delta = a - b;
-    console.log(`  ${k.padEnd(50)} cps=${String(b).padStart(4)}  jps=${String(a).padStart(4)}  ${delta === 0 ? "·" : (delta > 0 ? `+${delta}` : String(delta))}`);
+    console.log(
+      `  ${k.padEnd(50)} cps=${String(b).padStart(4)}  jps=${String(a).padStart(4)}  ${delta === 0 ? "·" : delta > 0 ? `+${delta}` : String(delta)}`
+    );
   }
 
   hdr("3 · Per-contact comparison (find the mismatches)");
   const cpsActiveByContact = new Map<string, CpsRow[]>();
   for (const r of cps.filter((r) => r.is_active)) {
     const list = cpsActiveByContact.get(r.contact_id) ?? [];
-    list.push(r); cpsActiveByContact.set(r.contact_id, list);
+    list.push(r);
+    cpsActiveByContact.set(r.contact_id, list);
   }
   const jpsActiveByJourney = new Map<string, JpsRow[]>();
   for (const r of jps.filter((r) => r.is_active)) {
     const list = jpsActiveByJourney.get(r.journey_id) ?? [];
-    list.push(r); jpsActiveByJourney.set(r.journey_id, list);
+    list.push(r);
+    jpsActiveByJourney.set(r.journey_id, list);
   }
 
-  let lostContacts = 0;   // contact has active cps but no matching active jps
-  let extraContacts = 0;  // journey has active jps but contact has no matching active cps
+  let lostContacts = 0; // contact has active cps but no matching active jps
+  let extraContacts = 0; // journey has active jps but contact has no matching active cps
   let sampleLost: string[] = [];
   let sampleExtra: string[] = [];
 
   for (const [contactId, cpsRows] of cpsActiveByContact) {
     const journeyId = journeyByContact.get(contactId);
-    const jpsRows = journeyId ? jpsActiveByJourney.get(journeyId) ?? [] : [];
+    const jpsRows = journeyId ? (jpsActiveByJourney.get(journeyId) ?? []) : [];
     for (const cpsR of cpsRows) {
-      const match = jpsRows.find((j) => j.pipeline_id === cpsR.pipeline_id && j.current_stage_id === cpsR.current_stage_id);
+      const match = jpsRows.find(
+        (j) => j.pipeline_id === cpsR.pipeline_id && j.current_stage_id === cpsR.current_stage_id
+      );
       if (!match) {
         lostContacts++;
         if (sampleLost.length < 10) {
@@ -112,15 +152,19 @@ async function main() {
   for (const [journeyId, jpsRows] of jpsActiveByJourney) {
     const journey = journeys.find((j) => j.id === journeyId);
     const contactId = journey?.primary_contact_id;
-    const cpsRows = contactId ? cpsActiveByContact.get(contactId) ?? [] : [];
+    const cpsRows = contactId ? (cpsActiveByContact.get(contactId) ?? []) : [];
     for (const jpsR of jpsRows) {
-      const match = cpsRows.find((c) => c.pipeline_id === jpsR.pipeline_id && c.current_stage_id === jpsR.current_stage_id);
+      const match = cpsRows.find(
+        (c) => c.pipeline_id === jpsR.pipeline_id && c.current_stage_id === jpsR.current_stage_id
+      );
       if (!match) {
         extraContacts++;
         if (sampleExtra.length < 10) {
           const s = stageById.get(jpsR.current_stage_id);
           const p = s ? pipeById.get(s.pipeline_id) : null;
-          sampleExtra.push(`journey ${journeyId} (contact ${contactId}) — jps row in ${p?.slug}/${s?.name} has no matching active cps row`);
+          sampleExtra.push(
+            `journey ${journeyId} (contact ${contactId}) — jps row in ${p?.slug}/${s?.name} has no matching active cps row`
+          );
         }
       }
     }
@@ -148,4 +192,7 @@ async function main() {
   }
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
