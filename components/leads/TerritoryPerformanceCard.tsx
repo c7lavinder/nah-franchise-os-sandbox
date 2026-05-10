@@ -6,10 +6,10 @@ import { BarChart3, Loader2 } from "lucide-react";
 interface KPIs {
   purchasedYTD: number;
   soldYTD: number;
-  activeDeals: number;
+  activeInventory: number;
   conversionRate: number | null;
   avgProfit: number;
-  leadsT3: number;
+  leadsInPeriod: number;
 }
 
 interface Props {
@@ -58,8 +58,8 @@ export default function TerritoryPerformanceCard({ TerritorySlug, Nickname }: Pr
           <div className="text-body-sm font-bold text-text-primary">{kpis.soldYTD}</div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">Active Deals</div>
-          <div className="text-body-sm font-bold text-text-primary">{kpis.activeDeals}</div>
+          <div className="text-[10px] text-text-tertiary">Active Inventory</div>
+          <div className="text-body-sm font-bold text-text-primary">{kpis.activeInventory}</div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
           <div className="text-[10px] text-text-tertiary">Conversion</div>
@@ -68,8 +68,8 @@ export default function TerritoryPerformanceCard({ TerritorySlug, Nickname }: Pr
           </div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">T3 Leads</div>
-          <div className="text-body-sm font-bold text-text-primary">{kpis.leadsT3}</div>
+          <div className="text-[10px] text-text-tertiary">Leads (3mo)</div>
+          <div className="text-body-sm font-bold text-text-primary">{kpis.leadsInPeriod}</div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
           <div className="text-[10px] text-text-tertiary">Avg Profit</div>

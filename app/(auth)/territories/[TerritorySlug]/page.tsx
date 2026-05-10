@@ -1,9 +1,9 @@
 "use client";
 import { apiFetch } from "@/lib/auth/api-fetch";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Activity, Award, AlertTriangle, Loader2 } from "lucide-react";
+import { ArrowLeft, Activity, AlertTriangle, Loader2 } from "lucide-react";
 import EcosystemPanel from "@/components/territory/EcosystemPanel";
 import TerritoryEosTab from "@/components/territories/tabs/EosTab";
 import MarketTab from "@/components/territories/tabs/MarketTab";
@@ -41,11 +41,11 @@ interface TerritoryData {
 interface PerformanceKPIs {
   purchasedYTD: number;
   soldYTD: number;
-  activeDeals: number;
+  activeInventory: number;
   conversionRate: number | null;
   avgProfit: number;
   totalProfit: number;
-  leadsT3: number;
+  leadsInPeriod: number;
   medianCycleDays: number | null;
 }
 
@@ -105,20 +105,13 @@ export default function TerritoryProfilePage() {
     );
   if (!data) return <div className="p-6 text-text-secondary">Territory not found.</div>;
 
-  const { territory, currentOwner, currentOwners, grades } = data;
+  const { territory, currentOwner, currentOwners } = data;
   const ownerNames = (currentOwners && currentOwners.length > 0 ? currentOwners : currentOwner ? [currentOwner] : [])
     .map((o) => o.ownerName)
     .filter(Boolean) as string[];
   const carriedOwnerName = ownerNames.length > 1 ? ownerNames.join(" + ") : (ownerNames[0] ?? null);
   const purchasedYTD = kpis?.purchasedYTD ?? 0;
   const isUnderTarget = purchasedYTD < 10 && territory.status === "active";
-
-  // Group grades by year
-  const gradesByYear: Record<number, typeof grades> = {};
-  for (const g of grades) {
-    if (!gradesByYear[g.year]) gradesByYear[g.year] = [];
-    gradesByYear[g.year].push(g);
-  }
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
@@ -158,61 +151,18 @@ export default function TerritoryProfilePage() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard label="Sold YTD" value={kpis?.soldYTD ?? "—"} />
-          <StatCard label="Active Deals" value={kpis?.activeDeals ?? "—"} />
+          <StatCard label="Active Inventory" value={kpis?.activeInventory ?? "—"} sub="purchased, not sold" />
           <StatCard
             label="Conversion"
             value={kpis?.conversionRate != null ? `${kpis.conversionRate}%` : "—"}
             sub="S1+ → S4+"
           />
-          <StatCard label="Avg Profit/Flip" value={kpis?.avgProfit ? `$${kpis.avgProfit.toLocaleString()}` : "—"} />
+          <StatCard
+            label="Avg Profit/Flip"
+            value={kpis?.avgProfit ? `$${kpis.avgProfit.toLocaleString()}` : "—"}
+            sub="YTD"
+          />
         </div>
-      </div>
-
-      {/* Persistent: Quarterly Grades — full width, Self/John columns */}
-      <div className="bg-bg-primary border border-border-default rounded-lg p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Award size={18} className="text-warning" />
-          <h2 className="text-body-sm font-semibold">Quarterly Grades</h2>
-        </div>
-        {grades.length === 0 ? (
-          <div className="text-caption text-text-tertiary py-4 text-center">No grades recorded yet.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-body-sm">
-              <thead>
-                <tr className="text-left text-caption text-text-tertiary border-b border-border-default">
-                  <th className="py-2 pr-4">Year</th>
-                  <th className="py-2 px-2">Q1 Self</th>
-                  <th className="py-2 px-2">Q1 John</th>
-                  <th className="py-2 px-2">Q2 Self</th>
-                  <th className="py-2 px-2">Q2 John</th>
-                  <th className="py-2 px-2">Q3 Self</th>
-                  <th className="py-2 px-2">Q3 John</th>
-                  <th className="py-2 px-2">Q4 Self</th>
-                  <th className="py-2 px-2">Q4 John</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(gradesByYear)
-                  .sort(([a], [b]) => Number(b) - Number(a))
-                  .map(([year, yearGrades]) => (
-                    <tr key={year} className="border-b border-border-default">
-                      <td className="py-2 pr-4 font-medium">{year}</td>
-                      {[1, 2, 3, 4].map((q) => {
-                        const g = yearGrades.find((x) => x.quarter === q);
-                        return (
-                          <React.Fragment key={q}>
-                            <td className="py-2 px-2 text-center">{g?.self_grade ?? "—"}</td>
-                            <td className="py-2 px-2 text-center">{g?.john_grade ?? "—"}</td>
-                          </React.Fragment>
-                        );
-                      })}
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
 
       {/* Tabs */}

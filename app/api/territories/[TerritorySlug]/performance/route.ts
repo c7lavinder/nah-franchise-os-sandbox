@@ -5,145 +5,185 @@ import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 
 /**
- * GET /api/territories/:TerritorySlug/performance
+ * GET /api/territories/:TerritorySlug/performance?period=t1|t3|t12
  *
- * Coaching dashboard: property funnel, financial KPIs, and construction EOS summary.
- * Minimal data for coaches to quickly see where a franchisee stands.
+ * Coaching dashboard with time-filtered KPIs:
+ * - T1: last 1 month
+ * - T3: last 3 months (default)
+ * - T12: last 12 months
+ *
+ * KPIs:
+ * - Purchased: properties with Inv_PurchaseDate in period
+ * - Sold: properties with Inv_SellDate in period
+ * - Active Inventory: purchased but not sold (all time)
+ * - Avg Profit: average Calculated_Inv_Profit for properties sold in period
+ * - Leads Entered: properties inserted in period (non-dead)
+ * - Conversion: properties reaching stage 4+ / total stage 1+ in period
+ *
+ * Funnel: counts from ms_property_status_history — how many entered each stage in period
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ TerritorySlug: string }> }) {
   const user = await requireAuth(request);
   if (user instanceof Response) return user;
 
   const { TerritorySlug } = await params;
+  const period = request.nextUrl.searchParams.get("period") ?? "t3";
   const supabase = createServerClient();
 
-  // 1. Property funnel counts by status
+  // Calculate date range
+  const now = new Date();
+  let periodStart: Date;
+  if (period === "t1") {
+    periodStart = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+  } else if (period === "t12") {
+    periodStart = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+  } else {
+    periodStart = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+  }
+  const periodStartISO = periodStart.toISOString();
+  const ytdStart = new Date(now.getFullYear(), 0, 1).toISOString();
+
+  // 1. Get all properties for this territory
   const { data: properties } = await supabase
     .from("ms_properties")
-    .select("PropertyId, Status")
+    .select("PropertyId, Status, Inserted")
     .eq("TerritorySlug", TerritorySlug);
 
-  const funnel: Record<string, number> = {};
-  const activeStatuses = ["1", "2", "3", "4", "5 Contract", "6 Purchase"];
-  const deadStatuses = ["0 No Deal", "0 No Offer", "0 Sell Later", "0 Trash", "0 Unresponsive"];
-  let activeCount = 0;
-  let deadCount = 0;
+  const propertyIds = (properties ?? []).map((p) => p.PropertyId);
 
-  for (const p of properties ?? []) {
-    funnel[p.Status] = (funnel[p.Status] || 0) + 1;
-    if (activeStatuses.includes(p.Status)) activeCount++;
-    if (deadStatuses.includes(p.Status)) deadCount++;
+  if (propertyIds.length === 0) {
+    return NextResponse.json({
+      kpis: {
+        purchasedYTD: 0,
+        soldYTD: 0,
+        activeInventory: 0,
+        avgProfit: 0,
+        totalProfit: 0,
+        leadsInPeriod: 0,
+        conversionRate: null,
+        medianCycleDays: null,
+      },
+      funnel: {},
+      period,
+    });
   }
 
-  // 2. Financial KPIs from calculations (for purchased properties)
-  const purchasedIds = (properties ?? []).filter((p) => p.Status === "6 Purchase").map((p) => p.PropertyId);
+  // 2. Fetch inventory data for all properties in this territory
+  const { data: inventory } = await supabase
+    .from("ms_property_inventory")
+    .select("PropertyId, Inv_PurchaseDate, Inv_SellDate")
+    .in("PropertyId", propertyIds);
 
-  let avgProfit = 0;
-  let totalProfit = 0;
-  let profitCount = 0;
-  let avgInventoryValue = 0;
-
-  if (purchasedIds.length > 0) {
-    const { data: calcs } = await supabase
-      .from("ms_property_calculations")
-      .select("PropertyId, Calculated_Inv_Profit, Calculated_Arv")
-      .in("PropertyId", purchasedIds);
-
-    for (const c of calcs ?? []) {
-      if (c.Calculated_Inv_Profit != null) {
-        totalProfit += Number(c.Calculated_Inv_Profit);
-        profitCount++;
-      }
-      if (c.Calculated_Arv != null) {
-        avgInventoryValue += Number(c.Calculated_Arv);
-      }
-    }
-    avgProfit = profitCount > 0 ? totalProfit / profitCount : 0;
-  }
-
-  // 3. Inventory timeline — purchased properties with dates
-  const { data: inventory } =
-    purchasedIds.length > 0
-      ? await supabase
-          .from("ms_property_inventory")
-          .select("PropertyId, Inv_PurchaseDate, Inv_SellDate, Inv_ConstructionStartDate, Inv_CompletionDate")
-          .in("PropertyId", purchasedIds.slice(0, 200))
-      : { data: [] };
-
-  let soldCount = 0;
-  let activeDealCount = 0;
-  const cycleDays: number[] = [];
-  const now = new Date();
-  const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-  const ytdStart = new Date(now.getFullYear(), 0, 1);
+  // 3. Compute KPIs from inventory dates
   let purchasedYTD = 0;
   let soldYTD = 0;
+  let activeInventory = 0;
+  const soldYTDPropertyIds: number[] = [];
 
   for (const inv of inventory ?? []) {
     const purchaseDate = inv.Inv_PurchaseDate ? new Date(inv.Inv_PurchaseDate) : null;
     const sellDate = inv.Inv_SellDate ? new Date(inv.Inv_SellDate) : null;
 
-    if (sellDate) {
-      soldCount++;
-      if (sellDate >= ytdStart) soldYTD++;
-      if (purchaseDate) {
-        const days = Math.round((sellDate.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (days > 0) cycleDays.push(days);
-      }
-    } else {
-      activeDealCount++;
+    // Purchased YTD: has purchase date in this calendar year
+    if (purchaseDate && purchaseDate >= new Date(ytdStart)) {
+      purchasedYTD++;
     }
 
-    if (purchaseDate && purchaseDate >= ytdStart) purchasedYTD++;
+    // Sold YTD: has sell date in this calendar year
+    if (sellDate && sellDate >= new Date(ytdStart)) {
+      soldYTD++;
+      soldYTDPropertyIds.push(inv.PropertyId);
+    }
+
+    // Active Inventory: purchased but not sold
+    if (purchaseDate && !sellDate) {
+      activeInventory++;
+    }
   }
 
-  // Median cycle days
+  // 4. Avg Profit — only for properties sold YTD
+  let avgProfit = 0;
+  let totalProfit = 0;
+  if (soldYTDPropertyIds.length > 0) {
+    const { data: calcs } = await supabase
+      .from("ms_property_calculations")
+      .select("Calculated_Inv_Profit")
+      .in("PropertyId", soldYTDPropertyIds.slice(0, 500))
+      .not("Calculated_Inv_Profit", "is", null);
+
+    for (const c of calcs ?? []) {
+      totalProfit += Number(c.Calculated_Inv_Profit ?? 0);
+    }
+    avgProfit = soldYTDPropertyIds.length > 0 ? Math.round(totalProfit / soldYTDPropertyIds.length) : 0;
+    totalProfit = Math.round(totalProfit);
+  }
+
+  // 5. Cycle days for sold properties (purchase → sell)
+  const cycleDays: number[] = [];
+  for (const inv of inventory ?? []) {
+    if (inv.Inv_PurchaseDate && inv.Inv_SellDate) {
+      const days = Math.round(
+        (new Date(inv.Inv_SellDate).getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (days > 0) cycleDays.push(days);
+    }
+  }
   cycleDays.sort((a, b) => a - b);
   const medianCycleDays = cycleDays.length > 0 ? cycleDays[Math.floor(cycleDays.length / 2)] : null;
 
-  // 4. Lead velocity — count of Stage 1+ properties by insertion date
-  const { data: recentLeads } = await supabase
-    .from("ms_properties")
-    .select("Inserted")
-    .eq("TerritorySlug", TerritorySlug)
-    .gte("Inserted", threeMonthsAgo.toISOString())
-    .not("Status", "like", "0%");
+  // 6. Leads entered in period (non-dead properties inserted in time window)
+  const leadsInPeriod = (properties ?? []).filter((p) => {
+    if (!p.Inserted) return false;
+    return new Date(p.Inserted) >= periodStart && !p.Status.startsWith("0");
+  }).length;
 
-  const leadsT3 = recentLeads?.length ?? 0;
+  // 7. Conversion rate for the period
+  // Properties that entered stage 4+ in period / properties that entered stage 1+ in period
+  const { data: statusHistory } = await supabase
+    .from("ms_property_status_history")
+    .select("PropertyId, NewStatus, Inserted")
+    .in("PropertyId", propertyIds)
+    .gte("Inserted", periodStartISO);
 
-  // 5. Conversion rate: properties that reached stage 4+ / total stage 1+
-  const stage1Plus = activeStatuses.reduce((sum, s) => sum + (funnel[s] || 0), 0);
-  const stage4Plus = (funnel["4"] || 0) + (funnel["5 Contract"] || 0) + (funnel["6 Purchase"] || 0);
-  const conversionRate = stage1Plus > 0 ? ((stage4Plus / stage1Plus) * 100).toFixed(1) : null;
+  // Unique properties that hit each milestone in period
+  const hitStage1Plus = new Set<number>();
+  const hitStage4Plus = new Set<number>();
+  for (const h of statusHistory ?? []) {
+    const s = h.NewStatus;
+    if (s && !s.startsWith("0")) {
+      hitStage1Plus.add(h.PropertyId);
+    }
+    if (s === "4" || s === "5 Contract" || s === "6 Purchase") {
+      hitStage4Plus.add(h.PropertyId);
+    }
+  }
+  const conversionRate =
+    hitStage1Plus.size > 0 ? Number(((hitStage4Plus.size / hitStage1Plus.size) * 100).toFixed(1)) : null;
 
-  // 6. Construction EOS summary
-  const [{ data: cRocks }, { data: cTodos }, { data: cIssues }, { data: cHabits }] = await Promise.all([
-    supabase.from("ms_eos_construction_rocks").select("Id, Rock, Status").eq("TerritorySlug", TerritorySlug),
-    supabase.from("ms_eos_construction_todos").select("Id, Todo, Done").eq("TerritorySlug", TerritorySlug),
-    supabase.from("ms_eos_construction_issues").select("Id, Issue, Done").eq("TerritorySlug", TerritorySlug),
-    supabase.from("ms_eos_construction_habits").select("*").eq("TerritorySlug", TerritorySlug).single(),
-  ]);
+  // 8. Funnel — count properties that entered each stage in the period
+  const funnel: Record<string, number> = {};
+  const stageOrder = ["0 Lead List", "1", "2", "3", "4", "5 Contract", "6 Purchase"];
+  for (const stage of stageOrder) {
+    funnel[stage] = 0;
+  }
+  for (const h of statusHistory ?? []) {
+    if (h.NewStatus && stageOrder.includes(h.NewStatus)) {
+      funnel[h.NewStatus] = (funnel[h.NewStatus] || 0) + 1;
+    }
+  }
 
   return NextResponse.json({
-    funnel,
     kpis: {
-      totalProperties: properties?.length ?? 0,
-      activeDeals: activeDealCount,
       purchasedYTD,
       soldYTD,
-      soldAllTime: soldCount,
-      totalProfit: Math.round(totalProfit),
-      avgProfit: Math.round(avgProfit),
-      avgInventoryValue: Math.round(avgInventoryValue),
+      activeInventory,
+      avgProfit,
+      totalProfit,
+      leadsInPeriod,
+      conversionRate,
       medianCycleDays,
-      leadsT3,
-      conversionRate: conversionRate ? Number(conversionRate) : null,
     },
-    constructionEos: {
-      rocks: cRocks ?? [],
-      todos: cTodos ?? [],
-      issues: cIssues ?? [],
-      habits: cHabits ?? null,
-    },
+    funnel,
+    period,
   });
 }
