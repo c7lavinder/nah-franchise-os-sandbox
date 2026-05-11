@@ -2,6 +2,9 @@
 -- These were never populated — operational KPIs are calculated at runtime
 -- from raw property data (ms_properties, ms_property_inventory).
 
+-- Must drop the view first since it depends on these columns.
+DROP VIEW IF EXISTS territory_performance;
+
 ALTER TABLE territory_profile
   DROP COLUMN IF EXISTS houses_purchased_ytd,
   DROP COLUMN IF EXISTS houses_sold_ytd,
