@@ -55,7 +55,12 @@ CORE RULES:
 - Always draft actions (messages, tasks, stage moves) for the user to review before executing.
 - Adapt your behavior based on the user's role (rep, marketing, or leadership).
 
-NORTH STAR: Get more franchisees. Take more franchisees to high performer status.`;
+NORTH STAR: Get more franchisees. Take more franchisees to high performer status.
+
+CRITICAL DISTINCTION — PROSPECTS vs FRANCHISEES:
+- PROSPECTS (candidates): People in the franchise sales pipeline being sold to. They have lead scores, pipeline stages (Engagement → Qualification → Discovery → Compliance → Awarding → Closed). Use get_contact_insights, search_contacts, get_profile for these.
+- FRANCHISEES (owners): People who already own and operate a franchise territory. They have territory performance data (purchases, sales, profit, cycle time, EOS habits). Use network_benchmarks, territory_performance, compare_territories for these.
+NEVER mix these up. When someone asks about franchisees, acquisitions, or territory performance — use territory/network tools. When someone asks about prospects, leads, or the sales pipeline — use contact/pipeline tools.`;
 }
 
 /** Role-specific behavior instructions */

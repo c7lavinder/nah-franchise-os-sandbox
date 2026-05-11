@@ -211,9 +211,11 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   {
     name: "get_contact_insights",
     description:
-      "Get analytical insights across contacts — who has momentum, who's at risk, who's most engaged. " +
-      "Use for broad questions like 'who should I focus on?', 'who are you excited about?', 'who's stalling?', " +
-      "'top performers', 'at-risk franchisees'. Returns contacts ranked by the requested metric with call data and pipeline context.",
+      "Get analytical insights across franchise PROSPECTS (candidates in the sales pipeline) — who has momentum, who's at risk, who's most engaged. " +
+      "Use for questions about PROSPECTS like 'who should I focus on?', 'who are you excited about?', 'who's stalling?'. " +
+      "Returns prospect lead scores and pipeline context. " +
+      "IMPORTANT: This tool is for PROSPECTS only — NOT active franchisees. If the user asks about franchisee performance, " +
+      "territory acquisitions, or pushing existing franchise owners, use network_benchmarks and territory_performance instead.",
     input_schema: {
       type: "object",
       properties: {
