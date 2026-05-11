@@ -64,6 +64,9 @@ function makeDb(fx: Fixture): ResolverDb {
     async getActiveTerritoryForContact(ghl) {
       return fx.territories.get(ghl) ?? null;
     },
+    async getTerritoryByEmail() {
+      return null;
+    },
     async getActiveJourneyForContact(contactId, territoryMsSlug): Promise<JourneyPick | null> {
       const journeys = fx.journeys ?? [];
       const members = fx.journeyMembers ?? new Map();

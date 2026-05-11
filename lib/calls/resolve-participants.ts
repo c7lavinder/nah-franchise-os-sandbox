@@ -90,6 +90,9 @@ export interface ResolverDb {
   findContactsByLast10Phone(last10: string): Promise<ContactMatch[]>;
   findContactsByNameTokens(firstToken: string, lastToken: string): Promise<ContactMatch[]>;
   getActiveTerritoryForContact(ghlContactId: string): Promise<string | null>;
+  /** Fallback territory lookup by email — checks franchise_owners.ct_email
+   *  when the GHL-based lookup fails or ghl_contact_id is null. */
+  getTerritoryByEmail(email: string): Promise<string | null>;
   /**
    * Pick the journey_pipeline_state row that represents this contact's
    * current stage on this call. See resolver JSDoc for priority rules.
@@ -281,9 +284,13 @@ export async function resolveCallParticipants(input: ResolveInput, db: ResolverD
     }
 
     if (participantWinner) {
-      const ownedTerritory = participantWinner.ghl_contact_id
+      let ownedTerritory = participantWinner.ghl_contact_id
         ? await db.getActiveTerritoryForContact(participantWinner.ghl_contact_id)
         : null;
+      // Fallback: look up territory by email if GHL lookup failed
+      if (!ownedTerritory && participantWinner.email) {
+        ownedTerritory = await db.getTerritoryByEmail(participantWinner.email);
+      }
       let journey = await db.getActiveJourneyForContact(participantWinner.id, ownedTerritory);
       // Stakeholder fallback — contact isn't on the journey directly but IS
       // attached to a territory's ecosystem (employee/contractor/agent).
@@ -421,6 +428,16 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
         .select("TerritorySlug")
         .eq("ghl_contact_id", ghlContactId)
         .is("end_date", null)
+        .maybeSingle();
+      return data?.TerritorySlug ?? null;
+    },
+    async getTerritoryByEmail(email) {
+      // Check franchise_owners by email — direct lookup, no GHL ID needed
+      const { data } = await supabase
+        .from("franchise_owners")
+        .select("TerritorySlug")
+        .ilike("ct_email", email)
+        .eq("status", "active")
         .maybeSingle();
       return data?.TerritorySlug ?? null;
     },
