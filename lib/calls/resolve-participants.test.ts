@@ -61,6 +61,9 @@ function makeDb(fx: Fixture): ResolverDb {
           (c.last_name ?? "").toLowerCase().includes(last.toLowerCase())
       );
     },
+    async getActiveTerritoryByContactId() {
+      return null;
+    },
     async getActiveTerritoryForContact(ghl) {
       return fx.territories.get(ghl) ?? null;
     },

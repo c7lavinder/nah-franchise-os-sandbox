@@ -89,9 +89,11 @@ export interface ResolverDb {
   findContactsByEmail(email: string): Promise<ContactMatch[]>;
   findContactsByLast10Phone(last10: string): Promise<ContactMatch[]>;
   findContactsByNameTokens(firstToken: string, lastToken: string): Promise<ContactMatch[]>;
+  /** Primary territory lookup — checks territory_owners by Supabase contact UUID. */
+  getActiveTerritoryByContactId(contactId: string): Promise<string | null>;
+  /** Legacy fallback — checks territory_owners by GHL contact ID. */
   getActiveTerritoryForContact(ghlContactId: string): Promise<string | null>;
-  /** Fallback territory lookup by email — checks franchise_owners.ct_email
-   *  when the GHL-based lookup fails or ghl_contact_id is null. */
+  /** Fallback territory lookup by email — checks franchise_owners.ct_email. */
   getTerritoryByEmail(email: string): Promise<string | null>;
   /**
    * Pick the journey_pipeline_state row that represents this contact's
@@ -284,10 +286,11 @@ export async function resolveCallParticipants(input: ResolveInput, db: ResolverD
     }
 
     if (participantWinner) {
-      let ownedTerritory = participantWinner.ghl_contact_id
-        ? await db.getActiveTerritoryForContact(participantWinner.ghl_contact_id)
-        : null;
-      // Fallback: look up territory by email if GHL lookup failed
+      // Territory lookup: contact UUID first, then GHL ID fallback, then email fallback
+      let ownedTerritory = await db.getActiveTerritoryByContactId(participantWinner.id);
+      if (!ownedTerritory && participantWinner.ghl_contact_id) {
+        ownedTerritory = await db.getActiveTerritoryForContact(participantWinner.ghl_contact_id);
+      }
       if (!ownedTerritory && participantWinner.email) {
         ownedTerritory = await db.getTerritoryByEmail(participantWinner.email);
       }
@@ -422,7 +425,18 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
         .ilike("last_name", `%${lastToken}%`);
       return (data ?? []) as ContactMatch[];
     },
+    async getActiveTerritoryByContactId(contactId) {
+      // Primary lookup — Supabase contact UUID, no GHL needed
+      const { data } = await supabase
+        .from("territory_owners")
+        .select("TerritorySlug")
+        .eq("contact_id", contactId)
+        .is("end_date", null)
+        .maybeSingle();
+      return data?.TerritorySlug ?? null;
+    },
     async getActiveTerritoryForContact(ghlContactId) {
+      // Legacy fallback — GHL contact ID
       const { data } = await supabase
         .from("territory_owners")
         .select("TerritorySlug")
@@ -432,7 +446,7 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
       return data?.TerritorySlug ?? null;
     },
     async getTerritoryByEmail(email) {
-      // Check franchise_owners by email — direct lookup, no GHL ID needed
+      // Last resort — check franchise_owners by email
       const { data } = await supabase
         .from("franchise_owners")
         .select("TerritorySlug")
