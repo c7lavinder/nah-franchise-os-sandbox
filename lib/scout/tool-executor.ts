@@ -58,6 +58,8 @@ export async function executeTool(
       return executeGetSchedule(input);
     case "get_contact_insights":
       return executeGetContactInsights(input);
+    case "get_contact_calls":
+      return executeGetContactCalls(input);
     case "get_tasks":
       return executeGetTasks(input);
     case "complete_task":
@@ -281,7 +283,7 @@ async function executeSearchContacts(input: Record<string, unknown>): Promise<To
       leadScore: c.scout_lead_score,
     }));
 
-    return { data: JSON.stringify(results) };
+    return { data: JSON.stringify({ world: "frandev", contacts: results }) };
   } catch (err) {
     return { data: `Error searching contacts: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
@@ -355,7 +357,11 @@ async function executeGetPipeline(input: Record<string, unknown>): Promise<ToolE
       });
     }
 
-    return { data: JSON.stringify(results.length === 1 ? results[0] : results) };
+    const payload = results.length === 1 ? results[0] : results;
+    const wrapped = Array.isArray(payload)
+      ? { world: "frandev" as const, pipelines: payload }
+      : { world: "frandev" as const, ...payload };
+    return { data: JSON.stringify(wrapped) };
   } catch (err) {
     return { data: `Error fetching pipeline: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
@@ -475,7 +481,7 @@ async function executeGetContactInsights(input: Record<string, unknown>): Promis
         score: c.coaching_score,
         summary: c.ai_summary ?? c.summary ?? null,
       }));
-      return { data: JSON.stringify(results) };
+      return { data: JSON.stringify({ world: "frandev", recentCalls: results }) };
     }
 
     // For all other lenses: aggregate call data per contact
@@ -625,6 +631,7 @@ async function executeGetContactInsights(input: Record<string, unknown>): Promis
 
     return {
       data: JSON.stringify({
+        world: "frandev",
         topPick: top
           ? {
               name: top.name,
@@ -896,6 +903,7 @@ async function executeGetNextAction(input: Record<string, unknown>): Promise<Too
 
     // Build analysis
     const lines = [
+      `[world: frandev]`,
       `NEXT ACTION ANALYSIS — ${contactName}`,
       ``,
       `CURRENT STATE:`,
@@ -2069,6 +2077,7 @@ async function executeTerritoryPerformance(input: Record<string, unknown>): Prom
 
     return {
       data: JSON.stringify({
+        world: "acquisitions",
         territory: slug,
         territoryName: (territoryInfo as any)?.Nickname ?? slug,
         owners: ownerNames,
@@ -2293,6 +2302,7 @@ async function executeNetworkBenchmarks(input: Record<string, unknown>): Promise
 
     return {
       data: JSON.stringify({
+        world: "acquisitions",
         period,
         activeTerritoriesCount: territories.length,
         network: {
@@ -2501,7 +2511,7 @@ async function executeCompareTerritories(input: Record<string, unknown>): Promis
       };
     });
 
-    return { data: JSON.stringify({ period, comparison }) };
+    return { data: JSON.stringify({ world: "acquisitions", period, comparison }) };
   } catch (err) {
     return { data: `Error: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
@@ -2541,6 +2551,102 @@ async function executeDraftComplianceUpdate(input: Record<string, unknown>): Pro
       data: `I've drafted a compliance update for ${contactName}: ${fieldSummary}. Reason: ${reason}. Please review and confirm.`,
       draftedAction,
     };
+  } catch (err) {
+    return { data: `Error: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// GET CONTACT CALLS — call history for a contact
+// ════════════════════════════════════════════════════════════════
+
+async function executeGetContactCalls(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  try {
+    const contactId = input.contact_id as string;
+    if (!contactId) return { data: "Error: contact_id is required" };
+
+    const supabase = createServerClient();
+
+    // Resolve Supabase UUID from GHL contact ID or direct UUID
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("id")
+      .or(`ghl_contact_id.eq.${contactId},id.eq.${contactId}`)
+      .limit(1)
+      .single();
+
+    if (!contact) {
+      return { data: `No contact found for ID ${contactId}` };
+    }
+
+    const supabaseId = contact.id;
+
+    // Query calls via call_participants join
+    const { data: participantRows, error: participantError } = await supabase
+      .from("call_participants")
+      .select(
+        "call_id, calls!inner(id, title, started_at, duration_seconds, status, ai_summary, coaching_score, call_type_id)"
+      )
+      .eq("contact_id", supabaseId)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (participantError) {
+      return { data: `Error querying call participants: ${participantError.message}` };
+    }
+
+    if (!participantRows || participantRows.length === 0) {
+      return { data: JSON.stringify({ calls: [], message: "No calls found for this contact." }) };
+    }
+
+    // Collect call IDs for batch lookups
+    const callIds = participantRows.map((r: any) => r.calls.id);
+
+    // Batch fetch call types, grades, and action items
+    const [typesResult, gradesResult, actionsResult] = await Promise.all([
+      supabase.from("call_types").select("id, name"),
+      supabase.from("call_grades").select("call_id, overall_grade").in("call_id", callIds),
+      supabase
+        .from("call_action_items")
+        .select("call_id, title, status")
+        .in("call_id", callIds)
+        .eq("status", "pending"),
+    ]);
+
+    // Build lookup maps
+    const typeMap = new Map<string, string>();
+    for (const t of typesResult.data ?? []) {
+      typeMap.set((t as any).id, (t as any).name);
+    }
+
+    const gradeMap = new Map<string, string>();
+    for (const g of gradesResult.data ?? []) {
+      gradeMap.set((g as any).call_id, (g as any).overall_grade);
+    }
+
+    const actionMap = new Map<string, string[]>();
+    for (const a of actionsResult.data ?? []) {
+      const existing = actionMap.get((a as any).call_id) ?? [];
+      existing.push((a as any).title);
+      actionMap.set((a as any).call_id, existing);
+    }
+
+    // Build results
+    const calls = participantRows.map((row: any) => {
+      const call = row.calls;
+      return {
+        title: call.title ?? "Untitled",
+        date: call.started_at,
+        duration: call.duration_seconds ? `${Math.round(call.duration_seconds / 60)}min` : null,
+        type: call.call_type_id ? (typeMap.get(call.call_type_id) ?? null) : null,
+        status: call.status,
+        grade: gradeMap.get(call.id) ?? null,
+        summary: call.ai_summary ?? null,
+        pending_actions: actionMap.get(call.id) ?? [],
+      };
+    });
+
+    return { data: JSON.stringify({ calls, total: calls.length }) };
   } catch (err) {
     return { data: `Error: ${err instanceof Error ? err.message : "Unknown error"}` };
   }

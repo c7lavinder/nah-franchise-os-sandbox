@@ -12,6 +12,7 @@ export type ScoutToolName =
   | "get_next_action"
   | "get_schedule"
   | "get_contact_insights"
+  | "get_contact_calls"
   | "get_tasks"
   | "complete_task"
   | "search_knowledge"

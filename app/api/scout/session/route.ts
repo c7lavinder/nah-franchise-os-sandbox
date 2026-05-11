@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     const { data: session, error } = await supabase
       .from("sessions")
-      .select("id, conversation_history")
+      .select("id, conversation_history, last_activity_at")
       .eq("user_id", userId)
       .eq("is_active", true)
       .order("last_activity_at", { ascending: false })
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (error || !session) {
-      return NextResponse.json({ sessionId: null, history: [], messages: [] });
+      return NextResponse.json({ sessionId: null, history: [], messages: [], lastActivity: null });
     }
 
     const history = (session.conversation_history ?? []) as StoredMessage[];
@@ -52,15 +52,13 @@ export async function GET(request: NextRequest) {
           content = msg.content;
         } else if (Array.isArray(msg.content)) {
           // Extract text blocks from assistant responses
-          const textBlock = msg.content.find(
-            (block: Anthropic.Messages.ContentBlock) => block.type === "text"
-          ) as Anthropic.Messages.TextBlock | undefined;
+          const textBlock = msg.content.find((block: Anthropic.Messages.ContentBlock) => block.type === "text") as
+            | Anthropic.Messages.TextBlock
+            | undefined;
           content = textBlock?.text ?? "";
 
           // Skip tool_result messages from the user side
-          const hasToolResult = msg.content.some(
-            (block: Anthropic.Messages.ContentBlock) => block.type === "tool_use"
-          );
+          const hasToolResult = msg.content.some((block: Anthropic.Messages.ContentBlock) => block.type === "tool_use");
           if (hasToolResult && !content) return null;
         }
 
@@ -79,8 +77,9 @@ export async function GET(request: NextRequest) {
       sessionId: session.id,
       history,
       messages: displayMessages,
+      lastActivity: session.last_activity_at,
     });
   } catch {
-    return NextResponse.json({ sessionId: null, history: [], messages: [] });
+    return NextResponse.json({ sessionId: null, history: [], messages: [], lastActivity: null });
   }
 }

@@ -232,6 +232,16 @@ const ENTITIES: Record<QueryEntity, EntityConfig> = {
 };
 
 // ════════════════════════════════════════════════════════════════════
+// WORLD LABEL — which domain does this entity belong to?
+// ════════════════════════════════════════════════════════════════════
+
+const ACQUISITIONS_ENTITIES: ReadonlySet<string> = new Set(["inventory", "properties", "territories"]);
+
+function worldForEntity(entity: string): "frandev" | "acquisitions" {
+  return ACQUISITIONS_ENTITIES.has(entity) ? "acquisitions" : "frandev";
+}
+
+// ════════════════════════════════════════════════════════════════════
 // query() — flexible filter, returns rows
 // ════════════════════════════════════════════════════════════════════
 
@@ -276,6 +286,7 @@ export async function executeQuery(spec: QuerySpec): Promise<string> {
   if (error) return JSON.stringify({ error: error.message });
 
   return JSON.stringify({
+    world: worldForEntity(spec.entity),
     entity: spec.entity,
     count: data?.length ?? 0,
     rows: data ?? [],
@@ -295,6 +306,7 @@ async function executeOpportunityQuery(spec: QuerySpec, _cfg: EntityConfig): Pro
   const opps = await ghl.searchOpportunities(params);
   const limited = opps.slice(0, Math.min(spec.limit ?? 25, 100));
   return JSON.stringify({
+    world: "frandev",
     entity: "opportunities",
     count: limited.length,
     rows: limited,
@@ -384,6 +396,7 @@ export async function executeAggregate(spec: AggregateSpec): Promise<string> {
       .map(([k, vals]) => ({ key: k, value: reduce(spec.metric, vals) }))
       .sort((a, b) => b.value - a.value);
     return JSON.stringify({
+      world: worldForEntity(spec.entity),
       entity: spec.entity,
       metric: spec.metric,
       group_by: spec.group_by,
@@ -394,6 +407,7 @@ export async function executeAggregate(spec: AggregateSpec): Promise<string> {
   // Ungrouped: single number
   const vals = spec.metric === "count" ? rows.map(() => 1) : rows.map((r) => Number(r[spec.metric_field!] ?? 0));
   return JSON.stringify({
+    world: worldForEntity(spec.entity),
     entity: spec.entity,
     metric: spec.metric,
     value: reduce(spec.metric, vals),

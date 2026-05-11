@@ -231,6 +231,22 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     },
   },
   {
+    name: "get_contact_calls",
+    description:
+      "Get call history for a contact. Returns recent calls with title, date, duration, type, grade, AI summary, and key action items. " +
+      "Use this when asked about a contact's call history, recent conversations, or coaching progress.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contact_id: {
+          type: "string",
+          description: "GHL contact ID or Supabase UUID",
+        },
+      },
+      required: ["contact_id"],
+    },
+  },
+  {
     name: "search_knowledge",
     description:
       "Keyword search the NAH knowledge base — brand, pipeline process, objection handling, competitors, FDD, playbooks. " +

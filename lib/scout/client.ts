@@ -387,6 +387,42 @@ function formatPageContextForPrompt(ctx?: ScoutConversationInput["pageContext"])
   return bits.join(" ");
 }
 
+/** Check when key data syncs last ran and return a one-liner for the system prompt */
+async function loadDataFreshness(supabase: ReturnType<typeof createServerClient>): Promise<string> {
+  try {
+    const jobs = ["sync-ms-prospects", "sync-ms-properties", "sync-ms-territories"];
+    const { data } = await supabase
+      .from("cron_job_log")
+      .select("job_name, finished_at")
+      .in("job_name", jobs)
+      .eq("status", "completed")
+      .order("finished_at", { ascending: false })
+      .limit(3);
+
+    if (!data || data.length === 0) {
+      return "DATA FRESHNESS: No successful data syncs recorded. Territory and property data may be incomplete.";
+    }
+
+    const lines: string[] = [];
+    for (const job of jobs) {
+      const row = data.find((r) => r.job_name === job);
+      if (row?.finished_at) {
+        const hoursAgo = Math.round((Date.now() - new Date(row.finished_at).getTime()) / (1000 * 60 * 60));
+        if (hoursAgo > 24) {
+          lines.push(`${job}: last synced ${hoursAgo}h ago (STALE)`);
+        }
+      } else {
+        lines.push(`${job}: no successful sync on record`);
+      }
+    }
+
+    if (lines.length === 0) return "";
+    return `DATA FRESHNESS WARNING — Some data may be stale. If a query returns zeros or empty results, mention that data was last synced over 24h ago rather than speculating about causes.\n${lines.join("\n")}`;
+  } catch {
+    return "";
+  }
+}
+
 /** Loads a rich data snapshot for Scout's context — pipeline, alerts, user activity */
 async function loadPipelineSnapshot(userId: string): Promise<string> {
   try {
@@ -490,20 +526,22 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
   const ghlUserId = currentUser?.ghl_user_id ?? null;
 
   // Load dynamic context + DB-backed prompt overrides in parallel
-  const [knowledgeBase, pipelineSnapshot, userMemory, territoryCountResult, rules, profileCtx] = await Promise.all([
-    loadKnowledgeBase(input.pageContext),
-    loadPipelineSnapshot(input.userId),
-    loadUserMemory(input.userId),
-    (async () => {
-      const { count } = await supabaseForUser
-        .from("territories")
-        .select("TerritorySlug", { count: "exact", head: true })
-        .eq("status", "active");
-      return count ?? 64;
-    })(),
-    loadPromptSection("scout_rules", SCOUT_RULES),
-    loadPromptSection("scout_profile_context", PROFILE_AND_SCORING_CONTEXT),
-  ]);
+  const [knowledgeBase, pipelineSnapshot, userMemory, territoryCountResult, rules, profileCtx, freshness] =
+    await Promise.all([
+      loadKnowledgeBase(input.pageContext),
+      loadPipelineSnapshot(input.userId),
+      loadUserMemory(input.userId),
+      (async () => {
+        const { count } = await supabaseForUser
+          .from("territories")
+          .select("TerritorySlug", { count: "exact", head: true })
+          .eq("status", "active");
+        return count ?? 64;
+      })(),
+      loadPromptSection("scout_rules", SCOUT_RULES),
+      loadPromptSection("scout_profile_context", PROFILE_AND_SCORING_CONTEXT),
+      loadDataFreshness(supabaseForUser),
+    ]);
   const identity = await loadPromptSection("scout_identity", getScoutIdentity(territoryCountResult));
 
   const pageContextLine = formatPageContextForPrompt(input.pageContext);
@@ -513,6 +551,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
     getRoleBehavior(input.userRole),
     `CURRENT USER: ${input.userName} (ID: ${input.userId}, Role: ${input.userRole})`,
     pageContextLine,
+    freshness,
     formatMemoryForPrompt(userMemory),
     pipelineSnapshot,
     profileCtx,

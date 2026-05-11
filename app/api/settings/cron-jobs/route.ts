@@ -201,6 +201,15 @@ const CRON_DEFINITIONS = [
     category: "pipeline",
     frequency: "Every 15 minutes",
   },
+  {
+    path: "/frandev/api/cron/coaching-brief",
+    name: "Coaching Brief",
+    schedule: "0 7 * * *",
+    description:
+      "Personalized daily coaching brief for reps — top leads needing action, overdue follow-ups, call quality trends, objection patterns. Weekly scorecard on Mondays.",
+    category: "agents",
+    frequency: "Daily at 7:00 AM",
+  },
 ];
 
 export async function GET(request: NextRequest) {

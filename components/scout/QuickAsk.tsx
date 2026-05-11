@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MessageSquare, Send, X, Loader2 } from "lucide-react";
+import { MessageSquare, Send, X, Loader2, RotateCcw } from "lucide-react";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { parsePageContext } from "@/lib/scout/page-context";
 import ReactMarkdown from "react-markdown";
@@ -34,12 +34,53 @@ export default function QuickAsk({ context }: QuickAskProps) {
 
   const placeholder = (context && PLACEHOLDERS[context]) ?? DEFAULT_PLACEHOLDER;
 
+  // Load most recent active session on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch("/api/scout/session");
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (data.sessionId && data.history?.length > 0) {
+          sessionIdRef.current = data.sessionId;
+          historyRef.current = data.history;
+
+          // Show the last assistant response for context
+          const messages = data.messages ?? [];
+          const lastAssistant = [...messages]
+            .reverse()
+            .find((m: { role: string; content: string }) => m.role === "assistant");
+          if (lastAssistant) {
+            setResponse(lastAssistant.content);
+          }
+        }
+      } catch {
+        // Session load is non-critical — start fresh
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Auto-scroll response into view when it appears
   useEffect(() => {
     if (response && responseRef.current) {
       responseRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [response]);
+
+  function handleNewConversation() {
+    historyRef.current = [];
+    sessionIdRef.current = null;
+    setResponse(null);
+    setError(null);
+    setQuery("");
+    inputRef.current?.focus();
+  }
 
   async function handleSend() {
     const trimmed = query.trim();
@@ -121,12 +162,21 @@ export default function QuickAsk({ context }: QuickAskProps) {
             error ? "bg-red-50 border-red-200" : "bg-scout-purple/5 border-scout-purple/20"
           }`}
         >
-          <button
-            onClick={handleDismiss}
-            className="absolute top-2 right-2 p-1 text-text-tertiary hover:text-text-primary transition-colors"
-          >
-            <X size={14} />
-          </button>
+          <div className="absolute top-2 right-2 flex items-center gap-1">
+            <button
+              onClick={handleNewConversation}
+              title="New conversation"
+              className="p-1 text-text-tertiary hover:text-scout-purple transition-colors"
+            >
+              <RotateCcw size={12} />
+            </button>
+            <button
+              onClick={handleDismiss}
+              className="p-1 text-text-tertiary hover:text-text-primary transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </div>
 
           {error ? (
             <p className="text-sm text-red-600 pr-6">{error}</p>
