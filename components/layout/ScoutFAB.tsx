@@ -2,8 +2,8 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useRef, useEffect } from "react";
-import { usePathname } from "next/navigation";
-import { Bot, X, Send, Loader2, CheckCheck } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Bot, X, Send, Loader2, CheckCheck, Maximize2, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -23,6 +23,7 @@ interface ChatMsg {
 /** Scout AI floating action button + inline chat drawer */
 export default function ScoutFAB() {
   const pathname = usePathname();
+  const router = useRouter();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -227,7 +228,7 @@ export default function ScoutFAB() {
       {/* Scout chat drawer */}
       {open && (
         <div
-          className="fixed bottom-0 right-0 z-[499] w-[420px] max-h-[70vh] flex flex-col rounded-tl-xl"
+          className="fixed bottom-0 right-0 z-[499] w-[420px] max-h-[85vh] flex flex-col rounded-tl-xl"
           style={{
             background: "rgba(255, 255, 255, 0.6)",
             backdropFilter: "blur(16px)",
@@ -246,19 +247,37 @@ export default function ScoutFAB() {
             </div>
             <div className="flex items-center gap-1">
               {messages.length > 0 && (
-                <button
-                  onClick={() => {
-                    setMessages([]);
-                    historyRef.current = [];
-                    setSessionId(null);
-                  }}
-                  className="text-[11px] text-text-tertiary hover:text-text-primary px-2 py-1 rounded-lg hover:bg-[rgba(0,161,225,0.08)] transition-colors"
-                >
-                  Clear
-                </button>
+                <>
+                  <button
+                    onClick={() => {
+                      setMessages([]);
+                      historyRef.current = [];
+                      setSessionId(null);
+                    }}
+                    title="Clear conversation"
+                    className="p-1.5 rounded-xl hover:bg-[rgba(0,161,225,0.08)] transition-colors"
+                  >
+                    <Trash2 size={14} className="text-text-tertiary" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setOpen(false);
+                      router.push("/scout");
+                    }}
+                    title="Continue in full Scout page"
+                    className="p-1.5 rounded-xl hover:bg-[rgba(0,161,225,0.08)] transition-colors"
+                  >
+                    <Maximize2 size={14} className="text-text-tertiary" />
+                  </button>
+                </>
               )}
               <button
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  setOpen(false);
+                  setMessages([]);
+                  historyRef.current = [];
+                  setSessionId(null);
+                }}
                 className="p-1.5 rounded-xl hover:bg-[rgba(0,161,225,0.08)] transition-colors"
               >
                 <X size={18} className="text-text-secondary" />
@@ -267,7 +286,7 @@ export default function ScoutFAB() {
           </div>
 
           {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
             {messages.length === 0 && !thinking && (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <Bot size={32} className="text-nah-blue mb-3 opacity-30" />

@@ -34,36 +34,10 @@ export default function QuickAsk({ context }: QuickAskProps) {
 
   const placeholder = (context && PLACEHOLDERS[context]) ?? DEFAULT_PLACEHOLDER;
 
-  // Load most recent active session on mount
+  // Always start fresh — no session resume
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await apiFetch("/api/scout/session");
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
-        if (cancelled) return;
-
-        if (data.sessionId && data.history?.length > 0) {
-          sessionIdRef.current = data.sessionId;
-          historyRef.current = data.history;
-
-          // Show the last assistant response for context
-          const messages = data.messages ?? [];
-          const lastAssistant = [...messages]
-            .reverse()
-            .find((m: { role: string; content: string }) => m.role === "assistant");
-          if (lastAssistant) {
-            setResponse(lastAssistant.content);
-          }
-        }
-      } catch {
-        // Session load is non-critical — start fresh
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    historyRef.current = [];
+    sessionIdRef.current = null;
   }, []);
 
   // Auto-scroll response into view when it appears
