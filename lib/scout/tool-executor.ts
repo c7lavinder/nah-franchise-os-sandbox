@@ -1993,6 +1993,26 @@ const DATA_CATALOG: Record<string, { description: string; keyColumns: string[] }
       "pipeline_stage",
     ],
   },
+  candidate_intelligence: {
+    description: "Intelligence scores per contact — financial, operational, engagement, momentum sub-scores + flags",
+    keyColumns: [
+      "contact_id",
+      "score",
+      "financial_readiness",
+      "operational_fit",
+      "engagement_quality",
+      "pipeline_momentum",
+      "avg_response_time_hours",
+    ],
+  },
+  pipeline_stage_history: {
+    description: "Audit trail of stage transitions — when contacts entered/exited each pipeline stage",
+    keyColumns: ["contact_id", "stage_id", "entered_at", "exited_at", "journey_pipeline_state_id"],
+  },
+  journey_pipeline_state: {
+    description: "Current pipeline state per contact per journey — includes days-in-stage calculations",
+    keyColumns: ["id", "contact_id", "journey_id", "stage_id", "entered_current_stage_at", "entered_pipeline_at"],
+  },
   eos_territory_habits: {
     description: "Weekly EOS habit grades per territory",
     keyColumns: ["TerritorySlug", "week_of", "DailyTasks", "WeeklyContractorMeeting", "WeeklyAccounting"],
