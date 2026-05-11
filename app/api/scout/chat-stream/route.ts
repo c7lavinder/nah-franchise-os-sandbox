@@ -101,8 +101,15 @@ export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      let streamOpen = true;
       function sendEvent(event: string, data: string) {
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${data}\n\n`));
+        if (!streamOpen) return; // Don't throw if client disconnected
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${data}\n\n`));
+        } catch {
+          // Client disconnected — mark stream as closed but don't throw
+          streamOpen = false;
+        }
       }
 
       // Send initial thinking event
@@ -123,24 +130,33 @@ export async function POST(request: NextRequest) {
 
             // Capture final data for session persistence
             if (event.type === "done") {
-              const parsed = JSON.parse(event.data);
-              finalText = parsed.fullText;
-              finalActions = parsed.draftedActions;
-              finalHistory = parsed.history;
+              try {
+                const parsed = JSON.parse(event.data);
+                finalText = parsed.fullText;
+                finalActions = parsed.draftedActions;
+                finalHistory = parsed.history;
+              } catch {
+                console.error("Scout stream: failed to parse done event data");
+              }
             }
           },
         });
+      } catch (err) {
+        // Stream or API error — log but continue to session persistence
+        const errMsg = err instanceof Error ? err.message : "Unexpected error";
+        console.error("Scout streaming turn error:", errMsg);
+        sendEvent("error", JSON.stringify({ error: errMsg }));
+      }
 
-        // Persist session — truncate tool results to prevent oversized JSONB
-        try {
-          if (finalHistory.length === 0) {
-            console.warn("Scout stream: finalHistory is empty — done event may not have fired");
-          }
+      // ALWAYS persist session — even if stream errored or client disconnected.
+      // But NEVER overwrite an existing session with empty history.
+      try {
+        const supabase = createServerClient();
+        let sessionId = body.sessionId;
+        const storableHistory = truncateHistoryForStorage(finalHistory);
 
-          const supabase = createServerClient();
-          let sessionId = body.sessionId;
-          const storableHistory = truncateHistoryForStorage(finalHistory);
-
+        if (storableHistory.length >= 2) {
+          // We have real conversation data — safe to persist
           if (sessionId) {
             const { error: updateErr } = await supabase
               .from("sessions")
@@ -163,55 +179,54 @@ export async function POST(request: NextRequest) {
             if (insertErr) console.error("Scout session insert failed:", insertErr.message);
             sessionId = newSession?.id ?? null;
           }
-
-          // Send sessionId as a final event
-          if (sessionId) {
-            try {
-              sendEvent("session", JSON.stringify({ sessionId }));
-            } catch {
-              // Stream may be closed — session is still persisted
-            }
-          }
-
-          // Log drafted actions
-          if (finalActions.length > 0) {
-            const { error: actionErr } = await supabase.from("scout_action_logs").insert(
-              finalActions.map((da) => ({
-                user_id: user.id,
-                session_id: sessionId ?? "00000000-0000-0000-0000-000000000000",
-                action_type: da.type,
-                action_status: "drafted",
-                ghl_contact_id: da.contactId,
-                draft_content: da.payload as unknown as Record<string, unknown>,
-              }))
-            );
-            if (actionErr) console.error("Scout action log failed:", actionErr.message);
-          }
-        } catch (err) {
-          console.error("Scout session persistence failed:", err instanceof Error ? err.message : err);
+        } else if (sessionId) {
+          console.warn(`Scout: skipping session update — empty history would erase session ${sessionId}`);
         }
 
-        // Memory merge (fire-and-forget)
-        (async () => {
-          try {
-            const existingMemory = await loadUserMemory(user.id);
-            await mergeUserMemory({
-              userId: user.id,
-              userName: user.fullName,
-              existingMemory,
-              userMessage: body.message,
-              assistantResponse: finalText,
-              draftedActionType: finalActions[0]?.type,
-            });
-          } catch {
-            // Memory merge is best-effort
-          }
-        })();
+        // Send sessionId as a final event
+        if (sessionId) {
+          sendEvent("session", JSON.stringify({ sessionId }));
+        }
+
+        // Log drafted actions
+        if (finalActions.length > 0) {
+          const { error: actionErr } = await supabase.from("scout_action_logs").insert(
+            finalActions.map((da) => ({
+              user_id: user.id,
+              session_id: sessionId ?? "00000000-0000-0000-0000-000000000000",
+              action_type: da.type,
+              action_status: "drafted",
+              ghl_contact_id: da.contactId,
+              draft_content: da.payload as unknown as Record<string, unknown>,
+            }))
+          );
+          if (actionErr) console.error("Scout action log failed:", actionErr.message);
+        }
       } catch (err) {
-        const errMsg = err instanceof Error ? err.message : "Unexpected error";
-        sendEvent("error", JSON.stringify({ error: errMsg }));
-      } finally {
+        console.error("Scout session persistence failed:", err instanceof Error ? err.message : err);
+      }
+
+      // Memory merge (fire-and-forget)
+      (async () => {
+        try {
+          const existingMemory = await loadUserMemory(user.id);
+          await mergeUserMemory({
+            userId: user.id,
+            userName: user.fullName,
+            existingMemory,
+            userMessage: body.message,
+            assistantResponse: finalText,
+            draftedActionType: finalActions[0]?.type,
+          });
+        } catch {
+          // Memory merge is best-effort
+        }
+      })();
+
+      try {
         controller.close();
+      } catch {
+        // Already closed
       }
     },
   });

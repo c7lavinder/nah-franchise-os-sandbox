@@ -84,33 +84,37 @@ export async function POST(request: NextRequest) {
       pageContext: body.pageContext,
     });
 
-    // Persist session to Supabase — truncate tool results to prevent oversized JSONB
+    // Persist session — never overwrite existing session with empty history
     let sessionId = body.sessionId;
     try {
       const supabase = createServerClient();
       const storableHistory = truncateHistoryForStorage(result.updatedMessages);
 
-      if (sessionId) {
-        const { error: updateErr } = await supabase
-          .from("sessions")
-          .update({
-            conversation_history: storableHistory as unknown as Record<string, unknown>[],
-            last_activity_at: new Date().toISOString(),
-          })
-          .eq("id", sessionId);
-        if (updateErr) console.error("Scout session update failed:", updateErr.message);
-      } else {
-        const { data: newSession, error: insertErr } = await supabase
-          .from("sessions")
-          .insert({
-            user_id: user.id,
-            conversation_history: storableHistory as unknown as Record<string, unknown>[],
-            is_active: true,
-          })
-          .select("id")
-          .single();
-        if (insertErr) console.error("Scout session insert failed:", insertErr.message);
-        sessionId = newSession?.id ?? null;
+      if (storableHistory.length >= 2) {
+        if (sessionId) {
+          const { error: updateErr } = await supabase
+            .from("sessions")
+            .update({
+              conversation_history: storableHistory as unknown as Record<string, unknown>[],
+              last_activity_at: new Date().toISOString(),
+            })
+            .eq("id", sessionId);
+          if (updateErr) console.error("Scout session update failed:", updateErr.message);
+        } else {
+          const { data: newSession, error: insertErr } = await supabase
+            .from("sessions")
+            .insert({
+              user_id: user.id,
+              conversation_history: storableHistory as unknown as Record<string, unknown>[],
+              is_active: true,
+            })
+            .select("id")
+            .single();
+          if (insertErr) console.error("Scout session insert failed:", insertErr.message);
+          sessionId = newSession?.id ?? null;
+        }
+      } else if (sessionId) {
+        console.warn(`Scout: skipping session update — empty history would erase session ${sessionId}`);
       }
     } catch (err) {
       console.error("Scout session persistence failed:", err instanceof Error ? err.message : err);
