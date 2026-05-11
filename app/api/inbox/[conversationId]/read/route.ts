@@ -7,12 +7,13 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";
+import * as ghl from "@/lib/ghl";
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { conversationId: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: { conversationId: string } }) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+
   try {
     const conversation = await ghl.markConversationRead(params.conversationId);
     return NextResponse.json({ conversation });

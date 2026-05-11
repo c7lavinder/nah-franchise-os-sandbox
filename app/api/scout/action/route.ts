@@ -352,7 +352,7 @@ export async function POST(request: NextRequest) {
         }
         case "trigger_workflow": {
           const twPayload = action.payload as DraftedTriggerWorkflowPayload;
-          await ghl.triggerWorkflow(twPayload.workflowId, action.contactId);
+          await ghl.triggerWorkflow(action.contactId, twPayload.workflowName ?? twPayload.workflowId);
           ghlResponse = {
             workflowId: twPayload.workflowId,
             contactId: action.contactId,
