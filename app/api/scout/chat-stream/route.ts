@@ -25,6 +25,34 @@ import { createServerClient } from "@/lib/supabase/server";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { DraftedAction } from "@/types/scout";
 
+/** Max chars for a single tool result in stored conversation history */
+const MAX_TOOL_RESULT_CHARS = 2000;
+
+/**
+ * Truncate tool results in conversation history to prevent oversized JSONB payloads.
+ * Keeps user text, assistant text, and tool_use inputs intact — only caps tool_result content.
+ */
+function truncateHistoryForStorage(history: Anthropic.Messages.MessageParam[]): Anthropic.Messages.MessageParam[] {
+  return history.map((msg) => {
+    if (msg.role !== "user" || !Array.isArray(msg.content)) return msg;
+    const hasToolResult = (msg.content as any[]).some((b: any) => b.type === "tool_result");
+    if (!hasToolResult) return msg;
+
+    return {
+      ...msg,
+      content: (msg.content as any[]).map((block: any) => {
+        if (block.type !== "tool_result") return block;
+        const content = typeof block.content === "string" ? block.content : JSON.stringify(block.content);
+        if (content.length <= MAX_TOOL_RESULT_CHARS) return block;
+        return {
+          ...block,
+          content: content.slice(0, MAX_TOOL_RESULT_CHARS) + `\n...[truncated from ${content.length} chars]`,
+        };
+      }),
+    };
+  });
+}
+
 interface ChatStreamBody {
   message: string;
   sessionId: string | null;
@@ -103,40 +131,51 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // Persist session (non-blocking from the stream perspective)
+        // Persist session — truncate tool results to prevent oversized JSONB
         try {
+          if (finalHistory.length === 0) {
+            console.warn("Scout stream: finalHistory is empty — done event may not have fired");
+          }
+
           const supabase = createServerClient();
           let sessionId = body.sessionId;
+          const storableHistory = truncateHistoryForStorage(finalHistory);
 
           if (sessionId) {
-            await supabase
+            const { error: updateErr } = await supabase
               .from("sessions")
               .update({
-                conversation_history: finalHistory as unknown as Record<string, unknown>[],
+                conversation_history: storableHistory as unknown as Record<string, unknown>[],
                 last_activity_at: new Date().toISOString(),
               })
               .eq("id", sessionId);
+            if (updateErr) console.error("Scout session update failed:", updateErr.message);
           } else {
-            const { data: newSession } = await supabase
+            const { data: newSession, error: insertErr } = await supabase
               .from("sessions")
               .insert({
                 user_id: user.id,
-                conversation_history: finalHistory as unknown as Record<string, unknown>[],
+                conversation_history: storableHistory as unknown as Record<string, unknown>[],
                 is_active: true,
               })
               .select("id")
               .single();
+            if (insertErr) console.error("Scout session insert failed:", insertErr.message);
             sessionId = newSession?.id ?? null;
           }
 
           // Send sessionId as a final event
           if (sessionId) {
-            sendEvent("session", JSON.stringify({ sessionId }));
+            try {
+              sendEvent("session", JSON.stringify({ sessionId }));
+            } catch {
+              // Stream may be closed — session is still persisted
+            }
           }
 
           // Log drafted actions
           if (finalActions.length > 0) {
-            await supabase.from("scout_action_logs").insert(
+            const { error: actionErr } = await supabase.from("scout_action_logs").insert(
               finalActions.map((da) => ({
                 user_id: user.id,
                 session_id: sessionId ?? "00000000-0000-0000-0000-000000000000",
@@ -146,9 +185,10 @@ export async function POST(request: NextRequest) {
                 draft_content: da.payload as unknown as Record<string, unknown>,
               }))
             );
+            if (actionErr) console.error("Scout action log failed:", actionErr.message);
           }
-        } catch {
-          // Session persistence is non-critical
+        } catch (err) {
+          console.error("Scout session persistence failed:", err instanceof Error ? err.message : err);
         }
 
         // Memory merge (fire-and-forget)

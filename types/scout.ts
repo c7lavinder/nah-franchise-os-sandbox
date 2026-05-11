@@ -37,7 +37,8 @@ export type ScoutToolName =
   // MasterSuite performance tools
   | "territory_performance"
   | "network_benchmarks"
-  | "compare_territories";
+  | "compare_territories"
+  | "describe_data";
 
 /** Chat message role */
 export type ChatRole = "user" | "assistant";

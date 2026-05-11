@@ -114,13 +114,16 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServerClient();
 
-  // Query sessions with conversation history
+  // Query sessions with conversation history — fetch extra to compensate for
+  // sessions that get filtered out (empty/no-exchange sessions)
+  const fetchLimit = limit * 2;
   let query = supabase
     .from("sessions")
     .select("id, user_id, conversation_history, last_activity_at, started_at")
     .not("conversation_history", "is", null)
+    .not("conversation_history", "eq", "[]")
     .order("last_activity_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+    .range(offset, offset + fetchLimit - 1);
 
   if (filterUserId) {
     query = query.eq("user_id", filterUserId);
@@ -231,11 +234,15 @@ export async function GET(request: NextRequest) {
     })
     .filter((e: SessionEntry) => e.exchanges.length > 0);
 
-  // Count total sessions for pagination
+  // Trim to requested limit after filtering
+  const trimmedEntries = entries.slice(0, limit);
+
+  // Count total displayable sessions
   let countQuery = supabase
     .from("sessions")
     .select("id", { count: "exact", head: true })
-    .not("conversation_history", "is", null);
+    .not("conversation_history", "is", null)
+    .not("conversation_history", "eq", "[]");
 
   if (filterUserId) {
     countQuery = countQuery.eq("user_id", filterUserId);
@@ -244,7 +251,7 @@ export async function GET(request: NextRequest) {
   const { count } = await countQuery;
 
   return NextResponse.json({
-    entries,
+    entries: trimmedEntries,
     total: count ?? 0,
     limit,
     offset,

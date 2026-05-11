@@ -16,6 +16,33 @@ import { loadUserMemory, mergeUserMemory } from "@/lib/scout/memory";
 import { createServerClient } from "@/lib/supabase/server";
 import type Anthropic from "@anthropic-ai/sdk";
 
+/** Max chars for a single tool result in stored conversation history */
+const MAX_TOOL_RESULT_CHARS = 2000;
+
+/**
+ * Truncate tool results in conversation history to prevent oversized JSONB payloads.
+ */
+function truncateHistoryForStorage(history: Anthropic.Messages.MessageParam[]): Anthropic.Messages.MessageParam[] {
+  return history.map((msg) => {
+    if (msg.role !== "user" || !Array.isArray(msg.content)) return msg;
+    const hasToolResult = (msg.content as any[]).some((b: any) => b.type === "tool_result");
+    if (!hasToolResult) return msg;
+
+    return {
+      ...msg,
+      content: (msg.content as any[]).map((block: any) => {
+        if (block.type !== "tool_result") return block;
+        const content = typeof block.content === "string" ? block.content : JSON.stringify(block.content);
+        if (content.length <= MAX_TOOL_RESULT_CHARS) return block;
+        return {
+          ...block,
+          content: content.slice(0, MAX_TOOL_RESULT_CHARS) + `\n...[truncated from ${content.length} chars]`,
+        };
+      }),
+    };
+  });
+}
+
 interface ChatRequestBody {
   message: string;
   sessionId: string | null;
@@ -57,44 +84,43 @@ export async function POST(request: NextRequest) {
       pageContext: body.pageContext,
     });
 
-    // Persist session to Supabase
+    // Persist session to Supabase — truncate tool results to prevent oversized JSONB
     let sessionId = body.sessionId;
     try {
       const supabase = createServerClient();
+      const storableHistory = truncateHistoryForStorage(result.updatedMessages);
 
       if (sessionId) {
-        // Update existing session
-        await supabase
+        const { error: updateErr } = await supabase
           .from("sessions")
           .update({
-            conversation_history: result.updatedMessages as unknown as Record<string, unknown>[],
+            conversation_history: storableHistory as unknown as Record<string, unknown>[],
             last_activity_at: new Date().toISOString(),
           })
           .eq("id", sessionId);
+        if (updateErr) console.error("Scout session update failed:", updateErr.message);
       } else {
-        // Create new session
-        const { data: newSession } = await supabase
+        const { data: newSession, error: insertErr } = await supabase
           .from("sessions")
           .insert({
             user_id: user.id,
-            conversation_history: result.updatedMessages as unknown as Record<string, unknown>[],
+            conversation_history: storableHistory as unknown as Record<string, unknown>[],
             is_active: true,
           })
           .select("id")
           .single();
-
+        if (insertErr) console.error("Scout session insert failed:", insertErr.message);
         sessionId = newSession?.id ?? null;
       }
-    } catch {
-      // Session persistence is non-critical — don't fail the request
-      console.error("Failed to persist session — continuing without save");
+    } catch (err) {
+      console.error("Scout session persistence failed:", err instanceof Error ? err.message : err);
     }
 
     // Log all drafted actions
     if (result.draftedActions.length > 0) {
       try {
         const supabase = createServerClient();
-        await supabase.from("scout_action_logs").insert(
+        const { error: actionErr } = await supabase.from("scout_action_logs").insert(
           result.draftedActions.map((da) => ({
             user_id: user.id,
             session_id: sessionId ?? "00000000-0000-0000-0000-000000000000",
@@ -104,8 +130,9 @@ export async function POST(request: NextRequest) {
             draft_content: da.payload as unknown as Record<string, unknown>,
           }))
         );
-      } catch {
-        console.error("Failed to log Scout actions — continuing");
+        if (actionErr) console.error("Scout action log failed:", actionErr.message);
+      } catch (err) {
+        console.error("Scout action log failed:", err instanceof Error ? err.message : err);
       }
     }
 

@@ -652,6 +652,25 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     },
   },
 
+  {
+    name: "describe_data",
+    description:
+      "List available data tables and their key columns. Use this BEFORE answering 'what data do you have?' or " +
+      "'can you tell me about X?' when you are unsure whether that data exists. Returns table names, row counts, " +
+      "and key columns. Optional: pass a table name to get detailed column info for that specific table.",
+    input_schema: {
+      type: "object",
+      properties: {
+        table: {
+          type: "string",
+          description:
+            "Optional: specific table name to describe (e.g., 'ms_property_inventory'). Omit to get an overview of all tables.",
+        },
+      },
+      required: [],
+    },
+  },
+
   // ════════════════════════════════════════════════════════════════
   // COMPLIANCE
   // ════════════════════════════════════════════════════════════════

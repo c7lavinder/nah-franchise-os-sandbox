@@ -103,6 +103,8 @@ export async function executeTool(
       return executeNetworkBenchmarks(input);
     case "compare_territories":
       return executeCompareTerritories(input);
+    case "describe_data":
+      return executeDescribeData(input);
     case "get_compliance":
       return executeGetCompliance(input);
     case "draft_compliance_update":
@@ -1854,6 +1856,199 @@ function computePeriodStart(period: string): Date {
   if (period === "ytd") return new Date(now.getFullYear(), 0, 1);
   const months = period === "t1" ? 1 : period === "t12" ? 12 : 3;
   return new Date(now.getFullYear(), now.getMonth() - months, now.getDate());
+}
+
+/** Static data catalog — describes what Scout can access */
+const DATA_CATALOG: Record<string, { description: string; keyColumns: string[] }> = {
+  territories: {
+    description: "All 88 franchise territories (64 active) with owner, coach, compliance, dates, marketing info",
+    keyColumns: [
+      "TerritorySlug",
+      "Nickname",
+      "PrimaryCoach",
+      "ComplianceScore",
+      "FranchiseAgreementDate",
+      "Active",
+      "IsFranchise",
+      "IsFullTime",
+    ],
+  },
+  ms_property_inventory: {
+    description: "Property inventory — full lifecycle with financial snapshots at 5 maturity stages",
+    keyColumns: [
+      "PropertyId",
+      "TerritorySlug",
+      "Inv_Status",
+      "Inv_PurchaseDate",
+      "Inv_ConstructionStartDate",
+      "Inv_CompletionDate",
+      "Inv_ListDate",
+      "Inv_SellDate",
+      "Inv_PurchasePrice",
+      "Inv_SellPrice",
+      "Inv_Profit",
+    ],
+  },
+  ms_property_calculations: {
+    description: "Per-property calculated metrics — profit, ARV, max offer, lead score, cycle times",
+    keyColumns: [
+      "PropertyId",
+      "TerritorySlug",
+      "Calculated_Inv_Profit",
+      "Calculated_Arv",
+      "Calculated_MaxOffer",
+      "Calculated_LeadScore",
+      "Calculated_CycleDays",
+    ],
+  },
+  ms_properties: {
+    description: "Property leads — 900K+ with lead category, type, source, stage progression",
+    keyColumns: [
+      "PropertyId",
+      "TerritorySlug",
+      "LeadCategory",
+      "LeadType",
+      "Status",
+      "PropertyType",
+      "Stage1Arv",
+      "Stage1Price",
+      "Inserted",
+    ],
+  },
+  ms_property_contacts: {
+    description: "Seller/buyer contact info and skip trace phones per property",
+    keyColumns: ["PropertyId", "SellerFirstName", "SellerLastName", "SellerPhone", "BuyerFirstName", "BuyerLastName"],
+  },
+  ms_property_notes: {
+    description: "Financing notes — APR, principal, payoff per property",
+    keyColumns: ["PropertyId", "FinancingNotes", "APR", "Principal", "Payoff"],
+  },
+  ms_property_dispositions: {
+    description: "How properties were disposed — costs and profit by disposition type",
+    keyColumns: ["PropertyId", "DispositionType", "DispositionCost", "DispositionProfit"],
+  },
+  ms_property_comparables: {
+    description: "Comp data per property — comparable values and condition scores",
+    keyColumns: ["PropertyId", "CompValue", "CompCondition"],
+  },
+  ms_property_inventory_rental: {
+    description: "Rental pro forma per property — rent, vacancy, CapEx, NOI",
+    keyColumns: ["PropertyId", "MonthlyRent", "VacancyRate", "CapExReserve", "NOI"],
+  },
+  ms_property_royalty: {
+    description: "Acquisition and disposition royalty tracking per property",
+    keyColumns: ["PropertyId", "AcquisitionRoyalty", "DispositionRoyalty"],
+  },
+  calls: {
+    description: "All calls — transcripts, AI summaries, grades, coaching data, action items, participants",
+    keyColumns: [
+      "id",
+      "contact_id",
+      "call_type_id",
+      "title",
+      "ai_summary",
+      "summary_bullets",
+      "coaching_score",
+      "raw_transcript",
+      "status",
+      "started_at",
+      "duration_seconds",
+      "territory_ms_slug",
+    ],
+  },
+  call_grades: {
+    description: "Call quality grades — A-F overall grade, rubric scores, strengths, improvements",
+    keyColumns: [
+      "call_id",
+      "overall_grade",
+      "overall_score",
+      "criterion_scores",
+      "strengths",
+      "improvements",
+      "suggested_next_action",
+    ],
+  },
+  call_action_items: {
+    description: "Action items from calls — categorized with push status",
+    keyColumns: ["call_id", "category", "title", "description", "status", "ghl_action"],
+  },
+  call_participants: {
+    description: "Who was on each call — team members, prospects, franchisees",
+    keyColumns: ["call_id", "user_id", "contact_id", "role", "display_name"],
+  },
+  call_data_extractions: {
+    description: "Structured intel extracted from call transcripts — field values with confidence",
+    keyColumns: ["call_id", "field_key", "field_category", "extracted_value", "confidence", "saved_to_profile"],
+  },
+  contacts: {
+    description: "Franchise candidates — synced from PathToOwnership entries",
+    keyColumns: [
+      "id",
+      "first_name",
+      "last_name",
+      "email",
+      "phone",
+      "CountiesInterestedIn",
+      "lead_source",
+      "pipeline_stage",
+    ],
+  },
+  eos_territory_habits: {
+    description: "Weekly EOS habit grades per territory",
+    keyColumns: ["TerritorySlug", "week_of", "DailyTasks", "WeeklyContractorMeeting", "WeeklyAccounting"],
+  },
+  eos_territory_rocks: {
+    description: "Quarterly rocks per territory",
+    keyColumns: ["TerritorySlug", "Rock", "status", "quarter"],
+  },
+  eos_territory_goals: {
+    description: "Territory quarterly goals — leads, purchases, profit, compliance, cycle time",
+    keyColumns: ["TerritorySlug", "goal_type", "target", "actual", "quarter"],
+  },
+};
+
+async function executeDescribeData(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  const table = input.table as string | undefined;
+
+  if (table) {
+    const entry = DATA_CATALOG[table];
+    if (!entry) {
+      return {
+        data: JSON.stringify({
+          error: `Unknown table: ${table}. Use describe_data without a table parameter to see all available tables.`,
+        }),
+      };
+    }
+    // Also get a live row count
+    try {
+      const supabase = createServerClient();
+      const { count } = await supabase.from(table).select("*", { count: "exact", head: true });
+      return {
+        data: JSON.stringify({
+          table,
+          description: entry.description,
+          keyColumns: entry.keyColumns,
+          rowCount: count ?? "unknown",
+        }),
+      };
+    } catch {
+      return {
+        data: JSON.stringify({
+          table,
+          description: entry.description,
+          keyColumns: entry.keyColumns,
+          rowCount: "unable to count",
+        }),
+      };
+    }
+  }
+
+  // Overview mode — list all tables with descriptions
+  const overview = Object.entries(DATA_CATALOG).map(([name, info]) => ({
+    table: name,
+    description: info.description,
+  }));
+  return { data: JSON.stringify({ availableTables: overview, totalTables: overview.length }) };
 }
 
 async function executeTerritoryPerformance(input: Record<string, unknown>): Promise<ToolExecutionResult> {
