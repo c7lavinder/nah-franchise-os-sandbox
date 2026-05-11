@@ -2145,28 +2145,39 @@ async function executeNetworkBenchmarks(input: Record<string, unknown>): Promise
 
     const slugs = territories.map((t: { TerritorySlug: string }) => t.TerritorySlug);
 
-    // 2. Get all inventory with purchase dates across all territories (query by date first for efficiency)
+    // 2. Get all inventory with purchase dates across all territories
+    // TerritorySlug lives on ms_properties, not ms_property_inventory — join via FK
     let allInventory: {
       TerritorySlug: string;
       PropertyId: number;
       Inv_PurchaseDate: string;
       Inv_SellDate: string | null;
     }[] = [];
-    // For t12/ytd/t3: query recent purchases first (efficient), then recent sales
-    // For "all": we need all inventory — paginate across all slugs
     for (let i = 0; i < slugs.length; i += 20) {
       const batchSlugs = slugs.slice(i, i + 20);
       let offset = 0;
       while (true) {
         const { data: page } = await supabase
-          .from("ms_property_inventory")
-          .select("TerritorySlug, PropertyId, Inv_PurchaseDate, Inv_SellDate")
+          .from("ms_properties")
+          .select("TerritorySlug, PropertyId, ms_property_inventory!inner(Inv_PurchaseDate, Inv_SellDate)")
           .in("TerritorySlug", batchSlugs)
-          .not("Inv_PurchaseDate", "is", null)
+          .not("ms_property_inventory.Inv_PurchaseDate", "is", null)
           .order("PropertyId")
           .range(offset, offset + 999);
         if (!page || page.length === 0) break;
-        allInventory = allInventory.concat(page as typeof allInventory);
+        for (const row of page as any[]) {
+          const inv = Array.isArray(row.ms_property_inventory)
+            ? row.ms_property_inventory[0]
+            : row.ms_property_inventory;
+          if (inv) {
+            allInventory.push({
+              TerritorySlug: row.TerritorySlug,
+              PropertyId: row.PropertyId,
+              Inv_PurchaseDate: inv.Inv_PurchaseDate,
+              Inv_SellDate: inv.Inv_SellDate,
+            });
+          }
+        }
         if (page.length < 1000) break;
         offset += 1000;
       }

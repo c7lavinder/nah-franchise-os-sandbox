@@ -491,19 +491,28 @@ async function getContactProfile(contactId: string): Promise<string> {
     const contact = await ghl.getContact(contactId);
     const supabase = createServerClient();
 
+    // Resolve the Supabase UUID — tools often pass GHL IDs
+    const { data: contactRow } = await supabase
+      .from("contacts")
+      .select("id")
+      .or(`ghl_contact_id.eq.${contactId},id.eq.${contactId}`)
+      .limit(1)
+      .single();
+    const sbContactId = contactRow?.id ?? contactId;
+
     const [intelRes, callsRes, objRes, journeysRes] = await Promise.all([
-      supabase.from("candidate_intelligence").select("*").eq("contact_id", contactId).single(),
+      supabase.from("candidate_intelligence").select("*").eq("contact_id", sbContactId).single(),
       supabase
-        .from("call_logs")
-        .select("*")
-        .eq("contact_id", contactId)
-        .order("called_at", { ascending: false })
+        .from("call_participants")
+        .select("call_id, role, calls!inner(id, title, started_at, duration_seconds, status, call_types(name))")
+        .eq("contact_id", sbContactId)
+        .order("created_at", { ascending: false })
         .limit(5),
-      supabase.from("objection_registry").select("*").eq("contact_id", contactId).eq("resolved", false),
+      supabase.from("objection_registry").select("*").eq("contact_id", sbContactId).eq("resolved", false),
       supabase
         .from("journey_contacts")
         .select("journey_id, role, is_primary_decision_maker")
-        .eq("contact_id", contactId)
+        .eq("contact_id", sbContactId)
         .is("left_at", null),
     ]);
 
@@ -531,12 +540,17 @@ async function getContactProfile(contactId: string): Promise<string> {
     }
 
     if (callsRes.data && callsRes.data.length > 0) {
-      out.recentCalls = (callsRes.data as CallLog[]).map((c) => ({
-        callType: c.call_type,
-        calledAt: c.called_at,
-        repConfidence: c.rep_confidence,
-        redFlagsRaised: c.red_flags_raised,
-      }));
+      out.recentCalls = (callsRes.data as any[]).map((cp) => {
+        const call = Array.isArray(cp.calls) ? cp.calls[0] : cp.calls;
+        const callType = call?.call_types;
+        return {
+          callType: (Array.isArray(callType) ? callType[0]?.name : callType?.name) ?? null,
+          date: call?.started_at ?? null,
+          duration: call?.duration_seconds ?? null,
+          status: call?.status ?? null,
+          title: call?.title ?? null,
+        };
+      });
     }
 
     if (objRes.data && objRes.data.length > 0) {
