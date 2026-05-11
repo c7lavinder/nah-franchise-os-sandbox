@@ -1,111 +1,113 @@
-# Session Handoff — 2026-05-11 — Session 35
+# Session Handoff — 2026-05-11 — Session 36
 
 ## Status
 
-Phase: Territory Alignment + PTO Prospect Sync / Health: Green / Duration: full session
+Phase: Elite Scout Upgrade / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-### Territory Slug Alignment with MasterSuite
+### Scout Performance Intelligence (4 New Tools)
 
-- Audited all 88 MasterSuite territories vs 99 Supabase territories
-- Migrated 3 mismatched slugs: KISSMEE→KSSMEE, NORVM→NORVMI, RALNHC→RALHNC
-- Moved JPS rows, territory_owners, call_territories to correct slugs
-- Deactivated 3 old slugs (now inactive)
-- Created territory_owners records for 5 new territories (ALCHUA, MONMTH, NOWTNJ, SASOTA, WICHTA)
-- Assigned territories to journeys for 4 new franchise owners
-- Added SASOTA to Erik Spersrud's journey (new territory, retiring INDYNW)
+- `territory_performance` — KPIs for any territory: purchases, sales, profit, cycle time, funnel S1→S6, active inventory, EOS habits, scorecard, channel effectiveness, trend vs previous period, owner names
+- `network_benchmarks` — Network-wide averages, medians, high performer list, top 10 territory rankings
+- `compare_territories` — Side-by-side comparison of 2-5 territories: KPIs, habits, channels, owners, compliance
+- `query`/`aggregate` expanded with `inventory` and `properties` entities for ad-hoc MasterSuite queries
 
-### Territory Details Tab
+### Opus Orchestrator Pattern
 
-- `components/territories/tabs/DetailsTab.tsx` — new tab on territory page
-- 6 sections: Owner & Contact, Address, Business, Key Dates, Marketing, Compliance & Accounts
-- Displays all MasterSuite-synced fields (PersonalName, FranchiseEmail, phone, coach, legal entity, marketing info, Nexa/Vonage accounts, compliance score, etc.)
-- No extra API call — uses existing territory data already returned by the API
+- Replaced Haiku→Sonnet→Opus model router with Opus orchestrator
+- Iteration 1: Opus (understands question, picks tools, reasons)
+- Iterations 2+: Haiku (processes tool results, generates response)
+- Applied to both client.ts (non-streaming) and stream.ts (streaming)
+- Result: Opus-quality reasoning + 90% cheaper execution on tool loops
 
-### PTO Prospect Import (Backfill)
+### Knowledge Base: 5 New Docs (25 total)
 
-- Imported 231 prospects from MasterSuite `PathToOwnershipEntries` into Supabase
-- Each gets: contact record (with full PTO info), journey, journey_contacts, JPS in Follow-up → Nurture
-- Spam/bot filtering: blocks placeholder names (Alice/John), random character gibberish, do-not-respond emails, iPhone scam submissions
-- Generated `pto_<id>_<random>` placeholder GHL IDs for contacts without GHL records
+- `ideal_candidate` — Target franchisee profile, must-haves, red flags, scoring framework
+- `competitors` — NAH vs solo flipping, vs HomeVestors, differentiation scripts
+- `territory` — Territory analysis framework, health indicators (green/yellow/red)
+- `training` — Trainual stage-gated access, completion signals, nudge logic
+- `operations` — Team roles, decision authority, daily workflow, escalation paths
 
-### PTO Prospect Sync (Ongoing)
+### System Prompt Overhaul
 
-- `lib/mastersuite/sync-pto-prospects.ts` — sync module with spam filtering, email dedup, incremental by date
-- `app/api/cron/sync-ms-prospects/route.ts` — cron endpoint, checks last 7 days of PTO entries
-- New prospects go into Path to Ownership → Engagement stage
-- Registered in `vercel.json` (every 15 minutes) and cron settings panel
+- Identity: "sales and operations coach" (was "sales assistant")
+- North star injected: "Get more franchisees. Take more franchisees to high performer status."
+- Performance coaching playbook — 8-lever diagnostic framework
+- Math/calculation instructions — annualize, project, calculate ROI, compare deltas
+- Objection analysis instructions — resolution rates by type
+- Comparison/correlation instructions — correlate habits with performance
+- Page context tool preferences — guide Scout to best tool per page
+- Dynamic territory count (queries Supabase, was hardcoded 64)
 
-### Territory Cards Default Fix
+### Territory Performance Enhancements
 
-- `app/api/pipeline/territory-cards/route.ts` — default to active-only (was showing all 99, now shows 64 matching MasterSuite)
+- Owner names resolved from contacts table
+- Coach, awarded date, compliance score included
+- Lead channel effectiveness: cross-reference categories with actual purchase/sold outcomes
+- Period-over-period trend: this T3 vs last T3 with % change and direction (up/down/flat)
 
-### Property Data Verification
+### Contact Insights Enhancement
 
-- Full audit: all 4 property tables match exactly (49,966 properties, 49,965 calculations, 49,957 inventory, 117,308 status history)
-- Contact info audit: 97% PersonalName coverage, 98% FranchiseEmail, 94% phone — all gaps match MasterSuite source
+- `get_contact_insights` returns `topPick` with reason: "Most at risk — avg score 28, only 1 call"
+- Priority recommendation for every lens (momentum, at_risk, stalling, top_performers)
+
+### Model Router Updates
+
+- 8 new Sonnet patterns for performance/benchmark/compare queries
+- `resolved` added as aggregatable field on objections entity
+
+### UI Fixes
+
+- QuickAsk: `max-h-[200px] overflow-y-auto` prevents content push
+- FAB drawer: expanded from 320px × 50vh to 420px × 70vh
 
 ## What Is Confirmed Working
 
 - `npx tsc --noEmit` passes clean (0 errors)
 - 129 tests passing
-- All territory slugs aligned with MasterSuite (0 mismatches, 0 missing)
-- All 64 active territories have owner records (except ALTA/GLOBAL/TRAIN — admin accounts)
-- Property data 100% synced across all 4 tables
-- 231 PTO prospects imported with full contact info
-- Territory Details tab renders all MasterSuite fields
-- Territory cards default to 64 active (matches MasterSuite Active=1 count)
+- 1 migration applied to Supabase (20260511000000_kb_elite_content.sql)
+- Vercel deploy triggered from main push
 
 ## What Is Broken or Incomplete
 
-- 4 territories missing address/phone in MasterSuite source (MYTBCH, OAKRTN, RALHNC, WICHTA) — needs MS data entry — Low
-- MarketingEmailAddress only 47% populated across territories — needs MS data entry — Low
-- PTO prospects have placeholder GHL IDs (`pto_*`) — need real GHL contact creation or GHL sync — Medium
+- PTO prospects have placeholder GHL IDs (`pto_*`) — need real GHL contact creation — Medium
+- Phase 3 supporting table sync (mortgages, comparables, royalty, etc.) — Medium
+- pgvector embeddings need backfill for RAG — Medium
+- Rate limiter needs Redis for durability at scale — Low
 
 ## Decisions Made
 
-- Old slugs (KISSMEE, NORVM, RALNHC) deactivated, not deleted — Corey
-- Existing PTO backfill → Nurture stage; new incoming PTO → Engagement stage — Corey
-- Prospect sync every 15 minutes — Corey
-- ALTA/GLOBAL/TRAIN are admin accounts, no owner record needed — Corey
-- SASOTA is Erik Spersrud's new territory (retiring INDYNW, moved to FL) — Corey
+- Opus orchestrator: Opus for reasoning (iteration 1), Haiku for execution (iterations 2+) — Corey
+- 5 KB docs content written based on codebase knowledge — approved for seeding
+- Scout identity expanded to "sales and operations coach" — Corey
 
 ## Files Created
 
-- `components/territories/tabs/DetailsTab.tsx`
-- `lib/mastersuite/sync-pto-prospects.ts`
-- `app/api/cron/sync-ms-prospects/route.ts`
-- `scripts/audit-territories.ts`
-- `scripts/audit-territories-phase2.ts`
-- `scripts/audit-territory-properties.ts`
-- `scripts/fix-territory-alignment.ts`
-- `scripts/import-pto-prospects.ts`
+- `supabase/migrations/20260511000000_kb_elite_content.sql`
 
 ## Files Modified
 
-- `app/(auth)/territories/[TerritorySlug]/page.tsx`
-- `app/api/pipeline/territory-cards/route.ts`
-- `app/api/settings/cron-jobs/route.ts`
-- `vercel.json`
-
-## Files Deleted
-
-- None
+- `types/scout.ts` — Added territory_performance, network_benchmarks, compare_territories
+- `lib/scout/tools.ts` — 4 new tool definitions, expanded query/aggregate enums
+- `lib/scout/tool-executor.ts` — 4 new tool implementations (~400 lines)
+- `lib/scout/data-tools.ts` — inventory/properties entities, enhanced territory profile
+- `lib/scout/client.ts` — System prompt overhaul, Opus orchestrator, dynamic territory count
+- `lib/scout/stream.ts` — Opus orchestrator pattern for streaming
+- `lib/scout/model-router.ts` — 8 new Sonnet patterns for performance queries
+- `components/scout/QuickAsk.tsx` — max-height fix
+- `components/layout/ScoutFAB.tsx` — drawer size expansion
 
 ## Open Issues Carried Forward
 
 - PTO prospects need real GHL contact creation or sync — Medium
-- Wire Scout to query ms\_\* tables for coaching intelligence — Medium
 - Phase 3 supporting table sync (mortgages, comparables, royalty, etc.) — Medium
-- Remove debug-performance endpoint — Low
-- Scorecard actuals trailing-3-month filtering — Medium
-- pgvector embeddings need backfill for RAG — Medium (from session 31)
-- Rate limiter needs Redis for durability at scale — Low (from session 31)
+- pgvector embeddings need backfill for RAG — Medium
+- Rate limiter needs Redis for durability at scale — Low
 
 ## Exact Next Step
 
-Wire Scout to query ms_properties and performance data so it can coach franchisees with real territory context, or create real GHL contacts for the 231 PTO prospects so they flow into the full pipeline.
+Test Scout with real questions against live data. Try: "How is Spokane doing?", "Compare Spokane and Boise", "What do high performers look like?", "Who should I focus on today?". Verify Opus orchestrator cost savings in LLM logs.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -113,6 +115,6 @@ Wire Scout to query ms_properties and performance data so it can coach franchise
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Wire Scout to query ms_properties and performance data so it can coach franchisees with real territory context, or create real GHL contacts for the 231 PTO prospects so they flow into the full pipeline.
+Then: Test Scout with real data questions, verify Opus orchestrator pattern in LLM logs, or continue with Phase 3 MasterSuite sync.
 
 ---

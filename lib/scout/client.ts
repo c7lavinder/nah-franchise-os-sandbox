@@ -339,6 +339,23 @@ function formatPageContextForPrompt(ctx?: ScoutConversationInput["pageContext"])
   }
   if (ctx.callType) bits.push(`Call type: ${ctx.callType}.`);
   if (ctx.pipelineStage) bits.push(`Current pipeline stage: ${ctx.pipelineStage}.`);
+
+  // Tool preferences by page — guide Scout to the most relevant tool first
+  const toolHints: Record<string, string> = {
+    territory:
+      "Prefer territory_performance for performance questions, compare_territories for comparisons, get_entity(type='territory') for profile.",
+    pipeline:
+      "Prefer get_pipeline for structure, aggregate(entity='journeys') for counts, get_contact_insights for prioritization.",
+    dashboard: "Prefer network_benchmarks for network-wide metrics, aggregate for breakdowns.",
+    leads:
+      "Prefer search_contacts to find leads, get_next_action for recommendations, get_contact_insights for prioritization.",
+    lead_detail:
+      "Prefer get_entity(type='contact') for full profile, get_next_action for recommendation, territory_performance if territory context is relevant.",
+    calls: "Prefer get_contact_insights(lens='recent_calls') for call history.",
+    call_detail: "Prefer get_entity(type='contact') for the contact on this call, search_knowledge for coaching tips.",
+  };
+  if (toolHints[ctx.page]) bits.push(toolHints[ctx.page]);
+
   return bits.join(" ");
 }
 
