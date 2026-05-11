@@ -263,9 +263,7 @@ function CallRow({ c }: { c: Call }) {
 
       {/* Status badge */}
       <div className="flex-shrink-0 w-[90px] text-right">
-        {c.status === "scheduled" && c.date && new Date(c.date) > new Date() ? (
-          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-info/10 text-info">Upcoming</span>
-        ) : c.has_transcript && !c.ai_summary_generated_at ? (
+        {c.has_transcript && !c.ai_summary_generated_at ? (
           <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-warning/10 text-warning">
             Needs Review
           </span>
@@ -506,8 +504,9 @@ export default function CallsPage() {
     setManualSaving(false);
   }
 
-  // Filter + categorize + sort newest first within each panel
-  const filtered = filterByTime(calls, timeFilter);
+  // Filter: completed calls only (no upcoming/scheduled), then by time
+  const completedCalls = calls.filter((c) => c.status !== "scheduled");
+  const filtered = filterByTime(completedCalls, timeFilter);
   const panelData = PANELS.map((p) => ({
     ...p,
     calls: filtered
