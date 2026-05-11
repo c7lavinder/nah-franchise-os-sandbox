@@ -429,7 +429,7 @@ function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: 
           const isCurrent = i === currentIdx;
           const isPast = i < currentIdx;
           return (
-            <div key={i} className="flex items-start flex-1 min-w-0">
+            <div key={i} className={`flex items-start min-w-0 ${i === 0 ? "shrink-0" : "flex-1"}`}>
               {i > 0 && (
                 <div className="flex flex-col items-center mt-[7px] flex-1 min-w-0">
                   <div className={`w-full h-[2px] ${reached ? "bg-success" : "bg-border-default"}`} />

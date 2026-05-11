@@ -199,7 +199,8 @@ export async function GET(request: NextRequest) {
 
               if (extracted.text) {
                 aiText = extracted.text;
-                break;
+                // Only break if this is a final response (no tool calls in this message)
+                if (extracted.tools.length === 0) break;
               }
             }
             // Stop at the next real user message — but skip tool_result messages

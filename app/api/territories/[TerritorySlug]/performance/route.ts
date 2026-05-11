@@ -156,9 +156,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
-  // 5. Funnels — current + previous, with optional lead category filter
-  const funnel = computeFunnel(currentHistory, filteredPropertyIds);
-  const prevFunnel = computeFunnel(prevHistory, filteredPropertyIds);
+  // 5. Funnels — scoped to Stage 1 entrants so counts match KPI cards
+  const funnelFilter = new Set<number>();
+  for (const id of enteredStage1) {
+    if (!filteredPropertyIds || filteredPropertyIds.has(id)) funnelFilter.add(id);
+  }
+  const prevEnteredStage1 = new Set<number>();
+  for (const h of prevHistory) {
+    if (h.NewStatus === "1") {
+      if (!filteredPropertyIds || filteredPropertyIds.has(h.PropertyId)) {
+        prevEnteredStage1.add(h.PropertyId);
+      }
+    }
+  }
+  const funnel = computeFunnel(currentHistory, funnelFilter);
+  const prevFunnel = computeFunnel(prevHistory, prevEnteredStage1);
 
   // 6. Sold in period + Active Inventory
   const soldInPeriod: InvRow[] = [];

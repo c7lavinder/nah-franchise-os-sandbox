@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       .update({
         finished_at: new Date().toISOString(),
         status: "completed",
-        result: { created: result.created, skipped: result.skipped, errors: result.errors },
+        result: { created: result.created, wired: result.wired, skipped: result.skipped, errors: result.errors },
         error: result.errors.length > 0 ? result.errors[0] : null,
       })
       .eq("id", log.id);
@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     success: result.errors.length === 0,
     created: result.created,
+    wired: result.wired,
     skipped: result.skipped,
   });
 }

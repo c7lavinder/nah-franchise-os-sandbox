@@ -180,9 +180,9 @@ export default function TerritoryProfilePage() {
         <div className="grid grid-cols-4 gap-3">
           <StatCard label="Leads Entered" value={kpis?.leadsEntered ?? "—"} sub="hit Stage 1" />
           <StatCard
-            label="Conversion"
+            label="Deal Progression"
             value={kpis?.conversionRate != null ? `${kpis.conversionRate}%` : "—"}
-            sub="S1 → S4+"
+            sub="% of S1 → S4"
           />
           <StatCard label="Sold" value={kpis?.soldInPeriod ?? "—"} />
           <StatCard label="Avg Profit" value={kpis?.avgProfit != null ? `$${kpis.avgProfit.toLocaleString()}` : "—"} />

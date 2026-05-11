@@ -62,16 +62,9 @@ function formatToolInput(input: Record<string, unknown>): string {
     .join("\n");
 }
 
-/** Truncate long tool results for display, with option to expand */
-function truncateResult(text: string, maxLen = 300): { truncated: string; isTruncated: boolean } {
-  if (text.length <= maxLen) return { truncated: text, isTruncated: false };
-  return { truncated: text.slice(0, maxLen) + "...", isTruncated: true };
-}
-
 function ToolDetailBlock({ detail }: { detail: ToolCallDetail }) {
   const [expanded, setExpanded] = useState(false);
   const hasResult = detail.result !== undefined && detail.result !== "";
-  const result = hasResult ? truncateResult(detail.result!) : null;
 
   return (
     <div
@@ -115,7 +108,7 @@ function ToolDetailBlock({ detail }: { detail: ToolCallDetail }) {
                   detail.isError ? "text-red-700 bg-red-50 border-red-100" : "text-gray-600 bg-white border-gray-100"
                 }`}
               >
-                {result!.isTruncated && !expanded ? result!.truncated : detail.result}
+                {detail.result}
               </pre>
             </div>
           )}
@@ -163,7 +156,7 @@ function ExchangeBlock({ exchange, index }: { exchange: ConversationExchange; in
       )}
 
       {/* AI response */}
-      <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-800 whitespace-pre-wrap max-h-96 overflow-y-auto">
+      <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-800 whitespace-pre-wrap">
         <div className="text-xs font-medium text-gray-500 mb-1">Scout</div>
         {exchange.aiResponse || "(no text response — tool use only)"}
       </div>
