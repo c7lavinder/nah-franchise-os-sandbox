@@ -1,0 +1,156 @@
+app_settings (26): created_at, description, id, is_encrypted, setting_key, setting_value, updated_at
+call_action_feedback (2): action, call_action_item_id, created_at, edit_diff, extraction_id, id, payload, user_id
+call_action_items (634): call_id, category, constraint, contact_id, created_at, description, ghl_action, id +10 more
+call_coaching (31): call_id, coaching_notes, coaching_plan, created_at, created_by, id, kb_snippets_used, scout_model
+call_data_extractions (3967): CONSTRAINT, CONSTRAINT, TerritorySlug, call_id, confidence, contact_id, created_at, dismissed +8 more
+call_grades (49): call_id, created_at, criterion_scores, graded_by, id, improvements, overall_grade, overall_score +4 more
+call_journeys (261): REFERENCES, call_id, created_at, id, is_primary, journey_id, journey_pipeline_state_id
+call_logs (0): ai_prefilled, call_type, called_at, contact_id, created_at, fields, human_confirmed, id +6 more
+call_participants (822): call_id, contact_id, created_at, display_name, email, id, journey_pipeline_state_id, role +1 more
+call_review_packages (33): call_id, coaching_citations, coaching_feedback, contact_id, created_at, grade, grade_detail, id +4 more
+call_territories (200): CONSTRAINT, TerritorySlug, call_id, created_at, id, is_primary
+call_transcripts (33): call_id, created_at, full_text, id, language, metadata, source, word_count
+call_types (14): category, created_at, description, id, name, slug, updated_at
+calls (145): TerritorySlug, action_items, ai_summary, ai_summary_generated_at, brief_context, brief_generated_at, call_type_id, classification_reason +29 more
+candidate_intelligence (1987): active_flags, avg_response_time_hours, construction_comfort, contact_id, created_at, current_score, disc_profile, financial_red_flags +26 more
+candidate_score_history (1854): changes_explained, contact_id, created_at, engagement_after, engagement_before, financial_after, financial_before, id +8 more
+coach_assignments (0): CONSTRAINT, TerritorySlug, assigned_at, coach_user_id, ended_at, id, specialty
+compliance_tracking (0): background_check_at, background_check_status, contact_id, created_at, docusign_envelope_id, fdd_acknowledged_at, fdd_cooling_ends_at, fdd_issued_at +16 more
+contact_activity_messages (9): author_user_id, body, contact_id, created_at, deleted_at, id, mentioned_user_ids, updated_at
+contact_emails (2665): contact_id, created_at, email, id, is_primary, label, source, updated_at
+contact_journals (20): contact_id, created_at, embedding_id, id, interactions, journal_date, signals_extracted, summary +1 more
+contact_profile_data (6): competitor_notes, created_at, decision_style, definition_of_success, desired_territory, financing_type, ghl_contact_id, guidant_robs_active +13 more
+contact_profile_fields (463): contact_id, created_at, field_name, field_value, id, last_updated_at, last_updated_by, source_history
+contact_related_people (12): contact_id, created_at, deleted_at, email, first_name, id, is_primary_decision_maker, last_name +5 more
+contact_scores (0): confidence, created_at, expires_at, ghl_contact_id, id, reason, score_type, score_value +2 more
+contact_sub_task_logs (205): CONSTRAINT, content_file_url, content_link_url, content_text, content_type, created_at, deleted_at, id +7 more
+contact_team_members (6): contact_id, created_at, id, user_id
+contact_zorakle_data (0): created_at, culture, eclipse_drive_id, eclipse_overall, fit_score, ghl_contact_id, id, risk_flag +6 more
+contacts (3000): BriefWorkHistory, CountiesInterestedIn, LeadSource, NonRetirementCapitalAvailable, PartnerEmail, PartnerName, PartnerPhone, PreferredName +56 more
+cron_job_log (204): created_at, error, finished_at, id, job_name, result, started_at, status
+data_update_suggestions (1226): TerritorySlug, combination_note, combined_sources, confidence, contact_id, created_at, current_value, evidence +12 more
+embeddings (20): contact_id, content, content_type, created_at, embedding, id, metadata, tenant_id +1 more
+eos_contact_goals (45): contact_id, id, income_goal, lifestyle_goal, qol_goal, source, updated_at
+eos_contact_habits (0): cadence, contact_id, created_at, grade, habit_text, id, sort_order, source +1 more
+eos_contact_issues (3): contact_id, created_at, id, is_done, issue_text, source, updated_at
+eos_contact_todos (7): contact_id, created_at, id, is_done, owner_user_id, source, todo_text, updated_at
+eos_territory_budgets (317): TerritorySlug, amount, description, id, ms_id, sort_order, updated_at
+eos_territory_goals (231): CONSTRAINT, TerritorySlug, actual, current_year_goal, goal_type, id, updated_at, year_25_goal +1 more
+eos_territory_habits (404): CONSTRAINT, TerritorySlug, grade, habit_key, habit_label, id, sort_order, updated_at
+eos_territory_issues (223): Issue, TerritorySlug, created_at, id, is_done, ms_id, origin_contact_id, source +1 more
+eos_territory_lead_channels (2912): CONSTRAINT, TerritorySlug, channel_name, id, is_active, sort_order, updated_at
+eos_territory_rocks (135): Rock, TerritorySlug, created_at, id, ms_id, quarter, status, updated_at +1 more
+eos_territory_scorecard (811): CONSTRAINT, TerritorySlug, goal_value, id, metric_key, metric_label, sort_order, updated_at
+eos_territory_todos (209): TerritorySlug, Todo, created_at, id, is_done, ms_id, origin_contact_id, owner_user_id +2 more
+franchise_owners (67): TerritorySlug, created_at, ct_email, ct_id, full_name, ghl_contact_id, status, updated_at
+franchisee_performance (0): active_status, contact_id, created_at, data_source, franchise_agreement_signed, franchise_software_id, franchisee_name, funds_received_at +18 more
+ghl_action_drafts (0): action_type, confirmed_at, contact_id, created_at, drafted_by_source, drafted_by_user_id, edited_params, error_message +5 more
+ghl_pipeline_stages (58): created_at, id, pipeline_id, position, stage_id, stage_name, updated_at
+ghl_sync_queue (0): attempts, contact_id, created_at, ghl_field_id, id, last_error, status, updated_at +1 more
+ghl_workflows (0): created_at, description, ghl_workflow_id, id, is_active, name, updated_at, webhook_url
+inactivity_alerts (8581): alert_type, created_at, details, ghl_contact_id, id, is_resolved, message, pipeline_stage +4 more
+integration_logs (861): TerritorySlug, created_at, error_message, event_type, id, integration_name, payload_summary, related_contact_id +1 more
+journey_contacts (3017): contact_id, created_at, id, is_primary_decision_maker, joined_at, journey_id, left_at, role +2 more
+journey_pipeline_state (3158): TerritorySlug, assigned_user_id, closed_at, closed_reason, created_at, current_stage_id, current_sub_task_id, current_sub_task_started_at +7 more
+journeys (2975): REFERENCES, close_reason, created_at, id, name, parent_journey_id, primary_contact_id, slug +2 more
+kb_gap_signals (0): id, query, resolved, resolved_by_doc_id, results_found, searched_at, suggested_category
+knowledge_documents (57): category, content, created_at, id, is_active, last_retrieved_at, priority, status +4 more
+lead_sources (5): created_at, id, is_active, name, sort_order
+lead_sub_sources (16): created_at, id, is_active, lead_source_id, name, sort_order
+llm_call_logs (563): created_at, error_message, id, input_messages, input_tokens, iteration, latency_ms, model +5 more
+market_signals (0): id, observed_at, signal_key, signal_type, signal_value, source
+ms_construction_default_rooms (0): Description, IconUrl, Name, RoomToken
+ms_construction_property_rooms (0): ConstructionPropertyRoomId, PropertyId, RoomToken
+ms_eos_construction_habits (26): AltaWeeklyVideoUpdates, Phase1Walkthroughs, PropertyAutopsies, QuarterlyIndexUpdate, TerritorySlug, WeeklyBudgetMeeting
+ms_eos_construction_issues (20): Done, Id, Issue, TerritorySlug
+ms_eos_construction_master_statuses (5): SortOrder, StatusColor, StatusName
+ms_eos_construction_master_tasks (16): Color, Enabled, SortOrder, TaskId, TaskName
+ms_eos_construction_rocks (21): Id, Rock, Status, TerritorySlug
+ms_eos_construction_task_history (2010): Id, InsertedBy, InsertedTime, MasterTask, PropertyId, Status
+ms_eos_construction_task_notes (110): MasterTask, Note, PropertyId, UpdatedBy, UpdatedTime
+ms_eos_construction_tasks (1826): MasterTask, PropertyId, Status, UpdatedBy, UpdatedTime
+ms_eos_construction_todos (29): Done, Id, TerritorySlug, Todo
+ms_lead_list_counts (8207): LeadCategory, LeadType, TerritorySlug, count, id, month, synced_at
+ms_lead_type_categories (0): LeadCategory, LeadCategoryId
+ms_lead_types (0): LeadCategoryId, LeadType, LeadTypeId
+ms_master_list_intangibles (0): FriendlyName, Token
+ms_note_holders (0): CommittedProjects, Name, NextFundingDate, Token, TotalFunds
+ms_project_management_master_statuses (5): StatusColor, StatusName
+ms_project_management_master_tasks (2223): Color, Enabled, SortOrder, TaskId, TaskName, TerritoryId
+ms_project_management_task_notes (509): MasterTask, Note, PropertyId, UpdatedBy, UpdatedTime
+ms_project_management_tasks (16013): MasterTask, PropertyId, Status, UpdatedBy, UpdatedTime
+ms_properties (49966): Address1, AddressSlugShort, AddressSlugVerbose, AedQualified, Archived, ArchivedDate, ArvCeiling, AuctionAdPrice +118 more
+ms_property_agent_feedback (0): AgentFeedback, AgentRecommendedArvHigh, AgentRecommendedArvLow, AgentRecommendedFinalValuation, NoteToAgent, PropertyId, ms_synced_at
+ms_property_calculations (49965): Calculated_AbsenteeSeller, Calculated_AdjustedRiskFactor, Calculated_AdjustedSqFt, Calculated_AmountFinanced, Calculated_Arv, Calculated_ArvCeilingSqFt, Calculated_ArvPerAdjustedSqFt, Calculated_ArvRiskFactor +122 more
+ms_property_comparables (0): AdjustedPricePerSqFt, AdjustedSqFt, AgentNotes, AgentSelected, AuxSqFt, BasementAtticPercentage, Bathrooms, Bedrooms +31 more
+ms_property_contacts (0): Address, City, Email, FirstName, GoHighLevelContactId, Inserted, LastName, Phone +26 more
+ms_property_corporate_notes (0): Id, Inserted, Message, Name, PropertyId, Updated, Username
+ms_property_dispositions (0): AlternateAssignmentFeeExpense, AlternateBuyingCosts, AlternateCB, AlternateClosingCosts, AlternateConcessions, AlternateCostOfMoney, AlternateCostOfProperty, AlternateCycleMonths +10 more
+ms_property_inventory (49957): Inv_AnnualProForma_RentalCapEx_Actual, Inv_AnnualProForma_RentalHoa_Actual, Inv_AnnualProForma_RentalInsurance_Actual, Inv_AnnualProForma_RentalInterestRate_Actual, Inv_AnnualProForma_RentalMaintenance_Actual, Inv_AnnualProForma_RentalManagement_Actual, Inv_AnnualProForma_RentalMaxLoanToValue_Actual, Inv_AnnualProForma_RentalMisc_Actual +123 more
+ms_property_media (0): Error, FileExtension, Inserted, MediaCategory, OriginalFileName, PropertyId, ThumbnailUrl, Type +2 more
+ms_property_mortgages (0): Amount, Calculated_EstimatedPayoff, Date, DeedType, DetailsJson, DueDate, Enabled, KnownInterestRate +7 more
+ms_property_notes (0): Note_AprPercentage, Note_Calculated_NoteBalance, Note_Calculated_NotePayable, Note_CommittedForDate, Note_Date, Note_Fees, Note_Holder, Note_Id +10 more
+ms_property_royalty (0): AcquisitionRoyaltyOverride, AcquisitionRoyaltyPaid, AcquisitionRoyaltyPaidDate, Calculated_AcquisitionRoyalty, Calculated_AcquisitionRoyaltyDue, Calculated_AcquisitionRoyaltyDueDate, Calculated_DelayedRoyaltyFee, Calculated_DelayedRoyaltyFeeDue +22 more
+ms_property_stage0 (0): AuxFinishedSqFt, Bathrooms, Bedrooms, CensusTract, EffectiveYear, LastSoldDate, LastSoldPrice, LatLongSource +28 more
+ms_property_stage1 (0): PropertyId, S1_AuxFinishedSqFt, S1_Bathrooms, S1_Bedrooms, S1_CensusTract, S1_EffectiveYear, S1_LastSoldDate, S1_LastSoldPrice +21 more
+ms_property_status_history (117308): Inserted, NewStatus, PreviousStatus, PropertyId
+ms_property_status_timelines (0): DaysBetweenFirstStageToStage4, DaysBetweenInsertedToFirstStage, FirstStageDate, PropertyId, Stage4Date
+ms_report_variable_configuration (0): Description, Hidden, Name, SortOrder, TutorialTextToken, UserFriendlyName, UserInterfaceFormatter, UserInterfaceFormatterArgument1
+ms_report_variables (0): ArvPercentAuxSqFt, ArvPercentSqFt, ArvPercentUnfinishedSqFt, ConstructionBudgetDefaultRehabGrade, ConstructionBudgetDefaultRehabGradeForeclosure, ConstructionBudgetDefaultRehabGradeTax, ConstructionBudgetS1, DefaultLocationGrade +48 more
+ms_stage0_types (0): Type
+ms_territory_associated_counties (0): CountyName, State, TerritorySlug
+ms_territory_associated_zip_codes (0): TerritorySlug, ZipCode
+ms_territory_badges (0): DisplayName, GroupName, ImageUrl, Levels, TerritoryBadgeId
+ms_territory_badges_earned (0): CurrentLevel, Id, TerritoryBadgeId, TerritorySlug
+ms_territory_dashboard_links (0): Name, TerritorySlug, Url
+ms_territory_inbox (0): FormSubmissionId, FormType, From, Inserted, Message, PropertyId, TerritoryInboxId, TerritorySlug
+ms_territory_variables (0): InvRentalCapEx, InvRentalHoa, InvRentalInsurance, InvRentalInterestRate, InvRentalMaintenance, InvRentalManagement, InvRentalMaxLtvPercent, InvRentalMisc +19 more
+ms_user_territories (0): TerritorySlug, UserId
+ms_zillow_home_value_forecast_county (0): County, ForecastYoYPctChange, State
+ms_zillow_home_value_forecast_zip (0): ForecastYoYPctChange, Zip
+ms_zillow_median_sales_price_county (0): County, MedianSalesPrice, SizeRank, State
+ms_zillow_median_sales_price_zip (0): MedianSalesPrice, SizeRank, Zip
+ms_zillow_sfh_time_series_county (0): County, HomeValueIndex, SizeRank, State
+ms_zillow_sfh_time_series_zip (0): HomeValueIndex, SizeRank, Zip
+ms_zip_code_avg_price_sqft (0): LastUpdatedUtc, PriceSqFt, R1, R1DaysOnMarket, R1n, R1nDaysOnMarket, R2, R2DaysOnMarket +19 more
+ms_zip_code_locations (0): City, CountyName, Metro, State, ZipCode
+notifications (7): contact_id, created_at, id, read_at, recipient_user_id, source_id, source_type, type
+objection_registry (51): call_log_id, contact_id, created_at, id, objection_detail, objection_type, resolution_notes, resolved +3 more
+pipeline_app_settings (1): ghl_sync_enabled, ghl_sync_queue_alert_threshold, id, time_in_stage_red_days, time_in_stage_yellow_days, updated_at, updated_by_user_id
+pipeline_stage_history (43): CONSTRAINT, created_at, from_stage_id, id, journey_pipeline_state_id, moved_by_user_id, reason, to_stage_id +3 more
+pipeline_stages (20): auto_advance_enabled, auto_spawn_pipeline_id, created_at, description, id, is_terminal, name, pipeline_id +3 more
+pipeline_sub_tasks (51): created_at, default_logger_type, default_logger_user_id, description, first_state_label, id, is_required, name +6 more
+pipelines (5): created_at, description, entity_type, ghl_field_id, id, is_active, is_visible_in_nav, name +3 more
+read_ai_sessions (121): CONSTRAINT, call_type, classified_at, created_at, end_time, error_message, linked_call_id, owner_email +8 more
+read_ai_webhook_keys (0): created_at, signing_key, user_email
+rep_journals (9): calls_completed, coaching_notes, contacts_touched, created_at, focus_tomorrow, ghl_actions_fired, id, journal_date +4 more
+rubric_criteria (66): created_at, description, example_phrases_negative, example_phrases_positive, id, kb_document_ids, name, negative_examples +5 more
+rubric_review_suggestions (0): created_at, criterion_id, criterion_name, current_state, id, issue_type, review_month, reviewed_at +4 more
+rubrics (14): call_type_id, created_at, description, id, is_active, name, updated_at
+scout_action_logs (23): action_status, action_type, confirmed_at, created_at, draft_content, error_message, executed_at, final_content +5 more
+scout_performance_reports (5): acceptance_rate, action_type_breakdown, created_at, edit_rate, id, kb_gap_signals, kb_retrieval_count, most_edited_fields +6 more
+scout_user_memory (4): content, turn_count, updated_at, user_id
+sessions (105): context_summary, conversation_history, ended_at, ghl_contact_focus, id, is_active, last_activity_at, started_at +1 more
+suggestion_feedback (0): accepted_value, call_id, call_type, contact_id, created_at, edit_delta, id, original_value +3 more
+system_logs (18): action_type, contact_id, created_at, id, input_params, log_date, result_summary, tenant_id +2 more
+tasks (0): assigned_to_ghl_user_id, assigned_to_user_id, body, completed, completed_at, contact_id, created_at, due_date +7 more
+territories (99): FranchiseAgreementDate, Nickname, TerritoryId, TerritorySlug, created_at, ghl_contact_id, ms_synced_at, region +2 more
+territory_candidates (0): CONSTRAINT, TerritorySlug, created_at, ghl_contact_id, id, status, updated_at
+territory_grades (0): CONSTRAINT, TerritorySlug, created_at, houses_purchased, id, john_grade, notes, quarter +2 more
+territory_market_data (140): CONSTRAINT, TerritorySlug, field_name, field_value, id, source, source_date, updated_at +1 more
+territory_owners (80): TerritorySlug, created_at, end_date, ghl_contact_id, id, role, start_date, transfer_notes
+territory_profile (67): TerritorySlug, active_deals, actual_purchases, avg_profit_per_flip, avg_time_to_flip_days, coaching_notes, competitor_presence, created_at +14 more
+territory_stakeholders (70): TerritorySlug, company, contact_id, created_at, email, first_name, id, is_active +5 more
+transcript_jobs (0): attempts, audio_url, call_id, completed_at, created_at, error_message, id, started_at +2 more
+user_email_aliases (4): created_at, email, id, user_id
+user_memory (0): confidence, created_at, id, last_accessed_at, memory_key, memory_type, memory_value, source +2 more
+users (18): CONSTRAINT, created_at, email, full_name, ghl_user_id, id, is_active, is_real_user +5 more
+workflow_ab_tests (0): completed_at, created_at, created_by, declared_by, id, min_sample_size, status, test_type +11 more
+workflow_approvals (2): ab_test_id, approval_type, approved_by, id, notes, resolved_at, status, submitted_at +3 more
+workflow_enrollments (0): completed_at, contact_name, current_day, current_step_id, enrolled_at, exit_reason, ghl_contact_id, goal_achieved +6 more
+workflow_step_logs (0): clicked, confirmed_at, confirmed_by, content_sent, created_at, delivered, delivery_data, enrollment_id +8 more
+workflow_steps (107): CONSTRAINT, click_rate, condition_config, content, created_at, day_number, id, open_rate +8 more
+workflow_versions (12): approved_at, approved_by, change_description, created_at, created_by, id, update_mode, version_number +1 more
+workflows (12): CONSTRAINT, active_enrollee_count, created_at, created_by, current_version_id, description, exit_conditions, health_score +10 more
+zorakle_assessments (82): TerritorySlug, batch, biz_path_score, contact_id, created_at, cultural_score, culture, eclipse_drive_id +9 more
+zorakle_profiles (82): TerritorySlug, batch, biz_path_score, created_at, cultural_score, culture, eclipse_drive_id, eclipse_overall +10 more

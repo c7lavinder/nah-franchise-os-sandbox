@@ -655,9 +655,10 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   {
     name: "describe_data",
     description:
-      "List available data tables and their key columns. Use this BEFORE answering 'what data do you have?' or " +
-      "'can you tell me about X?' when you are unsure whether that data exists. Returns table names, row counts, " +
-      "and key columns. Optional: pass a table name to get detailed column info for that specific table.",
+      "List all 156 database tables with their columns and row counts. Use this BEFORE claiming you don't have " +
+      "access to certain data — check first. Covers: contacts, territories, calls, pipeline stages, EOS, " +
+      "MasterSuite properties, intelligence scores, Trainual, compliance, workflows, and more. " +
+      "Pass a table name for detailed column info, or omit to see the full schema overview.",
     input_schema: {
       type: "object",
       properties: {

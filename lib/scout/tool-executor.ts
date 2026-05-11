@@ -1858,217 +1858,92 @@ function computePeriodStart(period: string): Date {
   return new Date(now.getFullYear(), now.getMonth() - months, now.getDate());
 }
 
-/** Static data catalog — describes what Scout can access */
-const DATA_CATALOG: Record<string, { description: string; keyColumns: string[] }> = {
-  territories: {
-    description: "All 88 franchise territories (64 active) with owner, coach, compliance, dates, marketing info",
-    keyColumns: [
-      "TerritorySlug",
-      "Nickname",
-      "PrimaryCoach",
-      "ComplianceScore",
-      "FranchiseAgreementDate",
-      "Active",
-      "IsFranchise",
-      "IsFullTime",
-    ],
-  },
-  ms_property_inventory: {
-    description: "Property inventory — full lifecycle with financial snapshots at 5 maturity stages",
-    keyColumns: [
-      "PropertyId",
-      "TerritorySlug",
-      "Inv_Status",
-      "Inv_PurchaseDate",
-      "Inv_ConstructionStartDate",
-      "Inv_CompletionDate",
-      "Inv_ListDate",
-      "Inv_SellDate",
-      "Inv_PurchasePrice",
-      "Inv_SellPrice",
-      "Inv_Profit",
-    ],
-  },
-  ms_property_calculations: {
-    description: "Per-property calculated metrics — profit, ARV, max offer, lead score, cycle times",
-    keyColumns: [
-      "PropertyId",
-      "TerritorySlug",
-      "Calculated_Inv_Profit",
-      "Calculated_Arv",
-      "Calculated_MaxOffer",
-      "Calculated_LeadScore",
-      "Calculated_CycleDays",
-    ],
-  },
-  ms_properties: {
-    description: "Property leads — 900K+ with lead category, type, source, stage progression",
-    keyColumns: [
-      "PropertyId",
-      "TerritorySlug",
-      "LeadCategory",
-      "LeadType",
-      "Status",
-      "PropertyType",
-      "Stage1Arv",
-      "Stage1Price",
-      "Inserted",
-    ],
-  },
-  ms_property_contacts: {
-    description: "Seller/buyer contact info and skip trace phones per property",
-    keyColumns: ["PropertyId", "SellerFirstName", "SellerLastName", "SellerPhone", "BuyerFirstName", "BuyerLastName"],
-  },
-  ms_property_notes: {
-    description: "Financing notes — APR, principal, payoff per property",
-    keyColumns: ["PropertyId", "FinancingNotes", "APR", "Principal", "Payoff"],
-  },
-  ms_property_dispositions: {
-    description: "How properties were disposed — costs and profit by disposition type",
-    keyColumns: ["PropertyId", "DispositionType", "DispositionCost", "DispositionProfit"],
-  },
-  ms_property_comparables: {
-    description: "Comp data per property — comparable values and condition scores",
-    keyColumns: ["PropertyId", "CompValue", "CompCondition"],
-  },
-  ms_property_inventory_rental: {
-    description: "Rental pro forma per property — rent, vacancy, CapEx, NOI",
-    keyColumns: ["PropertyId", "MonthlyRent", "VacancyRate", "CapExReserve", "NOI"],
-  },
-  ms_property_royalty: {
-    description: "Acquisition and disposition royalty tracking per property",
-    keyColumns: ["PropertyId", "AcquisitionRoyalty", "DispositionRoyalty"],
-  },
-  calls: {
-    description: "All calls — transcripts, AI summaries, grades, coaching data, action items, participants",
-    keyColumns: [
-      "id",
-      "contact_id",
-      "call_type_id",
-      "title",
-      "ai_summary",
-      "summary_bullets",
-      "coaching_score",
-      "raw_transcript",
-      "status",
-      "started_at",
-      "duration_seconds",
-      "territory_ms_slug",
-    ],
-  },
-  call_grades: {
-    description: "Call quality grades — A-F overall grade, rubric scores, strengths, improvements",
-    keyColumns: [
-      "call_id",
-      "overall_grade",
-      "overall_score",
-      "criterion_scores",
-      "strengths",
-      "improvements",
-      "suggested_next_action",
-    ],
-  },
-  call_action_items: {
-    description: "Action items from calls — categorized with push status",
-    keyColumns: ["call_id", "category", "title", "description", "status", "ghl_action"],
-  },
-  call_participants: {
-    description: "Who was on each call — team members, prospects, franchisees",
-    keyColumns: ["call_id", "user_id", "contact_id", "role", "display_name"],
-  },
-  call_data_extractions: {
-    description: "Structured intel extracted from call transcripts — field values with confidence",
-    keyColumns: ["call_id", "field_key", "field_category", "extracted_value", "confidence", "saved_to_profile"],
-  },
-  contacts: {
-    description: "Franchise candidates — synced from PathToOwnership entries",
-    keyColumns: [
-      "id",
-      "first_name",
-      "last_name",
-      "email",
-      "phone",
-      "CountiesInterestedIn",
-      "lead_source",
-      "pipeline_stage",
-    ],
-  },
-  candidate_intelligence: {
-    description: "Intelligence scores per contact — financial, operational, engagement, momentum sub-scores + flags",
-    keyColumns: [
-      "contact_id",
-      "score",
-      "financial_readiness",
-      "operational_fit",
-      "engagement_quality",
-      "pipeline_momentum",
-      "avg_response_time_hours",
-    ],
-  },
-  pipeline_stage_history: {
-    description: "Audit trail of stage transitions — when contacts entered/exited each pipeline stage",
-    keyColumns: ["contact_id", "stage_id", "entered_at", "exited_at", "journey_pipeline_state_id"],
-  },
-  journey_pipeline_state: {
-    description: "Current pipeline state per contact per journey — includes days-in-stage calculations",
-    keyColumns: ["id", "contact_id", "journey_id", "stage_id", "entered_current_stage_at", "entered_pipeline_at"],
-  },
-  eos_territory_habits: {
-    description: "Weekly EOS habit grades per territory",
-    keyColumns: ["TerritorySlug", "week_of", "DailyTasks", "WeeklyContractorMeeting", "WeeklyAccounting"],
-  },
-  eos_territory_rocks: {
-    description: "Quarterly rocks per territory",
-    keyColumns: ["TerritorySlug", "Rock", "status", "quarter"],
-  },
-  eos_territory_goals: {
-    description: "Territory quarterly goals — leads, purchases, profit, compliance, cycle time",
-    keyColumns: ["TerritorySlug", "goal_type", "target", "actual", "quarter"],
-  },
-};
+/**
+ * Dynamic data catalog — reads the full schema reference generated from migrations.
+ * Loaded once at startup, cached in memory.
+ */
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+let _schemaCache: { tables: { name: string; columns: string }[]; raw: string } | null = null;
+
+function loadSchemaReference(): { tables: { name: string; columns: string }[]; raw: string } {
+  if (_schemaCache) return _schemaCache;
+
+  try {
+    const filePath = resolve(process.cwd(), "docs/scout-schema-condensed.txt");
+    const raw = readFileSync(filePath, "utf-8");
+    const tables = raw
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => {
+        const match = line.match(/^(\S+)\s+\(([^)]*)\):\s*(.*)$/);
+        if (!match) return null;
+        return { name: match[1], rowCount: match[2], columns: match[3] };
+      })
+      .filter(Boolean) as { name: string; rowCount: string; columns: string }[];
+
+    _schemaCache = {
+      tables: tables.map((t) => ({ name: t.name, columns: `${t.name} (${t.rowCount} rows): ${t.columns}` })),
+      raw,
+    };
+    return _schemaCache;
+  } catch {
+    return { tables: [], raw: "Schema reference file not found." };
+  }
+}
 
 async function executeDescribeData(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   const table = input.table as string | undefined;
+  const schema = loadSchemaReference();
 
   if (table) {
-    const entry = DATA_CATALOG[table];
+    // Find the table in the schema reference
+    const entry = schema.tables.find((t) => t.name === table);
+
     if (!entry) {
+      // Search for partial matches
+      const matches = schema.tables.filter((t) => t.name.includes(table));
+      if (matches.length > 0) {
+        return {
+          data: JSON.stringify({
+            error: `Table "${table}" not found. Did you mean: ${matches.map((m) => m.name).join(", ")}?`,
+          }),
+        };
+      }
       return {
         data: JSON.stringify({
-          error: `Unknown table: ${table}. Use describe_data without a table parameter to see all available tables.`,
+          error: `Table "${table}" not found. Use describe_data without a table parameter to see all ${schema.tables.length} tables.`,
         }),
       };
     }
-    // Also get a live row count
+
+    // Get live row count
+    let rowCount: number | string = "unknown";
     try {
       const supabase = createServerClient();
       const { count } = await supabase.from(table).select("*", { count: "exact", head: true });
-      return {
-        data: JSON.stringify({
-          table,
-          description: entry.description,
-          keyColumns: entry.keyColumns,
-          rowCount: count ?? "unknown",
-        }),
-      };
+      rowCount = count ?? "unknown";
     } catch {
-      return {
-        data: JSON.stringify({
-          table,
-          description: entry.description,
-          keyColumns: entry.keyColumns,
-          rowCount: "unable to count",
-        }),
-      };
+      // Use cached count from file
     }
+
+    return {
+      data: JSON.stringify({
+        table,
+        rowCount,
+        schema: entry.columns,
+      }),
+    };
   }
 
-  // Overview mode — list all tables with descriptions
-  const overview = Object.entries(DATA_CATALOG).map(([name, info]) => ({
-    table: name,
-    description: info.description,
-  }));
-  return { data: JSON.stringify({ availableTables: overview, totalTables: overview.length }) };
+  // Overview mode — return the full condensed schema (all 156 tables)
+  return {
+    data: JSON.stringify({
+      totalTables: schema.tables.length,
+      schema: schema.raw,
+    }),
+  };
 }
 
 async function executeTerritoryPerformance(input: Record<string, unknown>): Promise<ToolExecutionResult> {
