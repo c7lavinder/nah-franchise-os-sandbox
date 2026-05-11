@@ -26,6 +26,7 @@ export type EntityType = "contact" | "territory" | "journey" | "opportunity";
 export type QueryEntity =
   | "contacts"
   | "journeys"
+  | "pipeline_entries"
   | "territories"
   | "opportunities"
   | "call_logs"
@@ -81,11 +82,12 @@ const ENTITIES: Record<QueryEntity, EntityConfig> = {
       phone: "phone",
       city: "city",
       state: "state",
+      source: "source",
       opportunity_source: "opportunity_source",
       created_at: "created_at",
       updated_at: "updated_at",
     },
-    groupable: ["opportunity_source", "city", "state"],
+    groupable: ["opportunity_source", "source", "city", "state"],
     aggregatable: [],
     defaultOrder: { field: "updated_at", direction: "desc" },
   },
@@ -100,6 +102,20 @@ const ENTITIES: Record<QueryEntity, EntityConfig> = {
     groupable: ["status", "close_reason"],
     aggregatable: [],
     defaultOrder: { field: "updated_at", direction: "desc" },
+  },
+  pipeline_entries: {
+    table: "journey_pipeline_state",
+    filterable: {
+      pipeline_id: "pipeline_id",
+      current_stage_id: "current_stage_id",
+      is_active: "is_active",
+      entered_pipeline_at: "entered_pipeline_at",
+      entered_current_stage_at: "entered_current_stage_at",
+      created_at: "created_at",
+    },
+    groupable: ["pipeline_id", "current_stage_id", "is_active"],
+    aggregatable: [],
+    defaultOrder: { field: "entered_pipeline_at", direction: "desc" },
   },
   territories: {
     table: "territories",

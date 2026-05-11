@@ -43,7 +43,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     name: "query",
     description:
       "Filter a collection of records and return matching rows. Use this for 'show me X where Y' questions. " +
-      "Supported entities: contacts, journeys, territories, opportunities, call_logs, alerts, objections, workflow_enrollments, " +
+      "Supported entities: contacts, journeys, pipeline_entries, territories, opportunities, call_logs, alerts, objections, workflow_enrollments, " +
       "inventory (ms_property_inventory — purchase/sell dates, status), properties (ms_properties — leads, addresses, categories). " +
       "filters is a JSON array of {field, op, value} objects. Ops: eq, ne, gt, gte, lt, lte, in, ilike, is_null, not_null. " +
       "Each entity exposes its own filterable field set — if you use a wrong field, the error tells you what's allowed. " +
@@ -57,6 +57,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
           enum: [
             "contacts",
             "journeys",
+            "pipeline_entries",
             "territories",
             "opportunities",
             "call_logs",
@@ -89,7 +90,9 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     description:
       "Count, sum, avg, min, or max records — optionally grouped by a dimension. Use this for 'how many', 'what's the average', " +
       "'breakdown by X' questions. Lead source mix, pipeline stage distribution, conversion counts, alert counts by severity, " +
-      "objection frequency by type — all flow through here. Period filter: pass {field, from, to} to bound by a date column.",
+      "objection frequency by type — all flow through here. Period filter: pass {field, from, to} to bound by a date column. " +
+      "IMPORTANT: For FranDev lead flow / new prospect counts, use pipeline_entries (filtered by entered_pipeline_at) — NOT contacts. " +
+      "The contacts table includes re-imported records and is not a reliable count of new leads.",
     input_schema: {
       type: "object",
       properties: {
@@ -99,6 +102,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
           enum: [
             "contacts",
             "journeys",
+            "pipeline_entries",
             "territories",
             "call_logs",
             "alerts",
