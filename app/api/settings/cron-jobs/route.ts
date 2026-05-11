@@ -193,6 +193,14 @@ const CRON_DEFINITIONS = [
     category: "pipeline",
     frequency: "Every 6 hours",
   },
+  {
+    path: "/frandev/api/cron/sync-ms-prospects",
+    name: "MasterSuite Prospect Sync",
+    schedule: "*/15 * * * *",
+    description: "Import new Path to Ownership entries from MasterSuite as contacts in Engagement stage",
+    category: "pipeline",
+    frequency: "Every 15 minutes",
+  },
 ];
 
 export async function GET(request: NextRequest) {

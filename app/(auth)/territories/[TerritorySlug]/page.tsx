@@ -8,6 +8,7 @@ import EcosystemPanel from "@/components/territory/EcosystemPanel";
 import TerritoryEosTab from "@/components/territories/tabs/EosTab";
 import MarketTab from "@/components/territories/tabs/MarketTab";
 import PerformanceTab from "@/components/territories/tabs/PerformanceTab";
+import DetailsTab from "@/components/territories/tabs/DetailsTab";
 
 interface OwnerOut {
   ownerName: string | null;
@@ -16,14 +17,17 @@ interface OwnerOut {
   start_date?: string | null;
 }
 
+interface TerritoryRecord {
+  TerritorySlug: string;
+  Nickname: string;
+  status: string;
+  region: string | null;
+  FranchiseAgreementDate: string | null;
+  [key: string]: unknown;
+}
+
 interface TerritoryData {
-  territory: {
-    TerritorySlug: string;
-    Nickname: string;
-    status: string;
-    region: string | null;
-    FranchiseAgreementDate: string | null;
-  };
+  territory: TerritoryRecord;
   profile: Record<string, unknown> | null;
   currentOwner: OwnerOut | null;
   currentOwners?: OwnerOut[];
@@ -94,7 +98,7 @@ export default function TerritoryProfilePage() {
   const [t12Sold, setT12Sold] = useState<number | null>(null);
   const [quarterlyGrades, setQuarterlyGrades] = useState<QuarterlyGrade[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"performance" | "ecosystem" | "market" | "eos">("performance");
+  const [activeTab, setActiveTab] = useState<"performance" | "ecosystem" | "market" | "eos" | "details">("performance");
 
   useEffect(() => {
     Promise.all([
@@ -237,6 +241,7 @@ export default function TerritoryProfilePage() {
           { key: "ecosystem" as const, label: "Ecosystem" },
           { key: "market" as const, label: "Market & Financial" },
           { key: "eos" as const, label: "EOS" },
+          { key: "details" as const, label: "Details" },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -264,6 +269,8 @@ export default function TerritoryProfilePage() {
       )}
 
       {activeTab === "market" && <MarketTab TerritorySlug={TerritorySlug} />}
+
+      {activeTab === "details" && <DetailsTab territory={territory as any} />}
     </div>
   );
 }
