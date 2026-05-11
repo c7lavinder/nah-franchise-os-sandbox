@@ -6,68 +6,24 @@ Phase: Elite Scout Upgrade / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-### Scout Performance Intelligence (4 New Tools)
-
-- `territory_performance` — KPIs for any territory: purchases, sales, profit, cycle time, funnel S1→S6, active inventory, EOS habits, scorecard, channel effectiveness, trend vs previous period, owner names
-- `network_benchmarks` — Network-wide averages, medians, high performer list, top 10 territory rankings
-- `compare_territories` — Side-by-side comparison of 2-5 territories: KPIs, habits, channels, owners, compliance
-- `query`/`aggregate` expanded with `inventory` and `properties` entities for ad-hoc MasterSuite queries
-
-### Opus Orchestrator Pattern
-
-- Replaced Haiku→Sonnet→Opus model router with Opus orchestrator
-- Iteration 1: Opus (understands question, picks tools, reasons)
-- Iterations 2+: Haiku (processes tool results, generates response)
-- Applied to both client.ts (non-streaming) and stream.ts (streaming)
-- Result: Opus-quality reasoning + 90% cheaper execution on tool loops
-
-### Knowledge Base: 5 New Docs (25 total)
-
-- `ideal_candidate` — Target franchisee profile, must-haves, red flags, scoring framework
-- `competitors` — NAH vs solo flipping, vs HomeVestors, differentiation scripts
-- `territory` — Territory analysis framework, health indicators (green/yellow/red)
-- `training` — Trainual stage-gated access, completion signals, nudge logic
-- `operations` — Team roles, decision authority, daily workflow, escalation paths
-
-### System Prompt Overhaul
-
-- Identity: "sales and operations coach" (was "sales assistant")
-- North star injected: "Get more franchisees. Take more franchisees to high performer status."
-- Performance coaching playbook — 8-lever diagnostic framework
-- Math/calculation instructions — annualize, project, calculate ROI, compare deltas
-- Objection analysis instructions — resolution rates by type
-- Comparison/correlation instructions — correlate habits with performance
-- Page context tool preferences — guide Scout to best tool per page
-- Dynamic territory count (queries Supabase, was hardcoded 64)
-
-### Territory Performance Enhancements
-
-- Owner names resolved from contacts table
-- Coach, awarded date, compliance score included
-- Lead channel effectiveness: cross-reference categories with actual purchase/sold outcomes
-- Period-over-period trend: this T3 vs last T3 with % change and direction (up/down/flat)
-
-### Contact Insights Enhancement
-
-- `get_contact_insights` returns `topPick` with reason: "Most at risk — avg score 28, only 1 call"
-- Priority recommendation for every lens (momentum, at_risk, stalling, top_performers)
-
-### Model Router Updates
-
-- 8 new Sonnet patterns for performance/benchmark/compare queries
-- `resolved` added as aggregatable field on objections entity
-
-### UI Fixes
-
-- QuickAsk: `max-h-[200px] overflow-y-auto` prevents content push
-- FAB drawer: expanded from 320px × 50vh to 420px × 70vh
+- **4 new Scout tools**: `territory_performance` (KPIs, funnel, cycle time, channel effectiveness, trends, owners), `network_benchmarks` (network averages, high performer list, rankings), `compare_territories` (side-by-side 2-5 territories), expanded `query`/`aggregate` with `inventory` and `properties` entities
+- **Opus orchestrator pattern**: Opus reasons on iteration 1, Haiku executes iterations 2+ — applied to both `lib/scout/client.ts` and `lib/scout/stream.ts`
+- **5 new KB docs** seeded via `supabase/migrations/20260511000000_kb_elite_content.sql`: ideal_candidate, competitors, territory, training, operations (25 total, was 20)
+- **System prompt overhaul** in `lib/scout/client.ts`: identity → "sales and operations coach", north star, performance coaching playbook (8 levers), math/calculation instructions, objection resolution analysis, comparison/correlation instructions, page context tool preferences, dynamic territory count
+- **Territory performance enhancements** in `lib/scout/tool-executor.ts`: owner names, coach, compliance score, lead channel effectiveness (leads→purchased→sold per category), period-over-period trend with % change and direction
+- **Priority contact pick** in `get_contact_insights` (`lib/scout/tool-executor.ts`): `topPick` with reason per lens
+- **Objection resolution rates**: `resolved` added as aggregatable field in `lib/scout/data-tools.ts`
+- **8 new Sonnet patterns** in `lib/scout/model-router.ts` for performance/benchmark/compare queries
+- **QuickAsk max-height fix** in `components/scout/QuickAsk.tsx`: `max-h-[200px] overflow-y-auto`
+- **FAB drawer expansion** in `components/layout/ScoutFAB.tsx`: 320px×50vh → 420px×70vh
 
 ## What Is Confirmed Working
 
-- `npx tsc --noEmit` passes clean (0 errors)
-- 129 tests passing
-- 1 migration applied to Supabase (20260511000000_kb_elite_content.sql)
-- Vercel deploy triggered from main push
+- `npx tsc --noEmit` — 0 errors
+- 129 tests passing (13 test files)
+- Migration `20260511000000_kb_elite_content.sql` applied to Supabase
+- Git clean, pushed to main, Vercel deploying
+- Both commits landed: `ff3e6f4` (elite upgrade) + `22aaa9c` (tool hints + handoff)
 
 ## What Is Broken or Incomplete
 
@@ -79,8 +35,9 @@ Phase: Elite Scout Upgrade / Health: Green / Duration: full session
 ## Decisions Made
 
 - Opus orchestrator: Opus for reasoning (iteration 1), Haiku for execution (iterations 2+) — Corey
-- 5 KB docs content written based on codebase knowledge — approved for seeding
 - Scout identity expanded to "sales and operations coach" — Corey
+- 5 KB docs content written from codebase knowledge and approved for seeding — Corey
+- North star: "Get more franchisees. Take more franchisees to high performer status." — Corey
 
 ## Files Created
 
@@ -88,15 +45,20 @@ Phase: Elite Scout Upgrade / Health: Green / Duration: full session
 
 ## Files Modified
 
-- `types/scout.ts` — Added territory_performance, network_benchmarks, compare_territories
-- `lib/scout/tools.ts` — 4 new tool definitions, expanded query/aggregate enums
-- `lib/scout/tool-executor.ts` — 4 new tool implementations (~400 lines)
-- `lib/scout/data-tools.ts` — inventory/properties entities, enhanced territory profile
-- `lib/scout/client.ts` — System prompt overhaul, Opus orchestrator, dynamic territory count
+- `types/scout.ts` — Added territory_performance, network_benchmarks, compare_territories to ScoutToolName
+- `lib/scout/tools.ts` — 4 new tool definitions, expanded query/aggregate entity enums
+- `lib/scout/tool-executor.ts` — 4 new tool implementations, enhanced get_contact_insights with topPick (~400 lines added)
+- `lib/scout/data-tools.ts` — inventory/properties entity configs, enhanced territory profile with performance summary, resolved aggregatable on objections
+- `lib/scout/client.ts` — System prompt overhaul, Opus orchestrator, dynamic territory count, page context tool hints
 - `lib/scout/stream.ts` — Opus orchestrator pattern for streaming
 - `lib/scout/model-router.ts` — 8 new Sonnet patterns for performance queries
 - `components/scout/QuickAsk.tsx` — max-height fix
 - `components/layout/ScoutFAB.tsx` — drawer size expansion
+- `handoff.md` — this file
+
+## Files Deleted
+
+- None
 
 ## Open Issues Carried Forward
 
@@ -107,7 +69,7 @@ Phase: Elite Scout Upgrade / Health: Green / Duration: full session
 
 ## Exact Next Step
 
-Test Scout with real questions against live data. Try: "How is Spokane doing?", "Compare Spokane and Boise", "What do high performers look like?", "Who should I focus on today?". Verify Opus orchestrator cost savings in LLM logs.
+Test Scout with real questions against live data — "How is Spokane doing?", "Compare Spokane and Boise", "What do high performers look like?" — and verify Opus orchestrator cost savings in LLM logs.
 
 ## Copy This To Start Next Session In Claude.ai
 
