@@ -1,127 +1,93 @@
-# Session Handoff — 2026-05-11 — Session 34
+# Session Handoff — 2026-05-11 — Session 35
 
 ## Status
 
-Phase: MasterSuite Performance Dashboard + Data Accuracy / Health: Green / Duration: full session
+Phase: Territory Alignment + PTO Prospect Sync / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-### Deployment Fix
+### Territory Slug Alignment with MasterSuite
 
-- Fixed ESLint rule reference (`@typescript-eslint/no-explicit-any`) in `lib/mastersuite/supabase.ts` that was breaking all Vercel deployments since session 32 — 3 failed deploys fixed
+- Audited all 88 MasterSuite territories vs 99 Supabase territories
+- Migrated 3 mismatched slugs: KISSMEE→KSSMEE, NORVM→NORVMI, RALNHC→RALHNC
+- Moved JPS rows, territory_owners, call_territories to correct slugs
+- Deactivated 3 old slugs (now inactive)
+- Created territory_owners records for 5 new territories (ALCHUA, MONMTH, NOWTNJ, SASOTA, WICHTA)
+- Assigned territories to journeys for 4 new franchise owners
+- Added SASOTA to Erik Spersrud's journey (new territory, retiring INDYNW)
 
-### Link Audit & Fixes
+### Territory Details Tab
 
-- Converted 8 raw `<a>` tags to `<Link>` across components (territory, contact, call links) — all were 404ing due to missing `/frandev` basePath
-- Fixed 2 `fetch()` calls missing basePath (`AddRelatedContactModal`, `calls/page.tsx`)
-- Fixed hardcoded `/frandev/` in `TaskPanel` and `TodayCalendar` → `<Link>`
+- `components/territories/tabs/DetailsTab.tsx` — new tab on territory page
+- 6 sections: Owner & Contact, Address, Business, Key Dates, Marketing, Compliance & Accounts
+- Displays all MasterSuite-synced fields (PersonalName, FranchiseEmail, phone, coach, legal entity, marketing info, Nexa/Vonage accounts, compliance score, etc.)
+- No extra API call — uses existing territory data already returned by the API
 
-### Territory Operations Section (YTD)
+### PTO Prospect Import (Backfill)
 
-- Replaced old `territory_profile` data with live MasterSuite KPIs
-- Operations section: Leads Entered, Conversion (S1→S4+), Sold, Avg Profit — all YTD
-- Added `?period=ytd` option to performance API
+- Imported 231 prospects from MasterSuite `PathToOwnershipEntries` into Supabase
+- Each gets: contact record (with full PTO info), journey, journey_contacts, JPS in Follow-up → Nurture
+- Spam/bot filtering: blocks placeholder names (Alice/John), random character gibberish, do-not-respond emails, iPhone scam submissions
+- Generated `pto_<id>_<random>` placeholder GHL IDs for contacts without GHL records
 
-### Performance Tab — Full Redesign
+### PTO Prospect Sync (Ongoing)
 
-- `app/api/territories/[TerritorySlug]/performance/route.ts` — complete rewrite
-  - Paginated queries (1000-row Supabase limit fix)
-  - `Inv_PurchaseDate` as source of truth (not Status field)
-  - T1/T3/T12/All Time period toggles + previous period comparison
-  - Lead category filter via `?leadCategory=` param
-  - Returns property lists with lifecycle journey data
-- `components/territories/tabs/PerformanceTab.tsx` — complete rewrite
-  - 8-box KPI grid: Leads Entered / Lead Progression | Lead→Purchase / Cycle Time | Active Inventory / Sold | Avg Profit / Total Profit
-  - Funnel: each stage as % of Stage 1, with period-over-period change indicators (↑/↓%)
-  - Lead Sources: clickable category pills that filter the entire view
-  - Property lists: Active Inventory + Sold with 5-stage journey (Purchased → Construction → Complete → Listed → Sold/Rented)
-  - Journey shows days between stages, color-coded for bottleneck detection (>45d orange, >90d red)
-  - Current `Inv_Status` phase shown as badge
+- `lib/mastersuite/sync-pto-prospects.ts` — sync module with spam filtering, email dedup, incremental by date
+- `app/api/cron/sync-ms-prospects/route.ts` — cron endpoint, checks last 7 days of PTO entries
+- New prospects go into Path to Ownership → Engagement stage
+- Registered in `vercel.json` (every 15 minutes) and cron settings panel
 
-### Property Data Sync
+### Territory Cards Default Fix
 
-- Ran full MasterSuite property sync: 49,966 properties, 117,308 status history rows
-- Fixed Supabase 1000-row pagination limit across all property queries
+- `app/api/pipeline/territory-cards/route.ts` — default to active-only (was showing all 99, now shows 64 matching MasterSuite)
 
-### Quarterly Scorecard
+### Property Data Verification
 
-- `app/api/territories/[TerritorySlug]/quarterly-grades/route.ts` — queries MasterSuite `TerritoryScorecardKPIs` directly
-- Territory page shows quarterly scorecard table (Acquired, Sold, Inventory, Gross Profit, Leads, S1→S4, Cycle Days, Compliance)
-
-### High Performer System
-
-- 10+ properties purchased in last 12 months = High Performer
-- Green badge on territory page header + pipeline territory cards
-- Daily HQ scorecard: "X/100 High Performers" from real MasterSuite inventory data
-- Optimized query: inventory-first approach (2-3 DB calls vs 50+)
-
-### Construction EOS
-
-- Moved from Performance tab to EOS tab
-- `app/api/territories/[TerritorySlug]/construction-eos/route.ts` — new endpoint
-- Shows habits, rocks, todos, issues from MasterSuite
-
-### Journey Sidebar (Journey Pages)
-
-- `components/leads/TerritoryPerformanceCard.tsx` — shows MasterSuite KPIs for franchisee's territory
+- Full audit: all 4 property tables match exactly (49,966 properties, 49,965 calculations, 49,957 inventory, 117,308 status history)
+- Contact info audit: 97% PersonalName coverage, 98% FranchiseEmail, 94% phone — all gaps match MasterSuite source
 
 ## What Is Confirmed Working
 
 - `npx tsc --noEmit` passes clean (0 errors)
 - 129 tests passing
-- All Vercel deployments succeeding
-- Nashville SW verified: 8 purchased YTD, 4 sold YTD, 9 active inventory — matches ground truth
-- Property journey shows correct days between stages (verified Harlan Farms: 25d pre-con, 106d construction, 2d to listed)
-- 6 high performers identified from real data (Tri-Cities 28, Murfreesboro 27, Nashville SW 16, Knoxville 13, Morristown 13, Miami Valley 12)
-- All internal links use `<Link>` or `apiFetch` for proper basePath handling
-- Daily HQ scorecards loading (optimized query)
+- All territory slugs aligned with MasterSuite (0 mismatches, 0 missing)
+- All 64 active territories have owner records (except ALTA/GLOBAL/TRAIN — admin accounts)
+- Property data 100% synced across all 4 tables
+- 231 PTO prospects imported with full contact info
+- Territory Details tab renders all MasterSuite fields
+- Territory cards default to 64 active (matches MasterSuite Active=1 count)
 
 ## What Is Broken or Incomplete
 
-- Property sync cron needs re-enabling on Vercel (ran manually this session) — Medium
-- Quarterly scorecard column names from `TerritoryScorecardKPIs` may need adjustment if MS schema differs — Low
-- `debug-performance` endpoint still deployed (should remove before production) — Low
-- Scorecard actuals in EOS tab still use all-time counts for some metrics — Medium
-- Phase 3 supporting table sync (mortgages, comparables, royalty, etc.) not built — Medium
-- PTO → contacts sync not built — Medium
-- Scout not wired to query ms\_\* tables for coaching intelligence — Medium
+- 4 territories missing address/phone in MasterSuite source (MYTBCH, OAKRTN, RALHNC, WICHTA) — needs MS data entry — Low
+- MarketingEmailAddress only 47% populated across territories — needs MS data entry — Low
+- PTO prospects have placeholder GHL IDs (`pto_*`) — need real GHL contact creation or GHL sync — Medium
 
 ## Decisions Made
 
-- High Performer threshold = 10+ purchases in 12 months — Corey
-- Use inventory dates (not phases) for property journey — no phase transition timestamps exist in MS — engineering finding
-- Sold/Rented merged into single final journey step — Corey
-- Operations section always YTD, Performance tab uses T1/T3/T12/All Time — Corey
-- Remove quarterly grades section (no MS source), replaced with MS scorecard — Corey
-- Below target = <10 purchased in T12 — Corey
+- Old slugs (KISSMEE, NORVM, RALNHC) deactivated, not deleted — Corey
+- Existing PTO backfill → Nurture stage; new incoming PTO → Engagement stage — Corey
+- Prospect sync every 15 minutes — Corey
+- ALTA/GLOBAL/TRAIN are admin accounts, no owner record needed — Corey
+- SASOTA is Erik Spersrud's new territory (retiring INDYNW, moved to FL) — Corey
 
 ## Files Created
 
-- `app/api/territories/[TerritorySlug]/construction-eos/route.ts`
-- `app/api/territories/[TerritorySlug]/debug-performance/route.ts`
-- `app/api/territories/[TerritorySlug]/quarterly-grades/route.ts`
-- `components/leads/TerritoryPerformanceCard.tsx`
+- `components/territories/tabs/DetailsTab.tsx`
+- `lib/mastersuite/sync-pto-prospects.ts`
+- `app/api/cron/sync-ms-prospects/route.ts`
+- `scripts/audit-territories.ts`
+- `scripts/audit-territories-phase2.ts`
+- `scripts/audit-territory-properties.ts`
+- `scripts/fix-territory-alignment.ts`
+- `scripts/import-pto-prospects.ts`
 
 ## Files Modified
 
-- `app/(auth)/calls/page.tsx`
 - `app/(auth)/territories/[TerritorySlug]/page.tsx`
 - `app/api/pipeline/territory-cards/route.ts`
-- `app/api/territories/[TerritorySlug]/performance/route.ts`
-- `components/calls/AddRelatedContactModal.tsx`
-- `components/contact/RelatedPeopleCard.tsx`
-- `components/contact/TerritoryDataTab.tsx`
-- `components/contact/TerritoryOwnershipSection.tsx`
-- `components/daily-hq/TaskPanel.tsx`
-- `components/daily-hq/TodayCalendar.tsx`
-- `components/leads/LeadDetailView.tsx`
-- `components/pipeline/ContactDetail.tsx`
-- `components/pipeline/TerritoryCardList.tsx`
-- `components/territories/tabs/EosTab.tsx`
-- `components/territories/tabs/PerformanceTab.tsx`
-- `components/territory/EcosystemPanel.tsx`
-- `lib/mastersuite/supabase.ts`
-- `lib/scorecards.ts`
+- `app/api/settings/cron-jobs/route.ts`
+- `vercel.json`
 
 ## Files Deleted
 
@@ -129,10 +95,9 @@ Phase: MasterSuite Performance Dashboard + Data Accuracy / Health: Green / Durat
 
 ## Open Issues Carried Forward
 
+- PTO prospects need real GHL contact creation or sync — Medium
 - Wire Scout to query ms\_\* tables for coaching intelligence — Medium
-- Property sync cron needs to be verified running on Vercel — Medium
 - Phase 3 supporting table sync (mortgages, comparables, royalty, etc.) — Medium
-- PTO → contacts sync — Medium
 - Remove debug-performance endpoint — Low
 - Scorecard actuals trailing-3-month filtering — Medium
 - pgvector embeddings need backfill for RAG — Medium (from session 31)
@@ -140,7 +105,7 @@ Phase: MasterSuite Performance Dashboard + Data Accuracy / Health: Green / Durat
 
 ## Exact Next Step
 
-Verify property sync cron is running on Vercel, then wire Scout to query ms_properties and performance data so it can coach franchisees with real context ("your construction is averaging 106 days vs network median of 85 — here's what faster territories do differently").
+Wire Scout to query ms_properties and performance data so it can coach franchisees with real territory context, or create real GHL contacts for the 231 PTO prospects so they flow into the full pipeline.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -148,6 +113,6 @@ Verify property sync cron is running on Vercel, then wire Scout to query ms_prop
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Verify property sync cron is running on Vercel, then wire Scout to query ms_properties and performance data so it can coach franchisees with real context ("your construction is averaging 106 days vs network median of 85 — here's what faster territories do differently").
+Then: Wire Scout to query ms_properties and performance data so it can coach franchisees with real territory context, or create real GHL contacts for the 231 PTO prospects so they flow into the full pipeline.
 
 ---
