@@ -20,22 +20,33 @@ export async function GET(request: NextRequest) {
     .select("id")
     .single();
 
-  const { results, totalErrors } = await syncAllEos();
+  try {
+    const { results, totalErrors } = await syncAllEos();
 
-  if (log) {
-    await supabase
-      .from("cron_job_log")
-      .update({
-        finished_at: new Date().toISOString(),
-        status: totalErrors > 0 ? "completed_with_errors" : "completed",
-        result: results,
-        error: totalErrors > 0 ? `${totalErrors} errors across sync functions` : null,
-      })
-      .eq("id", log.id);
+    if (log) {
+      await supabase
+        .from("cron_job_log")
+        .update({
+          finished_at: new Date().toISOString(),
+          status: totalErrors > 0 ? "completed_with_errors" : "completed",
+          result: results,
+          error: totalErrors > 0 ? `${totalErrors} errors across sync functions` : null,
+        })
+        .eq("id", log.id);
+    }
+
+    return NextResponse.json({ success: totalErrors === 0, results });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("sync-ms-eos FAILED:", message);
+
+    if (log) {
+      await supabase
+        .from("cron_job_log")
+        .update({ finished_at: new Date().toISOString(), status: "failed", error: message })
+        .eq("id", log.id);
+    }
+
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
-
-  return NextResponse.json({
-    success: totalErrors === 0,
-    results,
-  });
 }

@@ -20,22 +20,36 @@ export async function GET(request: NextRequest) {
     .select("id")
     .single();
 
-  const result = await syncLeadListCounts();
+  try {
+    const result = await syncLeadListCounts();
 
-  if (log) {
-    await supabase
-      .from("cron_job_log")
-      .update({
-        finished_at: new Date().toISOString(),
-        status: "completed",
-        result: { synced: result.synced, errors: result.errors },
-        error: result.errors.length > 0 ? result.errors[0] : null,
-      })
-      .eq("id", log.id);
+    if (log) {
+      await supabase
+        .from("cron_job_log")
+        .update({
+          finished_at: new Date().toISOString(),
+          status: "completed",
+          result: { synced: result.synced, errors: result.errors },
+          error: result.errors.length > 0 ? result.errors[0] : null,
+        })
+        .eq("id", log.id);
+    }
+
+    return NextResponse.json({
+      success: result.errors.length === 0,
+      synced: result.synced,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("sync-ms-lead-list FAILED:", message);
+
+    if (log) {
+      await supabase
+        .from("cron_job_log")
+        .update({ finished_at: new Date().toISOString(), status: "failed", error: message })
+        .eq("id", log.id);
+    }
+
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
-
-  return NextResponse.json({
-    success: result.errors.length === 0,
-    synced: result.synced,
-  });
 }

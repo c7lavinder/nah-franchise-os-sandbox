@@ -20,26 +20,45 @@ export async function GET(request: NextRequest) {
     .select("id")
     .single();
 
-  // Incremental: only look at PTO entries from the last 7 days
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const result = await syncPtoProspects(since);
+  try {
+    // Incremental: only look at PTO entries from the last 7 days
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const result = await syncPtoProspects(since);
 
-  if (log) {
-    await supabase
-      .from("cron_job_log")
-      .update({
-        finished_at: new Date().toISOString(),
-        status: "completed",
-        result: { created: result.created, wired: result.wired, skipped: result.skipped, errors: result.errors },
-        error: result.errors.length > 0 ? result.errors[0] : null,
-      })
-      .eq("id", log.id);
+    if (log) {
+      await supabase
+        .from("cron_job_log")
+        .update({
+          finished_at: new Date().toISOString(),
+          status: "completed",
+          result: { created: result.created, wired: result.wired, skipped: result.skipped, errors: result.errors },
+          error: result.errors.length > 0 ? result.errors[0] : null,
+        })
+        .eq("id", log.id);
+    }
+
+    return NextResponse.json({
+      success: result.errors.length === 0,
+      created: result.created,
+      wired: result.wired,
+      skipped: result.skipped,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error("sync-ms-prospects FAILED:", message, stack);
+
+    if (log) {
+      await supabase
+        .from("cron_job_log")
+        .update({
+          finished_at: new Date().toISOString(),
+          status: "failed",
+          error: message,
+        })
+        .eq("id", log.id);
+    }
+
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
-
-  return NextResponse.json({
-    success: result.errors.length === 0,
-    created: result.created,
-    wired: result.wired,
-    skipped: result.skipped,
-  });
 }

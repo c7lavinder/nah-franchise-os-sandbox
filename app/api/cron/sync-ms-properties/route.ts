@@ -12,7 +12,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Get last sync time for incremental
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
 
   const { data: lastLog } = await supabase
@@ -26,35 +25,43 @@ export async function GET(request: NextRequest) {
 
   const since = lastLog?.finished_at ?? undefined;
 
-  // Log start
   const { data: log } = await supabase
     .from("cron_job_log")
     .insert({ job_name: "sync-ms-properties", status: "running" })
     .select("id")
     .single();
 
-  const result = await syncProperties(since);
+  try {
+    const result = await syncProperties(since);
 
-  // Log finish
-  if (log) {
-    await supabase
-      .from("cron_job_log")
-      .update({
-        finished_at: new Date().toISOString(),
-        status: result.errors.length === 0 ? "completed" : "completed",
-        result: {
-          synced: result.synced,
-          errors: result.errors.slice(0, 10),
-          since,
-        },
-        error: result.errors.length > 0 ? result.errors[0] : null,
-      })
-      .eq("id", log.id);
+    if (log) {
+      await supabase
+        .from("cron_job_log")
+        .update({
+          finished_at: new Date().toISOString(),
+          status: "completed",
+          result: { synced: result.synced, errors: result.errors.slice(0, 10), since },
+          error: result.errors.length > 0 ? result.errors[0] : null,
+        })
+        .eq("id", log.id);
+    }
+
+    return NextResponse.json({
+      success: result.errors.length === 0,
+      synced: result.synced,
+      errorCount: result.errors.length,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("sync-ms-properties FAILED:", message);
+
+    if (log) {
+      await supabase
+        .from("cron_job_log")
+        .update({ finished_at: new Date().toISOString(), status: "failed", error: message })
+        .eq("id", log.id);
+    }
+
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
-
-  return NextResponse.json({
-    success: result.errors.length === 0,
-    synced: result.synced,
-    errorCount: result.errors.length,
-  });
 }

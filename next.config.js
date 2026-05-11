@@ -9,6 +9,7 @@ const nextConfig = {
   experimental: {
     instrumentationHook: true,
   },
+  serverExternalPackages: ["mysql2", "ws"],
 };
 
 module.exports = nextConfig;
