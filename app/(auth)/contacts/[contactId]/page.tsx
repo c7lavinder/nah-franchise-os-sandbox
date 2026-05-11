@@ -186,7 +186,7 @@ export default async function ContactPage({ params }: { params: Promise<{ contac
     }
     const slugs = [...slugSet];
     if (slugs.length > 0) {
-      const [tRes, gRes, pRes] = await Promise.all([
+      const [tRes, gRes] = await Promise.all([
         supabase.from("territories").select("TerritorySlug, Nickname").in("TerritorySlug", slugs),
         supabase
           .from("territory_owner_grades")
@@ -194,33 +194,42 @@ export default async function ContactPage({ params }: { params: Promise<{ contac
           .in("TerritorySlug", slugs)
           .order("year", { ascending: false })
           .order("quarter", { ascending: false }),
-        supabase
-          .from("territory_profile")
-          .select(
-            "TerritorySlug, houses_purchased_ytd, houses_sold_ytd, active_deals, lead_conversion_rate, avg_profit_per_flip"
-          )
-          .in("TerritorySlug", slugs),
       ]);
       const tRows = (tRes.data ?? []) as { TerritorySlug: string; Nickname: string }[];
-      const pRows = (pRes.data ?? []) as {
-        TerritorySlug: string;
-        houses_purchased_ytd: number | null;
-        houses_sold_ytd: number | null;
-        active_deals: number | null;
-        lead_conversion_rate: number | null;
-        avg_profit_per_flip: number | null;
-      }[];
-      const nameBySlug = new Map(tRows.map((t) => [t.TerritorySlug, t.Nickname]));
+
+      // Fetch performance KPIs from raw property data for each territory
+      const perfResults = await Promise.all(
+        slugs.map(async (slug) => {
+          try {
+            const base =
+              process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL
+                ? `https://${process.env.VERCEL_URL}`
+                : "http://localhost:3000";
+            const res = await fetch(`${base}/frandev/api/territories/${slug}/performance?period=ytd`, {
+              headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}` },
+            });
+            if (res.ok) {
+              const d = await res.json();
+              return { slug, kpis: d.kpis ?? null };
+            }
+          } catch {
+            /* skip */
+          }
+          return { slug, kpis: null };
+        })
+      );
+      const kpiBySlug = new Map(perfResults.map((r) => [r.slug, r.kpis]));
+
       territoryInventory = tRows.map((t) => {
-        const p = pRows.find((x) => x.TerritorySlug === t.TerritorySlug);
+        const k = kpiBySlug.get(t.TerritorySlug);
         return {
           TerritorySlug: t.TerritorySlug,
-          Nickname: nameBySlug.get(t.TerritorySlug) ?? t.TerritorySlug,
-          purchased_ytd: p?.houses_purchased_ytd ?? 0,
-          sold_ytd: p?.houses_sold_ytd ?? 0,
-          active_deals: p?.active_deals ?? 0,
-          conv_rate: p?.lead_conversion_rate ?? null,
-          avg_profit: p?.avg_profit_per_flip ?? null,
+          Nickname: t.Nickname,
+          purchased_ytd: k?.purchasedInPeriod ?? 0,
+          sold_ytd: k?.soldInPeriod ?? 0,
+          active_deals: k?.activeInventory ?? 0,
+          conv_rate: k?.conversionRate ?? null,
+          avg_profit: k?.avgProfit ?? null,
         };
       });
       grades = (gRes.data ?? []) as typeof grades;

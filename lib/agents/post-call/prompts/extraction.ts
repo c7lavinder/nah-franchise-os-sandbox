@@ -213,23 +213,6 @@ Tag with target_territory name.
 ## TERRITORY FIELDS (field_category: "territory")
 Extract for any territory discussed:
 
-### Operations (for active franchisees)
-- active_deals (number of current deals)
-- houses_purchased_ytd
-- houses_sold_ytd
-- avg_time_to_flip_days
-- avg_profit_per_flip
-- leads_received_ytd
-- lead_conversion_rate
-- inventory_count (properties in inventory)
-- rehab_in_progress (number of active rehabs)
-
-### Financial (for active franchisees)
-- total_invested
-- revenue_ytd
-- projected_purchases
-- actual_purchases
-
 ### Coaching (for active franchisees)
 - coaching_notes (key coaching points discussed)
 - goals_discussed (goals or milestones mentioned)

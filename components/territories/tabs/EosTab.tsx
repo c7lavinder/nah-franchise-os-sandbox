@@ -69,13 +69,15 @@ function gradeColor(g: string | null): string {
 export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName }: Props) {
   const [data, setData] = useState<EosData | null>(null);
   const [constructionEos, setConstructionEos] = useState<ConstructionEos | null>(null);
+  const [msSyncedAt, setMsSyncedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBanner, setShowBanner] = useState(false);
 
   const fetchData = useCallback(async () => {
-    const [eosRes, perfRes] = await Promise.all([
+    const [eosRes, perfRes, territoryRes] = await Promise.all([
       apiFetch(`/api/territories/${TerritorySlug}/eos`),
       apiFetch(`/api/territories/${TerritorySlug}/construction-eos`).catch(() => null),
+      apiFetch(`/api/territories/${TerritorySlug}`).catch(() => null),
     ]);
     if (eosRes.ok) {
       const d: EosData = await eosRes.json();
@@ -93,6 +95,10 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
       const pd = await perfRes.json();
       setConstructionEos(pd);
     }
+    if (territoryRes?.ok) {
+      const td = await territoryRes.json();
+      setMsSyncedAt(td?.territory?.ms_synced_at ?? null);
+    }
     setLoading(false);
   }, [TerritorySlug, carriedFromContactName]);
 
@@ -104,10 +110,6 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
     setShowBanner(false);
     localStorage.setItem(`${BANNER_KEY_PREFIX}${TerritorySlug}`, "1");
   }
-
-  // no-op refresh — child components manage their own local state
-  // but we keep the callback for future use if needed
-  const handleUpdate = useCallback(() => {}, []);
 
   if (loading) {
     return (
@@ -136,41 +138,36 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
       )}
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosGoals TerritorySlug={TerritorySlug} goals={data.goals} onUpdate={handleUpdate} />
+        <TerritoryEosGoals goals={data.goals} />
       </div>
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosScorecard
-          TerritorySlug={TerritorySlug}
-          scorecard={data.scorecard}
-          actuals={data.scorecardActuals}
-          onUpdate={handleUpdate}
-        />
+        <TerritoryEosScorecard scorecard={data.scorecard} actuals={data.scorecardActuals} />
       </div>
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosMonthlySpend TerritorySlug={TerritorySlug} budgets={data.budgets} onUpdate={handleUpdate} />
+        <TerritoryEosMonthlySpend budgets={data.budgets} />
       </div>
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosLeadChannels TerritorySlug={TerritorySlug} channels={data.leadChannels} onUpdate={handleUpdate} />
+        <TerritoryEosLeadChannels channels={data.leadChannels} />
       </div>
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosHabits TerritorySlug={TerritorySlug} habits={data.habits} onUpdate={handleUpdate} />
+        <TerritoryEosHabits habits={data.habits} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
         <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-          <TerritoryEosRocks TerritorySlug={TerritorySlug} rocks={data.rocks} onUpdate={handleUpdate} />
+          <TerritoryEosRocks rocks={data.rocks} />
         </div>
 
         <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-          <TerritoryEosIssues TerritorySlug={TerritorySlug} issues={data.issues} onUpdate={handleUpdate} />
+          <TerritoryEosIssues issues={data.issues} />
         </div>
 
         <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-          <TerritoryEosTodos TerritorySlug={TerritorySlug} todos={data.todos} onUpdate={handleUpdate} />
+          <TerritoryEosTodos todos={data.todos} />
         </div>
       </div>
 
@@ -236,7 +233,7 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
                             t.Done ? "bg-green-100 border-green-400 text-green-700" : "border-border-default"
                           }`}
                         >
-                          {t.Done ? "✓" : ""}
+                          {t.Done ? "\u2713" : ""}
                         </span>
                         <span
                           className={`${t.Done ? "line-through text-text-tertiary" : "text-text-primary"} truncate`}
@@ -259,7 +256,7 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
                             i.Done ? "bg-green-100 border-green-400 text-green-700" : "border-red-300 bg-red-50"
                           }`}
                         >
-                          {i.Done ? "✓" : "!"}
+                          {i.Done ? "\u2713" : "!"}
                         </span>
                         <span
                           className={`${i.Done ? "line-through text-text-tertiary" : "text-text-primary"} truncate`}
@@ -274,6 +271,12 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
             </div>
           </div>
         )}
+
+      {msSyncedAt && (
+        <p className="text-caption text-text-tertiary text-right">
+          Last synced from MasterSuite: {new Date(msSyncedAt).toLocaleString()}
+        </p>
+      )}
     </div>
   );
 }

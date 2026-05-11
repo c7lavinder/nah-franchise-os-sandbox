@@ -36,6 +36,13 @@ interface OwnerOut {
   role?: string;
 }
 
+interface PerformanceKPIs {
+  leadsEntered: number;
+  conversionRate: number | null;
+  soldInPeriod: number;
+  avgProfit: number | null;
+}
+
 interface TerritoryFull {
   territory: {
     TerritorySlug: string;
@@ -83,6 +90,7 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [fullData, setFullData] = useState<TerritoryFull | null>(null);
+  const [perfKpis, setPerfKpis] = useState<PerformanceKPIs | null>(null);
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
@@ -114,15 +122,21 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
     setExpanded(slug);
     setLoadingDetail(true);
     setFullData(null);
+    setPerfKpis(null);
     setStakeholders([]);
-    const [tRes, sRes] = await Promise.all([
+    const [tRes, sRes, pRes] = await Promise.all([
       apiFetch(`/api/territories/${slug}`).catch(() => null),
       apiFetch(`/api/territories/${slug}/stakeholders`).catch(() => null),
+      apiFetch(`/api/territories/${slug}/performance?period=ytd`).catch(() => null),
     ]);
     if (tRes?.ok) setFullData(await tRes.json());
     if (sRes?.ok) {
       const d = await sRes.json();
       setStakeholders(d.stakeholders ?? []);
+    }
+    if (pRes?.ok) {
+      const d = await pRes.json();
+      if (d?.kpis) setPerfKpis(d.kpis);
     }
     setLoadingDetail(false);
   }
@@ -174,7 +188,7 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
                     <Loader2 size={18} className="animate-spin text-text-tertiary" />
                   </div>
                 ) : fullData ? (
-                  <ExpandedTerritory data={fullData} stakeholders={stakeholders} />
+                  <ExpandedTerritory data={fullData} stakeholders={stakeholders} kpis={perfKpis} />
                 ) : (
                   <p className="text-caption text-text-tertiary">Failed to load territory data.</p>
                 )}
@@ -188,9 +202,15 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
 }
 
 /** Full expanded view: Operations + Grades + Ecosystem (read-only) */
-function ExpandedTerritory({ data, stakeholders }: { data: TerritoryFull; stakeholders: Stakeholder[] }) {
-  const p = data.profile;
-  const housesYTD = (p?.houses_purchased_ytd as number) ?? 0;
+function ExpandedTerritory({
+  data,
+  stakeholders,
+  kpis,
+}: {
+  data: TerritoryFull;
+  stakeholders: Stakeholder[];
+  kpis: PerformanceKPIs | null;
+}) {
   const grades = data.grades;
 
   // Group grades by year
@@ -210,24 +230,17 @@ function ExpandedTerritory({ data, stakeholders }: { data: TerritoryFull; stakeh
 
   return (
     <>
-      {/* Operations */}
+      {/* Operations — YTD (from performance API, same source as territory page) */}
       <div className="bg-bg-primary border border-border-default rounded-lg p-5">
         <div className="flex items-center gap-2 mb-4">
           <Activity size={18} className="text-info" />
-          <h3 className="text-body-sm font-semibold">Operations</h3>
-        </div>
-        <div className="text-center mb-4">
-          <div className="text-4xl font-bold text-text-primary">{housesYTD}</div>
-          <div className="text-caption text-text-tertiary">Houses Purchased YTD</div>
+          <h3 className="text-body-sm font-semibold">Operations — YTD</h3>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="Sold YTD" value={p?.houses_sold_ytd ?? "—"} />
-          <StatCard label="Active Deals" value={p?.active_deals ?? "—"} />
-          <StatCard label="Lead Conv. Rate" value={p?.lead_conversion_rate ? `${p.lead_conversion_rate}%` : "—"} />
-          <StatCard
-            label="Avg Profit/Flip"
-            value={p?.avg_profit_per_flip ? `$${Number(p.avg_profit_per_flip).toLocaleString()}` : "—"}
-          />
+          <StatCard label="Leads Entered" value={kpis?.leadsEntered ?? "—"} />
+          <StatCard label="Deal Progression" value={kpis?.conversionRate != null ? `${kpis.conversionRate}%` : "—"} />
+          <StatCard label="Sold" value={kpis?.soldInPeriod ?? "—"} />
+          <StatCard label="Avg Profit" value={kpis?.avgProfit != null ? `$${kpis.avgProfit.toLocaleString()}` : "—"} />
         </div>
       </div>
 
