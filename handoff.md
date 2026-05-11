@@ -1,59 +1,58 @@
-# Session Handoff — 2026-05-11 — Session 36
+# Session Handoff — 2026-05-11 — Session 37
 
 ## Status
 
-Phase: Elite Scout Upgrade / Health: Green / Duration: full session
+Phase: GHL Integration Audit / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-- **4 new Scout tools**: `territory_performance` (KPIs, funnel, cycle time, channel effectiveness, trends, owners), `network_benchmarks` (network averages, high performer list, rankings), `compare_territories` (side-by-side 2-5 territories), expanded `query`/`aggregate` with `inventory` and `properties` entities
-- **Opus orchestrator pattern**: Opus reasons on iteration 1, Haiku executes iterations 2+ — applied to both `lib/scout/client.ts` and `lib/scout/stream.ts`
-- **5 new KB docs** seeded via `supabase/migrations/20260511000000_kb_elite_content.sql`: ideal_candidate, competitors, territory, training, operations (25 total, was 20)
-- **System prompt overhaul** in `lib/scout/client.ts`: identity → "sales and operations coach", north star, performance coaching playbook (8 levers), math/calculation instructions, objection resolution analysis, comparison/correlation instructions, page context tool preferences, dynamic territory count
-- **Territory performance enhancements** in `lib/scout/tool-executor.ts`: owner names, coach, compliance score, lead channel effectiveness (leads→purchased→sold per category), period-over-period trend with % change and direction
-- **Priority contact pick** in `get_contact_insights` (`lib/scout/tool-executor.ts`): `topPick` with reason per lens
-- **Objection resolution rates**: `resolved` added as aggregatable field in `lib/scout/data-tools.ts`
-- **8 new Sonnet patterns** in `lib/scout/model-router.ts` for performance/benchmark/compare queries
-- **QuickAsk max-height fix** in `components/scout/QuickAsk.tsx`: `max-h-[200px] overflow-y-auto`
-- **FAB drawer expansion** in `components/layout/ScoutFAB.tsx`: 320px×50vh → 420px×70vh
+- **Comprehensive GHL integration audit**: 43 tests across 5 layers (direct API, API routes, Scout DRC actions, Scout LLM drafting, UI/streaming endpoints) using Denzel Lavinder contact
+- **Fixed trigger_workflow argument swap** in `app/api/scout/action/route.ts:355` — contactId and workflowName were reversed, would cause runtime failure on every workflow trigger
+- **Fixed missing auth on notes route** in `app/api/contacts/[contactId]/notes/route.ts` — requireAuth imported but never called, allowing unauthenticated note creation
+- **Fixed missing auth on inbox read route** in `app/api/inbox/[conversationId]/read/route.ts` — requireAuth imported but never called, allowing unauthenticated conversation marking
 
 ## What Is Confirmed Working
 
+- All 31 GHL client functions connect and return expected data (PIT key auth)
+- OAuth tokens stored in app_settings, auto-refresh mechanism in place
+- SMS sends to real phone numbers (Denzel received texts)
+- Email sends to real email addresses (Denzel received emails)
+- GHL task creation, update (mark complete), and org-wide search
+- GHL note creation and retrieval
+- GHL appointment creation (with slot availability), update (cancel), and calendar listing (11 calendars)
+- GHL contact search, get, update (tags, custom fields), upsert (dedup works)
+- GHL conversation list, message history, mark-as-read
+- All API routes authenticated and returning correct data
+- Scout DRC action execution: SMS, Email, Task, Note all execute through `/api/scout/action`
+- Scout LLM drafts correct DRC cards for: SMS, Email, Task, Note, Appointment
+- Scout streaming endpoint (`/api/scout/chat-stream`) returns proper SSE events
 - `npx tsc --noEmit` — 0 errors
 - 129 tests passing (13 test files)
-- Migration `20260511000000_kb_elite_content.sql` applied to Supabase
-- Git clean, pushed to main, Vercel deploying
-- Both commits landed: `ff3e6f4` (elite upgrade) + `22aaa9c` (tool hints + handoff)
+- Commit `cec804a` pushed to main, Vercel deploying
 
 ## What Is Broken or Incomplete
 
+- `ghl_custom_fields` table missing from live Supabase DB (migration exists but not applied) — **High**: blocks profile_update action, silently degrades touch tracking and pipeline validation gates
+- No pipelines in GHL location — **Medium**: pipeline board empty, stage moves impossible, all pipeline features non-functional (may be expected for sandbox)
+- `ghl_workflows` table empty — **Medium**: triggerWorkflow has nothing to trigger
+- `ghl_pipeline_stages` has 58 stale cached stages referencing deleted pipeline `znmzzd8MwcwxUvPz4LMI` — **Low**: no runtime impact since GHL has no pipelines
 - PTO prospects have placeholder GHL IDs (`pto_*`) — need real GHL contact creation — Medium
 - Phase 3 supporting table sync (mortgages, comparables, royalty, etc.) — Medium
 - pgvector embeddings need backfill for RAG — Medium
-- Rate limiter needs Redis for durability at scale — Low
 
 ## Decisions Made
 
-- Opus orchestrator: Opus for reasoning (iteration 1), Haiku for execution (iterations 2+) — Corey
-- Scout identity expanded to "sales and operations coach" — Corey
-- 5 KB docs content written from codebase knowledge and approved for seeding — Corey
-- North star: "Get more franchisees. Take more franchisees to high performer status." — Corey
+- All 3 bugs fixed immediately during audit — Corey authorized testing with real SMS/email to Denzel
 
 ## Files Created
 
-- `supabase/migrations/20260511000000_kb_elite_content.sql`
+- None
 
 ## Files Modified
 
-- `types/scout.ts` — Added territory_performance, network_benchmarks, compare_territories to ScoutToolName
-- `lib/scout/tools.ts` — 4 new tool definitions, expanded query/aggregate entity enums
-- `lib/scout/tool-executor.ts` — 4 new tool implementations, enhanced get_contact_insights with topPick (~400 lines added)
-- `lib/scout/data-tools.ts` — inventory/properties entity configs, enhanced territory profile with performance summary, resolved aggregatable on objections
-- `lib/scout/client.ts` — System prompt overhaul, Opus orchestrator, dynamic territory count, page context tool hints
-- `lib/scout/stream.ts` — Opus orchestrator pattern for streaming
-- `lib/scout/model-router.ts` — 8 new Sonnet patterns for performance queries
-- `components/scout/QuickAsk.tsx` — max-height fix
-- `components/layout/ScoutFAB.tsx` — drawer size expansion
+- `app/api/scout/action/route.ts` — Fixed trigger_workflow argument swap
+- `app/api/contacts/[contactId]/notes/route.ts` — Added missing requireAuth
+- `app/api/inbox/[conversationId]/read/route.ts` — Added missing requireAuth
 - `handoff.md` — this file
 
 ## Files Deleted
@@ -62,6 +61,9 @@ Phase: Elite Scout Upgrade / Health: Green / Duration: full session
 
 ## Open Issues Carried Forward
 
+- `ghl_custom_fields` table needs migration applied + populated from GHL — High
+- No pipelines in GHL location (sandbox state) — Medium
+- `ghl_workflows` table empty — Medium
 - PTO prospects need real GHL contact creation or sync — Medium
 - Phase 3 supporting table sync (mortgages, comparables, royalty, etc.) — Medium
 - pgvector embeddings need backfill for RAG — Medium
@@ -69,7 +71,7 @@ Phase: Elite Scout Upgrade / Health: Green / Duration: full session
 
 ## Exact Next Step
 
-Test Scout with real questions against live data — "How is Spokane doing?", "Compare Spokane and Boise", "What do high performers look like?" — and verify Opus orchestrator cost savings in LLM logs.
+Apply the `ghl_custom_fields` migration to Supabase and populate it from `getCustomFieldDefinitions()` so profile updates, touch tracking, and pipeline validation gates work.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -77,6 +79,6 @@ Test Scout with real questions against live data — "How is Spokane doing?", "C
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Test Scout with real data questions, verify Opus orchestrator pattern in LLM logs, or continue with Phase 3 MasterSuite sync.
+Then: Apply ghl_custom_fields migration and populate from GHL, then create pipelines in GHL or address next priority from open issues.
 
 ---
