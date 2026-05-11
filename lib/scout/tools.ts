@@ -43,7 +43,8 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     name: "query",
     description:
       "Filter a collection of records and return matching rows. Use this for 'show me X where Y' questions. " +
-      "Supported entities: contacts, journeys, territories, opportunities, call_logs, alerts, objections, workflow_enrollments. " +
+      "Supported entities: contacts, journeys, territories, opportunities, call_logs, alerts, objections, workflow_enrollments, " +
+      "inventory (ms_property_inventory — purchase/sell dates, status), properties (ms_properties — leads, addresses, categories). " +
       "filters is a JSON array of {field, op, value} objects. Ops: eq, ne, gt, gte, lt, lte, in, ilike, is_null, not_null. " +
       "Each entity exposes its own filterable field set — if you use a wrong field, the error tells you what's allowed. " +
       "Defaults: limit=25 (max 100), order by updated_at desc when present.",
@@ -62,6 +63,8 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
             "alerts",
             "objections",
             "workflow_enrollments",
+            "inventory",
+            "properties",
           ],
         },
         filters: {
@@ -93,7 +96,17 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
         entity: {
           type: "string",
           description: "Collection to aggregate over",
-          enum: ["contacts", "journeys", "territories", "call_logs", "alerts", "objections", "workflow_enrollments"],
+          enum: [
+            "contacts",
+            "journeys",
+            "territories",
+            "call_logs",
+            "alerts",
+            "objections",
+            "workflow_enrollments",
+            "inventory",
+            "properties",
+          ],
         },
         metric: {
           type: "string",
@@ -543,6 +556,77 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
         content_text: { type: "string", description: "Optional note text to attach to the log" },
       },
       required: ["contact_id", "sub_task_id"],
+    },
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  // MASTERSUITE PERFORMANCE — franchise operations data
+  // ════════════════════════════════════════════════════════════════
+  {
+    name: "territory_performance",
+    description:
+      "Get franchise territory performance KPIs from MasterSuite operational data. Returns: purchases, sales, profit, " +
+      "cycle times, lead funnel (S1→S6), active inventory, and lead category breakdown for a specific territory. " +
+      "Use when asked 'how is [territory] doing?', 'what are the numbers for [territory]?', 'show me [territory] performance'. " +
+      "Also use for social proof in sales conversations — e.g., 'what does success look like in a territory like this?'",
+    input_schema: {
+      type: "object",
+      properties: {
+        TerritorySlug: {
+          type: "string",
+          description: "Territory slug (e.g., 'spokane-wa')",
+        },
+        period: {
+          type: "string",
+          description: "Time period: t1 (1 month), t3 (3 months, default), t12 (12 months), ytd, all",
+          enum: ["t1", "t3", "t12", "ytd", "all"],
+        },
+      },
+      required: ["TerritorySlug"],
+    },
+  },
+  {
+    name: "network_benchmarks",
+    description:
+      "Get network-wide performance benchmarks across all active franchise territories. Returns: " +
+      "average/median purchases, sales, profit, cycle days + high performer list + territory rankings + " +
+      "network totals. Use for benchmarking a specific territory against peers, answering 'how does [territory] " +
+      "compare?', 'what do high performers look like?', 'what's the network average?', 'who are the top territories?'. " +
+      "Also use when coaching franchisees — compare their metrics to high performer benchmarks to identify gaps.",
+    input_schema: {
+      type: "object",
+      properties: {
+        period: {
+          type: "string",
+          description: "Time period: t3 (3 months), t12 (12 months, default), ytd, all",
+          enum: ["t3", "t12", "ytd", "all"],
+        },
+      },
+      required: [],
+    },
+  },
+
+  {
+    name: "compare_territories",
+    description:
+      "Compare 2-5 franchise territories side-by-side on key performance metrics. Returns: purchases, sales, profit, " +
+      "cycle time, active inventory, conversion rate, high performer status, and EOS habits for each territory. " +
+      "Use when asked 'compare X and Y', 'how does X stack up against Y?', 'what's the difference between these territories?'. " +
+      "Also use to identify what a high performer does differently from a struggling territory.",
+    input_schema: {
+      type: "object",
+      properties: {
+        slugs: {
+          type: "string",
+          description: 'JSON array of 2-5 TerritorySlug values. Example: ["spokane-wa","boise-id","portland-or"]',
+        },
+        period: {
+          type: "string",
+          description: "Time period: t3 (3 months), t12 (12 months, default), ytd, all",
+          enum: ["t3", "t12", "ytd", "all"],
+        },
+      },
+      required: ["slugs"],
     },
   },
 

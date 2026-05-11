@@ -117,7 +117,7 @@ export default function QuickAsk({ context }: QuickAskProps) {
       {(response || error) && (
         <div
           ref={responseRef}
-          className={`relative rounded-lg border px-4 py-3 ${
+          className={`relative rounded-lg border px-4 py-3 max-h-[200px] overflow-y-auto ${
             error ? "bg-red-50 border-red-200" : "bg-scout-purple/5 border-scout-purple/20"
           }`}
         >

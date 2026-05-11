@@ -57,6 +57,15 @@ const SONNET_PATTERNS: RegExp[] = [
   /\b(everything|all|full)\s+(about|on|for)\s+\w+/i,
   /\bbrief\s+me/i,
   /\bpre[- ]?call\s+brief/i,
+  // Performance & MasterSuite queries — need reasoning for math/comparison
+  /\b(performance|benchmark|high\s+performer|cycle\s+time)/i,
+  /\bhow\s+(is|are)\s+\w+\s+(doing|performing)/i,
+  /\b(profit|revenue|roi|inventory)\s+(per|for|by|across)/i,
+  /\b(annualize|project|forecast|calculate|estimate)/i,
+  /\b(compare|vs|versus)\s+\w+/i,
+  /\b(lead\s+source|lead\s+category|marketing\s+channel)/i,
+  /\bwhat\s+(makes|do)\s+(high|top)\s+performers/i,
+  /\b(gap|delta|difference|correlation)\s+(between|in|across)/i,
 ];
 
 /**

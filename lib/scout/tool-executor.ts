@@ -95,6 +95,12 @@ export async function executeTool(
       return executeDraftKnowledgeDoc(input);
     case "draft_sub_task_log":
       return executeDraftSubTaskLog(input);
+    case "territory_performance":
+      return executeTerritoryPerformance(input);
+    case "network_benchmarks":
+      return executeNetworkBenchmarks(input);
+    case "compare_territories":
+      return executeCompareTerritories(input);
     case "get_compliance":
       return executeGetCompliance(input);
     case "draft_compliance_update":
@@ -592,7 +598,44 @@ async function executeGetContactInsights(input: Record<string, unknown>): Promis
       latestCallSummary: e.latestSummary,
     }));
 
-    return { data: JSON.stringify(results) };
+    // Priority pick — the #1 contact to focus on right now with reason
+    const top = entries[0];
+    let topPickReason = "";
+    if (top) {
+      const daysSinceLastCall = top.lastCall
+        ? Math.round((Date.now() - new Date(top.lastCall).getTime()) / 86400000)
+        : null;
+      switch (lens) {
+        case "momentum":
+          topPickReason = `Highest momentum — ${top.callCount} calls, avg score ${top.avgScore}. ${daysSinceLastCall != null ? `Last touch ${daysSinceLastCall} days ago.` : ""}`;
+          break;
+        case "at_risk":
+          topPickReason = `Most at risk — avg score ${top.avgScore}, only ${top.callCount} call${top.callCount !== 1 ? "s" : ""}. Needs immediate attention.`;
+          break;
+        case "stalling":
+          topPickReason = `Most stale — last contact ${daysSinceLastCall ?? "unknown"} days ago. Risk of going cold.`;
+          break;
+        case "top_performers":
+          topPickReason = `Strongest candidate — avg coaching score ${top.avgScore}, ${top.callCount} calls completed.`;
+          break;
+        default:
+          topPickReason = `Most active — ${top.callCount} calls in the last ${days} days.`;
+      }
+    }
+
+    return {
+      data: JSON.stringify({
+        topPick: top
+          ? {
+              name: top.name,
+              ghlId: top.ghlId,
+              stage: contactStage.get(Array.from(contactMap.keys())[0]) ?? "Unknown",
+              reason: topPickReason,
+            }
+          : null,
+        contacts: results,
+      }),
+    };
   } catch (err) {
     return { data: `Error getting insights: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
@@ -1788,6 +1831,666 @@ async function executeGetCompliance(input: Record<string, unknown>): Promise<Too
         summary: flags.length > 0 ? flags.join(" | ") : "All compliance items clear",
       }),
     };
+  } catch (err) {
+    return { data: `Error: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// MASTERSUITE PERFORMANCE TOOLS
+// ════════════════════════════════════════════════════════════════
+
+function computePeriodStart(period: string): Date {
+  const now = new Date();
+  if (period === "all") return new Date(2000, 0, 1);
+  if (period === "ytd") return new Date(now.getFullYear(), 0, 1);
+  const months = period === "t1" ? 1 : period === "t12" ? 12 : 3;
+  return new Date(now.getFullYear(), now.getMonth() - months, now.getDate());
+}
+
+async function executeTerritoryPerformance(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  try {
+    const slug = input.TerritorySlug as string;
+    const period = (input.period as string) ?? "t3";
+    const periodStart = computePeriodStart(period);
+    const periodISO = periodStart.toISOString();
+    const supabase = createServerClient();
+
+    // Compute previous period start for trend comparison
+    const now = new Date();
+    let prevPeriodStart: Date;
+    if (period === "all") {
+      prevPeriodStart = new Date(2000, 0, 1);
+    } else if (period === "ytd") {
+      prevPeriodStart = new Date(now.getFullYear() - 1, 0, 1);
+    } else {
+      const months = period === "t1" ? 1 : period === "t12" ? 12 : 3;
+      prevPeriodStart = new Date(now.getFullYear(), now.getMonth() - months * 2, now.getDate());
+    }
+
+    // 1. Inventory rows with purchase dates for this territory
+    let inventory: {
+      PropertyId: number;
+      Inv_PurchaseDate: string;
+      Inv_SellDate: string | null;
+      Inv_Status: string | null;
+    }[] = [];
+    let offset = 0;
+    while (true) {
+      const { data: page } = await supabase
+        .from("ms_property_inventory")
+        .select("PropertyId, Inv_PurchaseDate, Inv_SellDate, Inv_Status")
+        .eq("TerritorySlug", slug)
+        .not("Inv_PurchaseDate", "is", null)
+        .order("PropertyId")
+        .range(offset, offset + 999);
+      if (!page || page.length === 0) break;
+      inventory = inventory.concat(page as typeof inventory);
+      if (page.length < 1000) break;
+      offset += 1000;
+    }
+
+    // 2. Filter to period + previous period for trend
+    const purchasedInPeriod = inventory.filter((i) => new Date(i.Inv_PurchaseDate) >= periodStart);
+    const soldInPeriod = inventory.filter((i) => i.Inv_SellDate && new Date(i.Inv_SellDate) >= periodStart);
+    const activeInventory = inventory.filter((i) => !i.Inv_SellDate);
+    const prevPurchased = inventory.filter((i) => {
+      const d = new Date(i.Inv_PurchaseDate);
+      return d >= prevPeriodStart && d < periodStart;
+    });
+    const prevSold = inventory.filter((i) => {
+      if (!i.Inv_SellDate) return false;
+      const d = new Date(i.Inv_SellDate);
+      return d >= prevPeriodStart && d < periodStart;
+    });
+
+    // 3. Profit for sold properties
+    const soldIds = soldInPeriod.map((s) => s.PropertyId);
+    let totalProfit = 0;
+    let profitCount = 0;
+    for (let i = 0; i < soldIds.length; i += 500) {
+      const { data: calcs } = await supabase
+        .from("ms_property_calculations")
+        .select("PropertyId, Calculated_Inv_Profit")
+        .in("PropertyId", soldIds.slice(i, i + 500));
+      for (const c of (calcs ?? []) as { Calculated_Inv_Profit: number | null }[]) {
+        if (c.Calculated_Inv_Profit != null) {
+          totalProfit += Number(c.Calculated_Inv_Profit);
+          profitCount++;
+        }
+      }
+    }
+
+    // 4. Cycle days (purchase → sell) for sold in period
+    const cycleDays: number[] = [];
+    for (const inv of soldInPeriod) {
+      const days = Math.round(
+        (new Date(inv.Inv_SellDate!).getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (days > 0) cycleDays.push(days);
+    }
+    cycleDays.sort((a, b) => a - b);
+    const avgCycleDays =
+      cycleDays.length > 0 ? Math.round(cycleDays.reduce((a, b) => a + b, 0) / cycleDays.length) : null;
+    const medianCycleDays = cycleDays.length > 0 ? cycleDays[Math.floor(cycleDays.length / 2)] : null;
+
+    // 5. Funnel — stage progression from status history
+    const STAGES = ["1", "2", "3", "4", "5 Contract", "6 Purchase"];
+    const stageRank: Record<string, number> = {};
+    STAGES.forEach((s, i) => {
+      stageRank[s] = i;
+    });
+
+    // Get property IDs for this territory
+    const { data: propRows } = await supabase
+      .from("ms_properties")
+      .select("PropertyId")
+      .eq("TerritorySlug", slug)
+      .eq("Archived", false)
+      .limit(10000);
+    const propIds = (propRows ?? []).map((p: { PropertyId: number }) => p.PropertyId);
+
+    let funnel: { stage: string; count: number }[] = [];
+    if (propIds.length > 0) {
+      let history: { PropertyId: number; NewStatus: string | null }[] = [];
+      for (let i = 0; i < propIds.length; i += 500) {
+        const { data: page } = await supabase
+          .from("ms_property_status_history")
+          .select("PropertyId, NewStatus")
+          .in("PropertyId", propIds.slice(i, i + 500))
+          .gte("Inserted", periodISO);
+        if (page) history = history.concat(page as typeof history);
+      }
+
+      const highest = new Map<number, number>();
+      for (const h of history) {
+        const rank = stageRank[h.NewStatus ?? ""];
+        if (rank !== undefined) {
+          const cur = highest.get(h.PropertyId) ?? -1;
+          if (rank > cur) highest.set(h.PropertyId, rank);
+        }
+      }
+
+      funnel = STAGES.map((stage, i) => ({
+        stage,
+        count: [...highest.values()].filter((r) => r >= i).length,
+      }));
+    }
+
+    const leadsEntered = funnel.find((f) => f.stage === "1")?.count ?? 0;
+    const s4Count = funnel.find((f) => f.stage === "4")?.count ?? 0;
+    const conversionRate = leadsEntered > 0 ? Number(((s4Count / leadsEntered) * 100).toFixed(1)) : null;
+
+    // 6. T12 purchases for high performer check
+    const t12Start = computePeriodStart("t12");
+    const t12Purchases = inventory.filter((i) => new Date(i.Inv_PurchaseDate) >= t12Start).length;
+    const isHighPerformer = t12Purchases >= 10;
+
+    // 7. EOS habits for this territory
+    const { data: habits } = await supabase
+      .from("eos_territory_habits")
+      .select("habit_label, grade")
+      .eq("TerritorySlug", slug)
+      .order("sort_order");
+
+    // 8. Scorecard goals vs actuals
+    const { data: scorecard } = await supabase
+      .from("eos_territory_scorecard")
+      .select("metric_label, goal_value, actual_value")
+      .eq("TerritorySlug", slug)
+      .order("sort_order");
+
+    // 9. Lead channel effectiveness — cross-reference lead categories with outcomes
+    const channelEffectiveness: Record<string, { leads: number; purchased: number; sold: number }> = {};
+    if (propIds.length > 0) {
+      const { data: propCats } = await supabase
+        .from("ms_properties")
+        .select("PropertyId, LeadCategory")
+        .in("PropertyId", propIds.slice(0, 5000));
+      const catMap = new Map(
+        (propCats ?? []).map((p: { PropertyId: number; LeadCategory: string | null }) => [
+          p.PropertyId,
+          p.LeadCategory ?? "Unknown",
+        ])
+      );
+
+      // Count leads entered per category
+      for (const pid of propIds) {
+        const cat = catMap.get(pid) ?? "Unknown";
+        if (!channelEffectiveness[cat]) channelEffectiveness[cat] = { leads: 0, purchased: 0, sold: 0 };
+        channelEffectiveness[cat].leads++;
+      }
+
+      // Count purchases and sales per category
+      const purchaseIds = new Set(purchasedInPeriod.map((i) => i.PropertyId));
+      const soldIds = new Set(soldInPeriod.map((i) => i.PropertyId));
+      for (const [pid, cat] of catMap) {
+        if (!channelEffectiveness[cat]) channelEffectiveness[cat] = { leads: 0, purchased: 0, sold: 0 };
+        if (purchaseIds.has(pid)) channelEffectiveness[cat].purchased++;
+        if (soldIds.has(pid)) channelEffectiveness[cat].sold++;
+      }
+    }
+
+    // 10. Active marketing channels
+    const { data: channels } = await supabase
+      .from("eos_territory_lead_channels")
+      .select("channel_name")
+      .eq("TerritorySlug", slug)
+      .eq("is_active", true);
+
+    // 11. Territory owner(s)
+    const { data: owners } = await supabase
+      .from("territory_owners")
+      .select("ghl_contact_id, role, start_date")
+      .eq("TerritorySlug", slug)
+      .is("end_date", null);
+    // Resolve owner names
+    const ownerNames: { name: string; role: string; since: string | null }[] = [];
+    for (const o of (owners ?? []) as { ghl_contact_id: string; role: string; start_date: string | null }[]) {
+      const { data: contact } = await supabase
+        .from("contacts")
+        .select("first_name, last_name")
+        .eq("ghl_contact_id", o.ghl_contact_id)
+        .limit(1)
+        .single();
+      ownerNames.push({
+        name: contact ? `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() : o.ghl_contact_id,
+        role: o.role,
+        since: o.start_date,
+      });
+    }
+
+    // 12. Territory info
+    const { data: territoryInfo } = await supabase
+      .from("territories")
+      .select("Nickname, PrimaryCoach, FranchiseAgreementDate, ComplianceScore")
+      .eq("TerritorySlug", slug)
+      .single();
+
+    return {
+      data: JSON.stringify({
+        territory: slug,
+        territoryName: (territoryInfo as any)?.Nickname ?? slug,
+        owners: ownerNames,
+        coach: (territoryInfo as any)?.PrimaryCoach ?? null,
+        awardedDate: (territoryInfo as any)?.FranchiseAgreementDate ?? null,
+        complianceScore: (territoryInfo as any)?.ComplianceScore ?? null,
+        period,
+        kpis: {
+          purchasedInPeriod: purchasedInPeriod.length,
+          soldInPeriod: soldInPeriod.length,
+          activeInventory: activeInventory.length,
+          totalProfit: profitCount > 0 ? Math.round(totalProfit) : null,
+          avgProfit: profitCount > 0 ? Math.round(totalProfit / profitCount) : null,
+          avgCycleDays,
+          medianCycleDays,
+          leadsEntered,
+          conversionRate,
+          t12Purchases,
+          isHighPerformer,
+        },
+        trend: {
+          prevPeriodPurchased: prevPurchased.length,
+          prevPeriodSold: prevSold.length,
+          purchaseChange:
+            prevPurchased.length > 0
+              ? Number((((purchasedInPeriod.length - prevPurchased.length) / prevPurchased.length) * 100).toFixed(1))
+              : null,
+          soldChange:
+            prevSold.length > 0
+              ? Number((((soldInPeriod.length - prevSold.length) / prevSold.length) * 100).toFixed(1))
+              : null,
+          direction:
+            purchasedInPeriod.length > prevPurchased.length
+              ? "up"
+              : purchasedInPeriod.length < prevPurchased.length
+                ? "down"
+                : "flat",
+        },
+        funnel,
+        habits: habits ?? [],
+        scorecard: scorecard ?? [],
+        channelEffectiveness,
+        activeLeadChannels: (channels ?? []).map((c: { channel_name: string }) => c.channel_name),
+        inventorySummary: {
+          total: activeInventory.length,
+          byStatus: activeInventory.reduce<Record<string, number>>((acc, inv) => {
+            const status = inv.Inv_Status ?? "Unknown";
+            acc[status] = (acc[status] || 0) + 1;
+            return acc;
+          }, {}),
+        },
+      }),
+    };
+  } catch (err) {
+    return { data: `Error: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+async function executeNetworkBenchmarks(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  try {
+    const period = (input.period as string) ?? "t12";
+    const periodStart = computePeriodStart(period);
+    const supabase = createServerClient();
+
+    // 1. Get all active territories
+    const { data: territories } = await supabase
+      .from("territories")
+      .select("TerritorySlug, Nickname, status, FranchiseAgreementDate")
+      .eq("status", "active");
+
+    if (!territories || territories.length === 0) {
+      return { data: JSON.stringify({ error: "No active territories found" }) };
+    }
+
+    const slugs = territories.map((t: { TerritorySlug: string }) => t.TerritorySlug);
+
+    // 2. Get all inventory with purchase dates across all territories (query by date first for efficiency)
+    let allInventory: {
+      TerritorySlug: string;
+      PropertyId: number;
+      Inv_PurchaseDate: string;
+      Inv_SellDate: string | null;
+    }[] = [];
+    // For t12/ytd/t3: query recent purchases first (efficient), then recent sales
+    // For "all": we need all inventory — paginate across all slugs
+    for (let i = 0; i < slugs.length; i += 20) {
+      const batchSlugs = slugs.slice(i, i + 20);
+      let offset = 0;
+      while (true) {
+        const { data: page } = await supabase
+          .from("ms_property_inventory")
+          .select("TerritorySlug, PropertyId, Inv_PurchaseDate, Inv_SellDate")
+          .in("TerritorySlug", batchSlugs)
+          .not("Inv_PurchaseDate", "is", null)
+          .order("PropertyId")
+          .range(offset, offset + 999);
+        if (!page || page.length === 0) break;
+        allInventory = allInventory.concat(page as typeof allInventory);
+        if (page.length < 1000) break;
+        offset += 1000;
+      }
+    }
+
+    // 3. Compute per-territory metrics
+    const territoryMetrics: {
+      slug: string;
+      name: string;
+      purchased: number;
+      sold: number;
+      activeInventory: number;
+      t12Purchases: number;
+    }[] = [];
+
+    const t12Start = computePeriodStart("t12");
+    const territoryMap = new Map(
+      territories.map((t: { TerritorySlug: string; Nickname: string }) => [t.TerritorySlug, t.Nickname])
+    );
+
+    // Group inventory by territory
+    const byTerritory = new Map<string, typeof allInventory>();
+    for (const inv of allInventory) {
+      const existing = byTerritory.get(inv.TerritorySlug) ?? [];
+      existing.push(inv);
+      byTerritory.set(inv.TerritorySlug, existing);
+    }
+
+    for (const slug of slugs) {
+      const inv = byTerritory.get(slug) ?? [];
+      const purchased = inv.filter((i) => new Date(i.Inv_PurchaseDate) >= periodStart).length;
+      const sold = inv.filter((i) => i.Inv_SellDate && new Date(i.Inv_SellDate) >= periodStart).length;
+      const active = inv.filter((i) => !i.Inv_SellDate).length;
+      const t12p = inv.filter((i) => new Date(i.Inv_PurchaseDate) >= t12Start).length;
+
+      territoryMetrics.push({
+        slug,
+        name: (territoryMap.get(slug) as string) ?? slug,
+        purchased,
+        sold,
+        activeInventory: active,
+        t12Purchases: t12p,
+      });
+    }
+
+    // 4. Get profit data for all sold properties in period
+    const soldInPeriodIds: number[] = [];
+    const soldByTerritory = new Map<string, number[]>();
+    for (const inv of allInventory) {
+      if (inv.Inv_SellDate && new Date(inv.Inv_SellDate) >= periodStart) {
+        soldInPeriodIds.push(inv.PropertyId);
+        const existing = soldByTerritory.get(inv.TerritorySlug) ?? [];
+        existing.push(inv.PropertyId);
+        soldByTerritory.set(inv.TerritorySlug, existing);
+      }
+    }
+
+    const profitByTerritory = new Map<string, { total: number; count: number }>();
+    for (let i = 0; i < soldInPeriodIds.length; i += 500) {
+      const { data: calcs } = await supabase
+        .from("ms_property_calculations")
+        .select("PropertyId, Calculated_Inv_Profit")
+        .in("PropertyId", soldInPeriodIds.slice(i, i + 500));
+      for (const c of (calcs ?? []) as { PropertyId: number; Calculated_Inv_Profit: number | null }[]) {
+        if (c.Calculated_Inv_Profit != null) {
+          // Find which territory this property belongs to
+          for (const [tSlug, propIds] of soldByTerritory) {
+            if (propIds.includes(c.PropertyId)) {
+              const existing = profitByTerritory.get(tSlug) ?? { total: 0, count: 0 };
+              existing.total += Number(c.Calculated_Inv_Profit);
+              existing.count++;
+              profitByTerritory.set(tSlug, existing);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // 5. Compute network aggregates
+    const purchaseCounts = territoryMetrics.map((t) => t.purchased).filter((n) => n > 0);
+    const soldCounts = territoryMetrics.map((t) => t.sold).filter((n) => n > 0);
+    const profitValues = [...profitByTerritory.values()].filter((p) => p.count > 0);
+    const avgProfitPerTerritory =
+      profitValues.length > 0
+        ? Math.round(profitValues.reduce((sum, p) => sum + p.total / p.count, 0) / profitValues.length)
+        : null;
+
+    const sorted = (arr: number[]) => [...arr].sort((a, b) => a - b);
+    const median = (arr: number[]) => {
+      const s = sorted(arr);
+      return s.length > 0 ? s[Math.floor(s.length / 2)] : null;
+    };
+    const avg = (arr: number[]) => (arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null);
+
+    // High performers: 10+ T12 purchases
+    const highPerformers = territoryMetrics
+      .filter((t) => t.t12Purchases >= 10)
+      .sort((a, b) => b.t12Purchases - a.t12Purchases);
+
+    // Rankings by purchased in period
+    const rankedByPurchases = [...territoryMetrics]
+      .sort((a, b) => b.purchased - a.purchased)
+      .slice(0, 10)
+      .map((t, i) => ({
+        rank: i + 1,
+        territory: t.name,
+        slug: t.slug,
+        purchased: t.purchased,
+        sold: t.sold,
+        totalProfit: profitByTerritory.get(t.slug)?.total ? Math.round(profitByTerritory.get(t.slug)!.total) : null,
+      }));
+
+    return {
+      data: JSON.stringify({
+        period,
+        activeTerritoriesCount: territories.length,
+        network: {
+          totalPurchased: purchaseCounts.reduce((a, b) => a + b, 0),
+          totalSold: soldCounts.reduce((a, b) => a + b, 0),
+          totalProfit: profitValues.length > 0 ? Math.round(profitValues.reduce((sum, p) => sum + p.total, 0)) : null,
+          avgPurchasesPerTerritory: avg(purchaseCounts),
+          medianPurchasesPerTerritory: median(purchaseCounts),
+          avgSoldPerTerritory: avg(soldCounts),
+          avgProfitPerFlip: avgProfitPerTerritory,
+        },
+        highPerformers: {
+          count: highPerformers.length,
+          threshold: "10+ purchases in trailing 12 months",
+          territories: highPerformers.slice(0, 15).map((t) => ({
+            territory: t.name,
+            slug: t.slug,
+            t12Purchases: t.t12Purchases,
+            activeInventory: t.activeInventory,
+          })),
+        },
+        topTerritories: rankedByPurchases,
+      }),
+    };
+  } catch (err) {
+    return { data: `Error: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+async function executeCompareTerritories(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  try {
+    const rawSlugs = input.slugs as string | string[];
+    const slugs = (Array.isArray(rawSlugs) ? rawSlugs : (JSON.parse(rawSlugs) as string[])).slice(0, 5);
+    if (slugs.length < 2) {
+      return { data: JSON.stringify({ error: "Need at least 2 territory slugs to compare" }) };
+    }
+    const period = (input.period as string) ?? "t12";
+    const periodStart = computePeriodStart(period);
+    const t12Start = computePeriodStart("t12");
+    const supabase = createServerClient();
+
+    // 1. Territory info
+    const { data: territories } = await supabase
+      .from("territories")
+      .select("TerritorySlug, Nickname, status, FranchiseAgreementDate, ComplianceScore, PrimaryCoach")
+      .in("TerritorySlug", slugs);
+
+    const territoryMap = new Map(
+      (territories ?? []).map((t: Record<string, unknown>) => [t.TerritorySlug as string, t])
+    );
+
+    // 2. Inventory for all territories at once
+    let allInventory: {
+      TerritorySlug: string;
+      PropertyId: number;
+      Inv_PurchaseDate: string;
+      Inv_SellDate: string | null;
+      Inv_Status: string | null;
+    }[] = [];
+    let offset = 0;
+    while (true) {
+      const { data: page } = await supabase
+        .from("ms_property_inventory")
+        .select("TerritorySlug, PropertyId, Inv_PurchaseDate, Inv_SellDate, Inv_Status")
+        .in("TerritorySlug", slugs)
+        .not("Inv_PurchaseDate", "is", null)
+        .order("PropertyId")
+        .range(offset, offset + 999);
+      if (!page || page.length === 0) break;
+      allInventory = allInventory.concat(page as typeof allInventory);
+      if (page.length < 1000) break;
+      offset += 1000;
+    }
+
+    // 3. Profit for sold properties in period
+    const soldInPeriodIds: number[] = [];
+    const soldByTerritory = new Map<string, number[]>();
+    for (const inv of allInventory) {
+      if (inv.Inv_SellDate && new Date(inv.Inv_SellDate) >= periodStart) {
+        soldInPeriodIds.push(inv.PropertyId);
+        const arr = soldByTerritory.get(inv.TerritorySlug) ?? [];
+        arr.push(inv.PropertyId);
+        soldByTerritory.set(inv.TerritorySlug, arr);
+      }
+    }
+
+    const profitByTerritory = new Map<string, { total: number; count: number }>();
+    for (let i = 0; i < soldInPeriodIds.length; i += 500) {
+      const { data: calcs } = await supabase
+        .from("ms_property_calculations")
+        .select("PropertyId, Calculated_Inv_Profit")
+        .in("PropertyId", soldInPeriodIds.slice(i, i + 500));
+      for (const c of (calcs ?? []) as { PropertyId: number; Calculated_Inv_Profit: number | null }[]) {
+        if (c.Calculated_Inv_Profit != null) {
+          for (const [tSlug, propIds] of soldByTerritory) {
+            if (propIds.includes(c.PropertyId)) {
+              const existing = profitByTerritory.get(tSlug) ?? { total: 0, count: 0 };
+              existing.total += Number(c.Calculated_Inv_Profit);
+              existing.count++;
+              profitByTerritory.set(tSlug, existing);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // 4. Territory owners
+    const { data: allOwners } = await supabase
+      .from("territory_owners")
+      .select("TerritorySlug, ghl_contact_id, role, start_date")
+      .in("TerritorySlug", slugs)
+      .is("end_date", null);
+    const ownerGhlIds = [...new Set((allOwners ?? []).map((o: { ghl_contact_id: string }) => o.ghl_contact_id))];
+    const { data: ownerContacts } =
+      ownerGhlIds.length > 0
+        ? await supabase
+            .from("contacts")
+            .select("ghl_contact_id, first_name, last_name")
+            .in("ghl_contact_id", ownerGhlIds)
+        : { data: [] };
+    const ownerNameMap = new Map(
+      (ownerContacts ?? []).map(
+        (c: { ghl_contact_id: string; first_name: string | null; last_name: string | null }) => [
+          c.ghl_contact_id,
+          `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.ghl_contact_id,
+        ]
+      )
+    );
+    const ownersByTerritory = new Map<string, string[]>();
+    for (const o of (allOwners ?? []) as { TerritorySlug: string; ghl_contact_id: string }[]) {
+      const arr = ownersByTerritory.get(o.TerritorySlug) ?? [];
+      arr.push(ownerNameMap.get(o.ghl_contact_id) ?? o.ghl_contact_id);
+      ownersByTerritory.set(o.TerritorySlug, arr);
+    }
+
+    // 5. EOS habits for all territories
+    const { data: allHabits } = await supabase
+      .from("eos_territory_habits")
+      .select("TerritorySlug, habit_label, grade")
+      .in("TerritorySlug", slugs)
+      .order("sort_order");
+
+    const habitsByTerritory = new Map<string, Record<string, string | null>>();
+    for (const h of (allHabits ?? []) as { TerritorySlug: string; habit_label: string; grade: string | null }[]) {
+      const existing = habitsByTerritory.get(h.TerritorySlug) ?? {};
+      existing[h.habit_label] = h.grade;
+      habitsByTerritory.set(h.TerritorySlug, existing);
+    }
+
+    // 5. Lead channels
+    const { data: allChannels } = await supabase
+      .from("eos_territory_lead_channels")
+      .select("TerritorySlug, channel_name")
+      .in("TerritorySlug", slugs)
+      .eq("is_active", true);
+
+    const channelsByTerritory = new Map<string, string[]>();
+    for (const ch of (allChannels ?? []) as { TerritorySlug: string; channel_name: string }[]) {
+      const arr = channelsByTerritory.get(ch.TerritorySlug) ?? [];
+      arr.push(ch.channel_name);
+      channelsByTerritory.set(ch.TerritorySlug, arr);
+    }
+
+    // 7. Build comparison
+    const comparison = slugs.map((slug) => {
+      const territory = territoryMap.get(slug) as Record<string, unknown> | undefined;
+      const inv = allInventory.filter((i) => i.TerritorySlug === slug);
+      const purchased = inv.filter((i) => new Date(i.Inv_PurchaseDate) >= periodStart).length;
+      const sold = inv.filter((i) => i.Inv_SellDate && new Date(i.Inv_SellDate) >= periodStart).length;
+      const active = inv.filter((i) => !i.Inv_SellDate).length;
+      const t12p = inv.filter((i) => new Date(i.Inv_PurchaseDate) >= t12Start).length;
+      const profit = profitByTerritory.get(slug);
+
+      // Cycle days for sold in period
+      const soldInv = inv.filter((i) => i.Inv_SellDate && new Date(i.Inv_SellDate) >= periodStart);
+      const cycleDays = soldInv
+        .map((i) =>
+          Math.round((new Date(i.Inv_SellDate!).getTime() - new Date(i.Inv_PurchaseDate).getTime()) / 86400000)
+        )
+        .filter((d) => d > 0);
+      cycleDays.sort((a, b) => a - b);
+
+      return {
+        slug,
+        name: (territory?.Nickname as string) ?? slug,
+        owners: ownersByTerritory.get(slug) ?? [],
+        status: territory?.status ?? "unknown",
+        awardedDate: territory?.FranchiseAgreementDate ?? null,
+        complianceScore: territory?.ComplianceScore ?? null,
+        coach: territory?.PrimaryCoach ?? null,
+        kpis: {
+          purchased,
+          sold,
+          activeInventory: active,
+          totalProfit: profit ? Math.round(profit.total) : null,
+          avgProfit: profit ? Math.round(profit.total / profit.count) : null,
+          avgCycleDays:
+            cycleDays.length > 0 ? Math.round(cycleDays.reduce((a, b) => a + b, 0) / cycleDays.length) : null,
+          medianCycleDays: cycleDays.length > 0 ? cycleDays[Math.floor(cycleDays.length / 2)] : null,
+          t12Purchases: t12p,
+          isHighPerformer: t12p >= 10,
+        },
+        habits: habitsByTerritory.get(slug) ?? {},
+        activeLeadChannels: channelsByTerritory.get(slug) ?? [],
+      };
+    });
+
+    return { data: JSON.stringify({ period, comparison }) };
   } catch (err) {
     return { data: `Error: ${err instanceof Error ? err.message : "Unknown error"}` };
   }

@@ -14,7 +14,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { SCOUT_TOOLS } from "./tools";
 import { executeTool } from "./tool-executor";
 import { logLLMCall } from "./llm-logger";
-import { routeModel } from "./model-router";
+// routeModel no longer used — Opus orchestrator pattern hardcodes models
 import { loadUserMemory, formatMemoryForPrompt } from "./memory";
 import { createServerClient } from "@/lib/supabase/server";
 import type { ScoutToolName, DraftedAction } from "@/types/scout";
@@ -66,8 +66,9 @@ export async function runStreamingTurn(params: {
 
   const client = new Anthropic({ apiKey });
   const tools = formatToolsForAPI();
-  const route = routeModel({ messages, userRole: input.userRole });
-  const model = route.model;
+  // Opus Orchestrator: Opus for iteration 1 (reasoning), Haiku for iterations 2+ (execution)
+  const ORCHESTRATOR = "claude-opus-4-6";
+  const EXECUTOR = "claude-haiku-4-5-20251001";
   const draftedActions: DraftedAction[] = [];
   const MAX_ITERATIONS = 15;
   const MAX_TOKENS = 2048;
@@ -77,6 +78,7 @@ export async function runStreamingTurn(params: {
   // Tool-call loop — non-streaming iterations until we get the final response
   while (iterations < MAX_ITERATIONS) {
     iterations++;
+    const activeModel = iterations === 1 ? ORCHESTRATOR : EXECUTOR;
 
     const startTime = Date.now();
 
@@ -85,7 +87,7 @@ export async function runStreamingTurn(params: {
       // During tool-call iterations we collect the full response.
       // During the final text response we emit tokens as they arrive.
       const stream = client.messages.stream({
-        model,
+        model: activeModel,
         max_tokens: MAX_TOKENS,
         system: systemPrompt,
         tools,
@@ -111,7 +113,7 @@ export async function runStreamingTurn(params: {
       // Log every API call
       logLLMCall({
         userId: input.userId,
-        model,
+        model: activeModel,
         inputMessages: messages,
         toolsProvided: tools.map((t) => t.name),
         responseContent: response.content as unknown[],
@@ -184,7 +186,7 @@ export async function runStreamingTurn(params: {
       const errorMsg = err instanceof Error ? err.message : "Unknown API error";
       logLLMCall({
         userId: input.userId,
-        model,
+        model: activeModel,
         inputMessages: messages,
         toolsProvided: tools.map((t) => t.name),
         responseContent: [],

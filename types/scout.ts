@@ -32,7 +32,11 @@ export type ScoutToolName =
   | "draft_knowledge_doc"
   | "draft_sub_task_log"
   | "get_compliance"
-  | "draft_compliance_update";
+  | "draft_compliance_update"
+  // MasterSuite performance tools
+  | "territory_performance"
+  | "network_benchmarks"
+  | "compare_territories";
 
 /** Chat message role */
 export type ChatRole = "user" | "assistant";

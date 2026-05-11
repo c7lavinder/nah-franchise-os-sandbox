@@ -31,7 +31,9 @@ export type QueryEntity =
   | "call_logs"
   | "alerts"
   | "objections"
-  | "workflow_enrollments";
+  | "workflow_enrollments"
+  | "inventory"
+  | "properties";
 
 export interface FilterOp {
   field: string;
@@ -162,7 +164,7 @@ const ENTITIES: Record<QueryEntity, EntityConfig> = {
       created_at: "created_at",
     },
     groupable: ["objection_type", "stage_at_time", "resolved"],
-    aggregatable: ["score_impact"],
+    aggregatable: ["score_impact", "resolved"],
     defaultOrder: { field: "created_at", direction: "desc" },
   },
   workflow_enrollments: {
@@ -178,6 +180,38 @@ const ENTITIES: Record<QueryEntity, EntityConfig> = {
     groupable: ["status", "goal_achieved", "workflow_id"],
     aggregatable: ["current_day"],
     defaultOrder: { field: "enrolled_at", direction: "desc" },
+  },
+  inventory: {
+    table: "ms_property_inventory",
+    filterable: {
+      TerritorySlug: "TerritorySlug",
+      PropertyId: "PropertyId",
+      Inv_Status: "Inv_Status",
+      Inv_PurchaseDate: "Inv_PurchaseDate",
+      Inv_SellDate: "Inv_SellDate",
+      Inv_ConstructionStartDate: "Inv_ConstructionStartDate",
+      Inv_CompletionDate: "Inv_CompletionDate",
+      Inv_ListDate: "Inv_ListDate",
+    },
+    groupable: ["TerritorySlug", "Inv_Status"],
+    aggregatable: ["PropertyId"],
+    defaultOrder: { field: "Inv_PurchaseDate", direction: "desc" },
+  },
+  properties: {
+    table: "ms_properties",
+    filterable: {
+      TerritorySlug: "TerritorySlug",
+      PropertyId: "PropertyId",
+      LeadCategory: "LeadCategory",
+      LeadType: "LeadType",
+      Status: "Status",
+      Archived: "Archived",
+      Inserted: "Inserted",
+      PropertyType: "PropertyType",
+    },
+    groupable: ["TerritorySlug", "LeadCategory", "LeadType", "PropertyType"],
+    aggregatable: ["Stage1Arv", "Stage1Price"],
+    defaultOrder: { field: "Inserted", direction: "desc" },
   },
 };
 
@@ -521,6 +555,7 @@ async function getTerritoryProfile(slug: string): Promise<string> {
       issuesRes,
       todosRes,
       statesRes,
+      inventoryRes,
     ] = await Promise.all([
       supabase.from("territories").select("*").eq("TerritorySlug", slug).single(),
       supabase
@@ -547,15 +582,43 @@ async function getTerritoryProfile(slug: string): Promise<string> {
         .select("journey_id, current_stage_id, entered_current_stage_at, pipeline_stages(name), pipelines(name)")
         .eq("TerritorySlug", slug)
         .eq("is_active", true),
+      // Performance summary: recent inventory for T12 snapshot
+      supabase
+        .from("ms_property_inventory")
+        .select("PropertyId, Inv_PurchaseDate, Inv_SellDate, Inv_Status")
+        .eq("TerritorySlug", slug)
+        .not("Inv_PurchaseDate", "is", null)
+        .order("Inv_PurchaseDate", { ascending: false })
+        .limit(500),
     ]);
 
     if (territoryRes.error || !territoryRes.data) {
       return JSON.stringify({ error: `Territory '${slug}' not found` });
     }
 
+    // Compute performance summary from inventory
+    const now = new Date();
+    const t12Start = new Date(now.getFullYear(), now.getMonth() - 12, now.getDate());
+    const invRows = (inventoryRes.data ?? []) as {
+      PropertyId: number;
+      Inv_PurchaseDate: string;
+      Inv_SellDate: string | null;
+      Inv_Status: string | null;
+    }[];
+    const t12Purchases = invRows.filter((i) => new Date(i.Inv_PurchaseDate) >= t12Start).length;
+    const t12Sales = invRows.filter((i) => i.Inv_SellDate && new Date(i.Inv_SellDate) >= t12Start).length;
+    const activeInventory = invRows.filter((i) => !i.Inv_SellDate).length;
+
     return JSON.stringify({
       territory: territoryRes.data,
       activeOwners: ownersRes.data ?? [],
+      performanceSummary: {
+        t12Purchases,
+        t12Sales,
+        activeInventory,
+        isHighPerformer: t12Purchases >= 10,
+        highPerformerThreshold: "10+ purchases in trailing 12 months",
+      },
       marketData: (marketRes.data ?? []).reduce<Record<string, unknown>>((acc, r) => {
         const row = r as { field_name: string; field_value: string };
         acc[row.field_name] = row.field_value;

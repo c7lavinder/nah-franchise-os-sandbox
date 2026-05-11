@@ -227,7 +227,7 @@ export default function ScoutFAB() {
       {/* Scout chat drawer */}
       {open && (
         <div
-          className="fixed bottom-0 right-0 z-[499] w-[320px] max-h-[50vh] flex flex-col rounded-tl-xl"
+          className="fixed bottom-0 right-0 z-[499] w-[420px] max-h-[70vh] flex flex-col rounded-tl-xl"
           style={{
             background: "rgba(255, 255, 255, 0.6)",
             backdropFilter: "blur(16px)",
