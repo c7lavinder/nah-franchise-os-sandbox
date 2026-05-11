@@ -11,6 +11,7 @@ import PerformanceTab from "@/components/territories/tabs/PerformanceTab";
 
 interface OwnerOut {
   ownerName: string | null;
+  contactId: string | null;
   ghlContactId: string | null;
   role?: string;
   start_date?: string | null;
@@ -83,7 +84,7 @@ export default function TerritoryProfilePage() {
   const [kpis, setKpis] = useState<PerformanceKPIs | null>(null);
   const [t12Sold, setT12Sold] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"performance" | "ecosystem" | "data" | "eos">("performance");
+  const [activeTab, setActiveTab] = useState<"performance" | "ecosystem" | "data" | "eos">("ecosystem");
 
   useEffect(() => {
     Promise.all([
@@ -173,8 +174,8 @@ export default function TerritoryProfilePage() {
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border-default">
         {[
-          { key: "performance" as const, label: "Performance" },
           { key: "ecosystem" as const, label: "Ecosystem" },
+          { key: "performance" as const, label: "Performance" },
           { key: "data" as const, label: "Data" },
           { key: "eos" as const, label: "EOS" },
         ].map((tab) => (

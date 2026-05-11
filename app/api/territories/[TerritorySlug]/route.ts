@@ -32,6 +32,7 @@ interface JourneyContactRow {
 
 interface OwnerOut {
   ownerName: string | null;
+  contactId: string | null;
   ghlContactId: string | null;
   role: string;
   start_date: string | null;
@@ -83,6 +84,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const name = contact ? `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() || null : null;
       return {
         ownerName: name,
+        contactId: raw.contact_id,
         ghlContactId: contact?.ghl_contact_id ?? raw.contact_id,
         role: raw.role,
         start_date: null,
@@ -99,17 +101,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // Get territory_owners for start_date hydration.
   const { data: territoryOwners } = await supabase
     .from("territory_owners")
-    .select("ghl_contact_id, start_date, role, contacts(first_name, last_name, email, ghl_contact_id)")
+    .select("ghl_contact_id, contact_id, start_date, role, contacts(id, first_name, last_name, email, ghl_contact_id)")
     .eq("TerritorySlug", TerritorySlug)
     .is("end_date", null);
 
-  const startDateByGhlId = new Map<string, string>();
+  const startDateByContactId = new Map<string, string>();
   for (const r of territoryOwners ?? []) {
-    if (r.ghl_contact_id && r.start_date) startDateByGhlId.set(r.ghl_contact_id, r.start_date);
+    const key = r.contact_id ?? r.ghl_contact_id;
+    if (key && r.start_date) startDateByContactId.set(key, r.start_date);
   }
   for (const o of ownersFromJourney) {
-    if (o.ghlContactId && startDateByGhlId.has(o.ghlContactId)) {
-      o.start_date = startDateByGhlId.get(o.ghlContactId) ?? null;
+    const key = o.contactId ?? o.ghlContactId;
+    if (key && startDateByContactId.has(key)) {
+      o.start_date = startDateByContactId.get(key) ?? null;
     }
   }
 
@@ -118,13 +122,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (currentOwners.length === 0 && territoryOwners && territoryOwners.length > 0) {
     currentOwners = territoryOwners.map((r) => {
       const c = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
-      const name = c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || null : null;
+      const contactUuid = r.contact_id ?? (c as any)?.id ?? null;
+      const name = c ? `${(c as any).first_name ?? ""} ${(c as any).last_name ?? ""}`.trim() || null : null;
       return {
         ownerName: name,
-        ghlContactId: c?.ghl_contact_id ?? r.ghl_contact_id,
+        contactId: contactUuid,
+        ghlContactId: (c as any)?.ghl_contact_id ?? r.ghl_contact_id,
         role: r.role ?? "owner",
         start_date: r.start_date ?? null,
-        email: c?.email ?? null,
+        email: (c as any)?.email ?? null,
       };
     });
   }
@@ -147,6 +153,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     currentOwners = [
       {
         ownerName: franchiseOwner.full_name ?? null,
+        contactId: null,
         ghlContactId: franchiseOwner.ghl_contact_id ?? null,
         role: "owner",
         start_date: null,

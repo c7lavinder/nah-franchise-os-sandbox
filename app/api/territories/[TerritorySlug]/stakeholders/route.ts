@@ -4,21 +4,41 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 
-/** GET — list all stakeholders for a territory */
+/** GET — list all stakeholders for a territory.
+ *  When a stakeholder has contact_id, returns live contact data instead of stale copies. */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ TerritorySlug: string }> }) {
   const { TerritorySlug } = await params;
   const supabase = createServerClient();
 
   const { data, error } = await supabase
     .from("territory_stakeholders")
-    .select("*")
+    .select(
+      "id, TerritorySlug, role, company, notes, is_active, contact_id, first_name, last_name, email, phone, contacts(id, first_name, last_name, email, phone)"
+    )
     .eq("TerritorySlug", TerritorySlug)
     .eq("is_active", true)
     .order("role")
     .order("last_name");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ stakeholders: data ?? [] });
+
+  // Merge: use live contact data when linked, fall back to stakeholder's own fields
+  const stakeholders = (data ?? []).map((row: any) => {
+    const contact = Array.isArray(row.contacts) ? row.contacts[0] : row.contacts;
+    return {
+      id: row.id,
+      contact_id: row.contact_id,
+      role: row.role,
+      company: row.company,
+      notes: row.notes,
+      first_name: contact?.first_name ?? row.first_name,
+      last_name: contact?.last_name ?? row.last_name,
+      email: contact?.email ?? row.email,
+      phone: contact?.phone ?? row.phone,
+    };
+  });
+
+  return NextResponse.json({ stakeholders });
 }
 
 /** POST — add a stakeholder. Accepts contact_id to link back to the contacts

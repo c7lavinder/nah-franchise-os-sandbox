@@ -39,6 +39,7 @@ interface Stakeholder {
 
 interface Owner {
   ownerName: string | null;
+  contactId: string | null;
   ghlContactId: string | null;
   role?: string;
   start_date?: string | null;
@@ -175,11 +176,9 @@ export default function EcosystemPanel({ TerritorySlug, owner, owners }: Props) 
                         })}
                       </span>
                     )}
-                    {o.ghlContactId && (
+                    {(o.contactId || o.ghlContactId) && (
                       <Link
-                        href={`/contacts/${o.ghlContactId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href={`/contacts/${o.contactId ?? o.ghlContactId}`}
                         className="text-[10px] text-nah-blue hover:underline mt-0.5"
                       >
                         View profile
