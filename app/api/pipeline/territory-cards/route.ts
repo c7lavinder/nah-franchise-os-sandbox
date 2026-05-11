@@ -25,8 +25,11 @@ export async function GET(request: NextRequest) {
     .select("TerritorySlug, Nickname, status, FranchiseAgreementDate")
     .order("Nickname");
 
-  if (status) {
+  // Default to active-only; pass status=all to see everything
+  if (status && status !== "all") {
     query = query.eq("status", status);
+  } else if (!status) {
+    query = query.eq("status", "active");
   }
 
   // If filtering by pipeline stage, find which territories have jps rows in
