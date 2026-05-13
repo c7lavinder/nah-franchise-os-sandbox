@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import OnboardingChecklist from "./OnboardingChecklist";
 import { QuickAsk } from "@/components/scout";
+import BugReportButton from "@/components/ui/BugReportButton";
 import type { UserRole } from "@/types/database";
 
 interface AppShellProps {
@@ -67,6 +68,8 @@ export default function AppShell({ children, userName, userRole }: AppShellProps
           {children}
         </div>
       </main>
+
+      <BugReportButton />
     </div>
   );
 }
