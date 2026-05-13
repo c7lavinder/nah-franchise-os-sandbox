@@ -84,6 +84,7 @@ const ENTITIES: Record<QueryEntity, EntityConfig> = {
       state: "state",
       source: "source",
       opportunity_source: "opportunity_source",
+      ghl_date_added: "ghl_date_added",
       created_at: "created_at",
       updated_at: "updated_at",
     },
@@ -518,7 +519,9 @@ async function getContactProfile(contactId: string): Promise<string> {
       supabase.from("candidate_intelligence").select("*").eq("contact_id", sbContactId).single(),
       supabase
         .from("call_participants")
-        .select("call_id, role, calls!inner(id, title, started_at, duration_seconds, status, call_types(name))")
+        .select(
+          "call_id, role, calls!inner(id, title, started_at, duration_seconds, status, ai_summary, coaching_score, call_types(name))"
+        )
         .eq("contact_id", sbContactId)
         .order("created_at", { ascending: false })
         .limit(5),
@@ -563,6 +566,8 @@ async function getContactProfile(contactId: string): Promise<string> {
           duration: call?.duration_seconds ?? null,
           status: call?.status ?? null,
           title: call?.title ?? null,
+          summary: call?.ai_summary ?? null,
+          coachingScore: call?.coaching_score ?? null,
         };
       });
     }
