@@ -72,11 +72,53 @@ export function extractSpeakers(transcript: string): TranscriptMeta {
     }
   }
 
+  // Extract full names from title header to supplement single-name speakers.
+  // e.g. title "Matt Lavinder & Blake Boettcher" gives us "Blake Boettcher"
+  // even though the transcript only labels him as "Blake:".
+  const titleNames: string[] = [];
+  if (title) {
+    // Split on "&", "/", " and ", "," separators
+    const parts = title.split(/\s*[&/,]\s*|\s+and\s+/i);
+    for (const part of parts) {
+      const cleaned = part.trim();
+      // Only keep multi-word names (first + last)
+      if (cleaned && cleaned.includes(" ") && /^[A-Z]/.test(cleaned)) {
+        titleNames.push(cleaned);
+      }
+    }
+  }
+
   const speakers = Array.from(speakerSet);
 
-  const participantSignals: ParticipantSignal[] = speakers.map((name) => ({
-    name,
-  }));
+  // Build signals: start with speaker names from dialogue
+  const signalNames = new Set<string>();
+  const participantSignals: ParticipantSignal[] = [];
+
+  for (const name of speakers) {
+    signalNames.add(name.toLowerCase());
+    participantSignals.push({ name });
+  }
+
+  // Add full names from title that aren't already covered by a speaker label.
+  // This catches cases like "Blake" in dialogue + "Blake Boettcher" in title.
+  for (const fullName of titleNames) {
+    const lower = fullName.toLowerCase();
+    if (signalNames.has(lower)) continue;
+    // Check if any existing speaker is a substring (e.g. "Blake" matches "Blake Boettcher")
+    const alreadyCovered = speakers.some((s) => lower.startsWith(s.toLowerCase()) || lower.endsWith(s.toLowerCase()));
+    if (alreadyCovered) {
+      // Replace the short name signal with the full name
+      const shortIdx = participantSignals.findIndex(
+        (p) => p.name && (lower.startsWith(p.name.toLowerCase()) || lower.endsWith(p.name.toLowerCase()))
+      );
+      if (shortIdx >= 0) {
+        participantSignals[shortIdx] = { name: fullName };
+      }
+    } else {
+      participantSignals.push({ name: fullName });
+    }
+    signalNames.add(lower);
+  }
 
   return { speakers, title, date, participantSignals };
 }
