@@ -284,6 +284,16 @@ export default function CallDetailPage() {
 
   return (
     <div>
+      {/* Processing banner */}
+      {isGenerating && (
+        <div className="mb-4 flex items-center gap-2 bg-scout-purple/5 border border-scout-purple/20 rounded-lg px-4 py-2.5">
+          <Loader2 size={14} className="animate-spin text-scout-purple" />
+          <span className="text-body-sm text-scout-purple">
+            Scout is processing this call — analyzing, grading, and extracting data...
+          </span>
+        </div>
+      )}
+
       {/* ═══ HEADER ═══ */}
       <div className="mb-5 space-y-3">
         {/* Row 1 — Back + Title + Refresh */}
