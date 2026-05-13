@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { MessageSquare, Send, X, Loader2, RotateCcw } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { MessageSquare, Send, X, Loader2, RotateCcw, ExternalLink, Flag } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { parsePageContext } from "@/lib/scout/page-context";
 import ReactMarkdown from "react-markdown";
@@ -18,48 +19,89 @@ const PLACEHOLDERS: Record<string, string> = {
 
 const DEFAULT_PLACEHOLDER = "Ask Scout anything...";
 
+interface Exchange {
+  userMessage: string;
+  aiResponse: string;
+}
+
 interface QuickAskProps {
   context?: string;
 }
 
 export default function QuickAsk({ context }: QuickAskProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [thinking, setThinking] = useState(false);
-  const [response, setResponse] = useState<string | null>(null);
+  const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [flaggedIndices, setFlaggedIndices] = useState<Set<number>>(new Set());
   const historyRef = useRef<Anthropic.Messages.MessageParam[]>([]);
   const sessionIdRef = useRef<string | null>(null);
-  const responseRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const placeholder = (context && PLACEHOLDERS[context]) ?? DEFAULT_PLACEHOLDER;
 
-  // Always start fresh — no session resume
+  // Always start fresh
   useEffect(() => {
     historyRef.current = [];
     sessionIdRef.current = null;
   }, []);
 
-  // Auto-scroll response into view when it appears
+  // Auto-scroll to bottom when new exchanges arrive
   useEffect(() => {
-    if (response && responseRef.current) {
-      responseRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [response]);
+  }, [exchanges, thinking]);
 
-  function handleNewConversation() {
+  const handleClearSession = useCallback(() => {
     historyRef.current = [];
     sessionIdRef.current = null;
-    setResponse(null);
+    setExchanges([]);
     setError(null);
     setQuery("");
+    setFlaggedIndices(new Set());
     inputRef.current?.focus();
-  }
+  }, []);
+
+  const handleDismiss = useCallback(() => {
+    setExchanges([]);
+    setError(null);
+    inputRef.current?.focus();
+  }, []);
+
+  const handleOpenInScout = useCallback(() => {
+    router.push("/scout");
+  }, [router]);
+
+  const handleFlag = useCallback(
+    async (index: number) => {
+      const exchange = exchanges[index];
+      if (!exchange) return;
+
+      setFlaggedIndices((prev) => new Set(prev).add(index));
+
+      await apiFetch("/api/flagged-responses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: sessionIdRef.current,
+          userMessage: exchange.userMessage,
+          aiResponse: exchange.aiResponse,
+          pageUrl: pathname,
+        }),
+      }).catch(() => {});
+    },
+    [exchanges, pathname]
+  );
 
   async function handleSend() {
     const trimmed = query.trim();
     if (!trimmed || thinking) return;
 
+    const userMessage = trimmed;
     setQuery("");
     setThinking(true);
     setError(null);
@@ -71,7 +113,7 @@ export default function QuickAsk({ context }: QuickAskProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: trimmed,
+          message: userMessage,
           sessionId: sessionIdRef.current,
           history: historyRef.current,
           pageContext,
@@ -86,9 +128,9 @@ export default function QuickAsk({ context }: QuickAskProps) {
       }
 
       const data = await res.json();
-      setResponse(data.message);
       sessionIdRef.current = data.sessionId;
       historyRef.current = data.history ?? [];
+      setExchanges((prev) => [...prev, { userMessage, aiResponse: data.message }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connection error");
     } finally {
@@ -96,11 +138,7 @@ export default function QuickAsk({ context }: QuickAskProps) {
     }
   }
 
-  function handleDismiss() {
-    setResponse(null);
-    setError(null);
-    inputRef.current?.focus();
-  }
+  const hasContent = exchanges.length > 0 || error;
 
   return (
     <div className="space-y-2">
@@ -128,41 +166,87 @@ export default function QuickAsk({ context }: QuickAskProps) {
         ) : null}
       </div>
 
-      {/* Inline response */}
-      {(response || error) && (
+      {/* Conversation panel */}
+      {hasContent && (
         <div
-          ref={responseRef}
-          className={`relative rounded-lg border px-4 py-3 max-h-[200px] overflow-y-auto ${
-            error ? "bg-red-50 border-red-200" : "bg-scout-purple/5 border-scout-purple/20"
-          }`}
+          className={`relative rounded-lg border ${error && exchanges.length === 0 ? "bg-red-50 border-red-200" : "bg-scout-purple/5 border-scout-purple/20"}`}
         >
-          <div className="absolute top-2 right-2 flex items-center gap-1">
+          {/* Top action bar */}
+          <div className="flex items-center gap-1 px-3 py-1.5 border-b border-scout-purple/10">
             <button
-              onClick={handleNewConversation}
-              title="New conversation"
-              className="p-1 text-text-tertiary hover:text-scout-purple transition-colors"
+              onClick={handleOpenInScout}
+              title="Open in Scout"
+              className="flex items-center gap-1 px-2 py-1 text-[11px] text-text-tertiary hover:text-scout-purple transition-colors rounded hover:bg-scout-purple/10"
             >
-              <RotateCcw size={12} />
+              <ExternalLink size={11} />
+              Open in Scout
             </button>
+            <button
+              onClick={handleClearSession}
+              title="Clear session"
+              className="flex items-center gap-1 px-2 py-1 text-[11px] text-text-tertiary hover:text-scout-purple transition-colors rounded hover:bg-scout-purple/10"
+            >
+              <RotateCcw size={11} />
+              Clear
+            </button>
+            <div className="flex-1" />
             <button
               onClick={handleDismiss}
               className="p-1 text-text-tertiary hover:text-text-primary transition-colors"
+              title="Minimize"
             >
               <X size={14} />
             </button>
           </div>
 
-          {error ? (
-            <p className="text-sm text-red-600 pr-6">{error}</p>
-          ) : (
-            <div className="pr-6 prose prose-sm max-w-none text-text-primary prose-headings:text-text-primary prose-strong:text-text-primary prose-code:text-scout-purple prose-a:text-nah-blue">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{response!}</ReactMarkdown>
-            </div>
-          )}
+          {/* Scrollable thread */}
+          <div ref={scrollRef} className="max-h-[400px] overflow-y-auto px-4 py-3 space-y-3">
+            {exchanges.map((ex, i) => (
+              <div key={i} className="space-y-2">
+                {/* User message */}
+                <div className="flex justify-end">
+                  <div className="bg-scout-purple/10 rounded-lg px-3 py-2 max-w-[85%]">
+                    <p className="text-body-sm text-text-primary">{ex.userMessage}</p>
+                  </div>
+                </div>
+
+                {/* AI response */}
+                <div className="group relative">
+                  <div className="prose prose-sm max-w-none text-text-primary prose-headings:text-text-primary prose-strong:text-text-primary prose-code:text-scout-purple prose-a:text-nah-blue">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{ex.aiResponse}</ReactMarkdown>
+                  </div>
+                  {/* Flag button */}
+                  <button
+                    onClick={() => handleFlag(i)}
+                    disabled={flaggedIndices.has(i)}
+                    title={flaggedIndices.has(i) ? "Flagged" : "Flag this response"}
+                    className={`absolute top-0 right-0 p-1 rounded transition-colors ${
+                      flaggedIndices.has(i)
+                        ? "text-red-400 cursor-default"
+                        : "text-text-tertiary opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50"
+                    }`}
+                  >
+                    <Flag size={12} fill={flaggedIndices.has(i) ? "currentColor" : "none"} />
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {/* Error */}
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
+            {/* Thinking indicator */}
+            {thinking && (
+              <div className="flex items-center gap-2 text-scout-purple/60">
+                <Loader2 size={12} className="animate-spin" />
+                <span className="text-xs">Scout is thinking...</span>
+              </div>
+            )}
+          </div>
 
           {/* Follow-up input */}
-          {!error && (
-            <div className="mt-3 pt-2 border-t border-scout-purple/10">
+          {exchanges.length > 0 && !error && (
+            <div className="px-4 pb-3 pt-1 border-t border-scout-purple/10">
               <div className="flex items-center gap-2">
                 <input
                   type="text"

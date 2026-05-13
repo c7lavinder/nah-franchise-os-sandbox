@@ -22,7 +22,10 @@ import {
   Check,
   SkipForward,
   ExternalLink,
+  Flag,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface ToolCallDetail {
   name: string;
@@ -68,7 +71,18 @@ interface BugReport {
 
 type BugStatus = BugReport["status"];
 type BugPriority = BugReport["priority"] | "any";
-type AuditTab = "scout" | "bugs";
+type AuditTab = "scout" | "bugs" | "flagged";
+
+interface FlaggedResponse {
+  id: string;
+  session_id: string | null;
+  user_id: string;
+  user_name: string;
+  user_message: string;
+  ai_response: string;
+  page_url: string | null;
+  created_at: string;
+}
 
 const STATUS_CONFIG: Record<BugStatus, { label: string; icon: typeof Clock; color: string; bg: string }> = {
   needs_review: { label: "Needs Review", icon: Clock, color: "text-yellow-600", bg: "bg-yellow-50 border-yellow-200" },
@@ -219,6 +233,11 @@ export default function AuditPage() {
   const [bugPriorityFilter, setBugPriorityFilter] = useState<BugPriority>("any");
   const [expandedBug, setExpandedBug] = useState<string | null>(null);
 
+  // Flagged responses state
+  const [flagged, setFlagged] = useState<FlaggedResponse[]>([]);
+  const [flaggedLoading, setFlaggedLoading] = useState(false);
+  const [expandedFlag, setExpandedFlag] = useState<string | null>(null);
+
   useEffect(() => {
     if (user && user.role !== "admin") {
       router.push("/daily-hq");
@@ -305,6 +324,24 @@ export default function AuditPage() {
     return true;
   });
 
+  // Flagged responses
+  const fetchFlagged = useCallback(async () => {
+    setFlaggedLoading(true);
+    try {
+      const res = await apiFetch("/api/flagged-responses");
+      const data = await res.json();
+      setFlagged(Array.isArray(data) ? data : []);
+    } catch {
+      setFlagged([]);
+    } finally {
+      setFlaggedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "flagged") fetchFlagged();
+  }, [activeTab, fetchFlagged]);
+
   if (!user || user.role !== "admin") {
     return null;
   }
@@ -346,6 +383,20 @@ export default function AuditPage() {
             Bug Reports
             {bugs.length > 0 && (
               <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{bugs.length}</span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("flagged")}
+            className={`pb-3 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+              activeTab === "flagged"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <Flag className="w-4 h-4" />
+            Flagged Responses
+            {flagged.length > 0 && (
+              <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">{flagged.length}</span>
             )}
           </button>
         </nav>
@@ -544,6 +595,104 @@ export default function AuditPage() {
                             )}
                           </div>
                         </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === "flagged" && (
+        <>
+          <div>
+            <p className="text-sm text-gray-500">
+              Scout responses flagged by your team. Review for quality and accuracy.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button
+              onClick={fetchFlagged}
+              className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Refresh
+            </button>
+            <span className="text-sm text-gray-400 ml-auto">
+              {flagged.length} flagged response{flagged.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+
+          {flaggedLoading ? (
+            <div className="text-center py-12 text-gray-400">Loading...</div>
+          ) : flagged.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">No flagged responses yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {flagged.map((f) => {
+                const isExpanded = expandedFlag === f.id;
+                const time = new Date(f.created_at);
+
+                return (
+                  <div key={f.id} className="border rounded-lg bg-white border-gray-200">
+                    <button
+                      onClick={() => setExpandedFlag(isExpanded ? null : f.id)}
+                      className="w-full px-4 py-3 flex items-start gap-3 text-left hover:bg-gray-50 transition-colors"
+                    >
+                      <Flag size={14} className="text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-900 line-clamp-1">&ldquo;{f.user_message}&rdquo;</p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="text-[11px] text-gray-400">Flagged by {f.user_name}</span>
+                          <span className="text-[11px] text-gray-400">
+                            {time.toLocaleDateString()}{" "}
+                            {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                          {f.page_url && (
+                            <span className="text-[11px] text-gray-400 truncate max-w-[200px]">{f.page_url}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 pt-1">
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        )}
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="px-4 pb-4 border-t border-gray-100 space-y-3 mt-0">
+                        <div className="mt-3">
+                          <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">
+                            User asked
+                          </div>
+                          <div className="bg-blue-50 rounded-lg px-3 py-2">
+                            <p className="text-sm text-gray-800">{f.user_message}</p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">
+                            Scout responded
+                          </div>
+                          <div className="bg-gray-50 rounded-lg px-3 py-2 prose prose-sm max-w-none text-gray-800">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{f.ai_response}</ReactMarkdown>
+                          </div>
+                        </div>
+
+                        {f.page_url && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">
+                              Page
+                            </div>
+                            <p className="text-xs text-gray-600 font-mono">{f.page_url}</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
