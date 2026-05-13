@@ -1,0 +1,33 @@
+name: Sync MasterSuite Data
+
+on:
+  schedule:
+    # Properties + prospects: every 15 minutes
+    - cron: '3,18,33,48 * * * *'
+  workflow_dispatch: # Manual trigger
+
+env:
+  MASTERSUITE_DB_HOST: ${{ secrets.MASTERSUITE_DB_HOST }}
+  MASTERSUITE_DB_PORT: ${{ secrets.MASTERSUITE_DB_PORT }}
+  MASTERSUITE_DB_USER: ${{ secrets.MASTERSUITE_DB_USER }}
+  MASTERSUITE_DB_PASSWORD: ${{ secrets.MASTERSUITE_DB_PASSWORD }}
+  MASTERSUITE_DB_NAME: ${{ secrets.MASTERSUITE_DB_NAME }}
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+  SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+  CRON_SECRET: ${{ secrets.CRON_SECRET }}
+  NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Run all MasterSuite syncs
+        run: |
+          npx tsx scripts/run-ms-sync.ts
