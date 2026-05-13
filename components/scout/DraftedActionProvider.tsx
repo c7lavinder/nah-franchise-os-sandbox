@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback } from "react";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 import DraftedActionCard from "@/components/scout/DraftedActionCard";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import type { DraftedAction } from "@/types/scout";
@@ -39,6 +40,7 @@ export default function DraftedActionProvider({ children }: { children: React.Re
   const [activeAction, setActiveAction] = useState<DraftedAction | null>(null);
   const [executing, setExecuting] = useState(false);
   const [successCallback, setSuccessCallback] = useState<(() => void) | null>(null);
+  useScrollLock(!!activeAction);
 
   const showDraftCard = useCallback((action: DraftedAction, onSuccess?: () => void) => {
     setActiveAction(action);

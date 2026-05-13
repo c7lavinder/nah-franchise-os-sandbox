@@ -13,6 +13,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import { X, Loader2, MessageSquare, Mail, CheckSquare, StickyNote, Check, AlertCircle } from "lucide-react";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 export interface BulkContact {
   contactId: string;
@@ -46,7 +47,12 @@ interface BulkResult {
   rows: BulkRowResult[];
 }
 
-const TABS: { kind: BulkActionKind; label: string; icon: React.ComponentType<{ size?: number; className?: string }>; needs: "phone" | "email" | "ghl" }[] = [
+const TABS: {
+  kind: BulkActionKind;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  needs: "phone" | "email" | "ghl";
+}[] = [
   { kind: "sms", label: "SMS", icon: MessageSquare, needs: "phone" },
   { kind: "email", label: "Email", icon: Mail, needs: "email" },
   { kind: "task", label: "Task", icon: CheckSquare, needs: "ghl" },
@@ -54,11 +60,7 @@ const TABS: { kind: BulkActionKind; label: string; icon: React.ComponentType<{ s
 ];
 
 /** Cap concurrent in-flight requests so we don't slam GHL */
-async function runWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
+async function runWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let i = 0;
   const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -72,6 +74,7 @@ async function runWithConcurrency<T, R>(
 }
 
 export default function BulkComposerModal({ contacts, initialKind = "sms", onClose, onComplete }: Props) {
+  useScrollLock(true);
   const [kind, setKind] = useState<BulkActionKind>(initialKind);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -100,9 +103,7 @@ export default function BulkComposerModal({ contacts, initialKind = "sms", onClo
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
-            kind === "sms"
-              ? { type: "SMS", message: body }
-              : { type: "Email", subject, html: body },
+            kind === "sms" ? { type: "SMS", message: body } : { type: "Email", subject, html: body }
           ),
         });
         if (!res.ok) {
@@ -162,7 +163,13 @@ export default function BulkComposerModal({ contacts, initialKind = "sms", onClo
   }
 
   const verb =
-    kind === "sms" ? "Send SMS to" : kind === "email" ? "Send email to" : kind === "task" ? "Create task on" : "Add note to";
+    kind === "sms"
+      ? "Send SMS to"
+      : kind === "email"
+        ? "Send email to"
+        : kind === "task"
+          ? "Create task on"
+          : "Add note to";
 
   const eligibleCount = contacts.filter(eligible).length;
 
@@ -204,9 +211,7 @@ export default function BulkComposerModal({ contacts, initialKind = "sms", onClo
                           <span className="text-danger truncate max-w-[180px]">{r.error}</span>
                         </>
                       )}
-                      {r.status === "skipped" && (
-                        <span className="text-text-tertiary">Skipped — {r.error}</span>
-                      )}
+                      {r.status === "skipped" && <span className="text-text-tertiary">Skipped — {r.error}</span>}
                     </span>
                   </li>
                 ))}
@@ -249,14 +254,20 @@ export default function BulkComposerModal({ contacts, initialKind = "sms", onClo
               <p className="text-caption text-text-tertiary">
                 {verb} {eligibleCount} of {contacts.length} contacts.
                 {eligibleCount < contacts.length && (
-                  <> ({contacts.length - eligibleCount} will be skipped — no {kind === "sms" ? "phone" : kind === "email" ? "email" : "GHL link"}.)</>
+                  <>
+                    {" "}
+                    ({contacts.length - eligibleCount} will be skipped — no{" "}
+                    {kind === "sms" ? "phone" : kind === "email" ? "email" : "GHL link"}.)
+                  </>
                 )}
               </p>
 
               {kind === "task" && (
                 <>
                   <div>
-                    <label className="text-[10px] font-medium text-text-tertiary tracking-wider block mb-1">TASK TITLE</label>
+                    <label className="text-[10px] font-medium text-text-tertiary tracking-wider block mb-1">
+                      TASK TITLE
+                    </label>
                     <input
                       type="text"
                       value={taskTitle}
@@ -265,7 +276,9 @@ export default function BulkComposerModal({ contacts, initialKind = "sms", onClo
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-medium text-text-tertiary tracking-wider block mb-1">DUE IN (DAYS)</label>
+                    <label className="text-[10px] font-medium text-text-tertiary tracking-wider block mb-1">
+                      DUE IN (DAYS)
+                    </label>
                     <input
                       type="number"
                       min="0"
@@ -279,7 +292,9 @@ export default function BulkComposerModal({ contacts, initialKind = "sms", onClo
 
               {kind === "email" && (
                 <div>
-                  <label className="text-[10px] font-medium text-text-tertiary tracking-wider block mb-1">SUBJECT</label>
+                  <label className="text-[10px] font-medium text-text-tertiary tracking-wider block mb-1">
+                    SUBJECT
+                  </label>
                   <input
                     type="text"
                     value={subject}
@@ -320,7 +335,13 @@ export default function BulkComposerModal({ contacts, initialKind = "sms", onClo
                 </button>
                 <button
                   onClick={() => void handleSend()}
-                  disabled={running || !body.trim() || (kind === "email" && !subject.trim()) || (kind === "task" && !taskTitle.trim()) || eligibleCount === 0}
+                  disabled={
+                    running ||
+                    !body.trim() ||
+                    (kind === "email" && !subject.trim()) ||
+                    (kind === "task" && !taskTitle.trim()) ||
+                    eligibleCount === 0
+                  }
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-nah-blue text-white text-body-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-40"
                 >
                   {running && <Loader2 size={14} className="animate-spin" />}

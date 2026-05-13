@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { capitalizeName } from "@/lib/format/contact";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 export interface SplitMember {
   contact_id: string;
@@ -51,6 +52,7 @@ export default function SplitJourneyModal({
   onClose,
   onSuccess,
 }: SplitJourneyModalProps) {
+  useScrollLock(true);
   const router = useRouter();
   const { toast } = useToast();
 

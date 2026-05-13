@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ArrowRight, X, Loader2 } from "lucide-react";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 interface StageMoveModalProps {
   leadName: string;
@@ -11,13 +12,8 @@ interface StageMoveModalProps {
   onCancel: () => void;
 }
 
-export default function StageMoveModal({
-  leadName,
-  fromStage,
-  toStage,
-  onConfirm,
-  onCancel,
-}: StageMoveModalProps) {
+export default function StageMoveModal({ leadName, fromStage, toStage, onConfirm, onCancel }: StageMoveModalProps) {
+  useScrollLock(true);
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,10 +37,7 @@ export default function StageMoveModal({
       {/* Modal */}
       <div className="relative bg-bg-tertiary border border-border-default rounded-lg w-full max-w-md mx-4 p-5">
         {/* Close button */}
-        <button
-          onClick={onCancel}
-          className="absolute top-3 right-3 text-text-tertiary hover:text-text-primary"
-        >
+        <button onClick={onCancel} className="absolute top-3 right-3 text-text-tertiary hover:text-text-primary">
           <X size={18} />
         </button>
 
@@ -62,9 +55,7 @@ export default function StageMoveModal({
         </div>
 
         {/* Optional reason */}
-        <label className="block mb-1 text-caption text-text-tertiary">
-          Reason (optional)
-        </label>
+        <label className="block mb-1 text-caption text-text-tertiary">Reason (optional)</label>
         <textarea
           value={reason}
           onChange={(e) => setReason(e.target.value)}
@@ -75,17 +66,11 @@ export default function StageMoveModal({
         />
 
         {/* Error */}
-        {error && (
-          <p className="mt-2 text-body-sm text-danger">{error}</p>
-        )}
+        {error && <p className="mt-2 text-body-sm text-danger">{error}</p>}
 
         {/* Actions */}
         <div className="flex gap-2 mt-4">
-          <button
-            onClick={onCancel}
-            className="btn-ghost px-4 py-2 text-body-sm"
-            disabled={loading}
-          >
+          <button onClick={onCancel} className="btn-ghost px-4 py-2 text-body-sm" disabled={loading}>
             Cancel
           </button>
           <button

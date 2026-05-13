@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import { X, Loader2, Trash2, Pencil, Paperclip, ExternalLink, ArrowLeft } from "lucide-react";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 import { useToast } from "@/components/ui/Toast";
 import { titleCase } from "@/lib/format/contact";
 import FileDropZone from "@/components/ui/FileDropZone";
@@ -64,13 +65,7 @@ export default function SubTaskLogModal({
   onLogDeleted,
 }: SubTaskLogModalProps) {
   const { toast } = useToast();
-
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
+  useScrollLock(true);
 
   // View state
   const [view, setView] = useState<ModalView>(initialEditingLog ? "edit" : "list");

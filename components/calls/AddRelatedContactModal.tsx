@@ -24,6 +24,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Search, X } from "lucide-react";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 interface Prefill {
   firstName?: string;
@@ -158,15 +159,7 @@ export default function AddRelatedContactModal({
     })();
   }, [open, callTerritorySlugs]);
 
-  // Lock body scroll while the modal is open.
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  useScrollLock(open);
 
   // Keep the role select in-range when the user flips anchor.
   useEffect(() => {

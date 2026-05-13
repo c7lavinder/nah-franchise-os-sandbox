@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Bug, X, Upload, Loader2, Camera } from "lucide-react";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 type Priority = "small" | "medium" | "big" | "emergency";
 
@@ -44,7 +45,10 @@ export default function BugReportButton() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useScrollLock(open);
 
   const reset = useCallback(() => {
     setDescription("");
@@ -155,6 +159,14 @@ export default function BugReportButton() {
           <div
             className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto shadow-2xl"
             onPaste={handlePaste}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-2">
@@ -210,10 +222,30 @@ export default function BugReportButton() {
                       </button>
                     </div>
                   ) : (
-                    <button
+                    <div
                       onClick={() => fileRef.current?.click()}
-                      disabled={uploading}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-3 border-2 border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors"
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDragging(false);
+                        const file = e.dataTransfer.files[0];
+                        if (file) void uploadFile(file);
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDragging(true);
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDragging(false);
+                      }}
+                      className={`w-full flex items-center justify-center gap-2 px-3 py-3 border-2 border-dashed rounded-lg text-xs cursor-pointer transition-colors ${
+                        dragging
+                          ? "border-blue-400 bg-blue-50 text-blue-600"
+                          : "border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600"
+                      } ${uploading ? "pointer-events-none opacity-60" : ""}`}
                     >
                       {uploading ? (
                         <>
@@ -221,10 +253,10 @@ export default function BugReportButton() {
                         </>
                       ) : (
                         <>
-                          <Upload size={14} /> Attach image or paste from clipboard
+                          <Upload size={14} /> {dragging ? "Drop image here" : "Attach image or paste from clipboard"}
                         </>
                       )}
-                    </button>
+                    </div>
                   )}
                   <p className="text-[11px] text-gray-400 mt-1">
                     Tip: take a screenshot, then press Cmd+V (or Ctrl+V) here to attach it. Max 5MB.

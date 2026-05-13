@@ -2,6 +2,7 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 import Link from "next/link";
 import { X, Phone as PhoneIcon, Mail, Clock, Megaphone, Loader2, ExternalLink, User } from "lucide-react";
 import type { GHLOpportunity, GHLContact, GHLNote, GHLTask, GHLMessage } from "@/types/ghl";
@@ -84,6 +85,7 @@ function categorizeTags(tags: string[]): { source: string[]; status: string[]; o
 }
 
 export default function ContactDetail({ opportunity, stageName, onClose, onMoveClick }: ContactDetailProps) {
+  useScrollLock(true);
   const [contact, setContact] = useState<GHLContact | null>(null);
   const [notes, setNotes] = useState<GHLNote[]>([]);
   const [tasks, setTasks] = useState<GHLTask[]>([]);

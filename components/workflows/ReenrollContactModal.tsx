@@ -12,6 +12,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useEffect, useState } from "react";
 import { X, Loader2, Search, UserPlus } from "lucide-react";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 interface ContactRow {
   id: string;
@@ -36,6 +37,7 @@ export default function ReenrollContactModal({
   onClose,
   onEnrolled,
 }: Props) {
+  useScrollLock(true);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ContactRow[]>([]);
   const [searching, setSearching] = useState(false);
@@ -140,9 +142,7 @@ export default function ReenrollContactModal({
                 Searching…
               </div>
             ) : results.length === 0 ? (
-              <p className="px-3 py-6 text-center text-caption text-text-tertiary">
-                No contacts found.
-              </p>
+              <p className="px-3 py-6 text-center text-caption text-text-tertiary">No contacts found.</p>
             ) : (
               <ul className="divide-y divide-border-default">
                 {results.map((c) => (
@@ -154,9 +154,7 @@ export default function ReenrollContactModal({
                       className="w-full text-left px-3 py-2.5 hover:bg-bg-secondary disabled:opacity-50 flex items-center gap-3"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-body-sm font-medium text-text-primary truncate">
-                          {c.name}
-                        </p>
+                        <p className="text-body-sm font-medium text-text-primary truncate">{c.name}</p>
                         <p className="text-caption text-text-tertiary truncate">
                           {[c.email, c.phone].filter(Boolean).join(" · ") || "—"}
                         </p>

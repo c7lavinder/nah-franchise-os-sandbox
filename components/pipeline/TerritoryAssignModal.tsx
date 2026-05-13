@@ -10,6 +10,7 @@ import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { useToast } from "@/components/ui/Toast";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 interface TerritoryAssignModalProps {
   ghlContactId: string;
@@ -32,6 +33,7 @@ export default function TerritoryAssignModal({
   onClose,
   onCreated,
 }: TerritoryAssignModalProps) {
+  useScrollLock(true);
   const { toast } = useToast();
   const [territoryName, setTerritoryName] = useState("");
   const [slug, setSlug] = useState("");

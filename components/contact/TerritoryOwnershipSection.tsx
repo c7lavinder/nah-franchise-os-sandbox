@@ -2,6 +2,7 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 import Link from "next/link";
 import { MapPin, Plus, ArrowRightLeft, Ban } from "lucide-react";
 
@@ -52,6 +53,8 @@ export default function TerritoryOwnershipSection({
   const [transferContactId, setTransferContactId] = useState("");
   const [transferNotes, setTransferNotes] = useState("");
   const [transferring, setTransferring] = useState(false);
+
+  useScrollLock(showAssign || showTransfer);
 
   const fetchOwnership = useCallback(() => {
     setLoading(true);

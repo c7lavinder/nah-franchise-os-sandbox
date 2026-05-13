@@ -3,6 +3,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import { X, Loader2 } from "lucide-react";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 interface LeadSubSource {
   id: string;
@@ -33,6 +34,7 @@ interface AddProspectModalProps {
 }
 
 export default function AddProspectModal({ open, onClose, onCreated, prefill }: AddProspectModalProps) {
+  useScrollLock(open);
   const [firstName, setFirstName] = useState(prefill?.firstName ?? "");
   const [lastName, setLastName] = useState(prefill?.lastName ?? "");
   const [email, setEmail] = useState(prefill?.email ?? "");

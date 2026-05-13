@@ -15,6 +15,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 import { useEffect, useRef, useState } from "react";
 import { X, Search, Loader2, UserPlus } from "lucide-react";
 import AddContactModal from "@/components/contact/AddContactModal";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 interface ContactOption {
   id: string;
@@ -51,7 +52,15 @@ function buildRoleOptions(coreRoleLabel?: string): { value: string; label: strin
   ];
 }
 
-export default function AddJourneyMemberModal({ open, journeyId, existingMemberIds, coreRoleLabel, onClose, onAdded }: Props) {
+export default function AddJourneyMemberModal({
+  open,
+  journeyId,
+  existingMemberIds,
+  coreRoleLabel,
+  onClose,
+  onAdded,
+}: Props) {
+  useScrollLock(open);
   const ROLE_OPTIONS = buildRoleOptions(coreRoleLabel);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ContactOption[]>([]);
@@ -63,11 +72,19 @@ export default function AddJourneyMemberModal({ open, journeyId, existingMemberI
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!open) { setQuery(""); setResults([]); setSelected(null); setError(null); }
+    if (!open) {
+      setQuery("");
+      setResults([]);
+      setSelected(null);
+      setError(null);
+    }
   }, [open]);
 
   useEffect(() => {
-    if (!open || query.length < 2) { setResults([]); return; }
+    if (!open || query.length < 2) {
+      setResults([]);
+      return;
+    }
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(async () => {
       try {
@@ -79,9 +96,13 @@ export default function AddJourneyMemberModal({ open, journeyId, existingMemberI
         // try to add a duplicate; backend is idempotent anyway but the
         // list shouldn't tempt the click.
         setResults(raw.filter((c) => !existingMemberIds.includes(c.id)));
-      } catch { /* keep previous */ }
+      } catch {
+        /* keep previous */
+      }
     }, 250);
-    return () => { if (debounce.current) clearTimeout(debounce.current); };
+    return () => {
+      if (debounce.current) clearTimeout(debounce.current);
+    };
   }, [query, open, existingMemberIds]);
 
   async function submit() {
@@ -114,10 +135,15 @@ export default function AddJourneyMemberModal({ open, journeyId, existingMemberI
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={onClose}>
-        <div className="bg-surface-solid border border-border-default rounded-lg p-5 w-[460px] shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="bg-surface-solid border border-border-default rounded-lg p-5 w-[460px] shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-h3 text-text-primary">Add contact to journey</h3>
-            <button onClick={onClose} className="text-text-tertiary hover:text-text-primary"><X size={16} /></button>
+            <button onClick={onClose} className="text-text-tertiary hover:text-text-primary">
+              <X size={16} />
+            </button>
           </div>
 
           {!selected ? (
@@ -148,7 +174,9 @@ export default function AddJourneyMemberModal({ open, journeyId, existingMemberI
                         <div className="text-text-primary font-medium">{c.name}</div>
                         {(c.email || c.phone) && (
                           <div className="text-text-tertiary truncate">
-                            {c.email ?? ""}{c.email && c.phone ? " · " : ""}{c.phone ?? ""}
+                            {c.email ?? ""}
+                            {c.email && c.phone ? " · " : ""}
+                            {c.phone ?? ""}
                           </div>
                         )}
                       </button>
@@ -172,11 +200,15 @@ export default function AddJourneyMemberModal({ open, journeyId, existingMemberI
                     <div className="text-body-sm font-medium text-text-primary">{selected.name}</div>
                     {(selected.email || selected.phone) && (
                       <div className="text-caption text-text-tertiary truncate">
-                        {selected.email ?? ""}{selected.email && selected.phone ? " · " : ""}{selected.phone ?? ""}
+                        {selected.email ?? ""}
+                        {selected.email && selected.phone ? " · " : ""}
+                        {selected.phone ?? ""}
                       </div>
                     )}
                   </div>
-                  <button onClick={() => setSelected(null)} className="text-caption text-nah-blue hover:underline">Change</button>
+                  <button onClick={() => setSelected(null)} className="text-caption text-nah-blue hover:underline">
+                    Change
+                  </button>
                 </div>
               </div>
 
@@ -187,15 +219,23 @@ export default function AddJourneyMemberModal({ open, journeyId, existingMemberI
                 className="w-full px-3 py-2 rounded-md border border-border-default bg-bg-tertiary text-body-sm mb-3"
               >
                 {ROLE_OPTIONS.map((r) => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
                 ))}
               </select>
 
               {error && <div className="text-caption text-danger mb-2">{error}</div>}
 
               <div className="flex justify-end gap-2">
-                <button onClick={onClose} className="btn-ghost px-3 py-1.5 text-caption">Cancel</button>
-                <button onClick={submit} disabled={saving} className="btn-primary px-3 py-1.5 text-caption disabled:opacity-50">
+                <button onClick={onClose} className="btn-ghost px-3 py-1.5 text-caption">
+                  Cancel
+                </button>
+                <button
+                  onClick={submit}
+                  disabled={saving}
+                  className="btn-primary px-3 py-1.5 text-caption disabled:opacity-50"
+                >
                   {saving ? <Loader2 size={12} className="animate-spin" /> : "Add to journey"}
                 </button>
               </div>

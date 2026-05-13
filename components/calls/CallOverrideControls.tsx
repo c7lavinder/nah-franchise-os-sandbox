@@ -20,6 +20,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Tag, UserCog, X, Loader2, Search, Star, Trash2, UserPlus, Users, RefreshCw } from "lucide-react";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 import { useAuth } from "@/lib/auth/AuthContext";
 import AddProspectModal from "@/components/pipeline/AddProspectModal";
 import AddRelatedContactModal from "@/components/calls/AddRelatedContactModal";
@@ -1561,17 +1562,6 @@ function DeleteButton({ callId }: { callId: string }) {
 
 // ─── Modal shell ──────────────────────────────────────────────────────────
 
-function useBodyScrollLock(active: boolean) {
-  useEffect(() => {
-    if (!active) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [active]);
-}
-
 function ModalShell({
   title,
   onClose,
@@ -1587,7 +1577,7 @@ function ModalShell({
    *  while the rep scrolls through participant cards. */
   footer?: React.ReactNode;
 }) {
-  useBodyScrollLock(true);
+  useScrollLock(true);
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={onClose}>
       <div

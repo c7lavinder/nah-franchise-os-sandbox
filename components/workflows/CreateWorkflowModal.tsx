@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
 import { X } from "lucide-react";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 const WORKFLOW_TYPES = [
   { value: "new_lead_30day", label: "New Lead 30-Day Sequence" },
@@ -54,6 +55,7 @@ interface CreateWorkflowModalProps {
 }
 
 export default function CreateWorkflowModal({ onClose, onCreate, userId }: CreateWorkflowModalProps) {
+  useScrollLock(true);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [workflowType, setWorkflowType] = useState("custom");
@@ -121,7 +123,10 @@ export default function CreateWorkflowModal({ onClose, onCreate, userId }: Creat
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border-default">
           <h2 className="font-headline text-section-title text-text-primary">New Workflow</h2>
-          <button onClick={onClose} className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors">
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+          >
             <X size={18} />
           </button>
         </div>
@@ -163,7 +168,9 @@ export default function CreateWorkflowModal({ onClose, onCreate, userId }: Creat
                 className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary focus:border-nah-blue focus:outline-none"
               >
                 {WORKFLOW_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
                 ))}
               </select>
             </div>
@@ -175,7 +182,9 @@ export default function CreateWorkflowModal({ onClose, onCreate, userId }: Creat
                 className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary focus:border-nah-blue focus:outline-none"
               >
                 {TRIGGER_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
                 ))}
               </select>
             </div>
@@ -202,15 +211,15 @@ export default function CreateWorkflowModal({ onClose, onCreate, userId }: Creat
                 className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary focus:border-nah-blue focus:outline-none"
               >
                 {METRICS.map((m) => (
-                  <option key={m} value={m}>{m}</option>
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {error && (
-            <p className="text-body-sm text-danger">{error}</p>
-          )}
+          {error && <p className="text-body-sm text-danger">{error}</p>}
         </div>
 
         {/* Footer */}

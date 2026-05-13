@@ -13,6 +13,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useEffect, useState } from "react";
 import { X, Loader2, Search, GitMerge, AlertTriangle, Check } from "lucide-react";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 interface ContactRow {
   id: string;
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export default function MergeContactModal({ duplicateContact, onClose, onMerged }: Props) {
+  useScrollLock(true);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ContactRow[]>([]);
   const [searching, setSearching] = useState(false);
@@ -57,9 +59,7 @@ export default function MergeContactModal({ duplicateContact, onClose, onMerged 
         if (res.ok) {
           const data = await res.json();
           // Hide the duplicate itself from results — can't merge into yourself
-          const filtered = (data.contacts ?? []).filter(
-            (c: ContactRow) => c.id !== duplicateContact.id,
-          );
+          const filtered = (data.contacts ?? []).filter((c: ContactRow) => c.id !== duplicateContact.id);
           if (!cancelled) setResults(filtered);
         }
       } catch {
@@ -124,9 +124,7 @@ export default function MergeContactModal({ duplicateContact, onClose, onMerged 
 
         {steps ? (
           <div className="p-5 overflow-y-auto">
-            <p className="text-body-sm font-medium text-text-primary mb-3">
-              Merged into {keeper?.name}
-            </p>
+            <p className="text-body-sm font-medium text-text-primary mb-3">Merged into {keeper?.name}</p>
             <ul className="border border-border-default rounded-lg divide-y divide-border-default">
               {steps.map((s) => (
                 <li key={s.step} className="flex items-center justify-between px-3 py-2">
@@ -159,12 +157,10 @@ export default function MergeContactModal({ duplicateContact, onClose, onMerged 
             <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 flex items-start gap-2">
               <AlertTriangle size={14} className="text-warning mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-body-sm font-medium text-text-primary mb-0.5">
-                  This action cannot be auto-undone.
-                </p>
+                <p className="text-body-sm font-medium text-text-primary mb-0.5">This action cannot be auto-undone.</p>
                 <p className="text-caption text-text-secondary">
-                  Calls, emails, and journey memberships from {duplicateContact.name} will move to
-                  the chosen keeper. The duplicate stays in GHL but is tagged{" "}
+                  Calls, emails, and journey memberships from {duplicateContact.name} will move to the chosen keeper.
+                  The duplicate stays in GHL but is tagged{" "}
                   <code className="bg-bg-secondary rounded px-1">duplicate-merged</code>.
                 </p>
               </div>
@@ -194,9 +190,7 @@ export default function MergeContactModal({ duplicateContact, onClose, onMerged 
                       <Loader2 size={14} className="animate-spin" /> Searching…
                     </div>
                   ) : results.length === 0 ? (
-                    <p className="px-3 py-6 text-center text-caption text-text-tertiary">
-                      No matching contacts.
-                    </p>
+                    <p className="px-3 py-6 text-center text-caption text-text-tertiary">No matching contacts.</p>
                   ) : (
                     <ul className="divide-y divide-border-default">
                       {results.map((c) => (
@@ -206,9 +200,7 @@ export default function MergeContactModal({ duplicateContact, onClose, onMerged 
                             onClick={() => setKeeper(c)}
                             className="w-full text-left px-3 py-2.5 hover:bg-bg-secondary"
                           >
-                            <p className="text-body-sm font-medium text-text-primary truncate">
-                              {c.name}
-                            </p>
+                            <p className="text-body-sm font-medium text-text-primary truncate">{c.name}</p>
                             <p className="text-caption text-text-tertiary truncate">
                               {[c.email, c.phone].filter(Boolean).join(" · ") || "—"}
                             </p>
@@ -229,10 +221,7 @@ export default function MergeContactModal({ duplicateContact, onClose, onMerged 
                       {[keeper.email, keeper.phone].filter(Boolean).join(" · ") || "—"}
                     </p>
                   </div>
-                  <button
-                    onClick={() => setKeeper(null)}
-                    className="text-caption text-nah-blue hover:underline"
-                  >
+                  <button onClick={() => setKeeper(null)} className="text-caption text-nah-blue hover:underline">
                     Change
                   </button>
                 </div>

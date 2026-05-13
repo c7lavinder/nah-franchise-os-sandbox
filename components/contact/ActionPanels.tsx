@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useEffect, useState } from "react";
 import { X, Loader2, Phone, ChevronDown, Check } from "lucide-react";
+import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 /* ------------------------------------------------------------------ */
 /*  Shared overlay wrapper                                             */
@@ -26,6 +27,7 @@ function PanelOverlay({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  useScrollLock(true);
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
