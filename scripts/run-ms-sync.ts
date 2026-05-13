@@ -84,12 +84,21 @@ async function main() {
     errors.push(`leadList: ${err.message}`);
   }
 
+  // Close MySQL pool so Node exits cleanly
+  try {
+    const { getMasterSuitePool } = require("@/lib/mastersuite/client");
+    await getMasterSuitePool().end();
+  } catch {
+    // Pool may not have been initialized
+  }
+
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`\n=== Sync Complete in ${elapsed}s ===`);
   if (errors.length > 0) {
     console.error("Errors:", errors);
     process.exit(1);
   }
+  process.exit(0);
 }
 
 main().catch((err) => {
