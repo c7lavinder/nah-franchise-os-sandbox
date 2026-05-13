@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase: Team Tooling + Scout Intelligence / Health: Green / Duration: full session
+Phase: Team Tooling + Call Pipeline / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
@@ -14,6 +14,11 @@ Phase: Team Tooling + Scout Intelligence / Health: Green / Duration: full sessio
 - Flagged Responses tab on Audit page showing flagged Scout conversations with expandable user/AI message detail
 - Scout call prep now includes AI summaries and coaching scores from prior calls in `get_entity` contact results
 - Added CALL PREP instruction to Scout system prompt — requires pulling `get_contact_calls` during any call prep
+- Manual call upload fully wired: speaker extraction from pasted transcripts, auto-maps speakers to contacts/users via resolver
+- Auto-transcription for audio uploads (.mp4/.m4a/.mp3/.wav/.webm) via Whisper — runs inline during upload
+- Single-name speakers upgraded with full names from transcript title headers (e.g. "Blake" → "Blake Boettcher")
+- Call participants inserted from resolved speakers, call type re-classified with full participant info
+- Processing banner on call detail page during AI analysis
 
 ## What Is Confirmed Working
 
@@ -23,6 +28,9 @@ Phase: Team Tooling + Scout Intelligence / Health: Green / Duration: full sessio
 - Scroll lock on all modals — verified no background scroll
 - QuickAsk full thread displays all exchanges, scrolls to latest
 - Flag button saves to `flagged_responses` table, shows on Audit Flagged tab
+- Speaker extraction tested on both Matt/Blake and Chintan/Sam transcripts — correct names, titles, dates
+- Pasted transcript → speaker resolution → post-call agent → full analysis output (confirmed by Corey)
+- Audio upload → Whisper transcription → speaker resolution → AI processing
 - All 3 migrations pushed to Supabase (bug_reports, flagged_responses, contacts_ghl_date_added)
 - `npx tsc --noEmit` — 0 errors, 129 tests passing
 
@@ -36,6 +44,7 @@ Phase: Team Tooling + Scout Intelligence / Health: Green / Duration: full sessio
 - Background scroll lock is enforced site-wide on all modals — Corey requested
 - Scout must always pull call history during call prep (system prompt instruction) — Corey approved based on Matt's conversation review
 - AI summaries included in `get_entity` contact results so Scout sees what was discussed on prior calls — driven by Matt/Blake gap analysis
+- Manual call upload extracts speakers from transcript text and maps them to contacts — Corey confirmed working
 
 ## Files Created
 
@@ -44,6 +53,7 @@ Phase: Team Tooling + Scout Intelligence / Health: Green / Duration: full sessio
 - `app/api/bug-reports/[id]/route.ts` — PATCH (status update, admin)
 - `app/api/flagged-responses/route.ts` — POST (flag) + GET (admin list)
 - `lib/hooks/useScrollLock.ts` — shared scroll lock hook with nested modal support
+- `lib/calls/extract-speakers.ts` — speaker name + title + date extraction from transcript text
 - `supabase/migrations/20260513200000_bug_reports.sql`
 - `supabase/migrations/20260513300000_flagged_responses.sql`
 
@@ -54,6 +64,8 @@ Phase: Team Tooling + Scout Intelligence / Health: Green / Duration: full sessio
 - `app/(auth)/audit/page.tsx` — Bug Reports tab + Flagged Responses tab
 - `lib/scout/data-tools.ts` — `get_entity` contact now includes ai_summary + coaching_score from calls
 - `lib/scout/client.ts` — added CALL PREP instruction to system prompt
+- `app/api/calls/[callId]/upload/route.ts` — speaker extraction, participant resolution, auto-Whisper transcription, call_participants insertion
+- `app/(auth)/calls/[callId]/page.tsx` — processing banner during AI analysis
 - `components/ui/ConfirmModal.tsx` — useScrollLock
 - `components/ui/PromptModal.tsx` — useScrollLock
 - `components/pipeline/ContactDetail.tsx` — useScrollLock
