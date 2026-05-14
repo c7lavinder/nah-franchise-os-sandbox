@@ -224,6 +224,15 @@ export async function runPostCallAgent(
       .eq("id", callId);
   }
 
+  // Log to integration_logs so the Settings > Agents panel can count runs.
+  await supabase.from("integration_logs").insert({
+    integration_name: "post-call",
+    event_type: extractionOnly ? "extraction-only" : "agent_run",
+    status: errors.length === 0 ? "success" : "failed",
+    payload_summary: `call ${callId}: ${actions?.actions?.length ?? 0} actions, ${extractions?.extractions?.filter((e) => e.extracted_value !== null).length ?? 0} extractions, ${kbDocsUpdated} KB docs`,
+    error_message: errors.length > 0 ? errors.join("; ") : null,
+  });
+
   return {
     success: errors.length === 0,
     summary: summary?.summary ?? null,

@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 
 const AGENT_DEFS = [
   { name: "post-call", label: "Post-Call Agent", trigger: "Read.ai webhook (auto), Generate button (manual)" },
@@ -12,7 +13,10 @@ const AGENT_DEFS = [
 ];
 
 export async function GET(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   const supabase = createServerClient();
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
@@ -24,9 +28,9 @@ export async function GET(request: NextRequest) {
     .single();
 
   const toggles: Record<string, boolean> = toggleSetting?.setting_value
-    ? (typeof toggleSetting.setting_value === "string"
-        ? JSON.parse(toggleSetting.setting_value)
-        : toggleSetting.setting_value)
+    ? typeof toggleSetting.setting_value === "string"
+      ? JSON.parse(toggleSetting.setting_value)
+      : toggleSetting.setting_value
     : {};
 
   const agents = [];
@@ -39,13 +43,25 @@ export async function GET(request: NextRequest) {
       .eq("integration_name", def.name)
       .gte("created_at", monthStart);
 
-    // Count suggestions MTD
-    const { count: suggestionsMTD } = await supabase
-      .from("data_update_suggestions")
-      .select("id", { count: "exact", head: true })
-      .eq("source", "agent_research")
-      .ilike("source_id", `${def.name}%`)
-      .gte("created_at", monthStart);
+    // Count suggestions MTD. Post-call writes to call_data_extractions;
+    // the other agents write to data_update_suggestions.
+    let suggestionsMTD = 0;
+    if (def.name === "post-call") {
+      const { count } = await supabase
+        .from("call_data_extractions")
+        .select("id", { count: "exact", head: true })
+        .eq("source", "scout")
+        .gte("created_at", monthStart);
+      suggestionsMTD = count ?? 0;
+    } else {
+      const { count } = await supabase
+        .from("data_update_suggestions")
+        .select("id", { count: "exact", head: true })
+        .eq("source", "agent_research")
+        .ilike("source_id", `${def.name}%`)
+        .gte("created_at", monthStart);
+      suggestionsMTD = count ?? 0;
+    }
 
     const costEst = ((runsMTD ?? 0) * 0.002).toFixed(2);
 
@@ -53,7 +69,7 @@ export async function GET(request: NextRequest) {
       ...def,
       enabled: toggles[def.name] !== false,
       runsMTD: runsMTD ?? 0,
-      suggestionsMTD: suggestionsMTD ?? 0,
+      suggestionsMTD,
       costEstMTD: `$${costEst}`,
     });
   }
