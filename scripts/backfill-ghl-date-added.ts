@@ -9,17 +9,21 @@
  *   npx tsx scripts/backfill-ghl-date-added.ts --live       (execute)
  */
 
+import ws from "ws";
 import { createClient } from "@supabase/supabase-js";
 
 const GHL_BASE_URL = "https://services.leadconnectorhq.com";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY!;
 const GHL_API_KEY = process.env.GHL_API_KEY!;
 
 const DRY_RUN = !process.argv.includes("--live");
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false },
+  realtime: { transport: ws as never },
+});
 
 async function fetchGhlContact(ghlId: string): Promise<{ dateAdded?: string } | null> {
   const res = await fetch(`${GHL_BASE_URL}/contacts/${ghlId}`, {
@@ -39,13 +43,30 @@ async function fetchGhlContact(ghlId: string): Promise<{ dateAdded?: string } | 
 async function main() {
   console.log(`Mode: ${DRY_RUN ? "DRY RUN" : "LIVE"}\n`);
 
-  // Fetch contacts missing ghl_date_added
-  const { data: contacts, error } = await supabase
-    .from("contacts")
-    .select("id, ghl_contact_id")
-    .not("ghl_contact_id", "is", null)
-    .is("ghl_date_added", null)
-    .order("created_at", { ascending: true });
+  // Fetch contacts missing ghl_date_added. Supabase caps queries at 1000 rows
+  // by default, so paginate via .range() until we've pulled everything.
+  type ContactRow = { id: string; ghl_contact_id: string };
+  const contacts: ContactRow[] = [];
+  const PAGE_SIZE = 1000;
+  let page = 0;
+  let error: { message: string } | null = null;
+  while (true) {
+    const { data, error: pageErr } = await supabase
+      .from("contacts")
+      .select("id, ghl_contact_id")
+      .not("ghl_contact_id", "is", null)
+      .is("ghl_date_added", null)
+      .order("created_at", { ascending: true })
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (pageErr) {
+      error = pageErr;
+      break;
+    }
+    if (!data || data.length === 0) break;
+    contacts.push(...(data as ContactRow[]));
+    if (data.length < PAGE_SIZE) break;
+    page++;
+  }
 
   if (error) {
     console.error("Failed to fetch contacts:", error.message);
