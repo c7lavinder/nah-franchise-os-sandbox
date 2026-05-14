@@ -52,6 +52,7 @@ export async function syncContactFromGhl(ghlContact: GHLContactForSync): Promise
     state: ghlContact.state ?? null,
     zip: ghlContact.postalCode ?? null,
     opportunity_source: ghlContact.source ?? null,
+    ghl_date_added: ghlContact.dateAdded ?? null,
     last_synced_at: new Date().toISOString(),
   };
 
@@ -85,11 +86,7 @@ function normalize(raw: string | null | undefined): string | null {
  * not present in the incoming set are left alone — we only add/flip, never
  * delete. Users can remove emails through the UI.
  */
-async function syncEmailRows(
-  contactId: string,
-  primary: string | null,
-  additional: string[],
-): Promise<void> {
+async function syncEmailRows(contactId: string, primary: string | null, additional: string[]): Promise<void> {
   const supabase = createServerClient();
 
   const cleanAdditional = additional
@@ -111,9 +108,7 @@ async function syncEmailRows(
   // Flip primary: unset anyone currently marked primary that isn't our new primary.
   if (primary) {
     const keepId = existingByLower.get(primary.toLowerCase())?.id;
-    const toUnset = (existingRows ?? [])
-      .filter((r) => r.is_primary && r.id !== keepId)
-      .map((r) => r.id);
+    const toUnset = (existingRows ?? []).filter((r) => r.is_primary && r.id !== keepId).map((r) => r.id);
     if (toUnset.length > 0) {
       await supabase.from("contact_emails").update({ is_primary: false }).in("id", toUnset);
     }
@@ -128,7 +123,10 @@ async function syncEmailRows(
       }
     } else {
       await supabase.from("contact_emails").insert({
-        contact_id: contactId, email: primary, is_primary: true, source: "ghl",
+        contact_id: contactId,
+        email: primary,
+        is_primary: true,
+        source: "ghl",
       });
     }
   }

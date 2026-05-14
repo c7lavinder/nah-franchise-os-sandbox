@@ -91,8 +91,9 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
       "Count, sum, avg, min, or max records — optionally grouped by a dimension. Use this for 'how many', 'what's the average', " +
       "'breakdown by X' questions. Lead source mix, pipeline stage distribution, conversion counts, alert counts by severity, " +
       "objection frequency by type — all flow through here. Period filter: pass {field, from, to} to bound by a date column. " +
-      "IMPORTANT: For FranDev lead flow / new prospect counts, use pipeline_entries (filtered by entered_pipeline_at) — NOT contacts. " +
-      "The contacts table includes re-imported records and is not a reliable count of new leads.",
+      "For form submission / new lead counts, use contacts filtered by ghl_date_added (the original GHL creation date). " +
+      "For pipeline entry counts (leads that reached a specific stage), use pipeline_entries filtered by entered_pipeline_at. " +
+      "These are different: form submissions >> pipeline entries (many leads never make it to a first call).",
     input_schema: {
       type: "object",
       properties: {
