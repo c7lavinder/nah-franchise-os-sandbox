@@ -6,6 +6,7 @@
  *   scout_identity       — persona, tone, core rules
  *   scout_rules          — absolute rules (DRC, no fabrication, etc.)
  *   scout_profile_context — profile schema + scoring reference
+ *   scout_calendars      — NAH GHL calendars and their business purpose
  */
 
 import { createServerClient } from "@/lib/supabase/server";
@@ -30,7 +31,7 @@ export async function loadPromptSection(key: string, defaultValue: string): Prom
     const { data: rows } = await supabase
       .from("app_settings")
       .select("setting_key, setting_value")
-      .in("setting_key", ["scout_identity", "scout_rules", "scout_profile_context"]);
+      .in("setting_key", ["scout_identity", "scout_rules", "scout_profile_context", "scout_calendars"]);
 
     const map = new Map<string, string>();
     for (const row of rows ?? []) {

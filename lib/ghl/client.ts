@@ -662,6 +662,43 @@ export async function getAppointments(
 }
 
 /**
+ * Get OPEN slots on a calendar within a date range.
+ * GHL endpoint: /calendars/{calendarId}/free-slots
+ *
+ * Returns a flat list of ISO 8601 slot start times. GHL's response shape is
+ * { _dates_: { "YYYY-MM-DD": { slots: ["...iso..."] } } } — we flatten it.
+ * The `enableLookBusy` flag is opt-in: when true, GHL hides slots to keep
+ * the calendar from looking too open. We leave it off so reps see real availability.
+ */
+export async function getFreeSlots(
+  calendarId: string,
+  startTimeMs: number,
+  endTimeMs: number,
+  timezone?: string
+): Promise<string[]> {
+  const params = new URLSearchParams({
+    startDate: String(startTimeMs),
+    endDate: String(endTimeMs),
+  });
+  if (timezone) params.set("timezone", timezone);
+
+  const data = await ghlFetch<Record<string, { slots?: string[] } | string[]>>(
+    `/calendars/${calendarId}/free-slots?${params.toString()}`
+  );
+
+  const all: string[] = [];
+  for (const [key, value] of Object.entries(data)) {
+    if (key.startsWith("_")) continue; // skip GHL metadata keys
+    if (Array.isArray(value)) {
+      all.push(...value);
+    } else if (value && typeof value === "object" && Array.isArray(value.slots)) {
+      all.push(...value.slots);
+    }
+  }
+  return all.sort();
+}
+
+/**
  * Fetch appointments across every calendar in the location for the given
  * window. Used by Daily HQ TodayCalendar where we want a unified view.
  * Dedupes by appointment id (events on shared calendars can show twice).

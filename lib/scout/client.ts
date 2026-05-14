@@ -273,6 +273,33 @@ Use compare_territories when the user asks about 2+ territories. When comparing:
 - Check cycle time — faster flip = more flips/year = more profit
 - Note tenure differences — a territory awarded 2 years ago vs 5 years ago should be contextualized`;
 
+/** GHL calendars Scout can book against, with NAH business purpose for each.
+ *  Editable per-deployment via app_settings.scout_calendars. Update this default
+ *  when a calendar is added/renamed in GHL so the prompt stays accurate.
+ */
+const CALENDAR_CONTEXT = `NAH GHL CALENDARS — pick the right one when drafting an appointment.
+
+Sales-funnel calendars (prospects in pipeline):
+  - Intro Call (30 min) — First call with a new prospect after they fill out the website form. Brand intro + initial qualification.
+  - Discovery Call (1 hr) — Deeper qualification: capital, timeline, motivation, market interest. Run after Intro.
+  - Validation Call (1 hr) — Prospect talks with existing franchisees to validate the opportunity from their perspective.
+  - FDD Review Call (30 min) — Walk-through of the Franchise Disclosure Document.
+  - Capital Call (1 hr) — Funding sources and financial readiness reviewed with the capital partner.
+  - Territory Call (30 min) — Territory availability and selection discussion.
+  - Awarding Call (1 hr) — Final award call, granting the franchise.
+
+Onboarding + coaching calendars (post-award):
+  - Chad Onboarding (1 hr) — Onboarding sessions for newly-awarded franchisees, hosted by Chad.
+  - Chad Coaching (30 min) — Ongoing 1:1 coaching for active franchisees, hosted by Chad.
+  - Erin Coaching (30 min) — Coaching sessions hosted by Erin.
+  - John Coaching Call (1 hr) — Coaching sessions hosted by John.
+
+Rules for picking a calendar:
+  - Always pass calendar_hint to draft_appointment using the calendar NAME from this list (or a unique fragment).
+  - Pick based on WHERE the contact is in the journey, not just keyword match. A new prospect = Intro Call, not "Coaching".
+  - If the user names a specific calendar, use that. If they don't, infer from context (pipeline stage, recent activity).
+  - If multiple calendars could fit (e.g. Chad Coaching vs Erin Coaching), ask the user which person should host.`;
+
 /** Scout's rules that override all other instructions — always included last */
 const SCOUT_RULES = `ABSOLUTE RULES — These override everything above. Violating any of these is a failure.
 
@@ -593,7 +620,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
   const ghlUserId = currentUser?.ghl_user_id ?? null;
 
   // Load dynamic context + DB-backed prompt overrides in parallel
-  const [knowledgeBase, pipelineSnapshot, userMemory, territoryCountResult, rules, profileCtx, freshness] =
+  const [knowledgeBase, pipelineSnapshot, userMemory, territoryCountResult, rules, profileCtx, calendars, freshness] =
     await Promise.all([
       loadKnowledgeBase(input.pageContext),
       loadPipelineSnapshot(input.userId),
@@ -607,6 +634,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
       })(),
       loadPromptSection("scout_rules", SCOUT_RULES),
       loadPromptSection("scout_profile_context", PROFILE_AND_SCORING_CONTEXT),
+      loadPromptSection("scout_calendars", CALENDAR_CONTEXT),
       loadDataFreshness(supabaseForUser),
     ]);
   const identity = await loadPromptSection("scout_identity", getScoutIdentity(territoryCountResult));
@@ -622,6 +650,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
     formatMemoryForPrompt(userMemory),
     pipelineSnapshot,
     profileCtx,
+    calendars,
     knowledgeBase,
     rules,
   ]

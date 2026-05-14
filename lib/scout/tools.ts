@@ -210,6 +210,34 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     },
   },
   {
+    name: "get_calendar_availability",
+    description:
+      "Get OPEN (free) appointment slots on a specific GHL calendar within a date range. Use this BEFORE draft_appointment whenever " +
+      "the user gives a vague time like 'Monday morning', 'next week', or 'this Thursday afternoon' — you need to see which slots are " +
+      "actually available before drafting. If the user picks a specific time and you skip this check, you might draft on a slot that's " +
+      "already booked. Match calendar_hint against calendar names (e.g. 'intro' → Intro Call). Times come back in ISO 8601 — surface " +
+      "them to the user in plain English with their local timezone.",
+    input_schema: {
+      type: "object",
+      properties: {
+        calendar_hint: {
+          type: "string",
+          description:
+            "Name fragment to match against active calendars (e.g. 'intro', 'discovery', 'validation'). Required — pick from the " +
+            "calendar list in your system context.",
+        },
+        start_date: { type: "string", description: "ISO 8601 start of search window" },
+        end_date: { type: "string", description: "ISO 8601 end of search window" },
+        timezone: {
+          type: "string",
+          description:
+            "Optional IANA timezone (e.g. 'America/Chicago'). Defaults to the calendar's configured timezone if omitted.",
+        },
+      },
+      required: ["calendar_hint", "start_date", "end_date"],
+    },
+  },
+  {
     name: "get_contact_insights",
     description:
       "Get analytical insights across franchise PROSPECTS (candidates in the sales pipeline) — who has momentum, who's at risk, who's most engaged. " +
@@ -461,10 +489,12 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   {
     name: "draft_appointment",
     description:
-      "Draft a GHL calendar appointment for human review. Provide your best guess at the calendar based on what the user said " +
-      "(e.g., 'Matt's calendar' → match by name) — pass `calendar_hint` and the executor will resolve it to a real calendar ID. " +
-      "If you can't guess, leave calendar_hint blank and the executor picks the first active calendar. The user can edit the " +
-      "calendar via a searchable dropdown before pushing. Times are ISO 8601.",
+      "Draft a GHL calendar appointment for human review. ALWAYS pass `calendar_hint` — pick from the calendar list in your system " +
+      "context based on the type of meeting (e.g. 'intro' for new prospects, 'discovery' for qualification, 'validation' for talking " +
+      "to existing franchisees, 'chad onboarding' for newly awarded franchisees). The executor fuzzy-matches the hint against active " +
+      "calendar names. If you give a vague time without checking availability first, call `get_calendar_availability` BEFORE this tool " +
+      "so you draft on a slot that's actually open. Times are ISO 8601. After drafting, an inline card with a green Confirm button " +
+      "appears in chat — remind the user to click it; do not claim success from a chat reply alone.",
     input_schema: {
       type: "object",
       properties: {

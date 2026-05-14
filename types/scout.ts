@@ -11,6 +11,7 @@ export type ScoutToolName =
   | "get_pipeline"
   | "get_next_action"
   | "get_schedule"
+  | "get_calendar_availability"
   | "get_contact_insights"
   | "get_contact_calls"
   | "get_tasks"

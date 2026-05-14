@@ -25,6 +25,7 @@ export {
   updateAppointment,
   getAppointments,
   getAllAppointments,
+  getFreeSlots,
   getConversations,
   getConversationMessages,
   markConversationRead,

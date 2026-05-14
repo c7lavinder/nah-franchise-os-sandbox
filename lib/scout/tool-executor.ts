@@ -56,6 +56,8 @@ export async function executeTool(
       return executeGetNextAction(input);
     case "get_schedule":
       return executeGetSchedule(input);
+    case "get_calendar_availability":
+      return executeGetCalendarAvailability(input);
     case "get_contact_insights":
       return executeGetContactInsights(input);
     case "get_contact_calls":
@@ -1580,6 +1582,71 @@ function deriveHintFromTitle(title: string): string {
   if (!title) return "";
   const beforeDash = title.split(/\s+[-–—]\s+/)[0] ?? title;
   return beforeDash.toLowerCase().trim();
+}
+
+/** Resolve a calendar_hint to the matching GHL calendar.
+ *  Returns the matched calendar plus a list of all active calendars (used by
+ *  the availability tool to fall through gracefully when no match is found).
+ */
+async function resolveCalendarByHint(hint: string): Promise<{
+  matched: { id: string; name: string } | null;
+  all: { id: string; name: string }[];
+}> {
+  const all = (await ghl.getCalendars()).filter((c) => c.isActive !== false);
+  const h = hint.toLowerCase().trim();
+  const matched = h ? (all.find((c) => c.name.toLowerCase().includes(h)) ?? null) : null;
+  return { matched, all: all.map((c) => ({ id: c.id, name: c.name })) };
+}
+
+async function executeGetCalendarAvailability(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  const hint = (input.calendar_hint as string | undefined)?.trim() ?? "";
+  const startDate = input.start_date as string;
+  const endDate = input.end_date as string;
+  const timezone = (input.timezone as string | undefined)?.trim() || undefined;
+
+  if (!hint) {
+    return { data: "Error: calendar_hint is required. Pick from the calendar list in your context." };
+  }
+
+  const { matched, all } = await resolveCalendarByHint(hint);
+  if (!matched) {
+    const names = all.map((c) => c.name).join(", ");
+    return {
+      data: `No calendar matched "${hint}". Active calendars: ${names || "(none)"}. Ask the user which one they meant.`,
+    };
+  }
+
+  const startMs = Date.parse(startDate);
+  const endMs = Date.parse(endDate);
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+    return { data: "Error: start_date and end_date must be ISO 8601." };
+  }
+
+  try {
+    const slots = await ghl.getFreeSlots(matched.id, startMs, endMs, timezone);
+    if (slots.length === 0) {
+      return {
+        data: `No open slots on "${matched.name}" between ${startDate} and ${endDate}. The calendar is fully booked or has no available hours in this window.`,
+      };
+    }
+    // Compact the response — surface up to 30 slots, grouped by date for readability.
+    const byDate = new Map<string, string[]>();
+    for (const iso of slots.slice(0, 30)) {
+      const date = iso.slice(0, 10);
+      const list = byDate.get(date) ?? [];
+      list.push(iso);
+      byDate.set(date, list);
+    }
+    const lines: string[] = [`Open slots on "${matched.name}" (showing up to 30):`];
+    for (const [date, times] of byDate) {
+      lines.push(`  ${date}: ${times.length} slots → ${times.slice(0, 6).join(", ")}${times.length > 6 ? ", …" : ""}`);
+    }
+    if (slots.length > 30) lines.push(`  …${slots.length - 30} more slots not shown`);
+    return { data: lines.join("\n") };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    return { data: `Error fetching availability for "${matched.name}": ${msg}` };
+  }
 }
 
 async function executeDraftAppointment(input: Record<string, unknown>): Promise<ToolExecutionResult> {
