@@ -4,9 +4,9 @@
 // against, plus a "match preview" tool that mirrors Scout's calendar_hint
 // fuzzy match so reps/admins can see which calendar a phrase would resolve to.
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { apiFetch } from "@/lib/auth/api-fetch";
-import { Calendar, Clock, Copy, Check, Loader2, AlertTriangle, Search } from "lucide-react";
+import { Calendar, Clock, Copy, Check, Loader2, AlertTriangle, Search, RefreshCw } from "lucide-react";
 
 interface GHLCalendar {
   id: string;
@@ -20,28 +20,37 @@ interface GHLCalendar {
 export default function CalendarsPanel() {
   const [calendars, setCalendars] = useState<GHLCalendar[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [hint, setHint] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await apiFetch("/api/ghl/calendars");
-        if (!res.ok) throw new Error(`GHL returned ${res.status}`);
-        const data = await res.json();
-        if (!cancelled) setCalendars(data.calendars ?? []);
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const fetchCalendars = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/ghl/calendars");
+      if (!res.ok) throw new Error(`GHL returned ${res.status}`);
+      const data = await res.json();
+      setCalendars(data.calendars ?? []);
+      setLastFetched(new Date());
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load");
+    }
   }, []);
+
+  useEffect(() => {
+    void (async () => {
+      await fetchCalendars();
+      setLoading(false);
+    })();
+  }, [fetchCalendars]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await fetchCalendars();
+    setRefreshing(false);
+  }
 
   // Mirrors lib/scout/tool-executor.ts:executeDraftAppointment — first calendar
   // whose name contains the lowercased hint wins; otherwise the first active
@@ -85,11 +94,27 @@ export default function CalendarsPanel() {
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-caption text-text-tertiary">
           {calendars.length} active calendar{calendars.length === 1 ? "" : "s"} in the GHL location. Scout can book
           against any of these via the <span className="font-mono text-text-secondary">draft_appointment</span> tool.
         </p>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {lastFetched && (
+            <span className="text-caption text-text-tertiary">
+              Loaded {lastFetched.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+          <button
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+            className="text-caption text-nah-blue hover:text-nah-blue-hover disabled:opacity-50 inline-flex items-center gap-1"
+            title="Refetch live from GHL — use this after adding or deleting a calendar there."
+          >
+            {refreshing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Match preview */}
