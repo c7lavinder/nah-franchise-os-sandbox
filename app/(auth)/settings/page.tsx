@@ -13,6 +13,7 @@ import {
   Activity,
   Brain,
   Bell,
+  CalendarDays,
   CheckCircle2,
   XCircle,
   ExternalLink,
@@ -28,6 +29,7 @@ import UsersPanel from "@/components/settings/UsersPanel";
 import LeadSourcesPanel from "@/components/settings/LeadSourcesPanel";
 import AppSettingsPanel from "@/components/settings/AppSettingsPanel";
 import PermissionsPanel from "@/components/settings/PermissionsPanel";
+import CalendarsPanel from "@/components/settings/CalendarsPanel";
 
 interface SetupItem {
   label: string;
@@ -52,7 +54,7 @@ interface SystemHealth {
   pendingSuggestions: number;
 }
 
-type SettingsTab = "general" | "users" | "permissions" | "data" | "automation" | "integrations";
+type SettingsTab = "general" | "users" | "permissions" | "data" | "automation" | "integrations" | "calendars";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -86,6 +88,7 @@ export default function SettingsPage() {
     { key: "data", label: "Data Management", icon: Database },
     { key: "automation", label: "Automation", icon: Bot },
     { key: "integrations", label: "Integrations", icon: Zap },
+    { key: "calendars", label: "Calendars", icon: CalendarDays },
   ];
 
   return (
@@ -136,6 +139,8 @@ export default function SettingsPage() {
         <AutomationPanel />
       ) : activeTab === "integrations" ? (
         <IntegrationsPanel />
+      ) : activeTab === "calendars" ? (
+        <CalendarsPanel />
       ) : (
         /* ─── General Tab ─── */
         <div>
