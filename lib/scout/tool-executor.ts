@@ -1570,12 +1570,29 @@ async function executeDraftJourneyAction(input: Record<string, unknown>): Promis
   };
 }
 
+/** Derive a calendar fuzzy-match hint from an appointment title.
+ *  "Intro Call - Franchise Overview" → "intro call"
+ *  "Discovery Call" → "discovery call"
+ *  "Quick chat" → "quick chat"
+ *  Used as the fallback when Scout forgets to pass calendar_hint.
+ */
+function deriveHintFromTitle(title: string): string {
+  if (!title) return "";
+  const beforeDash = title.split(/\s+[-–—]\s+/)[0] ?? title;
+  return beforeDash.toLowerCase().trim();
+}
+
 async function executeDraftAppointment(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   const contactId = input.contact_id as string;
   const title = input.title as string;
   const startTime = input.start_time as string;
   const endTime = input.end_time as string;
-  const calendarHint = (input.calendar_hint as string | undefined)?.toLowerCase().trim();
+  // If Scout didn't pass a calendar_hint, derive one from the title. Otherwise
+  // we'd silently default to whatever calendar is first alphabetically, which
+  // is almost never what the user meant (e.g. "Intro Call - Foo" landing on
+  // "John Coaching Call" — Chad's actual bug).
+  const rawHint = (input.calendar_hint as string | undefined)?.toLowerCase().trim();
+  const calendarHint = rawHint && rawHint.length > 0 ? rawHint : deriveHintFromTitle(title);
   const assignedUserId = input.assigned_user_id as string | undefined;
   const currentUserGhlId = input._current_user_ghl_id as string | null;
 
