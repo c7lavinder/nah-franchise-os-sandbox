@@ -333,15 +333,40 @@ export async function POST(request: NextRequest) {
         case "appointment": {
           const apptPayload = action.payload as DraftedAppointmentPayload;
           if (!apptPayload.calendarId) throw new Error("calendarId required");
-          const result = await ghl.createAppointment({
-            calendarId: apptPayload.calendarId,
-            contactId: action.contactId,
-            title: apptPayload.title,
-            startTime: apptPayload.startTime,
-            endTime: apptPayload.endTime,
-            assignedUserId: apptPayload.assignedUserId,
-          });
-          ghlResponse = result as unknown as Record<string, unknown>;
+          try {
+            const result = await ghl.createAppointment({
+              calendarId: apptPayload.calendarId,
+              contactId: action.contactId,
+              title: apptPayload.title,
+              startTime: apptPayload.startTime,
+              endTime: apptPayload.endTime,
+              assignedUserId: apptPayload.assignedUserId,
+            });
+            ghlResponse = result as unknown as Record<string, unknown>;
+            // Audit success — pairs with the 'draft' log written by Scout.
+            const apptSupabase = createServerClient();
+            await apptSupabase.from("integration_logs").insert({
+              integration_name: "scout-appointment",
+              event_type: "push",
+              status: "success",
+              payload_summary: `"${apptPayload.title}" booked on ${apptPayload.calendarName ?? apptPayload.calendarId} (appt=${result.id})`,
+              related_contact_id: action.contactId,
+            });
+          } catch (apptErr) {
+            // Audit failure — captures exactly what GHL rejected so future
+            // breakage is diagnosable from Settings without console access.
+            const apptErrMsg = apptErr instanceof Error ? apptErr.message : "Unknown error";
+            const apptSupabase = createServerClient();
+            await apptSupabase.from("integration_logs").insert({
+              integration_name: "scout-appointment",
+              event_type: "push",
+              status: "failed",
+              payload_summary: `"${apptPayload.title}" → ${apptPayload.calendarName ?? apptPayload.calendarId}`,
+              error_message: apptErrMsg,
+              related_contact_id: action.contactId,
+            });
+            throw apptErr;
+          }
           break;
         }
         case "note": {

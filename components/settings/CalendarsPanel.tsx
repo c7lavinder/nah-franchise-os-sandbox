@@ -6,7 +6,20 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { apiFetch } from "@/lib/auth/api-fetch";
-import { Calendar, Clock, Copy, Check, Loader2, AlertTriangle, Search, RefreshCw } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  Copy,
+  Check,
+  Loader2,
+  AlertTriangle,
+  Search,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Sparkles,
+  Send,
+} from "lucide-react";
 
 interface GHLCalendar {
   id: string;
@@ -17,8 +30,19 @@ interface GHLCalendar {
   calendarType?: string | null;
 }
 
+interface ActivityEntry {
+  id: string;
+  event_type: string;
+  status: string;
+  payload_summary: string | null;
+  error_message: string | null;
+  related_contact_id: string | null;
+  created_at: string;
+}
+
 export default function CalendarsPanel() {
   const [calendars, setCalendars] = useState<GHLCalendar[]>([]);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
@@ -39,16 +63,27 @@ export default function CalendarsPanel() {
     }
   }, []);
 
+  const fetchActivity = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/settings/calendar-activity");
+      if (!res.ok) return;
+      const data = await res.json();
+      setActivity(data.activity ?? []);
+    } catch {
+      // Non-critical
+    }
+  }, []);
+
   useEffect(() => {
     void (async () => {
-      await fetchCalendars();
+      await Promise.all([fetchCalendars(), fetchActivity()]);
       setLoading(false);
     })();
-  }, [fetchCalendars]);
+  }, [fetchCalendars, fetchActivity]);
 
   async function handleRefresh() {
     setRefreshing(true);
-    await fetchCalendars();
+    await Promise.all([fetchCalendars(), fetchActivity()]);
     setRefreshing(false);
   }
 
@@ -183,6 +218,68 @@ export default function CalendarsPanel() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Recent activity — every Scout draft + push is logged. Lets you see
+          whether Scout is drafting at all, which calendar it picked, and
+          whether the push to GHL succeeded. */}
+      <div className="border-t border-border-default pt-4">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h3 className="text-card-title text-text-primary">Recent appointment activity</h3>
+            <p className="text-caption text-text-tertiary">
+              Last 30 Scout appointment events (drafts + pushes). Use this when an appointment doesn't appear in GHL —
+              you'll see exactly where it broke.
+            </p>
+          </div>
+        </div>
+        {activity.length === 0 ? (
+          <div className="text-center py-6 border border-dashed border-border-default rounded-lg">
+            <p className="text-caption text-text-tertiary">
+              No appointment activity yet. As soon as someone asks Scout to schedule something, it'll appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {activity.map((a) => {
+              const isPush = a.event_type === "push";
+              const isSuccess = a.status === "success";
+              const Icon = isPush ? Send : Sparkles;
+              const statusIcon = isSuccess ? (
+                <CheckCircle2 size={12} className="text-success" />
+              ) : (
+                <XCircle size={12} className="text-danger" />
+              );
+              const time = new Date(a.created_at);
+              return (
+                <div
+                  key={a.id}
+                  className="flex items-start gap-2 px-3 py-2 border border-border-default rounded-md bg-bg-secondary"
+                >
+                  <Icon size={12} className="text-text-tertiary mt-1 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
+                        {a.event_type}
+                      </span>
+                      {statusIcon}
+                      <span className="text-caption text-text-tertiary">
+                        {time.toLocaleDateString()}{" "}
+                        {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    {a.payload_summary && (
+                      <p className="text-body-sm text-text-primary mt-0.5 break-words">{a.payload_summary}</p>
+                    )}
+                    {a.error_message && (
+                      <p className="text-caption text-danger mt-0.5 break-words">{a.error_message}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Help footer */}

@@ -1584,6 +1584,8 @@ async function executeDraftAppointment(input: Record<string, unknown>): Promise<
   // Default assignedUserId to current user if not specified
   const resolvedAssignedUserId = assignedUserId ?? currentUserGhlId ?? undefined;
 
+  const supabase = createServerClient();
+
   // Resolve a calendar suggestion. The user can change it via the searchable
   // dropdown on the confirm card before pushing.
   let calendarId = "";
@@ -1592,6 +1594,13 @@ async function executeDraftAppointment(input: Record<string, unknown>): Promise<
   try {
     const calendars = (await ghl.getCalendars()).filter((c) => c.isActive !== false);
     if (calendars.length === 0) {
+      await supabase.from("integration_logs").insert({
+        integration_name: "scout-appointment",
+        event_type: "draft",
+        status: "failed",
+        error_message: "No active calendars found in GHL location",
+        related_contact_id: contactId,
+      });
       return { data: "Error: No active calendars found in this GHL location." };
     }
 
@@ -1613,10 +1622,27 @@ async function executeDraftAppointment(input: Record<string, unknown>): Promise<
         : "defaulted to first active calendar";
     }
   } catch (err) {
-    return {
-      data: `Error fetching calendars: ${err instanceof Error ? err.message : "Unknown error"}`,
-    };
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    await supabase.from("integration_logs").insert({
+      integration_name: "scout-appointment",
+      event_type: "draft",
+      status: "failed",
+      error_message: `getCalendars threw: ${msg}`,
+      related_contact_id: contactId,
+    });
+    return { data: `Error fetching calendars: ${msg}` };
   }
+
+  // Log the draft for auditability — every draft attempt shows up in
+  // integration_logs so we can see what Scout picked, why, and whether
+  // the user ever confirmed it (correlate with scout-appointment 'push' events).
+  await supabase.from("integration_logs").insert({
+    integration_name: "scout-appointment",
+    event_type: "draft",
+    status: "success",
+    payload_summary: `"${title}" → ${calendarName} (hint="${calendarHint ?? ""}", reason=${calendarReason})`,
+    related_contact_id: contactId,
+  });
 
   const draftedAction: DraftedAction = {
     id: crypto.randomUUID(),
