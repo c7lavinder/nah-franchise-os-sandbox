@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ChevronDown, ChevronRight, Loader2, Check } from "lucide-react";
+import { apiFetch } from "@/lib/auth/api-fetch";
 import CallDataField from "./CallDataField";
 
 interface Extraction {
@@ -83,6 +84,52 @@ export default function CallDataTab(props: CallDataTabProps) {
   const pending = props.dataExtractions.filter((e) => !e.saved_to_profile && !e.dismissed);
   const reviewed = props.dataExtractions.filter((e) => e.saved_to_profile || e.dismissed);
 
+  // Batch-push selection. Default to all pending checked so the rep unchecks
+  // the few they don't want rather than checking dozens individually.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [batchLoading, setBatchLoading] = useState(false);
+
+  useEffect(() => {
+    setSelected(new Set(pending.map((e) => e.id)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending.length]);
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setSelected(new Set(pending.map((e) => e.id)));
+  }
+
+  function clearAll() {
+    setSelected(new Set());
+  }
+
+  async function pushSelected() {
+    if (selected.size === 0) return;
+    setBatchLoading(true);
+    const ids = [...selected];
+    // Parallel saves. Each /save call defaults to the extraction's stored
+    // contact_id / TerritorySlug / target_scope so an empty body works.
+    await Promise.allSettled(
+      ids.map((id) =>
+        apiFetch(`/api/calls/${props.callId}/data/${id}/save`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        })
+      )
+    );
+    setBatchLoading(false);
+    props.onRefresh();
+  }
+
   // Group pending by category. Keep unknown categories in their own bucket.
   const groupedPending = new Map<string, Extraction[]>();
   for (const e of pending) {
@@ -153,6 +200,42 @@ export default function CallDataTab(props: CallDataTabProps) {
         </div>
       )}
 
+      {/* Batch action bar — pending only. Default-checked; rep unchecks rows
+          they don't want. */}
+      {pending.length > 0 && (
+        <div className="flex items-center justify-between bg-bg-secondary border border-border-default rounded-lg px-4 py-2">
+          <div className="flex items-center gap-3">
+            <span className="text-body-sm text-text-secondary">
+              {selected.size} of {pending.length} selected
+            </span>
+            <button
+              onClick={selectAll}
+              disabled={selected.size === pending.length}
+              className="text-caption text-nah-blue hover:underline disabled:opacity-40 disabled:no-underline"
+            >
+              Select all
+            </button>
+            <span className="text-text-tertiary">·</span>
+            <button
+              onClick={clearAll}
+              disabled={selected.size === 0}
+              className="text-caption text-text-tertiary hover:text-text-primary disabled:opacity-40"
+            >
+              Clear
+            </button>
+          </div>
+          <button
+            onClick={() => void pushSelected()}
+            disabled={selected.size === 0 || batchLoading}
+            className="btn-primary px-3 py-1.5 text-caption flex items-center gap-1.5"
+            title="Save all selected suggestions to their default targets (contact or territory profile). Edit individual rows first if you need to change the value or target."
+          >
+            {batchLoading ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+            Push selected ({selected.size})
+          </button>
+        </div>
+      )}
+
       {orderedGroups.map((g) => (
         <CategorySection
           key={g.category}
@@ -161,6 +244,8 @@ export default function CallDataTab(props: CallDataTabProps) {
           partnerOptions={props.partnerOptions}
           linkedContacts={props.linkedContacts ?? []}
           callTerritories={props.callTerritories ?? []}
+          selected={selected}
+          onToggleSelected={toggleSelected}
           onRefresh={props.onRefresh}
         />
       ))}
@@ -190,6 +275,8 @@ function CategorySection({
   partnerOptions,
   linkedContacts,
   callTerritories,
+  selected,
+  onToggleSelected,
   onRefresh,
 }: {
   category: string;
@@ -197,6 +284,8 @@ function CategorySection({
   partnerOptions: PartnerOption[];
   linkedContacts: { id: string | null; name: string }[];
   callTerritories: TerritoryOption[];
+  selected: Set<string>;
+  onToggleSelected: (id: string) => void;
   onRefresh: () => void;
 }) {
   const [open, setOpen] = useState(true);
@@ -229,6 +318,8 @@ function CategorySection({
               partnerOptions={partnerOptions}
               linkedContacts={linkedContacts}
               callTerritories={callTerritories}
+              selected={selected.has(e.id)}
+              onToggleSelected={() => onToggleSelected(e.id)}
               onAction={onRefresh}
             />
           ))}

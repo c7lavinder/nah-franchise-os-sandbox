@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import CallDetailTabs from "@/components/calls/CallDetailTabs";
 import CallOverrideControls from "@/components/calls/CallOverrideControls";
+import NextStepHero from "@/components/calls/NextStepHero";
 import AddProspectModal from "@/components/pipeline/AddProspectModal";
 import AddRelatedContactModal from "@/components/calls/AddRelatedContactModal";
 
@@ -575,6 +576,10 @@ export default function CallDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Prominent next-step hero — visible above the tabs so reps don't
+          have to click into the Next Steps tab to see what comes next. */}
+      <NextStepHero actionItems={actionItems} onAction={() => void fetchDetail()} />
 
       {/* 3-tab content */}
       <CallDetailTabs

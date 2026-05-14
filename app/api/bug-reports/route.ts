@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   if (user instanceof Response) return user;
 
   const body = await request.json();
-  const { description, screenshotUrl, priority, pageUrl } = body;
+  const { description, screenshotUrl, priority, pageUrl, reportType } = body;
 
   if (!description || typeof description !== "string" || description.trim().length === 0) {
     return NextResponse.json({ error: "Description is required" }, { status: 400 });
@@ -22,6 +22,9 @@ export async function POST(request: NextRequest) {
 
   const validPriorities = ["small", "medium", "big", "emergency"];
   const safePriority = validPriorities.includes(priority) ? priority : "medium";
+
+  const validTypes = ["bug", "improvement"];
+  const safeType = validTypes.includes(reportType) ? reportType : "bug";
 
   const supabase = createServerClient();
   const { data, error } = await supabase
@@ -32,6 +35,7 @@ export async function POST(request: NextRequest) {
       description: description.trim(),
       screenshot_url: screenshotUrl || null,
       priority: safePriority,
+      report_type: safeType,
       page_url: pageUrl || null,
     })
     .select("id")

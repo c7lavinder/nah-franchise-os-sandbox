@@ -90,6 +90,10 @@ interface CallDataFieldProps {
   partnerOptions?: PartnerOption[];
   linkedContacts?: { id: string | null; name: string }[];
   callTerritories?: TerritoryOption[];
+  /** Batch-select checkbox state — controlled by CallDataTab. Undefined on
+   *  done/no-value rows where the checkbox is hidden. */
+  selected?: boolean;
+  onToggleSelected?: () => void;
   onAction: () => void;
 }
 
@@ -125,6 +129,8 @@ export default function CallDataField({
   partnerOptions,
   linkedContacts,
   callTerritories,
+  selected,
+  onToggleSelected,
   onAction,
 }: CallDataFieldProps) {
   const [editing, setEditing] = useState(false);
@@ -350,6 +356,17 @@ export default function CallDataField({
   return (
     <div className="py-2 border-b border-border-default last:border-b-0">
       <div className="flex items-start gap-3">
+        {/* Batch-select checkbox. Shown only when CallDataTab passes the
+            controlled props. */}
+        {onToggleSelected !== undefined && (
+          <input
+            type="checkbox"
+            checked={selected ?? false}
+            onChange={onToggleSelected}
+            className="mt-1.5 w-4 h-4 rounded border-border-default accent-nah-blue cursor-pointer flex-shrink-0"
+            title="Include this row when 'Push selected' is clicked"
+          />
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-caption text-text-tertiary capitalize">{label}</p>

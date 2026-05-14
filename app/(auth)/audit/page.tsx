@@ -65,12 +65,14 @@ interface BugReport {
   screenshot_url: string | null;
   priority: "small" | "medium" | "big" | "emergency";
   status: "needs_review" | "working_on_it" | "fixed" | "skipped";
+  report_type: "bug" | "improvement";
   page_url: string | null;
   created_at: string;
 }
 
 type BugStatus = BugReport["status"];
 type BugPriority = BugReport["priority"] | "any";
+type BugTypeFilter = BugReport["report_type"] | "any";
 type AuditTab = "scout" | "bugs" | "flagged";
 
 interface FlaggedResponse {
@@ -231,6 +233,7 @@ export default function AuditPage() {
   const [bugsLoading, setBugsLoading] = useState(false);
   const [bugStatusFilter, setBugStatusFilter] = useState<BugStatus | "all">("all");
   const [bugPriorityFilter, setBugPriorityFilter] = useState<BugPriority>("any");
+  const [bugTypeFilter, setBugTypeFilter] = useState<BugTypeFilter>("any");
   const [expandedBug, setExpandedBug] = useState<string | null>(null);
 
   // Flagged responses state
@@ -321,6 +324,7 @@ export default function AuditPage() {
   const filteredBugs = bugs.filter((b) => {
     if (bugStatusFilter !== "all" && b.status !== bugStatusFilter) return false;
     if (bugPriorityFilter !== "any" && b.priority !== bugPriorityFilter) return false;
+    if (bugTypeFilter !== "any" && b.report_type !== bugTypeFilter) return false;
     return true;
   });
 
@@ -460,6 +464,20 @@ export default function AuditPage() {
               ))}
             </div>
 
+            {/* Type filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">Type:</span>
+              <select
+                value={bugTypeFilter}
+                onChange={(e) => setBugTypeFilter(e.target.value as BugTypeFilter)}
+                className="text-xs border border-gray-300 rounded-md px-2 py-1 bg-white"
+              >
+                <option value="any">Any</option>
+                <option value="bug">Bugs</option>
+                <option value="improvement">Improvements</option>
+              </select>
+            </div>
+
             {/* Priority filter */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-400">How bad:</span>
@@ -509,9 +527,20 @@ export default function AuditPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-gray-900 line-clamp-1">{bug.description}</p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${priorityCfg.color}`}>
-                            {priorityCfg.label}
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                              bug.report_type === "improvement"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {bug.report_type === "improvement" ? "Improvement" : "Bug"}
                           </span>
+                          {bug.report_type === "bug" && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${priorityCfg.color}`}>
+                              {priorityCfg.label}
+                            </span>
+                          )}
                           <span className="text-[11px] text-gray-400">{bug.user_name}</span>
                           <span className="text-[11px] text-gray-400">
                             {time.toLocaleDateString()}{" "}

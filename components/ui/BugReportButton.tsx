@@ -2,12 +2,13 @@
 
 import { useState, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
-import { Bug, X, Upload, Loader2, Camera } from "lucide-react";
+import { Bug, Lightbulb, X, Upload, Loader2, Camera } from "lucide-react";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 type Priority = "small" | "medium" | "big" | "emergency";
+type ReportType = "bug" | "improvement";
 
 const PRIORITIES: { value: Priority; label: string; desc: string; color: string }[] = [
   {
@@ -38,6 +39,7 @@ export default function BugReportButton() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState("");
+  const [reportType, setReportType] = useState<ReportType>("bug");
   const [priority, setPriority] = useState<Priority>("medium");
   const [screenshotUrl, setScreenshotUrl] = useState("");
   const [screenshotName, setScreenshotName] = useState("");
@@ -52,6 +54,7 @@ export default function BugReportButton() {
 
   const reset = useCallback(() => {
     setDescription("");
+    setReportType("bug");
     setPriority("medium");
     setScreenshotUrl("");
     setScreenshotName("");
@@ -123,6 +126,7 @@ export default function BugReportButton() {
           description: description.trim(),
           screenshotUrl: screenshotUrl || undefined,
           priority,
+          reportType,
           pageUrl: pathname,
         }),
       });
@@ -144,7 +148,7 @@ export default function BugReportButton() {
       <button
         onClick={() => setOpen(true)}
         className="fixed bottom-6 right-6 z-[100] w-12 h-12 rounded-full bg-gray-800 text-white shadow-lg hover:bg-gray-700 transition-colors flex items-center justify-center group"
-        title="Report a Bug"
+        title="Report a Bug or Suggest an Improvement"
       >
         <Bug size={20} />
       </button>
@@ -171,8 +175,14 @@ export default function BugReportButton() {
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-2">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Report a Bug</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Tell us what went wrong. We&apos;ll see it right away.</p>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {reportType === "bug" ? "Report a Bug" : "Suggest an Improvement"}
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {reportType === "bug"
+                    ? "Tell us what went wrong. We'll see it right away."
+                    : "Something work better a different way? Tell us about it."}
+                </p>
               </div>
               <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
                 <X size={18} />
@@ -182,25 +192,74 @@ export default function BugReportButton() {
             {submitted ? (
               <div className="px-5 py-10 text-center">
                 <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
-                  <Bug size={20} className="text-green-600" />
+                  {reportType === "bug" ? (
+                    <Bug size={20} className="text-green-600" />
+                  ) : (
+                    <Lightbulb size={20} className="text-green-600" />
+                  )}
                 </div>
-                <p className="text-sm font-medium text-gray-900">Bug report submitted!</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {reportType === "bug" ? "Bug report submitted!" : "Suggestion submitted!"}
+                </p>
                 <p className="text-xs text-gray-500 mt-1">We&apos;ll look into it.</p>
               </div>
             ) : (
               <div className="px-5 pb-5 space-y-4">
+                {/* Type toggle */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">What is this?</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setReportType("bug")}
+                      className={`px-3 py-2 rounded-lg border text-left transition-all flex items-center gap-2 ${
+                        reportType === "bug"
+                          ? "bg-red-50 text-red-700 border-red-200 ring-2 ring-offset-1 ring-blue-400"
+                          : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      <Bug size={16} />
+                      <div>
+                        <div className="text-sm font-medium">Bug</div>
+                        <div className="text-[11px] opacity-70">Something is broken</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setReportType("improvement")}
+                      className={`px-3 py-2 rounded-lg border text-left transition-all flex items-center gap-2 ${
+                        reportType === "improvement"
+                          ? "bg-blue-50 text-blue-700 border-blue-200 ring-2 ring-offset-1 ring-blue-400"
+                          : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      <Lightbulb size={16} />
+                      <div>
+                        <div className="text-sm font-medium">Improvement</div>
+                        <div className="text-[11px] opacity-70">A suggestion</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Description */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">What went wrong?</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {reportType === "bug" ? "What went wrong?" : "What would make it better?"}
+                  </label>
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="When I click a call row, nothing happens."
+                    placeholder={
+                      reportType === "bug"
+                        ? "When I click a call row, nothing happens."
+                        : "It would be helpful if the next step showed at the top of the page."
+                    }
                     rows={3}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none placeholder:text-gray-400"
                   />
                   <p className="text-[11px] text-gray-400 mt-1">
-                    Be specific — what did you click, what did you expect, what happened instead?
+                    {reportType === "bug"
+                      ? "Be specific — what did you click, what did you expect, what happened instead?"
+                      : "Tell us what you'd like and why it would help."}
                   </p>
                 </div>
 
@@ -274,26 +333,28 @@ export default function BugReportButton() {
                   />
                 </div>
 
-                {/* Priority */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">How bad is it?</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {PRIORITIES.map((p) => (
-                      <button
-                        key={p.value}
-                        onClick={() => setPriority(p.value)}
-                        className={`px-3 py-2 rounded-lg border text-left transition-all ${
-                          priority === p.value
-                            ? `${p.color} ring-2 ring-offset-1 ring-blue-400`
-                            : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                        }`}
-                      >
-                        <div className="text-sm font-medium">{p.label}</div>
-                        <div className="text-[11px] opacity-70">{p.desc}</div>
-                      </button>
-                    ))}
+                {/* Priority — only for bugs */}
+                {reportType === "bug" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">How bad is it?</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {PRIORITIES.map((p) => (
+                        <button
+                          key={p.value}
+                          onClick={() => setPriority(p.value)}
+                          className={`px-3 py-2 rounded-lg border text-left transition-all ${
+                            priority === p.value
+                              ? `${p.color} ring-2 ring-offset-1 ring-blue-400`
+                              : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="text-sm font-medium">{p.label}</div>
+                          <div className="text-[11px] opacity-70">{p.desc}</div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Auto-sent info */}
                 <div className="bg-gray-50 rounded-lg px-3 py-2 text-[11px] text-gray-400 space-y-0.5">
@@ -311,7 +372,7 @@ export default function BugReportButton() {
                   disabled={submitting || !description.trim()}
                   className="w-full py-2.5 rounded-lg bg-gray-800 text-white text-sm font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
-                  {submitting ? "Submitting..." : "Submit Bug Report"}
+                  {submitting ? "Submitting..." : reportType === "bug" ? "Submit Bug Report" : "Submit Suggestion"}
                 </button>
               </div>
             )}
