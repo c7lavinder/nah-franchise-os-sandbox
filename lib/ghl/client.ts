@@ -804,13 +804,46 @@ export async function getCallTranscription(messageId: string): Promise<string | 
  * - SMS: { type: "SMS", contactId, message }
  * - Email: { type: "Email", contactId, html, subject, emailFrom }
  * Types enforce correct fields for each.
+ *
+ * GHL's response is flat, not wrapped: { messageId, conversationId,
+ * emailMessageId?, msg }. We normalize it into a partial GHLMessage so
+ * callers can rely on `id` being present. The earlier wrapped shape
+ * `{ message: {...} }` returned undefined for `data.message` and crashed
+ * every caller after the send actually succeeded — silent failure mode
+ * we've been hitting in prod.
  */
 export async function sendMessage(payload: GHLSendMessagePayload): Promise<GHLMessage> {
-  const data = await ghlFetch<{ message: GHLMessage }>(`/conversations/messages`, {
+  const data = await ghlFetch<{
+    messageId?: string;
+    conversationId?: string;
+    emailMessageId?: string;
+    threadId?: string;
+    message?: GHLMessage;
+  }>(`/conversations/messages`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
-  return data.message;
+
+  // Newer GHL responses are flat — normalize them into GHLMessage shape.
+  if (data.messageId) {
+    return {
+      id: data.messageId,
+      contactId: payload.contactId,
+      type: payload.type as "SMS" | "Email",
+      direction: "outbound",
+      body: payload.type === "SMS" ? (payload.message ?? "") : (payload.html ?? ""),
+      subject: payload.type === "Email" ? payload.subject : undefined,
+      dateAdded: new Date().toISOString(),
+      emailMessageId: data.emailMessageId,
+      threadId: data.threadId,
+      conversationId: data.conversationId,
+    };
+  }
+
+  // Older wrapped shape, kept as fallback.
+  if (data.message) return data.message;
+
+  throw new Error(`sendMessage: unexpected GHL response shape: ${JSON.stringify(data)}`);
 }
 
 // ========================================
