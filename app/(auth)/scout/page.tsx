@@ -421,7 +421,8 @@ export default function ScoutPage() {
                     <UserBubble content={msg.content} timestamp={msg.timestamp} />
                   ) : (
                     <>
-                      <ScoutBubble content={msg.content} timestamp={msg.timestamp} />
+                      {/* Hide empty placeholder bubble while streaming — ThinkingIndicator covers it */}
+                      {msg.content ? <ScoutBubble content={msg.content} timestamp={msg.timestamp} /> : null}
                       {msg.draftedActions && msg.draftedActions.length > 0 && (
                         <div className="ml-2 sm:ml-11 mt-2 space-y-2">
                           {msg.draftedActions.map((action) => (
