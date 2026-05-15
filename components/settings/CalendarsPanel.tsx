@@ -228,15 +228,15 @@ export default function CalendarsPanel() {
           <div>
             <h3 className="text-card-title text-text-primary">Recent appointment activity</h3>
             <p className="text-caption text-text-tertiary">
-              Last 30 Scout appointment events (drafts + pushes). Use this when an appointment doesn't appear in GHL —
-              you'll see exactly where it broke.
+              Last 30 Scout appointment events (drafts + pushes). Use this when an appointment doesn&apos;t appear in
+              GHL — you&apos;ll see exactly where it broke.
             </p>
           </div>
         </div>
         {activity.length === 0 ? (
           <div className="text-center py-6 border border-dashed border-border-default rounded-lg">
             <p className="text-caption text-text-tertiary">
-              No appointment activity yet. As soon as someone asks Scout to schedule something, it'll appear here.
+              No appointment activity yet. As soon as someone asks Scout to schedule something, it&apos;ll appear here.
             </p>
           </div>
         ) : (

@@ -71,6 +71,9 @@ const CTA_TOOLTIPS: Record<string, string> = {
 };
 
 export default function NextStepHero({ actionItems, onAction, onJumpToTab }: NextStepHeroProps) {
+  const [loading, setLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   const pending = actionItems.filter((a) => a.status === "pending");
 
   if (pending.length === 0) {
@@ -95,9 +98,6 @@ export default function NextStepHero({ actionItems, onAction, onJumpToTab }: Nex
     next.category === "comms" ? (channel === "email" ? Mail : MessageSquare) : (CATEGORY_ICONS[next.category] ?? Check);
   const ctaLabel = CTA_LABELS[next.category] ?? "Push";
   const ctaTooltip = CTA_TOOLTIPS[next.category] ?? "Run this action.";
-
-  const [loading, setLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   async function handlePush() {
     setLoading("push");
