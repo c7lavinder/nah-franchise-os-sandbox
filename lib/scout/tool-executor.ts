@@ -1791,6 +1791,43 @@ async function executeDraftAppointment(input: Record<string, unknown>): Promise<
     return { data: `Error fetching calendars: ${msg}` };
   }
 
+  // Verify the requested slot is actually open before drafting.
+  // If not, return nearby available slots so Scout can pick one.
+  try {
+    const startMs = Date.parse(startTime);
+    const endMs = Date.parse(endTime);
+    if (!Number.isNaN(startMs) && !Number.isNaN(endMs)) {
+      // Check a 3-day window around the requested date for alternatives
+      const dayMs = 86400000;
+      const windowStart = startMs - dayMs;
+      const windowEnd = startMs + dayMs * 3;
+      const freeSlots = await ghl.getFreeSlots(calendarId, windowStart, windowEnd, "America/New_York");
+
+      // Check if the requested start time matches any free slot
+      const requestedStart = new Date(startTime).toISOString();
+      const slotMatch = freeSlots.some((slot) => {
+        const slotTime = new Date(slot).getTime();
+        const reqTime = new Date(requestedStart).getTime();
+        return Math.abs(slotTime - reqTime) < 60000; // within 1 minute
+      });
+
+      if (!slotMatch && freeSlots.length > 0) {
+        const nearby = freeSlots.slice(0, 10).join(", ");
+        return {
+          data: `Error: The requested time (${new Date(startTime).toLocaleString("en-US", { timeZone: "America/New_York" })} ET) is not available on "${calendarName}". Available slots nearby: ${nearby}. Pick one and retry.`,
+        };
+      }
+      if (!slotMatch && freeSlots.length === 0) {
+        return {
+          data: `Error: No open slots on "${calendarName}" in this time range. Ask the user for a different date or time.`,
+        };
+      }
+    }
+  } catch {
+    // Availability check is best-effort — if it fails, let the draft proceed
+    // and the user will see the error on confirm.
+  }
+
   // Log the draft for auditability — every draft attempt shows up in
   // integration_logs so we can see what Scout picked, why, and whether
   // the user ever confirmed it (correlate with scout-appointment 'push' events).
