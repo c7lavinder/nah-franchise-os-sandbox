@@ -118,6 +118,13 @@ export async function executeTool(
   }
 }
 
+/** Build a Supabase .or() filter that safely matches both ghl_contact_id and id (UUID).
+ *  Non-UUID strings must NOT be compared against the id column — Postgres rejects them. */
+function contactIdFilter(contactId: string): string {
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contactId);
+  return isUUID ? `ghl_contact_id.eq.${contactId},id.eq.${contactId}` : `ghl_contact_id.eq.${contactId}`;
+}
+
 /** Look up a contact name from Supabase by GHL ID or UUID. Avoids GHL API call. */
 async function getContactName(contactId: string): Promise<string> {
   const info = await getContactInfo(contactId);
@@ -133,7 +140,7 @@ async function getContactInfo(
     const { data } = await supabase
       .from("contacts")
       .select("first_name, last_name, phone, email")
-      .or(`ghl_contact_id.eq.${contactId},id.eq.${contactId}`)
+      .or(contactIdFilter(contactId))
       .limit(1)
       .single();
     if (data) {
@@ -1331,7 +1338,7 @@ async function executeDraftStageMove(input: Record<string, unknown>): Promise<To
     const { data: contact } = await supabase
       .from("contacts")
       .select("id")
-      .or(`ghl_contact_id.eq.${contactId},id.eq.${contactId}`)
+      .or(contactIdFilter(contactId))
       .limit(1)
       .single();
 
@@ -1693,11 +1700,11 @@ async function executeDraftAppointment(input: Record<string, unknown>): Promise<
     } else if (matches && matches.length > 1) {
       const names = matches.map((m) => `${m.first_name} ${m.last_name}`.trim()).join(", ");
       return {
-        data: `Error: "${contactId}" matched multiple contacts: ${names}. Use search_contacts to find the exact GHL contact ID first.`,
+        data: `Error: "${contactId}" matched multiple contacts: ${names}. Use search_contacts to find the exact contact ID first.`,
       };
     } else {
       return {
-        data: `Error: Could not resolve "${contactId}" to a GHL contact. Use search_contacts to find the contact first, then pass the GHL contact ID.`,
+        data: `Error: Could not resolve "${contactId}" to a known contact. Use search_contacts to find the contact first, then pass the contact_id from the result.`,
       };
     }
   }
@@ -1707,7 +1714,7 @@ async function executeDraftAppointment(input: Record<string, unknown>): Promise<
   // Block drafts with Unknown Contact — forces Scout to resolve first
   if (contactName === "Unknown Contact") {
     return {
-      data: `Error: contact_id "${contactId}" did not resolve to a known contact. Use search_contacts to find the correct GHL contact ID before drafting an appointment.`,
+      data: `Error: contact_id "${contactId}" did not resolve to a known contact. Use search_contacts to find the correct contact ID before drafting an appointment.`,
     };
   }
 
@@ -2838,7 +2845,7 @@ async function executeGetContactCalls(input: Record<string, unknown>): Promise<T
     const { data: contact } = await supabase
       .from("contacts")
       .select("id")
-      .or(`ghl_contact_id.eq.${contactId},id.eq.${contactId}`)
+      .or(contactIdFilter(contactId))
       .limit(1)
       .single();
 

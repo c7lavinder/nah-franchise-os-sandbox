@@ -453,13 +453,13 @@ export async function POST(request: NextRequest) {
           const stlPayload = action.payload as DraftedSubTaskLogPayload;
           const stlSupabase = createServerClient();
 
-          // Resolve contact to local Supabase ID
-          const { data: stlContact } = await stlSupabase
-            .from("contacts")
-            .select("id")
-            .or(`ghl_contact_id.eq.${action.contactId},id.eq.${action.contactId}`)
-            .limit(1)
-            .single();
+          // Resolve contact to local Supabase ID — only include id.eq. when
+          // the value is a valid UUID to avoid Postgres type-cast errors.
+          const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(action.contactId);
+          const stlFilter = isUUID
+            ? `ghl_contact_id.eq.${action.contactId},id.eq.${action.contactId}`
+            : `ghl_contact_id.eq.${action.contactId}`;
+          const { data: stlContact } = await stlSupabase.from("contacts").select("id").or(stlFilter).limit(1).single();
 
           if (!stlContact) throw new Error("Contact not found");
 
