@@ -33,11 +33,10 @@ export default function EmailActionForm({
     const res = await apiFetch(`/api/contacts/search?q=${encodeURIComponent(query)}`);
     if (!res.ok) return [];
     const data = await res.json();
-    return (data.contacts as { id: string; name: string; email: string | null }[]).map((c) => ({
-      id: c.id,
-      label: c.name,
-      sublabel: c.email ?? "No email",
-    }));
+    // GHL email sends require the GHL contact ID, not our internal Supabase UUID.
+    return (data.contacts as { id: string; ghl_contact_id: string | null; name: string; email: string | null }[])
+      .filter((c) => !!c.ghl_contact_id)
+      .map((c) => ({ id: c.ghl_contact_id as string, label: c.name, sublabel: c.email ?? "No email" }));
   }, []);
 
   function update(patch: Partial<DraftedMessagePayload>) {

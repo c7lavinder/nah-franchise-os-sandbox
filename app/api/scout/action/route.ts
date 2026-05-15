@@ -81,6 +81,19 @@ interface ActionRequestBody {
   sessionId: string;
 }
 
+/** UUID v4-ish detector — used to spot when a caller mistakenly passed a
+ *  Supabase contact UUID where GHL expects its own contact ID. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Translate a Supabase contact UUID into the matching ghl_contact_id.
+ *  Returns the input unchanged if it's already a GHL id. */
+async function resolveGhlContactId(contactId: string): Promise<string> {
+  if (!contactId || !UUID_RE.test(contactId)) return contactId;
+  const supabase = createServerClient();
+  const { data } = await supabase.from("contacts").select("ghl_contact_id").eq("id", contactId).maybeSingle();
+  return data?.ghl_contact_id ?? contactId;
+}
+
 export async function POST(request: NextRequest) {
   const user = await requireAuth(request);
   if (user instanceof Response) return user;
@@ -90,6 +103,11 @@ export async function POST(request: NextRequest) {
     if (!body.action) {
       return NextResponse.json({ error: "Missing required field: action" }, { status: 400 });
     }
+
+    // Defensive: if a caller hands us a Supabase UUID instead of a GHL ID
+    // (the contact picker bug, or stale drafts), translate it before any GHL
+    // call. GHL rejects unknown IDs with a 400, which we've seen in prod.
+    body.action.contactId = await resolveGhlContactId(body.action.contactId);
 
     const { action } = body;
     let ghlResponse: Record<string, unknown> | null = null;

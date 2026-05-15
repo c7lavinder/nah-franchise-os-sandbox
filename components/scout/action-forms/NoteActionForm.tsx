@@ -26,10 +26,10 @@ export default function NoteActionForm({
     const res = await apiFetch(`/api/contacts/search?q=${encodeURIComponent(query)}`);
     if (!res.ok) return [];
     const data = await res.json();
-    return (data.contacts as { id: string; name: string }[]).map((c) => ({
-      id: c.id,
-      label: c.name,
-    }));
+    // GHL note APIs require the GHL contact ID, not our internal Supabase UUID.
+    return (data.contacts as { id: string; ghl_contact_id: string | null; name: string }[])
+      .filter((c) => !!c.ghl_contact_id)
+      .map((c) => ({ id: c.ghl_contact_id as string, label: c.name }));
   }, []);
 
   return (

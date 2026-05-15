@@ -1602,7 +1602,8 @@ async function executeGetCalendarAvailability(input: Record<string, unknown>): P
   const hint = (input.calendar_hint as string | undefined)?.trim() ?? "";
   const startDate = input.start_date as string;
   const endDate = input.end_date as string;
-  const timezone = (input.timezone as string | undefined)?.trim() || undefined;
+  // Default to Eastern Time — NAH HQ runs on ET, all schedule display should match.
+  const timezone = (input.timezone as string | undefined)?.trim() || "America/New_York";
 
   if (!hint) {
     return { data: "Error: calendar_hint is required. Pick from the calendar list in your context." };
@@ -1689,11 +1690,32 @@ async function executeDraftAppointment(input: Record<string, unknown>): Promise<
     }
 
     if (calendarHint) {
-      const match = calendars.find((c) => c.name.toLowerCase().includes(calendarHint));
+      // Match preference: exact > starts-with > whole-word contains > substring.
+      // This prevents accidental hits like contact name "Chad Test" leaking
+      // into hint="chad" and grabbing "Chad Onboarding" by substring.
+      const lower = (s: string) => s.toLowerCase();
+      const h = lower(calendarHint);
+      const exact = calendars.find((c) => lower(c.name) === h);
+      const startsWith = calendars.find((c) => lower(c.name).startsWith(h));
+      const wholeWord = calendars.find((c) =>
+        lower(c.name)
+          .split(/\s+/)
+          .some((word) => word === h)
+      );
+      const substring = calendars.find((c) => lower(c.name).includes(h));
+      const match = exact ?? startsWith ?? wholeWord ?? substring;
       if (match) {
         calendarId = match.id;
         calendarName = match.name;
-        calendarReason = `matched "${calendarHint}" in calendar name`;
+        const tier =
+          match === exact
+            ? "exact"
+            : match === startsWith
+              ? "starts-with"
+              : match === wholeWord
+                ? "whole-word"
+                : "substring";
+        calendarReason = `matched "${calendarHint}" via ${tier} on "${match.name}"`;
       }
     }
 
