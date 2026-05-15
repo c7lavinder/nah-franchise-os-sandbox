@@ -577,9 +577,16 @@ export default function CallDetailPage() {
         </div>
       </div>
 
-      {/* Prominent next-step hero — visible above the tabs so reps don't
-          have to click into the Next Steps tab to see what comes next. */}
-      <NextStepHero actionItems={actionItems} onAction={() => void fetchDetail()} />
+      {/* Prominent next-step hero — coaching instructions for the rep */}
+      <NextStepHero
+        actionItems={actionItems}
+        onAction={() => void fetchDetail()}
+        callTypeSlug={call.callTypeSlug}
+        journeyStage={call.callJourneys?.[0]?.stage_name ?? null}
+        contactName={call.contactName ?? call.linkedContacts?.[0]?.name ?? null}
+        suggestedNextAction={rubricGrade?.suggested_next_action ?? null}
+        nextCallPrep={call.coaching_data?.next_call_prep ?? null}
+      />
 
       {/* 3-tab content */}
       <CallDetailTabs
@@ -674,16 +681,18 @@ function UnknownParticipantPill({
         .replace(/\b\w/g, (c) => c.toUpperCase())
     : participant.name;
 
-  // Editable fields so the user can correct name/phone before creating
-  const [editFirst, setEditFirst] = useState(autoName.split(" ")[0] ?? "");
-  const [editLast, setEditLast] = useState(autoName.split(" ").slice(1).join(" ") ?? "");
+  // Leave blank so the rep must type the correct name — no autofill guessing
+  const [editFirst, setEditFirst] = useState("");
+  const [editLast, setEditLast] = useState("");
   const [editPhone, setEditPhone] = useState("");
 
   const displayName = [editFirst, editLast].filter(Boolean).join(" ").trim() || autoName;
 
+  const nameComplete = editFirst.trim().length > 0 && editLast.trim().length > 0;
+
   const prefill = {
-    firstName: editFirst || autoName.split(" ")[0],
-    lastName: editLast || autoName.split(" ").slice(1).join(" ") || undefined,
+    firstName: editFirst.trim() || undefined,
+    lastName: editLast.trim() || undefined,
     email: participant.email || undefined,
     phone: editPhone || undefined,
   };
@@ -873,33 +882,39 @@ function UnknownParticipantPill({
           >
             <Search size={14} className="text-nah-blue" />
             <div className="text-left">
-              <div className="font-medium">Search Contacts</div>
-              <div className="text-[10px] text-text-tertiary">Find Existing Contact</div>
+              <div className="font-medium">Match to Existing Contact</div>
+              <div className="text-[10px] text-text-tertiary">Search by name, email, or phone</div>
             </div>
           </button>
           <button
             onClick={() => setAddModal("prospect")}
-            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border-default bg-bg-primary text-body-sm text-text-primary hover:bg-bg-tertiary transition-colors"
+            disabled={!nameComplete}
+            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border-default bg-bg-primary text-body-sm text-text-primary hover:bg-bg-tertiary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <UserPlus size={14} className="text-success" />
             <div className="text-left">
               <div className="font-medium">New Prospect</div>
-              <div className="text-[10px] text-text-tertiary">Create Contact + Journey</div>
+              <div className="text-[10px] text-text-tertiary">
+                {nameComplete ? "Create Contact + Journey" : "Enter first & last name above"}
+              </div>
             </div>
           </button>
           <button
             onClick={() => setAddModal("ecosystem")}
-            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border-default bg-bg-primary text-body-sm text-text-primary hover:bg-bg-tertiary transition-colors"
+            disabled={!nameComplete}
+            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border-default bg-bg-primary text-body-sm text-text-primary hover:bg-bg-tertiary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <MapPin size={14} className="text-nah-orange" />
             <div className="text-left">
               <div className="font-medium">Add To Ecosystem</div>
-              <div className="text-[10px] text-text-tertiary">Territory Or Contact Link</div>
+              <div className="text-[10px] text-text-tertiary">
+                {nameComplete ? "Territory Or Contact Link" : "Enter first & last name above"}
+              </div>
             </div>
           </button>
           <button
             onClick={() => setMode("journey")}
-            disabled={uniqueJourneys.length === 0}
+            disabled={uniqueJourneys.length === 0 || !nameComplete}
             className="flex items-center gap-2 px-3 py-2 rounded-md border border-border-default bg-bg-primary text-body-sm text-text-primary hover:bg-bg-tertiary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <GitBranch size={14} className="text-[#3A2FAE]" />

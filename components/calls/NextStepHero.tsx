@@ -1,26 +1,10 @@
 "use client";
 
 // Prominent "Next Step" hero card shown above the call detail tabs.
-// Matt's feedback: of all the things on the call page, knowing the correct
-// next step matters most — pull the first pending action up out of the tab
-// so it's visible without clicking.
+// Shows coaching instructions — what the rep should do/say next to
+// advance the prospect or franchisee. NOT action buttons.
 
-import { useState } from "react";
-import { apiFetch } from "@/lib/auth/api-fetch";
-import {
-  Send,
-  CalendarPlus,
-  ListChecks,
-  FileText,
-  Save,
-  ArrowRightCircle,
-  Mail,
-  MessageSquare,
-  Loader2,
-  Check,
-  ChevronRight,
-  Sparkles,
-} from "lucide-react";
+import { Sparkles, Target, TrendingUp, GraduationCap, Rocket } from "lucide-react";
 
 interface ActionItem {
   id: string;
@@ -39,105 +23,137 @@ interface NextStepHeroProps {
   actionItems: ActionItem[];
   onAction: () => void;
   onJumpToTab?: () => void;
+  callTypeSlug?: string | null;
+  journeyStage?: string | null;
+  contactName?: string | null;
+  suggestedNextAction?: string | null;
+  nextCallPrep?: string | null;
 }
 
-const CATEGORY_ICONS: Record<string, typeof Send> = {
-  comms: Send,
-  task: ListChecks,
-  apt: CalendarPlus,
-  note: FileText,
-  data: Save,
-  pipeline: ArrowRightCircle,
-};
-
-const CTA_LABELS: Record<string, string> = {
-  comms: "Send",
-  task: "Create Task",
-  apt: "Schedule",
-  note: "Log Note",
-  data: "Save to Profile",
-  workflow: "Trigger",
-  pipeline: "Move Stage",
-};
-
-const CTA_TOOLTIPS: Record<string, string> = {
-  comms: "Sends this message through GoHighLevel right now. Open the Next Steps tab to review and edit content first.",
-  task: "Creates this task in GoHighLevel — the assigned team member will see it in their task list.",
-  apt: "Books this appointment in GoHighLevel and adds it to the calendar.",
-  note: "Saves this note to the contact's record in GoHighLevel.",
-  data: "Saves the extracted value to this contact's profile in NAH OS.",
-  workflow: "Triggers this workflow in GoHighLevel.",
-  pipeline: "Moves this contact to the next stage in the pipeline.",
-};
-
-export default function NextStepHero({ actionItems, onAction, onJumpToTab }: NextStepHeroProps) {
-  const [loading, setLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const pending = actionItems.filter((a) => a.status === "pending");
-
-  if (pending.length === 0) {
-    if (actionItems.length === 0) return null;
-    return (
-      <div className="bg-bg-secondary border border-border-default rounded-xl px-4 py-3 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center flex-shrink-0">
-          <Check size={16} className="text-success" />
-        </div>
-        <div className="flex-1">
-          <div className="text-overline text-text-tertiary">NEXT STEPS</div>
-          <p className="text-body-sm text-text-secondary">All next steps from this call have been handled.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const next = pending[0];
-  const remaining = pending.length - 1;
-  const channel = (next.metadata?.comms_channel as string) ?? "sms";
-  const Icon =
-    next.category === "comms" ? (channel === "email" ? Mail : MessageSquare) : (CATEGORY_ICONS[next.category] ?? Check);
-  const ctaLabel = CTA_LABELS[next.category] ?? "Push";
-  const ctaTooltip = CTA_TOOLTIPS[next.category] ?? "Run this action.";
-
-  async function handlePush() {
-    setLoading("push");
-    setError(null);
-    try {
-      const res = await apiFetch(`/api/calls/${next.call_id}/actions/${next.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "push", payload: {} }),
-      });
-      if (res.ok) {
-        onAction();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setError(data?.error ?? "Push failed. Open the Next Steps tab to edit details first.");
-      }
-    } catch {
-      setError("Network error.");
+/**
+ * Stage-aware fallback instructions when the AI doesn't provide a
+ * suggested_next_action or next_call_prep.
+ */
+function getFallbackInstruction(
+  callTypeSlug: string | null,
+  journeyStage: string | null
+): { instruction: string; context: string } | null {
+  // Sales calls — push toward buying a franchise
+  if (
+    callTypeSlug === "intro_call" ||
+    callTypeSlug === "matt_call" ||
+    callTypeSlug === "sam_call" ||
+    callTypeSlug === "mark_call" ||
+    callTypeSlug === "matt_final_call" ||
+    callTypeSlug === "fdd_review_call"
+  ) {
+    if (callTypeSlug === "intro_call") {
+      return {
+        instruction:
+          "Schedule the next call in the Path to Ownership. Confirm they understand the franchise model, initial investment range, and timeline. Ask what questions came up since you last spoke.",
+        context: "Sales — Intro Call",
+      };
     }
-    setLoading(null);
+    if (callTypeSlug === "matt_call") {
+      return {
+        instruction:
+          "Walk through the business model deep-dive. Make sure they understand unit economics, territory size, and support structure. Gauge their commitment level and capital readiness.",
+        context: "Sales — Matt Call",
+      };
+    }
+    if (callTypeSlug === "sam_call") {
+      return {
+        instruction:
+          "Cover operations and day-to-day reality. Address any concerns from the previous call. Confirm they have a clear picture of what running a territory looks like.",
+        context: "Sales — Sam Call",
+      };
+    }
+    if (callTypeSlug === "mark_call") {
+      return {
+        instruction:
+          "Review financials, funding options (SBA, ROBS, cash), and ROI timeline. Make sure capital plan is realistic. Address any remaining objections before FDD review.",
+        context: "Sales — Mark Call",
+      };
+    }
+    if (callTypeSlug === "fdd_review_call") {
+      return {
+        instruction:
+          "Walk through the FDD key sections. Confirm they've had time to review with their attorney. Push toward signing — set a specific date for the franchise agreement.",
+        context: "Sales — FDD Review",
+      };
+    }
+    if (callTypeSlug === "matt_final_call") {
+      return {
+        instruction:
+          "Final decision call. Confirm their territory selection, funding plan, and start date. Handle any last objections and close the deal.",
+        context: "Sales — Final Call",
+      };
+    }
   }
 
-  async function handleSkip() {
-    setLoading("skip");
-    setError(null);
-    try {
-      const res = await apiFetch(`/api/calls/${next.call_id}/actions/${next.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "skip" }),
-      });
-      if (res.ok) onAction();
-    } catch {
-      /* silent */
-    }
-    setLoading(null);
+  // Follow-up (prospect went cold or needs nurturing)
+  if (journeyStage?.toLowerCase().includes("follow")) {
+    return {
+      instruction:
+        "Re-engage the prospect. Reference their original interest and what excited them about NAH. Find out what changed and whether timing, capital, or something else is the blocker. Set a specific follow-up date.",
+      context: "Follow-up",
+    };
   }
+
+  // Onboarding calls — get them through onboarding
+  if (callTypeSlug === "onboarding_call" || journeyStage?.toLowerCase().includes("onboard")) {
+    return {
+      instruction:
+        "Review their onboarding checklist progress. Identify any blockers or tasks they're stuck on. Set clear deadlines for remaining items and make sure they know who to contact for help.",
+      context: "Onboarding",
+    };
+  }
+
+  // Coaching / Running — get them buying more houses
+  if (callTypeSlug === "coaching_call" || journeyStage?.toLowerCase().includes("running")) {
+    return {
+      instruction:
+        "Review their deal pipeline and marketing activity. Identify what's working and what's not. Set a specific goal for deals in the next 30 days and the actions needed to hit it.",
+      context: "Coaching — Running",
+    };
+  }
+
+  return null;
+}
+
+function getIcon(callTypeSlug: string | null, journeyStage: string | null) {
+  if (callTypeSlug === "coaching_call" || journeyStage?.toLowerCase().includes("running")) return TrendingUp;
+  if (callTypeSlug === "onboarding_call" || journeyStage?.toLowerCase().includes("onboard")) return GraduationCap;
+  if (journeyStage?.toLowerCase().includes("follow")) return Rocket;
+  return Target;
+}
+
+export default function NextStepHero({
+  actionItems,
+  suggestedNextAction,
+  nextCallPrep,
+  callTypeSlug,
+  journeyStage,
+  contactName,
+}: NextStepHeroProps) {
+  // Primary instruction: AI-generated suggested_next_action > next_call_prep > fallback
+  const aiInstruction = suggestedNextAction || nextCallPrep || null;
+  const fallback = getFallbackInstruction(callTypeSlug ?? null, journeyStage ?? null);
+  const instruction = aiInstruction || fallback?.instruction || null;
+
+  // Don't show if there's nothing to say and no pending action items
+  if (!instruction && actionItems.filter((a) => a.status === "pending").length === 0) return null;
+  if (!instruction) return null;
+
+  const isAI = !!aiInstruction;
+  const contextLabel =
+    fallback?.context || (callTypeSlug?.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ?? "Next Step");
+  const Icon = getIcon(callTypeSlug ?? null, journeyStage ?? null);
+
+  const pendingCount = actionItems.filter((a) => a.status === "pending").length;
 
   return (
-    <div className="bg-gradient-to-r from-nah-blue-light to-bg-secondary border border-nah-blue-mid rounded-xl px-5 py-4">
+    <div className="bg-gradient-to-r from-nah-blue-light to-bg-secondary border border-nah-blue-mid rounded-xl px-5 py-4 mb-4">
       <div className="flex items-start gap-4">
         <div className="w-10 h-10 rounded-full bg-nah-blue text-white flex items-center justify-center flex-shrink-0 shadow-sm">
           <Icon size={18} />
@@ -145,64 +161,27 @@ export default function NextStepHero({ actionItems, onAction, onJumpToTab }: Nex
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-overline text-nah-blue font-semibold tracking-wider">NEXT STEP</span>
-            {next.source === "scout" && (
+            <span className="text-overline text-nah-blue font-semibold tracking-wider">
+              {contactName ? `WHAT TO DO NEXT WITH ${contactName.toUpperCase()}` : "WHAT TO DO NEXT"}
+            </span>
+            {isAI && (
               <span className="inline-flex items-center gap-1 text-[10px] text-scout-purple">
                 <Sparkles size={9} /> Scout
               </span>
             )}
-            {remaining > 0 && onJumpToTab && (
-              <button
-                onClick={onJumpToTab}
-                className="ml-auto text-caption text-text-tertiary hover:text-nah-blue inline-flex items-center gap-1"
-              >
-                +{remaining} more <ChevronRight size={12} />
-              </button>
-            )}
           </div>
 
-          <h3 className="text-card-title text-text-primary leading-tight">{next.title}</h3>
+          <p className="text-body-sm text-text-primary leading-relaxed">{instruction}</p>
 
-          {next.description && (
-            <p className="text-body-sm text-text-secondary mt-1.5 line-clamp-2">{next.description}</p>
+          {!isAI && fallback && (
+            <p className="text-caption text-text-tertiary mt-1.5 italic">{fallback.context} stage guidance</p>
           )}
 
-          {next.contact_name && (
-            <p className="text-caption text-text-tertiary mt-1.5">
-              For <span className="font-medium text-text-secondary">{next.contact_name}</span>
+          {pendingCount > 0 && (
+            <p className="text-caption text-text-tertiary mt-2">
+              {pendingCount} action item{pendingCount === 1 ? "" : "s"} in the Next Steps tab ready to push.
             </p>
           )}
-
-          <div className="flex items-center gap-2 mt-3">
-            <button
-              onClick={() => void handlePush()}
-              disabled={loading !== null}
-              title={ctaTooltip}
-              className="btn-primary px-3.5 py-1.5 text-caption flex items-center gap-1.5"
-            >
-              {loading === "push" ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />}
-              {ctaLabel}
-            </button>
-            {onJumpToTab && (
-              <button
-                onClick={onJumpToTab}
-                className="btn-secondary px-3.5 py-1.5 text-caption"
-                title="Open the Next Steps tab to edit content, change recipient, or see why Scout suggested this."
-              >
-                Edit details
-              </button>
-            )}
-            <button
-              onClick={() => void handleSkip()}
-              disabled={loading !== null}
-              className="text-caption text-text-tertiary hover:text-danger px-2 py-1.5"
-              title="Dismiss this next step — it won't be taken."
-            >
-              Skip
-            </button>
-          </div>
-
-          {error && <p className="text-caption text-danger mt-2">{error}</p>}
         </div>
       </div>
     </div>

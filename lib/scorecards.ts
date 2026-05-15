@@ -113,7 +113,6 @@ const CALL_SUB_TASK_SLUGS = [
 export async function getCallsScorecard() {
   const supabase = createServerClient();
   const calendarWeek = getCalendarWeekBounds();
-  const rolling = getWeekBounds();
 
   // Calls "this week" — match the calls-page tab exactly: any call (any status)
   // whose primary date (scheduled_at ?? started_at ?? created_at) falls in the
@@ -144,26 +143,24 @@ export async function getCallsScorecard() {
     .gte("scheduled_at", new Date().toISOString())
     .is("deleted_at", null);
 
-  // Avg coaching score — rolling 7 days. Different metric from the tab count,
-  // so a different window is fine; keep the sub text honest.
-  const { data: scoredCalls } = await supabase
-    .from("calls")
-    .select("coaching_score")
-    .gte("started_at", rolling.start.toISOString())
-    .lte("started_at", rolling.end.toISOString())
-    .not("coaching_score", "is", null)
-    .is("deleted_at", null);
+  // Avg call score — from all rubric-graded calls that aren't deleted.
+  // Join call_grades → calls to exclude deleted calls.
+  const { data: gradedCalls } = await supabase
+    .from("call_grades")
+    .select("overall_score, call_id, calls!inner(deleted_at)")
+    .not("overall_score", "is", null)
+    .is("calls.deleted_at", null);
 
   let avgScore = "—";
-  if (scoredCalls && scoredCalls.length > 0) {
-    const total = scoredCalls.reduce((s, c) => s + (c.coaching_score ?? 0), 0);
-    avgScore = String(Math.round(total / scoredCalls.length));
+  if (gradedCalls && gradedCalls.length > 0) {
+    const total = gradedCalls.reduce((s, g) => s + (g.overall_score ?? 0), 0);
+    avgScore = String(Math.round(total / gradedCalls.length));
   }
 
   return {
     callsCompleted: { value: callsCompleted, label: "Calls This Week", sub: "Mon–Sun" },
     callsScheduled: { value: callsScheduled ?? 0, label: "Calls Scheduled", sub: "upcoming" },
-    avgCallScore: { value: avgScore, label: "Avg Call Score", sub: "last 7 days" },
+    avgCallScore: { value: avgScore, label: "Avg Call Score", sub: `${gradedCalls?.length ?? 0} graded calls` },
   };
 }
 

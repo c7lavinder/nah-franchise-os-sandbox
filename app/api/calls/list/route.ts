@@ -241,6 +241,9 @@ export async function GET(request: NextRequest) {
           } else {
             if (lc && seenExternalEmails.has(lc)) continue;
             if (lc) seenExternalEmails.add(lc);
+            // Skip if this person's name already appeared as a mapped contact
+            // (same person, different email — one mapped, one not)
+            if (externalContacts.includes(name)) continue;
             unmappedParticipants.push(name);
           }
         }

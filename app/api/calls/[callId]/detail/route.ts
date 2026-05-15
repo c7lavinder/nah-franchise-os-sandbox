@@ -92,32 +92,56 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { data: jRows } = await supabase.from("journeys").select("id, name").in("id", cjJourneyIds);
     for (const j of jRows ?? []) journeyNameMap.set(j.id, j.name);
   }
-  const jpsDetailMap = new Map<string, { stage: string | null; TerritorySlug: string | null }>();
+  const jpsDetailMap = new Map<
+    string,
+    { stage: string | null; TerritorySlug: string | null; pipelineSortOrder: number }
+  >();
   if (cjJpsIds.length > 0) {
     const { data: jpsRows } = await supabase
       .from("journey_pipeline_state")
-      .select("id, TerritorySlug, pipeline_stages(name)")
+      .select("id, TerritorySlug, pipeline_id, pipeline_stages(name)")
       .in("id", cjJpsIds);
+
+    // Fetch pipeline sort_order to determine which is most advanced
+    const jpsPipelineIds = [...new Set((jpsRows ?? []).map((r) => r.pipeline_id).filter(Boolean))];
+    const pipelineSortMap = new Map<string, number>();
+    if (jpsPipelineIds.length > 0) {
+      const { data: pRows } = await supabase.from("pipelines").select("id, sort_order").in("id", jpsPipelineIds);
+      for (const p of pRows ?? []) pipelineSortMap.set(p.id, p.sort_order ?? 0);
+    }
+
     for (const r of (jpsRows ?? []) as unknown as {
       id: string;
       TerritorySlug: string | null;
+      pipeline_id: string;
       pipeline_stages: { name: string } | { name: string }[] | null;
     }[]) {
       const stageName = Array.isArray(r.pipeline_stages)
         ? (r.pipeline_stages[0]?.name ?? null)
         : (r.pipeline_stages?.name ?? null);
-      jpsDetailMap.set(r.id, { stage: stageName, TerritorySlug: r.TerritorySlug });
+      jpsDetailMap.set(r.id, {
+        stage: stageName,
+        TerritorySlug: r.TerritorySlug,
+        pipelineSortOrder: pipelineSortMap.get(r.pipeline_id) ?? 0,
+      });
     }
   }
   // Dedupe by journey_id — a journey with multiple active jps rows (e.g.
-  // sales + follow-up) was rendering as two separate pills. Keep the
-  // primary row if present, otherwise the first.
+  // onboarding + runway) was rendering as two separate pills. Keep the
+  // most advanced pipeline row (highest sort_order) so "Running" shows
+  // instead of "Onboarded" when the journey has progressed past onboarding.
   type CjRow = { journey_id: string; journey_pipeline_state_id: string; is_primary: boolean };
   const callJourneysByJourney = new Map<string, CjRow>();
   for (const r of (cjRows ?? []) as CjRow[]) {
     const existing = callJourneysByJourney.get(r.journey_id);
-    if (!existing || (r.is_primary && !existing.is_primary)) {
+    if (!existing) {
       callJourneysByJourney.set(r.journey_id, r);
+    } else {
+      const existingOrder = jpsDetailMap.get(existing.journey_pipeline_state_id)?.pipelineSortOrder ?? 0;
+      const newOrder = jpsDetailMap.get(r.journey_pipeline_state_id)?.pipelineSortOrder ?? 0;
+      if (newOrder > existingOrder) {
+        callJourneysByJourney.set(r.journey_id, r);
+      }
     }
   }
   const callJourneys = Array.from(callJourneysByJourney.values()).map((r) => {
@@ -287,6 +311,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
+  // Build set of names already shown as linked contacts — skip unknowns that
+  // duplicate a linked contact (same person, different email, one mapped).
+  const linkedContactNames = new Set(linkedContacts.map((c) => c.name.toLowerCase()));
+
   const unknownParticipants: Array<{ name: string; email: string }> = [];
   const seenUnknownKeys = new Set<string>();
   for (const p of participants ?? []) {
@@ -294,10 +322,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const key = (p.email ?? p.display_name ?? "").toLowerCase();
     if (key && seenUnknownKeys.has(key)) continue;
     if (key) seenUnknownKeys.add(key);
-    unknownParticipants.push({
-      name: p.display_name ?? p.email ?? "Unknown",
-      email: p.email ?? "",
-    });
+    const name = p.display_name ?? p.email ?? "Unknown";
+    if (linkedContactNames.has(name.toLowerCase())) continue;
+    unknownParticipants.push({ name, email: p.email ?? "" });
   }
 
   // Raw participant rows — used by the mapping UI, needs the row id and the
