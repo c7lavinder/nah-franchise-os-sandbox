@@ -317,37 +317,19 @@ export default function CallDetailPage() {
             <button
               onClick={async () => {
                 setRefreshing(true);
-                setIsGenerating(true);
                 try {
-                  // 1. Re-classify participants (fast — fixes roles, contact matches)
-                  await apiFetch(`/api/calls/${callId}/reclassify-participants`, { method: "POST" }).catch(() => {});
-                  // 2. Re-fetch immediately so mapped contacts show up
+                  await apiFetch(`/api/calls/${callId}/reclassify-participants`, { method: "POST" });
+                  await apiFetch(`/api/calls/${callId}/generate?force=true`, { method: "POST" });
                   await fetchDetail();
+                } finally {
                   setRefreshing(false);
-                  // 3. Fire-and-forget AI reprocessing (takes 1–3 min)
-                  const priorSummaryAt = call?.ai_summary_generated_at ?? null;
-                  apiFetch(`/api/calls/${callId}/generate?force=true`, { method: "POST" }).catch(() => {});
-                  // 4. Poll for AI completion — detect when summary timestamp changes
-                  let polls = 0;
-                  const pollInterval = setInterval(async () => {
-                    polls++;
-                    const refreshed = await fetchDetail();
-                    const newSummaryAt = refreshed?.call?.ai_summary_generated_at ?? null;
-                    if ((newSummaryAt && newSummaryAt !== priorSummaryAt) || polls >= 60) {
-                      clearInterval(pollInterval);
-                      setIsGenerating(false);
-                    }
-                  }, 5000);
-                } catch {
-                  setRefreshing(false);
-                  setIsGenerating(false);
                 }
               }}
               disabled={refreshing}
               className="btn-ghost p-1.5 flex-shrink-0"
-              title="Re-process call — reclassify participants, regenerate AI analysis"
+              title="Re-process call"
             >
-              <RefreshCw size={14} className={refreshing || isGenerating ? "animate-spin" : ""} />
+              <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
             </button>
           </div>
         </div>
