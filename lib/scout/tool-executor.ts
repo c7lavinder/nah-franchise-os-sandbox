@@ -1594,7 +1594,18 @@ async function resolveCalendarByHint(hint: string): Promise<{
 }> {
   const all = (await ghl.getCalendars()).filter((c) => c.isActive !== false);
   const h = hint.toLowerCase().trim();
-  const matched = h ? (all.find((c) => c.name.toLowerCase().includes(h)) ?? null) : null;
+  if (!h) return { matched: null, all: all.map((c) => ({ id: c.id, name: c.name })) };
+  // Use the same tiered matching as draft_appointment: exact > starts-with > whole-word > substring
+  const lower = (s: string) => s.toLowerCase();
+  const exact = all.find((c) => lower(c.name) === h);
+  const startsWith = all.find((c) => lower(c.name).startsWith(h));
+  const wholeWord = all.find((c) =>
+    lower(c.name)
+      .split(/\s+/)
+      .some((word) => word === h)
+  );
+  const substring = all.find((c) => lower(c.name).includes(h));
+  const matched = exact ?? startsWith ?? wholeWord ?? substring ?? null;
   return { matched, all: all.map((c) => ({ id: c.id, name: c.name })) };
 }
 
@@ -1651,7 +1662,7 @@ async function executeGetCalendarAvailability(input: Record<string, unknown>): P
 }
 
 async function executeDraftAppointment(input: Record<string, unknown>): Promise<ToolExecutionResult> {
-  const contactId = input.contact_id as string;
+  let contactId = input.contact_id as string;
   const title = input.title as string;
   const startTime = input.start_time as string;
   const endTime = input.end_time as string;
@@ -1664,7 +1675,41 @@ async function executeDraftAppointment(input: Record<string, unknown>): Promise<
   const assignedUserId = input.assigned_user_id as string | undefined;
   const currentUserGhlId = input._current_user_ghl_id as string | null;
 
+  // Auto-resolve contact: if contact_id looks like a name (contains spaces,
+  // no alphanumeric ID pattern), search for the real GHL contact ID.
+  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const GHL_ID_PATTERN = /^[A-Za-z0-9]{10,}$/; // GHL IDs are long alphanumeric strings
+  if (contactId && !UUID_PATTERN.test(contactId) && !GHL_ID_PATTERN.test(contactId)) {
+    // Looks like a name, not an ID — try to resolve it
+    const supabaseSearch = createServerClient();
+    const { data: matches } = await supabaseSearch
+      .from("contacts")
+      .select("ghl_contact_id, first_name, last_name")
+      .or(`first_name.ilike.%${contactId.split(" ")[0]}%,last_name.ilike.%${contactId.split(" ").slice(-1)[0]}%`)
+      .not("ghl_contact_id", "is", null)
+      .limit(5);
+    if (matches && matches.length === 1) {
+      contactId = matches[0].ghl_contact_id!;
+    } else if (matches && matches.length > 1) {
+      const names = matches.map((m) => `${m.first_name} ${m.last_name}`.trim()).join(", ");
+      return {
+        data: `Error: "${contactId}" matched multiple contacts: ${names}. Use search_contacts to find the exact GHL contact ID first.`,
+      };
+    } else {
+      return {
+        data: `Error: Could not resolve "${contactId}" to a GHL contact. Use search_contacts to find the contact first, then pass the GHL contact ID.`,
+      };
+    }
+  }
+
   const contactName = await getContactName(contactId);
+
+  // Block drafts with Unknown Contact — forces Scout to resolve first
+  if (contactName === "Unknown Contact") {
+    return {
+      data: `Error: contact_id "${contactId}" did not resolve to a known contact. Use search_contacts to find the correct GHL contact ID before drafting an appointment.`,
+    };
+  }
 
   // Default assignedUserId to current user if not specified
   const resolvedAssignedUserId = assignedUserId ?? currentUserGhlId ?? undefined;
@@ -1720,12 +1765,12 @@ async function executeDraftAppointment(input: Record<string, unknown>): Promise<
     }
 
     if (!calendarId) {
-      // Default to first active — user can change in the dropdown
-      calendarId = calendars[0].id;
-      calendarName = calendars[0].name;
-      calendarReason = calendarHint
-        ? `no calendar matched "${calendarHint}", defaulted to first active`
-        : "defaulted to first active calendar";
+      // Do NOT silently default — wrong calendar is worse than no calendar.
+      // Return an error so Scout retries with a correct hint from its calendar context.
+      const names = calendars.map((c) => c.name).join(", ");
+      return {
+        data: `Error: No calendar matched hint "${calendarHint}". Active calendars: ${names}. Pick the correct calendar name from your CALENDAR_CONTEXT and pass it as calendar_hint.`,
+      };
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";

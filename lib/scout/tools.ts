@@ -505,11 +505,13 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
         calendar_hint: {
           type: "string",
           description:
-            "Optional: a name fragment to match against active calendars (e.g. 'Matt', 'Discovery'). Executor finds the best match.",
+            "REQUIRED calendar TYPE name to match (e.g. 'Intro Call', 'Discovery Call', 'FDD Review Call', 'Chad Coaching'). " +
+            "Must be the calendar name from your CALENDAR_CONTEXT, NOT a person's name or contact name. " +
+            "The executor fuzzy-matches this against active GHL calendar names.",
         },
         assigned_user_id: { type: "string", description: "Optional GHL user ID to host" },
       },
-      required: ["contact_id", "title", "start_time", "end_time"],
+      required: ["contact_id", "title", "start_time", "end_time", "calendar_hint"],
     },
   },
   {
