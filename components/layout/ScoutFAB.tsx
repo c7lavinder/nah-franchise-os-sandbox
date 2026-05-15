@@ -261,6 +261,27 @@ export default function ScoutFAB() {
                   </button>
                   <button
                     onClick={() => {
+                      // Hand the in-flight conversation off to the full Scout
+                      // page via sessionStorage. /scout reads + clears it on
+                      // mount so the user keeps the same thread.
+                      try {
+                        const now = new Date().toISOString();
+                        const payload = {
+                          messages: messages.map((m) => ({
+                            id: m.id,
+                            role: m.role,
+                            content: m.content,
+                            timestamp: now,
+                            draftedAction: m.draftedAction,
+                            draftedActions: m.draftedActions,
+                          })),
+                          history: historyRef.current,
+                          sessionId,
+                        };
+                        sessionStorage.setItem("scout_handoff", JSON.stringify(payload));
+                      } catch {
+                        // sessionStorage failures are non-critical
+                      }
                       setOpen(false);
                       router.push("/scout");
                     }}

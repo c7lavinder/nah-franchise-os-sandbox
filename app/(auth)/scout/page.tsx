@@ -36,11 +36,36 @@ export default function ScoutPage() {
     scrollToBottom();
   }, [messages, isThinking, scrollToBottom]);
 
-  /** Always start a fresh session — clear state on mount / navigation */
+  /** On mount: pick up a handoff from ScoutFAB if present, otherwise fresh.
+   *  ScoutFAB writes the in-flight conversation to sessionStorage under
+   *  "scout_handoff" when the user clicks the maximize button. We consume
+   *  + clear it so refreshes don't keep replaying the same thread. */
   useEffect(() => {
-    setMessages([]);
-    setSessionId(null);
-    apiHistoryRef.current = [];
+    let hydrated = false;
+    try {
+      const raw = sessionStorage.getItem("scout_handoff");
+      if (raw) {
+        sessionStorage.removeItem("scout_handoff");
+        const payload = JSON.parse(raw) as {
+          messages?: ChatMessage[];
+          history?: Anthropic.Messages.MessageParam[];
+          sessionId?: string | null;
+        };
+        if (payload.messages && payload.messages.length > 0) {
+          setMessages(payload.messages);
+          apiHistoryRef.current = payload.history ?? [];
+          setSessionId(payload.sessionId ?? null);
+          hydrated = true;
+        }
+      }
+    } catch {
+      // Bad JSON or storage unavailable — fall through to fresh session.
+    }
+    if (!hydrated) {
+      setMessages([]);
+      setSessionId(null);
+      apiHistoryRef.current = [];
+    }
     setError(null);
     setInputValue(searchParams.get("ask") ?? "");
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
