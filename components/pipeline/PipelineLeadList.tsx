@@ -8,7 +8,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
  * Shows urgency colors per §1.14 (Fresh 0-5d / At Risk 5-10d / Losing 10+d).
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { ChevronDown, ChevronUp, ChevronRight, Loader2, MessageSquare, X, Calendar } from "lucide-react";
 import Link from "next/link";
 import { capitalizeName, formatPhone } from "@/lib/format/contact";
@@ -125,6 +125,9 @@ export default function PipelineLeadList({
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const BATCH_SIZE = 5000;
 
+  // Abort controller ref — cancels in-flight requests when deps change
+  const abortRef = useRef<AbortController | null>(null);
+
   // Bulk-select state — keyed by contactId. Cleared whenever the visible
   // dataset changes meaningfully (new stage filter, new search) since
   // selections from a previous view are usually no longer relevant.
@@ -151,49 +154,71 @@ export default function PipelineLeadList({
 
   const fetchContacts = useCallback(
     async (append = false, currentOffset = 0) => {
+      // Cancel any in-flight request before starting a new one
       if (!append) {
+        abortRef.current?.abort();
+        const controller = new AbortController();
+        abortRef.current = controller;
+
         setLoading(true);
         setVisibleCount(PAGE_SIZE);
-      } else setLoadingMore(true);
+      }
       setError(null);
+
+      const controller = abortRef.current;
+
       try {
         const params = new URLSearchParams();
-        params.set("sort", sortField);
         params.set("limit", String(BATCH_SIZE));
         params.set("offset", String(currentOffset));
         if (selectedStageId) params.set("stage_id", selectedStageId);
         if (searchQuery) params.set("q", searchQuery);
 
-        const res = await apiFetch(`/api/pipeline/contacts?${params.toString()}`);
+        const res = await apiFetch(`/api/pipeline/contacts?${params.toString()}`, {
+          signal: controller?.signal,
+        });
+
+        // If this request was aborted, bail out silently
+        if (controller?.signal.aborted) return;
+
         if (res.ok) {
           const data = await res.json();
           const batch: PipelineContact[] = data.contacts ?? [];
           if (append) {
             setContacts((prev) => [...prev, ...batch]);
+            setLoadingMore(false);
           } else {
             setContacts(batch);
             setTotalCount(data.totalCount ?? batch.length);
+            setLoading(false);
           }
           setHasMore((data.totalCount ?? batch.length) > currentOffset + batch.length);
         } else {
           setError("Failed to load contacts");
+          setLoading(false);
+          setLoadingMore(false);
         }
       } catch (err) {
+        // Aborted requests are not errors
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Failed to load contacts");
+        setLoading(false);
+        setLoadingMore(false);
       }
-      setLoading(false);
-      setLoadingMore(false);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedStageId, searchQuery, refreshKey]
   );
 
   async function handleLoadMore() {
+    setLoadingMore(true);
     await fetchContacts(true, contacts.length);
   }
 
   useEffect(() => {
     void fetchContacts();
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [fetchContacts]);
 
   // Client-side sort refinement
