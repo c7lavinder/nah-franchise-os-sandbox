@@ -207,6 +207,22 @@ export async function syncPtoProspects(
   return { created, wired, skipped, errors };
 }
 
+/** Generate a URL-safe slug from a name. Dedupes against existing slugs. */
+async function generateSlug(sb: ReturnType<typeof getServiceSupabase>, name: string): Promise<string> {
+  const base =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "journey";
+  const { data: existing } = await sb.from("journeys").select("slug").like("slug", `${base}%`);
+  const taken = new Set((existing ?? []).map((r: { slug: string | null }) => r.slug).filter(Boolean));
+  if (!taken.has(base)) return base;
+  for (let i = 2; i < 100; i++) {
+    if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
+  }
+  return `${base}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 /** Create journey + journey_contact + JPS for a contact. Returns true on error. */
 async function createJourneyAndJPS(
   sb: ReturnType<typeof getServiceSupabase>,
@@ -215,9 +231,10 @@ async function createJourneyAndJPS(
   pto: PTORow,
   errors: string[]
 ): Promise<boolean> {
+  const slug = await generateSlug(sb, name);
   const { data: newJourney, error: jErr } = await sb
     .from("journeys")
-    .insert({ name, status: "active", primary_contact_id: contactId })
+    .insert({ name, slug, status: "active", primary_contact_id: contactId })
     .select("id")
     .single();
 

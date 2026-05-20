@@ -21,9 +21,8 @@ export async function GET(request: NextRequest) {
     .single();
 
   try {
-    // Incremental: look at PTO entries from the last 30 days (widened from 7
-    // to catch entries missed during cron outages or deploy gaps)
-    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    // Incremental: look at PTO entries from the last 7 days
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const result = await syncPtoProspects(since);
 
     if (log) {
