@@ -68,6 +68,8 @@ export async function executeTool(
       return executeCompleteTask(input);
     case "search_knowledge":
       return executeSearchKnowledge(input);
+    case "get_journey_documents":
+      return executeGetJourneyDocuments(input);
     case "workflow_analyze":
       return executeWorkflowAnalyze(input);
     case "workflow_rewrite":
@@ -219,7 +221,7 @@ async function executeSearchContacts(input: Record<string, unknown>): Promise<To
     // Search Supabase contacts — split multi-word queries to match first + last name
     const words = query.split(/\s+/).filter((w) => w.length > 0);
     const select =
-      "id, ghl_contact_id, first_name, last_name, email, phone, city, state, opportunity_source, territory_interest, NonRetirementCapitalAvailable, scout_lead_score";
+      "id, ghl_contact_id, first_name, last_name, email, phone, city, state, opportunity_source, territory_interest, NonRetirementCapitalAvailable, scout_lead_score, journey_contacts(journey_id, journeys(slug, name))";
 
     let data: any[] | null = null;
     let error: any = null;
@@ -279,20 +281,28 @@ async function executeSearchContacts(input: Record<string, unknown>): Promise<To
     }
 
     // Format for Scout — include key profile fields so it has context
-    const results = (data ?? []).map((c) => ({
-      id: c.ghl_contact_id ?? c.id,
-      localId: c.id,
-      firstName: c.first_name,
-      lastName: c.last_name,
-      email: c.email,
-      phone: c.phone,
-      city: c.city,
-      state: c.state,
-      source: c.opportunity_source,
-      territoryInterest: c.territory_interest,
-      capitalAvailability: c.NonRetirementCapitalAvailable,
-      leadScore: c.scout_lead_score,
-    }));
+    const results = (data ?? []).map((c: any) => {
+      // Resolve journey link — pick the first active journey's slug
+      const jc = Array.isArray(c.journey_contacts) ? c.journey_contacts[0] : null;
+      const journey = jc?.journeys;
+      const journeyObj = Array.isArray(journey) ? journey[0] : journey;
+      const journeySlug = journeyObj?.slug ?? null;
+      return {
+        id: c.ghl_contact_id ?? c.id,
+        localId: c.id,
+        firstName: c.first_name,
+        lastName: c.last_name,
+        email: c.email,
+        phone: c.phone,
+        city: c.city,
+        state: c.state,
+        source: c.opportunity_source,
+        territoryInterest: c.territory_interest,
+        capitalAvailability: c.NonRetirementCapitalAvailable,
+        leadScore: c.scout_lead_score,
+        journeyUrl: journeySlug ? `/journeys/${journeySlug}` : null,
+      };
+    });
 
     return { data: JSON.stringify({ world: "frandev", contacts: results }) };
   } catch (err) {
@@ -806,6 +816,64 @@ async function executeSearchKnowledge(input: Record<string, unknown>): Promise<T
   }
 }
 
+async function executeGetJourneyDocuments(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  try {
+    const supabase = createServerClient();
+    let journeyId = input.journey_id as string | undefined;
+
+    // If no journey_id, resolve from contact_id
+    if (!journeyId && input.contact_id) {
+      const contactId = input.contact_id as string;
+      // Try as GHL contact ID first, then as UUID
+      const { data: contact } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("ghl_contact_id", contactId)
+        .maybeSingle();
+      const localId = contact?.id ?? contactId;
+
+      const { data: jc } = await supabase
+        .from("journey_contacts")
+        .select("journey_id")
+        .eq("contact_id", localId)
+        .is("left_at", null)
+        .limit(1)
+        .maybeSingle();
+      journeyId = jc?.journey_id ?? undefined;
+    }
+
+    if (!journeyId) {
+      return { data: "No journey found for this contact. Ask the user which journey to look at." };
+    }
+
+    const { data: docs, error } = await supabase
+      .from("journey_documents")
+      .select("id, doc_type, display_name, file_name, extracted_text, suggested_fields, created_at")
+      .eq("journey_id", journeyId)
+      .order("created_at", { ascending: false });
+
+    if (error) return { data: `Error fetching documents: ${error.message}` };
+    if (!docs || docs.length === 0) {
+      return { data: "No documents uploaded for this journey yet." };
+    }
+
+    // Return metadata + extracted text (capped) for LLM context
+    const result = docs.map((d) => ({
+      id: d.id,
+      type: d.doc_type,
+      name: d.display_name,
+      fileName: d.file_name,
+      extractedText: d.extracted_text ? d.extracted_text.slice(0, 5000) : null,
+      suggestedFields: d.suggested_fields,
+      uploadedAt: d.created_at,
+    }));
+
+    return { data: JSON.stringify({ journeyId, documents: result }) };
+  } catch (err) {
+    return { data: `Error fetching journey documents: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
 async function executeGetNextAction(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
     const contactId = input.contact_id as string;
@@ -1262,6 +1330,13 @@ async function executeDraftMessage(input: Record<string, unknown>): Promise<Tool
   const contactInfo = await getContactInfo(contactId);
   const senderName = await getUserName(currentUserGhlId);
 
+  // Validate phone exists before drafting SMS
+  if (channel === "SMS" && !contactInfo.phone) {
+    return {
+      data: `Cannot draft SMS to ${contactInfo.name}: no phone number on file. Ask the user to add a phone number to the contact profile first, or switch to Email.`,
+    };
+  }
+
   // Pre-populate from/to based on channel
   const toAddress = channel === "SMS" ? contactInfo.phone : contactInfo.email;
   const fromAddress =
@@ -1671,8 +1746,27 @@ async function executeGetCalendarAvailability(input: Record<string, unknown>): P
 async function executeDraftAppointment(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   let contactId = input.contact_id as string;
   const title = input.title as string;
-  const startTime = input.start_time as string;
-  const endTime = input.end_time as string;
+
+  // Round start/end to nearest 30-min and default end to 1 hour after start
+  const rawStart = new Date(input.start_time as string);
+  const startMins = rawStart.getMinutes();
+  rawStart.setMinutes(startMins < 15 ? 0 : startMins < 45 ? 30 : 60, 0, 0);
+  const startTime = rawStart.toISOString();
+
+  let endTime: string;
+  if (input.end_time) {
+    const rawEnd = new Date(input.end_time as string);
+    const endMins = rawEnd.getMinutes();
+    rawEnd.setMinutes(endMins < 15 ? 0 : endMins < 45 ? 30 : 60, 0, 0);
+    endTime = rawEnd.toISOString();
+  } else {
+    endTime = new Date(rawStart.getTime() + 60 * 60 * 1000).toISOString();
+  }
+
+  // Ensure end is at least 30 min after start; default to 1 hour if not
+  if (new Date(endTime).getTime() <= new Date(startTime).getTime()) {
+    endTime = new Date(rawStart.getTime() + 60 * 60 * 1000).toISOString();
+  }
   // If Scout didn't pass a calendar_hint, derive one from the title. Otherwise
   // we'd silently default to whatever calendar is first alphabetically, which
   // is almost never what the user meant (e.g. "Intro Call - Foo" landing on

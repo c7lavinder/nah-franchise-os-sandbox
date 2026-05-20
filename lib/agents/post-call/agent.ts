@@ -371,13 +371,29 @@ async function loadCallContext(
   // any active jps row. Logs are queried by the jps FK.
   const pipelinePositions: PipelinePosition[] = [];
   if (call.contact_id) {
-    const { data: journey } = await supabase
+    // Check both primary ownership and membership (spouse, co_primary, etc.)
+    let journeyId: string | null = null;
+    const { data: primaryJourney } = await supabase
       .from("journeys")
       .select("id")
       .eq("primary_contact_id", call.contact_id)
       .maybeSingle();
+    journeyId = primaryJourney?.id ?? null;
 
-    if (journey?.id) {
+    if (!journeyId) {
+      const { data: memberRow } = await supabase
+        .from("journey_contacts")
+        .select("journey_id, journeys!inner(id, status)")
+        .eq("contact_id", call.contact_id)
+        .is("left_at", null)
+        .limit(1)
+        .maybeSingle();
+      const mj = memberRow?.journeys as { id: string; status: string } | { id: string; status: string }[] | null;
+      const mjObj = Array.isArray(mj) ? mj[0] : mj;
+      if (mjObj?.status === "active") journeyId = mjObj.id;
+    }
+
+    if (journeyId) {
       const { data: states } = await supabase
         .from("journey_pipeline_state")
         .select(
@@ -391,7 +407,7 @@ async function loadCallContext(
           pipeline_stages ( slug, name )
         `
         )
-        .eq("journey_id", journey.id)
+        .eq("journey_id", journeyId)
         .eq("is_active", true);
 
       // Fold per-pipeline, NULL-territory preferred.

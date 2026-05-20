@@ -292,6 +292,27 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     },
   },
   {
+    name: "get_journey_documents",
+    description:
+      "Get uploaded documents for a journey (PFS, Zorakle profile, franchise agreement, etc.). " +
+      "Returns document metadata and extracted text content. Use when the user asks about a prospect's " +
+      "financial statement, personality profile, LLC info, or any uploaded document.",
+    input_schema: {
+      type: "object",
+      properties: {
+        journey_id: {
+          type: "string",
+          description: "Journey UUID",
+        },
+        contact_id: {
+          type: "string",
+          description: "Contact UUID or GHL contact ID — used to find the journey if journey_id is not known",
+        },
+      },
+      required: [],
+    },
+  },
+  {
     name: "workflow_analyze",
     description:
       "Run health analysis on a marketing/onboarding workflow: health score (A-F), per-step metrics, top issue, " +

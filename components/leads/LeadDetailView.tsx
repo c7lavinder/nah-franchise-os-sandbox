@@ -35,6 +35,7 @@ import TerritoryOwnershipSection from "@/components/contact/TerritoryOwnershipSe
 import TerritoryPerformanceCard from "@/components/leads/TerritoryPerformanceCard";
 import TerritoryDataTab from "@/components/contact/TerritoryDataTab";
 import JourneyEosTab from "@/components/leads/tabs/JourneyEosTab";
+import JourneyDocumentsTab from "@/components/leads/tabs/JourneyDocumentsTab";
 import SplitJourneyModal from "@/components/leads/SplitJourneyModal";
 import type { SplitTerritory } from "@/components/leads/SplitJourneyModal";
 import AddJourneyMemberModal from "@/components/leads/AddJourneyMemberModal";
@@ -220,7 +221,7 @@ export default function LeadDetailView({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Record<string, string>>({});
-  const [activeTab, setActiveTab] = useState<"overview" | "messages" | "profile" | "territories" | "eos">(
+  const [activeTab, setActiveTab] = useState<"overview" | "messages" | "profile" | "documents" | "territories" | "eos">(
     highlightMessageId ? "messages" : "overview"
   );
   const [contactCalls, setContactCalls] = useState<
@@ -724,6 +725,7 @@ export default function LeadDetailView({
           { key: "overview" as const, label: "Overview" },
           { key: "messages" as const, label: "Messages" },
           { key: "profile" as const, label: "Profile" },
+          ...(journeyId ? [{ key: "documents" as const, label: "Documents" }] : []),
           { key: "territories" as const, label: "Territories" },
           ...(journeyType === "franchisee" ? [{ key: "eos" as const, label: "EOS" }] : []),
         ].map((tab) => (
@@ -997,6 +999,8 @@ export default function LeadDetailView({
                         );
                       })}
                   </div>
+                ) : activeTab === "documents" && journeyId ? (
+                  <JourneyDocumentsTab journeyId={journeyId} contactId={effectivePrimaryLocalId} />
                 ) : activeTab === "territories" ? (
                   <TerritoryDataTab ghlContactId={contact?.id ?? null} />
                 ) : activeTab === "eos" ? (

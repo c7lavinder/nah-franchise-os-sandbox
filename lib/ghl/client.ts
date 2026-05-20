@@ -695,7 +695,21 @@ export async function getFreeSlots(
       all.push(...value.slots);
     }
   }
-  return all.sort();
+
+  // Round slots to nearest 30-minute interval for clean scheduling
+  const seen = new Set<string>();
+  const rounded: string[] = [];
+  for (const slot of all) {
+    const d = new Date(slot);
+    const mins = d.getMinutes();
+    d.setMinutes(mins < 15 ? 0 : mins < 45 ? 30 : 60, 0, 0);
+    const iso = d.toISOString();
+    if (!seen.has(iso)) {
+      seen.add(iso);
+      rounded.push(iso);
+    }
+  }
+  return rounded.sort();
 }
 
 /**

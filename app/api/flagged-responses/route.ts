@@ -41,6 +41,38 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ id: data.id, success: true });
 }
 
+export async function DELETE(request: NextRequest) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+
+  const body = await request.json();
+  const { sessionId, userMessage, aiResponse } = body;
+
+  if (!userMessage || !aiResponse) {
+    return NextResponse.json({ error: "userMessage and aiResponse are required" }, { status: 400 });
+  }
+
+  const supabase = createServerClient();
+
+  // Match on session + user message + AI response to find the right flag
+  let query = supabase
+    .from("flagged_responses")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("user_message", userMessage)
+    .eq("ai_response", aiResponse);
+
+  if (sessionId) query = query.eq("session_id", sessionId);
+
+  const { error } = await query;
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}
+
 export async function GET(request: NextRequest) {
   const user = await requireAuth(request);
   if (user instanceof Response) return user;

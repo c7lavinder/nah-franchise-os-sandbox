@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 import { parsePageContext } from "@/lib/scout/page-context";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { scoutLinkComponents } from "@/components/scout/ScoutBubble";
 import type Anthropic from "@anthropic-ai/sdk";
 
 const PLACEHOLDERS: Record<string, string> = {
@@ -81,20 +82,40 @@ export default function QuickAsk({ context }: QuickAskProps) {
       const exchange = exchanges[index];
       if (!exchange) return;
 
-      setFlaggedIndices((prev) => new Set(prev).add(index));
+      const alreadyFlagged = flaggedIndices.has(index);
 
-      await apiFetch("/api/flagged-responses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: sessionIdRef.current,
-          userMessage: exchange.userMessage,
-          aiResponse: exchange.aiResponse,
-          pageUrl: pathname,
-        }),
-      }).catch(() => {});
+      if (alreadyFlagged) {
+        // Unflag
+        setFlaggedIndices((prev) => {
+          const next = new Set(prev);
+          next.delete(index);
+          return next;
+        });
+        await apiFetch("/api/flagged-responses", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId: sessionIdRef.current,
+            userMessage: exchange.userMessage,
+            aiResponse: exchange.aiResponse,
+          }),
+        }).catch(() => {});
+      } else {
+        // Flag
+        setFlaggedIndices((prev) => new Set(prev).add(index));
+        await apiFetch("/api/flagged-responses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId: sessionIdRef.current,
+            userMessage: exchange.userMessage,
+            aiResponse: exchange.aiResponse,
+            pageUrl: pathname,
+          }),
+        }).catch(() => {});
+      }
     },
-    [exchanges, pathname]
+    [exchanges, pathname, flaggedIndices]
   );
 
   async function handleSend() {
@@ -213,16 +234,17 @@ export default function QuickAsk({ context }: QuickAskProps) {
                 {/* AI response */}
                 <div className="group relative">
                   <div className="prose prose-sm max-w-none text-text-primary prose-headings:text-text-primary prose-strong:text-text-primary prose-code:text-scout-purple prose-a:text-nah-blue">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{ex.aiResponse}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={scoutLinkComponents}>
+                      {ex.aiResponse}
+                    </ReactMarkdown>
                   </div>
-                  {/* Flag button */}
+                  {/* Flag / Unflag toggle button */}
                   <button
                     onClick={() => handleFlag(i)}
-                    disabled={flaggedIndices.has(i)}
-                    title={flaggedIndices.has(i) ? "Flagged" : "Flag this response"}
+                    title={flaggedIndices.has(i) ? "Unflag this response" : "Flag this response"}
                     className={`absolute top-0 right-0 p-1 rounded transition-colors ${
                       flaggedIndices.has(i)
-                        ? "text-red-400 cursor-default"
+                        ? "text-red-400 hover:text-red-300 hover:bg-red-50"
                         : "text-text-tertiary opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50"
                     }`}
                   >

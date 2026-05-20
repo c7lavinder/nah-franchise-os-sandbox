@@ -1100,6 +1100,14 @@ export const PROFILE_FIELDS: ProfileField[] = [
     source: "system",
     relevantStage: "Compliance",
   },
+  {
+    name: "llc_name",
+    label: "LLC Name",
+    category: "compliance",
+    dataType: "text",
+    source: "manual",
+    relevantStage: "Compliance",
+  },
 
   // ═══════════════════════════════════════
   // 12. OBJECTIONS & CONCERNS (12) — AI

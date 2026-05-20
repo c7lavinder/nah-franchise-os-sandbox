@@ -155,17 +155,16 @@ export default function PipelineLeadList({
   const fetchContacts = useCallback(
     async (append = false, currentOffset = 0) => {
       // Cancel any in-flight request before starting a new one
-      if (!append) {
-        abortRef.current?.abort();
-        const controller = new AbortController();
-        abortRef.current = controller;
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
 
+      if (!append) {
+        setContacts([]);
         setLoading(true);
         setVisibleCount(PAGE_SIZE);
       }
       setError(null);
-
-      const controller = abortRef.current;
 
       try {
         const params = new URLSearchParams();
@@ -221,8 +220,25 @@ export default function PipelineLeadList({
     };
   }, [fetchContacts]);
 
+  // Fetch appointments once on mount (separate from contacts to avoid lag)
+  const [appointmentMap, setAppointmentMap] = useState<Record<string, { title: string; startTime: string }>>({});
+  useEffect(() => {
+    apiFetch("/api/pipeline/appointments")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.appointments) setAppointmentMap(d.appointments);
+      })
+      .catch(() => {});
+  }, [refreshKey]);
+
+  // Merge appointments into contacts client-side
+  const contactsWithApts = contacts.map((c) => {
+    const apt = c.ghlContactId ? appointmentMap[c.ghlContactId] : null;
+    return apt ? { ...c, nextAppointment: apt } : c;
+  });
+
   // Client-side sort refinement
-  const sorted = [...contacts].sort((a, b) => {
+  const sorted = [...contactsWithApts].sort((a, b) => {
     let cmp = 0;
     switch (sortField) {
       case "urgency":

@@ -7,6 +7,7 @@ import { Bot, X, Send, Loader2, CheckCheck, Maximize2, Trash2 } from "lucide-rea
 import { useAuth } from "@/lib/auth/AuthContext";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { scoutLinkComponents } from "@/components/scout/ScoutBubble";
 import { DraftedActionCard } from "@/components/scout";
 import { parsePageContext } from "@/lib/scout/page-context";
 import type { DraftedAction } from "@/types/scout";
@@ -346,7 +347,9 @@ export default function ScoutFAB() {
                     }
                   >
                     <div className="prose prose-sm max-w-none break-words [&>p]:m-0 [&>ul]:my-1 [&>ol]:my-1 [&>h1]:text-base [&>h2]:text-sm [&>h3]:text-sm">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={scoutLinkComponents}>
+                        {msg.content}
+                      </ReactMarkdown>
                     </div>
                   </div>
                 </div>

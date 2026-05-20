@@ -1,9 +1,31 @@
 "use client";
 
 // Sprint 0 fix: Scout chat was rendering markdown as literal text
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, ExternalLink } from "lucide-react";
+
+/** Shared link renderer — opens in new tab with a styled pill for internal links */
+export const scoutLinkComponents: Components = {
+  a: ({ href, children }) => {
+    const isInternal = href?.startsWith("/");
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={
+          isInternal
+            ? "inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-nah-blue/10 text-nah-blue font-medium no-underline hover:bg-nah-blue/20 transition-colors"
+            : "text-nah-blue underline underline-offset-2 hover:text-nah-blue/80 transition-colors"
+        }
+      >
+        {children}
+        {isInternal && <ExternalLink size={11} className="flex-shrink-0" />}
+      </a>
+    );
+  },
+};
 
 interface ScoutBubbleProps {
   content: string;
@@ -21,14 +43,12 @@ export default function ScoutBubble({ content, timestamp }: ScoutBubbleProps) {
 
       <div className="flex-1 min-w-0">
         {/* Scout name */}
-        <span className="text-caption text-scout-purple font-semibold block mb-1">
-          Scout
-        </span>
+        <span className="text-caption text-scout-purple font-semibold block mb-1">Scout</span>
 
         {/* Message content — rendered as markdown for assistant messages */}
         <div className="bg-scout-bubble-bg border border-scout-bubble-border rounded-xl rounded-tl-sm px-4 py-3">
           <div className="prose prose-sm max-w-none text-text-primary prose-headings:text-text-primary prose-strong:text-text-primary prose-code:text-scout-purple prose-a:text-nah-blue">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={scoutLinkComponents}>
               {content}
             </ReactMarkdown>
           </div>

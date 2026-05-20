@@ -19,7 +19,6 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
-import * as ghl from "@/lib/ghl";
 
 const PAGE_SIZE = 1000;
 
@@ -275,32 +274,6 @@ export async function GET(request: NextRequest) {
       contacts.sort((a, b) => b.urgencyScore - a.urgencyScore || b.daysSinceSubTask - a.daysSinceSubTask);
     } else if (sort === "name") {
       contacts.sort((a, b) => a.name.localeCompare(b.name));
-    }
-
-    // Fetch upcoming appointments and attach to contacts
-    try {
-      const nowISO = new Date().toISOString();
-      const in30d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      const appointments = await ghl.getAllAppointments(nowISO, in30d);
-
-      const aptByContactId = new Map<string, { title: string; startTime: string }>();
-      for (const apt of appointments) {
-        if (!apt.contactId) continue;
-        // Keep earliest upcoming appointment per contact
-        const existing = aptByContactId.get(apt.contactId);
-        if (!existing || new Date(apt.startTime) < new Date(existing.startTime)) {
-          aptByContactId.set(apt.contactId, { title: apt.title, startTime: apt.startTime });
-        }
-      }
-
-      for (const c of contacts) {
-        const apt = c.ghlContactId ? aptByContactId.get(c.ghlContactId) : null;
-        if (apt) {
-          (c as Record<string, unknown>).nextAppointment = apt;
-        }
-      }
-    } catch {
-      // Appointments are best-effort — don't fail the whole response
     }
 
     return NextResponse.json({ contacts, total: contacts.length, totalCount: contacts.length });

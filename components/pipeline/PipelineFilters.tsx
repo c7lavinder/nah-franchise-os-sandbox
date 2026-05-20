@@ -19,7 +19,7 @@ export default function PipelineFilters({ onSearchChange, onRefresh, onAddProspe
   useEffect(() => {
     const timer = setTimeout(() => {
       onSearchChange(searchInput);
-    }, 300);
+    }, 500);
     return () => clearTimeout(timer);
   }, [searchInput, onSearchChange]);
 

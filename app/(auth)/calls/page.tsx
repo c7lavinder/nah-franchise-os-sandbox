@@ -3,7 +3,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 import { BASE_PATH } from "@/lib/base-path";
 
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, Plus, X, Loader2, Phone, Monitor, AlertTriangle, Upload } from "lucide-react";
+import { RefreshCw, X, Loader2, Phone, Monitor, AlertTriangle, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
 
@@ -210,53 +210,50 @@ function CallRow({ c }: { c: Call }) {
             </span>
           )}
         </div>
-        {/* Row 1: NAH team members */}
-        {c.teamMembers.length > 0 && (
+        {/* Participants — single row: team + contacts + unmapped, capped at 3 visible */}
+        {(c.teamMembers.length > 0 || c.externalContacts.length > 0 || (c.unmappedParticipants?.length ?? 0) > 0) && (
           <div
             className="flex items-center gap-1 mt-1 overflow-x-auto scrollbar-hide"
             style={{ scrollbarWidth: "none" }}
           >
-            {c.teamMembers.map((m, i) => (
+            {c.teamMembers.slice(0, 2).map((m, i) => (
               <span
-                key={i}
+                key={`t${i}`}
                 className="text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap flex-shrink-0"
                 style={m.color ? { backgroundColor: `${m.color}18`, color: m.color } : undefined}
               >
                 {m.name}
               </span>
             ))}
-          </div>
-        )}
-        {/* Row 2: Matched contacts */}
-        {c.externalContacts.length > 0 && (
-          <div
-            className="flex items-center gap-1 mt-1 overflow-x-auto scrollbar-hide"
-            style={{ scrollbarWidth: "none" }}
-          >
-            {c.externalContacts.map((name, i) => (
+            {c.externalContacts.slice(0, 2).map((name, i) => (
               <span
-                key={i}
+                key={`c${i}`}
                 className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-bg-tertiary text-text-secondary whitespace-nowrap flex-shrink-0"
               >
                 {name}
               </span>
             ))}
-          </div>
-        )}
-        {/* Row 3: Unmapped participants (not in contacts) */}
-        {c.unmappedParticipants?.length > 0 && (
-          <div
-            className="flex items-center gap-1 mt-1 overflow-x-auto scrollbar-hide"
-            style={{ scrollbarWidth: "none" }}
-          >
-            {c.unmappedParticipants.map((name, i) => (
+            {(c.unmappedParticipants ?? []).slice(0, 1).map((name, i) => (
               <span
-                key={i}
+                key={`u${i}`}
                 className="text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-dashed border-[#EAB308]/40 text-[#EAB308] whitespace-nowrap flex-shrink-0"
               >
                 {name}
               </span>
             ))}
+            {(() => {
+              const total = c.teamMembers.length + c.externalContacts.length + (c.unmappedParticipants?.length ?? 0);
+              const shown =
+                Math.min(c.teamMembers.length, 2) +
+                Math.min(c.externalContacts.length, 2) +
+                Math.min(c.unmappedParticipants?.length ?? 0, 1);
+              const extra = total - shown;
+              return extra > 0 ? (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-bg-tertiary text-text-tertiary whitespace-nowrap flex-shrink-0">
+                  +{extra}
+                </span>
+              ) : null;
+            })()}
           </div>
         )}
       </div>
@@ -358,8 +355,8 @@ export default function CallsPage() {
   const [callTypes, setCallTypes] = useState<CallType[]>([]);
   const [reclassifying, setReclassifying] = useState<string | null>(null);
 
-  // Upload form
-  const [showManualEntry, setShowManualEntry] = useState(false);
+  // Upload form — always visible as a big drop zone
+  const [uploadExpanded, setUploadExpanded] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [pastedTranscript, setPastedTranscript] = useState("");
   const [uploadDate, setUploadDate] = useState("");
@@ -436,7 +433,7 @@ export default function CallsPage() {
   }
 
   useEffect(() => {
-    if (!showManualEntry) return;
+    if (!uploadExpanded) return;
     apiFetch("/api/settings/users")
       .then((r) => (r.ok ? r.json() : null))
       .then((uData) => {
@@ -444,7 +441,7 @@ export default function CallsPage() {
           setUsers(uData.users.filter((u: UserOption & { is_active: boolean }) => u.is_active !== false));
       })
       .catch(() => {});
-  }, [showManualEntry]);
+  }, [uploadExpanded]);
 
   async function handleUploadSubmit() {
     if (!uploadFile && !pastedTranscript.trim()) return;
@@ -480,7 +477,7 @@ export default function CallsPage() {
       }
 
       // 3. Navigate first, then trigger AI processing from the new page context
-      setShowManualEntry(false);
+      setUploadExpanded(false);
       setUploadFile(null);
       setPastedTranscript("");
       setUploadDate("");
@@ -526,6 +523,181 @@ export default function CallsPage() {
         <ScoreCardRow page="calls" />
       </div>
 
+      {/* Drop New Call Here — always-visible big drop zone */}
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setUploadDragOver(true);
+        }}
+        onDragLeave={() => setUploadDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setUploadDragOver(false);
+          const file = e.dataTransfer.files[0];
+          if (file) {
+            setUploadFile(file);
+            setPastedTranscript("");
+            setUploadExpanded(true);
+          }
+        }}
+        onClick={() => {
+          if (!uploadExpanded && !uploadFile) {
+            setUploadExpanded(true);
+          }
+        }}
+        className={`mb-4 border-2 border-dashed rounded-xl transition-all ${
+          uploadDragOver
+            ? "border-nah-blue bg-[rgba(0,161,225,0.05)]"
+            : uploadFile
+              ? "border-success/40 bg-success/5"
+              : "border-border-default hover:border-border-hover bg-bg-secondary"
+        } ${!uploadExpanded ? "cursor-pointer" : ""}`}
+      >
+        {/* Collapsed state — big prominent drop target */}
+        {!uploadExpanded && !uploadFile && (
+          <div className="flex flex-col items-center justify-center py-8 px-4">
+            <Upload size={28} className={`mb-2 ${uploadDragOver ? "text-nah-blue" : "text-text-tertiary"}`} />
+            <p className="text-body-sm font-semibold text-text-primary">Drop New Call Here</p>
+            <p className="text-caption text-text-tertiary mt-1">
+              Drop a recording, transcript file, or click to paste — AI handles the rest
+            </p>
+          </div>
+        )}
+
+        {/* Expanded state — full upload form */}
+        {(uploadExpanded || uploadFile) && (
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-body-sm font-medium text-text-primary">Upload a Call</h3>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setUploadExpanded(false);
+                  setUploadFile(null);
+                  setPastedTranscript("");
+                }}
+                className="btn-ghost p-1"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* File drop / selected */}
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = ".mp4,.webm,.m4a,.mp3,.wav,.txt";
+                input.onchange = () => {
+                  const file = input.files?.[0];
+                  if (file) {
+                    setUploadFile(file);
+                    setPastedTranscript("");
+                  }
+                };
+                input.click();
+              }}
+              className={`border-2 border-dashed rounded-lg p-5 text-center transition-colors cursor-pointer ${
+                uploadFile ? "border-success/40 bg-success/5" : "border-border-default hover:border-border-hover"
+              }`}
+            >
+              {uploadFile ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Upload size={16} className="text-success" />
+                  <span className="text-body-sm font-medium text-text-primary">{uploadFile.name}</span>
+                  <span className="text-caption text-text-tertiary">
+                    ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setUploadFile(null);
+                    }}
+                    className="text-text-tertiary hover:text-danger ml-2"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Upload size={20} className="text-text-tertiary mx-auto mb-2" />
+                  <p className="text-body-sm text-text-secondary">Drop a recording or transcript here</p>
+                  <p className="text-caption text-text-tertiary mt-1">MP4, WebM, M4A, MP3, WAV, or TXT</p>
+                </>
+              )}
+            </div>
+
+            {/* Or paste transcript */}
+            {!uploadFile && (
+              <div className="mt-3">
+                <label className="block text-caption text-text-tertiary mb-1">Or paste transcript</label>
+                <textarea
+                  value={pastedTranscript}
+                  onChange={(e) => setPastedTranscript(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  rows={4}
+                  placeholder={"Speaker 1: Hello...\nSpeaker 2: Hi there..."}
+                  className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary resize-none font-mono"
+                />
+              </div>
+            )}
+
+            {/* Date + Hosted By */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3" onClick={(e) => e.stopPropagation()}>
+              <div>
+                <label className="block text-caption text-text-tertiary mb-1">Call Date</label>
+                <input
+                  type="datetime-local"
+                  value={uploadDate}
+                  onChange={(e) => setUploadDate(e.target.value)}
+                  className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-caption text-text-tertiary mb-1">Who hosted?</label>
+                <select
+                  value={uploadHostedBy}
+                  onChange={(e) => setUploadHostedBy(e.target.value)}
+                  className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary"
+                >
+                  <option value="">Select team member...</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <p className="text-caption text-text-tertiary mt-3">
+              AI will determine: title, call type, contact match, and coaching analysis.
+            </p>
+
+            <div className="flex items-center gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => void handleUploadSubmit()}
+                disabled={(!uploadFile && !pastedTranscript.trim()) || manualSaving}
+                className="btn-primary px-4 py-2 text-body-sm flex items-center gap-1 disabled:opacity-50"
+              >
+                {manualSaving ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Upload & Process
+              </button>
+              <button
+                onClick={() => {
+                  setUploadExpanded(false);
+                  setUploadFile(null);
+                  setPastedTranscript("");
+                }}
+                className="btn-ghost px-3 py-2 text-body-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Controls */}
       <div className="flex items-center gap-2 mb-4">
         {/* Time filter */}
@@ -550,159 +722,10 @@ export default function CallsPage() {
         </div>
         <span className="text-caption text-text-tertiary">{filtered.length} calls</span>
 
-        <div className="flex items-center gap-2 ml-auto">
-          <button
-            onClick={() => setShowManualEntry((v) => !v)}
-            className="btn-secondary px-3 py-1.5 text-caption flex items-center gap-1"
-          >
-            <Plus size={14} /> Log Call
-          </button>
-          <button onClick={fetchCalls} className="btn-ghost p-1.5" disabled={loading}>
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-          </button>
-        </div>
+        <button onClick={fetchCalls} className="btn-ghost p-1.5 ml-auto" disabled={loading}>
+          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+        </button>
       </div>
-
-      {/* Upload Call Form */}
-      {showManualEntry && (
-        <div className="mb-4 p-4 bg-bg-secondary border border-border-default rounded-lg">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-body-sm font-medium text-text-primary">Upload a Call</h3>
-            <button onClick={() => setShowManualEntry(false)} className="btn-ghost p-1">
-              <X size={14} />
-            </button>
-          </div>
-
-          {/* Drop zone */}
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setUploadDragOver(true);
-            }}
-            onDragLeave={() => setUploadDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setUploadDragOver(false);
-              const file = e.dataTransfer.files[0];
-              if (file) {
-                setUploadFile(file);
-                setPastedTranscript("");
-              }
-            }}
-            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
-              uploadDragOver
-                ? "border-nah-blue bg-[rgba(0,161,225,0.05)]"
-                : uploadFile
-                  ? "border-success/40 bg-success/5"
-                  : "border-border-default hover:border-border-hover"
-            }`}
-            onClick={() => {
-              const input = document.createElement("input");
-              input.type = "file";
-              input.accept = ".mp4,.webm,.m4a,.mp3,.wav,.txt";
-              input.onchange = () => {
-                const file = input.files?.[0];
-                if (file) {
-                  setUploadFile(file);
-                  setPastedTranscript("");
-                }
-              };
-              input.click();
-            }}
-          >
-            {uploadFile ? (
-              <div className="flex items-center justify-center gap-2">
-                <Upload size={16} className="text-success" />
-                <span className="text-body-sm font-medium text-text-primary">{uploadFile.name}</span>
-                <span className="text-caption text-text-tertiary">
-                  ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
-                </span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setUploadFile(null);
-                  }}
-                  className="text-text-tertiary hover:text-danger ml-2"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ) : (
-              <>
-                <Upload size={20} className="text-text-tertiary mx-auto mb-2" />
-                <p className="text-body-sm text-text-secondary">Drop a recording or transcript here</p>
-                <p className="text-caption text-text-tertiary mt-1">MP4, WebM, M4A, MP3, WAV, or TXT</p>
-              </>
-            )}
-          </div>
-
-          {/* Or paste transcript */}
-          {!uploadFile && (
-            <div className="mt-3">
-              <label className="block text-caption text-text-tertiary mb-1">Or paste transcript</label>
-              <textarea
-                value={pastedTranscript}
-                onChange={(e) => setPastedTranscript(e.target.value)}
-                rows={4}
-                placeholder={"Speaker 1: Hello...\nSpeaker 2: Hi there..."}
-                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary resize-none font-mono"
-              />
-            </div>
-          )}
-
-          {/* Date + Hosted By */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-            <div>
-              <label className="block text-caption text-text-tertiary mb-1">Call Date</label>
-              <input
-                type="datetime-local"
-                value={uploadDate}
-                onChange={(e) => setUploadDate(e.target.value)}
-                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary"
-              />
-            </div>
-            <div>
-              <label className="block text-caption text-text-tertiary mb-1">Who hosted?</label>
-              <select
-                value={uploadHostedBy}
-                onChange={(e) => setUploadHostedBy(e.target.value)}
-                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-body-sm text-text-primary"
-              >
-                <option value="">Select team member...</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.full_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <p className="text-caption text-text-tertiary mt-3">
-            AI will determine: title, call type, contact match, and coaching analysis.
-          </p>
-
-          <div className="flex items-center gap-2 mt-3">
-            <button
-              onClick={() => void handleUploadSubmit()}
-              disabled={(!uploadFile && !pastedTranscript.trim()) || manualSaving}
-              className="btn-primary px-4 py-2 text-body-sm flex items-center gap-1 disabled:opacity-50"
-            >
-              {manualSaving ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Upload & Process
-            </button>
-            <button
-              onClick={() => {
-                setShowManualEntry(false);
-                setUploadFile(null);
-                setPastedTranscript("");
-              }}
-              className="btn-ghost px-3 py-2 text-body-sm"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Loading */}
       {loading && calls.length === 0 && (

@@ -193,6 +193,7 @@ export default function CallDetailPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [expandedPill, setExpandedPill] = useState<string | null>(null);
+  const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
 
   const fetchDetail = useCallback(async () => {
     try {
@@ -282,6 +283,14 @@ export default function CallDetailPage() {
     badCallReasons.push("Call under 2 minutes");
 
   const unmappedCount = (call.rawParticipants ?? []).filter((p) => p.role !== "nah_team" && !p.contact_id).length;
+
+  const COLLAPSE_THRESHOLD = 3;
+  const toggleCluster = (key: string) =>
+    setExpandedClusters((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
 
   return (
     <div>
@@ -397,24 +406,40 @@ export default function CallDetailPage() {
         {/* Row 3 — People + Territory */}
         <div className="flex items-center gap-4 flex-wrap">
           {/* Team cluster */}
-          {call.teamMembers?.length > 0 && (
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">Team</div>
-              <div className="flex items-center gap-1.5">
-                {call.teamMembers.map((m) => (
-                  <div
-                    key={m.id}
-                    className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#F1EFE8] text-[#444441]"
-                  >
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-medium bg-[#EEEDFE] text-[#534AB7]">
-                      {initials(m.name)}
-                    </div>
-                    {m.name}
+          {call.teamMembers?.length > 0 &&
+            (() => {
+              const items = call.teamMembers;
+              const isExpanded = expandedClusters.has("team");
+              const needsCollapse = items.length >= COLLAPSE_THRESHOLD;
+              const visible = needsCollapse && !isExpanded ? items.slice(0, 2) : items;
+              const remaining = items.length - visible.length;
+              return (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">Team</div>
+                  <div className="flex items-center gap-1.5">
+                    {visible.map((m) => (
+                      <div
+                        key={m.id}
+                        className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#F1EFE8] text-[#444441]"
+                      >
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-medium bg-[#EEEDFE] text-[#534AB7]">
+                          {initials(m.name)}
+                        </div>
+                        {m.name}
+                      </div>
+                    ))}
+                    {needsCollapse && (
+                      <button
+                        onClick={() => toggleCluster("team")}
+                        className="text-[11px] font-medium px-[8px] py-[3px] rounded-full bg-bg-tertiary text-text-tertiary hover:bg-bg-hover transition-colors"
+                      >
+                        {isExpanded ? "show less" : `+${remaining} more`}
+                      </button>
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                </div>
+              );
+            })()}
 
           {/* Divider */}
           {call.teamMembers?.length > 0 && (call.linkedContacts?.length > 0 || call.contactName) && (
@@ -423,36 +448,53 @@ export default function CallDetailPage() {
 
           {/* Contact cluster */}
           {call.linkedContacts?.length > 0 ? (
-            <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
-                {call.linkedContacts.length === 1 ? "Contact" : `Contacts (${call.linkedContacts.length})`}
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {call.linkedContacts.map((c) =>
-                  c.linked && c.id ? (
-                    <Link
-                      key={c.id}
-                      href={`/contacts/${c.id}`}
-                      className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#E6F1FB] text-[#0C447C] hover:bg-[#B5D4F4] transition-colors"
-                    >
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-medium bg-[#D4E8F9] text-[#185FA5]">
-                        {initials(c.name)}
-                      </div>
-                      {c.name}
-                    </Link>
-                  ) : (
-                    <div
-                      key={c.email}
-                      className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#FAEEDA] text-[#633806]"
-                      title={`${c.email} — not in system`}
-                    >
-                      <AlertTriangle size={12} />
-                      {c.name}
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
+            (() => {
+              const items = call.linkedContacts;
+              const isExpanded = expandedClusters.has("contacts");
+              const needsCollapse = items.length >= COLLAPSE_THRESHOLD;
+              const visible = needsCollapse && !isExpanded ? items.slice(0, 2) : items;
+              const remaining = items.length - visible.length;
+              return (
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
+                    {items.length === 1 ? "Contact" : `Contacts (${items.length})`}
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {visible.map((c) =>
+                      c.linked && c.id ? (
+                        <Link
+                          key={c.id}
+                          href={`/contacts/${c.id}`}
+                          className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#E6F1FB] text-[#0C447C] hover:bg-[#B5D4F4] transition-colors"
+                        >
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-medium bg-[#D4E8F9] text-[#185FA5]">
+                            {initials(c.name)}
+                          </div>
+                          {c.name}
+                        </Link>
+                      ) : (
+                        <div
+                          key={c.email}
+                          className="flex items-center gap-[5px] text-[12px] font-medium px-[8px] py-[3px] rounded-full bg-[#FAEEDA] text-[#633806]"
+                          title={`${c.email} — not in system`}
+                        >
+                          <AlertTriangle size={12} />
+                          {c.name}
+                        </div>
+                      )
+                    )}
+                    {needsCollapse && (
+                      <button
+                        onClick={() => toggleCluster("contacts")}
+                        className="text-[11px] font-medium px-[8px] py-[3px] rounded-full bg-bg-tertiary text-text-tertiary hover:bg-bg-hover transition-colors"
+                      >
+                        {isExpanded ? "show less" : `+${remaining} more`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()
           ) : call.contactName ? (
             <div>
               <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">Contact</div>
@@ -469,51 +511,85 @@ export default function CallDetailPage() {
           ) : null}
 
           {/* Journey cluster — every journey advanced by this call */}
-          {call.callJourneys && call.callJourneys.length > 0 && (
-            <>
-              <div className="w-px h-8 bg-border-default" />
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
-                  {call.callJourneys.length === 1 ? "Journey" : `Journeys (${call.callJourneys.length})`}
-                </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {call.callJourneys.map((j) => (
-                    <Link
-                      key={j.journey_pipeline_state_id}
-                      href={`/journeys/${j.journey_id}`}
-                      className="inline-flex items-center gap-[5px] text-[12px] font-medium px-[9px] py-[3px] rounded-full bg-[#EEEDFE] text-[#3A2FAE] hover:bg-[#D7D4FB] transition-colors"
-                      title={j.stage_name ? `${j.journey_name} · ${j.stage_name}` : j.journey_name}
-                    >
-                      {j.journey_name}
-                      {j.stage_name && <span className="text-[10px] font-normal opacity-70">· {j.stage_name}</span>}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
+          {call.callJourneys &&
+            call.callJourneys.length > 0 &&
+            (() => {
+              const items = call.callJourneys;
+              const isExpanded = expandedClusters.has("journeys");
+              const needsCollapse = items.length >= COLLAPSE_THRESHOLD;
+              const visible = needsCollapse && !isExpanded ? items.slice(0, 2) : items;
+              const remaining = items.length - visible.length;
+              return (
+                <>
+                  <div className="w-px h-8 bg-border-default" />
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
+                      {items.length === 1 ? "Journey" : `Journeys (${items.length})`}
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {visible.map((j) => (
+                        <Link
+                          key={j.journey_pipeline_state_id}
+                          href={`/journeys/${j.journey_id}`}
+                          className="inline-flex items-center gap-[5px] text-[12px] font-medium px-[9px] py-[3px] rounded-full bg-[#EEEDFE] text-[#3A2FAE] hover:bg-[#D7D4FB] transition-colors"
+                          title={j.stage_name ? `${j.journey_name} · ${j.stage_name}` : j.journey_name}
+                        >
+                          {j.journey_name}
+                          {j.stage_name && <span className="text-[10px] font-normal opacity-70">· {j.stage_name}</span>}
+                        </Link>
+                      ))}
+                      {needsCollapse && (
+                        <button
+                          onClick={() => toggleCluster("journeys")}
+                          className="text-[11px] font-medium px-[8px] py-[3px] rounded-full bg-bg-tertiary text-text-tertiary hover:bg-bg-hover transition-colors"
+                        >
+                          {isExpanded ? "show less" : `+${remaining} more`}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
 
           {/* Territory cluster — every territory attached to this call */}
           {(call.callTerritories?.length ?? 0) > 0 ? (
-            <>
-              <div className="w-px h-8 bg-border-default" />
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
-                  {call.callTerritories.length === 1 ? "Territory" : `Territories (${call.callTerritories.length})`}
-                </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {call.callTerritories.map((t) => (
-                    <Link
-                      key={t.TerritorySlug}
-                      href={`/territories/${t.TerritorySlug}`}
-                      className="inline-flex items-center gap-[5px] text-[12px] font-medium px-[9px] py-[3px] rounded-full bg-[#FAEEDA] text-[#633806] hover:bg-[#FAC775] transition-colors"
-                    >
-                      {t.Nickname}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </>
+            (() => {
+              const items = call.callTerritories;
+              const isExpanded = expandedClusters.has("territories");
+              const needsCollapse = items.length >= COLLAPSE_THRESHOLD;
+              const visible = needsCollapse && !isExpanded ? items.slice(0, 2) : items;
+              const remaining = items.length - visible.length;
+              return (
+                <>
+                  <div className="w-px h-8 bg-border-default" />
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
+                      {items.length === 1 ? "Territory" : `Territories (${items.length})`}
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {visible.map((t) => (
+                        <Link
+                          key={t.TerritorySlug}
+                          href={`/territories/${t.TerritorySlug}`}
+                          className="inline-flex items-center gap-[5px] text-[12px] font-medium px-[9px] py-[3px] rounded-full bg-[#FAEEDA] text-[#633806] hover:bg-[#FAC775] transition-colors"
+                        >
+                          {t.Nickname}
+                        </Link>
+                      ))}
+                      {needsCollapse && (
+                        <button
+                          onClick={() => toggleCluster("territories")}
+                          className="text-[11px] font-medium px-[8px] py-[3px] rounded-full bg-bg-tertiary text-text-tertiary hover:bg-bg-hover transition-colors"
+                        >
+                          {isExpanded ? "show less" : `+${remaining} more`}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              );
+            })()
           ) : call.TerritorySlug ? (
             <>
               <div className="w-px h-8 bg-border-default" />
@@ -532,42 +608,58 @@ export default function CallDetailPage() {
           ) : null}
 
           {/* Unknown participants — clickable inline mapping */}
-          {call.unknownParticipants?.length > 0 && (
-            <>
-              <div className="w-px h-8 bg-border-default" />
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
-                  Also present ({call.unknownParticipants.length})
-                </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {call.unknownParticipants.map((p) => (
-                    <UnknownParticipantPill
-                      key={p.email || p.name}
-                      pillKey={p.email || p.name}
-                      expandedPill={expandedPill}
-                      onExpand={setExpandedPill}
-                      participant={p}
-                      callId={callId}
-                      rawParticipant={
-                        (call.rawParticipants ?? []).find((rp) => {
-                          if (rp.email && p.email && rp.email.toLowerCase() === p.email.toLowerCase()) return true;
-                          if (rp.display_name && p.name && rp.display_name.toLowerCase() === p.name.toLowerCase())
-                            return true;
-                          if (rp.email && p.name && p.name.toLowerCase() === rp.email.toLowerCase()) return true;
-                          return false;
-                        }) ?? null
-                      }
-                      primaryContactId={call.contact_id}
-                      primaryContactName={call.contactName}
-                      callTerritories={(call.callTerritories ?? []).map((t) => t.TerritorySlug)}
-                      callJourneys={call.callJourneys ?? []}
-                      onMapped={() => void fetchDetail()}
-                    />
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
+          {call.unknownParticipants?.length > 0 &&
+            (() => {
+              const items = call.unknownParticipants;
+              const isExpanded = expandedClusters.has("unknown");
+              const needsCollapse = items.length >= COLLAPSE_THRESHOLD;
+              const visible = needsCollapse && !isExpanded ? items.slice(0, 2) : items;
+              const remaining = items.length - visible.length;
+              return (
+                <>
+                  <div className="w-px h-8 bg-border-default" />
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
+                      Also present ({items.length})
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {visible.map((p) => (
+                        <UnknownParticipantPill
+                          key={p.email || p.name}
+                          pillKey={p.email || p.name}
+                          expandedPill={expandedPill}
+                          onExpand={setExpandedPill}
+                          participant={p}
+                          callId={callId}
+                          rawParticipant={
+                            (call.rawParticipants ?? []).find((rp) => {
+                              if (rp.email && p.email && rp.email.toLowerCase() === p.email.toLowerCase()) return true;
+                              if (rp.display_name && p.name && rp.display_name.toLowerCase() === p.name.toLowerCase())
+                                return true;
+                              if (rp.email && p.name && p.name.toLowerCase() === rp.email.toLowerCase()) return true;
+                              return false;
+                            }) ?? null
+                          }
+                          primaryContactId={call.contact_id}
+                          primaryContactName={call.contactName}
+                          callTerritories={(call.callTerritories ?? []).map((t) => t.TerritorySlug)}
+                          callJourneys={call.callJourneys ?? []}
+                          onMapped={() => void fetchDetail()}
+                        />
+                      ))}
+                      {needsCollapse && (
+                        <button
+                          onClick={() => toggleCluster("unknown")}
+                          className="text-[11px] font-medium px-[8px] py-[3px] rounded-full bg-bg-tertiary text-text-tertiary hover:bg-bg-hover transition-colors"
+                        >
+                          {isExpanded ? "show less" : `+${remaining} more`}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
         </div>
       </div>
 

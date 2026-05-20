@@ -18,8 +18,7 @@ type SB = SupabaseClient;
  *  loop; extreme collisions return the base with a short random suffix. */
 async function generateUniqueSlug(supabase: SB, base: string): Promise<string> {
   const cleaned = slugifyBase(base) || "journey";
-  const { data: existing } = await supabase
-    .from("journeys").select("slug").like("slug", `${cleaned}%`);
+  const { data: existing } = await supabase.from("journeys").select("slug").like("slug", `${cleaned}%`);
   const taken = new Set((existing ?? []).map((r: { slug: string | null }) => r.slug).filter(Boolean));
   if (!taken.has(cleaned)) return cleaned;
   for (let i = 2; i < 100; i++) {
@@ -29,8 +28,11 @@ async function generateUniqueSlug(supabase: SB, base: string): Promise<string> {
   return `${cleaned}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** Find or create a journey for the contact. Returns journey id. */
+/** Find or create a journey for the contact. Returns journey id.
+ *  Checks both primary_contact_id and journey_contacts membership
+ *  (spouse, co_primary, etc.) before creating a new journey. */
 export async function ensureJourneyForContact(supabase: SB, contactId: string): Promise<string | null> {
+  // Check if contact is the primary on an existing journey
   const { data: existing } = await supabase
     .from("journeys")
     .select("id")
@@ -38,14 +40,27 @@ export async function ensureJourneyForContact(supabase: SB, contactId: string): 
     .maybeSingle();
   if (existing?.id) return existing.id;
 
+  // Check if contact is a member (spouse, co_primary, etc.) on an active journey
+  const { data: membership } = await supabase
+    .from("journey_contacts")
+    .select("journey_id, journeys!inner(id, status)")
+    .eq("contact_id", contactId)
+    .is("left_at", null)
+    .limit(1)
+    .maybeSingle();
+  const memberJourney = membership?.journeys as
+    | { id: string; status: string }
+    | { id: string; status: string }[]
+    | null;
+  const memberJourneyObj = Array.isArray(memberJourney) ? memberJourney[0] : memberJourney;
+  if (memberJourneyObj?.status === "active") return memberJourneyObj.id;
+
   const { data: contact } = await supabase
     .from("contacts")
     .select("first_name, last_name, email")
     .eq("id", contactId)
     .maybeSingle();
-  const name = `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim()
-    || contact?.email
-    || "Unnamed";
+  const name = `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim() || contact?.email || "Unnamed";
   const slug = await generateUniqueSlug(supabase, name);
 
   const { data: journey, error } = await supabase
@@ -71,10 +86,6 @@ export async function ensureJourneyForContact(supabase: SB, contactId: string): 
 /** Lookup helper: returns the active journey id for a contact (as primary). */
 export async function resolveJourneyIdForContact(supabase: SB, contactId: string | null): Promise<string | null> {
   if (!contactId) return null;
-  const { data } = await supabase
-    .from("journeys")
-    .select("id")
-    .eq("primary_contact_id", contactId)
-    .maybeSingle();
+  const { data } = await supabase.from("journeys").select("id").eq("primary_contact_id", contactId).maybeSingle();
   return data?.id ?? null;
 }
