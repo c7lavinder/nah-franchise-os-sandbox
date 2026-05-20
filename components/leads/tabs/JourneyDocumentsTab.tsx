@@ -57,6 +57,7 @@ export default function JourneyDocumentsTab({ journeyId, contactId }: Props) {
   const [extractionFields, setExtractionFields] = useState<ExtractionField[]>([]);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [savingFields, setSavingFields] = useState(false);
+  const [autoSaved, setAutoSaved] = useState<string[]>([]);
 
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
@@ -95,11 +96,22 @@ export default function JourneyDocumentsTab({ journeyId, contactId }: Props) {
         if (data.document) {
           setDocuments((prev) => [data.document, ...prev]);
         }
-        // Show extraction fields if available
+        // If AI auto-saved fields, show them pre-filled for review
+        // If no AI extraction, show empty fields for manual entry
         if (data.extractionFields?.length > 0) {
           setExtractionDoc(data.document);
           setExtractionFields(data.extractionFields);
-          setFieldValues({});
+          // Pre-fill with AI-extracted values from suggested_fields
+          const suggested = data.document?.suggested_fields ?? {};
+          const prefilled: Record<string, string> = {};
+          for (const [key, val] of Object.entries(suggested)) {
+            if (val !== null && String(val).trim()) prefilled[key] = String(val);
+          }
+          setFieldValues(prefilled);
+          // Track which fields were auto-saved
+          if (data.autoSavedFields?.length > 0) {
+            setAutoSaved(data.autoSavedFields);
+          }
         }
       }
     } catch {
@@ -214,12 +226,24 @@ export default function JourneyDocumentsTab({ journeyId, contactId }: Props) {
       {/* Extraction fields panel — shown after upload when fields can be populated */}
       {extractionDoc && extractionFields.length > 0 && (
         <div className="bg-nah-blue/5 border border-nah-blue/20 rounded-lg p-4">
+          {autoSaved.length > 0 && (
+            <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-success/10 border border-success/20 rounded-md">
+              <CheckCircle2 size={14} className="text-success flex-shrink-0" />
+              <p className="text-caption text-success">
+                AI extracted and saved {autoSaved.length} field{autoSaved.length === 1 ? "" : "s"} to the profile.
+                Review below and edit if needed.
+              </p>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="text-body-sm font-semibold text-text-primary">Update Profile Fields</h3>
+              <h3 className="text-body-sm font-semibold text-text-primary">
+                {autoSaved.length > 0 ? "Review Extracted Fields" : "Update Profile Fields"}
+              </h3>
               <p className="text-caption text-text-tertiary mt-0.5">
-                Fill in the values from the uploaded {extractionDoc.display_name.toLowerCase()} to update the prospect
-                profile.
+                {autoSaved.length > 0
+                  ? "These values were pulled from the document by AI. Edit any that need correction."
+                  : `Fill in the values from the uploaded ${extractionDoc.display_name.toLowerCase()} to update the prospect profile.`}
               </p>
             </div>
             <button
@@ -234,18 +258,26 @@ export default function JourneyDocumentsTab({ journeyId, contactId }: Props) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {extractionFields.map((ef) => (
-              <div key={ef.field}>
-                <label className="block text-caption text-text-tertiary mb-1">{ef.label}</label>
-                <input
-                  type="text"
-                  value={fieldValues[ef.field] ?? ""}
-                  onChange={(e) => setFieldValues((prev) => ({ ...prev, [ef.field]: e.target.value }))}
-                  placeholder={`Enter ${ef.label.toLowerCase()}...`}
-                  className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-1.5 text-body-sm text-text-primary placeholder:text-text-tertiary"
-                />
-              </div>
-            ))}
+            {extractionFields.map((ef) => {
+              const isSaved = autoSaved.includes(ef.field);
+              return (
+                <div key={ef.field}>
+                  <label className="flex items-center gap-1.5 text-caption text-text-tertiary mb-1">
+                    {ef.label}
+                    {isSaved && <CheckCircle2 size={10} className="text-success" />}
+                  </label>
+                  <input
+                    type="text"
+                    value={fieldValues[ef.field] ?? ""}
+                    onChange={(e) => setFieldValues((prev) => ({ ...prev, [ef.field]: e.target.value }))}
+                    placeholder={`Enter ${ef.label.toLowerCase()}...`}
+                    className={`w-full bg-bg-primary border rounded-md px-3 py-1.5 text-body-sm text-text-primary placeholder:text-text-tertiary ${
+                      isSaved ? "border-success/40" : "border-border-default"
+                    }`}
+                  />
+                </div>
+              );
+            })}
           </div>
 
           <div className="flex items-center gap-2 mt-3">
@@ -255,16 +287,17 @@ export default function JourneyDocumentsTab({ journeyId, contactId }: Props) {
               className="btn-primary px-4 py-1.5 text-body-sm flex items-center gap-1.5 disabled:opacity-50"
             >
               {savingFields ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-              Save to Profile
+              {autoSaved.length > 0 ? "Save Corrections" : "Save to Profile"}
             </button>
             <button
               onClick={() => {
                 setExtractionDoc(null);
                 setExtractionFields([]);
+                setAutoSaved([]);
               }}
               className="btn-ghost px-3 py-1.5 text-body-sm"
             >
-              Skip
+              {autoSaved.length > 0 ? "Looks Good" : "Skip"}
             </button>
           </div>
         </div>

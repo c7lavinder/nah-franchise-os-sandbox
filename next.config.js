@@ -9,7 +9,7 @@ const nextConfig = {
   experimental: {
     instrumentationHook: true,
   },
-  serverExternalPackages: ["mysql2", "ws"],
+  serverExternalPackages: ["mysql2", "ws", "pdf-parse"],
 };
 
 module.exports = nextConfig;
