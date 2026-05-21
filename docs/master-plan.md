@@ -212,6 +212,24 @@ Goal: support hundreds of franchisees who each buy 10+ houses/year.
 
 ---
 
+### Tier 2 — Scout Retrieval Brain (ADR-0013)
+
+The retrieval architecture that makes Scout's intelligence scale to 900K properties, hundreds of territories, and thousands of prospects. Full plan: `docs/adr/0013-retrieval-brain-architecture.md`
+
+| Phase | What                                                                                       | Status  | Effort       | New Cost |
+| ----- | ------------------------------------------------------------------------------------------ | ------- | ------------ | -------- |
+| 0     | **Fix what's broken** — wire transcripts→embedder, Scout→profile fields, GHL token logging | Planned | 2-3 sessions | $0       |
+| 1     | Auto-populate profiles from call extractions (confidence-based)                            | Planned | 2 sessions   | $0       |
+| 2     | Pre-computed contact & territory briefs                                                    | Planned | 2-3 sessions | ~$10/mo  |
+| 3     | Smart retrieval chaining (auto follow relationships)                                       | Planned | 2 sessions   | $0       |
+| 4     | Voyage AI embeddings + contextual retrieval + reranking                                    | Planned | 3-4 sessions | ~$30/mo  |
+| 5     | Wire RAG into Scout chat tools + search_transcripts                                        | Planned | 2-3 sessions | $0       |
+| 6     | Retrieval planner + quality logging                                                        | Planned | 2-3 sessions | $0       |
+
+**Audit findings (2026-05-22):** Significant infrastructure already built but not wired together. RAG embedder/retriever exist but only journal embeddings active — transcripts never embedded. 199-field profile table (`contact_profile_fields`) invisible to all Scout tools. Post-call extraction captures 30-60 fields per call but requires manual rep approval. Phase 0 fixes these wiring gaps with zero new code — just connecting what exists. Full audit: `docs/adr/0013-retrieval-brain-architecture.md`.
+
+---
+
 ## Decisions log
 
 See `docs/adr/` for individual decision records. Key decisions:
@@ -224,6 +242,7 @@ See `docs/adr/` for individual decision records. Key decisions:
 - GHL is a backend comms channel — NAH OS pushes to it, not the reverse (confirmed 2026-04-28)
 - Ed25519 signature verification ready for GHL webhooks when needed; shared-secret for non-GHL providers
 - Tier 1 #7 (form webhook) shelved — marketing site backend not editable
+- Scout Retrieval Brain architecture — 6-phase plan for scalable data retrieval (ADR-0013)
 
 ---
 
