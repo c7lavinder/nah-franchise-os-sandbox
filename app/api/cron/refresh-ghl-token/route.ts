@@ -70,6 +70,11 @@ export async function GET(request: NextRequest) {
   if (!response.ok) {
     const body = await response.text();
     console.error("[cron/refresh-ghl-token] Failed:", response.status, body);
+    await supabase.from("cron_job_log").insert({
+      job_name: "refresh-ghl-token",
+      status: "failed",
+      error: `HTTP ${response.status}: ${body.slice(0, 500)}`,
+    });
     return NextResponse.json({ error: "Token refresh failed", status: response.status }, { status: 500 });
   }
 
@@ -77,18 +82,30 @@ export async function GET(request: NextRequest) {
   const expiresAt = new Date(Date.now() + (data.expires_in ?? 86400) * 1000).toISOString();
 
   // Store new tokens
-  await supabase.from("app_settings").upsert(
-    { setting_key: "ghl_access_token", setting_value: JSON.stringify(data.access_token) },
-    { onConflict: "setting_key" }
-  );
-  await supabase.from("app_settings").upsert(
-    { setting_key: "ghl_refresh_token", setting_value: JSON.stringify(data.refresh_token) },
-    { onConflict: "setting_key" }
-  );
-  await supabase.from("app_settings").upsert(
-    { setting_key: "ghl_token_expires_at", setting_value: JSON.stringify(expiresAt) },
-    { onConflict: "setting_key" }
-  );
+  await supabase
+    .from("app_settings")
+    .upsert(
+      { setting_key: "ghl_access_token", setting_value: JSON.stringify(data.access_token) },
+      { onConflict: "setting_key" }
+    );
+  await supabase
+    .from("app_settings")
+    .upsert(
+      { setting_key: "ghl_refresh_token", setting_value: JSON.stringify(data.refresh_token) },
+      { onConflict: "setting_key" }
+    );
+  await supabase
+    .from("app_settings")
+    .upsert(
+      { setting_key: "ghl_token_expires_at", setting_value: JSON.stringify(expiresAt) },
+      { onConflict: "setting_key" }
+    );
+
+  await supabase.from("cron_job_log").insert({
+    job_name: "refresh-ghl-token",
+    status: "success",
+    metadata: { expires_at: expiresAt },
+  });
 
   console.log("[cron/refresh-ghl-token] Refreshed, expires at:", expiresAt);
   return NextResponse.json({ status: "refreshed", expiresAt });

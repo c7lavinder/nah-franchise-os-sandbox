@@ -10,6 +10,7 @@ const SYNC_JOBS = [
   "sync-ms-properties",
   "sync-ms-eos",
   "sync-ms-lead-list",
+  "refresh-ghl-token",
 ];
 
 /**

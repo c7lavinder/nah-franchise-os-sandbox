@@ -22,6 +22,7 @@ import {
   type FilterOp,
 } from "./data-tools";
 import type { CandidateIntelligence, ObjectionRegistry } from "@/lib/intelligence/types";
+import { getContactProfileFields } from "@/lib/profile/profile-fields";
 import type { ScoutToolName, DraftedAction, JourneyActionKind } from "@/types/scout";
 
 /** The result of executing a tool — either data or a drafted action */
@@ -893,7 +894,7 @@ async function executeGetNextAction(input: Record<string, unknown>): Promise<Too
     const contactId = input.contact_id as string;
     const supabase = createServerClient();
 
-    // Fetch contact from Supabase (source of truth) — includes all profile fields
+    // Fetch contact from Supabase (source of truth) — base columns only; EAV fields fetched separately
     const { data: contact, error: cErr } = await supabase
       .from("contacts")
       .select("*")
@@ -949,24 +950,36 @@ async function executeGetNextAction(input: Record<string, unknown>): Promise<Too
       ? Math.floor((Date.now() - new Date(c.last_synced_at).getTime()) / (1000 * 60 * 60 * 24))
       : null;
 
-    // Missing profile fields check
+    // Fetch EAV profile fields for richer analysis
+    const profileFields = await getContactProfileFields(c.id);
+    const pv = (name: string) => {
+      const f = profileFields[name];
+      if (!f || f.field_value == null) return null;
+      try {
+        return typeof f.field_value === "string" ? JSON.parse(f.field_value) : f.field_value;
+      } catch {
+        return f.field_value;
+      }
+    };
+
+    // Missing profile fields check — uses EAV fields
     const missingFields: string[] = [];
 
     const qualificationFields: [string, string][] = [
       ["territory_interest", "Where do they want their territory?"],
-      ["NonRetirementCapitalAvailable", "Have they confirmed capital?"],
-      ["BriefWorkHistory", "Prior business ownership?"],
-      ["WhatInterestsInOpportunity", "How strong is their motivation?"],
+      ["liquid_capital_available", "Have they confirmed capital?"],
+      ["current_occupation", "Prior business ownership?"],
+      ["motivation_level", "How strong is their motivation?"],
     ];
 
     const complianceFields: [string, string][] = [["nda_status", "NDA signed?"]];
 
     if (stageNum >= 3) {
       for (const [field, question] of qualificationFields) {
-        if (!c[field]) missingFields.push(`${field} — ${question}`);
+        if (!pv(field) && !c[field]) missingFields.push(`${field} — ${question}`);
       }
       for (const [field, question] of complianceFields) {
-        if (!c[field]) missingFields.push(`${field} — ${question}`);
+        if (!pv(field) && !c[field]) missingFields.push(`${field} — ${question}`);
       }
     }
 
@@ -994,7 +1007,7 @@ async function executeGetNextAction(input: Record<string, unknown>): Promise<Too
       recommendation = getStageRecommendation(currentStage, {});
     }
 
-    // Build analysis
+    // Build analysis — prefer EAV fields, fall back to contacts columns
     const lines = [
       `[world: frandev]`,
       `NEXT ACTION ANALYSIS — ${contactName}`,
@@ -1003,12 +1016,15 @@ async function executeGetNextAction(input: Record<string, unknown>): Promise<Too
       `  Pipeline: ${pipelineName}`,
       `  Stage: ${currentStage} (${daysInStage}d in stage)`,
       `  Days since added: ${daysSinceAdded}`,
-      `  Lead score: ${c.scout_lead_score ?? "Not scored"}`,
-      `  Territory interest: ${c.territory_interest ?? "Not set"}`,
-      `  Capital: ${c.NonRetirementCapitalAvailable ?? "Unknown"}`,
-      `  Timeline: ${c.investment_timeline ?? "Unknown"}`,
-      `  Trainual: ${c.trainual_completion_pct ? `${c.trainual_completion_pct}%` : "Not tracked"}`,
-      `  NDA: ${c.nda_status ?? "Not set"}`,
+      `  Lead score: ${pv("scout_lead_score") ?? c.scout_lead_score ?? "Not scored"}`,
+      `  Territory interest: ${pv("territory_interest") ?? c.territory_interest ?? "Not set"}`,
+      `  Capital: ${pv("liquid_capital_available") ?? c.NonRetirementCapitalAvailable ?? "Unknown"}`,
+      `  Timeline: ${pv("investment_timeline") ?? c.investment_timeline ?? "Unknown"}`,
+      `  Trainual: ${(pv("trainual_completion_pct") ?? c.trainual_completion_pct) ? `${pv("trainual_completion_pct") ?? c.trainual_completion_pct}%` : "Not tracked"}`,
+      `  NDA: ${pv("nda_status") ?? c.nda_status ?? "Not set"}`,
+      `  DISC: ${pv("disc_type") ?? "Unknown"}`,
+      `  Communication style: ${pv("communication_style") ?? "Unknown"}`,
+      `  Ghost risk: ${pv("ghost_risk") ?? "Unknown"}`,
     ];
 
     if (missingFields.length > 0) {

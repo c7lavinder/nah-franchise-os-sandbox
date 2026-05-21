@@ -8,6 +8,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { transcribeAudio } from "@/lib/calls/whisper";
 import { generateReviewPackage } from "@/lib/calls/review-package";
+import { embedTranscript } from "@/lib/rag/embedder";
 
 const MAX_ATTEMPTS = 3;
 const BATCH_SIZE = 5;
@@ -87,11 +88,7 @@ export async function processTranscriptJobs(): Promise<{
         .eq("id", job.id);
 
       // Update call status
-      await supabase
-        .from("calls")
-        .update({ status: "completed" })
-        .eq("id", job.call_id)
-        .eq("status", "scheduled");
+      await supabase.from("calls").update({ status: "completed" }).eq("id", job.call_id).eq("status", "scheduled");
 
       // Auto-log sub-task and trigger review package (fire-and-forget)
       const { data: call } = await supabase
@@ -113,6 +110,11 @@ export async function processTranscriptJobs(): Promise<{
           metadata: { call_id: job.call_id },
         });
       }
+
+      // Embed transcript for RAG retrieval (non-blocking)
+      void embedTranscript(transcript.id).catch((err) => {
+        console.error(`Failed to embed transcript ${transcript.id}:`, err instanceof Error ? err.message : String(err));
+      });
 
       // Trigger review package generation (non-blocking)
       void generateReviewPackage(job.call_id).catch(() => {});

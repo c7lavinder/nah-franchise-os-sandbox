@@ -15,6 +15,7 @@ import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { generateFlags } from "@/lib/intelligence/flags";
 import { getScoreRecommendations } from "@/lib/intelligence/recommendations";
+import { getContactProfileFields } from "@/lib/profile/profile-fields";
 import type { CandidateIntelligence, CallLog, ObjectionRegistry } from "@/lib/intelligence/types";
 
 // ════════════════════════════════════════════════════════════════════
@@ -515,7 +516,7 @@ async function getContactProfile(contactId: string): Promise<string> {
       .single();
     const sbContactId = contactRow?.id ?? contactId;
 
-    const [intelRes, callsRes, objRes, journeysRes] = await Promise.all([
+    const [intelRes, callsRes, objRes, journeysRes, profileFields] = await Promise.all([
       supabase.from("candidate_intelligence").select("*").eq("contact_id", sbContactId).single(),
       supabase
         .from("call_participants")
@@ -531,6 +532,7 @@ async function getContactProfile(contactId: string): Promise<string> {
         .select("journey_id, role, is_primary_decision_maker")
         .eq("contact_id", sbContactId)
         .is("left_at", null),
+      getContactProfileFields(sbContactId),
     ]);
 
     const out: Record<string, unknown> = { ghl: contact };
@@ -582,6 +584,20 @@ async function getContactProfile(contactId: string): Promise<string> {
 
     if (journeysRes.data && journeysRes.data.length > 0) {
       out.journeys = journeysRes.data;
+    }
+
+    // EAV profile fields (199 fields from contact_profile_fields table)
+    const filledFields = Object.entries(profileFields)
+      .filter(([, v]) => v.field_value != null)
+      .reduce(
+        (acc, [k, v]) => {
+          acc[k] = v.field_value;
+          return acc;
+        },
+        {} as Record<string, unknown>
+      );
+    if (Object.keys(filledFields).length > 0) {
+      out.profileFields = filledFields;
     }
 
     return JSON.stringify(out);

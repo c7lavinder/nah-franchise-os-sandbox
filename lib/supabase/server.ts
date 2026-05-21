@@ -35,5 +35,6 @@ export function createServerClient() {
     global: {
       fetch: (url, options = {}) => fetch(url, { ...options, cache: "no-store" }),
     },
+    realtime: { transport: require("ws") },
   });
 }

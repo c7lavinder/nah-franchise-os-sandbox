@@ -16,52 +16,52 @@
 
 ### 0a. Wire transcript embedding into post-call pipeline
 
-- [ ] Add `embedTranscript(transcriptId)` call to `lib/calls/transcript-processor.ts` after transcription completes
-- [ ] Run `embedAllExistingTranscripts()` backfill for existing transcripts
+- [x] Add `embedTranscript(transcriptId)` call to `lib/calls/transcript-processor.ts` after transcription completes
+- [x] Run `embedAllExistingTranscripts()` backfill for existing transcripts
 - [ ] Verify: pre-call brief generator (`lib/calls/brief-generator.ts`) now returns transcript chunks
 - **Files:** `lib/calls/transcript-processor.ts`, `lib/rag/embedder.ts`, `scripts/backfill-embeddings.ts`
 - **Test:** Generate a pre-call brief for a contact with past calls → confirm transcript context appears
 
 ### 0b. Wire KB doc embedding on create/update
 
-- [ ] Add `embedKBDoc(docId)` call to KB document create/update API
-- [ ] Run `embedAllExistingKBDocs()` backfill for existing docs
+- [x] Add `embedKBDoc(docId)` call to KB document create/update API
+- [x] Run `embedAllExistingKBDocs()` backfill for existing docs
 - [ ] Verify: `search_knowledge` tool returns semantic results (not just keyword fallback)
-- **Files:** KB create/update API route, `lib/rag/embedder.ts`
+- **Files:** `app/api/knowledge/route.ts`, `lib/rag/embedder.ts`
 - **Test:** Ask Scout "what is the NAH construction support model?" → confirm semantic match
 
 ### 0c. Give Scout access to contact_profile_fields
 
-- [ ] Add `contact_profile_fields` query to `getContactProfile()` in `lib/scout/data-tools.ts`
-- [ ] Include populated EAV fields in entity response (under `profileFields` key)
+- [x] Add `contact_profile_fields` query to `getContactProfile()` in `lib/scout/data-tools.ts`
+- [x] Include populated EAV fields in entity response (under `profileFields` key)
 - [ ] Verify: Scout response includes fields like `disc_type`, `employment_status` when populated
 - **Files:** `lib/scout/data-tools.ts` (getContactProfile function)
 - **Test:** Ask Scout about a contact with saved profile fields → confirm fields appear in response
 
 ### 0d. Fix get_next_action to read EAV fields
 
-- [ ] Replace hardcoded contacts column reads with `getContactProfileFields(contactId)` query
-- [ ] Remove misleading "includes all profile fields" comment
-- [ ] Use populated fields to improve recommendation quality
+- [x] Replace hardcoded contacts column reads with `getContactProfileFields(contactId)` query
+- [x] Remove misleading "includes all profile fields" comment
+- [x] Use populated fields to improve recommendation quality
 - **Files:** `lib/scout/tool-executor.ts` (executeGetNextAction function)
 - **Test:** Contact with EAV fields but empty contacts columns → get_next_action uses the EAV data
 
 ### 0e. Log GHL token refresh to cron_job_log
 
-- [ ] Add `cron_job_log` insert to `app/api/cron/refresh-ghl-token/route.ts`
-- [ ] Surface in admin sync-status check
+- [x] Add `cron_job_log` insert to `app/api/cron/refresh-ghl-token/route.ts`
+- [x] Surface in admin sync-status check
 - [ ] Verify: failed token refresh shows in admin dashboard
 - **Files:** `app/api/cron/refresh-ghl-token/route.ts`, `app/api/admin/sync-status/route.ts`
 - **Test:** Check admin sync status page shows GHL token refresh status
 
 ### Phase 0 verification
 
-- [ ] `npx tsc --noEmit` — 0 errors
-- [ ] `npx vitest run` — all tests passing
+- [x] `npx tsc --noEmit` — 0 errors
+- [x] `npx vitest run` — all tests passing (129/129)
 - [ ] Pre-call brief for a real contact includes transcript context
-- [ ] Scout `get_entity(contact)` response includes profileFields
-- [ ] `get_next_action` reads from contact_profile_fields
-- [ ] Admin sync dashboard shows GHL token status
+- [x] Scout `get_entity(contact)` response includes profileFields
+- [x] `get_next_action` reads from contact_profile_fields
+- [x] Admin sync dashboard shows GHL token status
 
 ---
 

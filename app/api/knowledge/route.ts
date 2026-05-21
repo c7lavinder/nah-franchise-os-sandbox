@@ -10,24 +10,44 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
+import { embedKBDoc } from "@/lib/rag/embedder";
 import type { KnowledgeCategory } from "@/types/database";
 
 const VALID_CATEGORIES: KnowledgeCategory[] = [
   // Pillar 1: More Leads
-  "marketing", "lead_generation",
+  "marketing",
+  "lead_generation",
   // Pillar 2: Better Conversion
-  "pipeline", "objections", "fdd", "ideal_candidate", "competitors", "conversion_playbook",
+  "pipeline",
+  "objections",
+  "fdd",
+  "ideal_candidate",
+  "competitors",
+  "conversion_playbook",
   // Pillar 3: Faster Onboarding
-  "training", "franchisee_playbook", "onboarding_ops",
+  "training",
+  "franchisee_playbook",
+  "onboarding_ops",
   // Pillar 4: More Houses
-  "coaching", "territory", "industry", "deal_execution",
+  "coaching",
+  "territory",
+  "industry",
+  "deal_execution",
   // Cross-cutting
-  "brand", "operations", "business_planning", "governance", "contact-notes",
+  "brand",
+  "operations",
+  "business_planning",
+  "governance",
+  "contact-notes",
 ];
 
 export async function GET(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("knowledge_documents")
@@ -43,7 +63,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   const supabase = createServerClient();
 
   const body = await request.json();
@@ -55,10 +78,7 @@ export async function POST(request: NextRequest) {
   };
 
   if (!title || !category || !content) {
-    return NextResponse.json(
-      { error: "title, category, and content are required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "title, category, and content are required" }, { status: 400 });
   }
 
   if (!VALID_CATEGORIES.includes(category)) {
@@ -88,11 +108,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Embed for RAG retrieval (non-blocking)
+  void embedKBDoc(data.id).catch((err) => {
+    console.error(`Failed to embed KB doc ${data.id}:`, err instanceof Error ? err.message : String(err));
+  });
+
   return NextResponse.json({ document: data }, { status: 201 });
 }
 
 export async function PUT(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   const supabase = createServerClient();
 
   const body = await request.json();
@@ -126,22 +154,27 @@ export async function PUT(request: NextRequest) {
   if (priority !== undefined) updates.priority = priority;
   if (is_active !== undefined) updates.is_active = is_active;
 
-  const { data, error } = await supabase
-    .from("knowledge_documents")
-    .update(updates)
-    .eq("id", id)
-    .select()
-    .single();
+  const { data, error } = await supabase.from("knowledge_documents").update(updates).eq("id", id).select().single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Re-embed if content changed (non-blocking)
+  if (content !== undefined) {
+    void embedKBDoc(data.id).catch((err) => {
+      console.error(`Failed to re-embed KB doc ${data.id}:`, err instanceof Error ? err.message : String(err));
+    });
   }
 
   return NextResponse.json({ document: data });
 }
 
 export async function DELETE(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  {
+    const _auth = await requireAuth(request);
+    if (_auth instanceof Response) return _auth;
+  }
   const supabase = createServerClient();
 
   const body = await request.json();
@@ -152,10 +185,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   // Soft delete — mark as inactive
-  const { error } = await supabase
-    .from("knowledge_documents")
-    .update({ is_active: false })
-    .eq("id", id);
+  const { error } = await supabase.from("knowledge_documents").update({ is_active: false }).eq("id", id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

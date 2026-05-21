@@ -67,11 +67,7 @@ function estimateTokens(text: string): number {
  * with `overlap` token overlap between consecutive chunks.
  * Splits on sentence boundaries where possible.
  */
-export function chunkText(
-  text: string,
-  maxTokens: number,
-  overlap: number = 0
-): string[] {
+export function chunkText(text: string, maxTokens: number, overlap: number = 0): string[] {
   const sentences = text.split(/(?<=[.!?])\s+/);
   const chunks: string[] = [];
   let current: string[] = [];
@@ -240,6 +236,9 @@ export async function embedKBDoc(docId: string): Promise<{
     throw new Error(`KB document not found: ${docId}`);
   }
 
+  // Delete old embeddings for this doc (safe for first embed — no-op)
+  await supabase.from("embeddings").delete().eq("content_type", "kb_doc").contains("metadata", { source_id: docId });
+
   // Split on section headers
   const sections = chunkBySection(doc.content);
   const embeddingIds: string[] = [];
@@ -330,10 +329,7 @@ export async function embedJournalEntry(journalId: string): Promise<string> {
   });
 
   // Update journal with embedding reference
-  await supabase
-    .from("contact_journals")
-    .update({ embedding_id: embeddingId })
-    .eq("id", journalId);
+  await supabase.from("contact_journals").update({ embedding_id: embeddingId }).eq("id", journalId);
 
   return embeddingId;
 }
@@ -373,21 +369,23 @@ export async function searchEmbeddings(params: {
     throw new Error(`Embedding search failed: ${error.message}`);
   }
 
-  return (data ?? []).map((row: {
-    id: string;
-    contact_id: string | null;
-    content_type: string;
-    content: string;
-    metadata: EmbeddingMetadata;
-    similarity: number;
-  }) => ({
-    id: row.id,
-    contactId: row.contact_id,
-    contentType: row.content_type,
-    content: row.content,
-    metadata: row.metadata,
-    similarity: row.similarity,
-  }));
+  return (data ?? []).map(
+    (row: {
+      id: string;
+      contact_id: string | null;
+      content_type: string;
+      content: string;
+      metadata: EmbeddingMetadata;
+      similarity: number;
+    }) => ({
+      id: row.id,
+      contactId: row.contact_id,
+      contentType: row.content_type,
+      content: row.content,
+      metadata: row.metadata,
+      similarity: row.similarity,
+    })
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -400,39 +398,49 @@ export async function embedAllExistingTranscripts(): Promise<{
   failed: number;
 }> {
   const supabase = createServerClient();
+  const results = { total: 0, embedded: 0, failed: 0 };
+  const PAGE_SIZE = 50;
+  let offset = 0;
 
-  // Get all transcripts that don't already have embeddings
-  const { data: transcripts, error } = await supabase
-    .from("call_transcripts")
-    .select("id")
-    .order("created_at", { ascending: true });
+  // Paginate to avoid upstream timeouts on large tables
+  while (true) {
+    const { data: transcripts, error } = await supabase
+      .from("call_transcripts")
+      .select("id")
+      .order("created_at", { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
 
-  if (error) {
-    throw new Error(`Failed to fetch transcripts: ${error.message}`);
-  }
-
-  const results = { total: transcripts?.length ?? 0, embedded: 0, failed: 0 };
-
-  for (const tx of transcripts ?? []) {
-    try {
-      // Check if already embedded
-      const { count } = await supabase
-        .from("embeddings")
-        .select("id", { count: "exact", head: true })
-        .eq("content_type", "transcript")
-        .contains("metadata", { source_id: tx.id });
-
-      if (count && count > 0) {
-        continue; // Already embedded
-      }
-
-      await embedTranscript(tx.id);
-      results.embedded++;
-    } catch (err) {
-      results.failed++;
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`Failed to embed transcript ${tx.id}: ${message}`);
+    if (error) {
+      throw new Error(`Failed to fetch transcripts: ${error.message}`);
     }
+    if (!transcripts || transcripts.length === 0) break;
+
+    results.total += transcripts.length;
+
+    for (const tx of transcripts) {
+      try {
+        // Check if already embedded
+        const { count } = await supabase
+          .from("embeddings")
+          .select("id", { count: "exact", head: true })
+          .eq("content_type", "transcript")
+          .contains("metadata", { source_id: tx.id });
+
+        if (count && count > 0) {
+          continue; // Already embedded
+        }
+
+        await embedTranscript(tx.id);
+        results.embedded++;
+      } catch (err) {
+        results.failed++;
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Failed to embed transcript ${tx.id}: ${message}`);
+      }
+    }
+
+    if (transcripts.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
   }
 
   return results;
@@ -444,39 +452,49 @@ export async function embedAllExistingKBDocs(): Promise<{
   failed: number;
 }> {
   const supabase = createServerClient();
+  const results = { total: 0, embedded: 0, failed: 0 };
+  const PAGE_SIZE = 50;
+  let offset = 0;
 
-  const { data: docs, error } = await supabase
-    .from("knowledge_documents")
-    .select("id")
-    .eq("is_active", true)
-    .order("created_at", { ascending: true });
+  while (true) {
+    const { data: docs, error } = await supabase
+      .from("knowledge_documents")
+      .select("id")
+      .eq("is_active", true)
+      .order("created_at", { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
 
-  if (error) {
-    throw new Error(`Failed to fetch KB docs: ${error.message}`);
-  }
-
-  const results = { total: docs?.length ?? 0, embedded: 0, failed: 0 };
-
-  for (const doc of docs ?? []) {
-    try {
-      // Check if already embedded
-      const { count } = await supabase
-        .from("embeddings")
-        .select("id", { count: "exact", head: true })
-        .eq("content_type", "kb_doc")
-        .contains("metadata", { source_id: doc.id });
-
-      if (count && count > 0) {
-        continue; // Already embedded
-      }
-
-      await embedKBDoc(doc.id);
-      results.embedded++;
-    } catch (err) {
-      results.failed++;
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`Failed to embed KB doc ${doc.id}: ${message}`);
+    if (error) {
+      throw new Error(`Failed to fetch KB docs: ${error.message}`);
     }
+    if (!docs || docs.length === 0) break;
+
+    results.total += docs.length;
+
+    for (const doc of docs) {
+      try {
+        // Check if already embedded — skipped for KB since embedKBDoc deletes old ones
+        const { count } = await supabase
+          .from("embeddings")
+          .select("id", { count: "exact", head: true })
+          .eq("content_type", "kb_doc")
+          .contains("metadata", { source_id: doc.id });
+
+        if (count && count > 0) {
+          continue; // Already embedded
+        }
+
+        await embedKBDoc(doc.id);
+        results.embedded++;
+      } catch (err) {
+        results.failed++;
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Failed to embed KB doc ${doc.id}: ${message}`);
+      }
+    }
+
+    if (docs.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
   }
 
   return results;
