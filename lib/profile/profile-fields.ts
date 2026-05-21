@@ -11,7 +11,7 @@ import { isValidFieldName } from "./field-registry";
 export interface ProfileFieldValue {
   field_name: string;
   field_value: unknown;
-  last_updated_by: "api" | "ai" | "manual" | "system";
+  last_updated_by: "api" | "ai" | "ai-auto" | "manual" | "system";
   last_updated_at: string;
   source_history: Array<{
     value: unknown;
@@ -23,9 +23,7 @@ export interface ProfileFieldValue {
 /**
  * Get all profile fields for a contact.
  */
-export async function getContactProfileFields(
-  contactId: string
-): Promise<Record<string, ProfileFieldValue>> {
+export async function getContactProfileFields(contactId: string): Promise<Record<string, ProfileFieldValue>> {
   const supabase = createServerClient();
 
   const { data, error } = await supabase
@@ -59,7 +57,7 @@ export async function setContactProfileField(
   contactId: string,
   fieldName: string,
   value: unknown,
-  source: "api" | "ai" | "manual" | "system"
+  source: "api" | "ai" | "ai-auto" | "manual" | "system"
 ): Promise<void> {
   if (!isValidFieldName(fieldName)) {
     throw new Error(`Unknown profile field: ${fieldName}`);
@@ -67,18 +65,16 @@ export async function setContactProfileField(
 
   const supabase = createServerClient();
 
-  const { error } = await supabase
-    .from("contact_profile_fields")
-    .upsert(
-      {
-        contact_id: contactId,
-        field_name: fieldName,
-        field_value: JSON.stringify(value),
-        last_updated_by: source,
-        last_updated_at: new Date().toISOString(),
-      },
-      { onConflict: "contact_id,field_name" }
-    );
+  const { error } = await supabase.from("contact_profile_fields").upsert(
+    {
+      contact_id: contactId,
+      field_name: fieldName,
+      field_value: JSON.stringify(value),
+      last_updated_by: source,
+      last_updated_at: new Date().toISOString(),
+    },
+    { onConflict: "contact_id,field_name" }
+  );
 
   if (error) {
     throw new Error(`Failed to set profile field: ${error.message}`);
@@ -91,7 +87,7 @@ export async function setContactProfileField(
 export async function setContactProfileFields(
   contactId: string,
   fields: Record<string, unknown>,
-  source: "api" | "ai" | "manual" | "system"
+  source: "api" | "ai" | "ai-auto" | "manual" | "system"
 ): Promise<{ updated: number; errors: string[] }> {
   const results = { updated: 0, errors: [] as string[] };
 
@@ -111,9 +107,7 @@ export async function setContactProfileFields(
 /**
  * Get the count of Scout-suggested updates pending review.
  */
-export async function getPendingSuggestionCount(
-  contactId: string
-): Promise<number> {
+export async function getPendingSuggestionCount(contactId: string): Promise<number> {
   const supabase = createServerClient();
 
   const { count, error } = await supabase

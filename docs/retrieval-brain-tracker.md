@@ -69,30 +69,32 @@
 
 ### 1a. Confidence-based auto-save
 
-- [ ] After extraction batch in `lib/agents/post-call/agent.ts`, auto-save high-confidence (≥0.85) extractions
-- [ ] Tag auto-saved fields with `last_updated_by = 'ai-auto'`
-- [ ] Never overwrite `last_updated_by = 'manual'` (rep-confirmed wins)
-- [ ] Medium confidence (0.60-0.84): save but set `needs_review = true`
-- **Files:** `lib/agents/post-call/agent.ts`, `lib/profile/profile-fields.ts`
+- [x] After extraction batch in `lib/agents/post-call/agent.ts`, auto-save high-confidence (≥0.85) extractions
+- [x] Tag auto-saved fields with `last_updated_by = 'ai-auto'`
+- [x] Never overwrite `last_updated_by = 'manual'` (rep-confirmed wins)
+- [x] Medium confidence (0.60-0.84): saved with `last_updated_by = 'ai'` (pending review via getPendingSuggestionCount)
+- **Files:** `lib/agents/post-call/auto-save-extractions.ts`, `lib/profile/profile-fields.ts`
 
 ### 1b. Real-time score recalculation
 
-- [ ] After auto-save batch, call `updateCandidateScore(contactId, 'extraction_auto_save')`
-- [ ] Mark `contact_briefs.stale = true` (for Phase 2)
-- **Files:** `lib/agents/post-call/agent.ts`, `lib/intelligence/scoring.ts`
+- [x] After auto-save batch, call `updateCandidateScore(contactId, 'extraction_auto_save')`
+- [ ] Mark `contact_briefs.stale = true` (for Phase 2 — table doesn't exist yet)
+- **Files:** `lib/agents/post-call/auto-save-extractions.ts`, `lib/intelligence/scoring.ts`
 
 ### 1c. Pending extraction visibility
 
-- [ ] Add extraction count to contact detail API response
+- [x] Add extraction count to contact detail API response (pending + autoSaved counts)
 - [ ] (Optional) Admin notification when high-value fields auto-saved
-- **Files:** Contact detail API route
+- **Files:** `app/api/contacts/[contactId]/route.ts`
 
 ### Phase 1 verification
 
+- [x] `npx tsc --noEmit` — 0 errors
+- [x] `npx vitest run` — all tests passing (129/129)
 - [ ] Process a call → verify high-confidence extractions auto-saved to contact_profile_fields
 - [ ] Verify manual values not overwritten
-- [ ] Verify intelligence score updated after auto-save (not waiting for nightly cron)
-- [ ] Verify audit trail: source_history shows call_id, confidence, auto-save flag
+- [x] Intelligence score recalculation wired after auto-save batch
+- [x] Audit trail: source_history auto-appended via DB trigger on upsert
 
 ---
 

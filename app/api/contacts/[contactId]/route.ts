@@ -45,11 +45,35 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "Contact not found" }, { status: 404 });
     }
 
+    // Extraction counts — pending review + auto-saved
+    const localId = uuidRegex.test(rawId) ? rawId : null;
+    let pendingExtractions = 0;
+    let autoSavedExtractions = 0;
+    if (localId) {
+      const sb = createServerClient();
+      const [pendingRes, autoRes] = await Promise.all([
+        sb
+          .from("call_data_extractions")
+          .select("id", { count: "exact", head: true })
+          .eq("contact_id", localId)
+          .eq("saved_to_profile", false)
+          .eq("dismissed", false),
+        sb
+          .from("call_data_extractions")
+          .select("id", { count: "exact", head: true })
+          .eq("contact_id", localId)
+          .eq("auto_saved", true),
+      ]);
+      pendingExtractions = pendingRes.count ?? 0;
+      autoSavedExtractions = autoRes.count ?? 0;
+    }
+
     return NextResponse.json({
       contact,
       notes,
       tasks,
       messages,
+      extractions: { pending: pendingExtractions, autoSaved: autoSavedExtractions },
     });
   } catch (err) {
     console.error("Contact detail fetch failed:", err);

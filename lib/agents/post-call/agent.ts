@@ -27,6 +27,7 @@ import { runExtraction } from "./prompts/extraction";
 import { runKBIntelligence } from "./prompts/kb-intelligence";
 import { updateKnowledgeBase } from "./kb-updater";
 import { gradeCall, type GradeResult } from "@/lib/calls/grader";
+import { autoSaveExtractions } from "./auto-save-extractions";
 
 // ── Model routing ──────────────────────────────────────────
 // Change model per section here. One line per section.
@@ -196,6 +197,20 @@ export async function runPostCallAgent(
 
   // 3. Write results to DB
   await writeResults(callId, context.contactId, { summary, coaching, actions, extractions }, supabase);
+
+  // 3b. Auto-save high-confidence extractions to contact profile fields
+  if (extractions && extractions.extractions.length > 0 && context.contactId) {
+    try {
+      const autoSaveResult = await autoSaveExtractions(callId, supabase);
+      if (autoSaveResult.saved > 0) {
+        console.log(
+          `[post-call-agent] ${callId} auto-saved ${autoSaveResult.saved} extractions (${autoSaveResult.highConfidence} auto, ${autoSaveResult.mediumConfidence} pending review)`
+        );
+      }
+    } catch (err) {
+      errors.push(`auto-save: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 
   // 4. Update knowledge base with extracted intelligence
   let kbDocsUpdated = 0;
