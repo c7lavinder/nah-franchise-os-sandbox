@@ -7,6 +7,7 @@ import Sidebar from "./Sidebar";
 import OnboardingChecklist from "./OnboardingChecklist";
 import { QuickAsk } from "@/components/scout";
 import BugReportButton from "@/components/ui/BugReportButton";
+import SyncAlertBanner from "./SyncAlertBanner";
 import type { UserRole } from "@/types/database";
 
 interface AppShellProps {
@@ -56,6 +57,9 @@ export default function AppShell({ children, userName, userRole }: AppShellProps
       {/* Main content */}
       <main className="flex-1 ml-0 lg:ml-[80px] min-h-screen">
         <div className="max-w-content mx-auto px-4 md:px-8 py-6">
+          {/* Admin sync alert */}
+          {userRole === "admin" && <SyncAlertBanner />}
+
           {/* Onboarding checklist for new users */}
           <OnboardingChecklist />
 

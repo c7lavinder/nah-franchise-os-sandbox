@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
     .limit(1)
     .single();
 
-  const since = lastLog?.finished_at ?? undefined;
+  // If no previous success, default to 30 days back instead of syncing everything
+  const since = lastLog?.finished_at ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: log } = await supabase
     .from("cron_job_log")
