@@ -280,6 +280,19 @@ async function executeSearchContacts(input: Record<string, unknown>): Promise<To
       return { data: `Error searching contacts: ${error.message}` };
     }
 
+    // Fuzzy fallback — if exact search returned nothing and it's a name query,
+    // use pg_trgm similarity to catch misspellings (e.g. "Rearson" → "Rierson")
+    if (!data?.length && !isPhoneQuery) {
+      const fuzzy = await supabase.rpc("search_contacts_fuzzy", {
+        search_query: query,
+        max_results: limit,
+        similarity_threshold: 0.2,
+      });
+      if (!fuzzy.error && fuzzy.data?.length) {
+        data = fuzzy.data;
+      }
+    }
+
     // Format for Scout — include key profile fields so it has context
     const results = (data ?? []).map((c: any) => {
       // Resolve journey link — pick the first active journey's slug
@@ -301,6 +314,7 @@ async function executeSearchContacts(input: Record<string, unknown>): Promise<To
         capitalAvailability: c.NonRetirementCapitalAvailable,
         leadScore: c.scout_lead_score,
         journeyUrl: journeySlug ? `/journeys/${journeySlug}` : null,
+        ...(c.similarity_score != null ? { fuzzyMatch: true, similarityScore: c.similarity_score } : {}),
       };
     });
 

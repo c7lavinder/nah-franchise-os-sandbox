@@ -147,8 +147,10 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   {
     name: "search_contacts",
     description:
-      "Substring search across GHL contacts by name, email, or phone. Use when the user names a contact " +
-      "without giving an ID. Returns a small list of matches — pick the right one then call get_entity for full detail.",
+      "Search contacts by name, email, or phone. Includes fuzzy/phonetic matching — misspellings like 'Rearson' will find 'Rierson'. " +
+      "Returns a list of matches with profile context (city, state, source). If only one result matches the user's context " +
+      "(name + city, name + company, etc.), proceed directly with that contact — do NOT ask the user to confirm obvious matches. " +
+      "Only ask for clarification when multiple results are genuinely ambiguous. Call get_entity for full detail after resolving.",
     input_schema: {
       type: "object",
       properties: {
