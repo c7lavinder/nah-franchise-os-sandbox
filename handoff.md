@@ -1,57 +1,72 @@
-# Session Handoff — 2026-05-22 — Session 51
+# Session Handoff — 2026-05-22 — Session 52
 
 ## Status
 
-Phase: Retrieval Brain Build (ADR-0013) — Phase 4 complete / Health: Green / Duration: short session
+Phase: Retrieval Brain Build (ADR-0013) — All 7 phases complete (0-6) / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-- **Phase 4a:** Replaced OpenAI `text-embedding-3-small` (1536 dims) with Voyage AI `voyage-3-large` (1024 dims) in `lib/rag/embedder.ts`
-- **Phase 4a:** Added `getEmbeddingBatch()` for efficient batch embedding (up to 128 texts per API call)
-- **Phase 4b:** Contextual chunking — transcript chunks prepended with contact name + call date, KB doc sections prepended with title + category + last updated date
-- **Phase 4c:** BM25 full-text search via `search_embeddings_bm25()` Postgres function using `content_tsv` generated column + GIN index
-- **Phase 4c:** Reciprocal rank fusion (RRF) in `lib/rag/retriever.ts` merges semantic + BM25 results
-- **Phase 4c:** `hybridSearch()` function replaces pure semantic search as default in `retrieveContext()`
-- **Phase 4d:** Voyage `rerank-2` model reranks fused results before returning, with graceful fallback on failure
-- **Phase 4e:** SQL migration truncates old OpenAI embeddings, resizes vector column 1536→1024, rebuilds HNSW index, adds `content_tsv` + GIN index, updates `match_embeddings` for 1024 dims
-- **Phase 4e:** Admin backfill endpoint updated with `{ "force": true }` option for model migration
-- **Infra:** Added `VOYAGE_API_KEY` to Vercel production env vars
-- **Infra:** Applied migration on Supabase, re-embedded all content (70 transcripts + 48 KB docs, 0 failures)
+- **Phase 5a:** Rewrote `search_knowledge` in `lib/scout/tool-executor.ts` to use `hybridSearch()` (Voyage AI + BM25 + RRF + reranking), replacing old OpenAI semantic + manual keyword scoring
+- **Phase 5b:** Added `search_transcripts` tool — semantic search across call transcripts, scoped by contact_id
+- **Phase 5b:** Added `search_documents` tool — semantic search across uploaded docs (PFS, Zorakle, etc.), scoped by journey/contact
+- **Phase 5b:** Added both tools to `types/scout.ts` ScoutToolName union, `lib/scout/tools.ts` definitions, `lib/scout/tool-executor.ts` executor
+- **Phase 5c:** Added pre-fetch context injection in `lib/scout/client.ts` — runs `hybridSearch` on user's latest message, injects top chunks into system prompt before first LLM call, runs in parallel with all other context loading
+- **Phase 6a:** Built question classifier (`lib/rag/question-classifier.ts`) — 9 question types (prospect, franchisee, territory, call_prep, comparison, metric, search, knowledge, general) with regex pattern matching
+- **Phase 6a:** Mapped each question type to a retrieval strategy with token budget (0/2K/5K/10K), chunk limit, content type filters, similarity threshold, and rerank flag
+- **Phase 6a:** Integrated classifier into `prefetchContext()` — simple/metric questions skip retrieval entirely, call prep and search get full 10K budget
+- **Phase 6b:** Created `scout_retrieval_logs` table via migration (`supabase/migrations/20260523200000_scout_retrieval_logs.sql`)
+- **Phase 6b:** Built retrieval logger (`lib/scout/retrieval-logger.ts`) — fire-and-forget logging of question type, chunks retrieved, token budget, chunk metadata per Scout turn
+- **Phase 6b:** Wired retrieval logging into both `runConversationTurn` (standard chat) and `chat-stream` (SSE streaming) routes
+- **Docs:** Created `docs/retrieval-brain-summary.md` — complete overview of all 7 phases
+- **Docs:** Created `docs/retrieval-brain-gaps.md` — 20 gaps/limitations ranked by severity with fixes
+- **Docs:** Created `docs/retrieval-brain-roadmap.md` — current state, 4 superpowers, enhancements, elite vision
+- **Docs:** Updated `docs/scout-tools.md` — tool count 21→23, added search_transcripts + search_documents
+- **Docs:** Updated `docs/retrieval-brain-tracker.md` — Phase 5+6 checkboxes, session log entries
 
 ## What Is Confirmed Working
 
 - `npx tsc --noEmit` — 0 errors
 - `npx vitest run` — 13 files, 129 tests, all passing
 - `npx next build` — clean build, no ESLint errors
-- Migration applied on Supabase (vector column resized, content_tsv + GIN index created, both RPC functions created)
-- All 118 items re-embedded with Voyage AI (70 transcripts + 48 KB docs, 0 failures)
-- `VOYAGE_API_KEY` set in Vercel production env
-- Commit pushed to main, Vercel auto-deployed with redeploy to pick up new env var
+- Migration applied on Supabase (`scout_retrieval_logs` table + indexes created)
+- Phase 4 migration marked as applied in Supabase migration history (was applied manually in session 51)
+- All commits pushed to main, Vercel auto-deployed
 
 ## What Is Broken or Incomplete
 
-- **9 transcripts skipped** — had existing embeddings from rate-limited first run (these are valid Voyage embeddings, not an issue) — Low
-- **Reranking quality not yet verified** — needs live Scout testing to confirm improvement — Low
+- **Uploaded documents never embedded** — `embedExternalResearch()` exists but upload route doesn't call it — Critical
+- **Pre-fetch ignores active contact** — `pageContext.contactId` not passed into `prefetchContext()` — Significant
+- **Transcript embeddings never updated on re-process** — no delete-before-embed step — Critical
+- **Double reranking in pre-fetch** — searches per-type then re-searches with rerank — Significant
+- **No embedding failure visibility** — errors swallowed silently — Critical
+- **Retrieval quality dashboard deferred** — query `scout_retrieval_logs` directly for now — Low
 - **`get_entity(journey)` enrichment deferred** — member scores + documents + call summary not added yet — Low
 
 ## Decisions Made
 
-- Voyage AI `voyage-3-large` chosen over alternatives (best quality at 1024 dims, free 200M tokens/month) — Corey approved
-- Old OpenAI embeddings truncated (incompatible with new model, no value in keeping) — Corey approved
-- Payment method added to Voyage AI to unlock standard rate limits (still free tier) — Corey did it
+- Retrieval Brain Phases 5+6 built in same session as Phase 4 wrap (efficiency) — Corey approved
+- Question classifier uses regex (not LLM) for v1 — speed and cost priority — pragmatic choice
+- Retrieval quality dashboard deferred in favor of raw table access — Corey approved
+- Three strategic docs (summary, gaps, roadmap) written to capture full picture — Corey requested
 
 ## Files Created
 
-- `supabase/migrations/20260523100000_voyage_ai_bm25_hybrid_search.sql` — vector resize + BM25 + hybrid search migration
+- `lib/rag/question-classifier.ts` — question classification + retrieval strategy mapping
+- `lib/scout/retrieval-logger.ts` — fire-and-forget retrieval quality logging
+- `supabase/migrations/20260523200000_scout_retrieval_logs.sql` — retrieval logging table
+- `docs/retrieval-brain-summary.md` — complete overview of all 7 phases
+- `docs/retrieval-brain-gaps.md` — 20 gaps ranked by severity
+- `docs/retrieval-brain-roadmap.md` — current state, superpowers, path to elite
 
 ## Files Modified
 
-- `lib/rag/embedder.ts` — Voyage AI client, batch embedding, contextual chunking helpers
-- `lib/rag/retriever.ts` — Voyage reranker, BM25 search, RRF fusion, hybrid search
-- `app/api/admin/backfill-embeddings/route.ts` — force mode for model migration
-- `docs/retrieval-brain-tracker.md` — Phase 4 checkboxes updated, session log entry added
-- `package.json` / `package-lock.json` — added `voyageai` dependency
-- `.env.local` — added `VOYAGE_API_KEY`
+- `lib/scout/client.ts` — pre-fetch context injection, question classifier integration, PrefetchResult type, retrieval logging
+- `lib/scout/tool-executor.ts` — rewrote executeSearchKnowledge, added executeSearchTranscripts + executeSearchDocuments
+- `lib/scout/tools.ts` — updated search_knowledge description, added search_transcripts + search_documents definitions
+- `app/api/scout/chat-stream/route.ts` — retrieval logging wired into streaming route
+- `types/scout.ts` — added search_transcripts + search_documents to ScoutToolName
+- `docs/scout-tools.md` — tool count 21→23, added new tools, updated verified date
+- `docs/retrieval-brain-tracker.md` — Phase 5+6 checkboxes, session log entries
 
 ## Files Deleted
 
@@ -59,6 +74,11 @@ Phase: Retrieval Brain Build (ADR-0013) — Phase 4 complete / Health: Green / D
 
 ## Open Issues Carried Forward
 
+- Uploaded documents never embedded (Critical) — see `docs/retrieval-brain-gaps.md` #1
+- Transcript embeddings never updated on re-process (Critical) — see gaps #2
+- No embedding failure visibility (Critical) — see gaps #3
+- Pre-fetch ignores active contact (Significant) — see gaps #5
+- Double reranking in pre-fetch (Significant) — see gaps #9
 - Mauricio Anaya needs manual creation or intake source identified — Medium
 - GHL calendar + SMS setup checklist for Chad (no code fix, needs GHL config) — Medium
 - L10 metrics dashboard feature request (parked) — Low
@@ -66,15 +86,15 @@ Phase: Retrieval Brain Build (ADR-0013) — Phase 4 complete / Health: Green / D
 
 ## Exact Next Step
 
-Start Phase 5 of the Retrieval Brain: upgrade `search_knowledge` Scout tool to use hybrid search + reranking, add `search_transcripts` and `search_documents` tools, add pre-fetch context injection before Scout's first LLM call.
+Fix the 7 critical and significant gaps from `docs/retrieval-brain-gaps.md` — start with #1 (embed uploaded documents), #5 (scope pre-fetch to active contact), #2 (delete-before-embed for transcripts), #9 (fix double reranking), #3 (embedding health check), #14 (on-demand brief regeneration), #7+#8 (contextual chunking for journals + external research). Total ~6 hours.
 
 ## Copy This To Start Next Session In Claude.ai
 
 ---
 
-Read `docs/retrieval-brain-tracker.md` then `handoff.md`. Tell me: current phase, what's done, what's next.
-We are building the Retrieval Brain (ADR-0013). Phases 0-4 are complete. Phase 5 is next: Wire RAG into Scout chat.
+Read `docs/retrieval-brain-gaps.md` then `handoff.md`. Tell me: current status, open gaps, what we fix today.
+Retrieval Brain (ADR-0013) is complete — all 7 phases built. Now fixing critical gaps identified in the audit.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Start Phase 5 — upgrade search_knowledge to hybrid search, add search_transcripts + search_documents tools, add pre-fetch context injection.
+Then: Fix gap #1 (embed uploaded documents), #5 (scope pre-fetch to active contact), #2 (delete-before-embed for transcripts), #9 (fix double reranking). These 4 are ~2 hours total.
 
 ---
