@@ -248,9 +248,9 @@
 
 ## Session Log
 
-| Session | Date | Phase | What was done | What's next |
-| ------- | ---- | ----- | ------------- | ----------- |
-| —       | —    | —     | —             | —           |
+| Session | Date       | Phase | What was done                                                                                                                                                                                              | What's next                    |
+| ------- | ---------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| 50      | 2026-05-22 | 0-3   | All Phase 0 sub-tasks (embeddings, profile fields, GHL logging), Phase 1 (auto-save extractions + score recalc), Phase 2 (pre-computed briefs + cron), Phase 3 (retrieval chaining + franchisee detection) | Phase 4: Voyage AI integration |
 
 ---
 
