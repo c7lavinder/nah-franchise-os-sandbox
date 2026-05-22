@@ -15,6 +15,7 @@ import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { generateFlags } from "@/lib/intelligence/flags";
 import { getScoreRecommendations } from "@/lib/intelligence/recommendations";
+import { calculateLookalikeScore, type LookalikeInput } from "@/lib/intelligence/lookalike-scoring";
 import { getContactProfileFields } from "@/lib/profile/profile-fields";
 import { generateAndStoreContactBrief } from "@/lib/briefs/contact-brief-generator";
 import { generateAndStoreTerritoryBrief } from "@/lib/briefs/territory-brief-generator";
@@ -528,6 +529,7 @@ async function getContactProfile(contactId: string): Promise<string> {
       allGradesRes,
       allObjectionsRes,
       commitmentsRes,
+      allCommitmentsRes,
     ] = await Promise.all([
       supabase.from("candidate_intelligence").select("*").eq("contact_id", sbContactId).single(),
       supabase
@@ -565,6 +567,8 @@ async function getContactProfile(contactId: string): Promise<string> {
         .eq("contact_id", sbContactId)
         .in("status", ["pending", "overdue"])
         .order("due_date", { ascending: true, nullsFirst: false }),
+      // All commitments (for lookalike scoring — need total + fulfilled count)
+      supabase.from("commitments").select("status").eq("contact_id", sbContactId),
     ]);
 
     const out: Record<string, unknown> = { ghl: contact };
@@ -763,6 +767,41 @@ async function getContactProfile(contactId: string): Promise<string> {
     if (Object.keys(filledFields).length > 0) {
       out.profileFields = filledFields;
     }
+
+    // Lookalike score — how closely does this prospect resemble converted franchisees?
+    const intel = intelRes.data as CandidateIntelligence | null;
+    const totalCalls = (allGradesRes.data as any[] | null)?.length ?? 0;
+    const allCommitmentStatuses = (allCommitmentsRes.data ?? []) as { status: string }[];
+    const fulfilledCount = allCommitmentStatuses.filter((c) => c.status === "fulfilled").length;
+    const totalCommitments = allCommitmentStatuses.length;
+
+    const lookalikeInput: LookalikeInput = {
+      profileFieldCount: Object.keys(filledFields).length,
+      opportunitySource: (contact as any)?.source ?? null,
+      state: (contact as any)?.state ?? null,
+      callCount: totalCalls,
+      commitmentCount: totalCommitments,
+      commitmentFulfillmentRate: totalCommitments > 0 ? fulfilledCount / totalCommitments : null,
+      capitalAvailability: (filledFields.NonRetirementCapitalAvailable as string) ?? null,
+      fundingPath: intel?.funding_path ?? null,
+      hasPfs: intel?.pfs_received ?? false,
+      intelligenceScore: intel?.current_score ?? null,
+      priorBusinessOwner: intel?.prior_business_owner ?? null,
+      constructionComfort: intel?.construction_comfort ?? null,
+      spouseSupportive: intel?.spouse_supportive ?? null,
+      trainualCompletionPct: intel?.trainual_completion_pct ?? null,
+      avgResponseTimeHours: intel?.avg_response_time_hours ?? null,
+      urgency: intel?.urgency ?? null,
+    };
+
+    const lookalike = calculateLookalikeScore(lookalikeInput);
+    out.lookalikeScore = {
+      score: lookalike.score,
+      tier: lookalike.tier,
+      breakdown: lookalike.breakdown,
+      topMatchFactors: lookalike.topMatchFactors,
+      topGaps: lookalike.topGaps,
+    };
 
     return JSON.stringify(out);
   } catch (err) {

@@ -9,6 +9,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { getContactProfileFields } from "@/lib/profile/profile-fields";
 import { embedBriefSummary } from "@/lib/rag/embedder";
+import { calculateLookalikeScore, type LookalikeInput } from "@/lib/intelligence/lookalike-scoring";
 
 export interface ContactBrief {
   contactId: string;
@@ -282,6 +283,38 @@ export async function generateContactBrief(contactId: string): Promise<{
   }
   if (brief.territorySlug) lines.push(`Territory: ${brief.territorySlug}`);
   lines.push(`Profile fields: ${filledFieldCount} populated`);
+
+  // Lookalike score — how closely this contact resembles converted franchisees
+  const { data: allCommitmentsForLookalike } = await supabase
+    .from("commitments")
+    .select("status")
+    .eq("contact_id", contactId);
+  const allCmts = allCommitmentsForLookalike ?? [];
+  const fulfilledCmts = allCmts.filter((c) => c.status === "fulfilled").length;
+
+  const lookalikeInput: LookalikeInput = {
+    profileFieldCount: filledFieldCount,
+    opportunitySource: null, // Not fetched in brief — use what we have
+    state: contact?.state ?? null,
+    callCount: recentCalls.length,
+    commitmentCount: allCmts.length,
+    commitmentFulfillmentRate: allCmts.length > 0 ? fulfilledCmts / allCmts.length : null,
+    capitalAvailability: pv("NonRetirementCapitalAvailable"),
+    fundingPath: intel?.funding_path ?? null,
+    hasPfs: intel?.pfs_received ?? false,
+    intelligenceScore: intel?.current_score ?? null,
+    priorBusinessOwner: intel?.prior_business_owner ?? null,
+    constructionComfort: intel?.construction_comfort ?? null,
+    spouseSupportive: intel?.spouse_supportive ?? null,
+    trainualCompletionPct: intel?.trainual_completion_pct ?? null,
+    avgResponseTimeHours: intel?.avg_response_time_hours ?? null,
+    urgency: intel?.urgency ?? null,
+  };
+  const lookalike = calculateLookalikeScore(lookalikeInput);
+  lines.push(
+    `Lookalike: ${lookalike.score}/100 (${lookalike.tier})${lookalike.topMatchFactors.length > 0 ? " — " + lookalike.topMatchFactors.slice(0, 2).join(", ") : ""}`
+  );
+
   if (crossRepSignals.length > 0) {
     lines.push(`CROSS-REP SIGNALS (${crossRepSignals.length}):`);
     for (const s of crossRepSignals.slice(0, 5)) {
