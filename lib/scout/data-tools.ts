@@ -16,6 +16,8 @@ import { createServerClient } from "@/lib/supabase/server";
 import { generateFlags } from "@/lib/intelligence/flags";
 import { getScoreRecommendations } from "@/lib/intelligence/recommendations";
 import { getContactProfileFields } from "@/lib/profile/profile-fields";
+import { generateAndStoreContactBrief } from "@/lib/briefs/contact-brief-generator";
+import { generateAndStoreTerritoryBrief } from "@/lib/briefs/territory-brief-generator";
 import type { CandidateIntelligence, CallLog, ObjectionRegistry } from "@/lib/intelligence/types";
 
 // ════════════════════════════════════════════════════════════════════
@@ -588,7 +590,21 @@ async function getContactProfile(contactId: string): Promise<string> {
     }
 
     // Pre-computed brief (instant context snapshot)
-    if (briefRes.data?.summary) {
+    // If stale, regenerate inline (~1-2s) instead of waiting for nightly cron
+    if (briefRes.data?.stale) {
+      try {
+        const freshBrief = await generateAndStoreContactBrief(sbContactId);
+        const lines: string[] = [];
+        lines.push(
+          `${freshBrief.name} — ${freshBrief.pipeline ? `${freshBrief.pipeline.stageName} (${freshBrief.pipeline.daysInStage}d)` : "No pipeline"}`
+        );
+        if (freshBrief.intelligence) lines.push(`Score: ${freshBrief.intelligence.totalScore}/100`);
+        out.briefSummary = lines.join("\n");
+      } catch {
+        // Fall back to stale brief if regeneration fails
+        if (briefRes.data?.summary) out.briefSummary = briefRes.data.summary;
+      }
+    } else if (briefRes.data?.summary) {
       out.briefSummary = briefRes.data.summary;
     }
 
@@ -720,8 +736,19 @@ async function getTerritoryProfile(slug: string): Promise<string> {
     const t12Sales = invRows.filter((i) => i.Inv_SellDate && new Date(i.Inv_SellDate) >= t12Start).length;
     const activeInventory = invRows.filter((i) => !i.Inv_SellDate).length;
 
+    // Regenerate stale territory brief inline
+    let territoryBriefSummary = (territoryBriefRes.data as any)?.summary ?? null;
+    if ((territoryBriefRes.data as any)?.stale) {
+      try {
+        const freshBrief = await generateAndStoreTerritoryBrief(slug);
+        territoryBriefSummary = `${freshBrief.nickname} (${slug}) — T12: ${freshBrief.performance.t12Purchases} purchased, ${freshBrief.performance.t12Sales} sold`;
+      } catch {
+        // Fall back to stale brief
+      }
+    }
+
     return JSON.stringify({
-      briefSummary: (territoryBriefRes.data as any)?.summary ?? null,
+      briefSummary: territoryBriefSummary,
       territory: territoryRes.data,
       activeOwners: ownersRes.data ?? [],
       performanceSummary: {

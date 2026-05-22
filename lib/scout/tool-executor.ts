@@ -723,7 +723,8 @@ async function executeSearchKnowledge(input: Record<string, unknown>): Promise<T
     // Deduplicate — multiple chunks may come from the same doc
     const uniqueDocIds = [...new Set(docIds)];
 
-    let results: { title: string; category: string; content: string; relevance: number }[] = [];
+    let results: { title: string; category: string; content: string; relevance: number; sourceId: string | null }[] =
+      [];
 
     if (uniqueDocIds.length > 0) {
       const { data: fullDocs } = await supabase
@@ -747,6 +748,7 @@ async function executeSearchKnowledge(input: Record<string, unknown>): Promise<T
               category: doc.category,
               content: doc.content,
               relevance: hit.similarity,
+              sourceId: docId,
             });
           }
         }
@@ -772,6 +774,7 @@ async function executeSearchKnowledge(input: Record<string, unknown>): Promise<T
         category: (h.metadata?.category as string) ?? "general",
         content: h.content,
         relevance: h.similarity,
+        sourceId: (h.metadata?.source_id as string) ?? null,
       }));
     }
 

@@ -345,7 +345,8 @@ const SCOUT_RULES = `ABSOLUTE RULES — These override everything above. Violati
 13. NEVER CLAIM CAPABILITIES YOU DON'T HAVE. You can only do what your tools allow. Do not say "I can submit that to the knowledge base" or "I can set that up" if no tool exists for it. If someone asks you to do something you can't, say so plainly — don't invent a workaround that doesn't exist.
 14. WHEN CORRECTED, ACKNOWLEDGE SPECIFICALLY. If a user says "you should already know this" or "that's wrong", do not dismiss it with "my bad" and move on. State specifically what you got wrong or what you should have known, then give a substantive answer. Recovery from a mistake requires MORE substance, not less.
 15. BE HONEST ABOUT MEMORY. Your memory persists across conversations but has limited capacity — you prioritize the most relevant and recent items. Do not promise you will "remember everything forever." If a user wants something to apply to all users, explain that it requires a knowledge base update (which an admin would need to add manually).
-16. EASTERN TIME IS THE DEFAULT. NAH headquarters runs on Eastern Time. Whenever you mention or display a time (drafting appointments, summarizing schedule, suggesting availability), use Eastern Time and always include the "ET" suffix (e.g. "10:00 AM ET", "Monday 9:00 AM ET"). When the user gives a time without a zone, assume Eastern Time. If they specify a different zone, convert and display Eastern alongside it.`;
+16. SOURCE ATTRIBUTION. When your answer uses information from search results (search_knowledge, search_transcripts, search_documents, or pre-fetched context), cite your sources inline using [Source: title] or [Source: Call with Contact on Date] format. This helps users verify where information came from. Only cite when you're drawing from specific retrieved content — don't cite for general knowledge or structured data from get_entity/query/aggregate tools.
+17. EASTERN TIME IS THE DEFAULT. NAH headquarters runs on Eastern Time. Whenever you mention or display a time (drafting appointments, summarizing schedule, suggesting availability), use Eastern Time and always include the "ET" suffix (e.g. "10:00 AM ET", "Monday 9:00 AM ET"). When the user gives a time without a zone, assume Eastern Time. If they specify a different zone, convert and display Eastern alongside it.`;
 
 /** Formats tool definitions for the Anthropic API */
 function formatToolsForAPI(): Anthropic.Messages.Tool[] {
@@ -725,7 +726,9 @@ async function prefetchContext(userMessage: string, contactId?: string): Promise
     const chunks = budgetedHits.map((h, i) => {
       const type = h.contentType === "kb_doc" ? "KB" : h.contentType === "transcript" ? "Call" : "Doc";
       const meta = h.metadata?.contact_name ? ` (${h.metadata.contact_name})` : "";
-      return `  [${i + 1}] [${type}${meta}] ${h.content.slice(0, 400)}`;
+      const sourceId = h.metadata?.source_id ? ` [sid:${h.metadata.source_id}]` : "";
+      const docTitle = h.metadata?.doc_title ? ` "${h.metadata.doc_title}"` : "";
+      return `  [${i + 1}] [${type}${meta}${docTitle}${sourceId}] ${h.content.slice(0, 400)}`;
     });
 
     const contextString = `PRE-FETCHED CONTEXT (${strategy.questionType} question, ${budgetedHits.length} chunks) — These are the most relevant knowledge chunks for this question. Use them to inform your answer without needing to call search tools unless you need more detail.\n${chunks.join("\n")}`;

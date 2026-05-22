@@ -237,6 +237,7 @@ async function storeEmbedding(params: {
       embedding: JSON.stringify(params.embedding),
       metadata: params.metadata,
       tenant_id: params.tenantId ?? null,
+      model_version: VOYAGE_MODEL,
     })
     .select("id")
     .single();
@@ -655,6 +656,53 @@ export async function embedAllExistingTranscripts(): Promise<{
 
   return results;
 }
+
+// ---------------------------------------------------------------------------
+// Embed brief summary (single chunk — briefs are short)
+// ---------------------------------------------------------------------------
+
+/**
+ * Embed a contact or territory brief summary as profile_summary content type.
+ * Called after brief generation. Deletes old summary embedding first.
+ */
+export async function embedBriefSummary(params: {
+  contactId: string | null;
+  entityType: "contact" | "territory";
+  entityId: string;
+  entityName: string;
+  summary: string;
+}): Promise<string> {
+  const supabase = createServerClient();
+
+  // Delete old profile_summary for this entity
+  await supabase
+    .from("embeddings")
+    .delete()
+    .eq("content_type", "profile_summary")
+    .contains("metadata", { source_id: params.entityId, entity_type: params.entityType });
+
+  const contextualizedContent = `${params.entityType === "contact" ? "Contact" : "Territory"} brief for ${params.entityName}:\n${params.summary}`;
+  const embedding = await getEmbedding(contextualizedContent);
+
+  const embeddingId = await storeEmbedding({
+    contactId: params.contactId,
+    contentType: "profile_summary",
+    content: params.summary,
+    embedding,
+    metadata: {
+      source_id: params.entityId,
+      entity_type: params.entityType,
+      entity_name: params.entityName,
+      date: new Date().toISOString(),
+    },
+  });
+
+  return embeddingId;
+}
+
+// ---------------------------------------------------------------------------
+// Backfill functions
+// ---------------------------------------------------------------------------
 
 export async function embedAllExistingKBDocs(): Promise<{
   total: number;

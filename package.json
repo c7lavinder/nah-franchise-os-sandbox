@@ -18,7 +18,8 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepare": "husky"
+    "prepare": "husky",
+    "eval:retrieval": "npx tsx lib/rag/eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

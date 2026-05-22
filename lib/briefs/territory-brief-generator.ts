@@ -7,6 +7,7 @@
  */
 
 import { createServerClient } from "@/lib/supabase/server";
+import { embedBriefSummary } from "@/lib/rag/embedder";
 
 export interface TerritoryBrief {
   territorySlug: string;
@@ -162,6 +163,17 @@ export async function generateAndStoreTerritoryBrief(slug: string): Promise<Terr
     },
     { onConflict: "territory_slug" }
   );
+
+  // Embed brief summary into search index (fire-and-forget)
+  embedBriefSummary({
+    contactId: null,
+    entityType: "territory",
+    entityId: slug,
+    entityName: brief.nickname,
+    summary,
+  }).catch((err) => {
+    console.error(`Failed to embed territory brief for ${slug}:`, err);
+  });
 
   return brief;
 }

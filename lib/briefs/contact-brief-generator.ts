@@ -8,6 +8,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import { getContactProfileFields } from "@/lib/profile/profile-fields";
+import { embedBriefSummary } from "@/lib/rag/embedder";
 
 export interface ContactBrief {
   contactId: string;
@@ -247,6 +248,17 @@ export async function generateAndStoreContactBrief(contactId: string): Promise<C
     },
     { onConflict: "contact_id" }
   );
+
+  // Embed brief summary into search index (fire-and-forget)
+  embedBriefSummary({
+    contactId,
+    entityType: "contact",
+    entityId: contactId,
+    entityName: brief.name,
+    summary,
+  }).catch((err) => {
+    console.error(`Failed to embed contact brief for ${contactId}:`, err);
+  });
 
   return brief;
 }
