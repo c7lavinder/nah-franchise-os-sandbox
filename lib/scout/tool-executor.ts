@@ -69,6 +69,10 @@ export async function executeTool(
       return executeCompleteTask(input);
     case "search_knowledge":
       return executeSearchKnowledge(input);
+    case "search_transcripts":
+      return executeSearchTranscripts(input);
+    case "search_documents":
+      return executeSearchDocuments(input);
     case "get_journey_documents":
       return executeGetJourneyDocuments(input);
     case "workflow_analyze":
@@ -688,146 +692,176 @@ async function executeSearchKnowledge(input: Record<string, unknown>): Promise<T
   try {
     const supabase = createServerClient();
     const queryText = input.query as string;
-    const query = queryText.toLowerCase();
-    const queryWords = query.split(/\s+/).filter((w) => w.length > 2);
 
-    // --- Semantic search via pgvector (when OPENAI_API_KEY is set) ---
-    let semanticResults: { title: string; category: string; content: string }[] = [];
-    if (process.env.OPENAI_API_KEY) {
-      try {
-        const { searchEmbeddings } = await import("@/lib/rag/embedder");
-        const hits = await searchEmbeddings({
-          query: queryText,
-          contentType: "kb_doc",
-          limit: 8,
-          threshold: 0.35,
-        });
-
-        if (hits.length > 0) {
-          // Map embedding results back to knowledge_documents for full content
-          const docIds = hits.map((h) => h.metadata?.source_id).filter((id): id is string => id != null);
-
-          if (docIds.length > 0) {
-            const { data: fullDocs } = await supabase
-              .from("knowledge_documents")
-              .select("id, title, category, content")
-              .in("id", docIds);
-
-            if (fullDocs && fullDocs.length > 0) {
-              // Order by semantic similarity (hits order)
-              const docMap = new Map(fullDocs.map((d) => [d.id, d]));
-              semanticResults = docIds
-                .map((id) => docMap.get(id))
-                .filter((d): d is NonNullable<typeof d> => d != null)
-                .map(({ title, category, content }) => ({ title, category, content }));
-            }
-          }
-        }
-      } catch {
-        // Semantic search failed — fall through to keyword search
-      }
-    }
-
-    // --- Keyword search (always runs as fallback/supplement) ---
-    const { data: rawDocs, error } = await supabase
-      .from("knowledge_documents")
-      .select("id, title, category, content, priority, retrieval_count")
-      .eq("is_active", true)
-      .order("priority", { ascending: false });
-
-    if (error) {
-      // If we have semantic results, use those despite the keyword error
-      if (semanticResults.length > 0) {
-        return { data: JSON.stringify(semanticResults) };
-      }
-      return { data: `Error searching knowledge base: ${error.message}` };
-    }
-
-    const docs = rawDocs as
-      | {
-          id: string;
-          title: string;
-          category: string;
-          content: string;
-          priority: number;
-          retrieval_count: number | null;
-        }[]
-      | null;
-    if (!docs || docs.length === 0) {
-      if (semanticResults.length > 0) {
-        return { data: JSON.stringify(semanticResults) };
-      }
-      return { data: "No knowledge base documents found." };
-    }
-
-    // Score each doc by keyword relevance
-    const scored = docs.map((doc) => {
-      const titleLower = doc.title.toLowerCase();
-      const contentLower = doc.content.toLowerCase();
-      const catLower = doc.category.toLowerCase();
-      let score = 0;
-
-      if (titleLower.includes(query)) score += 30;
-      if (contentLower.includes(query)) score += 15;
-      for (const word of queryWords) {
-        if (catLower.includes(word)) score += 20;
-      }
-      for (const word of queryWords) {
-        if (titleLower.includes(word)) score += 8;
-        const matches = contentLower.split(word).length - 1;
-        score += Math.min(matches * 3, 15);
-      }
-      score += doc.priority;
-
-      return { ...doc, score };
+    // Hybrid search: semantic (Voyage AI) + BM25 full-text, fused with RRF, reranked
+    const { hybridSearch } = await import("@/lib/rag/retriever");
+    const hits = await hybridSearch({
+      query: queryText,
+      contentType: "kb_doc",
+      limit: 10,
+      threshold: 0.3,
+      rerank: true,
     });
 
-    const sorted = scored.filter((d) => d.score > 0).sort((a, b) => b.score - a.score);
-    const keywordResults = sorted.length > 0 ? sorted.slice(0, 10) : docs.slice(0, 5);
-
-    // --- Merge semantic + keyword results (dedup by title) ---
-    const seen = new Set<string>();
-    const merged: { title: string; category: string; content: string }[] = [];
-
-    // Semantic results first (higher relevance)
-    for (const doc of semanticResults) {
-      if (!seen.has(doc.title)) {
-        seen.add(doc.title);
-        merged.push(doc);
-      }
-    }
-    // Then keyword results
-    for (const doc of keywordResults) {
-      if (!seen.has(doc.title) && merged.length < 12) {
-        seen.add(doc.title);
-        merged.push({ title: doc.title, category: doc.category, content: doc.content });
-      }
-    }
-
-    // Update retrieval metrics
-    const now = new Date().toISOString();
-    for (const doc of keywordResults) {
-      await supabase
-        .from("knowledge_documents")
-        .update({
-          last_retrieved_at: now,
-          retrieval_count: (doc.retrieval_count ?? 0) + 1,
-        })
-        .eq("id", doc.id);
-    }
-
-    // Log gap signal if no results found
-    if (sorted.length === 0 && semanticResults.length === 0) {
+    if (hits.length === 0) {
+      // Log gap signal
+      const queryWords = queryText
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 2);
       await supabase.from("kb_gap_signals").insert({
         query: queryText,
         results_found: 0,
         suggested_category: queryWords[0] ?? null,
       });
+      return { data: "No knowledge base documents found matching your query." };
     }
 
-    return { data: JSON.stringify(merged) };
+    // Map chunks back to full knowledge_documents for complete content
+    const docIds = hits.map((h) => h.metadata?.source_id).filter((id): id is string => id != null);
+
+    // Deduplicate — multiple chunks may come from the same doc
+    const uniqueDocIds = [...new Set(docIds)];
+
+    let results: { title: string; category: string; content: string; relevance: number }[] = [];
+
+    if (uniqueDocIds.length > 0) {
+      const { data: fullDocs } = await supabase
+        .from("knowledge_documents")
+        .select("id, title, category, content, retrieval_count")
+        .in("id", uniqueDocIds);
+
+      if (fullDocs && fullDocs.length > 0) {
+        const docMap = new Map(fullDocs.map((d) => [d.id, d]));
+
+        // Preserve reranked order, deduplicate by doc ID
+        const seen = new Set<string>();
+        for (const hit of hits) {
+          const docId = hit.metadata?.source_id as string | undefined;
+          if (!docId || seen.has(docId)) continue;
+          seen.add(docId);
+          const doc = docMap.get(docId);
+          if (doc) {
+            results.push({
+              title: doc.title,
+              category: doc.category,
+              content: doc.content,
+              relevance: hit.similarity,
+            });
+          }
+        }
+
+        // Update retrieval metrics (fire-and-forget)
+        const now = new Date().toISOString();
+        for (const doc of fullDocs) {
+          void supabase
+            .from("knowledge_documents")
+            .update({
+              last_retrieved_at: now,
+              retrieval_count: ((doc as any).retrieval_count ?? 0) + 1,
+            })
+            .eq("id", doc.id);
+        }
+      }
+    }
+
+    // Fallback: if no source_id mapping, return chunk content directly
+    if (results.length === 0) {
+      results = hits.map((h) => ({
+        title: (h.metadata?.title as string) ?? "Knowledge Base",
+        category: (h.metadata?.category as string) ?? "general",
+        content: h.content,
+        relevance: h.similarity,
+      }));
+    }
+
+    return { data: JSON.stringify(results) };
   } catch (err) {
     return { data: `Error searching knowledge base: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+async function executeSearchTranscripts(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  try {
+    const queryText = input.query as string;
+    const contactId = input.contact_id as string | undefined;
+    const limit = (input.limit as number) ?? 8;
+
+    const { hybridSearch } = await import("@/lib/rag/retriever");
+    const hits = await hybridSearch({
+      query: queryText,
+      contentType: "transcript",
+      contactId,
+      limit,
+      threshold: 0.3,
+      rerank: true,
+    });
+
+    if (hits.length === 0) {
+      return { data: "No transcript matches found for that query." };
+    }
+
+    const results = hits.map((h) => ({
+      content: h.content,
+      relevance: h.similarity,
+      contactId: h.contactId,
+      callDate: h.metadata?.call_date ?? null,
+      contactName: h.metadata?.contact_name ?? null,
+      sourceId: h.metadata?.source_id ?? null,
+    }));
+
+    return { data: JSON.stringify(results) };
+  } catch (err) {
+    return { data: `Error searching transcripts: ${err instanceof Error ? err.message : "Unknown error"}` };
+  }
+}
+
+async function executeSearchDocuments(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  try {
+    const supabase = createServerClient();
+    const queryText = input.query as string;
+    let journeyId = input.journey_id as string | undefined;
+    const contactId = input.contact_id as string | undefined;
+    const limit = (input.limit as number) ?? 8;
+
+    // Resolve contact_id to a Supabase UUID for scoping
+    let resolvedContactId: string | undefined;
+    if (!journeyId && contactId) {
+      const { data: contact } = await supabase
+        .from("contacts")
+        .select("id")
+        .or(contactIdFilter(contactId))
+        .limit(1)
+        .maybeSingle();
+      if (contact) resolvedContactId = contact.id;
+    }
+
+    // Search embedded documents (external_research content type)
+    const { hybridSearch } = await import("@/lib/rag/retriever");
+    const hits = await hybridSearch({
+      query: queryText,
+      contentType: "external_research",
+      contactId: resolvedContactId,
+      limit,
+      threshold: 0.3,
+      rerank: true,
+    });
+
+    if (hits.length === 0) {
+      return { data: "No document matches found for that query." };
+    }
+
+    const results = hits.map((h) => ({
+      content: h.content,
+      relevance: h.similarity,
+      documentTitle: h.metadata?.title ?? null,
+      category: h.metadata?.category ?? null,
+      sourceId: h.metadata?.source_id ?? null,
+    }));
+
+    return { data: JSON.stringify(results) };
+  } catch (err) {
+    return { data: `Error searching documents: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
 }
 

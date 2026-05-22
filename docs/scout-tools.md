@@ -1,31 +1,33 @@
 ---
-Last verified: 2026-04-27
+Last verified: 2026-05-22
 Source: code (lib/scout/tools.ts)
 ---
 
 # Scout Tools — Catalog
 
-Scout has 21 tools defined in `lib/scout/tools.ts`, executed in `lib/scout/executor.ts`.
+Scout has 23 tools defined in `lib/scout/tools.ts`, executed in `lib/scout/executor.ts`.
 
 ---
 
 ## Read tools (no side effects)
 
-| Tool                        | Input                                | Returns                                          | Notes                                            |
-| --------------------------- | ------------------------------------ | ------------------------------------------------ | ------------------------------------------------ |
-| `get_entity`                | entityType, entityId                 | Full entity record (contact, territory, journey) | Primary lookup tool                              |
-| `query`                     | table, filters, select, limit        | Raw Supabase query results                       | Flexible data access                             |
-| `aggregate`                 | table, filters, groupBy, metric      | Aggregated counts/sums                           | For dashboard-style questions                    |
-| `search_contacts`           | query (name/email/phone)             | Matching contacts                                | Fuzzy search                                     |
-| `get_pipeline`              | pipelineSlug?                        | Pipeline stages + contact counts                 | Overview of all pipelines                        |
-| `get_next_action`           | contactId                            | Recommended next step for a contact              | Uses stage + sub-task state                      |
-| `get_schedule`              | userId?, days?                       | Upcoming appointments from GHL                   | Calendar integration                             |
-| `get_calendar_availability` | calendar_hint, start, end, timezone? | Open slots on a specific GHL calendar            | Call before draft_appointment for vague times    |
-| `search_knowledge`          | query                                | Matching KB documents by keyword                 | Knowledge base search                            |
-| `workflow_analyze`          | workflowId                           | Health score (A-F) + diagnosis                   | Workflow intelligence                            |
-| `workflow_rewrite`          | workflowId, stepId, context          | 3 rewrite variants                               | AI-suggested improvements                        |
-| `trainual_status`           | contactId                            | Trainual completion % + last activity            | PTO tracking                                     |
-| `describe_data`             | table?                               | Table list + key columns + row counts            | Self-awareness — use before claiming data access |
+| Tool                        | Input                                   | Returns                                          | Notes                                            |
+| --------------------------- | --------------------------------------- | ------------------------------------------------ | ------------------------------------------------ |
+| `get_entity`                | entityType, entityId                    | Full entity record (contact, territory, journey) | Primary lookup tool                              |
+| `query`                     | table, filters, select, limit           | Raw Supabase query results                       | Flexible data access                             |
+| `aggregate`                 | table, filters, groupBy, metric         | Aggregated counts/sums                           | For dashboard-style questions                    |
+| `search_contacts`           | query (name/email/phone)                | Matching contacts                                | Fuzzy search                                     |
+| `get_pipeline`              | pipelineSlug?                           | Pipeline stages + contact counts                 | Overview of all pipelines                        |
+| `get_next_action`           | contactId                               | Recommended next step for a contact              | Uses stage + sub-task state                      |
+| `get_schedule`              | userId?, days?                          | Upcoming appointments from GHL                   | Calendar integration                             |
+| `get_calendar_availability` | calendar_hint, start, end, timezone?    | Open slots on a specific GHL calendar            | Call before draft_appointment for vague times    |
+| `search_knowledge`          | query                                   | Matching KB documents by hybrid search           | Voyage AI + BM25 + reranking                     |
+| `search_transcripts`        | query, contact_id?, limit?              | Matching call transcript chunks                  | Semantic search across past calls                |
+| `search_documents`          | query, journey_id?, contact_id?, limit? | Matching document chunks                         | Semantic search across uploaded docs             |
+| `workflow_analyze`          | workflowId                              | Health score (A-F) + diagnosis                   | Workflow intelligence                            |
+| `workflow_rewrite`          | workflowId, stepId, context             | 3 rewrite variants                               | AI-suggested improvements                        |
+| `trainual_status`           | contactId                               | Trainual completion % + last activity            | PTO tracking                                     |
+| `describe_data`             | table?                                  | Table list + key columns + row counts            | Self-awareness — use before claiming data access |
 
 ## Draft tools (produce actions for human review — DRC pattern)
 

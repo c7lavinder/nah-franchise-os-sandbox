@@ -17,6 +17,8 @@ export type ScoutToolName =
   | "get_tasks"
   | "complete_task"
   | "search_knowledge"
+  | "search_transcripts"
+  | "search_documents"
   | "get_journey_documents"
   | "workflow_analyze"
   | "workflow_rewrite"

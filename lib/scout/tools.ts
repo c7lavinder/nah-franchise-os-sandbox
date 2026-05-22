@@ -280,14 +280,71 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   {
     name: "search_knowledge",
     description:
-      "Keyword search the NAH knowledge base — brand, pipeline process, objection handling, competitors, FDD, playbooks. " +
+      "Semantic + keyword hybrid search across the NAH knowledge base — brand, pipeline process, objection handling, competitors, FDD, playbooks. " +
+      "Uses Voyage AI embeddings + BM25 full-text search with reranking for high-quality results. " +
       "Use for 'how do we approach X' / 'what's our policy on Y' questions.",
     input_schema: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description: "Search query",
+          description: "Search query — natural language works best",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "search_transcripts",
+    description:
+      "Semantic search across call transcripts — find specific quotes, topics, or moments from past calls. " +
+      "Uses Voyage AI embeddings + BM25 hybrid search with reranking. Optionally scope to a single contact or territory. " +
+      "Use when the user asks 'what did X say about Y?', 'which calls mentioned Z?', or 'find the call where we discussed...'.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "What to search for — natural language works best (e.g. 'royalty concerns', 'timeline for starting')",
+        },
+        contact_id: {
+          type: "string",
+          description: "Optional GHL contact ID to scope search to one contact's calls",
+        },
+        limit: {
+          type: "number",
+          description: "Max results to return (default 8)",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "search_documents",
+    description:
+      "Semantic search across uploaded journey documents (PFS, Zorakle profiles, franchise agreements, etc.). " +
+      "Uses Voyage AI embeddings + BM25 hybrid search with reranking. Optionally scope to a specific journey. " +
+      "Use when the user asks about content within uploaded documents — 'what does the PFS say about...', " +
+      "'find the section about...' in a document.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "What to search for in documents — natural language works best",
+        },
+        journey_id: {
+          type: "string",
+          description: "Optional journey UUID to scope search to one journey's documents",
+        },
+        contact_id: {
+          type: "string",
+          description: "Optional contact ID — resolves to journey if journey_id not provided",
+        },
+        limit: {
+          type: "number",
+          description: "Max results to return (default 8)",
         },
       },
       required: ["query"],

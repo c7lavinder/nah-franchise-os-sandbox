@@ -5,7 +5,7 @@
 
 ---
 
-## Current Phase: 4 — Voyage AI + Contextual Retrieval (COMPLETE)
+## Current Phase: 5 — Wire RAG Into Scout Chat (COMPLETE)
 
 **Start date:** 2026-05-22
 **Target:** Replace OpenAI embeddings with Voyage AI, add contextual chunking, BM25 hybrid search, and reranking.
@@ -206,18 +206,18 @@
 
 ### 5a. Upgrade search_knowledge
 
-- [ ] Use contextual retrieval + reranking from Phase 4
-- [ ] Search all content types (transcripts, KB, journals, documents)
+- [x] Use contextual retrieval + reranking from Phase 4
+- [x] Search all content types (transcripts, KB, journals, documents)
 
 ### 5b. New tools
 
-- [ ] `search_transcripts(query, contact_id?, territory_slug?)` — semantic search across call transcripts
-- [ ] `search_documents(query, journey_id?)` — semantic search across uploaded documents
+- [x] `search_transcripts(query, contact_id?, limit?)` — semantic search across call transcripts
+- [x] `search_documents(query, journey_id?, contact_id?, limit?)` — semantic search across uploaded documents
 
 ### 5c. Pre-fetch context
 
-- [ ] Before Scout's first LLM call, run lightweight retrieval on user's message
-- [ ] Inject top 5 relevant chunks into system prompt
+- [x] Before Scout's first LLM call, run lightweight retrieval on user's message
+- [x] Inject top 5 relevant chunks into system prompt
 
 ### Phase 5 verification
 
@@ -250,10 +250,11 @@
 
 ## Session Log
 
-| Session | Date       | Phase | What was done                                                                                                                                                                                              | What's next                       |
-| ------- | ---------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| 50      | 2026-05-22 | 0-3   | All Phase 0 sub-tasks (embeddings, profile fields, GHL logging), Phase 1 (auto-save extractions + score recalc), Phase 2 (pre-computed briefs + cron), Phase 3 (retrieval chaining + franchisee detection) | Phase 4: Voyage AI integration    |
-| 51      | 2026-05-22 | 4     | Voyage AI integration (voyage-3-large), contextual chunking, BM25 hybrid search with RRF, Voyage reranking, vector resize migration 1536→1024, batch embedding                                             | Phase 5: Wire RAG into Scout chat |
+| Session | Date       | Phase | What was done                                                                                                                                                                                              | What's next                                  |
+| ------- | ---------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| 50      | 2026-05-22 | 0-3   | All Phase 0 sub-tasks (embeddings, profile fields, GHL logging), Phase 1 (auto-save extractions + score recalc), Phase 2 (pre-computed briefs + cron), Phase 3 (retrieval chaining + franchisee detection) | Phase 4: Voyage AI integration               |
+| 51      | 2026-05-22 | 4     | Voyage AI integration (voyage-3-large), contextual chunking, BM25 hybrid search with RRF, Voyage reranking, vector resize migration 1536→1024, batch embedding                                             | Phase 5: Wire RAG into Scout chat            |
+| 52      | 2026-05-22 | 5     | Upgraded search_knowledge to hybridSearch, added search_transcripts + search_documents tools, added pre-fetch context injection into system prompt                                                         | Phase 6: Retrieval Planner + Quality Logging |
 
 ---
 

@@ -630,6 +630,50 @@ async function loadPipelineSnapshot(userId: string): Promise<string> {
 }
 
 /**
+ * Extract the latest user message text from the conversation.
+ */
+function extractLatestUserMessage(messages: Anthropic.Messages.MessageParam[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role !== "user") continue;
+    if (typeof msg.content === "string") return msg.content;
+    if (Array.isArray(msg.content)) {
+      const textBlock = msg.content.find((b): b is Anthropic.Messages.TextBlockParam => b.type === "text");
+      if (textBlock) return textBlock.text;
+    }
+  }
+  return null;
+}
+
+/**
+ * Pre-fetch relevant context based on the user's message.
+ * Runs a lightweight hybrid search and returns formatted context string.
+ */
+async function prefetchContext(userMessage: string): Promise<string> {
+  try {
+    const { hybridSearch } = await import("@/lib/rag/retriever");
+    const hits = await hybridSearch({
+      query: userMessage,
+      limit: 5,
+      threshold: 0.35,
+      rerank: true,
+    });
+
+    if (hits.length === 0) return "";
+
+    const chunks = hits.map((h, i) => {
+      const type = h.contentType === "kb_doc" ? "KB" : h.contentType === "transcript" ? "Call" : "Doc";
+      const meta = h.metadata?.contact_name ? ` (${h.metadata.contact_name})` : "";
+      return `  [${i + 1}] [${type}${meta}] ${h.content.slice(0, 400)}`;
+    });
+
+    return `PRE-FETCHED CONTEXT — These are the most relevant knowledge chunks for this question. Use them to inform your answer without needing to call search tools unless you need more detail.\n${chunks.join("\n")}`;
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Assemble the full system prompt for a Scout conversation turn.
  * Exported so the streaming route can reuse it without duplicating logic.
  */
@@ -645,24 +689,37 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
     .single();
   const ghlUserId = currentUser?.ghl_user_id ?? null;
 
-  // Load dynamic context + DB-backed prompt overrides in parallel
-  const [knowledgeBase, pipelineSnapshot, userMemory, territoryCountResult, rules, profileCtx, calendars, freshness] =
-    await Promise.all([
-      loadKnowledgeBase(input.pageContext),
-      loadPipelineSnapshot(input.userId),
-      loadUserMemory(input.userId),
-      (async () => {
-        const { count } = await supabaseForUser
-          .from("territories")
-          .select("TerritorySlug", { count: "exact", head: true })
-          .eq("status", "active");
-        return count ?? 64;
-      })(),
-      loadPromptSection("scout_rules", SCOUT_RULES),
-      loadPromptSection("scout_profile_context", PROFILE_AND_SCORING_CONTEXT),
-      loadPromptSection("scout_calendars", CALENDAR_CONTEXT),
-      loadDataFreshness(supabaseForUser),
-    ]);
+  // Extract latest user message for pre-fetch context
+  const latestMessage = extractLatestUserMessage(input.messages);
+
+  // Load dynamic context + DB-backed prompt overrides + pre-fetch in parallel
+  const [
+    knowledgeBase,
+    pipelineSnapshot,
+    userMemory,
+    territoryCountResult,
+    rules,
+    profileCtx,
+    calendars,
+    freshness,
+    preFetchedContext,
+  ] = await Promise.all([
+    loadKnowledgeBase(input.pageContext),
+    loadPipelineSnapshot(input.userId),
+    loadUserMemory(input.userId),
+    (async () => {
+      const { count } = await supabaseForUser
+        .from("territories")
+        .select("TerritorySlug", { count: "exact", head: true })
+        .eq("status", "active");
+      return count ?? 64;
+    })(),
+    loadPromptSection("scout_rules", SCOUT_RULES),
+    loadPromptSection("scout_profile_context", PROFILE_AND_SCORING_CONTEXT),
+    loadPromptSection("scout_calendars", CALENDAR_CONTEXT),
+    loadDataFreshness(supabaseForUser),
+    latestMessage ? prefetchContext(latestMessage) : Promise.resolve(""),
+  ]);
   const identity = await loadPromptSection("scout_identity", getScoutIdentity(territoryCountResult));
 
   const pageContextLine = formatPageContextForPrompt(input.pageContext);
@@ -675,6 +732,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
     freshness,
     formatMemoryForPrompt(userMemory),
     pipelineSnapshot,
+    preFetchedContext,
     profileCtx,
     calendars,
     knowledgeBase,
