@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * Pipeline Mockup — Kanban Board View (v2)
+ * Pipeline Mockup — Kanban Board View (v3)
  *
- * All stages fit on one screen as equal-width columns.
+ * Full-width layout (breaks out of AppShell max-w-content).
+ * All stages fit on screen as equal-width columns.
  * Inside each stage, sub-task panels group prospect cards.
- * Drag a card between sub-tasks or stages.
+ * Shows upcoming call/appointment on each card.
  *
  * This is a MOCKUP for team review — lives at /pipeline/mockup-kanban
  */
@@ -24,7 +25,7 @@ import {
   useDroppable,
   useDraggable,
 } from "@dnd-kit/core";
-import { ChevronDown, ChevronRight, Clock, Search, ArrowRight, X, Loader2, GripVertical } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock, Search, ArrowRight, X, Loader2, GripVertical, Calendar } from "lucide-react";
 import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 // ---------------------------------------------------------------------------
@@ -78,6 +79,7 @@ interface PipelineContact {
   urgencyScore: number;
   enteredStageAt: string | null;
   currentSubTaskId: string | null;
+  nextAppointment?: { title: string; startTime: string } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,7 +109,6 @@ const URGENCY_LABEL: Record<string, string> = {
   fresh: "Fresh",
 };
 
-/** Stage column header gradient */
 const STAGE_HEADER_COLORS: Record<string, string> = {
   engagement: "from-[#e87461] to-[#e8956a]",
   qualification: "from-[#e8956a] to-[#e8b468]",
@@ -132,7 +133,7 @@ const STAGE_HEADER_COLORS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Prospect Card (draggable) — compact for fitting many on screen
+// Prospect Card (draggable)
 // ---------------------------------------------------------------------------
 
 function ProspectCard({ contact }: { contact: PipelineContact }) {
@@ -173,6 +174,18 @@ function ProspectCard({ contact }: { contact: PipelineContact }) {
         </span>
         {contact.source && <span className="truncate max-w-[60px]">{contact.source}</span>}
       </div>
+      {contact.nextAppointment && (
+        <div className="flex items-center gap-1 ml-[22px] mt-0.5 text-[10px] text-nah-blue">
+          <Calendar size={8} />
+          <span className="truncate">
+            {contact.nextAppointment.title?.replace(/\s*w\/.*$/, "") ?? "Call"} &middot;{" "}
+            {new Date(contact.nextAppointment.startTime).toLocaleDateString([], {
+              month: "short",
+              day: "numeric",
+            })}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -197,7 +210,7 @@ function DragOverlayProspect({ contact }: { contact: PipelineContact }) {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-Task Panel (droppable) — sits inside a stage column
+// Sub-Task Panel (droppable)
 // ---------------------------------------------------------------------------
 
 function SubTaskPanel({ subTask, contacts }: { subTask: SubTaskAPI; contacts: PipelineContact[] }) {
@@ -215,13 +228,10 @@ function SubTaskPanel({ subTask, contacts }: { subTask: SubTaskAPI; contacts: Pi
         ${isOver ? "border-nah-orange bg-nah-orange/5" : "border-border-default bg-bg-secondary/50"}
       `}
     >
-      {/* Sub-task header */}
       <div className="px-2.5 py-1.5 bg-bg-secondary/80 border-b border-border-default flex items-center justify-between">
         <span className="text-[11px] font-semibold text-text-secondary truncate">{subTask.name}</span>
         <span className="text-[10px] text-text-tertiary font-medium ml-1">{contacts.length}</span>
       </div>
-
-      {/* Cards */}
       <div className="p-1.5 space-y-1 min-h-[32px]">
         {visible.length === 0 && <p className="text-[10px] text-text-tertiary text-center py-2 italic">—</p>}
         {visible.map((c) => (
@@ -241,7 +251,7 @@ function SubTaskPanel({ subTask, contacts }: { subTask: SubTaskAPI; contacts: Pi
 }
 
 // ---------------------------------------------------------------------------
-// "Unsorted" droppable panel for contacts not assigned to a sub-task
+// Unsorted panel
 // ---------------------------------------------------------------------------
 
 function UnsortedPanel({ stageId, contacts }: { stageId: string; contacts: PipelineContact[] }) {
@@ -283,7 +293,7 @@ function UnsortedPanel({ stageId, contacts }: { stageId: string; contacts: Pipel
 }
 
 // ---------------------------------------------------------------------------
-// Stage Column — equal width, contains sub-task panels
+// Stage Column
 // ---------------------------------------------------------------------------
 
 function StageColumn({
@@ -297,7 +307,6 @@ function StageColumn({
 }) {
   const headerGrad = STAGE_HEADER_COLORS[stage.slug] ?? "from-gray-400 to-gray-500";
 
-  // Group contacts by sub-task
   const bySubTask = new Map<string, PipelineContact[]>();
   const unsorted: PipelineContact[] = [];
 
@@ -313,7 +322,6 @@ function StageColumn({
 
   return (
     <div className="flex flex-col min-w-0 flex-1">
-      {/* Stage header */}
       <div className="rounded-t-lg overflow-hidden">
         <div className={`h-1.5 bg-gradient-to-r ${headerGrad}`} />
         <div className="px-3 py-2 bg-bg-secondary border-x border-border-default">
@@ -326,7 +334,6 @@ function StageColumn({
         </div>
       </div>
 
-      {/* Sub-task panels */}
       <div
         className="flex-1 overflow-y-auto border-x border-b border-border-default rounded-b-lg p-2 space-y-2 bg-bg-primary/30"
         style={{ maxHeight: "calc(100vh - 260px)" }}
@@ -335,15 +342,12 @@ function StageColumn({
           <p className="text-[11px] text-text-tertiary text-center py-6 italic">No prospects</p>
         )}
 
-        {/* Sub-task panels in order */}
         {subTasks.map((st) => (
           <SubTaskPanel key={st.id} subTask={st} contacts={bySubTask.get(st.id) ?? []} />
         ))}
 
-        {/* Unsorted contacts (no sub-task assigned) */}
         <UnsortedPanel stageId={stage.id} contacts={unsorted} />
 
-        {/* Terminal stages with no sub-tasks — show cards directly */}
         {subTasks.length === 0 && contacts.length > 0 && (
           <div className="space-y-1">
             {contacts.map((c) => (
@@ -411,6 +415,7 @@ export default function KanbanMockupPage() {
   const [pipelines, setPipelines] = useState<PipelineAPI[]>([]);
   const [contacts, setContacts] = useState<PipelineContact[]>([]);
   const [subTasks, setSubTasks] = useState<SubTaskAPI[]>([]);
+  const [appointmentMap, setAppointmentMap] = useState<Record<string, { title: string; startTime: string }>>({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ sales: true });
@@ -432,14 +437,12 @@ export default function KanbanMockupPage() {
     for (const s of p.stages) stageMap.set(s.id, s);
   }
 
-  // Sub-tasks grouped by stage
   const subTasksByStage = new Map<string, SubTaskAPI[]>();
   for (const st of subTasks) {
     const arr = subTasksByStage.get(st.stage_id) ?? [];
     arr.push(st);
     subTasksByStage.set(st.stage_id, arr);
   }
-  // Sort by sort_order
   for (const [key, arr] of subTasksByStage) {
     subTasksByStage.set(
       key,
@@ -451,10 +454,11 @@ export default function KanbanMockupPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [stagesRes, contactsRes, subTasksRes] = await Promise.all([
+      const [stagesRes, contactsRes, subTasksRes, aptsRes] = await Promise.all([
         apiFetch("/api/pipeline/stages"),
         apiFetch("/api/pipeline/contacts?limit=5000"),
         apiFetch("/api/pipelines/stages?include_sub_tasks=true"),
+        apiFetch("/api/pipeline/appointments"),
       ]);
 
       if (stagesRes.ok) {
@@ -463,14 +467,15 @@ export default function KanbanMockupPage() {
       }
       if (contactsRes.ok) {
         const d = await contactsRes.json();
-        // Map contacts and include currentSubTaskId
         setContacts(d.contacts ?? []);
       }
-
-      // This endpoint may not exist — sub-tasks fetched via fallback below
       if (subTasksRes.ok) {
         const d = await subTasksRes.json();
         setSubTasks(d.subTasks ?? []);
+      }
+      if (aptsRes.ok) {
+        const d = await aptsRes.json();
+        setAppointmentMap(d.appointments ?? {});
       }
     } catch {
       /* silent */
@@ -478,32 +483,13 @@ export default function KanbanMockupPage() {
     setLoading(false);
   }, []);
 
-  // Fallback: fetch sub-tasks from settings pipeline endpoint if the
-  // /api/pipelines/stages endpoint didn't return them
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
 
-  // If sub-tasks are empty after initial load, try fetching from settings
+  // Fallback: fetch sub-tasks from settings if not returned above
   useEffect(() => {
     if (!loading && subTasks.length === 0 && pipelines.length > 0) {
-      // Fetch sub-tasks for each stage via settings API
-      const stageIds = pipelines.flatMap((p) => p.stages.map((s) => s.id));
-      Promise.all(
-        stageIds.map(async (stageId) => {
-          try {
-            const res = await apiFetch(`/api/settings/stages/${stageId}/sub-tasks`);
-            if (res.ok) {
-              // GET isn't defined on that route, try the pipeline_sub_tasks table directly
-            }
-          } catch {
-            /* silent */
-          }
-          return [];
-        })
-      ).catch(() => {});
-
-      // Alternative: fetch all sub-tasks in one go from the pipelines settings
       apiFetch("/api/settings/pipelines")
         .then(async (res) => {
           if (!res.ok) return;
@@ -528,12 +514,18 @@ export default function KanbanMockupPage() {
     }
   }, [loading, subTasks.length, pipelines]);
 
-  // Filter contacts by search
-  const filtered = searchQuery
-    ? contacts.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : contacts;
+  // Merge appointments into contacts
+  const contactsWithApts = contacts.map((c) => {
+    const apt = c.ghlContactId ? appointmentMap[c.ghlContactId] : null;
+    return apt ? { ...c, nextAppointment: apt } : c;
+  });
 
-  // Group contacts by stageId
+  // Filter by search
+  const filtered = searchQuery
+    ? contactsWithApts.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : contactsWithApts;
+
+  // Group by stageId
   const contactsByStage = new Map<string, PipelineContact[]>();
   for (const c of filtered) {
     const arr = contactsByStage.get(c.stageId) ?? [];
@@ -541,7 +533,7 @@ export default function KanbanMockupPage() {
     contactsByStage.set(c.stageId, arr);
   }
 
-  // Sort within each stage by urgency
+  // Sort within each stage
   for (const [key, arr] of contactsByStage) {
     contactsByStage.set(
       key,
@@ -549,7 +541,6 @@ export default function KanbanMockupPage() {
     );
   }
 
-  // Order pipelines
   const ordered = PIPELINE_ORDER.map((slug) => pipelines.find((p) => p.slug === slug)).filter(
     (p): p is PipelineAPI => !!p
   );
@@ -570,7 +561,6 @@ export default function KanbanMockupPage() {
 
     const targetId = over.id as string;
 
-    // Resolve what the target is
     let toLabel = "Unknown";
     if (targetId.startsWith("subtask:")) {
       const stId = targetId.replace("subtask:", "");
@@ -579,7 +569,7 @@ export default function KanbanMockupPage() {
         const stage = stageMap.get(st.stage_id);
         toLabel = `${stage?.name ?? ""} > ${st.name}`;
       }
-      if (stId === c.currentSubTaskId) return; // same sub-task
+      if (stId === c.currentSubTaskId) return;
     } else if (targetId.startsWith("unsorted:")) {
       const stageId = targetId.replace("unsorted:", "");
       const stage = stageMap.get(stageId);
@@ -587,22 +577,16 @@ export default function KanbanMockupPage() {
       if (stageId === c.stageId && !c.currentSubTaskId) return;
     }
 
-    // Build from label
     let fromLabel = c.stageName;
     if (c.currentSubTaskId) {
       const fromSt = subTaskMap.get(c.currentSubTaskId);
       if (fromSt) fromLabel = `${c.stageName} > ${fromSt.name}`;
     }
 
-    setMoveModal({
-      contact: c,
-      fromLabel,
-      toLabel,
-    });
+    setMoveModal({ contact: c, fromLabel, toLabel });
   }
 
   function handleConfirmMove() {
-    // Mockup only — just close the modal
     setMoveModal(null);
   }
 
@@ -620,7 +604,8 @@ export default function KanbanMockupPage() {
   }
 
   return (
-    <div>
+    // Break out of the AppShell max-w-content container to go full-width
+    <div className="-mx-4 md:-mx-8 px-3">
       {/* Page header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -630,7 +615,7 @@ export default function KanbanMockupPage() {
           </p>
         </div>
         <span className="px-2.5 py-1 rounded-full bg-nah-orange/10 text-nah-orange text-[11px] font-semibold uppercase tracking-wider">
-          Mockup v2
+          Mockup v3
         </span>
       </div>
 
@@ -670,7 +655,6 @@ export default function KanbanMockupPage() {
                   <span className="text-caption text-text-tertiary">
                     {totalInPipeline} {totalInPipeline === 1 ? "prospect" : "prospects"}
                   </span>
-                  {/* Collapsed mini pills */}
                   {!isExpanded && (
                     <div className="flex gap-1 ml-2">
                       {pipeline.stages.map((s) => {
@@ -690,7 +674,7 @@ export default function KanbanMockupPage() {
                   )}
                 </button>
 
-                {/* Stage columns — all fit on screen, equal width */}
+                {/* Stage columns — full width, equal columns */}
                 {isExpanded && (
                   <div
                     className="grid gap-2"
@@ -713,11 +697,10 @@ export default function KanbanMockupPage() {
           })}
         </div>
 
-        {/* Drag overlay */}
         <DragOverlay>{activeContact ? <DragOverlayProspect contact={activeContact} /> : null}</DragOverlay>
       </DndContext>
 
-      {/* Move confirmation modal */}
+      {/* Move modal */}
       {moveModal && (
         <MoveModal
           contactName={capitalizeName(moveModal.contact.name)}
