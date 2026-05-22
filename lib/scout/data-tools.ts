@@ -592,6 +592,43 @@ async function getContactProfile(contactId: string): Promise<string> {
       out.briefSummary = briefRes.data.summary;
     }
 
+    // Auto-chain: if contact is a franchisee (territory owner), include territory brief
+    const { data: ownerRow } = await supabase
+      .from("territory_owners")
+      .select(`"TerritorySlug"`)
+      .eq("ghl_contact_id", contactId)
+      .is("end_date", null)
+      .limit(1)
+      .maybeSingle();
+
+    if (!ownerRow) {
+      // Also check by sbContactId (may be UUID)
+      const { data: ownerById } = await supabase
+        .from("territory_owners")
+        .select(`"TerritorySlug"`)
+        .eq("ghl_contact_id", sbContactId)
+        .is("end_date", null)
+        .limit(1)
+        .maybeSingle();
+      if (ownerById) {
+        Object.assign(ownerRow ?? {}, ownerById);
+      }
+    }
+
+    const territorySlug = (ownerRow as any)?.TerritorySlug ?? null;
+    if (territorySlug) {
+      out.isFranchisee = true;
+      out.territorySlug = territorySlug;
+      const { data: tBrief } = await supabase
+        .from("territory_briefs")
+        .select("summary, brief")
+        .eq("territory_slug", territorySlug)
+        .maybeSingle();
+      if (tBrief?.summary) {
+        out.territoryBriefSummary = tBrief.summary;
+      }
+    }
+
     // EAV profile fields (199 fields from contact_profile_fields table)
     const filledFields = Object.entries(profileFields)
       .filter(([, v]) => v.field_value != null)
@@ -708,10 +745,36 @@ async function getTerritoryProfile(slug: string): Promise<string> {
         openTodos: todosRes.data ?? [],
       },
       activeJourneys: statesRes.data ?? [],
+      ownerBriefs: await getOwnerBriefs(supabase, ownersRes.data ?? []),
     });
   } catch (err) {
     return JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" });
   }
+}
+
+/** Fetch contact brief summaries for territory owners */
+async function getOwnerBriefs(
+  supabase: ReturnType<typeof createServerClient>,
+  owners: Array<{ ghl_contact_id: string | null; role: string }>
+): Promise<Array<{ role: string; briefSummary: string | null }>> {
+  const results: Array<{ role: string; briefSummary: string | null }> = [];
+  for (const owner of owners) {
+    if (!owner.ghl_contact_id) continue;
+    // Resolve to UUID
+    const { data: contactRow } = await supabase
+      .from("contacts")
+      .select("id")
+      .eq("ghl_contact_id", owner.ghl_contact_id)
+      .maybeSingle();
+    if (!contactRow) continue;
+    const { data: brief } = await supabase
+      .from("contact_briefs")
+      .select("summary")
+      .eq("contact_id", contactRow.id)
+      .maybeSingle();
+    results.push({ role: owner.role, briefSummary: brief?.summary ?? null });
+  }
+  return results;
 }
 
 async function getJourneyProfile(journeyId: string): Promise<string> {

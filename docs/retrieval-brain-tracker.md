@@ -139,20 +139,22 @@
 
 ### 3a. System prompt retrieval rules
 
-- [ ] Add question-type rules to Scout system prompt in `lib/scout/client.ts`
-- [ ] Prospect → contact brief + calls + intelligence
-- [ ] Franchisee → contact brief + territory brief + performance + EOS
-- [ ] Territory → territory brief + owner briefs + network comparison
-- [ ] Call prep → full chain per existing rules + territory if franchisee
+- [x] Add question-type rules to Scout system prompt in `lib/scout/client.ts`
+- [x] Prospect → contact brief + calls + intelligence
+- [x] Franchisee → contact brief + territory brief + performance + EOS
+- [x] Territory → territory brief + owner briefs + network comparison
+- [x] Call prep → full chain per existing rules + territory if franchisee
 
 ### 3b. Enriched get_entity responses
 
-- [ ] `get_entity(contact)` — detect franchisee via territory_owners, auto-include territory brief
-- [ ] `get_entity(territory)` — auto-include owner briefs + franchisee_performance
-- [ ] `get_entity(journey)` — include member scores + documents + call summary
+- [x] `get_entity(contact)` — detect franchisee via territory_owners, auto-include territory brief summary
+- [x] `get_entity(territory)` — auto-include owner brief summaries
+- [ ] `get_entity(journey)` — include member scores + documents + call summary (deferred)
 
 ### Phase 3 verification
 
+- [x] `npx tsc --noEmit` — 0 errors
+- [x] `npx vitest run` — all tests passing (129/129)
 - [ ] "How is [franchisee] doing?" → response includes territory KPIs, EOS, inventory
 - [ ] "How is [territory] doing?" → response includes owner info + benchmarks
 - [ ] Call prep for franchisee → includes territory performance context
