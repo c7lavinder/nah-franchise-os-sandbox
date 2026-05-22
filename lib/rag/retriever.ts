@@ -1,14 +1,61 @@
 /**
  * Hybrid RAG Retriever
  *
- * Combines semantic search (pgvector) with structured data (direct Supabase queries)
- * to build rich context for Scout. Intent-routed: contact queries use filtered semantic
- * search + profile data, KB queries use pure semantic, BI queries use cross-contact search.
+ * Combines semantic search (pgvector cosine) with BM25 full-text search,
+ * merged via reciprocal rank fusion (RRF). Optionally reranks via Voyage AI.
+ *
+ * Also pulls structured data (profile fields, pipeline, journals) for
+ * contact-scoped queries.
  */
 
+import { VoyageAIClient } from "voyageai";
 import { createServerClient } from "@/lib/supabase/server";
 import { searchEmbeddings, type SearchResult } from "./embedder";
 import { getContactProfileFields, type ProfileFieldValue } from "@/lib/profile/profile-fields";
+
+// ---------------------------------------------------------------------------
+// Voyage reranker (lazy init)
+// ---------------------------------------------------------------------------
+
+let voyageClient: VoyageAIClient | null = null;
+
+function getVoyage(): VoyageAIClient {
+  if (!voyageClient) {
+    const apiKey = process.env.VOYAGE_API_KEY;
+    if (!apiKey) {
+      throw new Error("Missing VOYAGE_API_KEY environment variable");
+    }
+    voyageClient = new VoyageAIClient({ apiKey });
+  }
+  return voyageClient;
+}
+
+/**
+ * Rerank results using Voyage AI rerank-2 model.
+ * Returns results sorted by relevance to the query.
+ */
+async function voyageRerank(query: string, results: SearchResult[], topK: number): Promise<SearchResult[]> {
+  if (results.length === 0) return [];
+
+  const voyage = getVoyage();
+  const documents = results.map((r) => r.content);
+
+  const response = await voyage.rerank({
+    query,
+    documents,
+    model: "rerank-2",
+    topK: Math.min(topK, results.length),
+  });
+
+  if (!response.data) return results.slice(0, topK);
+
+  return response.data
+    .filter((item) => item.index != null)
+    .map((item) => ({
+      ...results[item.index!],
+      similarity: item.relevanceScore ?? results[item.index!].similarity,
+    }));
+}
 
 export interface RetrievedContext {
   semanticChunks: SearchResult[];
@@ -33,21 +80,204 @@ interface RetrievalOptions {
   contentTypes?: ContentType[];
   limit?: number;
   includeStructured?: boolean;
+  useHybrid?: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// BM25 full-text search via Supabase RPC
+// ---------------------------------------------------------------------------
+
+interface BM25Result {
+  id: string;
+  contactId: string | null;
+  contentType: string;
+  content: string;
+  metadata: Record<string, unknown>;
+  rank: number;
+}
+
+async function searchBM25(params: {
+  query: string;
+  contentType?: string;
+  contactId?: string;
+  limit?: number;
+}): Promise<BM25Result[]> {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase.rpc("search_embeddings_bm25", {
+    search_query: params.query,
+    content_type_filter: params.contentType ?? null,
+    contact_id_filter: params.contactId ?? null,
+    match_limit: params.limit ?? 20,
+  });
+
+  if (error) {
+    console.error(`BM25 search failed: ${error.message}`);
+    return [];
+  }
+
+  return (data ?? []).map(
+    (row: {
+      id: string;
+      contact_id: string | null;
+      content_type: string;
+      content: string;
+      metadata: Record<string, unknown>;
+      rank: number;
+    }) => ({
+      id: row.id,
+      contactId: row.contact_id,
+      contentType: row.content_type,
+      content: row.content,
+      metadata: row.metadata,
+      rank: row.rank,
+    })
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Reciprocal Rank Fusion (RRF)
+// ---------------------------------------------------------------------------
+
+const RRF_K = 60; // Standard RRF constant
+
+interface RankedItem {
+  id: string;
+  contactId: string | null;
+  contentType: string;
+  content: string;
+  metadata: Record<string, unknown>;
+  score: number;
+}
+
+/**
+ * Merge semantic and BM25 results using reciprocal rank fusion.
+ * Each result gets score = 1 / (k + rank) from each list, summed.
+ */
+function reciprocalRankFusion(semanticResults: SearchResult[], bm25Results: BM25Result[], limit: number): RankedItem[] {
+  const scores = new Map<string, RankedItem>();
+
+  // Score semantic results
+  for (let i = 0; i < semanticResults.length; i++) {
+    const r = semanticResults[i];
+    const rrfScore = 1 / (RRF_K + i + 1);
+    scores.set(r.id, {
+      id: r.id,
+      contactId: r.contactId,
+      contentType: r.contentType,
+      content: r.content,
+      metadata: r.metadata,
+      score: rrfScore,
+    });
+  }
+
+  // Score BM25 results and merge
+  for (let i = 0; i < bm25Results.length; i++) {
+    const r = bm25Results[i];
+    const rrfScore = 1 / (RRF_K + i + 1);
+    const existing = scores.get(r.id);
+    if (existing) {
+      existing.score += rrfScore;
+    } else {
+      scores.set(r.id, {
+        id: r.id,
+        contactId: r.contactId,
+        contentType: r.contentType,
+        content: r.content,
+        metadata: r.metadata,
+        score: rrfScore,
+      });
+    }
+  }
+
+  return Array.from(scores.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
+// Hybrid search: semantic + BM25 with RRF
+// ---------------------------------------------------------------------------
+
+export async function hybridSearch(params: {
+  query: string;
+  contentType?: ContentType;
+  contactId?: string;
+  limit?: number;
+  threshold?: number;
+  rerank?: boolean;
+}): Promise<SearchResult[]> {
+  const limit = params.limit ?? 10;
+  const shouldRerank = params.rerank ?? true;
+  const fetchLimit = shouldRerank ? limit * 3 : limit * 2; // Over-fetch more for reranking
+
+  // Run semantic and BM25 in parallel
+  const [semanticResults, bm25Results] = await Promise.all([
+    searchEmbeddings({
+      query: params.query,
+      contentType: params.contentType,
+      contactId: params.contactId,
+      limit: fetchLimit,
+      threshold: params.threshold ?? 0.3,
+    }),
+    searchBM25({
+      query: params.query,
+      contentType: params.contentType,
+      contactId: params.contactId,
+      limit: fetchLimit,
+    }),
+  ]);
+
+  // If BM25 returned nothing (query didn't match any terms), fall back to semantic only
+  if (bm25Results.length === 0 && !shouldRerank) {
+    return semanticResults.slice(0, limit);
+  }
+
+  // Fuse with RRF
+  const fusedLimit = shouldRerank ? limit * 2 : limit; // Keep more for reranking pass
+  const fused =
+    bm25Results.length > 0
+      ? reciprocalRankFusion(semanticResults, bm25Results, fusedLimit)
+      : semanticResults.slice(0, fusedLimit).map((r) => ({
+          id: r.id,
+          contactId: r.contactId,
+          contentType: r.contentType,
+          content: r.content,
+          metadata: r.metadata as Record<string, unknown>,
+          score: r.similarity,
+        }));
+
+  const fusedAsSearchResults: SearchResult[] = fused.map((item) => ({
+    id: item.id,
+    contactId: item.contactId,
+    contentType: item.contentType,
+    content: item.content,
+    metadata: item.metadata as SearchResult["metadata"],
+    similarity: item.score,
+  }));
+
+  // Rerank with Voyage AI
+  if (shouldRerank && fusedAsSearchResults.length > 0) {
+    try {
+      return await voyageRerank(params.query, fusedAsSearchResults, limit);
+    } catch (err) {
+      console.error("Voyage rerank failed, falling back to RRF order:", err);
+      return fusedAsSearchResults.slice(0, limit);
+    }
+  }
+
+  return fusedAsSearchResults.slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
+// Main retrieval function
+// ---------------------------------------------------------------------------
 
 /**
  * Retrieve context for a query using hybrid approach.
  */
-export async function retrieveContext(
-  query: string,
-  options: RetrievalOptions = {}
-): Promise<RetrievedContext> {
-  const {
-    contactId,
-    contentTypes,
-    limit = 10,
-    includeStructured = true,
-  } = options;
+export async function retrieveContext(query: string, options: RetrievalOptions = {}): Promise<RetrievedContext> {
+  const { contactId, contentTypes, limit = 10, includeStructured = true, useHybrid = true } = options;
 
   const supabase = createServerClient();
 
@@ -60,65 +290,72 @@ export async function retrieveContext(
     contactName: null,
   };
 
+  // Choose search function
+  const searchFn = useHybrid ? hybridSearch : searchEmbeddings;
+
   // Run semantic + structured queries in parallel
   const promises: Promise<void>[] = [];
 
-  // 1. Semantic search — scoped to contact if provided
+  // 1. Search -- scoped to contact if provided
   if (contentTypes && contentTypes.length > 0) {
     for (const ct of contentTypes) {
       promises.push(
-        searchEmbeddings({
+        searchFn({
           query,
           contentType: ct,
           contactId: ct !== "kb_doc" ? contactId : undefined,
           limit: Math.ceil(limit / contentTypes.length),
-          threshold: 0.4,
-        }).then((chunks) => {
-          if (ct === "kb_doc") {
-            result.relevantKBDocs.push(...chunks);
-          } else {
-            result.semanticChunks.push(...chunks);
-          }
-        }).catch(() => { /* continue if embedding search fails */ })
+          threshold: 0.3,
+        })
+          .then((chunks) => {
+            if (ct === "kb_doc") {
+              result.relevantKBDocs.push(...chunks);
+            } else {
+              result.semanticChunks.push(...chunks);
+            }
+          })
+          .catch(() => {
+            /* continue if search fails */
+          })
       );
     }
   } else {
-    // Default: search transcripts + journals for contact, KB for all
+    // Default: search all types for contact, KB for all
     promises.push(
-      searchEmbeddings({
+      searchFn({
         query,
         contactId,
         limit: limit,
-        threshold: 0.4,
-      }).then((chunks) => {
-        for (const chunk of chunks) {
-          if (chunk.contentType === "kb_doc") {
-            result.relevantKBDocs.push(chunk);
-          } else {
-            result.semanticChunks.push(chunk);
+        threshold: 0.3,
+      })
+        .then((chunks) => {
+          for (const chunk of chunks) {
+            if (chunk.contentType === "kb_doc") {
+              result.relevantKBDocs.push(chunk);
+            } else {
+              result.semanticChunks.push(chunk);
+            }
           }
-        }
-      }).catch(() => {})
+        })
+        .catch(() => {})
     );
   }
 
-  // 2. Structured data — only if contactId provided
+  // 2. Structured data -- only if contactId provided
   if (contactId && includeStructured) {
     // Contact profile
     promises.push(
-      getContactProfileFields(contactId).then((fields) => {
-        result.contactProfile = fields;
-      }).catch(() => {})
+      getContactProfileFields(contactId)
+        .then((fields) => {
+          result.contactProfile = fields;
+        })
+        .catch(() => {})
     );
 
     // Contact name
     promises.push(
       (async () => {
-        const { data } = await supabase
-          .from("contacts")
-          .select("first_name, last_name")
-          .eq("id", contactId)
-          .single();
+        const { data } = await supabase.from("contacts").select("first_name, last_name").eq("id", contactId).single();
         if (data) {
           result.contactName = `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim() || null;
         }
@@ -126,9 +363,7 @@ export async function retrieveContext(
     );
 
     // Recent journals (last 7 days)
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0];
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     promises.push(
       (async () => {
         const { data } = await supabase
@@ -142,18 +377,19 @@ export async function retrieveContext(
       })().catch(() => {})
     );
 
-    // Pipeline state — Phase 4 read migration: source from
-    // journey_pipeline_state via the contact's primary journey.
+    // Pipeline state
     promises.push(
       (async () => {
         const { data } = await supabase
           .from("journey_pipeline_state")
-          .select(`
+          .select(
+            `
             id, pipeline_id, current_stage_id, entered_current_stage_at,
             pipelines (name),
             pipeline_stages (name),
             journeys!inner(primary_contact_id)
-          `)
+          `
+          )
           .eq("journeys.primary_contact_id", contactId)
           .eq("is_active", true)
           .limit(1)
@@ -163,9 +399,7 @@ export async function retrieveContext(
         const pipeline = data.pipelines as unknown as { name: string } | null;
         const stage = data.pipeline_stages as unknown as { name: string } | null;
         const enteredAt = new Date(data.entered_current_stage_at);
-        const daysInStage = Math.floor(
-          (Date.now() - enteredAt.getTime()) / (1000 * 60 * 60 * 24)
-        );
+        const daysInStage = Math.floor((Date.now() - enteredAt.getTime()) / (1000 * 60 * 60 * 24));
 
         const { count: total } = await supabase
           .from("pipeline_sub_tasks")
@@ -222,16 +456,14 @@ export function formatContextForPrompt(ctx: RetrievedContext): string {
   }
 
   if (ctx.recentJournals.length > 0) {
-    const journals = ctx.recentJournals
-      .map((j) => `  [${j.journal_date}] ${j.summary}`)
-      .join("\n");
+    const journals = ctx.recentJournals.map((j) => `  [${j.journal_date}] ${j.summary}`).join("\n");
     sections.push(`RECENT ACTIVITY:\n${journals}`);
   }
 
   if (ctx.semanticChunks.length > 0) {
     const chunks = ctx.semanticChunks
       .slice(0, 5)
-      .map((c, i) => `  [${i + 1}] (${c.contentType}, sim=${c.similarity.toFixed(2)}) ${c.content.slice(0, 300)}`)
+      .map((c, i) => `  [${i + 1}] (${c.contentType}, score=${c.similarity.toFixed(3)}) ${c.content.slice(0, 300)}`)
       .join("\n");
     sections.push(`RELEVANT CONTENT:\n${chunks}`);
   }

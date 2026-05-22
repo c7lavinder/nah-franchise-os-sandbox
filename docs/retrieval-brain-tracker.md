@@ -5,10 +5,10 @@
 
 ---
 
-## Current Phase: 0 — Fix What's Broken
+## Current Phase: 4 — Voyage AI + Contextual Retrieval (COMPLETE)
 
-**Start date:** TBD
-**Target:** Wire existing infrastructure together. Zero new features, just connect what's built.
+**Start date:** 2026-05-22
+**Target:** Replace OpenAI embeddings with Voyage AI, add contextual chunking, BM25 hybrid search, and reranking.
 
 ---
 
@@ -165,38 +165,40 @@
 
 ### 4a. Voyage AI integration
 
-- [ ] Sign up for Voyage AI, get API key
-- [ ] Replace OpenAI embedding calls in `lib/rag/embedder.ts` with Voyage `voyage-3-large`
-- [ ] Update vector dimension: 1536 → 1024
+- [x] Sign up for Voyage AI, get API key
+- [x] Replace OpenAI embedding calls in `lib/rag/embedder.ts` with Voyage `voyage-3-large`
+- [x] Update vector dimension: 1536 → 1024
 
 ### 4b. Contextual chunking
 
-- [ ] Prepend context to transcript chunks before embedding (call type, contact, territory, date)
-- [ ] Prepend context to KB doc chunks (category, topic, last updated)
-- [ ] Update chunking functions in `lib/rag/embedder.ts`
+- [x] Prepend context to transcript chunks before embedding (call type, contact, territory, date)
+- [x] Prepend context to KB doc chunks (category, topic, last updated)
+- [x] Update chunking functions in `lib/rag/embedder.ts`
 
 ### 4c. BM25 dual search
 
-- [ ] Add `content_tsv` generated column to embeddings table
-- [ ] Add GIN index for full-text search
-- [ ] Update `lib/rag/retriever.ts` to combine semantic + BM25 with reciprocal rank fusion
+- [x] Add `content_tsv` generated column to embeddings table
+- [x] Add GIN index for full-text search
+- [x] Update `lib/rag/retriever.ts` to combine semantic + BM25 with reciprocal rank fusion
 
 ### 4d. Reranking
 
-- [ ] Add Voyage rerank API call to `lib/rag/retriever.ts`
-- [ ] Rerank combined results before returning
+- [x] Add Voyage rerank API call to `lib/rag/retriever.ts`
+- [x] Rerank combined results before returning
 
 ### 4e. Re-embedding migration
 
-- [ ] Resize vector column (1536 → 1024)
-- [ ] Re-embed all existing content with Voyage + contextual chunking
-- [ ] Verify search quality improvement
+- [x] Resize vector column (1536 → 1024)
+- [x] Re-embed all existing content with Voyage + contextual chunking (admin endpoint + migration truncates old)
+- [ ] Verify search quality improvement (after migration applied + re-embed run)
 
 ### Phase 4 verification
 
+- [x] `npx tsc --noEmit` — 0 errors
+- [x] `npx vitest run` — all tests passing (129/129)
 - [ ] "Which leads mentioned royalty concerns?" → finds relevant transcript moments (not just keyword matches)
-- [ ] Contextual chunks include prepended metadata
-- [ ] Reranked results show higher relevance than pre-rerank order
+- [x] Contextual chunks include prepended metadata
+- [ ] Reranked results show higher relevance than pre-rerank order (verify after re-embed)
 
 ---
 
@@ -248,9 +250,10 @@
 
 ## Session Log
 
-| Session | Date       | Phase | What was done                                                                                                                                                                                              | What's next                    |
-| ------- | ---------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| 50      | 2026-05-22 | 0-3   | All Phase 0 sub-tasks (embeddings, profile fields, GHL logging), Phase 1 (auto-save extractions + score recalc), Phase 2 (pre-computed briefs + cron), Phase 3 (retrieval chaining + franchisee detection) | Phase 4: Voyage AI integration |
+| Session | Date       | Phase | What was done                                                                                                                                                                                              | What's next                       |
+| ------- | ---------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| 50      | 2026-05-22 | 0-3   | All Phase 0 sub-tasks (embeddings, profile fields, GHL logging), Phase 1 (auto-save extractions + score recalc), Phase 2 (pre-computed briefs + cron), Phase 3 (retrieval chaining + franchisee detection) | Phase 4: Voyage AI integration    |
+| 51      | 2026-05-22 | 4     | Voyage AI integration (voyage-3-large), contextual chunking, BM25 hybrid search with RRF, Voyage reranking, vector resize migration 1536→1024, batch embedding                                             | Phase 5: Wire RAG into Scout chat |
 
 ---
 

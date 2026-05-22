@@ -7,47 +7,131 @@
  * - External research: 300-token chunks
  * - Journal entries: single chunk (short content)
  *
- * Uses OpenAI text-embedding-3-small (1536 dimensions).
+ * Uses Voyage AI voyage-3-large (1024 dimensions).
  * Stores embeddings in Supabase pgvector `embeddings` table.
  */
 
-import OpenAI from "openai";
+import { VoyageAIClient } from "voyageai";
 import { createServerClient } from "@/lib/supabase/server";
 
 // ---------------------------------------------------------------------------
-// OpenAI client (lazy init)
+// Voyage AI client (lazy init)
 // ---------------------------------------------------------------------------
 
-let openaiClient: OpenAI | null = null;
+let voyageClient: VoyageAIClient | null = null;
 
-function getOpenAI(): OpenAI {
-  if (!openaiClient) {
-    const apiKey = process.env.OPENAI_API_KEY;
+function getVoyage(): VoyageAIClient {
+  if (!voyageClient) {
+    const apiKey = process.env.VOYAGE_API_KEY;
     if (!apiKey) {
-      throw new Error("Missing OPENAI_API_KEY environment variable");
+      throw new Error("Missing VOYAGE_API_KEY environment variable");
     }
-    openaiClient = new OpenAI({ apiKey });
+    voyageClient = new VoyageAIClient({ apiKey });
   }
-  return openaiClient;
+  return voyageClient;
 }
+
+const VOYAGE_MODEL = "voyage-3-large";
 
 // ---------------------------------------------------------------------------
 // Core: get embedding vector from text
 // ---------------------------------------------------------------------------
 
 export async function getEmbedding(text: string): Promise<number[]> {
-  const openai = getOpenAI();
+  const voyage = getVoyage();
   const trimmed = text.trim();
   if (!trimmed) {
     throw new Error("Cannot embed empty text");
   }
 
-  const response = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: trimmed,
+  const response = await voyage.embed({
+    input: [trimmed],
+    model: VOYAGE_MODEL,
   });
 
+  if (!response.data || response.data.length === 0 || !response.data[0].embedding) {
+    throw new Error("Voyage AI returned no embedding");
+  }
+
   return response.data[0].embedding;
+}
+
+/**
+ * Batch embed multiple texts at once (Voyage supports up to 128 texts per call).
+ * More efficient than calling getEmbedding() in a loop.
+ */
+export async function getEmbeddingBatch(texts: string[]): Promise<number[][]> {
+  if (texts.length === 0) return [];
+
+  const voyage = getVoyage();
+  const trimmed = texts.map((t) => t.trim()).filter((t) => t.length > 0);
+  if (trimmed.length === 0) return [];
+
+  const BATCH_SIZE = 128;
+  const allEmbeddings: number[][] = [];
+
+  for (let i = 0; i < trimmed.length; i += BATCH_SIZE) {
+    const batch = trimmed.slice(i, i + BATCH_SIZE);
+    const response = await voyage.embed({
+      input: batch,
+      model: VOYAGE_MODEL,
+    });
+
+    if (!response.data) {
+      throw new Error("Voyage AI returned no data for batch");
+    }
+
+    for (const item of response.data) {
+      if (!item.embedding) {
+        throw new Error("Voyage AI returned null embedding in batch");
+      }
+      allEmbeddings.push(item.embedding);
+    }
+  }
+
+  return allEmbeddings;
+}
+
+// ---------------------------------------------------------------------------
+// Contextual chunking helpers
+// ---------------------------------------------------------------------------
+
+interface TranscriptContext {
+  contactName?: string;
+  callDate?: string;
+  repName?: string;
+}
+
+interface KBDocContext {
+  title: string;
+  category?: string;
+  lastUpdated?: string;
+}
+
+/**
+ * Prepend contextual metadata to a transcript chunk before embedding.
+ * Improves retrieval by giving the embedding model richer context.
+ */
+export function contextualizeTranscriptChunk(chunk: string, ctx: TranscriptContext, chunkIndex: number): string {
+  const parts: string[] = [];
+  parts.push("Call transcript");
+  if (ctx.contactName) parts.push(`with ${ctx.contactName}`);
+  if (ctx.callDate) parts.push(`on ${ctx.callDate}`);
+  if (ctx.repName) parts.push(`(rep: ${ctx.repName})`);
+  parts.push(`[chunk ${chunkIndex + 1}]`);
+  return `${parts.join(" ")}:\n${chunk}`;
+}
+
+/**
+ * Prepend contextual metadata to a KB doc section before embedding.
+ */
+export function contextualizeKBChunk(section: string, ctx: KBDocContext, sectionIndex: number): string {
+  const parts: string[] = [];
+  parts.push(`Knowledge base: ${ctx.title}`);
+  if (ctx.category) parts.push(`(${ctx.category})`);
+  if (ctx.lastUpdated) parts.push(`[updated ${ctx.lastUpdated}]`);
+  parts.push(`[section ${sectionIndex + 1}]`);
+  return `${parts.join(" ")}:\n${section}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,7 +139,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
 // ---------------------------------------------------------------------------
 
 /**
- * Approximate token count (rough: 1 token ≈ 4 chars for English).
+ * Approximate token count (rough: 1 token ~ 4 chars for English).
  * Good enough for chunking; exact counts not critical here.
  */
 function estimateTokens(text: string): number {
@@ -165,7 +249,7 @@ async function storeEmbedding(params: {
 }
 
 // ---------------------------------------------------------------------------
-// Embed transcript
+// Embed transcript (with contextual chunking)
 // ---------------------------------------------------------------------------
 
 export async function embedTranscript(transcriptId: string): Promise<{
@@ -191,17 +275,40 @@ export async function embedTranscript(transcriptId: string): Promise<{
     .eq("id", transcript.call_id)
     .single();
 
+  // Get contact name for contextual chunking
+  let contactName: string | undefined;
+  if (call?.contact_id) {
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("first_name, last_name")
+      .eq("id", call.contact_id)
+      .single();
+    if (contact) {
+      contactName = `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() || undefined;
+    }
+  }
+
   // Chunk by 400 tokens with 50-token overlap
-  const chunks = chunkText(transcript.full_text, 400, 50);
+  const rawChunks = chunkText(transcript.full_text, 400, 50);
+
+  // Contextualize chunks
+  const txCtx: TranscriptContext = {
+    contactName,
+    callDate: call?.scheduled_at ? new Date(call.scheduled_at).toISOString().split("T")[0] : undefined,
+  };
+
+  const contextualizedChunks = rawChunks.map((chunk, i) => contextualizeTranscriptChunk(chunk, txCtx, i));
+
+  // Batch embed all chunks
+  const embeddings = await getEmbeddingBatch(contextualizedChunks);
   const embeddingIds: string[] = [];
 
-  for (let i = 0; i < chunks.length; i++) {
-    const embedding = await getEmbedding(chunks[i]);
+  for (let i = 0; i < rawChunks.length; i++) {
     const id = await storeEmbedding({
       contactId: call?.contact_id ?? null,
       contentType: "transcript",
-      content: chunks[i],
-      embedding,
+      content: rawChunks[i], // Store raw content for display
+      embedding: embeddings[i],
       metadata: {
         chunk_index: i,
         source_id: transcriptId,
@@ -213,11 +320,11 @@ export async function embedTranscript(transcriptId: string): Promise<{
     embeddingIds.push(id);
   }
 
-  return { chunksEmbedded: chunks.length, embeddingIds };
+  return { chunksEmbedded: rawChunks.length, embeddingIds };
 }
 
 // ---------------------------------------------------------------------------
-// Embed KB document
+// Embed KB document (with contextual chunking)
 // ---------------------------------------------------------------------------
 
 export async function embedKBDoc(docId: string): Promise<{
@@ -236,20 +343,31 @@ export async function embedKBDoc(docId: string): Promise<{
     throw new Error(`KB document not found: ${docId}`);
   }
 
-  // Delete old embeddings for this doc (safe for first embed — no-op)
+  // Delete old embeddings for this doc (safe for first embed -- no-op)
   await supabase.from("embeddings").delete().eq("content_type", "kb_doc").contains("metadata", { source_id: docId });
 
   // Split on section headers
-  const sections = chunkBySection(doc.content);
+  const rawSections = chunkBySection(doc.content);
+
+  // Contextualize sections
+  const kbCtx: KBDocContext = {
+    title: doc.title,
+    category: doc.category,
+    lastUpdated: doc.updated_at ? new Date(doc.updated_at).toISOString().split("T")[0] : undefined,
+  };
+
+  const contextualizedSections = rawSections.map((section, i) => contextualizeKBChunk(section, kbCtx, i));
+
+  // Batch embed all sections
+  const embeddings = await getEmbeddingBatch(contextualizedSections);
   const embeddingIds: string[] = [];
 
-  for (let i = 0; i < sections.length; i++) {
-    const embedding = await getEmbedding(sections[i]);
+  for (let i = 0; i < rawSections.length; i++) {
     const id = await storeEmbedding({
-      contactId: null, // KB docs are not contact-specific
+      contactId: null,
       contentType: "kb_doc",
-      content: sections[i],
-      embedding,
+      content: rawSections[i], // Store raw content for display
+      embedding: embeddings[i],
       metadata: {
         chunk_index: i,
         source_id: docId,
@@ -261,7 +379,7 @@ export async function embedKBDoc(docId: string): Promise<{
     embeddingIds.push(id);
   }
 
-  return { sectionsEmbedded: sections.length, embeddingIds };
+  return { sectionsEmbedded: rawSections.length, embeddingIds };
 }
 
 // ---------------------------------------------------------------------------
@@ -276,17 +394,16 @@ export async function embedExternalResearch(
   chunksEmbedded: number;
   embeddingIds: string[];
 }> {
-  // Chunk by 300 tokens
   const chunks = chunkText(content, 300);
+  const embeddings = await getEmbeddingBatch(chunks);
   const embeddingIds: string[] = [];
 
   for (let i = 0; i < chunks.length; i++) {
-    const embedding = await getEmbedding(chunks[i]);
     const id = await storeEmbedding({
       contactId,
       contentType: "external_research",
       content: chunks[i],
-      embedding,
+      embedding: embeddings[i],
       metadata: {
         chunk_index: i,
         source,
@@ -300,7 +417,7 @@ export async function embedExternalResearch(
 }
 
 // ---------------------------------------------------------------------------
-// Embed journal entry (single chunk — journals are short)
+// Embed journal entry (single chunk -- journals are short)
 // ---------------------------------------------------------------------------
 
 export async function embedJournalEntry(journalId: string): Promise<string> {
@@ -473,7 +590,7 @@ export async function embedAllExistingKBDocs(): Promise<{
 
     for (const doc of docs) {
       try {
-        // Check if already embedded — skipped for KB since embedKBDoc deletes old ones
+        // Check if already embedded -- skipped for KB since embedKBDoc deletes old ones
         const { count } = await supabase
           .from("embeddings")
           .select("id", { count: "exact", head: true })
