@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * Pipeline Mockup — Kanban Board View
+ * Pipeline Mockup — Kanban Board View (v2)
  *
- * Each pipeline is a horizontal row of stage columns.
- * Prospects appear as draggable cards inside each stage column.
- * Drag a card from one stage to another to move them.
+ * All stages fit on one screen as equal-width columns.
+ * Inside each stage, sub-task panels group prospect cards.
+ * Drag a card between sub-tasks or stages.
  *
  * This is a MOCKUP for team review — lives at /pipeline/mockup-kanban
  */
@@ -24,12 +24,20 @@ import {
   useDroppable,
   useDraggable,
 } from "@dnd-kit/core";
-import { ChevronDown, ChevronRight, Clock, Search, ArrowRight, X, Loader2, Calendar, GripVertical } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock, Search, ArrowRight, X, Loader2, GripVertical } from "lucide-react";
 import { useScrollLock } from "@/lib/hooks/useScrollLock";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+interface SubTaskAPI {
+  id: string;
+  slug: string;
+  name: string;
+  sort_order: number;
+  stage_id: string;
+}
 
 interface StageAPI {
   id: string;
@@ -69,7 +77,7 @@ interface PipelineContact {
   urgency: "fresh" | "at_risk" | "losing" | "won";
   urgencyScore: number;
   enteredStageAt: string | null;
-  nextAppointment?: { title: string; startTime: string } | null;
+  currentSubTaskId: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -99,37 +107,32 @@ const URGENCY_LABEL: Record<string, string> = {
   fresh: "Fresh",
 };
 
-/** Stage column header gradient — warm coral to green wave */
+/** Stage column header gradient */
 const STAGE_HEADER_COLORS: Record<string, string> = {
-  // Sales
   engagement: "from-[#e87461] to-[#e8956a]",
   qualification: "from-[#e8956a] to-[#e8b468]",
   discovery: "from-[#e8b468] to-[#d4c456]",
   compliance: "from-[#d4c456] to-[#a8c94a]",
   awarding: "from-[#a8c94a] to-[#6dba5e]",
   closed: "from-[#6dba5e] to-[#4aad6b]",
-  // Onboarding
   setup: "from-[#e87461] to-[#e8956a]",
   training: "from-[#e8a065] to-[#d4b855]",
   "launch-prep": "from-[#c4c44e] to-[#8ec758]",
   onboarded: "from-[#6dba5e] to-[#4aad6b]",
-  // Runway
   "first-offer": "from-[#e87461] to-[#e8956a]",
   "first-purchase": "from-[#e8a065] to-[#d4b855]",
   "inventory-building": "from-[#c4c44e] to-[#8ec758]",
   running: "from-[#6dba5e] to-[#4aad6b]",
-  // Territories
   inactive: "from-[#e87461] to-[#e8956a]",
   available: "from-[#d4b855] to-[#b8c84e]",
   active: "from-[#6dba5e] to-[#4aad6b]",
-  // Follow-up
   nurture: "from-[#e87461] to-[#e8956a]",
   followup: "from-[#d4b855] to-[#b8c84e]",
   reengaged: "from-[#6dba5e] to-[#4aad6b]",
 };
 
 // ---------------------------------------------------------------------------
-// Prospect Card (draggable)
+// Prospect Card (draggable) — compact for fitting many on screen
 // ---------------------------------------------------------------------------
 
 function ProspectCard({ contact }: { contact: PipelineContact }) {
@@ -149,125 +152,204 @@ function ProspectCard({ contact }: { contact: PipelineContact }) {
       {...listeners}
       {...attributes}
       className={`
-        bg-bg-tertiary border border-border-default rounded-lg px-3 py-2.5
+        bg-bg-tertiary border border-border-default rounded-md px-2 py-1.5
         cursor-grab active:cursor-grabbing
         hover:border-border-hover hover:shadow-sm
         transition-all duration-150
         ${isDragging ? "opacity-30 scale-95" : "opacity-100"}
       `}
     >
-      {/* Name row */}
-      <div className="flex items-center gap-2 mb-1.5">
-        <GripVertical size={12} className="text-text-tertiary flex-shrink-0 opacity-40" />
-        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${urgDot}`} />
-        <p className="text-body-sm text-text-primary font-medium truncate leading-tight">
+      <div className="flex items-center gap-1.5">
+        <GripVertical size={10} className="text-text-tertiary flex-shrink-0 opacity-30" />
+        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${urgDot}`} />
+        <p className="text-[12px] text-text-primary font-medium truncate leading-tight">
           {capitalizeName(contact.name)}
         </p>
       </div>
-
-      {/* Meta row */}
-      <div className="flex items-center gap-3 ml-[28px] text-[11px] text-text-tertiary">
-        <span className="flex items-center gap-1">
-          <Clock size={10} />
+      <div className="flex items-center gap-2 ml-[22px] text-[10px] text-text-tertiary mt-0.5">
+        <span className="flex items-center gap-0.5">
+          <Clock size={9} />
           {contact.daysSinceSubTask}d
         </span>
-        {contact.source && <span className="truncate max-w-[80px]">{contact.source}</span>}
-        {contact.territoryMsSlug && (
-          <span className="px-1 py-0.5 rounded text-[9px] font-medium bg-info/10 text-info">
-            {contact.territoryMsSlug}
-          </span>
-        )}
+        {contact.source && <span className="truncate max-w-[60px]">{contact.source}</span>}
       </div>
-
-      {/* Appointment badge */}
-      {contact.nextAppointment && (
-        <div className="flex items-center gap-1 ml-[28px] mt-1 text-[10px] text-nah-blue">
-          <Calendar size={9} />
-          <span>
-            {contact.nextAppointment.title?.replace(/\s*w\/.*$/, "") ?? "Call"} &middot;{" "}
-            {new Date(contact.nextAppointment.startTime).toLocaleDateString([], {
-              month: "short",
-              day: "numeric",
-            })}
-          </span>
-        </div>
-      )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Drag Overlay Card (follows cursor)
+// Drag Overlay Card
 // ---------------------------------------------------------------------------
 
 function DragOverlayProspect({ contact }: { contact: PipelineContact }) {
   return (
-    <div className="w-56 bg-bg-tertiary border-2 border-nah-orange rounded-lg px-3 py-2.5 shadow-xl rotate-2 opacity-90">
-      <div className="flex items-center gap-2 mb-1">
-        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${URGENCY_DOT[contact.urgency]}`} />
-        <p className="text-body-sm text-text-primary font-medium truncate">{capitalizeName(contact.name)}</p>
+    <div className="w-48 bg-bg-tertiary border-2 border-nah-orange rounded-md px-2 py-1.5 shadow-xl rotate-2 opacity-90">
+      <div className="flex items-center gap-1.5">
+        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${URGENCY_DOT[contact.urgency]}`} />
+        <p className="text-[12px] text-text-primary font-medium truncate">{capitalizeName(contact.name)}</p>
       </div>
-      <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
-        <Clock size={10} />
-        {contact.daysSinceSubTask}d in stage
+      <div className="flex items-center gap-1 text-[10px] text-text-tertiary mt-0.5">
+        <Clock size={9} />
+        {contact.daysSinceSubTask}d
       </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Stage Column (droppable)
+// Sub-Task Panel (droppable) — sits inside a stage column
 // ---------------------------------------------------------------------------
 
-function KanbanColumn({ stage, contacts }: { stage: StageAPI; contacts: PipelineContact[] }) {
-  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+function SubTaskPanel({ subTask, contacts }: { subTask: SubTaskAPI; contacts: PipelineContact[] }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `subtask:${subTask.id}` });
   const [showAll, setShowAll] = useState(false);
-
-  const INITIAL_SHOW = 15;
-  const visible = showAll ? contacts : contacts.slice(0, INITIAL_SHOW);
-  const hasMore = contacts.length > INITIAL_SHOW;
-
-  const headerGrad = STAGE_HEADER_COLORS[stage.slug] ?? "from-gray-400 to-gray-500";
+  const MAX_INITIAL = 8;
+  const visible = showAll ? contacts : contacts.slice(0, MAX_INITIAL);
+  const hasMore = contacts.length > MAX_INITIAL;
 
   return (
     <div
       ref={setNodeRef}
       className={`
-        flex-shrink-0 w-64 flex flex-col rounded-xl overflow-hidden
-        border transition-all duration-200
-        ${isOver ? "border-nah-orange shadow-lg shadow-nah-orange/10 scale-[1.01]" : "border-border-default"}
+        rounded-lg border overflow-hidden transition-all duration-200
+        ${isOver ? "border-nah-orange bg-nah-orange/5" : "border-border-default bg-bg-secondary/50"}
       `}
-      style={{ maxHeight: "calc(100vh - 220px)" }}
     >
-      {/* Column header with gradient stripe */}
-      <div className="relative">
-        <div className={`h-1.5 bg-gradient-to-r ${headerGrad}`} />
-        <div className="px-3 py-2.5 bg-bg-secondary">
-          <div className="flex items-center justify-between">
-            <h3 className="text-body-sm font-semibold text-text-primary truncate">{stage.name}</h3>
-            <span className="flex-shrink-0 min-w-[24px] h-5 px-1.5 rounded-full bg-text-primary/10 text-[11px] font-bold text-text-secondary flex items-center justify-center">
-              {contacts.length}
-            </span>
-          </div>
-        </div>
+      {/* Sub-task header */}
+      <div className="px-2.5 py-1.5 bg-bg-secondary/80 border-b border-border-default flex items-center justify-between">
+        <span className="text-[11px] font-semibold text-text-secondary truncate">{subTask.name}</span>
+        <span className="text-[10px] text-text-tertiary font-medium ml-1">{contacts.length}</span>
       </div>
 
       {/* Cards */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-bg-primary/50">
-        {visible.length === 0 && (
-          <p className="text-caption text-text-tertiary text-center py-8 italic">No prospects</p>
-        )}
+      <div className="p-1.5 space-y-1 min-h-[32px]">
+        {visible.length === 0 && <p className="text-[10px] text-text-tertiary text-center py-2 italic">—</p>}
         {visible.map((c) => (
           <ProspectCard key={c.stateId} contact={c} />
         ))}
         {hasMore && !showAll && (
           <button
             onClick={() => setShowAll(true)}
-            className="w-full py-1.5 text-caption text-text-tertiary hover:text-text-primary flex items-center justify-center gap-1"
+            className="w-full py-1 text-[10px] text-text-tertiary hover:text-text-primary flex items-center justify-center gap-0.5"
           >
-            <ChevronDown size={12} />
-            Show {contacts.length - INITIAL_SHOW} more
+            <ChevronDown size={10} />+{contacts.length - MAX_INITIAL} more
           </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// "Unsorted" droppable panel for contacts not assigned to a sub-task
+// ---------------------------------------------------------------------------
+
+function UnsortedPanel({ stageId, contacts }: { stageId: string; contacts: PipelineContact[] }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `unsorted:${stageId}` });
+  const [showAll, setShowAll] = useState(false);
+  const MAX_INITIAL = 8;
+  const visible = showAll ? contacts : contacts.slice(0, MAX_INITIAL);
+  const hasMore = contacts.length > MAX_INITIAL;
+
+  if (contacts.length === 0) return null;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`
+        rounded-lg border overflow-hidden transition-all duration-200
+        ${isOver ? "border-nah-orange bg-nah-orange/5" : "border-dashed border-border-default bg-bg-primary/30"}
+      `}
+    >
+      <div className="px-2.5 py-1.5 bg-bg-secondary/40 border-b border-border-default flex items-center justify-between">
+        <span className="text-[11px] font-medium text-text-tertiary italic">Unsorted</span>
+        <span className="text-[10px] text-text-tertiary">{contacts.length}</span>
+      </div>
+      <div className="p-1.5 space-y-1 min-h-[32px]">
+        {visible.map((c) => (
+          <ProspectCard key={c.stateId} contact={c} />
+        ))}
+        {hasMore && !showAll && (
+          <button
+            onClick={() => setShowAll(true)}
+            className="w-full py-1 text-[10px] text-text-tertiary hover:text-text-primary flex items-center justify-center gap-0.5"
+          >
+            <ChevronDown size={10} />+{contacts.length - MAX_INITIAL} more
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Stage Column — equal width, contains sub-task panels
+// ---------------------------------------------------------------------------
+
+function StageColumn({
+  stage,
+  subTasks,
+  contacts,
+}: {
+  stage: StageAPI;
+  subTasks: SubTaskAPI[];
+  contacts: PipelineContact[];
+}) {
+  const headerGrad = STAGE_HEADER_COLORS[stage.slug] ?? "from-gray-400 to-gray-500";
+
+  // Group contacts by sub-task
+  const bySubTask = new Map<string, PipelineContact[]>();
+  const unsorted: PipelineContact[] = [];
+
+  for (const c of contacts) {
+    if (c.currentSubTaskId && subTasks.some((st) => st.id === c.currentSubTaskId)) {
+      const arr = bySubTask.get(c.currentSubTaskId) ?? [];
+      arr.push(c);
+      bySubTask.set(c.currentSubTaskId, arr);
+    } else {
+      unsorted.push(c);
+    }
+  }
+
+  return (
+    <div className="flex flex-col min-w-0 flex-1">
+      {/* Stage header */}
+      <div className="rounded-t-lg overflow-hidden">
+        <div className={`h-1.5 bg-gradient-to-r ${headerGrad}`} />
+        <div className="px-3 py-2 bg-bg-secondary border-x border-border-default">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[13px] font-semibold text-text-primary truncate">{stage.name}</h3>
+            <span className="flex-shrink-0 min-w-[22px] h-[18px] px-1 rounded-full bg-text-primary/10 text-[10px] font-bold text-text-secondary flex items-center justify-center">
+              {contacts.length}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Sub-task panels */}
+      <div
+        className="flex-1 overflow-y-auto border-x border-b border-border-default rounded-b-lg p-2 space-y-2 bg-bg-primary/30"
+        style={{ maxHeight: "calc(100vh - 260px)" }}
+      >
+        {subTasks.length === 0 && contacts.length === 0 && (
+          <p className="text-[11px] text-text-tertiary text-center py-6 italic">No prospects</p>
+        )}
+
+        {/* Sub-task panels in order */}
+        {subTasks.map((st) => (
+          <SubTaskPanel key={st.id} subTask={st} contacts={bySubTask.get(st.id) ?? []} />
+        ))}
+
+        {/* Unsorted contacts (no sub-task assigned) */}
+        <UnsortedPanel stageId={stage.id} contacts={unsorted} />
+
+        {/* Terminal stages with no sub-tasks — show cards directly */}
+        {subTasks.length === 0 && contacts.length > 0 && (
+          <div className="space-y-1">
+            {contacts.map((c) => (
+              <ProspectCard key={c.stateId} contact={c} />
+            ))}
+          </div>
         )}
       </div>
     </div>
@@ -280,14 +362,14 @@ function KanbanColumn({ stage, contacts }: { stage: StageAPI; contacts: Pipeline
 
 function MoveModal({
   contactName,
-  fromStage,
-  toStage,
+  fromLabel,
+  toLabel,
   onConfirm,
   onCancel,
 }: {
   contactName: string;
-  fromStage: string;
-  toStage: string;
+  fromLabel: string;
+  toLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -304,9 +386,9 @@ function MoveModal({
           <span className="font-medium text-text-primary">{contactName}</span>
         </p>
         <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-bg-secondary rounded-md text-body-sm">
-          <span className="text-text-secondary">{fromStage}</span>
+          <span className="text-text-secondary">{fromLabel}</span>
           <ArrowRight size={14} className="text-nah-orange flex-shrink-0" />
-          <span className="text-text-primary font-medium">{toStage}</span>
+          <span className="text-text-primary font-medium">{toLabel}</span>
         </div>
         <div className="flex gap-2">
           <button onClick={onCancel} className="btn-ghost px-4 py-2 text-body-sm">
@@ -328,34 +410,51 @@ function MoveModal({
 export default function KanbanMockupPage() {
   const [pipelines, setPipelines] = useState<PipelineAPI[]>([]);
   const [contacts, setContacts] = useState<PipelineContact[]>([]);
+  const [subTasks, setSubTasks] = useState<SubTaskAPI[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ sales: true });
   const [activeContact, setActiveContact] = useState<PipelineContact | null>(null);
   const [moveModal, setMoveModal] = useState<{
     contact: PipelineContact;
-    fromStage: string;
-    toStageId: string;
-    toStageName: string;
+    fromLabel: string;
+    toLabel: string;
   } | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  // Build stage lookup
+  // Build lookups
+  const subTaskMap = new Map<string, SubTaskAPI>();
+  for (const st of subTasks) subTaskMap.set(st.id, st);
+
   const stageMap = new Map<string, StageAPI>();
   for (const p of pipelines) {
-    for (const s of p.stages) {
-      stageMap.set(s.id, s);
-    }
+    for (const s of p.stages) stageMap.set(s.id, s);
+  }
+
+  // Sub-tasks grouped by stage
+  const subTasksByStage = new Map<string, SubTaskAPI[]>();
+  for (const st of subTasks) {
+    const arr = subTasksByStage.get(st.stage_id) ?? [];
+    arr.push(st);
+    subTasksByStage.set(st.stage_id, arr);
+  }
+  // Sort by sort_order
+  for (const [key, arr] of subTasksByStage) {
+    subTasksByStage.set(
+      key,
+      arr.sort((a, b) => a.sort_order - b.sort_order)
+    );
   }
 
   // Fetch data
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [stagesRes, contactsRes] = await Promise.all([
+      const [stagesRes, contactsRes, subTasksRes] = await Promise.all([
         apiFetch("/api/pipeline/stages"),
         apiFetch("/api/pipeline/contacts?limit=5000"),
+        apiFetch("/api/pipelines/stages?include_sub_tasks=true"),
       ]);
 
       if (stagesRes.ok) {
@@ -364,7 +463,14 @@ export default function KanbanMockupPage() {
       }
       if (contactsRes.ok) {
         const d = await contactsRes.json();
+        // Map contacts and include currentSubTaskId
         setContacts(d.contacts ?? []);
+      }
+
+      // This endpoint may not exist — sub-tasks fetched via fallback below
+      if (subTasksRes.ok) {
+        const d = await subTasksRes.json();
+        setSubTasks(d.subTasks ?? []);
       }
     } catch {
       /* silent */
@@ -372,9 +478,55 @@ export default function KanbanMockupPage() {
     setLoading(false);
   }, []);
 
+  // Fallback: fetch sub-tasks from settings pipeline endpoint if the
+  // /api/pipelines/stages endpoint didn't return them
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
+
+  // If sub-tasks are empty after initial load, try fetching from settings
+  useEffect(() => {
+    if (!loading && subTasks.length === 0 && pipelines.length > 0) {
+      // Fetch sub-tasks for each stage via settings API
+      const stageIds = pipelines.flatMap((p) => p.stages.map((s) => s.id));
+      Promise.all(
+        stageIds.map(async (stageId) => {
+          try {
+            const res = await apiFetch(`/api/settings/stages/${stageId}/sub-tasks`);
+            if (res.ok) {
+              // GET isn't defined on that route, try the pipeline_sub_tasks table directly
+            }
+          } catch {
+            /* silent */
+          }
+          return [];
+        })
+      ).catch(() => {});
+
+      // Alternative: fetch all sub-tasks in one go from the pipelines settings
+      apiFetch("/api/settings/pipelines")
+        .then(async (res) => {
+          if (!res.ok) return;
+          const d = await res.json();
+          const allSubTasks: SubTaskAPI[] = [];
+          for (const p of d.pipelines ?? []) {
+            for (const s of p.stages ?? []) {
+              for (const st of s.subTasks ?? []) {
+                allSubTasks.push({
+                  id: st.id,
+                  slug: st.slug,
+                  name: st.name,
+                  sort_order: st.sort_order,
+                  stage_id: s.id,
+                });
+              }
+            }
+          }
+          if (allSubTasks.length > 0) setSubTasks(allSubTasks);
+        })
+        .catch(() => {});
+    }
+  }, [loading, subTasks.length, pipelines]);
 
   // Filter contacts by search
   const filtered = searchQuery
@@ -389,7 +541,7 @@ export default function KanbanMockupPage() {
     contactsByStage.set(c.stageId, arr);
   }
 
-  // Sort within each stage by urgency (most urgent first)
+  // Sort within each stage by urgency
   for (const [key, arr] of contactsByStage) {
     contactsByStage.set(
       key,
@@ -416,31 +568,41 @@ export default function KanbanMockupPage() {
     const c = active.data.current?.contact as PipelineContact | undefined;
     if (!c) return;
 
-    const targetStageId = over.id as string;
-    if (targetStageId === c.stageId) return;
+    const targetId = over.id as string;
 
-    const fromStage = stageMap.get(c.stageId);
-    const toStage = stageMap.get(targetStageId);
+    // Resolve what the target is
+    let toLabel = "Unknown";
+    if (targetId.startsWith("subtask:")) {
+      const stId = targetId.replace("subtask:", "");
+      const st = subTaskMap.get(stId);
+      if (st) {
+        const stage = stageMap.get(st.stage_id);
+        toLabel = `${stage?.name ?? ""} > ${st.name}`;
+      }
+      if (stId === c.currentSubTaskId) return; // same sub-task
+    } else if (targetId.startsWith("unsorted:")) {
+      const stageId = targetId.replace("unsorted:", "");
+      const stage = stageMap.get(stageId);
+      toLabel = `${stage?.name ?? "Unknown"} (unsorted)`;
+      if (stageId === c.stageId && !c.currentSubTaskId) return;
+    }
+
+    // Build from label
+    let fromLabel = c.stageName;
+    if (c.currentSubTaskId) {
+      const fromSt = subTaskMap.get(c.currentSubTaskId);
+      if (fromSt) fromLabel = `${c.stageName} > ${fromSt.name}`;
+    }
 
     setMoveModal({
       contact: c,
-      fromStage: fromStage?.name ?? "Unknown",
-      toStageId: targetStageId,
-      toStageName: toStage?.name ?? "Unknown",
+      fromLabel,
+      toLabel,
     });
   }
 
   function handleConfirmMove() {
-    if (!moveModal) return;
-    // In a real implementation this would call the API
-    // For the mockup, just move the card client-side
-    setContacts((prev) =>
-      prev.map((c) =>
-        c.stateId === moveModal.contact.stateId
-          ? { ...c, stageId: moveModal.toStageId, stageName: moveModal.toStageName, stageSlug: "" }
-          : c
-      )
-    );
+    // Mockup only — just close the modal
     setMoveModal(null);
   }
 
@@ -463,15 +625,17 @@ export default function KanbanMockupPage() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-h1 text-text-primary">Pipeline Board</h1>
-          <p className="text-caption text-text-tertiary mt-0.5">Kanban view — drag prospects between stages</p>
+          <p className="text-caption text-text-tertiary mt-0.5">
+            Kanban view — stages with sub-task panels, drag prospects to move
+          </p>
         </div>
         <span className="px-2.5 py-1 rounded-full bg-nah-orange/10 text-nah-orange text-[11px] font-semibold uppercase tracking-wider">
-          Mockup
+          Mockup v2
         </span>
       </div>
 
       {/* Search bar */}
-      <div className="relative mb-5 max-w-sm">
+      <div className="relative mb-4 max-w-sm">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
         <input
           type="text"
@@ -484,7 +648,7 @@ export default function KanbanMockupPage() {
 
       {/* Pipeline rows */}
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="space-y-3">
+        <div className="space-y-4">
           {ordered.map((pipeline) => {
             const title = PIPELINE_TITLES[pipeline.slug] ?? pipeline.name;
             const isExpanded = expanded[pipeline.slug] ?? false;
@@ -494,24 +658,21 @@ export default function KanbanMockupPage() {
             );
 
             return (
-              <div key={pipeline.id} className="border border-border-default rounded-xl overflow-hidden">
+              <div key={pipeline.id}>
                 {/* Pipeline header */}
-                <button
-                  onClick={() => togglePipeline(pipeline.slug)}
-                  className="w-full flex items-center gap-3 px-4 py-3 bg-bg-secondary hover:bg-bg-hover transition-colors"
-                >
+                <button onClick={() => togglePipeline(pipeline.slug)} className="flex items-center gap-2 mb-2">
                   {isExpanded ? (
                     <ChevronDown size={14} className="text-text-tertiary" />
                   ) : (
                     <ChevronRight size={14} className="text-text-tertiary" />
                   )}
-                  <span className="text-body-sm font-semibold text-text-primary">{title}</span>
+                  <span className="text-body font-semibold text-text-primary">{title}</span>
                   <span className="text-caption text-text-tertiary">
                     {totalInPipeline} {totalInPipeline === 1 ? "prospect" : "prospects"}
                   </span>
-                  {/* Mini stage count pills */}
+                  {/* Collapsed mini pills */}
                   {!isExpanded && (
-                    <div className="flex gap-1 ml-auto">
+                    <div className="flex gap-1 ml-2">
                       {pipeline.stages.map((s) => {
                         const count = contactsByStage.get(s.id)?.length ?? 0;
                         const grad = STAGE_HEADER_COLORS[s.slug] ?? "from-gray-400 to-gray-500";
@@ -519,7 +680,7 @@ export default function KanbanMockupPage() {
                           <span
                             key={s.id}
                             title={`${s.name}: ${count}`}
-                            className={`h-5 min-w-[28px] px-1.5 rounded-full bg-gradient-to-r ${grad} text-white text-[10px] font-bold flex items-center justify-center`}
+                            className={`h-5 min-w-[26px] px-1 rounded-full bg-gradient-to-r ${grad} text-white text-[10px] font-bold flex items-center justify-center`}
                           >
                             {count}
                           </span>
@@ -529,14 +690,22 @@ export default function KanbanMockupPage() {
                   )}
                 </button>
 
-                {/* Kanban columns */}
+                {/* Stage columns — all fit on screen, equal width */}
                 {isExpanded && (
-                  <div className="px-3 py-4 overflow-x-auto bg-bg-primary">
-                    <div className="flex gap-3" style={{ minWidth: `${pipeline.stages.length * 272}px` }}>
-                      {pipeline.stages.map((stage) => (
-                        <KanbanColumn key={stage.id} stage={stage} contacts={contactsByStage.get(stage.id) ?? []} />
-                      ))}
-                    </div>
+                  <div
+                    className="grid gap-2"
+                    style={{
+                      gridTemplateColumns: `repeat(${pipeline.stages.length}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {pipeline.stages.map((stage) => (
+                      <StageColumn
+                        key={stage.id}
+                        stage={stage}
+                        subTasks={subTasksByStage.get(stage.id) ?? []}
+                        contacts={contactsByStage.get(stage.id) ?? []}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
@@ -552,8 +721,8 @@ export default function KanbanMockupPage() {
       {moveModal && (
         <MoveModal
           contactName={capitalizeName(moveModal.contact.name)}
-          fromStage={moveModal.fromStage}
-          toStage={moveModal.toStageName}
+          fromLabel={moveModal.fromLabel}
+          toLabel={moveModal.toLabel}
           onConfirm={handleConfirmMove}
           onCancel={() => setMoveModal(null)}
         />

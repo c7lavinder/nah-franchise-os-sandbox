@@ -267,6 +267,7 @@ export async function GET(request: NextRequest) {
         urgency,
         urgencyScore,
         enteredStageAt: row.entered_current_stage_at as string | null,
+        currentSubTaskId: (row.current_sub_task_id as string | null) ?? null,
       };
     });
 
