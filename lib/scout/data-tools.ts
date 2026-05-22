@@ -980,7 +980,7 @@ async function getJourneyProfile(journeyId: string): Promise<string> {
     const states = (statesRes.data ?? []) as Array<{ entered_current_stage_at: string }>;
     const now = Date.now();
 
-    return JSON.stringify({
+    const out: Record<string, unknown> = {
       journey: journeyRes.data,
       contacts: contactsRes.data ?? [],
       pipelineStates: states.map((s) => ({
@@ -990,7 +990,91 @@ async function getJourneyProfile(journeyId: string): Promise<string> {
         ),
       })),
       workflowEnrollments: enrollmentsRes.data ?? [],
-    });
+    };
+
+    // Enrich: member intelligence scores + lookalike scores
+    const memberContactIds = ((contactsRes.data ?? []) as any[]).map((c) => c.contact_id).filter(Boolean);
+    if (memberContactIds.length > 0) {
+      const [intelRes, lookalikeRes, briefsRes] = await Promise.all([
+        supabase
+          .from("candidate_intelligence")
+          .select(
+            "contact_id, current_score, score_financial, score_operational, score_engagement, score_momentum, urgency, funding_path"
+          )
+          .in("contact_id", memberContactIds),
+        supabase
+          .from("contact_profile_fields")
+          .select("contact_id, field_value")
+          .in("contact_id", memberContactIds)
+          .eq("field_name", "lookalike_score"),
+        supabase.from("contact_briefs").select("contact_id, summary").in("contact_id", memberContactIds),
+      ]);
+
+      if (intelRes.data && intelRes.data.length > 0) {
+        out.memberScores = intelRes.data.map((i) => ({
+          contactId: i.contact_id,
+          score: i.current_score,
+          financial: i.score_financial,
+          operational: i.score_operational,
+          engagement: i.score_engagement,
+          momentum: i.score_momentum,
+          urgency: i.urgency,
+          fundingPath: i.funding_path,
+        }));
+      }
+
+      if (lookalikeRes.data && lookalikeRes.data.length > 0) {
+        out.memberLookalikeScores = lookalikeRes.data.map((r) => ({
+          contactId: r.contact_id,
+          ...(typeof r.field_value === "object" ? r.field_value : { score: r.field_value }),
+        }));
+      }
+
+      if (briefsRes.data && briefsRes.data.length > 0) {
+        out.memberBriefs = briefsRes.data.map((b) => ({
+          contactId: b.contact_id,
+          summary: b.summary,
+        }));
+      }
+
+      // Recent calls for all journey members
+      const callsRes = await supabase
+        .from("call_participants")
+        .select("contact_id, calls!inner(id, title, started_at, duration_seconds, ai_summary, call_types(name))")
+        .in("contact_id", memberContactIds)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (callsRes.data && callsRes.data.length > 0) {
+        out.recentCalls = (callsRes.data as any[]).map((cp) => {
+          const call = Array.isArray(cp.calls) ? cp.calls[0] : cp.calls;
+          const callType = call?.call_types;
+          return {
+            contactId: cp.contact_id,
+            title: call?.title ?? null,
+            date: call?.started_at ?? null,
+            duration: call?.duration_seconds ?? null,
+            type: (Array.isArray(callType) ? callType[0]?.name : callType?.name) ?? null,
+            summary: call?.ai_summary ?? null,
+          };
+        });
+      }
+
+      // Open commitments across all members
+      const commitmentsRes = await supabase
+        .from("commitments")
+        .select("contact_id, commitment_text, committed_by, due_date, status, commitment_type")
+        .in("contact_id", memberContactIds)
+        .in("status", ["pending", "overdue"])
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .limit(20);
+
+      if (commitmentsRes.data && commitmentsRes.data.length > 0) {
+        out.openCommitments = commitmentsRes.data;
+      }
+    }
+
+    return JSON.stringify(out);
   } catch (err) {
     return JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" });
   }

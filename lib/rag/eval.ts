@@ -323,6 +323,10 @@ export async function runEval(pairs?: EvalPair[]): Promise<EvalSummary> {
 // ---------------------------------------------------------------------------
 
 async function main() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    console.error("Missing Supabase env vars. Run: source .env.local && npx tsx lib/rag/eval.ts");
+    process.exit(1);
+  }
   console.log("Running retrieval eval...\n");
   const summary = await runEval();
 

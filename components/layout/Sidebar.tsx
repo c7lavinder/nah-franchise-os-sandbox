@@ -16,6 +16,7 @@ import {
   Shield,
   LogOut,
   ChevronUp,
+  BarChart3,
 } from "lucide-react";
 import type { UserRole } from "@/types/database";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -54,6 +55,12 @@ const NAV_ITEMS: NavItem[] = [
     href: "/pipeline",
     icon: GitBranch,
     roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"],
+  },
+  {
+    label: "L10",
+    href: "/l10",
+    icon: BarChart3,
+    roles: ["leadership", "admin", "operator"],
   },
 ];
 
