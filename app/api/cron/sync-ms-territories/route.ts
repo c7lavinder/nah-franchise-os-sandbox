@@ -3,7 +3,7 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { syncTerritories } from "@/lib/mastersuite/sync-territories";
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+  const supabase = createServerClient();
 
   const { data: log } = await supabase
     .from("cron_job_log")

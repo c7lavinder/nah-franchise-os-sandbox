@@ -3,7 +3,24 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { syncPtoProspects } from "@/lib/mastersuite/sync-pto-prospects";
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@/lib/supabase/server";
+
+/** Run a promise with a hard timeout so the function never hangs. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      }
+    );
+  });
+}
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -12,7 +29,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+  const supabase = createServerClient();
 
   const { data: log } = await supabase
     .from("cron_job_log")
@@ -23,7 +40,8 @@ export async function GET(request: NextRequest) {
   try {
     // Incremental: look at PTO entries from the last 7 days
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const result = await syncPtoProspects(since);
+    // Hard timeout at 50s — leaves 10s buffer for logging before Vercel's 60s limit
+    const result = await withTimeout(syncPtoProspects(since), 50_000, "syncPtoProspects");
 
     if (log) {
       await supabase
@@ -45,8 +63,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : undefined;
-    console.error("sync-ms-prospects FAILED:", message, stack);
+    console.error("sync-ms-prospects FAILED:", message);
 
     if (log) {
       await supabase

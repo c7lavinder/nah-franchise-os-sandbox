@@ -15,6 +15,9 @@ export function getMasterSuitePool(): mysql.Pool {
     connectTimeout: 10000,
     waitForConnections: true,
     enableKeepAlive: true,
+    // Prevent stale connections from hanging on serverless (Vercel)
+    idleTimeout: 30000,
+    maxIdle: 1,
   });
 
   return pool;
