@@ -50,5 +50,48 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ healthy: failing.length === 0, failing });
+  // Embedding health check — compare source counts to embedding counts
+  const [transcriptCount, kbDocCount, transcriptEmbeddingCount, kbEmbeddingCount] = await Promise.all([
+    supabase
+      .from("call_transcripts")
+      .select("id", { count: "exact", head: true })
+      .then((r) => r.count ?? 0),
+    supabase
+      .from("knowledge_documents")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true)
+      .then((r) => r.count ?? 0),
+    supabase
+      .from("embeddings")
+      .select("id", { count: "exact", head: true })
+      .eq("content_type", "transcript")
+      .then((r) => r.count ?? 0),
+    supabase
+      .from("embeddings")
+      .select("id", { count: "exact", head: true })
+      .eq("content_type", "kb_doc")
+      .then((r) => r.count ?? 0),
+  ]);
+
+  const embeddingHealth = {
+    transcripts: {
+      source: transcriptCount,
+      embedded: transcriptEmbeddingCount > 0,
+      embeddingChunks: transcriptEmbeddingCount,
+    },
+    kbDocs: { source: kbDocCount, embedded: kbEmbeddingCount > 0, embeddingChunks: kbEmbeddingCount },
+    healthy: transcriptEmbeddingCount > 0 && kbEmbeddingCount > 0,
+    message:
+      transcriptEmbeddingCount === 0 && transcriptCount > 0
+        ? `${transcriptCount} transcripts have no embeddings — run POST /api/admin/repair-embeddings`
+        : kbEmbeddingCount === 0 && kbDocCount > 0
+          ? `${kbDocCount} KB docs have no embeddings — run POST /api/admin/repair-embeddings`
+          : "All content types have embeddings",
+  };
+
+  return NextResponse.json({
+    healthy: failing.length === 0 && embeddingHealth.healthy,
+    failing,
+    embeddingHealth,
+  });
 }

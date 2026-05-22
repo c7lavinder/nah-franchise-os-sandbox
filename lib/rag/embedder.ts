@@ -269,6 +269,13 @@ export async function embedTranscript(transcriptId: string): Promise<{
     throw new Error(`Transcript not found: ${transcriptId}`);
   }
 
+  // Delete old embeddings for this transcript (safe for first embed — no-op)
+  await supabase
+    .from("embeddings")
+    .delete()
+    .eq("content_type", "transcript")
+    .contains("metadata", { source_id: transcriptId });
+
   const { data: call } = await supabase
     .from("calls")
     .select("id, contact_id, hosted_by_user_id, scheduled_at")
@@ -383,42 +390,107 @@ export async function embedKBDoc(docId: string): Promise<{
 }
 
 // ---------------------------------------------------------------------------
-// Embed external research
+// Embed external research (with optional contextual chunking)
 // ---------------------------------------------------------------------------
+
+interface ExternalResearchContext {
+  contactName?: string;
+  documentTitle?: string;
+  documentType?: string;
+}
+
+/**
+ * Prepend contextual metadata to an external research chunk before embedding.
+ */
+export function contextualizeExternalChunk(chunk: string, ctx: ExternalResearchContext, chunkIndex: number): string {
+  const parts: string[] = [];
+  if (ctx.documentType) parts.push(ctx.documentType);
+  if (ctx.documentTitle) parts.push(`"${ctx.documentTitle}"`);
+  if (ctx.contactName) parts.push(`for ${ctx.contactName}`);
+  parts.push(`[chunk ${chunkIndex + 1}]`);
+  return `${parts.join(" ")}:\n${chunk}`;
+}
 
 export async function embedExternalResearch(
   contactId: string,
   content: string,
-  source: string
+  source: string,
+  context?: ExternalResearchContext
 ): Promise<{
   chunksEmbedded: number;
   embeddingIds: string[];
 }> {
-  const chunks = chunkText(content, 300);
-  const embeddings = await getEmbeddingBatch(chunks);
+  const supabase = createServerClient();
+
+  // Delete old embeddings for this contact + source (safe re-embed)
+  await supabase
+    .from("embeddings")
+    .delete()
+    .eq("content_type", "external_research")
+    .eq("contact_id", contactId)
+    .contains("metadata", { source });
+
+  // If contactName not provided but we have a contactId, look it up
+  let ctx = context ?? {};
+  if (!ctx.contactName && contactId) {
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("first_name, last_name")
+      .eq("id", contactId)
+      .single();
+    if (contact) {
+      ctx = { ...ctx, contactName: `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() || undefined };
+    }
+  }
+
+  const rawChunks = chunkText(content, 300);
+
+  // Contextualize chunks if we have any metadata
+  const hasContext = ctx.contactName || ctx.documentTitle || ctx.documentType;
+  const contextualizedChunks = hasContext
+    ? rawChunks.map((chunk, i) => contextualizeExternalChunk(chunk, ctx, i))
+    : rawChunks;
+
+  const embeddings = await getEmbeddingBatch(contextualizedChunks);
   const embeddingIds: string[] = [];
 
-  for (let i = 0; i < chunks.length; i++) {
+  for (let i = 0; i < rawChunks.length; i++) {
     const id = await storeEmbedding({
       contactId,
       contentType: "external_research",
-      content: chunks[i],
+      content: rawChunks[i], // Store raw content for display
       embedding: embeddings[i],
       metadata: {
         chunk_index: i,
         source,
         date: new Date().toISOString(),
+        doc_title: ctx.documentTitle,
+        doc_type: ctx.documentType,
       },
     });
     embeddingIds.push(id);
   }
 
-  return { chunksEmbedded: chunks.length, embeddingIds };
+  return { chunksEmbedded: rawChunks.length, embeddingIds };
 }
 
 // ---------------------------------------------------------------------------
 // Embed journal entry (single chunk -- journals are short)
 // ---------------------------------------------------------------------------
+
+/**
+ * Prepend contextual metadata to a journal entry before embedding.
+ */
+export function contextualizeJournalChunk(
+  summary: string,
+  contactName: string | undefined,
+  journalDate: string
+): string {
+  const parts: string[] = ["Journal entry"];
+  if (contactName) parts.push(`for ${contactName}`);
+  parts.push(`on ${journalDate}`);
+  return `${parts.join(" ")}:\n${summary}`;
+}
 
 export async function embedJournalEntry(journalId: string): Promise<string> {
   const supabase = createServerClient();
@@ -433,11 +505,32 @@ export async function embedJournalEntry(journalId: string): Promise<string> {
     throw new Error(`Journal not found: ${journalId}`);
   }
 
-  const embedding = await getEmbedding(journal.summary);
+  // Delete old embedding for this journal (safe re-embed)
+  await supabase
+    .from("embeddings")
+    .delete()
+    .eq("content_type", "journal")
+    .contains("metadata", { source_id: journalId });
+
+  // Look up contact name for contextual chunking
+  let contactName: string | undefined;
+  if (journal.contact_id) {
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("first_name, last_name")
+      .eq("id", journal.contact_id)
+      .single();
+    if (contact) {
+      contactName = `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() || undefined;
+    }
+  }
+
+  const contextualizedContent = contextualizeJournalChunk(journal.summary, contactName, journal.journal_date);
+  const embedding = await getEmbedding(contextualizedContent);
   const embeddingId = await storeEmbedding({
     contactId: journal.contact_id,
     contentType: "journal",
-    content: journal.summary,
+    content: journal.summary, // Store raw content for display
     embedding,
     metadata: {
       source_id: journalId,

@@ -664,7 +664,7 @@ export interface PrefetchResult {
  * Pre-fetch relevant context based on the user's message.
  * Uses the question classifier to determine retrieval strategy and token budget.
  */
-async function prefetchContext(userMessage: string): Promise<PrefetchResult> {
+async function prefetchContext(userMessage: string, contactId?: string): Promise<PrefetchResult> {
   const empty: PrefetchResult = {
     contextString: "",
     questionType: "general",
@@ -683,41 +683,21 @@ async function prefetchContext(userMessage: string): Promise<PrefetchResult> {
 
     const { hybridSearch } = await import("@/lib/rag/retriever");
 
-    // Search each content type in parallel, then merge
-    const searchPromises = strategy.contentTypes.map((ct) =>
-      hybridSearch({
-        query: userMessage,
-        contentType: ct,
-        limit: Math.ceil(strategy.chunkLimit / strategy.contentTypes.length),
-        threshold: strategy.threshold,
-        rerank: false, // We'll rerank the merged set
-      }).catch(() => [])
-    );
+    // Single hybrid search across all content types with rerank
+    // No per-type splitting — one search, one rerank pass
+    // Scope to active contact if available (improves relevance on contact pages)
+    let allHits = await hybridSearch({
+      query: userMessage,
+      contactId,
+      limit: strategy.chunkLimit,
+      threshold: strategy.threshold,
+      rerank: strategy.rerank,
+    }).catch(() => []);
 
-    const resultSets = await Promise.all(searchPromises);
-    let allHits = resultSets.flat();
-
-    // Deduplicate by ID
-    const seen = new Set<string>();
-    allHits = allHits.filter((h) => {
-      if (seen.has(h.id)) return false;
-      seen.add(h.id);
-      return true;
-    });
-
-    // Rerank the merged set if strategy calls for it and we have enough results
-    if (strategy.rerank && allHits.length > 2) {
-      try {
-        const reranked = await hybridSearch({
-          query: userMessage,
-          limit: strategy.chunkLimit,
-          threshold: strategy.threshold,
-          rerank: true,
-        });
-        if (reranked.length > 0) allHits = reranked;
-      } catch {
-        // Fall back to un-reranked results
-      }
+    // Filter to allowed content types if strategy specifies them
+    if (strategy.contentTypes.length > 0) {
+      const allowed = new Set<string>(strategy.contentTypes);
+      allHits = allHits.filter((h) => allowed.has(h.contentType));
     }
 
     // Trim to chunk limit
@@ -816,7 +796,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
     loadPromptSection("scout_calendars", CALENDAR_CONTEXT),
     loadDataFreshness(supabaseForUser),
     latestMessage
-      ? prefetchContext(latestMessage)
+      ? prefetchContext(latestMessage, input.pageContext?.contactId)
       : Promise.resolve({
           contextString: "",
           questionType: "general",

@@ -10,6 +10,7 @@ import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { randomUUID } from "crypto";
 import { extractText, extractFieldsWithAI } from "@/lib/documents/extract";
+import { embedExternalResearch } from "@/lib/rag/embedder";
 
 const BUCKET = "journey-documents";
 const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
@@ -153,6 +154,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Embed extracted text into the search index so search_documents can find it
+  let embeddingResult: { chunksEmbedded: number } | null = null;
+  if (extractedText && resolvedContactId) {
+    try {
+      embeddingResult = await embedExternalResearch(resolvedContactId, extractedText, safeType, {
+        contactName: undefined, // Will be looked up inside embedExternalResearch
+        documentTitle: displayName,
+        documentType: DOC_TYPE_LABELS[safeType] ?? "Document",
+      });
+    } catch (err) {
+      console.error(`Failed to embed document ${doc.id}:`, err);
+      // Non-blocking — document is saved, embedding can be retried via repair endpoint
+    }
+  }
+
   // Auto-save AI-extracted fields to contact profile (non-null values only)
   const autoSavedFields: string[] = [];
   if (suggestedFields && resolvedContactId) {
@@ -181,6 +197,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     document: doc,
     extractionFields,
     autoSavedFields,
+    chunksEmbedded: embeddingResult?.chunksEmbedded ?? 0,
     success: true,
   });
 }
