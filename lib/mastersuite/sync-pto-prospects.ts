@@ -39,10 +39,9 @@ interface PTORow {
 }
 
 function generatePtoGhlId(ptoId: number): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  let rand = "";
-  for (let i = 0; i < 8; i++) rand += chars[Math.floor(Math.random() * chars.length)];
-  return `pto_${ptoId}_${rand}`;
+  // Deterministic — same PTO ID always produces the same ghl_contact_id.
+  // This prevents duplicate contacts when the sync re-processes the same PTO entry.
+  return `pto_${ptoId}`;
 }
 
 function toDateOrNull(val: string | null | undefined): string | null {
@@ -108,6 +107,18 @@ export async function syncPtoProspects(
     }
   }
 
+  // Secondary dedupe: check by deterministic ghl_contact_id to catch contacts
+  // created by previous runs (handles email mismatch/casing edge cases)
+  const ptoGhlIds = ptoRows.map((r) => generatePtoGhlId(r.Id));
+  const existingByGhlId = new Set<string>();
+  for (let i = 0; i < ptoGhlIds.length; i += 200) {
+    const batch = ptoGhlIds.slice(i, i + 200);
+    const { data } = await sb.from("contacts").select("ghl_contact_id").in("ghl_contact_id", batch);
+    for (const c of (data || []) as { ghl_contact_id: string }[]) {
+      existingByGhlId.add(c.ghl_contact_id);
+    }
+  }
+
   // Find which existing contacts already have an active Sales pipeline journey
   const existingContactIds = [...existingContactsByEmail.values()];
   const contactsWithSalesJPS = new Set<string>(); // contact ids that already have Sales JPS
@@ -137,6 +148,9 @@ export async function syncPtoProspects(
     if (r.FirstName.length > 12 && !/\s/.test(r.FirstName) && /[A-Z].*[a-z].*[A-Z]/.test(r.FirstName)) continue;
     if (r.LastName.length > 12 && !/\s/.test(r.LastName) && /[A-Z].*[a-z].*[A-Z]/.test(r.LastName)) continue;
     seenEmails.add(email);
+
+    // Skip if a contact with this PTO's deterministic ghl_contact_id already exists
+    if (existingByGhlId.has(generatePtoGhlId(r.Id))) continue;
 
     const existingId = existingContactsByEmail.get(email);
     if (!existingId) {
