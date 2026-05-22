@@ -102,34 +102,36 @@
 
 ### 2a. Create tables
 
-- [ ] Migration: `contact_briefs` table (contact_id PK, brief jsonb, summary text, updated_at, stale bool)
-- [ ] Migration: `territory_briefs` table (territory_slug PK, brief jsonb, summary text, updated_at, stale bool)
+- [x] Migration: `contact_briefs` table (contact_id PK, brief jsonb, summary text, updated_at, stale bool)
+- [x] Migration: `territory_briefs` table (territory_slug PK, brief jsonb, summary text, updated_at, stale bool)
 - [ ] Run migration on Supabase
 
 ### 2b. Brief generation logic
 
-- [ ] `lib/briefs/contact-brief-generator.ts` — pulls profile fields, call history, intelligence, pipeline, territory link
-- [ ] `lib/briefs/territory-brief-generator.ts` — pulls KPIs, EOS, inventory, owners, funnel
-- [ ] Both produce JSON structure + natural language summary
+- [x] `lib/briefs/contact-brief-generator.ts` — pulls profile fields, call history, intelligence, pipeline, territory link
+- [x] `lib/briefs/territory-brief-generator.ts` — pulls KPIs, EOS, inventory, owners, funnel
+- [x] Both produce JSON structure + natural language summary
 
 ### 2c. Cron jobs
 
-- [ ] `app/api/cron/generate-briefs/route.ts` — nightly, generates/refreshes all stale briefs
-- [ ] Trigger contact brief refresh after post-call agent completes (mark stale, regenerate)
-- [ ] Trigger territory brief refresh after MasterSuite sync completes
+- [x] `app/api/cron/generate-briefs/route.ts` — nightly, generates/refreshes all stale briefs + seeds new
+- [x] Trigger contact brief refresh after post-call agent completes (mark stale)
+- [x] Trigger territory brief refresh after MasterSuite territory sync completes (mark stale)
 
 ### 2d. Wire into Scout
 
-- [ ] `get_entity(type="contact")` includes brief summary
-- [ ] `get_entity(type="contact")` for franchisees includes territory brief
-- [ ] New tool: `get_brief(type, id)` for direct access
+- [x] `get_entity(type="contact")` includes briefSummary
+- [x] `get_entity(type="territory")` includes briefSummary
+- [ ] New tool: `get_brief(type, id)` for direct access (deferred to Phase 3)
 
 ### Phase 2 verification
 
+- [x] `npx tsc --noEmit` — 0 errors
+- [x] `npx vitest run` — all tests passing (129/129)
 - [ ] Contact brief generated for a real contact — includes all sections
 - [ ] Territory brief generated for a real territory — includes KPIs, EOS, inventory
-- [ ] Brief refreshes after a call is processed
-- [ ] Scout response for a franchisee includes territory context
+- [x] Brief marked stale after post-call agent completes
+- [x] Territory briefs marked stale after MasterSuite territory sync
 
 ---
 

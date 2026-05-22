@@ -516,7 +516,7 @@ async function getContactProfile(contactId: string): Promise<string> {
       .single();
     const sbContactId = contactRow?.id ?? contactId;
 
-    const [intelRes, callsRes, objRes, journeysRes, profileFields] = await Promise.all([
+    const [intelRes, callsRes, objRes, journeysRes, profileFields, briefRes] = await Promise.all([
       supabase.from("candidate_intelligence").select("*").eq("contact_id", sbContactId).single(),
       supabase
         .from("call_participants")
@@ -533,6 +533,7 @@ async function getContactProfile(contactId: string): Promise<string> {
         .eq("contact_id", sbContactId)
         .is("left_at", null),
       getContactProfileFields(sbContactId),
+      supabase.from("contact_briefs").select("summary, brief, stale").eq("contact_id", sbContactId).maybeSingle(),
     ]);
 
     const out: Record<string, unknown> = { ghl: contact };
@@ -586,6 +587,11 @@ async function getContactProfile(contactId: string): Promise<string> {
       out.journeys = journeysRes.data;
     }
 
+    // Pre-computed brief (instant context snapshot)
+    if (briefRes.data?.summary) {
+      out.briefSummary = briefRes.data.summary;
+    }
+
     // EAV profile fields (199 fields from contact_profile_fields table)
     const filledFields = Object.entries(profileFields)
       .filter(([, v]) => v.field_value != null)
@@ -621,6 +627,7 @@ async function getTerritoryProfile(slug: string): Promise<string> {
       todosRes,
       statesRes,
       inventoryRes,
+      territoryBriefRes,
     ] = await Promise.all([
       supabase.from("territories").select("*").eq("TerritorySlug", slug).single(),
       supabase
@@ -655,6 +662,8 @@ async function getTerritoryProfile(slug: string): Promise<string> {
         .not("Inv_PurchaseDate", "is", null)
         .order("Inv_PurchaseDate", { ascending: false })
         .limit(500),
+      // Pre-computed brief
+      supabase.from("territory_briefs").select("summary, stale").eq("territory_slug", slug).maybeSingle(),
     ]);
 
     if (territoryRes.error || !territoryRes.data) {
@@ -675,6 +684,7 @@ async function getTerritoryProfile(slug: string): Promise<string> {
     const activeInventory = invRows.filter((i) => !i.Inv_SellDate).length;
 
     return JSON.stringify({
+      briefSummary: (territoryBriefRes.data as any)?.summary ?? null,
       territory: territoryRes.data,
       activeOwners: ownersRes.data ?? [],
       performanceSummary: {

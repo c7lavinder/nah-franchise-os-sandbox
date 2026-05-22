@@ -35,6 +35,11 @@ export async function GET(request: NextRequest) {
         .eq("id", log.id);
     }
 
+    // Mark all territory briefs as stale after sync
+    if (result.synced > 0) {
+      await supabase.from("territory_briefs").update({ stale: true }).eq("stale", false);
+    }
+
     return NextResponse.json({
       success: result.errors.length === 0,
       synced: result.synced,
