@@ -13,6 +13,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { SCOUT_TOOLS } from "./tools";
 import { executeTool } from "./tool-executor";
 import { logLLMCall } from "./llm-logger";
+import { logRetrieval } from "./retrieval-logger";
 import { SCOUT_MODELS } from "./model-router";
 import { loadUserMemory, formatMemoryForPrompt } from "./memory";
 import { loadPromptSection } from "./prompt-loader";
@@ -645,31 +646,126 @@ function extractLatestUserMessage(messages: Anthropic.Messages.MessageParam[]): 
   return null;
 }
 
+/** Result of pre-fetch context retrieval, including classification metadata */
+export interface PrefetchResult {
+  /** Formatted context string for the system prompt */
+  contextString: string;
+  /** Question classification and retrieval strategy used */
+  questionType: string;
+  /** Number of chunks retrieved */
+  chunksRetrieved: number;
+  /** Token budget that was applied */
+  tokenBudget: number;
+  /** Chunk metadata for quality logging */
+  chunkMeta: Array<{ contentType: string; sourceId?: string; similarity: number; contentPreview: string }>;
+}
+
 /**
  * Pre-fetch relevant context based on the user's message.
- * Runs a lightweight hybrid search and returns formatted context string.
+ * Uses the question classifier to determine retrieval strategy and token budget.
  */
-async function prefetchContext(userMessage: string): Promise<string> {
+async function prefetchContext(userMessage: string): Promise<PrefetchResult> {
+  const empty: PrefetchResult = {
+    contextString: "",
+    questionType: "general",
+    chunksRetrieved: 0,
+    tokenBudget: 0,
+    chunkMeta: [],
+  };
   try {
+    const { planRetrieval } = await import("@/lib/rag/question-classifier");
+    const strategy = planRetrieval(userMessage);
+
+    // Skip retrieval for question types that don't need it
+    if (strategy.chunkLimit === 0 || strategy.contentTypes.length === 0) {
+      return { ...empty, questionType: strategy.questionType };
+    }
+
     const { hybridSearch } = await import("@/lib/rag/retriever");
-    const hits = await hybridSearch({
-      query: userMessage,
-      limit: 5,
-      threshold: 0.35,
-      rerank: true,
+
+    // Search each content type in parallel, then merge
+    const searchPromises = strategy.contentTypes.map((ct) =>
+      hybridSearch({
+        query: userMessage,
+        contentType: ct,
+        limit: Math.ceil(strategy.chunkLimit / strategy.contentTypes.length),
+        threshold: strategy.threshold,
+        rerank: false, // We'll rerank the merged set
+      }).catch(() => [])
+    );
+
+    const resultSets = await Promise.all(searchPromises);
+    let allHits = resultSets.flat();
+
+    // Deduplicate by ID
+    const seen = new Set<string>();
+    allHits = allHits.filter((h) => {
+      if (seen.has(h.id)) return false;
+      seen.add(h.id);
+      return true;
     });
 
-    if (hits.length === 0) return "";
+    // Rerank the merged set if strategy calls for it and we have enough results
+    if (strategy.rerank && allHits.length > 2) {
+      try {
+        const reranked = await hybridSearch({
+          query: userMessage,
+          limit: strategy.chunkLimit,
+          threshold: strategy.threshold,
+          rerank: true,
+        });
+        if (reranked.length > 0) allHits = reranked;
+      } catch {
+        // Fall back to un-reranked results
+      }
+    }
 
-    const chunks = hits.map((h, i) => {
+    // Trim to chunk limit
+    allHits = allHits.slice(0, strategy.chunkLimit);
+
+    if (allHits.length === 0) {
+      return { ...empty, questionType: strategy.questionType };
+    }
+
+    // Apply token budget — rough estimate of 4 chars per token
+    const maxChars = strategy.tokenBudget * 4;
+    let charCount = 0;
+    const budgetedHits = [];
+    for (const hit of allHits) {
+      const chunkChars = hit.content.length + 50; // overhead for formatting
+      if (charCount + chunkChars > maxChars) break;
+      budgetedHits.push(hit);
+      charCount += chunkChars;
+    }
+
+    if (budgetedHits.length === 0) {
+      return { ...empty, questionType: strategy.questionType };
+    }
+
+    const chunks = budgetedHits.map((h, i) => {
       const type = h.contentType === "kb_doc" ? "KB" : h.contentType === "transcript" ? "Call" : "Doc";
       const meta = h.metadata?.contact_name ? ` (${h.metadata.contact_name})` : "";
       return `  [${i + 1}] [${type}${meta}] ${h.content.slice(0, 400)}`;
     });
 
-    return `PRE-FETCHED CONTEXT — These are the most relevant knowledge chunks for this question. Use them to inform your answer without needing to call search tools unless you need more detail.\n${chunks.join("\n")}`;
+    const contextString = `PRE-FETCHED CONTEXT (${strategy.questionType} question, ${budgetedHits.length} chunks) — These are the most relevant knowledge chunks for this question. Use them to inform your answer without needing to call search tools unless you need more detail.\n${chunks.join("\n")}`;
+
+    const chunkMeta = budgetedHits.map((h) => ({
+      contentType: h.contentType,
+      sourceId: (h.metadata?.source_id as string) ?? undefined,
+      similarity: h.similarity,
+      contentPreview: h.content.slice(0, 100),
+    }));
+
+    return {
+      contextString,
+      questionType: strategy.questionType,
+      chunksRetrieved: budgetedHits.length,
+      tokenBudget: strategy.tokenBudget,
+      chunkMeta,
+    };
   } catch {
-    return "";
+    return empty;
   }
 }
 
@@ -680,6 +776,7 @@ async function prefetchContext(userMessage: string): Promise<string> {
 export async function buildSystemPrompt(input: ScoutConversationInput): Promise<{
   systemPrompt: string;
   ghlUserId: string | null;
+  prefetch: PrefetchResult;
 }> {
   const supabaseForUser = createServerClient();
   const { data: currentUser } = await supabaseForUser
@@ -718,7 +815,15 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
     loadPromptSection("scout_profile_context", PROFILE_AND_SCORING_CONTEXT),
     loadPromptSection("scout_calendars", CALENDAR_CONTEXT),
     loadDataFreshness(supabaseForUser),
-    latestMessage ? prefetchContext(latestMessage) : Promise.resolve(""),
+    latestMessage
+      ? prefetchContext(latestMessage)
+      : Promise.resolve({
+          contextString: "",
+          questionType: "general",
+          chunksRetrieved: 0,
+          tokenBudget: 0,
+          chunkMeta: [],
+        } as PrefetchResult),
   ]);
   const identity = await loadPromptSection("scout_identity", getScoutIdentity(territoryCountResult));
 
@@ -732,7 +837,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
     freshness,
     formatMemoryForPrompt(userMemory),
     pipelineSnapshot,
-    preFetchedContext,
+    preFetchedContext.contextString,
     profileCtx,
     calendars,
     knowledgeBase,
@@ -741,7 +846,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
     .filter(Boolean)
     .join("\n\n");
 
-  return { systemPrompt, ghlUserId };
+  return { systemPrompt, ghlUserId, prefetch: preFetchedContext };
 }
 
 /**
@@ -750,7 +855,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
  */
 export async function runConversationTurn(input: ScoutConversationInput): Promise<ScoutConversationOutput> {
   const client = createAnthropicClient();
-  const { systemPrompt, ghlUserId } = await buildSystemPrompt(input);
+  const { systemPrompt, ghlUserId, prefetch } = await buildSystemPrompt(input);
 
   let messages: Anthropic.Messages.MessageParam[] = [...input.messages];
   const draftedActions: DraftedAction[] = [];
@@ -871,6 +976,19 @@ export async function runConversationTurn(input: ScoutConversationInput): Promis
     messages.push({ role: "assistant", content: response.content });
 
     const textBlock = response.content.find((block): block is Anthropic.Messages.TextBlock => block.type === "text");
+
+    // Log retrieval quality — fire-and-forget
+    const userMsg = extractLatestUserMessage(input.messages);
+    if (userMsg) {
+      logRetrieval({
+        userId: input.userId,
+        questionType: prefetch.questionType,
+        userMessage: userMsg,
+        chunksRetrieved: prefetch.chunksRetrieved,
+        tokenBudget: prefetch.tokenBudget,
+        prefetchChunks: prefetch.chunkMeta,
+      }).catch(() => {});
+    }
 
     return {
       responseText: textBlock?.text ?? "I wasn't able to generate a response. Please try again.",

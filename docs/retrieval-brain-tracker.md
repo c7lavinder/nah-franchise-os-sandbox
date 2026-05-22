@@ -5,7 +5,7 @@
 
 ---
 
-## Current Phase: 5 — Wire RAG Into Scout Chat (COMPLETE)
+## Current Phase: 6 — Retrieval Planner + Quality Logging (COMPLETE)
 
 **Start date:** 2026-05-22
 **Target:** Replace OpenAI embeddings with Voyage AI, add contextual chunking, BM25 hybrid search, and reranking.
@@ -231,14 +231,15 @@
 
 ### 6a. Question classifier
 
-- [ ] Rule-based classifier maps question types to retrieval strategies
-- [ ] Token budget per question type (2K/5K/10K)
+- [x] Rule-based classifier maps question types to retrieval strategies (9 types: prospect, franchisee, territory, call_prep, comparison, metric, search, knowledge, general)
+- [x] Token budget per question type (0/2K/5K/10K)
 
 ### 6b. Quality logging
 
-- [ ] Log retrieved context per Scout response
-- [ ] Track which chunks Scout referenced in its answer
-- [ ] Dashboard for retrieval quality metrics
+- [x] Log retrieved context per Scout response (scout_retrieval_logs table)
+- [x] Track pre-fetch chunks with metadata (content type, source ID, similarity, preview)
+- [ ] Dashboard for retrieval quality metrics (deferred — query the table directly for now)
+- [ ] Track which chunks Scout referenced in its answer (requires post-response analysis — deferred)
 
 ### Phase 6 verification
 
@@ -255,6 +256,7 @@
 | 50      | 2026-05-22 | 0-3   | All Phase 0 sub-tasks (embeddings, profile fields, GHL logging), Phase 1 (auto-save extractions + score recalc), Phase 2 (pre-computed briefs + cron), Phase 3 (retrieval chaining + franchisee detection) | Phase 4: Voyage AI integration               |
 | 51      | 2026-05-22 | 4     | Voyage AI integration (voyage-3-large), contextual chunking, BM25 hybrid search with RRF, Voyage reranking, vector resize migration 1536→1024, batch embedding                                             | Phase 5: Wire RAG into Scout chat            |
 | 52      | 2026-05-22 | 5     | Upgraded search_knowledge to hybridSearch, added search_transcripts + search_documents tools, added pre-fetch context injection into system prompt                                                         | Phase 6: Retrieval Planner + Quality Logging |
+| 52      | 2026-05-22 | 6     | Question classifier (9 types with regex rules), retrieval strategies with token budgets, scout_retrieval_logs table + logger, wired into both chat + stream routes                                         | Retrieval Brain complete — all 7 phases done |
 
 ---
 

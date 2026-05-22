@@ -21,6 +21,7 @@ import { checkRateLimit, RATE_LIMITS } from "@/lib/auth/rate-limit";
 import { buildSystemPrompt } from "@/lib/scout/client";
 import { runStreamingTurn } from "@/lib/scout/stream";
 import { loadUserMemory, mergeUserMemory } from "@/lib/scout/memory";
+import { logRetrieval } from "@/lib/scout/retrieval-logger";
 import { createServerClient } from "@/lib/supabase/server";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { DraftedAction } from "@/types/scout";
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
   };
 
   // Build system prompt (loads KB, pipeline snapshot, memory)
-  const { systemPrompt, ghlUserId } = await buildSystemPrompt(input);
+  const { systemPrompt, ghlUserId, prefetch } = await buildSystemPrompt(input);
 
   // Create the SSE stream
   const encoder = new TextEncoder();
@@ -204,6 +205,19 @@ export async function POST(request: NextRequest) {
         }
       } catch (err) {
         console.error("Scout session persistence failed:", err instanceof Error ? err.message : err);
+      }
+
+      // Retrieval quality log (fire-and-forget)
+      if (prefetch.chunksRetrieved > 0 || prefetch.questionType !== "general") {
+        logRetrieval({
+          userId: user.id,
+          sessionId: body.sessionId ?? undefined,
+          questionType: prefetch.questionType,
+          userMessage: body.message,
+          chunksRetrieved: prefetch.chunksRetrieved,
+          tokenBudget: prefetch.tokenBudget,
+          prefetchChunks: prefetch.chunkMeta,
+        }).catch(() => {});
       }
 
       // Memory merge (fire-and-forget)
