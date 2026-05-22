@@ -5,7 +5,7 @@
 
 ---
 
-## Current Phase: 6 — Retrieval Planner + Quality Logging (COMPLETE)
+## Current Phase: 8 — Trust & Measurement (COMPLETE)
 
 **Start date:** 2026-05-22
 **Target:** Replace OpenAI embeddings with Voyage AI, add contextual chunking, BM25 hybrid search, and reranking.
@@ -251,12 +251,14 @@
 
 ## Session Log
 
-| Session | Date       | Phase | What was done                                                                                                                                                                                              | What's next                                  |
-| ------- | ---------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| 50      | 2026-05-22 | 0-3   | All Phase 0 sub-tasks (embeddings, profile fields, GHL logging), Phase 1 (auto-save extractions + score recalc), Phase 2 (pre-computed briefs + cron), Phase 3 (retrieval chaining + franchisee detection) | Phase 4: Voyage AI integration               |
-| 51      | 2026-05-22 | 4     | Voyage AI integration (voyage-3-large), contextual chunking, BM25 hybrid search with RRF, Voyage reranking, vector resize migration 1536→1024, batch embedding                                             | Phase 5: Wire RAG into Scout chat            |
-| 52      | 2026-05-22 | 5     | Upgraded search_knowledge to hybridSearch, added search_transcripts + search_documents tools, added pre-fetch context injection into system prompt                                                         | Phase 6: Retrieval Planner + Quality Logging |
-| 52      | 2026-05-22 | 6     | Question classifier (9 types with regex rules), retrieval strategies with token budgets, scout_retrieval_logs table + logger, wired into both chat + stream routes                                         | Retrieval Brain complete — all 7 phases done |
+| Session | Date       | Phase | What was done                                                                                                                                                                                                                                                             | What's next                                  |
+| ------- | ---------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| 50      | 2026-05-22 | 0-3   | All Phase 0 sub-tasks (embeddings, profile fields, GHL logging), Phase 1 (auto-save extractions + score recalc), Phase 2 (pre-computed briefs + cron), Phase 3 (retrieval chaining + franchisee detection)                                                                | Phase 4: Voyage AI integration               |
+| 51      | 2026-05-22 | 4     | Voyage AI integration (voyage-3-large), contextual chunking, BM25 hybrid search with RRF, Voyage reranking, vector resize migration 1536→1024, batch embedding                                                                                                            | Phase 5: Wire RAG into Scout chat            |
+| 52      | 2026-05-22 | 5     | Upgraded search_knowledge to hybridSearch, added search_transcripts + search_documents tools, added pre-fetch context injection into system prompt                                                                                                                        | Phase 6: Retrieval Planner + Quality Logging |
+| 52      | 2026-05-22 | 6     | Question classifier (9 types with regex rules), retrieval strategies with token budgets, scout_retrieval_logs table + logger, wired into both chat + stream routes                                                                                                        | Retrieval Brain complete — all 7 phases done |
+| 53      | 2026-05-22 | 7     | Phase 7 Stabilization: gaps #1 (embed uploads), #2 (delete-before-embed transcripts), #3 (embedding health check + repair endpoint), #5 (contact-scoped pre-fetch), #7 (journal contextual chunking), #8 (external research contextual chunking), #9 (single rerank pass) | Phase 8: Trust & Measurement                 |
+| 53      | 2026-05-22 | 8     | Phase 8 Trust & Measurement: gaps #6 (embed briefs as profile_summary), #14 (on-demand stale brief regen), #17 (model_version column), source attribution in all search results + Scout prompt, eval framework (20 Q&A pairs, npm run eval:retrieval)                     | Phase 9: Cross-call & Cross-rep Intelligence |
 
 ---
 
