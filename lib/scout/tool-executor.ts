@@ -1084,7 +1084,7 @@ async function executeGetNextAction(input: Record<string, unknown>): Promise<Too
     lines.push(``, `RECOMMENDED NEXT ACTION:`, `  → ${recommendation}`);
 
     // ─── Intelligence Context ───
-    const [intelligenceResult, objectionsResult] = await Promise.all([
+    const [intelligenceResult, objectionsResult, commitmentsResult] = await Promise.all([
       supabase.from("candidate_intelligence").select("*").eq("contact_id", contactId).single(),
       supabase
         .from("objection_registry")
@@ -1092,6 +1092,12 @@ async function executeGetNextAction(input: Record<string, unknown>): Promise<Too
         .eq("contact_id", contactId)
         .eq("resolved", false)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("commitments")
+        .select("commitment_text, committed_by, due_date, status, commitment_type")
+        .eq("contact_id", c.id)
+        .in("status", ["pending", "overdue"])
+        .order("due_date", { ascending: true, nullsFirst: false }),
     ]);
 
     if (intelligenceResult.data) {
@@ -1132,6 +1138,44 @@ async function executeGetNextAction(input: Record<string, unknown>): Promise<Too
         lines.push(
           `  - ${obj.objection_type}: ${obj.objection_detail ?? "No detail recorded"} (stage: ${obj.stage_at_time})`
         );
+      }
+    }
+
+    // Open commitments
+    if (commitmentsResult.data && commitmentsResult.data.length > 0) {
+      const commitments = commitmentsResult.data;
+      const today = new Date().toISOString().split("T")[0];
+      const overdueCmts = commitments.filter((c) => c.due_date && c.due_date < today);
+      const pendingCmts = commitments.filter((c) => !c.due_date || c.due_date >= today);
+
+      if (overdueCmts.length > 0) {
+        lines.push(``, `OVERDUE COMMITMENTS (${overdueCmts.length}):`);
+        for (const c of overdueCmts) {
+          const who = c.committed_by === "rep" ? "Rep" : "Contact";
+          const daysOverdue = c.due_date
+            ? Math.floor((Date.now() - new Date(c.due_date).getTime()) / (1000 * 60 * 60 * 24))
+            : 0;
+          lines.push(`  !!! [${who}] ${c.commitment_text} — ${daysOverdue}d overdue (due ${c.due_date})`);
+        }
+
+        // Override recommendation if there are overdue commitments
+        recommendation = `${overdueCmts.length} overdue commitment(s) — "${overdueCmts[0].commitment_text}" is ${
+          overdueCmts[0].due_date
+            ? Math.floor((Date.now() - new Date(overdueCmts[0].due_date).getTime()) / (1000 * 60 * 60 * 24)) + "d"
+            : ""
+        } overdue. Follow up immediately.`;
+        // Update the recommendation line already in the output
+        const recIdx = lines.findIndex((l) => l.startsWith("  → "));
+        if (recIdx >= 0) lines[recIdx] = `  → ${recommendation}`;
+      }
+
+      if (pendingCmts.length > 0) {
+        lines.push(``, `UPCOMING COMMITMENTS (${pendingCmts.length}):`);
+        for (const c of pendingCmts.slice(0, 5)) {
+          const who = c.committed_by === "rep" ? "Rep" : "Contact";
+          const due = c.due_date ?? "no due date";
+          lines.push(`  - [${who}] ${c.commitment_text} (due: ${due})`);
+        }
       }
     }
 

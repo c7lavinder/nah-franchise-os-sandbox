@@ -181,6 +181,61 @@ export async function generateContactBrief(contactId: string): Promise<{
     detail: o.objection_detail ?? null,
   }));
 
+  // Cross-rep signals: low grades, overdue commitments, and recent warnings from other reps' calls
+  const [lowGradesRes, overdueCommitmentsRes, recentWarningsRes] = await Promise.all([
+    // Calls with D or F grades in the last 30 days
+    supabase
+      .from("call_participants")
+      .select("calls!inner(id, title, started_at, call_grades(overall_grade, criteria_scores))")
+      .eq("contact_id", contactId)
+      .order("created_at", { ascending: false })
+      .limit(10),
+    // Overdue commitments
+    supabase
+      .from("commitments")
+      .select("commitment_text, committed_by, due_date, commitment_type")
+      .eq("contact_id", contactId)
+      .eq("status", "pending")
+      .not("due_date", "is", null)
+      .lt("due_date", new Date().toISOString().split("T")[0]),
+    // Recent critical/warning-level objections
+    supabase
+      .from("objection_registry")
+      .select("objection_type, objection_detail, stage_at_time, created_at")
+      .eq("contact_id", contactId)
+      .eq("resolved", false)
+      .order("created_at", { ascending: false })
+      .limit(5),
+  ]);
+
+  const crossRepSignals: string[] = [];
+
+  // Surface low-graded call areas
+  if (lowGradesRes.data) {
+    for (const cp of lowGradesRes.data as any[]) {
+      const call = Array.isArray(cp.calls) ? cp.calls[0] : cp.calls;
+      if (!call) continue;
+      const grades = Array.isArray(call.call_grades) ? call.call_grades : call.call_grades ? [call.call_grades] : [];
+      for (const g of grades) {
+        if (g.overall_grade === "D" || g.overall_grade === "F") {
+          const date = call.started_at ? new Date(call.started_at).toLocaleDateString() : "recent";
+          crossRepSignals.push(`Low grade (${g.overall_grade}) on ${date} call "${call.title ?? "untitled"}"`);
+        }
+      }
+    }
+  }
+
+  // Surface overdue commitments
+  if (overdueCommitmentsRes.data) {
+    for (const c of overdueCommitmentsRes.data) {
+      const daysOverdue = c.due_date
+        ? Math.floor((Date.now() - new Date(c.due_date).getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+      const who = c.committed_by === "rep" ? "Rep" : "Contact";
+      crossRepSignals.push(`${who} commitment overdue ${daysOverdue}d: "${c.commitment_text}"`);
+    }
+  }
+
   const filledFieldCount = Object.values(profileFields).filter((f) => f.field_value != null).length;
 
   const brief: ContactBrief = {
@@ -227,6 +282,12 @@ export async function generateContactBrief(contactId: string): Promise<{
   }
   if (brief.territorySlug) lines.push(`Territory: ${brief.territorySlug}`);
   lines.push(`Profile fields: ${filledFieldCount} populated`);
+  if (crossRepSignals.length > 0) {
+    lines.push(`CROSS-REP SIGNALS (${crossRepSignals.length}):`);
+    for (const s of crossRepSignals.slice(0, 5)) {
+      lines.push(`  !! ${s}`);
+    }
+  }
 
   return { brief, summary: lines.join("\n") };
 }

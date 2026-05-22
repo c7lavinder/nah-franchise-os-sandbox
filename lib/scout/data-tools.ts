@@ -518,7 +518,17 @@ async function getContactProfile(contactId: string): Promise<string> {
       .single();
     const sbContactId = contactRow?.id ?? contactId;
 
-    const [intelRes, callsRes, objRes, journeysRes, profileFields, briefRes] = await Promise.all([
+    const [
+      intelRes,
+      callsRes,
+      objRes,
+      journeysRes,
+      profileFields,
+      briefRes,
+      allGradesRes,
+      allObjectionsRes,
+      commitmentsRes,
+    ] = await Promise.all([
       supabase.from("candidate_intelligence").select("*").eq("contact_id", sbContactId).single(),
       supabase
         .from("call_participants")
@@ -536,6 +546,25 @@ async function getContactProfile(contactId: string): Promise<string> {
         .is("left_at", null),
       getContactProfileFields(sbContactId),
       supabase.from("contact_briefs").select("summary, brief, stale").eq("contact_id", sbContactId).maybeSingle(),
+      // Cross-call analytics: all grades for this contact's calls
+      supabase
+        .from("call_participants")
+        .select("calls!inner(id, started_at, duration_seconds, call_grades(overall_grade, overall_score, created_at))")
+        .eq("contact_id", sbContactId)
+        .order("created_at", { ascending: true }),
+      // All objections (including resolved) for recurring pattern detection
+      supabase
+        .from("objection_registry")
+        .select("objection_type, objection_detail, resolved, stage_at_time, created_at")
+        .eq("contact_id", sbContactId)
+        .order("created_at", { ascending: true }),
+      // Open commitments
+      supabase
+        .from("commitments")
+        .select("commitment_text, committed_by, due_date, status, commitment_type")
+        .eq("contact_id", sbContactId)
+        .in("status", ["pending", "overdue"])
+        .order("due_date", { ascending: true, nullsFirst: false }),
     ]);
 
     const out: Record<string, unknown> = { ghl: contact };
@@ -643,6 +672,82 @@ async function getContactProfile(contactId: string): Promise<string> {
       if (tBrief?.summary) {
         out.territoryBriefSummary = tBrief.summary;
       }
+    }
+
+    // Cross-call analytics — grade trends, recurring objections, total time
+    if (allGradesRes.data && allGradesRes.data.length > 0) {
+      const gradeMap: Record<string, number> = { A: 4, B: 3, C: 2, D: 1, F: 0 };
+      const grades: Array<{ date: string; grade: string; score: number }> = [];
+      let totalCallSeconds = 0;
+
+      for (const cp of allGradesRes.data as any[]) {
+        const call = Array.isArray(cp.calls) ? cp.calls[0] : cp.calls;
+        if (!call) continue;
+        totalCallSeconds += call.duration_seconds ?? 0;
+        const callGrades = Array.isArray(call.call_grades)
+          ? call.call_grades
+          : call.call_grades
+            ? [call.call_grades]
+            : [];
+        for (const g of callGrades) {
+          if (g.overall_grade) {
+            grades.push({
+              date: call.started_at ?? g.created_at,
+              grade: g.overall_grade,
+              score: g.overall_score ?? gradeMap[g.overall_grade] ?? 0,
+            });
+          }
+        }
+      }
+
+      const analytics: Record<string, unknown> = {
+        totalCalls: allGradesRes.data.length,
+        totalCallMinutes: Math.round(totalCallSeconds / 60),
+      };
+
+      if (grades.length >= 2) {
+        // Sort by date and compute trend
+        grades.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const firstHalf = grades.slice(0, Math.floor(grades.length / 2));
+        const secondHalf = grades.slice(Math.floor(grades.length / 2));
+        const avgFirst = firstHalf.reduce((s, g) => s + (gradeMap[g.grade] ?? 0), 0) / firstHalf.length;
+        const avgSecond = secondHalf.reduce((s, g) => s + (gradeMap[g.grade] ?? 0), 0) / secondHalf.length;
+        const diff = avgSecond - avgFirst;
+        analytics.gradeTrend = diff > 0.3 ? "improving" : diff < -0.3 ? "declining" : "flat";
+        analytics.grades = grades.map((g) => `${g.grade} (${new Date(g.date).toLocaleDateString()})`);
+      } else if (grades.length === 1) {
+        analytics.gradeTrend = "single_call";
+        analytics.grades = [`${grades[0].grade}`];
+      }
+
+      out.crossCallAnalytics = analytics;
+    }
+
+    // Recurring objection detection — same type raised 2+ times across calls
+    if (allObjectionsRes.data && allObjectionsRes.data.length > 0) {
+      const typeCounts = new Map<string, number>();
+      for (const obj of allObjectionsRes.data) {
+        typeCounts.set(obj.objection_type, (typeCounts.get(obj.objection_type) ?? 0) + 1);
+      }
+      const recurring = [...typeCounts.entries()]
+        .filter(([, count]) => count >= 2)
+        .map(([type, count]) => ({ type, timesRaised: count }));
+      if (recurring.length > 0) {
+        out.recurringObjections = recurring;
+      }
+    }
+
+    // Open commitments
+    if (commitmentsRes.data && commitmentsRes.data.length > 0) {
+      const today = new Date().toISOString().split("T")[0];
+      out.commitments = {
+        overdue: commitmentsRes.data
+          .filter((c) => c.due_date && c.due_date < today)
+          .map((c) => ({ text: c.commitment_text, by: c.committed_by, dueDate: c.due_date })),
+        upcoming: commitmentsRes.data
+          .filter((c) => !c.due_date || c.due_date >= today)
+          .map((c) => ({ text: c.commitment_text, by: c.committed_by, dueDate: c.due_date })),
+      };
     }
 
     // EAV profile fields (199 fields from contact_profile_fields table)

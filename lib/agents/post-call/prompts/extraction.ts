@@ -263,6 +263,30 @@ Extract ANY of these when discussed:
 - competitor_presence, top_competitor_1/2/3
 - buy_box_overlap, competitive_advantage
 
+## COMMITMENTS (field_category: "commitments")
+Extract EVERY promise, commitment, or pledge made during the call — by EITHER party (rep or contact).
+Each commitment = one extraction. Split compound commitments into separate rows.
+
+### Fields
+- commitment_text: the specific promise (e.g., "send FDD by Friday", "call back next Tuesday", "review the territory map this weekend")
+- commitment_due_date: when they committed to do it (ISO date if possible, relative timeframe if not — e.g., "2026-05-28", "end of week", "next Tuesday")
+- commitment_type: one of: document, follow_up, decision, consultation, information, action
+- committed_by_role: who made the promise — "rep" or "contact"
+
+### What counts as a commitment
+- "I'll send you the FDD" → commitment (type: document)
+- "Let me follow up next week" → commitment (type: follow_up)
+- "I'll have a decision by Friday" → commitment (type: decision)
+- "Let me talk to my wife and get back to you" → commitment (type: decision)
+- "I'll connect you with our financing partner" → commitment (type: consultation)
+- "I'll send over the territory breakdown" → commitment (type: information)
+- "I need to review the numbers this weekend" → commitment (type: action)
+
+### What does NOT count
+- Vague statements without a specific action ("I'm interested", "sounds good")
+- Past actions already completed ("I sent it yesterday")
+- Questions about next steps without an actual promise
+
 ## OUTPUT FORMAT
 Return a JSON object. Include target_scope ONLY when the partnership block above is present — otherwise omit it.
 {
@@ -315,6 +339,38 @@ Return a JSON object. Include target_scope ONLY when the partnership block above
       "confidence": "high",
       "target_contact_name": null,
       "target_territory": "Cincinnati"
+    },
+    {
+      "field_key": "commitment_text",
+      "field_category": "commitments",
+      "extracted_value": "Send FDD by Friday",
+      "confidence": "high",
+      "target_contact_name": "Jacob Phillips",
+      "target_territory": null
+    },
+    {
+      "field_key": "commitment_due_date",
+      "field_category": "commitments",
+      "extracted_value": "2026-05-24",
+      "confidence": "high",
+      "target_contact_name": "Jacob Phillips",
+      "target_territory": null
+    },
+    {
+      "field_key": "commitment_type",
+      "field_category": "commitments",
+      "extracted_value": "document",
+      "confidence": "high",
+      "target_contact_name": "Jacob Phillips",
+      "target_territory": null
+    },
+    {
+      "field_key": "committed_by_role",
+      "field_category": "commitments",
+      "extracted_value": "rep",
+      "confidence": "high",
+      "target_contact_name": "Jacob Phillips",
+      "target_territory": null
     }
   ]
 }
