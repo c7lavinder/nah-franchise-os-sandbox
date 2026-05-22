@@ -1,59 +1,74 @@
-# Session Handoff — 2026-05-22 — Session 54
+# Session Handoff — 2026-05-22 — Session 55
 
 ## Status
 
-Phase: Retrieval Brain Phase 9 complete / Health: Green / Duration: full session
+Phase: Phase 10 complete + 5 open issues resolved + cron fix / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-- **Commitment tracker** — new `commitments` table with status tracking, due dates, commitment types, source linking
-- **Commitment extraction category** — added `commitments` to `call_data_extractions` field_category constraint
-- **Extraction prompt update** — new COMMITMENTS section in `lib/agents/post-call/prompts/extraction.ts` with 4 field keys (commitment_text, commitment_due_date, commitment_type, committed_by_role), examples of what counts/doesn't count
-- **Commitment processor** — `lib/agents/post-call/process-commitments.ts` groups sequential extraction rows, parses due dates (ISO + relative like "next Tuesday"), validates types, idempotent re-run
-- **Agent pipeline wiring** — `commitments` added to validCategories, processCommitments() called after auto-save in post-call agent
-- **Commitments in get_next_action** — overdue commitments override the recommendation as top-priority, upcoming commitments listed with due dates
-- **Cross-call analytics in get_entity(contact)** — grade trends (improving/flat/declining), recurring objection detection (same type 2+ calls), total call count + minutes, open commitments (overdue + upcoming)
-- **Cross-rep signals in contact briefs** — low-graded calls (D/F) and overdue commitments surface in `CROSS-REP SIGNALS` section of brief summary, flows into Scout pre-fetch context
-- **Backfill script** — `scripts/backfill-commitments.ts` extracts commitments from all transcripts via Haiku, supports --dry-run, rate-limited, idempotent
-- **Backfill executed** — 562 commitments extracted from 70 transcripts and saved to production
+- **Phase 10 data audit** — `scripts/phase10-data-audit.ts` ran 3 gate checks against live Supabase. Gate 1 passed (30 converted w/ profile), Gates 2-3 failed (0 labeled lost contacts, 0 T12 metrics). Documented in `docs/phase-10-data-audit.md`
+- **Rule-based lookalike scoring** — `lib/intelligence/lookalike-scoring.ts` with 5 dimensions (profile completeness, engagement depth, financial readiness, operational fit, behavioral signals), 0-100 score, tier labels (Strong Match / Moderate / Weak / No Match)
+- **Lookalike wired into Scout** — `get_entity(contact)` now returns `lookalikeScore` with score, tier, breakdown, top match factors, and gaps
+- **Lookalike in contact briefs** — `lib/briefs/contact-brief-generator.ts` summary text includes `Lookalike: X/100 (tier)`
+- **Lookalike backfill** — `scripts/backfill-lookalike-scores.ts` computed and stored scores for 3042 contacts in `contact_profile_fields`
+- **9 lookalike tests** — `tests/business-logic/lookalike-scoring.test.ts`
+- **Journey enrichment** — `get_entity(journey)` now includes member intelligence scores, lookalike scores, briefs, recent calls, and open commitments
+- **Eval script fix** — added env var guard in `lib/rag/eval.ts`. Retrieval metrics were never broken (94.4% classification, 93.3% retrieval hit rate) — just needed `source .env.local`
+- **L10 metrics dashboard** — new `/l10` page (`app/(auth)/l10/page.tsx`) + API (`app/api/l10/route.ts`). Network-wide EOS scorecard health, rocks, issues, todos across all territories. Added to sidebar nav for leadership/admin/operator
+- **Profile enrichment** — backfilled 145 fields for 39 sparse converted franchisees. Gate 1 improved from 30→60 contacts with ≥5 profile fields
+- **Mauricio Anaya dedupe** — 13 duplicate contacts merged to 1, 3 journeys reassigned
+- **PTO sync duplicate bug fix** — `lib/mastersuite/sync-pto-prospects.ts`: `generatePtoGhlId()` now deterministic (`pto_{id}` not random), added secondary dedupe by `ghl_contact_id`
+- **Cron hanging fix** — 6 cron routes used bare `createClient()` without ws transport, causing silent hangs on Vercel. All switched to `createServerClient()`. Added 50s timeout guard on PTO sync. MySQL pool idle timeout added. 224 stuck "running" logs cleaned up
 
 ## What Is Confirmed Working
 
 - `npx tsc --noEmit` — 0 errors
-- `npx vitest run` — 13 files, 129 tests, all passing
+- `npx vitest run` — 14 files, 138 tests, all passing
 - `npx next build` — clean build, no ESLint errors
-- Both migrations applied on Supabase (`commitments` table + `commitments` extraction category)
-- Backfill completed: 562 commitments from 70 calls, zero insert errors
-- All commits pushed to main, Vercel auto-deployed
-- Eval baseline captured: classification 94.4%, retrieval metrics need live Supabase connection
+- Eval baseline: 94.4% classification, 93.3% retrieval hit rate, 0.500 avg similarity
+- Lookalike scoring: top scorers are overwhelmingly converted franchisees (13 of top 20), validating the model
+- PTO sync runs locally in 1.4s (9 rows, all skipped — dedupe working)
+- All commits pushed to main, Vercel auto-deploying
 
 ## What Is Broken or Incomplete
 
-- **Eval baseline retrieval metrics at 0%** — eval runs locally without Supabase connection so chunks/similarity are zero. Need to run against live DB or add Supabase connection to eval script — Medium
+- **Cron fix needs Vercel deploy verification** — the createServerClient fix should resolve hanging, but needs monitoring after deploy completes — Medium
 - **Retrieval quality dashboard deferred** — query `scout_retrieval_logs` directly for now — Low
-- **`get_entity(journey)` enrichment deferred** — member scores + documents + call summary not added yet — Low
+- **Lookalike scores are low overall** (max 40/100) because profile data is sparse — scores will improve as Zorakle, DISC, PFS data is captured — Low
 
 ## Decisions Made
 
-- Commitments write directly to `commitments` table (not through call_data_extractions for backfill) — efficiency over consistency, Corey approved
-- Due date parsing handles ISO + common relative phrases, returns null for unparseable — pragmatic approach
-- Cross-rep signals surface in brief summary text (not separate structured field) so they flow through existing pre-fetch — simplest path
-- 562 commitments backfilled from 70 transcripts at ~$2 Haiku cost — Corey approved
+- Phase 10 gates 2-3 failed → pivoted from predictive ML to rule-based scoring — data audit documented
+- Lookalike score is a third scoring system (distinct from lead scoring + intelligence scoring) — answers "does this prospect match converted franchisee patterns?"
+- PTO ghl_contact_id changed from random to deterministic — prevents duplicate creation on re-sync
+- Bare createClient replaced with createServerClient in all cron routes — prevents Vercel serverless hangs
 
 ## Files Created
 
-- `lib/agents/post-call/process-commitments.ts` — commitment extraction processor
-- `supabase/migrations/20260524100000_create_commitments.sql` — commitments table
-- `supabase/migrations/20260524200000_add_commitments_extraction_category.sql` — field_category constraint update
-- `scripts/backfill-commitments.ts` — backfill script for existing transcripts
+- `lib/intelligence/lookalike-scoring.ts` — rule-based lookalike scoring (5 dimensions, 0-100)
+- `tests/business-logic/lookalike-scoring.test.ts` — 9 unit tests
+- `docs/phase-10-data-audit.md` — Phase 10 gate results and decision
+- `scripts/phase10-data-audit.ts` — data audit script
+- `scripts/analyze-converted-profiles.ts` — converted franchisee pattern analysis
+- `scripts/backfill-lookalike-scores.ts` — lookalike score backfill
+- `app/(auth)/l10/page.tsx` — L10 metrics dashboard page
+- `app/api/l10/route.ts` — L10 API endpoint
 
 ## Files Modified
 
-- `lib/agents/post-call/agent.ts` — added commitments to validCategories, wired processCommitments into pipeline
-- `lib/agents/post-call/prompts/extraction.ts` — new COMMITMENTS section + JSON output examples
-- `lib/briefs/contact-brief-generator.ts` — cross-rep signals (low grades + overdue commitments) in brief summary
-- `lib/scout/data-tools.ts` — cross-call analytics (grade trends, recurring objections, total time, commitments) in get_entity(contact)
-- `lib/scout/tool-executor.ts` — commitments query + display in get_next_action, overdue override recommendation
+- `lib/scout/data-tools.ts` — lookalike score in get_entity(contact), journey enrichment (member scores, briefs, calls, commitments)
+- `lib/briefs/contact-brief-generator.ts` — lookalike score in brief summary
+- `lib/rag/eval.ts` — env var guard
+- `components/layout/Sidebar.tsx` — L10 nav link for leadership/admin/operator
+- `lib/mastersuite/sync-pto-prospects.ts` — deterministic ghl_contact_id, secondary dedupe by GHL ID
+- `lib/mastersuite/client.ts` — MySQL pool idleTimeout + maxIdle
+- `app/api/cron/sync-ms-prospects/route.ts` — createServerClient + 50s timeout guard
+- `app/api/cron/sync-ms-properties/route.ts` — createServerClient
+- `app/api/cron/sync-ms-territories/route.ts` — createServerClient
+- `app/api/cron/sync-ms-eos/route.ts` — createServerClient
+- `app/api/cron/sync-ms-lead-list/route.ts` — createServerClient
+- `app/api/cron/coaching-brief/route.ts` — createServerClient
+- `docs/retrieval-brain-tracker.md` — journey enrichment checkbox, Phase 10 session log
 
 ## Files Deleted
 
@@ -61,15 +76,14 @@ Phase: Retrieval Brain Phase 9 complete / Health: Green / Duration: full session
 
 ## Open Issues Carried Forward
 
-- Mauricio Anaya needs manual creation or intake source identified — Medium
 - GHL calendar + SMS setup checklist for Chad (no code fix, needs GHL config) — Medium
-- L10 metrics dashboard feature request (parked) — Low
-- `get_entity(journey)` enrichment — Low
-- Eval script needs live Supabase connection for retrieval metrics — Medium
+- Verify cron routes complete successfully after Vercel deploy — Medium
+- Retrieval quality dashboard (deferred) — Low
+- Lookalike scores will improve when Zorakle/DISC/PFS data is imported — Low
 
 ## Exact Next Step
 
-Phase 10 — Predictive Lookalike Models. Start with the pre-flight data audit (GATE): count converted contacts with full profiles (need >= 30), count lost contacts (need >= 30), count franchisees with T12 metrics per tier (need >= 10 each). Document in `docs/phase-10-data-audit.md`. If gate fails, build rule-based scoring instead.
+Monitor the next few cron runs after Vercel deploy to confirm sync-ms-prospects and sync-ms-properties complete successfully (status: "completed" in cron_job_log). If still hanging, investigate Vercel function logs for the specific error.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -77,6 +91,6 @@ Phase 10 — Predictive Lookalike Models. Start with the pre-flight data audit (
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Phase 10 — Predictive Lookalike Models. Run the pre-flight data audit gate before writing any code.
+Then: Check cron health — verify sync-ms-prospects and sync-ms-properties are completing after the createServerClient fix. Then pick next feature work.
 
 ---
