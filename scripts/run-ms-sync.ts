@@ -25,7 +25,7 @@ async function main() {
 
   // Territories
   try {
-    console.log("\n[1/5] Syncing territories...");
+    console.log("\n[1/6] Syncing territories...");
     const { syncTerritories } = require("@/lib/mastersuite/sync-territories");
     const r = await syncTerritories();
     results.territories = r;
@@ -37,7 +37,7 @@ async function main() {
 
   // Properties
   try {
-    console.log("\n[2/5] Syncing properties...");
+    console.log("\n[2/6] Syncing properties...");
     const { syncProperties } = require("@/lib/mastersuite/sync-properties");
     const r = await syncProperties();
     results.properties = r;
@@ -49,7 +49,7 @@ async function main() {
 
   // EOS
   try {
-    console.log("\n[3/5] Syncing EOS...");
+    console.log("\n[3/6] Syncing EOS...");
     const { syncAllEos } = require("@/lib/mastersuite/sync-eos");
     const r = await syncAllEos();
     results.eos = r;
@@ -61,7 +61,7 @@ async function main() {
 
   // Prospects
   try {
-    console.log("\n[4/5] Syncing prospects...");
+    console.log("\n[4/6] Syncing prospects...");
     const { syncPtoProspects } = require("@/lib/mastersuite/sync-pto-prospects");
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const r = await syncPtoProspects(since);
@@ -74,7 +74,7 @@ async function main() {
 
   // Lead list counts
   try {
-    console.log("\n[5/5] Syncing lead list counts...");
+    console.log("\n[5/6] Syncing lead list counts...");
     const { syncLeadListCounts } = require("@/lib/mastersuite/sync-properties");
     const r = await syncLeadListCounts();
     results.leadList = r;
@@ -82,6 +82,18 @@ async function main() {
   } catch (err: any) {
     console.error("  FAILED:", err.message);
     errors.push(`leadList: ${err.message}`);
+  }
+
+  // Franchise requests
+  try {
+    console.log("\n[6/6] Syncing franchise requests...");
+    const { syncFranchiseRequests } = require("@/lib/mastersuite/sync-franchise-requests");
+    const r = await syncFranchiseRequests();
+    results.franchiseRequests = r;
+    console.log("  Done:", JSON.stringify(r).slice(0, 150));
+  } catch (err: any) {
+    console.error("  FAILED:", err.message);
+    errors.push(`franchiseRequests: ${err.message}`);
   }
 
   // Close MySQL pool so Node exits cleanly
