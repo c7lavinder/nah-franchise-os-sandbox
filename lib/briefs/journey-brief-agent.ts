@@ -1,13 +1,16 @@
 /**
  * Journey Brief Agent
  *
- * Generates narrative summaries + deterministic next actions for franchise journeys.
+ * Generates AI narrative summaries + deterministic next actions for franchise journeys.
  * Stored in journey_briefs table. Event-driven: only regenerates when something material
  * happens (call graded, stage changed, property synced).
  *
- * Pure data aggregation — no LLM call — for instant generation (<200ms).
+ * Claude Haiku 4.5 writes the narrative (~2-3s). Next actions are deterministic.
+ * Briefs are cached in DB — page loads read from cache (instant).
+ * First-time generation happens inline on first page visit.
  */
 
+import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase/server";
 import { getContactProfileFields } from "@/lib/profile/profile-fields";
 import { embedBriefSummary } from "@/lib/rag/embedder";
@@ -28,11 +31,18 @@ interface JourneyRow {
   created_at: string;
 }
 
+const BRIEF_PROMPT = `You are Scout, the AI franchise sales coach for New Again Houses.
+Write a 3-4 sentence narrative summary of this franchise journey.
+Be concrete — use names, dates, numbers. Do not speculate.
+Keep it conversational but professional, like a quick verbal briefing before a meeting.
+Focus on: who they are, where they stand, key signals, and any momentum or risk.
+Respond with ONLY the narrative paragraph — no headers, no bullets, no labels.`;
+
 export async function generateJourneyBrief(journeyId: string): Promise<JourneyBriefData | null> {
   const supabase = createServerClient();
 
-  // --- 1. Parallel data fetch (single wave — no sequential sub-queries) ---
-  const [journeyRes, membersRes, pipelineRes, callsRes, tasksRes] = await Promise.all([
+  // --- 1. First wave: journey-level data ---
+  const [journeyRes, membersRes, pipelineRes] = await Promise.all([
     supabase.from("journeys").select("id, name, status, primary_contact_id, created_at").eq("id", journeyId).single(),
     supabase
       .from("journey_contacts")
@@ -46,9 +56,6 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
          pipelines(name), pipeline_stages(name)`
       )
       .eq("journey_id", journeyId),
-    // Defer calls fetch — need primaryContactId but we'll fetch after
-    Promise.resolve(null),
-    Promise.resolve(null),
   ]);
 
   const journey = journeyRes.data as JourneyRow | null;
@@ -58,7 +65,7 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
   const slugs = ((pipelineRes.data ?? []) as any[]).map((r) => r.TerritorySlug).filter(Boolean) as string[];
   const uniqueSlugs = [...new Set(slugs)];
 
-  // --- 2. Second wave: contact-dependent queries ---
+  // --- 2. Second wave: contact-dependent queries (all parallel) ---
   const [callsResult, intelRes, objectionsRes, profileFields, commitmentRes, inventoryCountRes] = await Promise.all([
     supabase
       .from("call_participants")
@@ -70,11 +77,7 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
       .eq("contact_id", primaryContactId)
       .order("created_at", { ascending: false })
       .limit(5),
-    supabase
-      .from("candidate_intelligence")
-      .select("current_score, score_financial, score_operational, score_engagement, score_momentum")
-      .eq("contact_id", primaryContactId)
-      .maybeSingle(),
+    supabase.from("candidate_intelligence").select("current_score").eq("contact_id", primaryContactId).maybeSingle(),
     supabase
       .from("objection_registry")
       .select("objection_type")
@@ -89,7 +92,6 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
       .eq("status", "pending")
       .order("due_date", { ascending: true })
       .limit(10),
-    // Count properties per territory (no sub-query — just count)
     uniqueSlugs.length > 0
       ? supabase
           .from("ms_properties")
@@ -98,7 +100,7 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
       : Promise.resolve({ count: 0 }),
   ]);
 
-  // --- 3. Build narrative deterministically ---
+  // --- 3. Assemble context ---
   const members = ((membersRes.data ?? []) as any[]).map((m) => {
     const c = Array.isArray(m.contacts) ? m.contacts[0] : m.contacts;
     return {
@@ -154,67 +156,34 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
     return String(val);
   };
 
-  // Assemble narrative sentences
-  const sentences: string[] = [];
+  // Compact context for Claude (keep token count low for speed)
+  const context: Record<string, unknown> = {
+    journey: { name: journey.name, started: new Date(journey.created_at).toLocaleDateString() },
+    members: members.map((m) => `${m.name} (${m.role}${m.city ? `, ${m.city} ${m.state}` : ""})`),
+    stage: activePipelines[0]
+      ? `${activePipelines[0].stage}${activePipelines[0].territory ? ` / ${activePipelines[0].territory}` : ""} — ${activePipelines[0].daysInStage}d`
+      : null,
+    calls:
+      calls.length > 0
+        ? calls.slice(0, 3).map((c) => `${c.date}: ${c.type ?? "call"} ${c.grade ? `(${c.grade})` : ""}`.trim())
+        : "none",
+    score: intel?.current_score ?? null,
+    objections: objections.length > 0 ? objections : null,
+    properties: propertyCount > 0 ? propertyCount : null,
+    source: pv("opportunity_source"),
+  };
 
-  // Sentence 1: Who + when
-  const primaryMember = members.find((m) => m.role === "primary") ?? members[0];
-  const startDate = new Date(journey.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" });
-  const location =
-    primaryMember?.city && primaryMember?.state ? ` from ${primaryMember.city}, ${primaryMember.state}` : "";
-  const source = pv("opportunity_source");
-  const sourceText = source ? ` via ${source}` : "";
-  if (members.length > 1) {
-    const names = members.map((m) => m.name).join(" & ");
-    sentences.push(`${names} entered the pipeline in ${startDate}${location}${sourceText}.`);
-  } else {
-    sentences.push(
-      `${primaryMember?.name ?? journey.name} entered the pipeline in ${startDate}${location}${sourceText}.`
-    );
-  }
+  // --- 4. Claude Haiku narrative ---
+  const anthropic = new Anthropic();
+  const message = await anthropic.messages.create({
+    model: process.env.SCOUT_MODEL ?? "claude-haiku-4-5-20251001",
+    max_tokens: 200,
+    messages: [{ role: "user", content: `${BRIEF_PROMPT}\n\n${JSON.stringify(context)}` }],
+  });
 
-  // Sentence 2: Current stage + territory
-  if (activePipelines.length > 0) {
-    const ps = activePipelines[0];
-    const territoryText = ps.territory ? ` in ${ps.territory}` : "";
-    const daysText = ps.daysInStage > 0 ? ` for ${ps.daysInStage} days` : "";
-    sentences.push(`Currently in ${ps.stage}${territoryText}${daysText}.`);
-  }
+  const narrative = message.content[0].type === "text" ? message.content[0].text : "";
 
-  // Sentence 3: Engagement signals
-  const signals: string[] = [];
-  if (calls.length > 0) {
-    const lastCall = calls[0];
-    const gradeText = lastCall.grade ? ` (${lastCall.grade})` : "";
-    signals.push(`last call ${lastCall.date ?? "recently"}${gradeText}`);
-  }
-  if (intel?.current_score) {
-    signals.push(`intelligence score ${intel.current_score}/100`);
-  }
-  if (propertyCount > 0) {
-    signals.push(`${propertyCount} properties`);
-  }
-  if (objections.length > 0) {
-    signals.push(
-      `${objections.length} open objection${objections.length > 1 ? "s" : ""} (${objections.slice(0, 2).join(", ")})`
-    );
-  }
-  if (signals.length > 0) {
-    sentences.push(signals.join(", ").replace(/^./, (c) => c.toUpperCase()) + ".");
-  }
-
-  // Sentence 4: Risk or momentum
-  if (activePipelines.length > 0 && activePipelines[0].daysInStage > 30) {
-    sentences.push(`Velocity alert — ${activePipelines[0].daysInStage} days in ${activePipelines[0].stage}.`);
-  } else if (calls.length > 0 && calls[0].grade === "A") {
-    sentences.push("Strong momentum — recent call graded A.");
-  } else if (calls.length === 0) {
-    sentences.push("No calls on record — needs initial outreach.");
-  }
-
-  const narrative = sentences.join(" ");
-
-  // --- 4. Deterministic next actions ---
+  // --- 5. Deterministic next actions ---
   const tasks = (commitmentRes?.data ?? []) as any[];
   const nextActions = computeNextActions({ calls, pipelineStates: activePipelines, objections, tasks });
 
@@ -232,7 +201,6 @@ function computeNextActions(input: NextActionInput): { primary: string; secondar
   const actions: { priority: number; text: string }[] = [];
   const today = new Date();
 
-  // Overdue tasks
   for (const task of input.tasks) {
     if (task.due_date && new Date(task.due_date) < today) {
       const daysOverdue = Math.floor((today.getTime() - new Date(task.due_date).getTime()) / (1000 * 60 * 60 * 24));
@@ -243,7 +211,6 @@ function computeNextActions(input: NextActionInput): { primary: string; secondar
     }
   }
 
-  // Days since last call
   if (input.calls.length > 0 && input.calls[0].date) {
     const lastCallDate = new Date(input.calls[0].date);
     const daysSince = Math.floor((today.getTime() - lastCallDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -257,19 +224,16 @@ function computeNextActions(input: NextActionInput): { primary: string; secondar
     actions.push({ priority: 90, text: "Schedule introductory call — no calls on record" });
   }
 
-  // Objections
   if (input.objections.length > 0) {
     actions.push({ priority: 60, text: `Address ${input.objections[0]} objection` });
   }
 
-  // Stage velocity
   for (const ps of input.pipelineStates) {
     if (ps.daysInStage > 30) {
       actions.push({ priority: 50, text: `${ps.stage} for ${ps.daysInStage} days — review pipeline velocity` });
     }
   }
 
-  // Upcoming tasks
   for (const task of input.tasks) {
     if (task.due_date && new Date(task.due_date) >= today) {
       actions.push({ priority: 30, text: `Upcoming: "${task.commitment_text}"` });
@@ -303,7 +267,7 @@ export async function generateAndStoreJourneyBrief(journeyId: string): Promise<J
     { onConflict: "journey_id" }
   );
 
-  // Embed for RAG search (fire-and-forget)
+  // Embed for RAG (fire-and-forget)
   const { data: journey } = await supabase.from("journeys").select("name").eq("id", journeyId).single();
   embedBriefSummary({
     contactId: journeyId,
