@@ -2,10 +2,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { syncPtoProspects } from "@/lib/mastersuite/sync-pto-prospects";
+import { syncProspects } from "@/lib/mastersuite/sync-prospects";
 import { createServerClient } from "@/lib/supabase/server";
 
-/** Run a promise with a hard timeout so the function never hangs. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
@@ -38,10 +37,9 @@ export async function GET(request: NextRequest) {
     .single();
 
   try {
-    // Incremental: look at PTO entries from the last 7 days
+    // Incremental: last 7 days from both PTO + franchise request tables
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    // Hard timeout at 50s — leaves 10s buffer for logging before Vercel's 60s limit
-    const result = await withTimeout(syncPtoProspects(since), 50_000, "syncPtoProspects");
+    const result = await withTimeout(syncProspects(since), 50_000, "syncProspects");
 
     if (log) {
       await supabase
