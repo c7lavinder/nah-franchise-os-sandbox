@@ -7,7 +7,7 @@ export function getMasterSuitePool(): mysql.Pool {
 
   pool = mysql.createPool({
     host: process.env.MASTERSUITE_DB_HOST!,
-    port: parseInt(process.env.MASTERSUITE_DB_PORT || "60265"),
+    port: parseInt(process.env.MASTERSUITE_DB_PORT || "60263"),
     user: process.env.MASTERSUITE_DB_USER!,
     password: process.env.MASTERSUITE_DB_PASSWORD!,
     database: process.env.MASTERSUITE_DB_NAME || "mastersuite",

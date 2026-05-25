@@ -99,6 +99,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/frandev/api/cron/sync-ms-franchise-requests",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/frandev/api/cron/coaching-brief",
       "schedule": "0 7 * * *"
     }

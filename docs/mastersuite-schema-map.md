@@ -1,7 +1,7 @@
 # MasterSuite Database Schema Map
 
 > Read-only access to MasterSuite's MySQL production database.
-> Connection: `db-production.mastersuiteapp.com:60265` (credentials in `.env.local`)
+> Connection: `db-production.mastersuiteapp.com:60263` (credentials in `.env.local`)
 
 ---
 
