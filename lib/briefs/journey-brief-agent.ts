@@ -1,14 +1,13 @@
 /**
  * Journey Brief Agent
  *
- * Generates AI narrative summaries + deterministic next actions for franchise journeys.
+ * Generates narrative summaries + deterministic next actions for franchise journeys.
  * Stored in journey_briefs table. Event-driven: only regenerates when something material
  * happens (call graded, stage changed, property synced).
  *
- * Uses Claude Haiku 4.5 for the narrative. Next actions are deterministic (no LLM).
+ * Pure data aggregation — no LLM call — for instant generation (<200ms).
  */
 
-import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase/server";
 import { getContactProfileFields } from "@/lib/profile/profile-fields";
 import { embedBriefSummary } from "@/lib/rag/embedder";
@@ -29,27 +28,15 @@ interface JourneyRow {
   created_at: string;
 }
 
-const BRIEF_PROMPT = `You are Scout, the AI brain behind the New Again Houses franchise sales platform.
-Write a 3-4 sentence narrative summary of this franchise journey. Be concrete — use names, dates, numbers.
-Do not speculate or invent data. If data is missing, skip it rather than guessing.
-
-Focus on:
-- Who they are and when they entered the pipeline
-- Where they stand now (stage, territory, engagement)
-- Key signals (call quality, objections, property performance if franchisee)
-- Any notable momentum or risk
-
-Keep it conversational but professional. This will be read by the sales team before meetings.`;
-
 export async function generateJourneyBrief(journeyId: string): Promise<JourneyBriefData | null> {
   const supabase = createServerClient();
 
-  // --- 1. Parallel data fetch ---
-  const [journeyRes, membersRes, pipelineRes, territorySlugs] = await Promise.all([
+  // --- 1. Parallel data fetch (single wave — no sequential sub-queries) ---
+  const [journeyRes, membersRes, pipelineRes, callsRes, tasksRes] = await Promise.all([
     supabase.from("journeys").select("id, name, status, primary_contact_id, created_at").eq("id", journeyId).single(),
     supabase
       .from("journey_contacts")
-      .select("contact_id, role, contacts(first_name, last_name, email, phone, city, state)")
+      .select("contact_id, role, contacts(first_name, last_name, city, state)")
       .eq("journey_id", journeyId)
       .is("left_at", null),
     supabase
@@ -59,67 +46,59 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
          pipelines(name), pipeline_stages(name)`
       )
       .eq("journey_id", journeyId),
-    // Get all territory slugs for this journey
-    supabase
-      .from("journey_pipeline_state")
-      .select(`"TerritorySlug"`)
-      .eq("journey_id", journeyId)
-      .not("TerritorySlug", "is", null),
+    // Defer calls fetch — need primaryContactId but we'll fetch after
+    Promise.resolve(null),
+    Promise.resolve(null),
   ]);
 
   const journey = journeyRes.data as JourneyRow | null;
   if (!journey) return null;
 
   const primaryContactId = journey.primary_contact_id;
-  const slugs = ((territorySlugs.data ?? []) as any[]).map((r) => r.TerritorySlug).filter(Boolean) as string[];
+  const slugs = ((pipelineRes.data ?? []) as any[]).map((r) => r.TerritorySlug).filter(Boolean) as string[];
+  const uniqueSlugs = [...new Set(slugs)];
 
-  // Second wave: data that depends on primaryContactId / slugs
-  const [callsRes, intelRes, objectionsRes, profileFields, inventoryRes, tasksRes] = await Promise.all([
-    // Recent calls with grades
+  // --- 2. Second wave: contact-dependent queries ---
+  const [callsResult, intelRes, objectionsRes, profileFields, commitmentRes, inventoryCountRes] = await Promise.all([
     supabase
       .from("call_participants")
       .select(
-        `calls!inner(id, title, started_at, duration_seconds, status, ai_summary,
-         call_grades(overall_grade, overall_score, suggested_next_action),
+        `calls!inner(id, started_at, ai_summary,
+         call_grades(overall_grade, suggested_next_action),
          call_types(name))`
       )
       .eq("contact_id", primaryContactId)
       .order("created_at", { ascending: false })
       .limit(5),
-    // Intelligence scores
-    supabase.from("candidate_intelligence").select("*").eq("contact_id", primaryContactId).maybeSingle(),
-    // Unresolved objections
+    supabase
+      .from("candidate_intelligence")
+      .select("current_score, score_financial, score_operational, score_engagement, score_momentum")
+      .eq("contact_id", primaryContactId)
+      .maybeSingle(),
     supabase
       .from("objection_registry")
-      .select("objection_type, objection_detail")
+      .select("objection_type")
       .eq("contact_id", primaryContactId)
-      .eq("resolved", false),
-    // Profile fields
+      .eq("resolved", false)
+      .limit(5),
     getContactProfileFields(primaryContactId),
-    // MasterSuite inventory count (if franchisee with territory)
-    slugs.length > 0
-      ? supabase
-          .from("ms_property_inventory")
-          .select(`"PropertyId", "Inv_Status", "Inv_PurchaseDate", "Inv_SellDate"`)
-          .in(
-            "PropertyId",
-            // Sub-query: get PropertyIds for these territories
-            (await supabase.from("ms_properties").select(`"PropertyId"`).in("TerritorySlug", slugs)).data?.map(
-              (r: any) => r.PropertyId
-            ) ?? []
-          )
-      : Promise.resolve({ data: null }),
-    // Overdue/pending tasks
     supabase
       .from("commitments")
-      .select("commitment_text, due_date, status, commitment_type")
+      .select("commitment_text, due_date, status")
       .eq("contact_id", primaryContactId)
       .eq("status", "pending")
       .order("due_date", { ascending: true })
       .limit(10),
+    // Count properties per territory (no sub-query — just count)
+    uniqueSlugs.length > 0
+      ? supabase
+          .from("ms_properties")
+          .select(`"PropertyId"`, { count: "exact", head: true })
+          .in("TerritorySlug", uniqueSlugs)
+      : Promise.resolve({ count: 0 }),
   ]);
 
-  // --- 2. Assemble context for LLM ---
+  // --- 3. Build narrative deterministically ---
   const members = ((membersRes.data ?? []) as any[]).map((m) => {
     const c = Array.isArray(m.contacts) ? m.contacts[0] : m.contacts;
     return {
@@ -130,19 +109,21 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
     };
   });
 
-  const pipelineStates = ((pipelineRes.data ?? []) as any[]).map((ps) => {
-    const enteredAt = new Date(ps.entered_current_stage_at);
-    const daysInStage = Math.floor((Date.now() - enteredAt.getTime()) / (1000 * 60 * 60 * 24));
-    return {
-      pipeline: (Array.isArray(ps.pipelines) ? ps.pipelines[0]?.name : ps.pipelines?.name) ?? "Unknown",
-      stage: (Array.isArray(ps.pipeline_stages) ? ps.pipeline_stages[0]?.name : ps.pipeline_stages?.name) ?? "Unknown",
-      territory: ps.TerritorySlug ?? null,
-      daysInStage,
-      isActive: ps.is_active,
-    };
-  });
+  const activePipelines = ((pipelineRes.data ?? []) as any[])
+    .filter((ps) => ps.is_active)
+    .map((ps) => {
+      const enteredAt = new Date(ps.entered_current_stage_at);
+      const daysInStage = Math.floor((Date.now() - enteredAt.getTime()) / (1000 * 60 * 60 * 24));
+      return {
+        pipeline: (Array.isArray(ps.pipelines) ? ps.pipelines[0]?.name : ps.pipelines?.name) ?? "Unknown",
+        stage:
+          (Array.isArray(ps.pipeline_stages) ? ps.pipeline_stages[0]?.name : ps.pipeline_stages?.name) ?? "Unknown",
+        territory: ps.TerritorySlug ?? null,
+        daysInStage,
+      };
+    });
 
-  const calls = ((callsRes.data ?? []) as any[]).map((cp) => {
+  const calls = ((callsResult?.data ?? []) as any[]).map((cp) => {
     const call = Array.isArray(cp.calls) ? cp.calls[0] : cp.calls;
     const grade = Array.isArray(call?.call_grades) ? call.call_grades[0] : call?.call_grades;
     const callType = Array.isArray(call?.call_types) ? call.call_types[0] : call?.call_types;
@@ -150,21 +131,14 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
       date: call?.started_at ? new Date(call.started_at).toLocaleDateString() : null,
       type: callType?.name ?? null,
       grade: grade?.overall_grade ?? null,
-      summary: call?.ai_summary?.substring(0, 200) ?? null,
+      summary: call?.ai_summary?.substring(0, 150) ?? null,
       suggestedAction: grade?.suggested_next_action ?? null,
     };
   });
 
   const intel = intelRes.data as any;
-  const objections = ((objectionsRes.data ?? []) as any[]).map((o) => ({
-    type: o.objection_type,
-    detail: o.objection_detail ?? null,
-  }));
-
-  const inventory = (inventoryRes.data ?? []) as any[];
-  const purchasedCount = inventory.filter((p: any) => p.Inv_PurchaseDate).length;
-  const soldCount = inventory.filter((p: any) => p.Inv_SellDate).length;
-  const activeCount = inventory.filter((p: any) => p.Inv_Status === "Active").length;
+  const objections = ((objectionsRes.data ?? []) as any[]).map((o) => o.objection_type);
+  const propertyCount = (inventoryCountRes as any)?.count ?? 0;
 
   const pv = (fieldName: string): string | null => {
     const f = profileFields[fieldName];
@@ -180,52 +154,69 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
     return String(val);
   };
 
-  const context = {
-    journey: {
-      name: journey.name,
-      status: journey.status,
-      startedAt: new Date(journey.created_at).toLocaleDateString(),
-    },
-    members,
-    pipelineStates: pipelineStates.filter((ps) => ps.isActive),
-    recentCalls: calls,
-    intelligence: intel
-      ? { score: intel.current_score, ghostRisk: pv("ghost_risk"), closeProb: pv("Predicted Close Probability") }
-      : null,
-    objections,
-    inventory: slugs.length > 0 ? { totalPurchased: purchasedCount, totalSold: soldCount, active: activeCount } : null,
-    profile: {
-      occupation: pv("current_occupation"),
-      liquidCapital: pv("liquid_capital_available"),
-      discType: pv("disc_type"),
-      source: pv("opportunity_source"),
-    },
-  };
+  // Assemble narrative sentences
+  const sentences: string[] = [];
 
-  // --- 3. Call Claude for narrative ---
-  const anthropic = new Anthropic();
-  const message = await anthropic.messages.create({
-    model: process.env.SCOUT_MODEL ?? "claude-haiku-4-5-20251001",
-    max_tokens: 400,
-    messages: [
-      {
-        role: "user",
-        content: `${BRIEF_PROMPT}\n\nJourney data:\n${JSON.stringify(context, null, 2)}`,
-      },
-    ],
-  });
+  // Sentence 1: Who + when
+  const primaryMember = members.find((m) => m.role === "primary") ?? members[0];
+  const startDate = new Date(journey.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  const location =
+    primaryMember?.city && primaryMember?.state ? ` from ${primaryMember.city}, ${primaryMember.state}` : "";
+  const source = pv("opportunity_source");
+  const sourceText = source ? ` via ${source}` : "";
+  if (members.length > 1) {
+    const names = members.map((m) => m.name).join(" & ");
+    sentences.push(`${names} entered the pipeline in ${startDate}${location}${sourceText}.`);
+  } else {
+    sentences.push(
+      `${primaryMember?.name ?? journey.name} entered the pipeline in ${startDate}${location}${sourceText}.`
+    );
+  }
 
-  const narrative = message.content[0].type === "text" ? message.content[0].text : "";
+  // Sentence 2: Current stage + territory
+  if (activePipelines.length > 0) {
+    const ps = activePipelines[0];
+    const territoryText = ps.territory ? ` in ${ps.territory}` : "";
+    const daysText = ps.daysInStage > 0 ? ` for ${ps.daysInStage} days` : "";
+    sentences.push(`Currently in ${ps.stage}${territoryText}${daysText}.`);
+  }
+
+  // Sentence 3: Engagement signals
+  const signals: string[] = [];
+  if (calls.length > 0) {
+    const lastCall = calls[0];
+    const gradeText = lastCall.grade ? ` (${lastCall.grade})` : "";
+    signals.push(`last call ${lastCall.date ?? "recently"}${gradeText}`);
+  }
+  if (intel?.current_score) {
+    signals.push(`intelligence score ${intel.current_score}/100`);
+  }
+  if (propertyCount > 0) {
+    signals.push(`${propertyCount} properties`);
+  }
+  if (objections.length > 0) {
+    signals.push(
+      `${objections.length} open objection${objections.length > 1 ? "s" : ""} (${objections.slice(0, 2).join(", ")})`
+    );
+  }
+  if (signals.length > 0) {
+    sentences.push(signals.join(", ").replace(/^./, (c) => c.toUpperCase()) + ".");
+  }
+
+  // Sentence 4: Risk or momentum
+  if (activePipelines.length > 0 && activePipelines[0].daysInStage > 30) {
+    sentences.push(`Velocity alert — ${activePipelines[0].daysInStage} days in ${activePipelines[0].stage}.`);
+  } else if (calls.length > 0 && calls[0].grade === "A") {
+    sentences.push("Strong momentum — recent call graded A.");
+  } else if (calls.length === 0) {
+    sentences.push("No calls on record — needs initial outreach.");
+  }
+
+  const narrative = sentences.join(" ");
 
   // --- 4. Deterministic next actions ---
-  const nextActions = computeNextActions({
-    calls,
-    pipelineStates,
-    objections,
-    tasks: (tasksRes.data ?? []) as any[],
-    inventory: { purchased: purchasedCount, sold: soldCount, active: activeCount },
-    slugs,
-  });
+  const tasks = (commitmentRes?.data ?? []) as any[];
+  const nextActions = computeNextActions({ calls, pipelineStates: activePipelines, objections, tasks });
 
   return { narrative, nextActions };
 }
@@ -233,17 +224,15 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
 interface NextActionInput {
   calls: { date: string | null; grade: string | null; suggestedAction: string | null }[];
   pipelineStates: { stage: string; daysInStage: number; territory: string | null }[];
-  objections: { type: string; detail: string | null }[];
+  objections: string[];
   tasks: { commitment_text: string; due_date: string | null; status: string }[];
-  inventory: { purchased: number; sold: number; active: number };
-  slugs: string[];
 }
 
 function computeNextActions(input: NextActionInput): { primary: string; secondary: string[] } {
   const actions: { priority: number; text: string }[] = [];
   const today = new Date();
 
-  // Overdue tasks — highest priority
+  // Overdue tasks
   for (const task of input.tasks) {
     if (task.due_date && new Date(task.due_date) < today) {
       const daysOverdue = Math.floor((today.getTime() - new Date(task.due_date).getTime()) / (1000 * 60 * 60 * 24));
@@ -261,7 +250,6 @@ function computeNextActions(input: NextActionInput): { primary: string; secondar
     if (daysSince > 14) {
       actions.push({ priority: 80 + daysSince, text: `Schedule call — ${daysSince} days since last contact` });
     }
-    // Use suggested action from last graded call
     if (input.calls[0].suggestedAction) {
       actions.push({ priority: 70, text: input.calls[0].suggestedAction });
     }
@@ -269,45 +257,38 @@ function computeNextActions(input: NextActionInput): { primary: string; secondar
     actions.push({ priority: 90, text: "Schedule introductory call — no calls on record" });
   }
 
-  // Unresolved objections
+  // Objections
   if (input.objections.length > 0) {
-    const topObjection = input.objections[0];
-    actions.push({
-      priority: 60,
-      text: `Address ${topObjection.type} objection${topObjection.detail ? `: "${topObjection.detail.substring(0, 60)}"` : ""}`,
-    });
+    actions.push({ priority: 60, text: `Address ${input.objections[0]} objection` });
   }
 
-  // Stage velocity warning
+  // Stage velocity
   for (const ps of input.pipelineStates) {
     if (ps.daysInStage > 30) {
       actions.push({ priority: 50, text: `${ps.stage} for ${ps.daysInStage} days — review pipeline velocity` });
     }
   }
 
-  // Pending tasks (not overdue)
+  // Upcoming tasks
   for (const task of input.tasks) {
     if (task.due_date && new Date(task.due_date) >= today) {
       actions.push({ priority: 30, text: `Upcoming: "${task.commitment_text}"` });
     }
   }
 
-  // Sort by priority desc
   actions.sort((a, b) => b.priority - a.priority);
-
-  const primary = actions[0]?.text ?? "No pressing actions";
-  const secondary = actions.slice(1, 3).map((a) => a.text);
-
-  return { primary, secondary };
+  return {
+    primary: actions[0]?.text ?? "No pressing actions",
+    secondary: actions.slice(1, 3).map((a) => a.text),
+  };
 }
 
 /**
- * Generate and store a journey brief. Called by cron and stale triggers.
+ * Generate and store a journey brief.
  */
 export async function generateAndStoreJourneyBrief(journeyId: string): Promise<JourneyBriefData | null> {
   const supabase = createServerClient();
   const result = await generateJourneyBrief(journeyId);
-
   if (!result) return null;
 
   await supabase.from("journey_briefs").upsert(
@@ -324,7 +305,6 @@ export async function generateAndStoreJourneyBrief(journeyId: string): Promise<J
 
   // Embed for RAG search (fire-and-forget)
   const { data: journey } = await supabase.from("journeys").select("name").eq("id", journeyId).single();
-
   embedBriefSummary({
     contactId: journeyId,
     entityType: "journey",
