@@ -31,11 +31,44 @@ interface JourneyRow {
   created_at: string;
 }
 
+// Pipeline stage context so Claude (and next-action logic) understands what each stage means
+const STAGE_CONTEXT: Record<string, string> = {
+  // Sales pipeline
+  engagement: "Initial outreach and intro call — earliest contact stage",
+  qualification: "NDA signed, Matt intro call, Zorakle assessment — vetting fit",
+  discovery: "Deep dive: Sam call, PFS review, background check, Mark call — serious candidate",
+  compliance: "FDD sent, review call, territory selection, FA info gathering — near-final",
+  awarding:
+    "Final stage before franchise award: Matt final call, award letter, FA signing, franchise fee payment — this person is being awarded a franchise",
+  closed: "Franchise awarded — transitioning to onboarding",
+  // Onboarding pipeline
+  setup: "New franchisee onboarding setup",
+  training: "Franchisee in training",
+  // Runway pipeline
+  "first-offers": "Active franchisee making first property offers",
+  "first-acquisition": "Franchisee acquiring first property",
+  "inventory-building": "Franchisee building property inventory",
+  "runway-complete": "Franchisee graduated to independent operations",
+  // Follow-up pipeline
+  followup: "Dropped from sales — specific reason to resume later",
+  nurture: "Long-term cold storage — no active engagement",
+  reengaged: "Re-engaged and ready to re-enter sales process",
+};
+
 const BRIEF_PROMPT = `You are Scout, the AI franchise sales coach for New Again Houses.
 Write a 3-4 sentence narrative summary of this franchise journey.
 Be concrete — use names, dates, numbers. Do not speculate.
 Keep it conversational but professional, like a quick verbal briefing before a meeting.
 Focus on: who they are, where they stand, key signals, and any momentum or risk.
+
+IMPORTANT: The "stage" field tells you exactly where they are in the sales process.
+Later stages (Compliance, Awarding, Closed) mean this person has been thoroughly vetted
+and is close to or already a franchisee. Do NOT treat missing call data as "we haven't
+connected" — it likely means call data hasn't been migrated yet. Interpret through the
+lens of what the stage implies.
+
+The "stageContext" field explains what each stage means in this franchise sales process.
+
 Respond with ONLY the narrative paragraph — no headers, no bullets, no labels.`;
 
 export async function generateJourneyBrief(journeyId: string): Promise<JourneyBriefData | null> {
@@ -53,7 +86,7 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
       .from("journey_pipeline_state")
       .select(
         `id, current_stage_id, entered_current_stage_at, is_active, "TerritorySlug",
-         pipelines(name), pipeline_stages(name)`
+         pipelines(name, slug), pipeline_stages(name, slug)`
       )
       .eq("journey_id", journeyId),
   ]);
@@ -116,10 +149,15 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
     .map((ps) => {
       const enteredAt = new Date(ps.entered_current_stage_at);
       const daysInStage = Math.floor((Date.now() - enteredAt.getTime()) / (1000 * 60 * 60 * 24));
+      const stageSlug =
+        (Array.isArray(ps.pipeline_stages) ? ps.pipeline_stages[0]?.slug : ps.pipeline_stages?.slug) ?? "";
+      const pipelineSlug = (Array.isArray(ps.pipelines) ? ps.pipelines[0]?.slug : ps.pipelines?.slug) ?? "";
       return {
         pipeline: (Array.isArray(ps.pipelines) ? ps.pipelines[0]?.name : ps.pipelines?.name) ?? "Unknown",
+        pipelineSlug,
         stage:
           (Array.isArray(ps.pipeline_stages) ? ps.pipeline_stages[0]?.name : ps.pipeline_stages?.name) ?? "Unknown",
+        stageSlug,
         territory: ps.TerritorySlug ?? null,
         daysInStage,
       };
@@ -157,16 +195,21 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
   };
 
   // Compact context for Claude (keep token count low for speed)
+  const currentStageSlug = activePipelines[0]?.stageSlug ?? "";
+  const stageContextText = STAGE_CONTEXT[currentStageSlug] ?? null;
+
   const context: Record<string, unknown> = {
     journey: { name: journey.name, started: new Date(journey.created_at).toLocaleDateString() },
     members: members.map((m) => `${m.name} (${m.role}${m.city ? `, ${m.city} ${m.state}` : ""})`),
     stage: activePipelines[0]
       ? `${activePipelines[0].stage}${activePipelines[0].territory ? ` / ${activePipelines[0].territory}` : ""} — ${activePipelines[0].daysInStage}d`
       : null,
+    stageContext: stageContextText,
+    pipeline: activePipelines[0]?.pipeline ?? null,
     calls:
       calls.length > 0
         ? calls.slice(0, 3).map((c) => `${c.date}: ${c.type ?? "call"} ${c.grade ? `(${c.grade})` : ""}`.trim())
-        : "none",
+        : "none logged (may not be migrated yet)",
     score: intel?.current_score ?? null,
     objections: objections.length > 0 ? objections : null,
     properties: propertyCount > 0 ? propertyCount : null,
@@ -183,16 +226,48 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
 
   const narrative = message.content[0].type === "text" ? message.content[0].text : "";
 
-  // --- 5. Deterministic next actions ---
+  // --- 5. Deterministic next actions (stage-aware) ---
   const tasks = (commitmentRes?.data ?? []) as any[];
   const nextActions = computeNextActions({ calls, pipelineStates: activePipelines, objections, tasks });
 
   return { narrative, nextActions };
 }
 
+// Stage-specific next actions when no other signals exist
+const STAGE_DEFAULT_ACTIONS: Record<string, string> = {
+  engagement: "Complete outreach and schedule intro call",
+  qualification: "Ensure NDA is signed and Matt call is scheduled",
+  discovery: "Complete Sam call, PFS review, and background check",
+  compliance: "Send FDD and schedule review call",
+  awarding: "Complete Matt final call and send franchise award letter",
+  closed: "Transition to onboarding — schedule setup kickoff",
+  setup: "Complete onboarding setup checklist",
+  training: "Continue franchisee training program",
+  "first-offers": "Optimize marketing and get first 10 offers sent",
+  "first-acquisition": "Close first property and start rehab",
+  "inventory-building": "Build to 2+ properties in inventory",
+  followup: "Re-engage when timing is right",
+  nurture: "Monitor for re-engagement signals",
+  reengaged: "Move back into sales pipeline",
+};
+
+// Late-stage slugs where "no calls on record" is likely a data gap, not reality
+const LATE_STAGES = new Set([
+  "discovery",
+  "compliance",
+  "awarding",
+  "closed",
+  "setup",
+  "training",
+  "first-offers",
+  "first-acquisition",
+  "inventory-building",
+  "runway-complete",
+]);
+
 interface NextActionInput {
   calls: { date: string | null; grade: string | null; suggestedAction: string | null }[];
-  pipelineStates: { stage: string; daysInStage: number; territory: string | null }[];
+  pipelineStates: { stage: string; stageSlug: string; daysInStage: number; territory: string | null }[];
   objections: string[];
   tasks: { commitment_text: string; due_date: string | null; status: string }[];
 }
@@ -200,7 +275,10 @@ interface NextActionInput {
 function computeNextActions(input: NextActionInput): { primary: string; secondary: string[] } {
   const actions: { priority: number; text: string }[] = [];
   const today = new Date();
+  const currentSlug = input.pipelineStates[0]?.stageSlug ?? "";
+  const isLateStage = LATE_STAGES.has(currentSlug);
 
+  // Overdue tasks
   for (const task of input.tasks) {
     if (task.due_date && new Date(task.due_date) < today) {
       const daysOverdue = Math.floor((today.getTime() - new Date(task.due_date).getTime()) / (1000 * 60 * 60 * 24));
@@ -211,6 +289,7 @@ function computeNextActions(input: NextActionInput): { primary: string; secondar
     }
   }
 
+  // Call recency — but only for early stages where "no calls" is meaningful
   if (input.calls.length > 0 && input.calls[0].date) {
     const lastCallDate = new Date(input.calls[0].date);
     const daysSince = Math.floor((today.getTime() - lastCallDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -220,24 +299,34 @@ function computeNextActions(input: NextActionInput): { primary: string; secondar
     if (input.calls[0].suggestedAction) {
       actions.push({ priority: 70, text: input.calls[0].suggestedAction });
     }
-  } else {
+  } else if (!isLateStage) {
+    // Only suggest intro call for early stages where it makes sense
     actions.push({ priority: 90, text: "Schedule introductory call — no calls on record" });
   }
 
+  // Objections
   if (input.objections.length > 0) {
     actions.push({ priority: 60, text: `Address ${input.objections[0]} objection` });
   }
 
+  // Stage velocity
   for (const ps of input.pipelineStates) {
     if (ps.daysInStage > 30) {
       actions.push({ priority: 50, text: `${ps.stage} for ${ps.daysInStage} days — review pipeline velocity` });
     }
   }
 
+  // Upcoming tasks
   for (const task of input.tasks) {
     if (task.due_date && new Date(task.due_date) >= today) {
       actions.push({ priority: 30, text: `Upcoming: "${task.commitment_text}"` });
     }
+  }
+
+  // Stage-specific default action (fallback when nothing else applies)
+  const stageDefault = STAGE_DEFAULT_ACTIONS[currentSlug];
+  if (stageDefault) {
+    actions.push({ priority: 20, text: stageDefault });
   }
 
   actions.sort((a, b) => b.priority - a.priority);
