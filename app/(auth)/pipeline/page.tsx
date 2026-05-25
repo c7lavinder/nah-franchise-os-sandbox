@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { capitalizeName } from "@/lib/format/contact";
 import {
@@ -134,7 +135,15 @@ const STAGE_HEADER_COLORS: Record<string, string> = {
 // Prospect Card (draggable)
 // ---------------------------------------------------------------------------
 
+function getContactUrl(contact: PipelineContact): string {
+  if (contact.pipelineSlug === "territories" && contact.territoryMsSlug) {
+    return `/territories/${contact.territoryMsSlug}`;
+  }
+  return `/journeys/${contact.journeyId}`;
+}
+
 function ProspectCard({ contact }: { contact: PipelineContact }) {
+  const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: contact.stateId,
     data: { contact },
@@ -150,6 +159,7 @@ function ProspectCard({ contact }: { contact: PipelineContact }) {
       style={style}
       {...listeners}
       {...attributes}
+      onDoubleClick={() => router.push(getContactUrl(contact))}
       className={`
         bg-bg-tertiary border border-border-default rounded-md px-2 py-1.5
         cursor-grab active:cursor-grabbing
