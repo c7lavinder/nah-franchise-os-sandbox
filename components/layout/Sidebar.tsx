@@ -9,6 +9,7 @@ import {
   GitBranch,
   Phone,
   Bot,
+  Users,
   Workflow,
   FileSignature,
   BookOpen,
@@ -54,6 +55,12 @@ const NAV_ITEMS: NavItem[] = [
     label: "Pipeline",
     href: "/pipeline",
     icon: GitBranch,
+    roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"],
+  },
+  {
+    label: "Contacts",
+    href: "/contacts",
+    icon: Users,
     roles: ["rep", "leadership", "admin", "operator", "specialist", "marketing"],
   },
   {
