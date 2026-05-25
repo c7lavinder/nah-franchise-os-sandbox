@@ -98,11 +98,14 @@ export interface StageHistoryEntry {
 export async function getContactPipelineStates(contactId: string): Promise<ContactPipelineState[]> {
   const supabase = createServerClient();
 
-  const { data: journey } = await supabase
+  // A contact may have multiple journeys (archived + active). Prefer the
+  // active one; fall back to the most recent if none are active.
+  const { data: journeys } = await supabase
     .from("journeys")
-    .select("id")
+    .select("id, status")
     .eq("primary_contact_id", contactId)
-    .maybeSingle();
+    .order("created_at", { ascending: false });
+  const journey = (journeys ?? []).find((j) => j.status === "active") ?? (journeys ?? [])[0] ?? null;
   if (!journey?.id) return [];
 
   const { data, error } = await supabase

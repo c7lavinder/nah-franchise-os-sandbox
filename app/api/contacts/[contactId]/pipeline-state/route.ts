@@ -50,11 +50,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const pipelineStates = await getContactPipelineStates(localContactId);
 
     const supabase = createServerClient();
-    const { data: journey } = await supabase
+    const { data: journeys } = await supabase
       .from("journeys")
-      .select("id")
+      .select("id, status")
       .eq("primary_contact_id", localContactId)
-      .maybeSingle();
+      .order("created_at", { ascending: false });
+    const journey = (journeys ?? []).find((j) => j.status === "active") ?? (journeys ?? [])[0] ?? null;
 
     // Preload jps rows for this journey (only needed for per-territory pipelines).
     type JpsRow = {
