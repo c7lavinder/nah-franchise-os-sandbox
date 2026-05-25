@@ -40,10 +40,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const primaryContactId = journeyRes.data.primary_contact_id;
-  const slugs = [...new Set(((jpsRes.data ?? []) as any[]).map((r) => r.TerritorySlug).filter(Boolean) as string[])];
+  let slugs = [...new Set(((jpsRes.data ?? []) as any[]).map((r) => r.TerritorySlug).filter(Boolean) as string[])];
 
   // 2. Franchise fee from contacts table
   const { data: contact } = await supabase.from("contacts").select("franchise_fee").eq("id", primaryContactId).single();
+
+  // Fallback: if JPS has no territory slugs, check territory_owners for this contact
+  if (slugs.length === 0) {
+    const { data: ownedTerritories } = await supabase
+      .from("territory_owners")
+      .select(`"TerritorySlug"`)
+      .eq("contact_id", primaryContactId)
+      .is("end_date", null);
+    slugs = [...new Set(((ownedTerritories ?? []) as any[]).map((r) => r.TerritorySlug).filter(Boolean) as string[])];
+  }
 
   const franchiseFee = contact?.franchise_fee ?? null;
 

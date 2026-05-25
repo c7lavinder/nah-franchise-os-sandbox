@@ -95,7 +95,18 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
   if (!journey) return null;
 
   const primaryContactId = journey.primary_contact_id;
-  const slugs = ((pipelineRes.data ?? []) as any[]).map((r) => r.TerritorySlug).filter(Boolean) as string[];
+  let slugs = ((pipelineRes.data ?? []) as any[]).map((r) => r.TerritorySlug).filter(Boolean) as string[];
+
+  // Fallback: if JPS has no territory slugs, check territory_owners
+  if (slugs.length === 0) {
+    const { data: ownedTerritories } = await supabase
+      .from("territory_owners")
+      .select(`"TerritorySlug"`)
+      .eq("contact_id", primaryContactId)
+      .is("end_date", null);
+    slugs = ((ownedTerritories ?? []) as any[]).map((r) => r.TerritorySlug).filter(Boolean) as string[];
+  }
+
   const uniqueSlugs = [...new Set(slugs)];
 
   // --- 2. Second wave: contact-dependent queries (all parallel) ---
