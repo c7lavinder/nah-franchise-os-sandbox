@@ -362,14 +362,6 @@ function StageColumn({
           hasSubTasks={subTasks.length > 0}
           contacts={unsorted}
         />
-
-        {subTasks.length === 0 && contacts.length > 0 && (
-          <div className="space-y-1">
-            {contacts.map((c) => (
-              <ProspectCard key={c.stateId} contact={c} />
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
