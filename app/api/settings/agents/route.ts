@@ -10,6 +10,7 @@ const AGENT_DEFS = [
   { name: "territory-market", label: "Territory Market", trigger: "Territory presented, Research button, 30-day cron" },
   { name: "pre-call-brief", label: "Pre-Call Brief", trigger: "Call scheduled, daily 7am cron" },
   { name: "reengagement-signal", label: "Re-engagement Signal", trigger: "Monthly cron (1st of month)" },
+  { name: "journey-brief", label: "Journey Brief", trigger: "Stage change, call graded, property sync, nightly cron" },
 ];
 
 export async function GET(request: NextRequest) {

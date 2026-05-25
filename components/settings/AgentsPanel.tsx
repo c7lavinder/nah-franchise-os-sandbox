@@ -20,6 +20,7 @@ const AGENT_DEFS = [
   { name: "territory-market", label: "Territory Market", trigger: "Territory presented, Research button, 30-day cron" },
   { name: "pre-call-brief", label: "Pre-Call Brief", trigger: "Call scheduled, daily 7am cron" },
   { name: "reengagement-signal", label: "Re-engagement Signal", trigger: "Monthly cron (1st of month)" },
+  { name: "journey-brief", label: "Journey Brief", trigger: "Stage change, call graded, property sync, nightly cron" },
 ];
 
 export default function AgentsPanel() {
@@ -33,26 +34,30 @@ export default function AgentsPanel() {
       .then((d) => setAgents(d.agents ?? []))
       .catch(() => {
         // Fallback: show static list with zero counts
-        setAgents(AGENT_DEFS.map((a) => ({
-          ...a,
-          enabled: true,
-          runsMTD: 0,
-          suggestionsMTD: 0,
-          costEstMTD: "$0.00",
-        })));
+        setAgents(
+          AGENT_DEFS.map((a) => ({
+            ...a,
+            enabled: true,
+            runsMTD: 0,
+            suggestionsMTD: 0,
+            costEstMTD: "$0.00",
+          }))
+        );
       })
       .finally(() => setLoading(false));
   }, []);
 
   async function toggleAgent(name: string, enabled: boolean) {
-    setAgents((prev) => prev.map((a) => a.name === name ? { ...a, enabled } : a));
+    setAgents((prev) => prev.map((a) => (a.name === name ? { ...a, enabled } : a)));
     try {
       await apiFetch("/api/settings/agents/toggle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ agentName: name, enabled }),
       });
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
   }
 
   async function triggerAgent(name: string) {
@@ -65,15 +70,22 @@ export default function AgentsPanel() {
         "territory-market": { url: "/api/cron/research-territories", method: "GET" },
         "pre-call-brief": { url: "/api/cron/pre-call-briefs", method: "GET" },
         "reengagement-signal": { url: "/api/cron/reengagement-scan", method: "GET" },
+        "journey-brief": { url: "/api/cron/generate-briefs", method: "POST" },
       };
       const ep = endpoints[name];
       if (ep) await fetch(ep.url, { method: ep.method });
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
     setTriggering(null);
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center py-12"><Loader2 size={20} className="animate-spin" /></div>;
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 size={20} className="animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -97,9 +109,11 @@ export default function AgentsPanel() {
                 agent.enabled ? "bg-green-500" : "bg-gray-300"
               }`}
             >
-              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                agent.enabled ? "left-5" : "left-0.5"
-              }`} />
+              <span
+                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                  agent.enabled ? "left-5" : "left-0.5"
+                }`}
+              />
             </button>
 
             {/* Manual trigger */}
@@ -108,20 +122,22 @@ export default function AgentsPanel() {
               disabled={triggering === agent.name || !agent.enabled}
               className="flex items-center gap-1 px-2 py-1 rounded text-caption font-medium bg-bg-secondary hover:bg-bg-hover disabled:opacity-50"
             >
-              {triggering === agent.name ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <Play size={12} />
-              )}
+              {triggering === agent.name ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
               Run
             </button>
           </div>
 
           {/* Stats */}
           <div className="flex gap-6 mt-3 text-caption text-text-tertiary">
-            <span>Runs MTD: <span className="text-text-primary font-medium">{agent.runsMTD}</span></span>
-            <span>Suggestions MTD: <span className="text-text-primary font-medium">{agent.suggestionsMTD}</span></span>
-            <span>Cost est.: <span className="text-text-primary font-medium">{agent.costEstMTD}</span></span>
+            <span>
+              Runs MTD: <span className="text-text-primary font-medium">{agent.runsMTD}</span>
+            </span>
+            <span>
+              Suggestions MTD: <span className="text-text-primary font-medium">{agent.suggestionsMTD}</span>
+            </span>
+            <span>
+              Cost est.: <span className="text-text-primary font-medium">{agent.costEstMTD}</span>
+            </span>
           </div>
         </div>
       ))}
