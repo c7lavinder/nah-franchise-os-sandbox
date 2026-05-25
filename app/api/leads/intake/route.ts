@@ -184,12 +184,22 @@ export async function POST(request: NextRequest) {
             .limit(1)
             .single();
 
+          // Default to Outreach sub-task so new leads don't land as "unsorted"
+          const { data: outreachSubTask } = await supabase
+            .from("pipeline_sub_tasks")
+            .select("id")
+            .eq("stage_id", engagementStage?.id)
+            .order("sort_order", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
           if (engagementStage) {
             await supabase.from("journey_pipeline_state").insert({
               journey_id: journeyId,
               TerritorySlug: null,
               pipeline_id: salesPipeline.id,
               current_stage_id: engagementStage.id,
+              current_sub_task_id: outreachSubTask?.id ?? null,
               is_active: true,
             });
           }

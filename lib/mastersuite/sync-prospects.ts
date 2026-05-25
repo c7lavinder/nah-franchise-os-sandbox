@@ -12,6 +12,7 @@ import { getServiceSupabase } from "./supabase";
 
 const SALES_PIPELINE_ID = "a0000000-0000-0000-0000-000000000001";
 const ENGAGEMENT_STAGE_ID = "b0000000-0000-0000-0000-000000000001";
+const OUTREACH_SUB_TASK_ID = "8ea993c2-4de4-452e-8f22-7b64a543415d";
 
 // ---------------------------------------------------------------------------
 // Normalized prospect — common shape from both sources
@@ -415,6 +416,7 @@ async function createJourneyAndJPS(
     TerritorySlug: null,
     pipeline_id: SALES_PIPELINE_ID,
     current_stage_id: ENGAGEMENT_STAGE_ID,
+    current_sub_task_id: OUTREACH_SUB_TASK_ID,
     is_active: true,
     entered_pipeline_at: toDateOrNull(insertedAt) || new Date().toISOString(),
     entered_current_stage_at: new Date().toISOString(),
