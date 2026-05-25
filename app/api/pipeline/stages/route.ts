@@ -83,11 +83,18 @@ export async function GET(request: NextRequest) {
     // (journey, pipeline) so the numbers match 1:1 with the old cps counts.
     const remainingStageIds = (stages ?? []).filter((s) => !countMap.has(s.id)).map((s) => s.id);
 
+    // Terminal stages count all rows (active + inactive); others count active only
+    const terminalStageIds = new Set((stages ?? []).filter((s) => s.is_terminal).map((s) => s.id));
+
     const countPromises = remainingStageIds.map(async (stageId) => {
-      const { count } = await supabase
+      let q = supabase
         .from("journey_pipeline_state")
         .select("id", { count: "exact", head: true })
         .eq("current_stage_id", stageId);
+      if (!terminalStageIds.has(stageId)) {
+        q = q.eq("is_active", true);
+      }
+      const { count } = await q;
       return { stageId, count: count ?? 0 };
     });
 
