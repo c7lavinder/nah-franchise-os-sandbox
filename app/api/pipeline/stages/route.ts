@@ -87,7 +87,6 @@ export async function GET(request: NextRequest) {
       const { count } = await supabase
         .from("journey_pipeline_state")
         .select("id", { count: "exact", head: true })
-        .eq("is_active", true)
         .eq("current_stage_id", stageId);
       return { stageId, count: count ?? 0 };
     });

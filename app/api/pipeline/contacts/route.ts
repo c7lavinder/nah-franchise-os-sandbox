@@ -124,7 +124,8 @@ export async function GET(request: NextRequest) {
     let hasMore = true;
 
     while (hasMore) {
-      let dbQuery = supabase.from("journey_pipeline_state").select(SELECT_FIELDS).eq("is_active", true);
+      let dbQuery = supabase.from("journey_pipeline_state").select(SELECT_FIELDS);
+      if (!boardView) dbQuery = dbQuery.eq("is_active", true);
 
       if (stageId) dbQuery = dbQuery.eq("current_stage_id", stageId);
       if (pipelineSlug === "sales") dbQuery = dbQuery.eq("pipeline_id", "a0000000-0000-0000-0000-000000000001");
