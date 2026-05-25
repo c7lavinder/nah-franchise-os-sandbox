@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { generateAndStoreContactBrief } from "@/lib/briefs/contact-brief-generator";
 import { generateAndStoreTerritoryBrief } from "@/lib/briefs/territory-brief-generator";
+import { generateAndStoreJourneyBrief } from "@/lib/briefs/journey-brief-agent";
 
 const BATCH_SIZE = 25;
 
@@ -28,6 +29,7 @@ export async function POST(request: NextRequest) {
   const results = {
     contacts: { generated: 0, failed: 0 },
     territories: { generated: 0, failed: 0 },
+    journeys: { generated: 0, failed: 0 },
   };
 
   // 1. Regenerate stale contact briefs
@@ -133,10 +135,55 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // 5. Regenerate stale journey briefs
+  const { data: staleJourneys } = await supabase
+    .from("journey_briefs")
+    .select("journey_id")
+    .eq("stale", true)
+    .limit(BATCH_SIZE);
+
+  for (const row of staleJourneys ?? []) {
+    try {
+      await generateAndStoreJourneyBrief(row.journey_id);
+      results.journeys.generated++;
+    } catch (err) {
+      results.journeys.failed++;
+      console.error(
+        `[generate-briefs] journey ${row.journey_id} failed:`,
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+  }
+
+  // 6. Generate briefs for active journeys without one
+  const { data: existingJourneyBriefs } = await supabase.from("journey_briefs").select("journey_id");
+  const existingJourneySet = new Set((existingJourneyBriefs ?? []).map((r) => r.journey_id));
+
+  const { data: activeJourneys } = await supabase.from("journeys").select("id").eq("status", "active").limit(200);
+
+  const newJourneys = ((activeJourneys ?? []) as any[])
+    .map((j) => j.id as string)
+    .filter((id) => !existingJourneySet.has(id))
+    .slice(0, BATCH_SIZE);
+
+  for (const journeyId of newJourneys) {
+    try {
+      await generateAndStoreJourneyBrief(journeyId);
+      results.journeys.generated++;
+    } catch (err) {
+      results.journeys.failed++;
+      console.error(
+        `[generate-briefs] new journey ${journeyId} failed:`,
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+  }
+
   // Log to cron_job_log
+  const totalFailed = results.contacts.failed + results.territories.failed + results.journeys.failed;
   await supabase.from("cron_job_log").insert({
     job_name: "generate-briefs",
-    status: results.contacts.failed + results.territories.failed === 0 ? "success" : "partial",
+    status: totalFailed === 0 ? "success" : "partial",
     metadata: results,
   });
 

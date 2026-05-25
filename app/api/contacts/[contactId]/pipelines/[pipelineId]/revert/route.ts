@@ -1,5 +1,7 @@
 export const dynamic = "force-dynamic";
 
+import { markJourneyBriefStale } from "@/lib/briefs/mark-journey-brief-stale";
+
 /**
  * POST /api/contacts/:contactId/pipelines/:pipelineId/revert
  *
@@ -97,6 +99,7 @@ export async function POST(
         was_auto: false,
       });
 
+      void markJourneyBriefStale(journey.id).catch(() => {});
       return NextResponse.json({ success: true, newStageId: prevStage.id, scope: "territory" });
     }
 
@@ -150,6 +153,7 @@ export async function POST(
       }))
     );
 
+    void markJourneyBriefStale(journey.id).catch(() => {});
     return NextResponse.json({ success: true, newStageId: prevStage.id, scope: "contact" });
   } catch (err) {
     console.error("Stage revert error:", err);

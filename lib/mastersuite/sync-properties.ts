@@ -1,5 +1,6 @@
 import { queryMS } from "./client";
 import { getServiceSupabase } from "./supabase";
+import { markJourneyBriefStaleByTerritory } from "@/lib/briefs/mark-journey-brief-stale";
 
 const supabase = getServiceSupabase();
 
@@ -427,6 +428,16 @@ export async function syncProperties(since?: string): Promise<{
           counts.statusHistory += histRecords.length;
         }
       }
+    }
+  }
+
+  // Mark journey briefs stale for territories that had property data synced
+  if (counts.properties > 0 || counts.inventory > 0) {
+    const slugs = [
+      ...new Set(properties.map((r: Record<string, unknown>) => r.TerritorySlug as string).filter(Boolean)),
+    ];
+    for (const slug of slugs) {
+      void markJourneyBriefStaleByTerritory(slug).catch(() => {});
     }
   }
 

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { BarChart3, Target, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 
@@ -87,17 +89,28 @@ function healthColor(health: number | null): string {
 }
 
 export default function L10Page() {
+  const { user } = useAuth();
+  const router = useRouter();
   const [data, setData] = useState<L10Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (user && user.role !== "admin") {
+      router.push("/daily-hq");
+    }
+  }, [user, router]);
+
+  useEffect(() => {
+    if (!user || user.role !== "admin") return;
     apiFetch("/api/l10")
       .then((r) => r.json())
       .then((d) => setData(d))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [user]);
+
+  if (!user || user.role !== "admin") return null;
 
   if (loading) {
     return (

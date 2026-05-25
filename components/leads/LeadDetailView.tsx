@@ -28,7 +28,8 @@ import { NotesSection, TaskList } from "@/components/leads";
 import MessagesTab from "@/components/contact/MessagesTab";
 import PipelineBar from "@/components/contact/PipelineBar";
 import StageDrilldownInline from "@/components/contact/StageDrilldownInline";
-import { TerritoryDetailsCard, DealDetailsCard } from "@/components/contact/TerritoryDealCards";
+import JourneyBriefCard from "@/components/contact/JourneyBriefCard";
+import RevenueCard from "@/components/contact/RevenueCard";
 import RelatedPeopleCard from "@/components/contact/RelatedPeopleCard";
 import TeamCard from "@/components/contact/TeamCard";
 import TerritoryOwnershipSection from "@/components/contact/TerritoryOwnershipSection";
@@ -497,16 +498,6 @@ export default function LeadDetailView({
   const selectedPipeline = pipelineStates.find((p) => p.id === selectedPipelineId);
   const drilldownStage = selectedPipeline?.stages.find((s) => s.id === drilldownStageId);
 
-  const territoryDealFields = {
-    legal_entity: localContact?.legal_entity ?? null,
-    website: localContact?.website ?? null,
-    franchise_fee: localContact?.franchise_fee ?? null,
-    royalty_pct: localContact?.royalty_pct ?? null,
-    term_months: localContact?.term_months ?? null,
-    opportunity_source: localContact?.opportunity_source ?? null,
-    sub_source: localContact?.sub_source ?? null,
-  };
-
   // Territory name for the "Carried to X" banner in the EOS tab. Sourced from
   // the journey's first active runway/onboarding jps row with a territory,
   // replacing the old contacts.territory column.
@@ -703,18 +694,15 @@ export default function LeadDetailView({
         </div>
       )}
 
-      {/* Persistent Territory + Deal cards */}
-      {!loading && localContact && (
+      {/* Journey Brief + Revenue cards */}
+      {!loading && journeyId && (
         <div className="px-1 flex-shrink-0 grid grid-cols-2 gap-2 mb-2">
-          <TerritoryDetailsCard
+          <JourneyBriefCard journeyId={journeyId} />
+          <RevenueCard
+            journeyId={journeyId}
             contactId={contactId}
-            fields={territoryDealFields}
-            onUpdate={(f) => setLocalContact((prev) => (prev ? { ...prev, ...f } : prev))}
-          />
-          <DealDetailsCard
-            contactId={contactId}
-            fields={territoryDealFields}
-            onUpdate={(f) => setLocalContact((prev) => (prev ? { ...prev, ...f } : prev))}
+            franchiseFee={localContact?.franchise_fee ?? null}
+            onFeeUpdate={(fee) => setLocalContact((prev) => (prev ? { ...prev, franchise_fee: fee } : prev))}
           />
         </div>
       )}

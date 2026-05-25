@@ -1,5 +1,7 @@
 export const dynamic = "force-dynamic";
 
+import { markJourneyBriefStale } from "@/lib/briefs/mark-journey-brief-stale";
+
 /**
  * POST /api/contacts/:contactId/pipelines/:pipelineId/advance
  *
@@ -133,6 +135,7 @@ export async function POST(
         void checkExitConditions(contactForTrigger.ghl_contact_id, "stage.advanced", stagePayload).catch(() => {});
       }
 
+      void markJourneyBriefStale(journey.id).catch(() => {});
       return NextResponse.json({ success: true, newStageId: nextStage.id, scope: "territory" });
     }
 
@@ -344,6 +347,7 @@ export async function POST(
       }
     }
 
+    void markJourneyBriefStale(journey.id).catch(() => {});
     return NextResponse.json({ success: true, newStageId: nextStage.id, scope: "contact" });
   } catch (err) {
     console.error("Stage advance error:", err);

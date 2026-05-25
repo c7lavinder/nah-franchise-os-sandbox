@@ -667,7 +667,7 @@ export async function embedAllExistingTranscripts(): Promise<{
  */
 export async function embedBriefSummary(params: {
   contactId: string | null;
-  entityType: "contact" | "territory";
+  entityType: "contact" | "territory" | "journey";
   entityId: string;
   entityName: string;
   summary: string;
@@ -681,7 +681,9 @@ export async function embedBriefSummary(params: {
     .eq("content_type", "profile_summary")
     .contains("metadata", { source_id: params.entityId, entity_type: params.entityType });
 
-  const contextualizedContent = `${params.entityType === "contact" ? "Contact" : "Territory"} brief for ${params.entityName}:\n${params.summary}`;
+  const typeLabel =
+    params.entityType === "contact" ? "Contact" : params.entityType === "territory" ? "Territory" : "Journey";
+  const contextualizedContent = `${typeLabel} brief for ${params.entityName}:\n${params.summary}`;
   const embedding = await getEmbedding(contextualizedContent);
 
   const embeddingId = await storeEmbedding({
