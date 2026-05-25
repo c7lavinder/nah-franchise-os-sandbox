@@ -265,6 +265,19 @@ const LATE_STAGES = new Set([
   "runway-complete",
 ]);
 
+// Stages where sitting for a long time is expected — don't warn about velocity
+const NO_VELOCITY_WARNING = new Set([
+  "closed",
+  "runway-complete",
+  "active",
+  "nurture",
+  "inventory-building",
+  "first-offers",
+  "first-acquisition",
+  "setup",
+  "training",
+]);
+
 interface NextActionInput {
   calls: { date: string | null; grade: string | null; suggestedAction: string | null }[];
   pipelineStates: { stage: string; stageSlug: string; daysInStage: number; territory: string | null }[];
@@ -309,9 +322,9 @@ function computeNextActions(input: NextActionInput): { primary: string; secondar
     actions.push({ priority: 60, text: `Address ${input.objections[0]} objection` });
   }
 
-  // Stage velocity
+  // Stage velocity — only for active sales stages where stalling is a concern
   for (const ps of input.pipelineStates) {
-    if (ps.daysInStage > 30) {
+    if (ps.daysInStage > 30 && !NO_VELOCITY_WARNING.has(ps.stageSlug)) {
       actions.push({ priority: 50, text: `${ps.stage} for ${ps.daysInStage} days — review pipeline velocity` });
     }
   }
