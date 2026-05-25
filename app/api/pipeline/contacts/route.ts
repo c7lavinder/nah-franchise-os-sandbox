@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
     const pipelineSlug = searchParams.get("pipeline") ?? "all";
     const sort = searchParams.get("sort") ?? "recent";
     const query = searchParams.get("q")?.trim().toLowerCase() ?? "";
+    const boardView = searchParams.get("board") === "true";
 
     const supabase = createServerClient();
 
@@ -175,7 +176,7 @@ export async function GET(request: NextRequest) {
 
     // Unfiltered view: one card per journey, preferring the highest-sort_order
     // pipeline (lifecycle furthest along). Matches the pre-cutover behavior.
-    if (!stageId) {
+    if (!stageId && !boardView) {
       const bestByJourney = new Map<string, Record<string, unknown>>();
       for (const row of allRows) {
         const journeyIdKey = row.journey_id as string;

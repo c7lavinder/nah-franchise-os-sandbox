@@ -15,6 +15,9 @@ export async function GET(request: NextRequest) {
   const user = await requireAuth(request);
   if (user instanceof Response) return user;
 
+  const { searchParams } = new URL(request.url);
+  const includeSubTasks = searchParams.get("include_sub_tasks") === "true";
+
   const supabase = createServerClient();
 
   const { data: pipelines } = await supabase
@@ -22,6 +25,23 @@ export async function GET(request: NextRequest) {
     .select("id, name, slug")
     .eq("is_active", true)
     .order("sort_order");
+
+  // Pre-fetch all sub-tasks in one query if requested
+  let subTasksByStage = new Map<
+    string,
+    { id: string; slug: string; name: string; sort_order: number; stage_id: string }[]
+  >();
+  if (includeSubTasks) {
+    const { data: allSubTasks } = await supabase
+      .from("pipeline_sub_tasks")
+      .select("id, slug, name, sort_order, stage_id")
+      .order("sort_order");
+    for (const st of allSubTasks ?? []) {
+      const arr = subTasksByStage.get(st.stage_id) ?? [];
+      arr.push(st);
+      subTasksByStage.set(st.stage_id, arr);
+    }
+  }
 
   const result = [];
   for (const pipeline of pipelines ?? []) {
@@ -44,5 +64,11 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ pipelines: result });
+  // Return sub-tasks as a flat array (matches what the pipeline page expects)
+  const allSubTasks = includeSubTasks ? [...subTasksByStage.values()].flat() : undefined;
+
+  return NextResponse.json({
+    pipelines: result,
+    ...(allSubTasks ? { subTasks: allSubTasks } : {}),
+  });
 }

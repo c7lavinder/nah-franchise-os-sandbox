@@ -368,12 +368,14 @@ function MoveModal({
   toLabel,
   onConfirm,
   onCancel,
+  loading,
 }: {
   contactName: string;
   fromLabel: string;
   toLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
+  loading?: boolean;
 }) {
   useScrollLock(true);
   return (
@@ -396,8 +398,12 @@ function MoveModal({
           <button onClick={onCancel} className="btn-ghost px-4 py-2 text-body-sm">
             Cancel
           </button>
-          <button onClick={onConfirm} className="btn-primary px-4 py-2 text-body-sm ml-auto">
-            Confirm Move
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="btn-primary px-4 py-2 text-body-sm ml-auto disabled:opacity-50"
+          >
+            {loading ? "Moving..." : "Confirm Move"}
           </button>
         </div>
       </div>
@@ -422,7 +428,10 @@ export default function PipelinePage() {
     contact: PipelineContact;
     fromLabel: string;
     toLabel: string;
+    targetType: "subtask" | "unsorted";
+    targetId: string;
   } | null>(null);
+  const [moving, setMoving] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -454,7 +463,7 @@ export default function PipelinePage() {
     try {
       const [stagesRes, contactsRes, subTasksRes, aptsRes] = await Promise.all([
         apiFetch("/api/pipeline/stages"),
-        apiFetch("/api/pipeline/contacts?limit=5000"),
+        apiFetch("/api/pipeline/contacts?limit=5000&board=true"),
         apiFetch("/api/pipelines/stages?include_sub_tasks=true"),
         apiFetch("/api/pipeline/appointments"),
       ]);
@@ -560,6 +569,9 @@ export default function PipelinePage() {
     const targetId = over.id as string;
 
     let toLabel = "Unknown";
+    let moveTargetType: "subtask" | "unsorted";
+    let moveTargetId: string;
+
     if (targetId.startsWith("subtask:")) {
       const stId = targetId.replace("subtask:", "");
       const st = subTaskMap.get(stId);
@@ -568,11 +580,17 @@ export default function PipelinePage() {
         toLabel = `${stage?.name ?? ""} > ${st.name}`;
       }
       if (stId === c.currentSubTaskId) return;
+      moveTargetType = "subtask";
+      moveTargetId = stId;
     } else if (targetId.startsWith("unsorted:")) {
       const stageId = targetId.replace("unsorted:", "");
       const stage = stageMap.get(stageId);
       toLabel = `${stage?.name ?? "Unknown"} (unsorted)`;
       if (stageId === c.stageId && !c.currentSubTaskId) return;
+      moveTargetType = "unsorted";
+      moveTargetId = stageId;
+    } else {
+      return;
     }
 
     let fromLabel = c.stageName;
@@ -581,11 +599,55 @@ export default function PipelinePage() {
       if (fromSt) fromLabel = `${c.stageName} > ${fromSt.name}`;
     }
 
-    setMoveModal({ contact: c, fromLabel, toLabel });
+    setMoveModal({ contact: c, fromLabel, toLabel, targetType: moveTargetType, targetId: moveTargetId });
   }
 
-  function handleConfirmMove() {
-    setMoveModal(null);
+  async function handleConfirmMove() {
+    if (!moveModal) return;
+    setMoving(true);
+    try {
+      const res = await apiFetch("/api/pipeline/board/move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stateId: moveModal.contact.stateId,
+          targetType: moveModal.targetType,
+          targetId: moveModal.targetId,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({ error: "Move failed" }));
+        alert(d.error ?? "Move failed");
+        return;
+      }
+      // Optimistic update: move contact in local state
+      setContacts((prev) =>
+        prev.map((c) => {
+          if (c.stateId !== moveModal.contact.stateId) return c;
+          if (moveModal.targetType === "subtask") {
+            const st = subTaskMap.get(moveModal.targetId);
+            const stage = st ? stageMap.get(st.stage_id) : null;
+            return {
+              ...c,
+              currentSubTaskId: moveModal.targetId,
+              ...(stage ? { stageId: stage.id, stageName: stage.name, stageSlug: stage.slug } : {}),
+            };
+          } else {
+            const stage = stageMap.get(moveModal.targetId);
+            return {
+              ...c,
+              currentSubTaskId: null,
+              ...(stage ? { stageId: stage.id, stageName: stage.name, stageSlug: stage.slug } : {}),
+            };
+          }
+        })
+      );
+    } catch {
+      alert("Move failed — check your connection");
+    } finally {
+      setMoving(false);
+      setMoveModal(null);
+    }
   }
 
   function togglePipeline(slug: string) {
@@ -701,6 +763,7 @@ export default function PipelinePage() {
           toLabel={moveModal.toLabel}
           onConfirm={handleConfirmMove}
           onCancel={() => setMoveModal(null)}
+          loading={moving}
         />
       )}
 
