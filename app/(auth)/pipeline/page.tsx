@@ -252,7 +252,17 @@ function SubTaskPanel({ subTask, contacts }: { subTask: SubTaskAPI; contacts: Pi
 // Unsorted panel
 // ---------------------------------------------------------------------------
 
-function UnsortedPanel({ stageId, contacts }: { stageId: string; contacts: PipelineContact[] }) {
+function UnsortedPanel({
+  stageId,
+  stageName,
+  hasSubTasks,
+  contacts,
+}: {
+  stageId: string;
+  stageName: string;
+  hasSubTasks: boolean;
+  contacts: PipelineContact[];
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: `unsorted:${stageId}` });
   const [showAll, setShowAll] = useState(false);
   const MAX_INITIAL = 8;
@@ -270,7 +280,9 @@ function UnsortedPanel({ stageId, contacts }: { stageId: string; contacts: Pipel
       `}
     >
       <div className="px-2.5 py-1.5 bg-bg-secondary/40 border-b border-border-default flex items-center justify-between">
-        <span className="text-[11px] font-medium text-text-tertiary italic">Unsorted</span>
+        <span className={`text-[11px] font-medium text-text-tertiary ${hasSubTasks ? "italic" : ""}`}>
+          {hasSubTasks ? "Unsorted" : stageName}
+        </span>
         <span className="text-[10px] text-text-tertiary">{contacts.length}</span>
       </div>
       <div className="p-1.5 space-y-1 min-h-[32px]">
@@ -344,7 +356,12 @@ function StageColumn({
           <SubTaskPanel key={st.id} subTask={st} contacts={bySubTask.get(st.id) ?? []} />
         ))}
 
-        <UnsortedPanel stageId={stage.id} contacts={unsorted} />
+        <UnsortedPanel
+          stageId={stage.id}
+          stageName={stage.name}
+          hasSubTasks={subTasks.length > 0}
+          contacts={unsorted}
+        />
 
         {subTasks.length === 0 && contacts.length > 0 && (
           <div className="space-y-1">
