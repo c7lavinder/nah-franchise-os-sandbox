@@ -64,6 +64,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       total_paid: 0,
       total_due: 0,
       monthly_series: [],
+      _debug: { exit: "no_territory_slugs", primaryContactId },
     });
   }
 
@@ -78,6 +79,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       total_paid: 0,
       total_due: 0,
       monthly_series: [],
+      _debug: { exit: "no_properties_for_slugs", slugs },
     });
   }
 
@@ -229,5 +231,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     monthly_series: monthlySeries,
     network_median: networkMedian,
     journey_start: journeyRes.data.created_at,
+    _debug: {
+      territory_slugs: slugs,
+      property_count: propertyIds.length,
+      royalty_row_count: royaltyRows.length,
+      sample_royalty: royaltyRows.slice(0, 2).map((r: any) => ({
+        PropertyId: r.PropertyId,
+        acqPaid: r.AcquisitionRoyaltyPaid,
+        acqDue: r.Calculated_AcquisitionRoyaltyDue,
+        dispPaid: r.DispositionRoyaltyPaid,
+        dispDue: r.Calculated_DispositionRoyaltyDue,
+      })),
+    },
   });
 }
