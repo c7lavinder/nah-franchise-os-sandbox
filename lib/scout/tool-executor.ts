@@ -175,6 +175,46 @@ async function getUserName(ghlUserId: string | null): Promise<string | null> {
   }
 }
 
+/** Resolve the current user's email and name for message drafts */
+async function resolveCurrentUserEmail(
+  userId: string | null,
+  ghlUserId: string | null
+): Promise<{ email: string; name: string | null }> {
+  const fallbackEmail = process.env.GHL_SENDING_EMAIL ?? "notifications@newagainhouses.com";
+  if (!userId && !ghlUserId) return { email: fallbackEmail, name: null };
+  try {
+    const supabase = createServerClient();
+    const query = userId
+      ? supabase.from("users").select("email, full_name").eq("id", userId).single()
+      : supabase.from("users").select("email, full_name").eq("ghl_user_id", ghlUserId!).single();
+    const { data } = await query;
+    return {
+      email: data?.email ?? fallbackEmail,
+      name: data?.full_name ?? null,
+    };
+  } catch {
+    return { email: fallbackEmail, name: null };
+  }
+}
+
+/** Look up a team member by name, return their ghl_user_id and full_name */
+async function resolveUserByName(name: string): Promise<{ ghlUserId: string; fullName: string } | null> {
+  if (!name) return null;
+  try {
+    const supabase = createServerClient();
+    const { data } = await supabase
+      .from("users")
+      .select("ghl_user_id, full_name")
+      .ilike("full_name", `%${name}%`)
+      .limit(1)
+      .single();
+    if (data?.ghl_user_id) return { ghlUserId: data.ghl_user_id, fullName: data.full_name };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** Parse query / aggregate input — Claude passes JSON strings for nested args */
 function parseJsonField<T>(raw: unknown, fallback: T): T {
   if (raw === undefined || raw === null) return fallback;
@@ -1437,9 +1477,10 @@ async function executeDraftMessage(input: Record<string, unknown>): Promise<Tool
   const content = input.content as string;
   const subject = input.subject as string | undefined;
   const currentUserGhlId = input._current_user_ghl_id as string | null;
+  const currentUserId = input._current_user_id as string | null;
 
   const contactInfo = await getContactInfo(contactId);
-  const senderName = await getUserName(currentUserGhlId);
+  const senderInfo = await resolveCurrentUserEmail(currentUserId, currentUserGhlId);
 
   // Validate phone exists before drafting SMS
   if (channel === "SMS" && !contactInfo.phone) {
@@ -1450,8 +1491,7 @@ async function executeDraftMessage(input: Record<string, unknown>): Promise<Tool
 
   // Pre-populate from/to based on channel
   const toAddress = channel === "SMS" ? contactInfo.phone : contactInfo.email;
-  const fromAddress =
-    channel === "SMS" ? "+1 (888) NAH-FLIP" : (process.env.GHL_SENDING_EMAIL ?? "notifications@newagainhouses.com");
+  const fromAddress = channel === "SMS" ? "+1 (888) NAH-FLIP" : senderInfo.email;
 
   const draftedAction: DraftedAction = {
     id: crypto.randomUUID(),
@@ -1466,7 +1506,7 @@ async function executeDraftMessage(input: Record<string, unknown>): Promise<Tool
       subject: subject ?? (channel === "Email" ? "New Again Houses" : undefined),
       toAddress: toAddress ?? undefined,
       fromAddress,
-      fromName: senderName ?? undefined,
+      fromName: senderInfo.name ?? undefined,
       scheduledAt: null,
     },
   };
@@ -1482,10 +1522,28 @@ async function executeDraftTask(input: Record<string, unknown>): Promise<ToolExe
   const title = input.title as string;
   const dueDate = input.due_date as string;
   const description = input.description as string | undefined;
+  const assignedToNameInput = input.assigned_to_name as string | undefined;
   const currentUserGhlId = input._current_user_ghl_id as string | null;
 
   const contactName = await getContactName(contactId);
-  const assignedToName = await getUserName(currentUserGhlId);
+
+  // Resolve assignee: use specified name if provided, fall back to logged-in user
+  let assignedToGhlId = currentUserGhlId;
+  let assignedToName: string | null = null;
+
+  if (assignedToNameInput) {
+    const resolved = await resolveUserByName(assignedToNameInput);
+    if (resolved) {
+      assignedToGhlId = resolved.ghlUserId;
+      assignedToName = resolved.fullName;
+    } else {
+      assignedToName = assignedToNameInput; // Show the name even if we can't resolve the ID
+    }
+  }
+
+  if (!assignedToName) {
+    assignedToName = await getUserName(currentUserGhlId);
+  }
 
   const draftedAction: DraftedAction = {
     id: crypto.randomUUID(),
@@ -1498,13 +1556,13 @@ async function executeDraftTask(input: Record<string, unknown>): Promise<ToolExe
       title,
       description,
       dueDate,
-      assignedTo: currentUserGhlId ?? undefined,
+      assignedTo: assignedToGhlId ?? undefined,
       assignedToName: assignedToName ?? undefined,
     },
   };
 
   return {
-    data: `I've drafted a task "${title}" for ${contactName}. Please review it below and confirm, edit, or cancel.`,
+    data: `I've drafted a task "${title}" for ${contactName}, assigned to ${assignedToName ?? "you"}. Please review it below and confirm, edit, or cancel.`,
     draftedAction,
   };
 }
@@ -1834,15 +1892,40 @@ async function executeGetCalendarAvailability(input: Record<string, unknown>): P
         data: `No open slots on "${matched.name}" between ${startDate} and ${endDate}. The calendar is fully booked or has no available hours in this window.`,
       };
     }
-    // Compact the response — surface up to 30 slots, grouped by date for readability.
+    // Convert UTC slots to the requested timezone for display.
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const dateFmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+    const timeFmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const tzAbbr = timezone === "America/New_York" ? "ET" : timezone;
+
+    // Group by local date, show local times.
     const byDate = new Map<string, string[]>();
     for (const iso of slots.slice(0, 30)) {
-      const date = iso.slice(0, 10);
-      const list = byDate.get(date) ?? [];
-      list.push(iso);
-      byDate.set(date, list);
+      const d = new Date(iso);
+      const dateKey = dateFmt.format(d);
+      const list = byDate.get(dateKey) ?? [];
+      list.push(timeFmt.format(d));
+      byDate.set(dateKey, list);
     }
-    const lines: string[] = [`Open slots on "${matched.name}" (showing up to 30):`];
+    const lines: string[] = [`Open slots on "${matched.name}" (${tzAbbr}, showing up to 30):`];
     for (const [date, times] of byDate) {
       lines.push(`  ${date}: ${times.length} slots → ${times.slice(0, 6).join(", ")}${times.length > 6 ? ", …" : ""}`);
     }

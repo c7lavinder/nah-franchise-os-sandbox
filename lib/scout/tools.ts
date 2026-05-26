@@ -461,7 +461,8 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   },
   {
     name: "draft_task",
-    description: "Draft a NEW task for a contact for human review. NEVER creates without confirmation.",
+    description:
+      "Draft a NEW task for a contact for human review. NEVER creates without confirmation. Use assigned_to_name when the user specifies who should own the task (e.g. 'make a task for Chad').",
     input_schema: {
       type: "object",
       properties: {
@@ -469,6 +470,11 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
         title: { type: "string", description: "Task title" },
         due_date: { type: "string", description: "ISO 8601 due date" },
         description: { type: "string", description: "Optional details" },
+        assigned_to_name: {
+          type: "string",
+          description:
+            "Team member name to assign the task to (e.g. 'Chad Arnold'). If omitted, defaults to the current user.",
+        },
       },
       required: ["contact_id", "title", "due_date"],
     },

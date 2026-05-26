@@ -117,6 +117,15 @@ export async function POST(request: NextRequest) {
       switch (action.type) {
         case "message": {
           const payload = action.payload as DraftedMessagePayload;
+          // Use the sender address from the draft (resolved to the logged-in user's email),
+          // falling back to the current user's email from the DB, then the env default.
+          const senderEmail =
+            payload.fromAddress ??
+            (await (async () => {
+              const sb = createServerClient();
+              const { data: u } = await sb.from("users").select("email").eq("id", user.id).single();
+              return u?.email ?? process.env.GHL_SENDING_EMAIL ?? "notifications@newagainhouses.com";
+            })());
           const result =
             payload.channel === "Email"
               ? await ghl.sendMessage({
@@ -124,7 +133,7 @@ export async function POST(request: NextRequest) {
                   contactId: action.contactId,
                   html: payload.content,
                   subject: payload.subject ?? "NAH Franchise",
-                  emailFrom: process.env.GHL_SENDING_EMAIL ?? "chad@newagainhouses.com",
+                  emailFrom: senderEmail,
                 })
               : await ghl.sendMessage({
                   type: "SMS",
