@@ -4,9 +4,10 @@
  *
  * Sections stored in app_settings:
  *   scout_identity       — persona, tone, core rules
- *   scout_rules          — absolute rules (DRC, no fabrication, etc.)
  *   scout_profile_context — profile schema + scoring reference
  *   scout_calendars      — NAH GHL calendars and their business purpose
+ *
+ * scout_rules is ALWAYS sourced from code (not DB) to prevent stale overrides.
  */
 
 import { createServerClient } from "@/lib/supabase/server";
@@ -15,10 +16,16 @@ import { createServerClient } from "@/lib/supabase/server";
 let cache: { data: Map<string, string>; ts: number } | null = null;
 const CACHE_TTL_MS = 60_000;
 
+/** Keys that are ALWAYS sourced from code — DB values are ignored */
+const CODE_ONLY_KEYS = new Set(["scout_rules"]);
+
 /**
  * Load a prompt section from app_settings, falling back to the provided default.
  */
 export async function loadPromptSection(key: string, defaultValue: string): Promise<string> {
+  // scout_rules always uses the code constant — prevents stale DB overrides
+  if (CODE_ONLY_KEYS.has(key)) return defaultValue;
+
   try {
     // Check cache
     if (cache && Date.now() - cache.ts < CACHE_TTL_MS) {
@@ -31,7 +38,7 @@ export async function loadPromptSection(key: string, defaultValue: string): Prom
     const { data: rows } = await supabase
       .from("app_settings")
       .select("setting_key, setting_value")
-      .in("setting_key", ["scout_identity", "scout_rules", "scout_profile_context", "scout_calendars"]);
+      .in("setting_key", ["scout_identity", "scout_profile_context", "scout_calendars"]);
 
     const map = new Map<string, string>();
     for (const row of rows ?? []) {

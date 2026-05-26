@@ -509,6 +509,18 @@ function formatPageContextForPrompt(ctx?: ScoutConversationInput["pageContext"])
   return bits.join(" ");
 }
 
+/** Load team roster so Scout knows who's a team member vs a contact */
+async function loadTeamRoster(supabase: ReturnType<typeof createServerClient>): Promise<string> {
+  try {
+    const { data: users } = await supabase.from("users").select("full_name, email, role").order("full_name");
+    if (!users || users.length === 0) return "";
+    const lines = users.map((u) => `- ${u.full_name} (${u.email}, ${u.role})`);
+    return `TEAM MEMBERS (these are internal users, NOT contacts/prospects — use assigned_to_name when assigning tasks to them):\n${lines.join("\n")}`;
+  } catch {
+    return "";
+  }
+}
+
 /** Check when key data syncs last ran and return a one-liner for the system prompt */
 async function loadDataFreshness(supabase: ReturnType<typeof createServerClient>): Promise<string> {
   try {
@@ -783,6 +795,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
     calendars,
     freshness,
     preFetchedContext,
+    teamRoster,
   ] = await Promise.all([
     loadKnowledgeBase(input.pageContext),
     loadPipelineSnapshot(input.userId),
@@ -807,6 +820,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
           tokenBudget: 0,
           chunkMeta: [],
         } as PrefetchResult),
+    loadTeamRoster(supabaseForUser),
   ]);
   const identity = await loadPromptSection("scout_identity", getScoutIdentity(territoryCountResult));
 
@@ -816,6 +830,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
     identity,
     getRoleBehavior(input.userRole),
     `CURRENT USER: ${input.userName} (ID: ${input.userId}, Role: ${input.userRole})`,
+    teamRoster,
     pageContextLine,
     freshness,
     formatMemoryForPrompt(userMemory),
