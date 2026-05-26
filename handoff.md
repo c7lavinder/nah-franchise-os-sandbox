@@ -1,91 +1,83 @@
-# Session Handoff — 2026-05-25 — Session 56
+# Session Handoff — 2026-05-26 — Session 58
 
 ## Status
 
-Phase: Pipeline overhaul + MasterSuite live DB + data integrity cleanup / Health: Green / Duration: full session
+Phase: Journey detail page overhaul — Brief + Revenue panels / Health: Yellow / Duration: full session
 
 ## What Was Built This Session
 
-- **MasterSuite live DB connection** — switched from daily-synced replica (port 60265) to live production DB (port 60263) with new credentials. Updated `.env.local`, `lib/mastersuite/client.ts`, Vercel env vars, and docs
-- **Franchise request sync** — new unified `lib/mastersuite/sync-prospects.ts` pulls from BOTH `PathToOwnershipEntries` and `NewAgainHouses_FormSubmissions` in a single pass with cross-source email dedup. Replaces two separate crons with one
-- **Kanban pipeline page** — promoted mockup-kanban to `/pipeline` as the main pipeline page. Drag-and-drop stages, sub-task panels, urgency dots, appointment badges
-- **Contacts page** — moved old pipeline page (list view with Path to Ownership circles) to `/contacts`. Added Contacts nav item to sidebar
-- **New contacts default to Outreach** — all 3 JPS creation paths (`sync-prospects.ts`, `contacts/create`, `leads/intake`) now set `current_sub_task_id` to Outreach so new prospects never land as "unsorted"
-- **Full data integrity cleanup** (Supabase data, no code changes):
-  - Matched 32 active GHL prospects to correct pipeline stages/sub-tasks
-  - Moved 1,900 stale Engagement contacts to Nurture
-  - Created 3 missing contacts (Anthony Worthy II, Kevin Mitchell, Nichole Mullany)
-  - Merged 15 duplicate contacts (Richelle Ann Lawrence x13, Isaiah Beltran, Shiv Anand, Wayne Merrill)
-  - Archived 3,600+ orphan/duplicate journeys
-  - Deactivated 2,000+ orphan JPS entries
-  - Deleted 11 stale territories not in MasterSuite (NORVM, HJRSTE, VDENAL, etc.)
-  - Placed all 88 MasterSuite territories in Territory pipeline (65 Active, 23 Inactive)
-  - Added territory + marketing emails to 84 franchise owner contacts (territory_email, incoming_lead_email, contact_emails table)
-  - Fixed NHRTCT (Andy Vincent name), MESAAZ (Douglas Neil), PIELLA (Michael + Joanne McCann in one journey)
+- **Journey Brief panel** — AI-generated narrative summary replacing the Entity panel on journey detail page. Uses Claude Haiku 4.5 with compact context payload. Stored in `journey_briefs` table, event-driven regeneration (stage change, call graded, property sync), inline generation on first visit (~3-5s), instant from cache after that. Refresh button for manual regen.
+- **Journey Brief agent** — `lib/briefs/journey-brief-agent.ts` with stage-aware context (STAGE_CONTEXT map), deterministic next actions, territory_owners fallback for start date + territory resolution
+- **Revenue panel** — replacing the Deal panel. Shows franchise fee (editable), royalty paid, royalty due with color-matched numbers (blue/green/orange). Horizontal stacked progress bar toward $500k/10yr goal. Pace indicator (ahead/on/behind) based on royalty-only vs $460k target. Network median marker.
+- **ms_property_royalty sync** — added PropertyRoyalty sync as step 5 in `syncProperties()`. Table existed but was never synced (0 rows). Now syncs 1,791 rows.
+- **L10 admin guard** — L10 page now redirects non-admin users to /daily-hq
+- **Journey Brief agent in Settings** — shows in Settings > Agents panel with toggle and manual Run button
+- **Stale trigger system** — `lib/briefs/mark-journey-brief-stale.ts` with helpers for contact, journey, and territory. Wired into pipeline advance/revert, call grading, and MasterSuite property sync.
+- **Cron integration** — `generate-briefs` cron now handles journey briefs (stale regen + seeding new ones)
 
 ## What Is Confirmed Working
 
-- `npx tsc --noEmit` — 0 errors
-- `npx vitest run` — 14 files, 138 tests, all passing
-- All 6 MasterSuite cron syncs working on Vercel production (tested via curl)
-- MasterSuite live DB (port 60263) accessible from both local and Vercel
-- 88 territories = MasterSuite count (65 active, 23 inactive)
-- 32 active Sales prospects in correct stages matching GHL
-- 0 duplicate contacts, 0 orphan journeys, 0 orphan JPS
-- Kanban pipeline page loading real data at `/pipeline`
-- Contacts list page at `/contacts`
+- Journey Brief generates and displays on journey page with Refresh button
+- Revenue panel shows real royalty data from ms_property_royalty (verified Brad Nicholson NWOHIO)
+- MasterSuite royalty sync ran successfully (1,791 rows)
+- L10 page redirects non-admin users
+- Journey Brief agent appears in Settings with Run button
+- All 138 tests passing, 0 TypeScript errors across all commits
+- Vercel deploys all successful
 
 ## What Is Broken or Incomplete
 
-- **Kanban drag-to-move not wired to API** — modal appears but `handleConfirmMove()` is a no-op. Need to call advance/revert/drop API — Medium
-- **Kanban doesn't open contact detail on click** — cards are drag-only, no click-to-view — Medium
-- **4 system-placeholder territory journeys** (Global, Kane IL, Salt Lake North, Training) — no real owner in MasterSuite — Low
+- **Journey Brief narrative quality** — Claude sometimes misinterprets data (e.g. call coaching suggestions leaking in, property lead counts vs purchased counts). Fixed the known issues but needs more real-world testing across different journey types — High
+- **Revenue panel for sales pipeline prospects** — shows "No revenue data yet" for prospects not yet awarded a territory, which is correct but the panel takes up space with no value for these contacts — Medium
+- **Network median calculation** — queries all territory_owners + their properties + royalties on every revenue page load. Could be slow with more data. Should be cached/precomputed — Low
+- **Franchise fee not populated** — many contacts have null franchise_fee. Needs manual entry or backfill — Low
 
 ## Decisions Made
 
-- Territory links to journey, journey links to contacts (not territory→contact directly) — Corey
-- Franchise request forms and PTO forms merged into single sync — one cron, single email dedup — Corey
-- Old pipeline page becomes Contacts page, Kanban becomes Pipeline page — Corey
-- CLRKTN confirmed transferred to Shannon Smylie — Corey
-- PIELLA: Michael + Joanne McCann both in one journey (Michael primary, Joanne co_primary) — Corey
-- NHRTCT: Andy Vincent is correct name — Corey
-- MESAAZ: Douglas Neil per MasterSuite — Corey
-- New contacts always land in Engagement > Outreach (not unsorted) — Corey
+- Journey Brief uses Claude Haiku for narrative (not deterministic) — Corey approved
+- Revenue goal is $500k over 10 years, pace measured on royalty only ($460k) excluding franchise fee — Corey approved
+- Royalty computed from per-property ms_property_royalty rows (paid/due), not MasterSuite pre-calculated aggregates — Corey approved
+- Entity and Deal panels removed from journey page, replaced with Brief + Revenue — Corey approved
+- Journey Brief agent is event-driven + cached, not regenerated on every page load — Corey approved
 
 ## Files Created
 
-- `lib/mastersuite/sync-prospects.ts` — unified prospect sync (PTO + franchise requests)
-- `lib/mastersuite/sync-franchise-requests.ts` — (created then superseded by unified sync, still exists)
-- `app/(auth)/contacts/page.tsx` — contacts list page (former pipeline page)
+- `supabase/migrations/20260526100000_create_journey_briefs.sql`
+- `lib/briefs/journey-brief-agent.ts`
+- `lib/briefs/mark-journey-brief-stale.ts`
+- `app/api/journeys/[journeyId]/brief/route.ts`
+- `app/api/journeys/[journeyId]/revenue/route.ts`
+- `components/contact/JourneyBriefCard.tsx`
+- `components/contact/RevenueCard.tsx`
 
 ## Files Modified
 
-- `app/(auth)/pipeline/page.tsx` — replaced with Kanban board (was list view)
-- `app/api/cron/sync-ms-prospects/route.ts` — now calls unified `syncProspects()`
-- `app/api/contacts/create/route.ts` — defaults to Outreach sub-task
-- `app/api/leads/intake/route.ts` — defaults to Outreach sub-task
-- `lib/mastersuite/client.ts` — fallback port 60265→60263
-- `components/layout/Sidebar.tsx` — added Contacts nav item with Users icon
-- `vercel.json` — removed separate franchise-requests cron
-- `scripts/run-ms-sync.ts` — updated to use unified sync
-- `docs/mastersuite-schema-map.md` — updated port reference
+- `app/(auth)/l10/page.tsx` — admin guard
+- `app/api/calls/[callId]/grade-rubric/route.ts` — stale trigger
+- `app/api/contacts/[contactId]/pipelines/[pipelineId]/advance/route.ts` — stale trigger
+- `app/api/contacts/[contactId]/pipelines/[pipelineId]/revert/route.ts` — stale trigger
+- `app/api/cron/generate-briefs/route.ts` — journey briefs section added
+- `app/api/settings/agents/route.ts` — journey-brief agent definition
+- `components/leads/LeadDetailView.tsx` — swapped Entity/Deal for Brief/Revenue
+- `components/settings/AgentsPanel.tsx` — journey-brief agent definition
+- `lib/mastersuite/sync-properties.ts` — added ms_property_royalty sync + stale trigger
+- `lib/rag/embedder.ts` — added "journey" entity type
+- `package.json` — added/removed recharts (ended up not using it)
 
 ## Files Deleted
 
-- `app/(auth)/pipeline/mockup-kanban/page.tsx` — promoted to main pipeline page
-- `app/api/cron/sync-ms-franchise-requests/route.ts` — merged into sync-ms-prospects
+- `app/api/journeys/[journeyId]/debug-revenue/route.ts` — temporary debug endpoint
 
 ## Open Issues Carried Forward
 
-- Kanban drag-to-move needs API wiring (advance/revert/drop) — Medium
-- Kanban click-to-view contact detail — Medium
-- 4 system-placeholder territory journeys (Global, Kane IL, Salt Lake North, Training) — Low
-- GHL calendar + SMS setup checklist for Chad — Medium
-- Retrieval quality dashboard (deferred) — Low
+- Journey Brief narrative needs real-world validation across more journey types (sales prospects, new franchisees, veteran franchisees) — High
+- Revenue panel empty state for sales prospects needs design decision (hide panel? show different content?) — Medium
+- Network median should be cached/precomputed rather than calculated per request — Low
+- TerritoryDealCards.tsx is now unused (was imported as Entity/Deal panels) — can be deleted — Low
 
 ## Exact Next Step
 
-Wire up Kanban drag-to-move: when a prospect card is dropped on a new sub-task/stage, call the existing advance/revert API to actually move them. Then add click-to-open for contact detail slide-out.
+Test the Journey Brief and Revenue panels across 5-10 different journeys (mix of sales prospects, new franchisees, veterans) and note any data inaccuracies or UI issues to iterate on.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -93,6 +85,6 @@ Wire up Kanban drag-to-move: when a prospect card is dropped on a new sub-task/s
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Wire up Kanban drag-to-move — call advance/revert/drop API when prospects are dragged between stages. Then add click-to-open contact detail.
+Then: Test the Journey Brief and Revenue panels across 5-10 different journeys (mix of sales prospects, new franchisees, veterans) and note any data inaccuracies or UI issues to iterate on.
 
 ---
