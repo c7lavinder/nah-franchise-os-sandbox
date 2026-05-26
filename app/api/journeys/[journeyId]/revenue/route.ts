@@ -68,23 +68,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
   }
 
-  // 4. Get purchased PropertyIds — start from inventory (purchased properties only),
-  //    not all territory properties (which can be thousands of leads)
-  const { data: invRows } = await supabase
-    .from("ms_properties")
-    .select(`"PropertyId", ms_property_inventory!inner("Inv_PurchaseDate", "Inv_SellDate")`)
-    .in("TerritorySlug", slugs)
-    .not("ms_property_inventory.Inv_PurchaseDate", "is", null);
+  // 4. Get purchased PropertyIds — query inventory directly for properties with a purchase date,
+  //    then filter to this territory. A territory has thousands of leads but only a handful purchased.
+  const { data: purchasedRows } = await supabase
+    .from("ms_property_inventory")
+    .select(`"PropertyId", "Inv_PurchaseDate", "Inv_SellDate", ms_properties!inner("TerritorySlug")`)
+    .not("Inv_PurchaseDate", "is", null)
+    .in("ms_properties.TerritorySlug", slugs);
 
-  const propertyIds = (invRows ?? []).map((r: any) => r.PropertyId as number);
-
-  // Build sell date map from the joined inventory data
-  const sellDates = new Map(
-    (invRows ?? []).map((r: any) => {
-      const inv = Array.isArray(r.ms_property_inventory) ? r.ms_property_inventory[0] : r.ms_property_inventory;
-      return [r.PropertyId, inv?.Inv_SellDate ?? null];
-    })
-  );
+  const propertyIds = (purchasedRows ?? []).map((r: any) => r.PropertyId as number);
+  const sellDates = new Map((purchasedRows ?? []).map((r: any) => [r.PropertyId, r.Inv_SellDate]));
 
   if (propertyIds.length === 0) {
     return NextResponse.json({
@@ -239,17 +232,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     monthly_series: monthlySeries,
     network_median: networkMedian,
     journey_start: journeyRes.data.created_at,
-    _debug: {
-      territory_slugs: slugs,
-      property_count: propertyIds.length,
-      royalty_row_count: royaltyRows.length,
-      sample_royalty: royaltyRows.slice(0, 2).map((r: any) => ({
-        PropertyId: r.PropertyId,
-        acqPaid: r.AcquisitionRoyaltyPaid,
-        acqDue: r.Calculated_AcquisitionRoyaltyDue,
-        dispPaid: r.DispositionRoyaltyPaid,
-        dispDue: r.Calculated_DispositionRoyaltyDue,
-      })),
-    },
+    _debug: await (async () => {
+      // Check: how many royalty rows exist for ANY property in this territory?
+      const { count: totalRoyaltyInTerritory } = await supabase
+        .from("ms_property_royalty")
+        .select(`"PropertyId", ms_properties!inner("TerritorySlug")`, { count: "exact", head: true })
+        .in("ms_properties.TerritorySlug", slugs);
+      return {
+        territory_slugs: slugs,
+        purchased_ids: propertyIds.slice(0, 10),
+        property_count: propertyIds.length,
+        royalty_row_count: royaltyRows.length,
+        royalty_rows_in_territory: totalRoyaltyInTerritory ?? "query failed",
+        sample_royalty: royaltyRows.slice(0, 2).map((r: any) => ({
+          PropertyId: r.PropertyId,
+          acqPaid: r.AcquisitionRoyaltyPaid,
+          acqDue: r.Calculated_AcquisitionRoyaltyDue,
+          dispPaid: r.DispositionRoyaltyPaid,
+          dispDue: r.Calculated_DispositionRoyaltyDue,
+        })),
+      };
+    })(),
   });
 }
