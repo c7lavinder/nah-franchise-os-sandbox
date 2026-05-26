@@ -285,7 +285,12 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
   let aiNextStep: string | null = null;
 
   try {
-    const parsed = JSON.parse(raw);
+    // Strip markdown code fences if Claude wrapped the JSON
+    const cleaned = raw
+      .replace(/^```(?:json)?\s*\n?/i, "")
+      .replace(/\n?```\s*$/i, "")
+      .trim();
+    const parsed = JSON.parse(cleaned);
     narrative = parsed.narrative ?? raw;
     aiNextStep = parsed.nextStep ?? null;
   } catch {
