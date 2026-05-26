@@ -4,9 +4,10 @@
  * JourneyBriefCard — AI-generated narrative + next actions panel.
  * First load: waits for inline generation (~3-5s). Shows generating state.
  * Subsequent loads: instant from DB cache.
+ * Refresh button forces regeneration with latest code/data.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { Loader2, ChevronRight, RefreshCw, Sparkles } from "lucide-react";
 
@@ -24,14 +25,29 @@ interface BriefData {
 export default function JourneyBriefCard({ journeyId }: { journeyId: string }) {
   const [brief, setBrief] = useState<BriefData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchBrief = useCallback(
+    (refresh = false) => {
+      const url = `/api/journeys/${journeyId}/brief${refresh ? "?refresh=true" : ""}`;
+      if (refresh) setRefreshing(true);
+      else setLoading(true);
+
+      apiFetch(url)
+        .then((r) => r.json())
+        .then((d) => setBrief(d))
+        .catch(() => setBrief(null))
+        .finally(() => {
+          setLoading(false);
+          setRefreshing(false);
+        });
+    },
+    [journeyId]
+  );
 
   useEffect(() => {
-    apiFetch(`/api/journeys/${journeyId}/brief`)
-      .then((r) => r.json())
-      .then((d) => setBrief(d))
-      .catch(() => setBrief(null))
-      .finally(() => setLoading(false));
-  }, [journeyId]);
+    fetchBrief();
+  }, [fetchBrief]);
 
   if (loading) {
     return (
@@ -65,11 +81,15 @@ export default function JourneyBriefCard({ journeyId }: { journeyId: string }) {
     <div className="bg-bg-secondary border border-border-default rounded-lg px-4 py-3">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">JOURNEY BRIEF</h3>
-        {brief.stale && (
-          <span className="flex items-center gap-1 text-[9px] text-nah-orange">
-            <RefreshCw size={9} className="animate-spin" /> Updating
-          </span>
-        )}
+        <button
+          onClick={() => fetchBrief(true)}
+          disabled={refreshing}
+          className="flex items-center gap-1 text-[9px] text-text-tertiary hover:text-nah-orange transition-colors disabled:opacity-50"
+          title="Regenerate brief"
+        >
+          <RefreshCw size={9} className={refreshing ? "animate-spin" : ""} />
+          {refreshing ? "Regenerating..." : "Refresh"}
+        </button>
       </div>
 
       <p className="text-body-sm text-text-primary leading-relaxed">{brief.narrative}</p>

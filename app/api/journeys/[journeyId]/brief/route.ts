@@ -6,6 +6,9 @@ export const dynamic = "force-dynamic";
  * Returns the stored journey brief. If no brief exists yet, generates one
  * inline (~3-5s) so the user sees it on first visit without waiting for cron.
  * Subsequent loads are instant (cached in DB).
+ *
+ * Query params:
+ *   ?refresh=true — force regeneration (ignores cache)
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -18,7 +21,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (user instanceof Response) return user;
 
   const { journeyId } = await params;
+  const forceRefresh = request.nextUrl.searchParams.get("refresh") === "true";
   const supabase = createServerClient();
+
+  // Force refresh — regenerate inline regardless of cache
+  if (forceRefresh) {
+    try {
+      const result = await generateAndStoreJourneyBrief(journeyId);
+      if (result) {
+        return NextResponse.json({
+          empty: false,
+          narrative: result.narrative,
+          next_actions: result.nextActions,
+          stale: false,
+          updated_at: new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      console.error(`[brief] refresh failed for ${journeyId}:`, err);
+    }
+  }
 
   const { data } = await supabase
     .from("journey_briefs")
@@ -67,7 +89,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     console.error(`[brief] inline generation failed for ${journeyId}:`, err);
   }
 
-  // Fallback if generation failed
   return NextResponse.json({
     empty: true,
     narrative: "",
