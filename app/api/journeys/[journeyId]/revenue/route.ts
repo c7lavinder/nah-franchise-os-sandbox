@@ -68,10 +68,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
   }
 
-  // 4. Get PropertyIds for these territories
-  const { data: propRows } = await supabase.from("ms_properties").select(`"PropertyId"`).in("TerritorySlug", slugs);
-
-  const propertyIds = (propRows ?? []).map((r: any) => r.PropertyId as number);
+  // 4. Get ALL PropertyIds for these territories (paginate past 1000-row default)
+  const propertyIds: number[] = [];
+  const PAGE = 1000;
+  let from = 0;
+  while (true) {
+    const { data: batch } = await supabase
+      .from("ms_properties")
+      .select(`"PropertyId"`)
+      .in("TerritorySlug", slugs)
+      .range(from, from + PAGE - 1);
+    if (!batch || batch.length === 0) break;
+    for (const r of batch) propertyIds.push((r as any).PropertyId as number);
+    if (batch.length < PAGE) break;
+    from += PAGE;
+  }
 
   if (propertyIds.length === 0) {
     return NextResponse.json({
@@ -83,28 +94,34 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
   }
 
-  // 5. Fetch royalty data for all properties
+  // 5. Fetch royalty data for all properties (batch in chunks to avoid .in() limits)
   // Also need sell dates to gate disposition royalty
-  const [royaltyRes, inventoryRes] = await Promise.all([
-    supabase
-      .from("ms_property_royalty")
-      .select(
+  const royaltyRows: any[] = [];
+  const sellDateRows: any[] = [];
+  for (let i = 0; i < propertyIds.length; i += PAGE) {
+    const chunk = propertyIds.slice(i, i + PAGE);
+    const [royaltyBatch, invBatch] = await Promise.all([
+      supabase
+        .from("ms_property_royalty")
+        .select(
+          `
+          "PropertyId",
+          "AcquisitionRoyaltyPaid", "AcquisitionRoyaltyPaidDate",
+          "Calculated_AcquisitionRoyaltyDue",
+          "DispositionRoyaltyPaid", "DispositionRoyaltyPaidDate",
+          "Calculated_DispositionRoyaltyDue",
+          "DelayedRoyaltyFeePaid", "DelayedRoyaltyFeePaidDate",
+          "Calculated_DelayedRoyaltyFeeDue"
         `
-        "PropertyId",
-        "AcquisitionRoyaltyPaid", "AcquisitionRoyaltyPaidDate",
-        "Calculated_AcquisitionRoyaltyDue",
-        "DispositionRoyaltyPaid", "DispositionRoyaltyPaidDate",
-        "Calculated_DispositionRoyaltyDue",
-        "DelayedRoyaltyFeePaid", "DelayedRoyaltyFeePaidDate",
-        "Calculated_DelayedRoyaltyFeeDue"
-      `
-      )
-      .in("PropertyId", propertyIds),
-    supabase.from("ms_property_inventory").select(`"PropertyId", "Inv_SellDate"`).in("PropertyId", propertyIds),
-  ]);
+        )
+        .in("PropertyId", chunk),
+      supabase.from("ms_property_inventory").select(`"PropertyId", "Inv_SellDate"`).in("PropertyId", chunk),
+    ]);
+    royaltyRows.push(...((royaltyBatch.data ?? []) as any[]));
+    sellDateRows.push(...((invBatch.data ?? []) as any[]));
+  }
 
-  const royaltyRows = (royaltyRes.data ?? []) as any[];
-  const sellDates = new Map(((inventoryRes.data ?? []) as any[]).map((r) => [r.PropertyId, r.Inv_SellDate]));
+  const sellDates = new Map(sellDateRows.map((r: any) => [r.PropertyId, r.Inv_SellDate]));
 
   // 6. Compute totals + monthly series
   let totalPaid = 0;
