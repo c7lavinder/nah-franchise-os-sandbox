@@ -141,13 +141,16 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
           </div>
         </div>
 
-        {/* Metric pills */}
-        <div className="flex gap-2 mt-2">
+        {/* Metric pills — sized proportionally to match bar segments */}
+        <div className="flex gap-1 mt-2">
           {/* Franchise Fee */}
-          <div className="flex-1 rounded-lg bg-bg-primary/50 border border-border-default px-3 py-2">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <DollarSign size={10} className="text-nah-blue" />
-              <span className="text-[9px] text-text-tertiary font-medium uppercase tracking-wider">Franchise Fee</span>
+          <div
+            className="rounded-lg bg-bg-primary/50 border border-border-default px-2 py-2 min-w-0"
+            style={{ flex: Math.max(feeVal, 1) }}
+          >
+            <div className="flex items-center gap-1 mb-0.5">
+              <DollarSign size={9} className="text-nah-blue flex-shrink-0" />
+              <span className="text-[8px] text-text-tertiary font-medium uppercase tracking-wider truncate">Fee</span>
             </div>
             {editingFee ? (
               <input
@@ -173,7 +176,7 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
               />
             ) : (
               <p
-                className="text-lg font-bold text-text-primary cursor-pointer hover:text-nah-blue transition-colors leading-tight"
+                className="text-sm font-bold text-text-primary cursor-pointer hover:text-nah-blue transition-colors leading-tight truncate"
                 onClick={() => {
                   setEditingFee(true);
                   setFeeDraft(displayFee?.toString() ?? "");
@@ -185,22 +188,28 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
           </div>
 
           {/* Royalty Paid */}
-          <div className="flex-1 rounded-lg bg-bg-primary/50 border border-border-default px-3 py-2">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <TrendingUp size={10} className="text-success" />
-              <span className="text-[9px] text-text-tertiary font-medium uppercase tracking-wider">Royalty Paid</span>
+          <div
+            className="rounded-lg bg-bg-primary/50 border border-border-default px-2 py-2 min-w-0"
+            style={{ flex: Math.max(totalPaid, 1) }}
+          >
+            <div className="flex items-center gap-1 mb-0.5">
+              <TrendingUp size={9} className="text-success flex-shrink-0" />
+              <span className="text-[8px] text-text-tertiary font-medium uppercase tracking-wider truncate">Paid</span>
             </div>
-            <p className="text-lg font-bold text-success leading-tight">{formatDollarFull(totalPaid)}</p>
+            <p className="text-sm font-bold text-success leading-tight truncate">{formatDollarFull(totalPaid)}</p>
           </div>
 
           {/* Royalty Due */}
-          <div className="flex-1 rounded-lg bg-bg-primary/50 border border-border-default px-3 py-2">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <Clock size={10} className={totalDue > 0 ? "text-nah-orange" : "text-text-tertiary"} />
-              <span className="text-[9px] text-text-tertiary font-medium uppercase tracking-wider">Due</span>
+          <div
+            className="rounded-lg bg-bg-primary/50 border border-border-default px-2 py-2 min-w-0"
+            style={{ flex: Math.max(totalDue, 1) }}
+          >
+            <div className="flex items-center gap-1 mb-0.5">
+              <Clock size={9} className={`flex-shrink-0 ${totalDue > 0 ? "text-nah-orange" : "text-text-tertiary"}`} />
+              <span className="text-[8px] text-text-tertiary font-medium uppercase tracking-wider truncate">Due</span>
             </div>
             <p
-              className={`text-lg font-bold leading-tight ${totalDue > 0 ? "text-nah-orange" : "text-text-secondary"}`}
+              className={`text-sm font-bold leading-tight truncate ${totalDue > 0 ? "text-nah-orange" : "text-text-secondary"}`}
             >
               {formatDollarFull(totalDue)}
             </p>
