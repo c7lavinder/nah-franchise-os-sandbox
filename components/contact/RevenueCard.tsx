@@ -17,15 +17,6 @@ interface RevenueData {
   monthly_series: { month: string; paid: number }[];
   network_median?: number;
   journey_start?: string;
-  _debug?: {
-    exit?: string;
-    primaryContactId?: string;
-    slugs?: string[];
-    territory_slugs?: string[];
-    property_count?: number;
-    royalty_row_count?: number;
-    sample_royalty?: any[];
-  };
 }
 
 interface Props {
@@ -296,24 +287,6 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
           </div>
         )}
       </div>
-
-      {/* Temporary debug banner — remove after fixing royalty mapping */}
-      {revenue?._debug && (
-        <div className="px-4 py-2 bg-yellow-50 border-t border-yellow-200 text-[11px] text-yellow-800 font-mono space-y-0.5">
-          <div className="font-bold text-yellow-900">DEBUG (temporary)</div>
-          {revenue._debug.exit && <div>Exit: {revenue._debug.exit}</div>}
-          {revenue._debug.territory_slugs && (
-            <div>Territories: {revenue._debug.territory_slugs.join(", ") || "none"}</div>
-          )}
-          {revenue._debug.slugs && <div>Slugs: {revenue._debug.slugs.join(", ") || "none"}</div>}
-          {revenue._debug.property_count != null && <div>Properties found: {revenue._debug.property_count}</div>}
-          {revenue._debug.royalty_row_count != null && <div>Royalty rows: {revenue._debug.royalty_row_count}</div>}
-          {revenue._debug.sample_royalty && revenue._debug.sample_royalty.length > 0 && (
-            <div>Sample: {JSON.stringify(revenue._debug.sample_royalty[0])}</div>
-          )}
-          {revenue._debug.primaryContactId && <div>Contact: {revenue._debug.primaryContactId.slice(0, 8)}...</div>}
-        </div>
-      )}
     </div>
   );
 }

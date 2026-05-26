@@ -64,7 +64,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       total_paid: 0,
       total_due: 0,
       monthly_series: [],
-      _debug: { exit: "no_territory_slugs", primaryContactId },
     });
   }
 
@@ -85,7 +84,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       total_paid: 0,
       total_due: 0,
       monthly_series: [],
-      _debug: { exit: "no_purchased_properties", slugs },
     });
   }
 
@@ -232,26 +230,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     monthly_series: monthlySeries,
     network_median: networkMedian,
     journey_start: journeyRes.data.created_at,
-    _debug: await (async () => {
-      // Check: how many royalty rows exist for ANY property in this territory?
-      const { count: totalRoyaltyInTerritory } = await supabase
-        .from("ms_property_royalty")
-        .select(`"PropertyId", ms_properties!inner("TerritorySlug")`, { count: "exact", head: true })
-        .in("ms_properties.TerritorySlug", slugs);
-      return {
-        territory_slugs: slugs,
-        purchased_ids: propertyIds.slice(0, 10),
-        property_count: propertyIds.length,
-        royalty_row_count: royaltyRows.length,
-        royalty_rows_in_territory: totalRoyaltyInTerritory ?? "query failed",
-        sample_royalty: royaltyRows.slice(0, 2).map((r: any) => ({
-          PropertyId: r.PropertyId,
-          acqPaid: r.AcquisitionRoyaltyPaid,
-          acqDue: r.Calculated_AcquisitionRoyaltyDue,
-          dispPaid: r.DispositionRoyaltyPaid,
-          dispDue: r.Calculated_DispositionRoyaltyDue,
-        })),
-      };
-    })(),
   });
 }
