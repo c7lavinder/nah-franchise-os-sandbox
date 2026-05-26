@@ -32,7 +32,7 @@ export async function syncProperties(since?: string): Promise<{
   errors: string[];
 }> {
   const errors: string[] = [];
-  const counts = { properties: 0, calculations: 0, inventory: 0, statusHistory: 0 };
+  const counts = { properties: 0, calculations: 0, inventory: 0, statusHistory: 0, royalty: 0 };
 
   // Build WHERE clause — exclude Lead List, optionally filter by LastModified
   let whereClause = "WHERE ps.Archived = 0 AND ps.Status != '0 Lead List'";
@@ -426,6 +426,41 @@ export async function syncProperties(since?: string): Promise<{
           errors.push(`ms_property_status_history batch ${i}: ${error.message}`);
         } else {
           counts.statusHistory += histRecords.length;
+        }
+      }
+    }
+
+    // 5. Sync ms_property_royalty
+    for (let i = 0; i < propertyIds.length; i += BATCH_SIZE) {
+      const batchIds = propertyIds.slice(i, i + BATCH_SIZE);
+      const placeholders = batchIds.map(() => "?").join(",");
+
+      const royaltyRows = await queryMS(
+        `SELECT * FROM PropertyRoyalty WHERE PropertyId IN (${placeholders})`,
+        batchIds as number[]
+      );
+
+      const royaltyRecords = royaltyRows.map((row: Record<string, unknown>) => {
+        const record: Record<string, unknown> = { ms_synced_at: new Date().toISOString() };
+        for (const [key, val] of Object.entries(row)) {
+          if (val instanceof Date) {
+            record[key] = val.toISOString();
+          } else {
+            record[key] = val;
+          }
+        }
+        return record;
+      });
+
+      if (royaltyRecords.length > 0) {
+        const { error } = await supabase
+          .from("ms_property_royalty")
+          .upsert(royaltyRecords, { onConflict: "PropertyId" });
+
+        if (error) {
+          errors.push(`ms_property_royalty batch ${i}: ${error.message}`);
+        } else {
+          counts.royalty += royaltyRecords.length;
         }
       }
     }
