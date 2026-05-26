@@ -44,6 +44,10 @@ const STAGE_CONTEXT: Record<string, string> = {
   // Onboarding pipeline
   setup: "New franchisee onboarding setup",
   training: "Franchisee in training",
+  onboarded: "Franchisee fully onboarded and operational",
+  // Territory pipeline
+  active: "Active franchisee with awarded territory — buying and flipping properties",
+  running: "Franchisee actively running their territory operations",
   // Runway pipeline
   "first-offers": "Active franchisee making first property offers",
   "first-acquisition": "Franchisee acquiring first property",
@@ -97,15 +101,24 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
   const primaryContactId = journey.primary_contact_id;
   let slugs = ((pipelineRes.data ?? []) as any[]).map((r) => r.TerritorySlug).filter(Boolean) as string[];
 
-  // Fallback: if JPS has no territory slugs, check territory_owners
+  // Get territory ownership (also used for actual start date)
+  const { data: ownershipRows } = await supabase
+    .from("territory_owners")
+    .select(`"TerritorySlug", start_date`)
+    .eq("contact_id", primaryContactId)
+    .is("end_date", null);
+
+  // Fallback: if JPS has no territory slugs, use territory_owners
   if (slugs.length === 0) {
-    const { data: ownedTerritories } = await supabase
-      .from("territory_owners")
-      .select(`"TerritorySlug"`)
-      .eq("contact_id", primaryContactId)
-      .is("end_date", null);
-    slugs = ((ownedTerritories ?? []) as any[]).map((r) => r.TerritorySlug).filter(Boolean) as string[];
+    slugs = ((ownershipRows ?? []) as any[]).map((r) => r.TerritorySlug).filter(Boolean) as string[];
   }
+
+  // Use earliest territory ownership date as the real start (not journey.created_at which may be a backfill date)
+  const ownerStartDates = ((ownershipRows ?? []) as any[])
+    .map((r) => r.start_date)
+    .filter(Boolean)
+    .sort();
+  const actualStartDate = ownerStartDates.length > 0 ? ownerStartDates[0] : journey.created_at;
 
   const uniqueSlugs = [...new Set(slugs)];
 
@@ -136,11 +149,22 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
       .eq("status", "pending")
       .order("due_date", { ascending: true })
       .limit(10),
+    // Count purchased properties (actual inventory), not total leads
     uniqueSlugs.length > 0
-      ? supabase
-          .from("ms_properties")
-          .select(`"PropertyId"`, { count: "exact", head: true })
-          .in("TerritorySlug", uniqueSlugs)
+      ? (async () => {
+          const { data: propIds } = await supabase
+            .from("ms_properties")
+            .select(`"PropertyId"`)
+            .in("TerritorySlug", uniqueSlugs);
+          if (!propIds || propIds.length === 0) return { count: 0 };
+          const ids = propIds.map((r: any) => r.PropertyId);
+          const { count } = await supabase
+            .from("ms_property_inventory")
+            .select(`"PropertyId"`, { count: "exact", head: true })
+            .not("Inv_PurchaseDate", "is", null)
+            .in("PropertyId", ids);
+          return { count: count ?? 0 };
+        })()
       : Promise.resolve({ count: 0 }),
   ]);
 
@@ -210,7 +234,7 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
   const stageContextText = STAGE_CONTEXT[currentStageSlug] ?? null;
 
   const context: Record<string, unknown> = {
-    journey: { name: journey.name, started: new Date(journey.created_at).toLocaleDateString() },
+    journey: { name: journey.name, started: new Date(actualStartDate).toLocaleDateString() },
     members: members.map((m) => `${m.name} (${m.role}${m.city ? `, ${m.city} ${m.state}` : ""})`),
     stage: activePipelines[0]
       ? `${activePipelines[0].stage}${activePipelines[0].territory ? ` / ${activePipelines[0].territory}` : ""} — ${activePipelines[0].daysInStage}d`
@@ -223,7 +247,7 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
         : "none logged (may not be migrated yet)",
     score: intel?.current_score ?? null,
     objections: objections.length > 0 ? objections : null,
-    properties: propertyCount > 0 ? propertyCount : null,
+    propertiesPurchased: propertyCount > 0 ? propertyCount : null,
     source: pv("opportunity_source"),
   };
 
@@ -257,6 +281,9 @@ const STAGE_DEFAULT_ACTIONS: Record<string, string> = {
   "first-offers": "Optimize marketing and get first 10 offers sent",
   "first-acquisition": "Close first property and start rehab",
   "inventory-building": "Build to 2+ properties in inventory",
+  active: "Review territory performance and property pipeline",
+  running: "Monitor deal flow and operational metrics",
+  onboarded: "Check in on territory ramp-up progress",
   followup: "Re-engage when timing is right",
   nurture: "Monitor for re-engagement signals",
   reengaged: "Move back into sales pipeline",
@@ -270,10 +297,13 @@ const LATE_STAGES = new Set([
   "closed",
   "setup",
   "training",
+  "onboarded",
+  "running",
   "first-offers",
   "first-acquisition",
   "inventory-building",
   "runway-complete",
+  "active",
 ]);
 
 // Stages where sitting for a long time is expected — don't warn about velocity
@@ -281,6 +311,8 @@ const NO_VELOCITY_WARNING = new Set([
   "closed",
   "runway-complete",
   "active",
+  "running",
+  "onboarded",
   "nurture",
   "inventory-building",
   "first-offers",
@@ -320,9 +352,8 @@ function computeNextActions(input: NextActionInput): { primary: string; secondar
     if (daysSince > 14) {
       actions.push({ priority: 80 + daysSince, text: `Schedule call — ${daysSince} days since last contact` });
     }
-    if (input.calls[0].suggestedAction) {
-      actions.push({ priority: 70, text: input.calls[0].suggestedAction });
-    }
+    // Note: call-level suggestedAction (from grading) is intentionally NOT surfaced
+    // here — those are call-specific coaching tips, not journey-level actions.
   } else if (!isLateStage) {
     // Only suggest intro call for early stages where it makes sense
     actions.push({ priority: 90, text: "Schedule introductory call — no calls on record" });
