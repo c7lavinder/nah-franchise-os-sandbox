@@ -27,7 +27,8 @@ interface Props {
   onFeeUpdate: (fee: number | null) => void;
 }
 
-const REVENUE_GOAL = 500_000;
+const ROYALTY_GOAL = 460_000; // $500k total minus ~$40k franchise fee
+const TOTAL_GOAL = 500_000;
 const GOAL_YEARS = 10;
 
 function formatDollarFull(amount: number | null): string {
@@ -89,32 +90,33 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
   const networkMedian = revenue?.network_median ?? null;
 
   // Progress toward $500k goal
-  const progressPct = Math.min((totalRevenue / REVENUE_GOAL) * 100, 100);
+  const progressPct = Math.min((totalRevenue / TOTAL_GOAL) * 100, 100);
 
-  // Pace calculation: expected revenue based on time elapsed
+  // Pace: only royalty (paid+due) vs expected royalty timeline — franchise fee is excluded
+  const royaltyTotal = totalPaid + totalDue;
   const journeyStart = revenue?.journey_start;
   let paceStatus: "on" | "ahead" | "behind" | null = null;
-  let expectedRevenue = 0;
-  if (journeyStart && totalRevenue > 0) {
+  if (journeyStart && royaltyTotal > 0) {
     const startDate = new Date(journeyStart);
     const now = new Date();
     const yearsElapsed = (now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-    if (yearsElapsed > 0) {
-      expectedRevenue = (REVENUE_GOAL / GOAL_YEARS) * yearsElapsed;
-      const ratio = totalRevenue / expectedRevenue;
+    if (yearsElapsed > 0.1) {
+      const expectedRoyalty = (ROYALTY_GOAL / GOAL_YEARS) * yearsElapsed;
+      const ratio = royaltyTotal / expectedRoyalty;
       if (ratio >= 1.1) paceStatus = "ahead";
       else if (ratio >= 0.85) paceStatus = "on";
       else paceStatus = "behind";
     }
   }
 
-  // Median marker position
-  const medianPct = networkMedian != null ? Math.min((networkMedian / REVENUE_GOAL) * 100, 100) : null;
+  // Median marker position (median is total revenue including fee)
+  const medianPct =
+    networkMedian != null && networkMedian > 0 ? Math.min((networkMedian / TOTAL_GOAL) * 100, 100) : null;
 
   // Bar segments as percentage of goal
-  const feePctOfGoal = (feeVal / REVENUE_GOAL) * 100;
-  const paidPctOfGoal = (totalPaid / REVENUE_GOAL) * 100;
-  const duePctOfGoal = (totalDue / REVENUE_GOAL) * 100;
+  const feePctOfGoal = (feeVal / TOTAL_GOAL) * 100;
+  const paidPctOfGoal = (totalPaid / TOTAL_GOAL) * 100;
+  const duePctOfGoal = (totalDue / TOTAL_GOAL) * 100;
 
   return (
     <div className="bg-bg-secondary border border-border-default rounded-lg overflow-hidden">
@@ -211,7 +213,7 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
             {/* Goal label */}
             <div className="flex items-center justify-between mb-1">
               <span className="text-[9px] text-text-tertiary">
-                {formatDollarFull(totalRevenue)} of {formatDollarCompact(REVENUE_GOAL)} goal
+                {formatDollarFull(totalRevenue)} of {formatDollarCompact(TOTAL_GOAL)} goal
               </span>
               <span className="text-[9px] text-text-tertiary font-medium">{progressPct.toFixed(0)}%</span>
             </div>
@@ -235,8 +237,8 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
                 )}
                 {duePctOfGoal > 0 && (
                   <div
-                    className="bg-nah-orange transition-all duration-700"
-                    style={{ width: `${Math.max(duePctOfGoal, 0.5)}%` }}
+                    className="transition-all duration-700"
+                    style={{ width: `${Math.max(duePctOfGoal, 1)}%`, backgroundColor: "#f97316" }}
                     title={`Due: ${formatDollarFull(totalDue)}`}
                   />
                 )}
@@ -245,14 +247,10 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
               {/* Network median marker */}
               {medianPct != null && medianPct > 0 && (
                 <div
-                  className="absolute top-0 h-4 border-l-2 border-dashed border-text-tertiary/50"
-                  style={{ left: `${medianPct}%` }}
+                  className="absolute top-0 h-4 border-l-2 border-dashed"
+                  style={{ left: `${medianPct}%`, borderColor: "#a1a1aa" }}
                   title={`Network median: ${formatDollarFull(networkMedian)}`}
-                >
-                  <div className="absolute -top-3.5 -translate-x-1/2 text-[8px] text-text-tertiary whitespace-nowrap">
-                    median
-                  </div>
-                </div>
+                />
               )}
             </div>
 
@@ -272,14 +270,14 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
               )}
               {totalDue > 0 && (
                 <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-nah-orange" />
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#f97316" }} />
                   <span className="text-[9px] text-text-tertiary">Due</span>
                 </div>
               )}
-              {medianPct != null && (
+              {medianPct != null && networkMedian != null && (
                 <div className="flex items-center gap-1 ml-auto">
-                  <div className="w-3 border-t border-dashed border-text-tertiary/50" />
-                  <span className="text-[9px] text-text-tertiary">Network median</span>
+                  <div className="w-3 border-t-2 border-dashed" style={{ borderColor: "#a1a1aa" }} />
+                  <span className="text-[9px] text-text-tertiary">Median {formatDollarCompact(networkMedian)}</span>
                 </div>
               )}
             </div>
