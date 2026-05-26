@@ -68,21 +68,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
   }
 
-  // 4. Get ALL PropertyIds for these territories (paginate past 1000-row default)
-  const propertyIds: number[] = [];
-  const PAGE = 1000;
-  let from = 0;
-  while (true) {
-    const { data: batch } = await supabase
-      .from("ms_properties")
-      .select(`"PropertyId"`)
-      .in("TerritorySlug", slugs)
-      .range(from, from + PAGE - 1);
-    if (!batch || batch.length === 0) break;
-    for (const r of batch) propertyIds.push((r as any).PropertyId as number);
-    if (batch.length < PAGE) break;
-    from += PAGE;
-  }
+  // 4. Get purchased PropertyIds — start from inventory (purchased properties only),
+  //    not all territory properties (which can be thousands of leads)
+  const { data: invRows } = await supabase
+    .from("ms_properties")
+    .select(`"PropertyId", ms_property_inventory!inner("Inv_PurchaseDate", "Inv_SellDate")`)
+    .in("TerritorySlug", slugs)
+    .not("ms_property_inventory.Inv_PurchaseDate", "is", null);
+
+  const propertyIds = (invRows ?? []).map((r: any) => r.PropertyId as number);
+
+  // Build sell date map from the joined inventory data
+  const sellDates = new Map(
+    (invRows ?? []).map((r: any) => {
+      const inv = Array.isArray(r.ms_property_inventory) ? r.ms_property_inventory[0] : r.ms_property_inventory;
+      return [r.PropertyId, inv?.Inv_SellDate ?? null];
+    })
+  );
 
   if (propertyIds.length === 0) {
     return NextResponse.json({
@@ -90,38 +92,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       total_paid: 0,
       total_due: 0,
       monthly_series: [],
-      _debug: { exit: "no_properties_for_slugs", slugs },
+      _debug: { exit: "no_purchased_properties", slugs },
     });
   }
 
-  // 5. Fetch royalty data for all properties (batch in chunks to avoid .in() limits)
-  // Also need sell dates to gate disposition royalty
-  const royaltyRows: any[] = [];
-  const sellDateRows: any[] = [];
-  for (let i = 0; i < propertyIds.length; i += PAGE) {
-    const chunk = propertyIds.slice(i, i + PAGE);
-    const [royaltyBatch, invBatch] = await Promise.all([
-      supabase
-        .from("ms_property_royalty")
-        .select(
-          `
-          "PropertyId",
-          "AcquisitionRoyaltyPaid", "AcquisitionRoyaltyPaidDate",
-          "Calculated_AcquisitionRoyaltyDue",
-          "DispositionRoyaltyPaid", "DispositionRoyaltyPaidDate",
-          "Calculated_DispositionRoyaltyDue",
-          "DelayedRoyaltyFeePaid", "DelayedRoyaltyFeePaidDate",
-          "Calculated_DelayedRoyaltyFeeDue"
-        `
-        )
-        .in("PropertyId", chunk),
-      supabase.from("ms_property_inventory").select(`"PropertyId", "Inv_SellDate"`).in("PropertyId", chunk),
-    ]);
-    royaltyRows.push(...((royaltyBatch.data ?? []) as any[]));
-    sellDateRows.push(...((invBatch.data ?? []) as any[]));
-  }
+  // 5. Fetch royalty data for purchased properties only
+  const { data: royaltyData } = await supabase
+    .from("ms_property_royalty")
+    .select(
+      `
+      "PropertyId",
+      "AcquisitionRoyaltyPaid", "AcquisitionRoyaltyPaidDate",
+      "Calculated_AcquisitionRoyaltyDue",
+      "DispositionRoyaltyPaid", "DispositionRoyaltyPaidDate",
+      "Calculated_DispositionRoyaltyDue",
+      "DelayedRoyaltyFeePaid", "DelayedRoyaltyFeePaidDate",
+      "Calculated_DelayedRoyaltyFeeDue"
+    `
+    )
+    .in("PropertyId", propertyIds);
 
-  const sellDates = new Map(sellDateRows.map((r: any) => [r.PropertyId, r.Inv_SellDate]));
+  const royaltyRows = (royaltyData ?? []) as any[];
 
   // 6. Compute totals + monthly series
   let totalPaid = 0;
