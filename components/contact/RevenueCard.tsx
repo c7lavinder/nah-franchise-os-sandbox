@@ -2,13 +2,12 @@
 
 /**
  * RevenueCard — revenue visualization panel.
- * Franchise fee (editable) + royalty paid/due + progress bar toward $500k/10yr goal.
- * Shows pace status and network median comparison.
+ * Stacked horizontal bar toward $500k goal with labels above each segment.
  */
 
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/auth/api-fetch";
-import { Loader2, TrendingUp, DollarSign, Clock } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
 interface RevenueData {
@@ -27,16 +26,16 @@ interface Props {
   onFeeUpdate: (fee: number | null) => void;
 }
 
-const ROYALTY_GOAL = 460_000; // $500k total minus ~$40k franchise fee
+const ROYALTY_GOAL = 460_000;
 const TOTAL_GOAL = 500_000;
 const GOAL_YEARS = 10;
 
-function formatDollarFull(amount: number | null): string {
+function fmt(amount: number | null): string {
   if (amount == null) return "—";
   return "$" + amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-function formatDollarCompact(amount: number): string {
+function fmtCompact(amount: number): string {
   if (amount >= 1_000_000) return "$" + (amount / 1_000_000).toFixed(1) + "M";
   if (amount >= 1_000) return "$" + Math.round(amount / 1_000) + "k";
   return "$" + amount.toFixed(0);
@@ -89,50 +88,49 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
   const totalRevenue = feeVal + totalPaid + totalDue;
   const networkMedian = revenue?.network_median ?? null;
 
-  // Progress toward $500k goal
-  const progressPct = Math.min((totalRevenue / TOTAL_GOAL) * 100, 100);
-
-  // Pace: only royalty (paid+due) vs expected royalty timeline — franchise fee is excluded
+  // Pace: royalty only vs $460k over 10yr
   const royaltyTotal = totalPaid + totalDue;
   const journeyStart = revenue?.journey_start;
   let paceStatus: "on" | "ahead" | "behind" | null = null;
   if (journeyStart && royaltyTotal > 0) {
-    const startDate = new Date(journeyStart);
-    const now = new Date();
-    const yearsElapsed = (now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+    const yearsElapsed = (Date.now() - new Date(journeyStart).getTime()) / (1000 * 60 * 60 * 24 * 365.25);
     if (yearsElapsed > 0.1) {
-      const expectedRoyalty = (ROYALTY_GOAL / GOAL_YEARS) * yearsElapsed;
-      const ratio = royaltyTotal / expectedRoyalty;
-      if (ratio >= 1.1) paceStatus = "ahead";
-      else if (ratio >= 0.85) paceStatus = "on";
-      else paceStatus = "behind";
+      const expected = (ROYALTY_GOAL / GOAL_YEARS) * yearsElapsed;
+      const ratio = royaltyTotal / expected;
+      paceStatus = ratio >= 1.1 ? "ahead" : ratio >= 0.85 ? "on" : "behind";
     }
   }
 
-  // Median marker position (median is total revenue including fee)
+  // Bar percentages (of $500k goal)
+  const feePct = (feeVal / TOTAL_GOAL) * 100;
+  const paidPct = (totalPaid / TOTAL_GOAL) * 100;
+  const duePct = (totalDue / TOTAL_GOAL) * 100;
+  const progressPct = Math.min(feePct + paidPct + duePct, 100);
   const medianPct =
     networkMedian != null && networkMedian > 0 ? Math.min((networkMedian / TOTAL_GOAL) * 100, 100) : null;
 
-  // Bar segments as percentage of goal
-  const feePctOfGoal = (feeVal / TOTAL_GOAL) * 100;
-  const paidPctOfGoal = (totalPaid / TOTAL_GOAL) * 100;
-  const duePctOfGoal = (totalDue / TOTAL_GOAL) * 100;
+  // Build segments for display
+  const segments = [
+    { key: "fee", label: "Fee", value: feeVal, pct: feePct, color: "#3b82f6" },
+    { key: "paid", label: "Royalty Paid", value: totalPaid, pct: paidPct, color: "#22c55e" },
+    { key: "due", label: "Due", value: totalDue, pct: duePct, color: "#f97316" },
+  ].filter((s) => s.value > 0);
 
   return (
     <div className="bg-bg-secondary border border-border-default rounded-lg overflow-hidden">
       <div className="px-4 pt-3 pb-3">
         {/* Header */}
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-3">
           <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">REVENUE</h3>
           <div className="flex items-center gap-2">
             {paceStatus && (
               <span
                 className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
                   paceStatus === "ahead"
-                    ? "bg-success/15 text-success"
+                    ? "bg-[#22c55e]/15 text-[#22c55e]"
                     : paceStatus === "on"
-                      ? "bg-nah-blue/15 text-nah-blue"
-                      : "bg-nah-orange/15 text-nah-orange"
+                      ? "bg-[#3b82f6]/15 text-[#3b82f6]"
+                      : "bg-[#f97316]/15 text-[#f97316]"
                 }`}
               >
                 {paceStatus === "ahead" ? "Ahead of pace" : paceStatus === "on" ? "On pace" : "Behind pace"}
@@ -141,162 +139,112 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
           </div>
         </div>
 
-        {/* Metric pills — sized proportionally to match bar segments */}
-        <div className="flex gap-1 mt-2">
-          {/* Franchise Fee */}
-          <div
-            className="rounded-lg bg-bg-primary/50 border border-border-default px-2 py-2 min-w-0"
-            style={{ flex: Math.max(feeVal, 1) }}
-          >
-            <div className="flex items-center gap-1 mb-0.5">
-              <DollarSign size={9} className="text-nah-blue flex-shrink-0" />
-              <span className="text-[8px] text-text-tertiary font-medium uppercase tracking-wider truncate">Fee</span>
-            </div>
-            {editingFee ? (
-              <input
-                autoFocus
-                type="number"
-                value={feeDraft}
-                onChange={(e) => setFeeDraft(e.target.value)}
-                onBlur={() => {
-                  setEditingFee(false);
-                  if (feeDraft !== (displayFee?.toString() ?? "")) void saveFee(feeDraft);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    setEditingFee(false);
-                    if (feeDraft !== (displayFee?.toString() ?? "")) void saveFee(feeDraft);
-                  }
-                  if (e.key === "Escape") {
-                    setEditingFee(false);
-                    setFeeDraft(displayFee?.toString() ?? "");
-                  }
-                }}
-                className="w-full bg-bg-secondary border border-nah-blue rounded px-1.5 py-0.5 text-body-sm text-text-primary outline-none"
-              />
-            ) : (
-              <p
-                className="text-sm font-bold text-text-primary cursor-pointer hover:text-nah-blue transition-colors leading-tight truncate"
-                onClick={() => {
-                  setEditingFee(true);
-                  setFeeDraft(displayFee?.toString() ?? "");
-                }}
-              >
-                {formatDollarFull(displayFee)}
-              </p>
-            )}
-          </div>
-
-          {/* Royalty Paid */}
-          <div
-            className="rounded-lg bg-bg-primary/50 border border-border-default px-2 py-2 min-w-0"
-            style={{ flex: Math.max(totalPaid, 1) }}
-          >
-            <div className="flex items-center gap-1 mb-0.5">
-              <TrendingUp size={9} className="text-success flex-shrink-0" />
-              <span className="text-[8px] text-text-tertiary font-medium uppercase tracking-wider truncate">Paid</span>
-            </div>
-            <p className="text-sm font-bold text-success leading-tight truncate">{formatDollarFull(totalPaid)}</p>
-          </div>
-
-          {/* Royalty Due */}
-          <div
-            className="rounded-lg bg-bg-primary/50 border border-border-default px-2 py-2 min-w-0"
-            style={{ flex: Math.max(totalDue, 1) }}
-          >
-            <div className="flex items-center gap-1 mb-0.5">
-              <Clock size={9} className={`flex-shrink-0 ${totalDue > 0 ? "text-nah-orange" : "text-text-tertiary"}`} />
-              <span className="text-[8px] text-text-tertiary font-medium uppercase tracking-wider truncate">Due</span>
-            </div>
-            <p
-              className={`text-sm font-bold leading-tight truncate ${totalDue > 0 ? "text-nah-orange" : "text-text-secondary"}`}
-            >
-              {formatDollarFull(totalDue)}
-            </p>
-          </div>
-        </div>
-
-        {/* Revenue progress bar toward $500k goal */}
         {totalRevenue > 0 ? (
-          <div className="mt-3">
-            {/* Goal label */}
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[9px] text-text-tertiary">
-                {formatDollarFull(totalRevenue)} of {formatDollarCompact(TOTAL_GOAL)} goal
-              </span>
-              <span className="text-[9px] text-text-tertiary font-medium">{progressPct.toFixed(0)}%</span>
+          <>
+            {/* Big total */}
+            <div className="text-center mb-3">
+              <p className="text-2xl font-bold text-text-primary leading-none">{fmt(totalRevenue)}</p>
+              <p className="text-[10px] text-text-tertiary mt-0.5">
+                of {fmtCompact(TOTAL_GOAL)} goal &middot; {progressPct.toFixed(0)}%
+              </p>
             </div>
 
-            {/* Stacked bar */}
-            <div className="relative">
-              <div className="flex h-4 rounded-full overflow-hidden bg-bg-primary/30 border border-border-default">
-                {feePctOfGoal > 0 && (
+            {/* Stacked bar with labels above each segment */}
+            <div className="relative mb-1">
+              {/* Labels row — positioned to match bar segments */}
+              <div className="flex mb-1" style={{ width: `${Math.max(progressPct, 5)}%` }}>
+                {segments.map((seg) => {
+                  // Each label takes proportional width within the filled portion
+                  const segShare = totalRevenue > 0 ? (seg.value / totalRevenue) * 100 : 0;
+                  return (
+                    <div key={seg.key} className="min-w-0 text-center" style={{ width: `${segShare}%` }}>
+                      {seg.key === "fee" && editingFee ? (
+                        <input
+                          autoFocus
+                          type="number"
+                          value={feeDraft}
+                          onChange={(e) => setFeeDraft(e.target.value)}
+                          onBlur={() => {
+                            setEditingFee(false);
+                            if (feeDraft !== (displayFee?.toString() ?? "")) void saveFee(feeDraft);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              setEditingFee(false);
+                              if (feeDraft !== (displayFee?.toString() ?? "")) void saveFee(feeDraft);
+                            }
+                            if (e.key === "Escape") {
+                              setEditingFee(false);
+                            }
+                          }}
+                          className="w-full bg-bg-primary border border-nah-blue rounded px-1 py-0 text-[10px] text-text-primary outline-none text-center"
+                        />
+                      ) : (
+                        <span
+                          className={`text-[10px] font-semibold truncate block ${seg.key === "fee" ? "cursor-pointer" : ""}`}
+                          style={{ color: seg.color }}
+                          onClick={
+                            seg.key === "fee"
+                              ? () => {
+                                  setEditingFee(true);
+                                  setFeeDraft(displayFee?.toString() ?? "");
+                                }
+                              : undefined
+                          }
+                        >
+                          {fmt(seg.value)}
+                        </span>
+                      )}
+                      <span className="text-[8px] text-text-tertiary truncate block">{seg.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Bar */}
+              <div className="relative">
+                <div className="flex h-3 rounded-full overflow-hidden bg-bg-primary/30 border border-border-default">
+                  {segments.map((seg) => (
+                    <div
+                      key={seg.key}
+                      className="transition-all duration-700"
+                      style={{ width: `${Math.max(seg.pct, 0.5)}%`, backgroundColor: seg.color }}
+                      title={`${seg.label}: ${fmt(seg.value)}`}
+                    />
+                  ))}
+                </div>
+
+                {/* Median marker */}
+                {medianPct != null && (
                   <div
-                    className="bg-nah-blue transition-all duration-700"
-                    style={{ width: `${Math.max(feePctOfGoal, 0.5)}%` }}
-                    title={`Franchise Fee: ${formatDollarFull(feeVal)}`}
-                  />
-                )}
-                {paidPctOfGoal > 0 && (
-                  <div
-                    className="bg-success transition-all duration-700"
-                    style={{ width: `${Math.max(paidPctOfGoal, 0.5)}%` }}
-                    title={`Royalty Paid: ${formatDollarFull(totalPaid)}`}
-                  />
-                )}
-                {duePctOfGoal > 0 && (
-                  <div
-                    className="transition-all duration-700"
-                    style={{ width: `${Math.max(duePctOfGoal, 1)}%`, backgroundColor: "#f97316" }}
-                    title={`Due: ${formatDollarFull(totalDue)}`}
+                    className="absolute top-0 h-3"
+                    style={{ left: `${medianPct}%`, borderLeft: "2px dashed #a1a1aa" }}
+                    title={`Network median: ${fmt(networkMedian)}`}
                   />
                 )}
               </div>
-
-              {/* Network median marker */}
-              {medianPct != null && medianPct > 0 && (
-                <div
-                  className="absolute top-0 h-4 border-l-2 border-dashed"
-                  style={{ left: `${medianPct}%`, borderColor: "#a1a1aa" }}
-                  title={`Network median: ${formatDollarFull(networkMedian)}`}
-                />
-              )}
             </div>
 
-            {/* Legend */}
-            <div className="flex items-center gap-4 mt-1.5">
-              {feeVal > 0 && (
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-nah-blue" />
-                  <span className="text-[9px] text-text-tertiary">Fee</span>
+            {/* Footer: legend + median */}
+            <div className="flex items-center mt-1.5">
+              {segments.map((seg) => (
+                <div key={seg.key} className="flex items-center gap-1 mr-3">
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: seg.color }} />
+                  <span className="text-[8px] text-text-tertiary">{seg.label}</span>
                 </div>
-              )}
-              {totalPaid > 0 && (
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-success" />
-                  <span className="text-[9px] text-text-tertiary">Paid</span>
-                </div>
-              )}
-              {totalDue > 0 && (
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#f97316" }} />
-                  <span className="text-[9px] text-text-tertiary">Due</span>
-                </div>
-              )}
+              ))}
               {medianPct != null && networkMedian != null && (
                 <div className="flex items-center gap-1 ml-auto">
-                  <div className="w-3 border-t-2 border-dashed" style={{ borderColor: "#a1a1aa" }} />
-                  <span className="text-[9px] text-text-tertiary">Median {formatDollarCompact(networkMedian)}</span>
+                  <div className="w-2.5 border-t-2 border-dashed" style={{ borderColor: "#a1a1aa" }} />
+                  <span className="text-[8px] text-text-tertiary">Median {fmtCompact(networkMedian)}</span>
                 </div>
               )}
             </div>
-          </div>
+          </>
         ) : (
-          <div className="mt-3">
-            <div className="flex items-center gap-2 text-caption text-text-tertiary">
-              <div className="h-px flex-1 bg-border-default" />
+          <div className="py-4">
+            <div className="flex items-center gap-2 text-caption text-text-tertiary justify-center">
               <span>No revenue data yet</span>
-              <div className="h-px flex-1 bg-border-default" />
             </div>
           </div>
         )}
