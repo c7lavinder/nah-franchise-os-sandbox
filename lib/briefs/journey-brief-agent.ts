@@ -60,10 +60,21 @@ const STAGE_CONTEXT: Record<string, string> = {
 };
 
 const BRIEF_PROMPT = `You are Scout, the AI franchise sales coach for New Again Houses.
-Write a 3-4 sentence narrative summary of this franchise journey.
+
+OUTPUT FORMAT — respond with exactly this JSON (no markdown, no code fences):
+{"narrative":"...","nextStep":"..."}
+
+NARRATIVE (3-4 sentences):
 Be concrete — use names, dates, numbers. Do not speculate.
 Keep it conversational but professional, like a quick verbal briefing before a meeting.
 Focus on: who they are, where they stand, key signals, and any momentum or risk.
+
+NEXT STEP (1 sentence, commanding):
+Give exactly ONE specific, urgent next action. Use the candidate's first name and the team member they need to talk to. Be direct and demanding — this is a marching order, not a suggestion.
+Good: "Get Kevin on a call with Sam this week to start deep discovery."
+Good: "Send the FDD to Lisa today — she's been in Compliance 5 days with no doc."
+Bad: "Complete Sam call, PFS review, and background check" (too many items, too passive)
+Bad: "Schedule introductory call" (too vague, no name)
 
 IMPORTANT: The "stage" field tells you exactly where they are in the sales process.
 Later stages (Compliance, Awarding, Closed) mean this person has been thoroughly vetted
@@ -71,9 +82,7 @@ and is close to or already a franchisee. Do NOT treat missing call data as "we h
 connected" — it likely means call data hasn't been migrated yet. Interpret through the
 lens of what the stage implies.
 
-The "stageContext" field explains what each stage means in this franchise sales process.
-
-Respond with ONLY the narrative paragraph — no headers, no bullets, no labels.`;
+The "stageContext" field explains what each stage means in this franchise sales process.`;
 
 export async function generateJourneyBrief(journeyId: string): Promise<JourneyBriefData | null> {
   const supabase = createServerClient();
@@ -233,8 +242,13 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
   const currentStageSlug = activePipelines[0]?.stageSlug ?? "";
   const stageContextText = STAGE_CONTEXT[currentStageSlug] ?? null;
 
+  // Extract primary contact first name for personalized next step
+  const primaryMember = members.find((m) => m.role === "primary") ?? members[0];
+  const contactFirstName = primaryMember?.name.split(" ")[0] ?? "this candidate";
+
   const context: Record<string, unknown> = {
     journey: { name: journey.name, started: new Date(actualStartDate).toLocaleDateString() },
+    contactFirstName,
     members: members.map((m) => `${m.name} (${m.role}${m.city ? `, ${m.city} ${m.state}` : ""})`),
     stage: activePipelines[0]
       ? `${activePipelines[0].stage}${activePipelines[0].territory ? ` / ${activePipelines[0].territory}` : ""} — ${activePipelines[0].daysInStage}d`
@@ -249,21 +263,43 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
     objections: objections.length > 0 ? objections : null,
     propertiesPurchased: propertyCount > 0 ? propertyCount : null,
     source: pv("opportunity_source"),
+    pendingTasks:
+      (commitmentRes?.data ?? []).length > 0
+        ? (commitmentRes.data as any[]).slice(0, 3).map((t: any) => {
+            const overdue = t.due_date && new Date(t.due_date) < new Date();
+            return `${t.commitment_text}${t.due_date ? ` (due ${new Date(t.due_date).toLocaleDateString()}${overdue ? " — OVERDUE" : ""})` : ""}`;
+          })
+        : null,
   };
 
-  // --- 4. Claude Haiku narrative ---
+  // --- 4. Claude Haiku narrative + next step ---
   const anthropic = new Anthropic();
   const message = await anthropic.messages.create({
     model: process.env.SCOUT_MODEL ?? "claude-haiku-4-5-20251001",
-    max_tokens: 200,
+    max_tokens: 350,
     messages: [{ role: "user", content: `${BRIEF_PROMPT}\n\n${JSON.stringify(context)}` }],
   });
 
-  const narrative = message.content[0].type === "text" ? message.content[0].text : "";
+  const raw = message.content[0].type === "text" ? message.content[0].text : "";
+  let narrative = raw;
+  let aiNextStep: string | null = null;
 
-  // --- 5. Deterministic next actions (stage-aware) ---
+  try {
+    const parsed = JSON.parse(raw);
+    narrative = parsed.narrative ?? raw;
+    aiNextStep = parsed.nextStep ?? null;
+  } catch {
+    // If Claude didn't return valid JSON, use the raw text as narrative
+  }
+
+  // --- 5. Next actions: AI primary + deterministic secondary ---
   const tasks = (commitmentRes?.data ?? []) as any[];
-  const nextActions = computeNextActions({ calls, pipelineStates: activePipelines, objections, tasks });
+  const deterministic = computeNextActions({ calls, pipelineStates: activePipelines, objections, tasks });
+
+  const nextActions = {
+    primary: aiNextStep || deterministic.primary,
+    secondary: deterministic.secondary,
+  };
 
   return { narrative, nextActions };
 }

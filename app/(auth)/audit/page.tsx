@@ -23,6 +23,7 @@ import {
   SkipForward,
   ExternalLink,
   Flag,
+  Sparkles,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -73,7 +74,20 @@ interface BugReport {
 type BugStatus = BugReport["status"];
 type BugPriority = BugReport["priority"] | "any";
 type BugTypeFilter = BugReport["report_type"] | "any";
-type AuditTab = "scout" | "bugs" | "flagged";
+type AuditTab = "scout" | "bugs" | "flagged" | "briefs";
+
+interface JourneyBriefEntry {
+  journey_id: string;
+  journey_name: string;
+  journey_status: string | null;
+  members: { name: string; role: string }[];
+  pipeline: string | null;
+  stage: string | null;
+  narrative: string;
+  next_actions: { primary: string; secondary: string[] };
+  stale: boolean;
+  updated_at: string;
+}
 
 interface FlaggedResponse {
   id: string;
@@ -241,6 +255,11 @@ export default function AuditPage() {
   const [flaggedLoading, setFlaggedLoading] = useState(false);
   const [expandedFlag, setExpandedFlag] = useState<string | null>(null);
 
+  // Journey briefs state
+  const [briefs, setBriefs] = useState<JourneyBriefEntry[]>([]);
+  const [briefsLoading, setBriefsLoading] = useState(false);
+  const [expandedBrief, setExpandedBrief] = useState<string | null>(null);
+
   useEffect(() => {
     if (user && user.role !== "admin") {
       router.push("/daily-hq");
@@ -346,6 +365,24 @@ export default function AuditPage() {
     if (activeTab === "flagged") fetchFlagged();
   }, [activeTab, fetchFlagged]);
 
+  // Journey briefs
+  const fetchBriefs = useCallback(async () => {
+    setBriefsLoading(true);
+    try {
+      const res = await apiFetch("/api/admin/journey-briefs");
+      const data = await res.json();
+      setBriefs(Array.isArray(data) ? data : []);
+    } catch {
+      setBriefs([]);
+    } finally {
+      setBriefsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "briefs") fetchBriefs();
+  }, [activeTab, fetchBriefs]);
+
   if (!user || user.role !== "admin") {
     return null;
   }
@@ -401,6 +438,20 @@ export default function AuditPage() {
             Flagged Responses
             {flagged.length > 0 && (
               <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">{flagged.length}</span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("briefs")}
+            className={`pb-3 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+              activeTab === "briefs"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            Journey Briefs
+            {briefs.length > 0 && (
+              <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{briefs.length}</span>
             )}
           </button>
         </nav>
@@ -853,6 +904,140 @@ export default function AuditPage() {
               >
                 Next
               </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === "briefs" && (
+        <>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">
+              All AI-generated journey briefs. Review narratives and next steps for accuracy.
+            </p>
+            <button onClick={fetchBriefs} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
+              <RefreshCw className="w-3.5 h-3.5" />
+              Refresh
+            </button>
+          </div>
+
+          {briefsLoading ? (
+            <div className="text-center py-12 text-gray-400">Loading...</div>
+          ) : briefs.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">No journey briefs generated yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {briefs.map((b) => {
+                const isExpanded = expandedBrief === b.journey_id;
+                const time = new Date(b.updated_at);
+                const primaryMember = b.members.find((m) => m.role === "primary") ?? b.members[0];
+                const actions = b.next_actions ?? { primary: "", secondary: [] };
+
+                return (
+                  <div key={b.journey_id} className="border rounded-lg bg-white border-gray-200">
+                    <button
+                      onClick={() => setExpandedBrief(isExpanded ? null : b.journey_id)}
+                      className="w-full px-4 py-3 flex items-start gap-3 text-left hover:bg-gray-50 transition-colors"
+                    >
+                      <Sparkles size={14} className="text-orange-400 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="text-sm font-medium text-gray-900">
+                            {primaryMember?.name ?? b.journey_name}
+                          </span>
+                          {b.stage && (
+                            <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium">
+                              {b.stage}
+                            </span>
+                          )}
+                          {b.pipeline && (
+                            <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+                              {b.pipeline}
+                            </span>
+                          )}
+                          {b.stale && (
+                            <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-medium">
+                              Stale
+                            </span>
+                          )}
+                          <span className="text-[11px] text-gray-400">
+                            {time.toLocaleDateString()}{" "}
+                            {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 line-clamp-2">{b.narrative}</p>
+                      </div>
+                      <div className="flex-shrink-0 pt-1">
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        )}
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="px-4 pb-4 border-t border-gray-100 space-y-3 mt-0">
+                        {/* Full narrative */}
+                        <div className="mt-3">
+                          <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">
+                            Narrative
+                          </div>
+                          <p className="text-sm text-gray-800 leading-relaxed">{b.narrative}</p>
+                        </div>
+
+                        {/* Next actions */}
+                        {actions.primary && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">
+                              Next Step
+                            </div>
+                            <div className="flex items-start gap-1.5">
+                              <ChevronRight size={14} className="text-orange-500 flex-shrink-0 mt-0.5" />
+                              <span className="text-sm font-medium text-gray-900">{actions.primary}</span>
+                            </div>
+                            {actions.secondary?.map((action, i) => (
+                              <div key={i} className="flex items-center gap-1.5 ml-5 mt-1">
+                                <span className="text-[8px] text-gray-400">&#x2022;</span>
+                                <span className="text-xs text-gray-500">{action}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Members */}
+                        {b.members.length > 0 && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">
+                              Members
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                              {b.members.map((m, i) => (
+                                <span
+                                  key={i}
+                                  className="text-xs bg-gray-50 text-gray-600 px-2 py-1 rounded border border-gray-100"
+                                >
+                                  {m.name} ({m.role})
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Link to journey */}
+                        <div className="pt-1">
+                          <a
+                            href={`/journeys/${b.journey_id}`}
+                            className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                          >
+                            <ExternalLink size={11} /> View journey
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </>
