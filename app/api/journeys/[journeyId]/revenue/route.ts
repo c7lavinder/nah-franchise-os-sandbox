@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // 1. Get journey + primary contact + territory slugs
   const [journeyRes, jpsRes] = await Promise.all([
-    supabase.from("journeys").select("primary_contact_id").eq("id", journeyId).single(),
+    supabase.from("journeys").select("primary_contact_id, created_at").eq("id", journeyId).single(),
     supabase
       .from("journey_pipeline_state")
       .select(`"TerritorySlug"`)
@@ -149,10 +149,85 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, paid]) => ({ month, paid: Math.round(paid * 100) / 100 }));
 
+  // Network median: median total revenue across all journeys with territory owners
+  let networkMedian: number | null = null;
+  try {
+    const { data: allOwners } = await supabase
+      .from("territory_owners")
+      .select(`"TerritorySlug", contact_id`)
+      .is("end_date", null);
+
+    if (allOwners && allOwners.length > 0) {
+      // Get franchise fees for all owner contacts
+      const ownerContactIds = [...new Set((allOwners as any[]).map((o) => o.contact_id).filter(Boolean))];
+      const { data: ownerContacts } = await supabase
+        .from("contacts")
+        .select("id, franchise_fee")
+        .in("id", ownerContactIds);
+      const feeMap = new Map((ownerContacts ?? []).map((c: any) => [c.id, Number(c.franchise_fee) || 0]));
+
+      // Get all territory slugs for royalty lookup
+      const allSlugs = [...new Set((allOwners as any[]).map((o: any) => o.TerritorySlug).filter(Boolean))];
+      const { data: allProps } = await supabase
+        .from("ms_properties")
+        .select(`"PropertyId", "TerritorySlug"`)
+        .in("TerritorySlug", allSlugs);
+
+      const allPropIds = (allProps ?? []).map((p: any) => p.PropertyId as number);
+      let royaltyBySlug = new Map<string, number>();
+
+      if (allPropIds.length > 0) {
+        // Batch royalty lookup
+        const { data: allRoyalty } = await supabase
+          .from("ms_property_royalty")
+          .select(`"PropertyId", "AcquisitionRoyaltyPaid", "DispositionRoyaltyPaid", "DelayedRoyaltyFeePaid"`)
+          .in("PropertyId", allPropIds);
+
+        // Map PropertyId -> TerritorySlug
+        const propToSlug = new Map((allProps ?? []).map((p: any) => [p.PropertyId, p.TerritorySlug]));
+
+        for (const r of (allRoyalty ?? []) as any[]) {
+          const slug = propToSlug.get(r.PropertyId);
+          if (!slug) continue;
+          const total =
+            (Number(r.AcquisitionRoyaltyPaid) || 0) +
+            (Number(r.DispositionRoyaltyPaid) || 0) +
+            (Number(r.DelayedRoyaltyFeePaid) || 0);
+          royaltyBySlug.set(slug, (royaltyBySlug.get(slug) ?? 0) + total);
+        }
+      }
+
+      // Compute total revenue per contact (fee + royalty across their territories)
+      const revenuePerContact: number[] = [];
+      for (const contactId of ownerContactIds) {
+        const fee = feeMap.get(contactId) ?? 0;
+        const contactSlugs = (allOwners as any[])
+          .filter((o) => o.contact_id === contactId)
+          .map((o: any) => o.TerritorySlug);
+        const royalty = contactSlugs.reduce((sum: number, s: string) => sum + (royaltyBySlug.get(s) ?? 0), 0);
+        revenuePerContact.push(fee + royalty);
+      }
+
+      if (revenuePerContact.length > 0) {
+        revenuePerContact.sort((a, b) => a - b);
+        const mid = Math.floor(revenuePerContact.length / 2);
+        networkMedian =
+          revenuePerContact.length % 2 === 0
+            ? (revenuePerContact[mid - 1] + revenuePerContact[mid]) / 2
+            : revenuePerContact[mid];
+        networkMedian = Math.round(networkMedian);
+      }
+    }
+  } catch {
+    // Non-critical — skip median if it fails
+  }
+
   return NextResponse.json({
     franchise_fee: franchiseFee,
     total_paid: Math.round(totalPaid * 100) / 100,
     total_due: Math.round(totalDue * 100) / 100,
     monthly_series: monthlySeries,
+    network_median: networkMedian,
+    journey_start: journeyRes.data.created_at,
   });
 }

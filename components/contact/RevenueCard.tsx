@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * RevenueCard — premium revenue visualization panel.
- * Franchise fee (editable) + royalty paid/due + cumulative area chart.
+ * RevenueCard — revenue visualization panel.
+ * Franchise fee (editable) + royalty paid/due + progress bar toward $500k/10yr goal.
+ * Shows pace status and network median comparison.
  */
 
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { Loader2, TrendingUp, DollarSign, Clock } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { useToast } from "@/components/ui/Toast";
 
 interface RevenueData {
@@ -16,6 +16,8 @@ interface RevenueData {
   total_paid: number;
   total_due: number;
   monthly_series: { month: string; paid: number }[];
+  network_median?: number;
+  journey_start?: string;
 }
 
 interface Props {
@@ -25,23 +27,18 @@ interface Props {
   onFeeUpdate: (fee: number | null) => void;
 }
 
-function formatDollar(amount: number | null): string {
-  if (amount == null) return "—";
-  if (amount >= 1000) {
-    return "$" + (amount / 1000).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + "k";
-  }
-  return "$" + amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
+const REVENUE_GOAL = 500_000;
+const GOAL_YEARS = 10;
 
 function formatDollarFull(amount: number | null): string {
   if (amount == null) return "—";
   return "$" + amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-function formatMonth(month: string): string {
-  const [y, m] = month.split("-");
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${months[parseInt(m, 10) - 1]} '${y.slice(2)}`;
+function formatDollarCompact(amount: number): string {
+  if (amount >= 1_000_000) return "$" + (amount / 1_000_000).toFixed(1) + "M";
+  if (amount >= 1_000) return "$" + Math.round(amount / 1_000) + "k";
+  return "$" + amount.toFixed(0);
 }
 
 export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeUpdate }: Props) {
@@ -76,15 +73,6 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
     }
   }
 
-  // Build cumulative series
-  const cumulativeSeries = (revenue?.monthly_series ?? []).reduce<
-    { month: string; label: string; cumulative: number }[]
-  >((acc, entry) => {
-    const prev = acc.length > 0 ? acc[acc.length - 1].cumulative : 0;
-    acc.push({ month: entry.month, label: formatMonth(entry.month), cumulative: prev + entry.paid });
-    return acc;
-  }, []);
-
   if (loading) {
     return (
       <div className="bg-bg-secondary border border-border-default rounded-lg px-4 py-3 flex items-center justify-center min-h-[140px]">
@@ -96,20 +84,59 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
   const totalPaid = revenue?.total_paid ?? 0;
   const totalDue = revenue?.total_due ?? 0;
   const displayFee = franchiseFee ?? revenue?.franchise_fee ?? null;
-  const totalRevenue = (displayFee ?? 0) + totalPaid;
-  const hasChartData = cumulativeSeries.length > 1;
+  const feeVal = displayFee ?? 0;
+  const totalRevenue = feeVal + totalPaid + totalDue;
+  const networkMedian = revenue?.network_median ?? null;
+
+  // Progress toward $500k goal
+  const progressPct = Math.min((totalRevenue / REVENUE_GOAL) * 100, 100);
+
+  // Pace calculation: expected revenue based on time elapsed
+  const journeyStart = revenue?.journey_start;
+  let paceStatus: "on" | "ahead" | "behind" | null = null;
+  let expectedRevenue = 0;
+  if (journeyStart && totalRevenue > 0) {
+    const startDate = new Date(journeyStart);
+    const now = new Date();
+    const yearsElapsed = (now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+    if (yearsElapsed > 0) {
+      expectedRevenue = (REVENUE_GOAL / GOAL_YEARS) * yearsElapsed;
+      const ratio = totalRevenue / expectedRevenue;
+      if (ratio >= 1.1) paceStatus = "ahead";
+      else if (ratio >= 0.85) paceStatus = "on";
+      else paceStatus = "behind";
+    }
+  }
+
+  // Median marker position
+  const medianPct = networkMedian != null ? Math.min((networkMedian / REVENUE_GOAL) * 100, 100) : null;
+
+  // Bar segments as percentage of goal
+  const feePctOfGoal = (feeVal / REVENUE_GOAL) * 100;
+  const paidPctOfGoal = (totalPaid / REVENUE_GOAL) * 100;
+  const duePctOfGoal = (totalDue / REVENUE_GOAL) * 100;
 
   return (
     <div className="bg-bg-secondary border border-border-default rounded-lg overflow-hidden">
-      {/* Header with total */}
-      <div className="px-4 pt-3 pb-2">
+      <div className="px-4 pt-3 pb-3">
+        {/* Header */}
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">REVENUE</h3>
-          {totalRevenue > 0 && (
-            <span className="text-[10px] text-text-tertiary">
-              Total: <span className="text-text-primary font-semibold">{formatDollarFull(totalRevenue)}</span>
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {paceStatus && (
+              <span
+                className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+                  paceStatus === "ahead"
+                    ? "bg-success/15 text-success"
+                    : paceStatus === "on"
+                      ? "bg-nah-blue/15 text-nah-blue"
+                      : "bg-nah-orange/15 text-nah-orange"
+                }`}
+              >
+                {paceStatus === "ahead" ? "Ahead of pace" : paceStatus === "on" ? "On pace" : "Behind pace"}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Metric pills */}
@@ -177,76 +204,96 @@ export default function RevenueCard({ journeyId, contactId, franchiseFee, onFeeU
             </p>
           </div>
         </div>
-      </div>
 
-      {/* Chart area */}
-      {hasChartData ? (
-        <div className="h-[90px] px-2 pb-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={cumulativeSeries} margin={{ top: 4, right: 12, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#22c55e" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#22c55e" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 9, fill: "#52525b" }}
-                axisLine={false}
-                tickLine={false}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                tick={{ fontSize: 9, fill: "#52525b" }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => formatDollar(v)}
-                width={45}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#09090b",
-                  border: "1px solid #27272a",
-                  borderRadius: 10,
-                  fontSize: 12,
-                  padding: "8px 12px",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-                }}
-                labelStyle={{ color: "#a1a1aa", fontSize: 10, marginBottom: 2 }}
-                formatter={(value) => [formatDollarFull(Number(value)), "Cumulative Royalty"]}
-                cursor={{ stroke: "#22c55e", strokeWidth: 1, strokeDasharray: "4 4" }}
-              />
-              <Area
-                type="monotone"
-                dataKey="cumulative"
-                stroke="#22c55e"
-                strokeWidth={2}
-                fill="url(#revenueGradient)"
-                dot={false}
-                activeDot={{ r: 4, fill: "#22c55e", stroke: "#09090b", strokeWidth: 2 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      ) : cumulativeSeries.length === 1 ? (
-        <div className="px-4 pb-3">
-          <div className="flex items-center gap-2 text-caption text-text-tertiary">
-            <div className="h-px flex-1 bg-border-default" />
-            <span>{formatDollarFull(cumulativeSeries[0].cumulative)} total royalty</span>
-            <div className="h-px flex-1 bg-border-default" />
+        {/* Revenue progress bar toward $500k goal */}
+        {totalRevenue > 0 ? (
+          <div className="mt-3">
+            {/* Goal label */}
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] text-text-tertiary">
+                {formatDollarFull(totalRevenue)} of {formatDollarCompact(REVENUE_GOAL)} goal
+              </span>
+              <span className="text-[9px] text-text-tertiary font-medium">{progressPct.toFixed(0)}%</span>
+            </div>
+
+            {/* Stacked bar */}
+            <div className="relative">
+              <div className="flex h-4 rounded-full overflow-hidden bg-bg-primary/30 border border-border-default">
+                {feePctOfGoal > 0 && (
+                  <div
+                    className="bg-nah-blue transition-all duration-700"
+                    style={{ width: `${Math.max(feePctOfGoal, 0.5)}%` }}
+                    title={`Franchise Fee: ${formatDollarFull(feeVal)}`}
+                  />
+                )}
+                {paidPctOfGoal > 0 && (
+                  <div
+                    className="bg-success transition-all duration-700"
+                    style={{ width: `${Math.max(paidPctOfGoal, 0.5)}%` }}
+                    title={`Royalty Paid: ${formatDollarFull(totalPaid)}`}
+                  />
+                )}
+                {duePctOfGoal > 0 && (
+                  <div
+                    className="bg-nah-orange transition-all duration-700"
+                    style={{ width: `${Math.max(duePctOfGoal, 0.5)}%` }}
+                    title={`Due: ${formatDollarFull(totalDue)}`}
+                  />
+                )}
+              </div>
+
+              {/* Network median marker */}
+              {medianPct != null && medianPct > 0 && (
+                <div
+                  className="absolute top-0 h-4 border-l-2 border-dashed border-text-tertiary/50"
+                  style={{ left: `${medianPct}%` }}
+                  title={`Network median: ${formatDollarFull(networkMedian)}`}
+                >
+                  <div className="absolute -top-3.5 -translate-x-1/2 text-[8px] text-text-tertiary whitespace-nowrap">
+                    median
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Legend */}
+            <div className="flex items-center gap-4 mt-1.5">
+              {feeVal > 0 && (
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-nah-blue" />
+                  <span className="text-[9px] text-text-tertiary">Fee</span>
+                </div>
+              )}
+              {totalPaid > 0 && (
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-success" />
+                  <span className="text-[9px] text-text-tertiary">Paid</span>
+                </div>
+              )}
+              {totalDue > 0 && (
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-nah-orange" />
+                  <span className="text-[9px] text-text-tertiary">Due</span>
+                </div>
+              )}
+              {medianPct != null && (
+                <div className="flex items-center gap-1 ml-auto">
+                  <div className="w-3 border-t border-dashed border-text-tertiary/50" />
+                  <span className="text-[9px] text-text-tertiary">Network median</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="px-4 pb-3">
-          <div className="flex items-center gap-2 text-caption text-text-tertiary">
-            <div className="h-px flex-1 bg-border-default" />
-            <span>No royalty data yet</span>
-            <div className="h-px flex-1 bg-border-default" />
+        ) : (
+          <div className="mt-3">
+            <div className="flex items-center gap-2 text-caption text-text-tertiary">
+              <div className="h-px flex-1 bg-border-default" />
+              <span>No revenue data yet</span>
+              <div className="h-px flex-1 bg-border-default" />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
