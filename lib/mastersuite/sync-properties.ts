@@ -28,7 +28,7 @@ function toBoolOrNull(val: unknown): boolean | null {
  * Uses incremental sync via LastModified timestamp.
  */
 export async function syncProperties(since?: string): Promise<{
-  synced: { properties: number; calculations: number; inventory: number; statusHistory: number };
+  synced: { properties: number; calculations: number; inventory: number; statusHistory: number; royalty: number };
   errors: string[];
 }> {
   const errors: string[] = [];
@@ -466,8 +466,67 @@ export async function syncProperties(since?: string): Promise<{
     }
   }
 
+  // 6. Backfill royalty for purchased properties missing from ms_property_royalty.
+  //    The incremental sync only covers recently modified properties, so older
+  //    purchased properties may never have had royalty synced.
+  try {
+    const { data: allPurchased } = await supabase
+      .from("ms_property_inventory")
+      .select(`"PropertyId"`)
+      .not("Inv_PurchaseDate", "is", null);
+
+    if (allPurchased && allPurchased.length > 0) {
+      const purchasedIds = allPurchased.map((r: any) => r.PropertyId as number);
+      const { data: existingRoyalty } = await supabase
+        .from("ms_property_royalty")
+        .select(`"PropertyId"`)
+        .in("PropertyId", purchasedIds);
+
+      const existingSet = new Set((existingRoyalty ?? []).map((r: any) => r.PropertyId as number));
+      const missingIds = purchasedIds.filter((id) => !existingSet.has(id));
+
+      if (missingIds.length > 0) {
+        for (let i = 0; i < missingIds.length; i += BATCH_SIZE) {
+          const batchIds = missingIds.slice(i, i + BATCH_SIZE);
+          const placeholders = batchIds.map(() => "?").join(",");
+
+          const royaltyRows = await queryMS(
+            `SELECT * FROM PropertyRoyalty WHERE PropertyId IN (${placeholders})`,
+            batchIds
+          );
+
+          const royaltyRecords = royaltyRows.map((row: Record<string, unknown>) => {
+            const record: Record<string, unknown> = { ms_synced_at: new Date().toISOString() };
+            for (const [key, val] of Object.entries(row)) {
+              if (val instanceof Date) {
+                record[key] = val.toISOString();
+              } else {
+                record[key] = val;
+              }
+            }
+            return record;
+          });
+
+          if (royaltyRecords.length > 0) {
+            const { error } = await supabase
+              .from("ms_property_royalty")
+              .upsert(royaltyRecords, { onConflict: "PropertyId" });
+
+            if (error) {
+              errors.push(`royalty backfill batch ${i}: ${error.message}`);
+            } else {
+              counts.royalty += royaltyRecords.length;
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    errors.push(`royalty backfill: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   // Mark journey briefs stale for territories that had property data synced
-  if (counts.properties > 0 || counts.inventory > 0) {
+  if (counts.properties > 0 || counts.inventory > 0 || counts.royalty > 0) {
     const slugs = [
       ...new Set(properties.map((r: Record<string, unknown>) => r.TerritorySlug as string).filter(Boolean)),
     ];
