@@ -1,9 +1,10 @@
 name: Sync MasterSuite Data
 
 on:
-  schedule:
-    # Properties + prospects: every 15 minutes
-    - cron: '3,18,33,48 * * * *'
+  # Cron disabled — MasterSuite MySQL rejects GH Actions IPs (not whitelisted).
+  # Run manually: npx tsx scripts/run-ms-sync.ts (from a machine with DB access).
+  # schedule:
+  #   - cron: '3,18,33,48 * * * *'
   workflow_dispatch: # Manual trigger
 
 env:

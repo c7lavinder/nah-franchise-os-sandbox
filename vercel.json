@@ -79,26 +79,6 @@
       "schedule": "*/30 * * * *"
     },
     {
-      "path": "/frandev/api/cron/sync-ms-properties",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/frandev/api/cron/sync-ms-territories",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/frandev/api/cron/sync-ms-lead-list",
-      "schedule": "0 1 * * *"
-    },
-    {
-      "path": "/frandev/api/cron/sync-ms-eos",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/frandev/api/cron/sync-ms-prospects",
-      "schedule": "*/15 * * * *"
-    },
-    {
       "path": "/frandev/api/cron/coaching-brief",
       "schedule": "0 7 * * *"
     }

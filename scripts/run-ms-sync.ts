@@ -5,6 +5,9 @@
  * Usage: npx tsx scripts/run-ms-sync.ts
  */
 
+// Load .env.local for local runs (GH Actions sets env vars directly)
+require("dotenv").config({ path: require("path").resolve(__dirname, "../.env.local") });
+
 // Register path aliases for Next.js imports
 const { register } = require("tsconfig-paths");
 const { resolve } = require("path");
@@ -19,6 +22,17 @@ async function main() {
   const start = Date.now();
   console.log("=== MasterSuite Sync Started ===");
   console.log("Time:", new Date().toISOString());
+
+  // Pre-flight: verify MySQL connectivity
+  try {
+    const { checkMSConnection } = require("@/lib/mastersuite/client");
+    await checkMSConnection();
+    console.log("MySQL connection: OK");
+  } catch (err: any) {
+    console.error(`\nMySQL connection FAILED: ${err.message}`);
+    console.error("This machine's IP may not be whitelisted on the MasterSuite DB server.");
+    process.exit(1);
+  }
 
   const results: Record<string, unknown> = {};
   const errors: string[] = [];

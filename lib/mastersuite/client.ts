@@ -31,3 +31,17 @@ export async function queryMS<T = Record<string, unknown>>(
   const [rows] = params ? await p.execute(sql, params) : await p.execute(sql);
   return rows as T[];
 }
+
+/**
+ * Fast connectivity check — fails within 5s if MySQL is unreachable.
+ * Use before inserting a "running" log entry to avoid stuck logs.
+ */
+export async function checkMSConnection(): Promise<void> {
+  const p = getMasterSuitePool();
+  const conn = await p.getConnection();
+  try {
+    await conn.ping();
+  } finally {
+    conn.release();
+  }
+}

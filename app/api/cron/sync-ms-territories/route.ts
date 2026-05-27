@@ -4,6 +4,7 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { syncTerritories } from "@/lib/mastersuite/sync-territories";
 import { createServerClient } from "@/lib/supabase/server";
+import { withCronLogging } from "@/lib/mastersuite/cron-helpers";
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -12,49 +13,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = createServerClient();
+  return withCronLogging(
+    "sync-ms-territories",
+    50_000,
+    () => syncTerritories(),
+    (result) => {
+      // Mark territory briefs stale after successful sync
+      if (result.synced > 0) {
+        const supabase = createServerClient();
+        supabase
+          .from("territory_briefs")
+          .update({ stale: true })
+          .eq("stale", false)
+          .then(() => {});
+      }
 
-  const { data: log } = await supabase
-    .from("cron_job_log")
-    .insert({ job_name: "sync-ms-territories", status: "running" })
-    .select("id")
-    .single();
-
-  try {
-    const result = await syncTerritories();
-
-    if (log) {
-      await supabase
-        .from("cron_job_log")
-        .update({
-          finished_at: new Date().toISOString(),
-          status: "completed",
-          result: { synced: result.synced, errors: result.errors },
-          error: result.errors.length > 0 ? result.errors[0] : null,
-        })
-        .eq("id", log.id);
+      return {
+        status: result.errors.length === 0 ? "completed" : "completed_with_errors",
+        result: { synced: result.synced, errors: result.errors },
+        error: result.errors.length > 0 ? result.errors[0] : null,
+      };
     }
-
-    // Mark all territory briefs as stale after sync
-    if (result.synced > 0) {
-      await supabase.from("territory_briefs").update({ stale: true }).eq("stale", false);
-    }
-
-    return NextResponse.json({
-      success: result.errors.length === 0,
-      synced: result.synced,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("sync-ms-territories FAILED:", message);
-
-    if (log) {
-      await supabase
-        .from("cron_job_log")
-        .update({ finished_at: new Date().toISOString(), status: "failed", error: message })
-        .eq("id", log.id);
-    }
-
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
-  }
+  );
 }

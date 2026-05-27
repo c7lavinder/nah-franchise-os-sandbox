@@ -3,7 +3,7 @@ export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
 import { syncLeadListCounts } from "@/lib/mastersuite/sync-properties";
-import { createServerClient } from "@/lib/supabase/server";
+import { withCronLogging } from "@/lib/mastersuite/cron-helpers";
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -12,44 +12,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = createServerClient();
-
-  const { data: log } = await supabase
-    .from("cron_job_log")
-    .insert({ job_name: "sync-ms-lead-list", status: "running" })
-    .select("id")
-    .single();
-
-  try {
-    const result = await syncLeadListCounts();
-
-    if (log) {
-      await supabase
-        .from("cron_job_log")
-        .update({
-          finished_at: new Date().toISOString(),
-          status: "completed",
-          result: { synced: result.synced, errors: result.errors },
-          error: result.errors.length > 0 ? result.errors[0] : null,
-        })
-        .eq("id", log.id);
-    }
-
-    return NextResponse.json({
-      success: result.errors.length === 0,
-      synced: result.synced,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("sync-ms-lead-list FAILED:", message);
-
-    if (log) {
-      await supabase
-        .from("cron_job_log")
-        .update({ finished_at: new Date().toISOString(), status: "failed", error: message })
-        .eq("id", log.id);
-    }
-
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
-  }
+  return withCronLogging(
+    "sync-ms-lead-list",
+    280_000,
+    () => syncLeadListCounts(),
+    (result) => ({
+      status: result.errors.length === 0 ? "completed" : "completed_with_errors",
+      result: { synced: result.synced, errors: result.errors },
+      error: result.errors.length > 0 ? result.errors[0] : null,
+    })
+  );
 }

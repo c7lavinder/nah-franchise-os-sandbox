@@ -4,6 +4,7 @@ export const maxDuration = 300;
 import { NextRequest, NextResponse } from "next/server";
 import { syncProperties } from "@/lib/mastersuite/sync-properties";
 import { createServerClient } from "@/lib/supabase/server";
+import { withCronLogging } from "@/lib/mastersuite/cron-helpers";
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServerClient();
 
+  // Determine incremental sync window from last successful run
   const { data: lastLog } = await supabase
     .from("cron_job_log")
     .select("finished_at")
@@ -23,46 +25,16 @@ export async function GET(request: NextRequest) {
     .limit(1)
     .single();
 
-  // If no previous success, default to 30 days back instead of syncing everything
   const since = lastLog?.finished_at ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: log } = await supabase
-    .from("cron_job_log")
-    .insert({ job_name: "sync-ms-properties", status: "running" })
-    .select("id")
-    .single();
-
-  try {
-    const result = await syncProperties(since);
-
-    if (log) {
-      await supabase
-        .from("cron_job_log")
-        .update({
-          finished_at: new Date().toISOString(),
-          status: "completed",
-          result: { synced: result.synced, errors: result.errors.slice(0, 10), since },
-          error: result.errors.length > 0 ? result.errors[0] : null,
-        })
-        .eq("id", log.id);
-    }
-
-    return NextResponse.json({
-      success: result.errors.length === 0,
-      synced: result.synced,
-      errorCount: result.errors.length,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("sync-ms-properties FAILED:", message);
-
-    if (log) {
-      await supabase
-        .from("cron_job_log")
-        .update({ finished_at: new Date().toISOString(), status: "failed", error: message })
-        .eq("id", log.id);
-    }
-
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
-  }
+  return withCronLogging(
+    "sync-ms-properties",
+    280_000, // 280s timeout (under 300s maxDuration)
+    () => syncProperties(since),
+    (result) => ({
+      status: result.errors.length === 0 ? "completed" : "completed_with_errors",
+      result: { synced: result.synced, errorCount: result.errors.length, errors: result.errors.slice(0, 10), since },
+      error: result.errors.length > 0 ? result.errors[0] : null,
+    })
+  );
 }

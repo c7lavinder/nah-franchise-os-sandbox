@@ -42,14 +42,21 @@ export async function syncProperties(since?: string): Promise<{
     params.push(since);
   }
 
+  // Load valid territory slugs to filter orphans (e.g. "UNI") that would violate FK
+  const { data: validTerritories } = await supabase.from("territories").select("TerritorySlug");
+  const validSlugs = new Set((validTerritories || []).map((t: { TerritorySlug: string }) => t.TerritorySlug));
+
   // 1. Sync ms_properties from PropertySummaries + PropertyDataEntry
-  const properties = await queryMS(
+  const allProperties = await queryMS(
     `SELECT ps.*, pde.MarketRiskFactor, pde.DispositionNotes
      FROM PropertySummaries ps
      LEFT JOIN PropertyDataEntry pde ON ps.PropertyId = pde.PropertyId
      ${whereClause}
      ORDER BY ps.PropertyId`,
     params.length > 0 ? params : undefined
+  );
+  const properties = allProperties.filter((row: Record<string, unknown>) =>
+    validSlugs.has(row.TerritorySlug as string)
   );
 
   // Process in batches
@@ -563,14 +570,20 @@ export async function syncLeadListCounts(): Promise<{ synced: number; errors: st
     GROUP BY TerritorySlug, DATE_FORMAT(Inserted, '%Y-%m-01'), LeadCategory, LeadType
   `);
 
-  const records = rows.map((row) => ({
-    TerritorySlug: row.TerritorySlug,
-    month: row.month,
-    LeadCategory: row.LeadCategory,
-    LeadType: row.LeadType,
-    count: row.cnt,
-    synced_at: new Date().toISOString(),
-  }));
+  // Filter to territories that exist in Supabase (avoids FK violations from orphan slugs like "UNI")
+  const { data: validTerritories } = await supabase.from("territories").select("TerritorySlug");
+  const validSlugs = new Set((validTerritories || []).map((t: { TerritorySlug: string }) => t.TerritorySlug));
+
+  const records = rows
+    .filter((row) => validSlugs.has(row.TerritorySlug))
+    .map((row) => ({
+      TerritorySlug: row.TerritorySlug,
+      month: row.month,
+      LeadCategory: row.LeadCategory,
+      LeadType: row.LeadType,
+      count: row.cnt,
+      synced_at: new Date().toISOString(),
+    }));
 
   // Truncate and reload
   await supabase.from("ms_lead_list_counts").delete().neq("id", "00000000-0000-0000-0000-000000000000");
