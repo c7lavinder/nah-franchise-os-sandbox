@@ -13,9 +13,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:prod-env": "sh -c 'set -a; . .vercel/.env.production.local; set +a; next build'",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
+    "env:check": "tsx scripts/check-env.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "husky",

@@ -24,8 +24,19 @@ git clone https://github.com/c7lavinder/nah-franchise-os-sandbox.git
 cd nah-franchise-os-sandbox
 npm install
 cp .env.local.example .env.local   # Fill in real values (get from 1Password)
+npm run env:check                   # Verify required env names without printing secrets
 npm run dev                         # http://localhost:3000
 ```
+
+For production-like validation, pull Vercel env and run the explicit production-env build:
+
+```bash
+vercel pull --yes --environment=production
+npm run type-check
+npm run build:prod-env
+```
+
+See `docs/build-deploy-runbook.md` for the deploy/smoke-test path.
 
 ---
 
@@ -62,7 +73,9 @@ All 216 API routes are protected. See `docs/security.md` for full details.
 4. `docs/system-shape.md` — architecture overview
 5. `docs/security.md` — auth model, data handling
 6. `docs/scout.md` + `docs/scout-tools.md` — Scout AI behavior
-7. `docs/runbook.md` — when things break
+7. `docs/build-deploy-runbook.md` — build/deploy/smoke-test workflow
+8. `docs/repo-db-cleanup-plan.md` — cleanup priorities for faster future builds
+9. `docs/runbook.md` — when things break
 
 ---
 
