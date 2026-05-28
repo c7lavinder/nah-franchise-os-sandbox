@@ -52,9 +52,10 @@ This backlog turns the cleanup plan into execution-sized tasks. Keep changes sma
    - Ensure sync routes only orchestrate; transformation/mapping lives under `lib/mastersuite`.
    - Add per-sync docs for source tables and destination tables.
 
-15. **Lint debt burn-down**
-   - Run lint, snapshot current errors, group by category.
-   - Fix in batches without blocking urgent production deploys.
+15. **Lint debt snapshot** — done
+   - `npm run lint` passes with warnings only.
+   - Snapshot captured in `docs/lint-debt-snapshot.md`.
+   - Burn down warnings in small batches without blocking urgent production deploys.
 
 ## Backburner
 
