@@ -12,11 +12,12 @@
 - [ ] chore (tooling, deps, etc.)
 
 ## Pre-merge checklist
-- [ ] `npx tsc --noEmit` passes
-- [ ] `npm test` passes
-- [ ] `npm run lint` passes
-- [ ] Manual smoke test of affected pages
-- [ ] If schema changed: types regenerated
+- [ ] `npm run type-check` passes
+- [ ] `npm run test:cleanup` passes when Scout/calls/search/MasterSuite sync behavior changed
+- [ ] `npm test` passes when practical
+- [ ] `npm run lint` passes or warning-only debt is documented
+- [ ] `npm run smoke:prod` passes after deploy for production-affecting changes
+- [ ] If schema changed: migration applied and `types/supabase.ts` regenerated
 - [ ] If architectural decision: ADR added or referenced
 - [ ] Updated docs/master-plan.md if state changed
 

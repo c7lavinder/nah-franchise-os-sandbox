@@ -17,8 +17,10 @@ jobs:
           cache: "npm"
       - run: npm ci
       - name: Type check
-        run: npx tsc --noEmit
+        run: npm run type-check
+      - name: Cleanup-critical tests
+        run: npm run test:cleanup
       - name: Lint
         run: npm run lint
-      - name: Test
+      - name: Test suite
         run: npm test

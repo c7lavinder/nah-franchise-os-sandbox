@@ -7,7 +7,7 @@ Captured: 2026-05-28
 Run targeted cleanup tests:
 
 ```bash
-npm run test -- lib/calls/upload-mapping.test.ts lib/contacts/search-planner.test.ts lib/mastersuite/health.test.ts
+npm run test:cleanup
 ```
 
 Run repo safety checks:
