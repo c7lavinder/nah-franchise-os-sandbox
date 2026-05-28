@@ -29,10 +29,12 @@ vercel --prod --yes
 After deploy, smoke test the app base path:
 
 ```bash
+npm run smoke:prod
+# or manually:
 curl -I -L https://nah-franchise-os-sandbox.vercel.app/frandev/pipeline
 ```
 
-Expected: `HTTP/2 200` and `x-matched-path: /pipeline`.
+Expected for the manual check: `HTTP/2 200` and `x-matched-path: /pipeline`.
 
 ## Current production ownership
 
