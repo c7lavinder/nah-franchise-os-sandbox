@@ -10,15 +10,15 @@ Purpose: keep Supabase schema, migrations, generated types, and application code
 
 ## Current state
 
-`types/supabase.ts` says it was generated on `2026-04-30`. The app has continued changing since then, so type drift is likely.
+The local Supabase CLI project is linked to project ref `llnrvophuvrqcqducgrr`.
 
-The local Supabase CLI project is not linked in this clone. That means commands like:
+`types/supabase.ts` was regenerated from production on `2026-05-28` and `npm run type-check` passes against the refreshed types.
+
+Commands like this now have the required project link available:
 
 ```bash
 npx supabase db query --linked -f supabase/migrations/file.sql
 ```
-
-currently fail with `Cannot find project ref` until the project is linked/documented.
 
 ## Safe workflow for schema changes
 
@@ -45,11 +45,10 @@ npm run smoke:prod
 
 `npm run db:drift` is a read-only drift reporter intended to compare production `information_schema` to `types/supabase.ts`.
 
-It requires a SQL execution RPC (`exec_sql`) or a future replacement using Supabase CLI/project-ref. If the RPC is unavailable, the script exits with instructions instead of guessing.
+It currently requires a SQL execution RPC (`exec_sql`). Since that RPC is not installed, the script reports that limitation and skips non-blocking unless `DB_DRIFT_STRICT=true` is set. The primary safe drift-control path today is regenerating `types/supabase.ts` from the linked project and running `npm run type-check`.
 
 ## Cleanup TODO
 
-- Link this repo to the correct Supabase project or document the exact project ref in a non-secret config.
-- Regenerate `types/supabase.ts` from production.
-- Capture and burn down type drift in small domain batches.
+- Decide whether to add a safe admin-only `exec_sql` RPC for drift reports or replace `npm run db:drift` with a CLI-only comparison.
 - Add DB smoke checks for contact search, journey lookup, call participant mapping, KB retrieval, and MasterSuite sync counts.
+- Capture and burn down future type drift in small domain batches whenever regenerated types surface issues.

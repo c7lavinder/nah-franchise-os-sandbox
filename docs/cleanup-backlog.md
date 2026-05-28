@@ -10,17 +10,19 @@ This backlog turns the cleanup plan into execution-sized tasks. Keep changes sma
 4. **Domain ownership map** — done via `docs/domain-map.md`.
 5. **DB workflow doc/drift scaffold** — done via `docs/db-schema-workflow.md` and `npm run db:drift`.
 
+## Completed DB workflow cleanup
+
+6. **Supabase project linking** — done
+   - Project ref: `llnrvophuvrqcqducgrr`.
+   - Local CLI link completed.
+   - Acceptance: type generation works from this repo.
+
+7. **Regenerate Supabase types** — done
+   - `types/supabase.ts` regenerated from production on 2026-05-28.
+   - `npm run type-check` passes against refreshed types.
+   - Future type fallout should be captured as domain-specific tasks instead of mixed with feature work.
+
 ## Next cleanup batch
-
-6. **Supabase project linking**
-   - Identify the correct Supabase project ref.
-   - Link local CLI or document exact `--project-id` workflow.
-   - Acceptance: migration apply + type generation path works from this repo.
-
-7. **Regenerate Supabase types**
-   - Generate `types/supabase.ts` from production.
-   - Run `npm run type-check`.
-   - Capture type fallout as domain-specific tasks instead of mixing with feature work.
 
 8. **Call upload fixture test**
    - Fixture: transcript + selected prospect.
