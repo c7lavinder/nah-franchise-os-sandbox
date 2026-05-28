@@ -45,10 +45,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(USER_KEY);
   }, []);
 
-  /** Restore user from localStorage on mount */
+  /**
+   * Restore auth on mount.
+   *
+   * We first hydrate from localStorage for a fast paint, then ask the server
+   * whether an httpOnly MasterSuite JWT cookie is already present. This allows
+   * production SSO: a user who logged in through MasterSuite can enter FranDev
+   * without using FranDev's local login form.
+   */
   useEffect(() => {
-    const storedUser = localStorage.getItem(USER_KEY);
+    let cancelled = false;
 
+    const storedUser = localStorage.getItem(USER_KEY);
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser) as SessionUser;
@@ -57,7 +65,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearAuth();
       }
     }
-    setLoading(false);
+
+    async function restoreFromServerCookie() {
+      try {
+        const response = await fetch(`${BASE_PATH}/api/auth/me`, { credentials: "include" });
+        if (!response.ok) {
+          if (!cancelled && !storedUser) clearAuth();
+          return;
+        }
+
+        const data = (await response.json()) as { user?: SessionUser };
+        if (!cancelled && data.user) {
+          localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+          setUser(data.user);
+        }
+      } catch {
+        // Network/auth restore failures should not crash the shell.
+        if (!cancelled && !storedUser) clearAuth();
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    restoreFromServerCookie();
+
+    return () => {
+      cancelled = true;
+    };
   }, [clearAuth]);
 
   /** Log in with email and password */

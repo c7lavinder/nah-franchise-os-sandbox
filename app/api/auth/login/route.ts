@@ -32,7 +32,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Authentication service is not configured" }, { status: 500 });
     }
 
-    const loginUrl = new URL("/auth/login", apiUrl).toString();
+    let loginUrl: string;
+    try {
+      loginUrl = new URL("/auth/login", apiUrl).toString();
+    } catch {
+      console.error("Invalid MASTERSUITE_API_URL", { apiUrl });
+      return NextResponse.json({ error: "Authentication service URL is invalid" }, { status: 500 });
+    }
     const authResponse = await fetch(loginUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
