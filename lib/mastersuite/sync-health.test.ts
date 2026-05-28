@@ -46,4 +46,14 @@ describe("summarizeSyncHealth", () => {
     expect(summary.syncJobs.find((job) => job.jobName === "sync-ms-prospects")?.status).toBe("failed");
     expect(summary.syncJobs.find((job) => job.jobName === "sync-ms-prospects")?.error).toBe("MySQL unreachable");
   });
+
+  it("keeps current health healthy when older 24h failures have been followed by latest successes", () => {
+    const rows = SYNC_JOBS.flatMap((job) => [row(job, "success", 20), row(job, "failed", 40, "older failure")]);
+
+    const summary = summarizeSyncHealth(rows, now);
+
+    expect(summary.status).toBe("healthy");
+    expect(summary.cronFailures24h).toBe(SYNC_JOBS.length);
+    expect(summary.syncJobs.every((job) => job.status === "success")).toBe(true);
+  });
 });

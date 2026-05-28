@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
   await supabase.from("cron_job_log").insert({
     job_name: "refresh-ghl-token",
     status: "success",
-    metadata: { expires_at: expiresAt },
+    result: { expires_at: expiresAt },
   });
 
   console.log("[cron/refresh-ghl-token] Refreshed, expires at:", expiresAt);

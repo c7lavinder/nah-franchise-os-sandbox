@@ -104,8 +104,7 @@ export function summarizeSyncHealth(rows: CronJobLogRow[], now = new Date()): Sy
 
   const criticalJobs = syncJobs.filter((job) => job.status === "failed").length;
   const degradedJobs = syncJobs.filter((job) => job.status === "running" || job.status === "stale" || job.status === "no_data").length;
-  const status: SyncHealthStatus =
-    criticalJobs > 0 || cronFailures24h >= 3 ? "critical" : cronFailures24h > 0 || degradedJobs > 0 ? "degraded" : "healthy";
+  const status: SyncHealthStatus = criticalJobs > 0 ? "critical" : degradedJobs > 0 ? "degraded" : "healthy";
 
   return { status, cronFailures24h, syncJobs };
 }
