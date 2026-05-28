@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
+import { buildContactSearchPlan, mergeLimitedIds } from "@/lib/contacts/search-planner";
 import { createServerClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
@@ -16,43 +17,49 @@ export async function GET(request: NextRequest) {
     const _auth = await requireAuth(request);
     if (_auth instanceof Response) return _auth;
   }
-  const q = request.nextUrl.searchParams.get("q")?.trim().toLowerCase() ?? "";
-  if (q.length < 2) {
+  const plan = buildContactSearchPlan(request.nextUrl.searchParams.get("q"));
+  if (plan.kind === "empty") {
     return NextResponse.json({ contacts: [] });
   }
 
   const supabase = createServerClient();
 
-  const words = q.split(/\s+/).filter(Boolean);
   let ids: string[] = [];
 
-  if (words.length >= 2) {
-    const [first, ...rest] = words;
-    const last = rest.join(" ");
+  if (plan.forwardName) {
     const { data } = await supabase
       .from("contacts")
       .select("id")
-      .ilike("first_name", `%${first}%`)
-      .ilike("last_name", `%${last}%`)
-      .limit(20);
+      .ilike("first_name", `%${plan.forwardName.first}%`)
+      .ilike("last_name", `%${plan.forwardName.last}%`)
+      .limit(plan.limit);
     ids = (data ?? []).map((c) => c.id);
   }
 
-  if (ids.length < 20) {
+  if (ids.length === 0 && plan.reversedName) {
     const { data } = await supabase
       .from("contacts")
       .select("id")
-      .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`)
-      .limit(20);
-    const idSet = new Set([...ids, ...(data ?? []).map((c) => c.id)]);
-    ids = [...idSet].slice(0, 20);
+      .ilike("first_name", `%${plan.reversedName.first}%`)
+      .ilike("last_name", `%${plan.reversedName.last}%`)
+      .limit(plan.limit);
+    ids = (data ?? []).map((c) => c.id);
+  }
+
+  if (ids.length < plan.limit) {
+    const { data } = await supabase
+      .from("contacts")
+      .select("id")
+      .or(`first_name.ilike.%${plan.query}%,last_name.ilike.%${plan.query}%,email.ilike.%${plan.query}%,phone.ilike.%${plan.query}%`)
+      .limit(plan.limit);
+    ids = mergeLimitedIds(plan.limit, ids, (data ?? []).map((c) => c.id));
   }
 
   if (ids.length === 0) {
     const { data: fuzzy } = await supabase.rpc("search_contacts_fuzzy", {
-      search_query: q,
-      max_results: 20,
-      similarity_threshold: 0.18,
+      search_query: plan.query,
+      max_results: plan.limit,
+      similarity_threshold: plan.fuzzyThreshold,
     });
     ids = (fuzzy ?? []).map((c: { id: string }) => c.id);
   }
