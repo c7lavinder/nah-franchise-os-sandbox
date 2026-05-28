@@ -56,4 +56,13 @@ describe("summarizeSyncHealth", () => {
     expect(summary.cronFailures24h).toBe(SYNC_JOBS.length);
     expect(summary.syncJobs.every((job) => job.status === "success")).toBe(true);
   });
+
+  it("does not degrade MasterSuite health when only optional GHL token history is missing", () => {
+    const rows = SYNC_JOBS.filter((job) => job !== "refresh-ghl-token").map((job) => row(job, "success", 20));
+
+    const summary = summarizeSyncHealth(rows, now);
+
+    expect(summary.status).toBe("healthy");
+    expect(summary.syncJobs.find((job) => job.jobName === "refresh-ghl-token")?.status).toBe("no_data");
+  });
 });
