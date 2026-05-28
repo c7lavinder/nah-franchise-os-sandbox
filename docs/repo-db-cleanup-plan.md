@@ -35,7 +35,7 @@ Recent fixes were small at the product level but slow operationally because code
 6. Regenerate `types/supabase.ts` from production and track current type errors separately from feature work. — done
 7. Create a schema ownership map: contacts, journeys, calls, call participants, knowledge docs, MasterSuite mirrors. — done in `docs/domain-map.md` and `docs/mastersuite-sync-boundaries.md`
 8. Add a read-only drift checker that compares generated Supabase types to checked-in `types/supabase.ts`. — done via `npm run db:drift`
-9. Add DB smoke scripts for: contact search, journey lookup, call participant mapping, KB retrieval, MasterSuite sync counts. — remaining enhancement
+9. Add DB smoke scripts for: contact search, journey lookup, call participant mapping, KB retrieval, MasterSuite sync counts. — done via `npm run db:smoke`
 
 ### 3. Domain boundaries
 

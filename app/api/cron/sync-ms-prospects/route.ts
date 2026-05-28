@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     50_000,
     () => syncProspects(since),
     (result) => ({
-      status: "completed",
+      status: "success",
       result: { created: result.created, wired: result.wired, skipped: result.skipped, errors: result.errors },
       error: result.errors.length > 0 ? result.errors[0] : null,
     })

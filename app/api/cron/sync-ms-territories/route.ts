@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       }
 
       return {
-        status: result.errors.length === 0 ? "completed" : "completed_with_errors",
+        status: result.errors.length === 0 ? "success" : "failed",
         result: { synced: result.synced, errors: result.errors },
         error: result.errors.length > 0 ? result.errors[0] : null,
       };

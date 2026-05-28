@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     .from("cron_job_log")
     .select("finished_at")
     .eq("job_name", "sync-ms-properties")
-    .eq("status", "completed")
+    .eq("status", "success")
     .order("finished_at", { ascending: false })
     .limit(1)
     .single();
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     280_000, // 280s timeout (under 300s maxDuration)
     () => syncProperties(since),
     (result) => ({
-      status: result.errors.length === 0 ? "completed" : "completed_with_errors",
+      status: result.errors.length === 0 ? "success" : "failed",
       result: { synced: result.synced, errorCount: result.errors.length, errors: result.errors.slice(0, 10), since },
       error: result.errors.length > 0 ? result.errors[0] : null,
     })

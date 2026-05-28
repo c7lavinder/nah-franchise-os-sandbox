@@ -8,10 +8,10 @@ Purpose: make local validation and production deploys boring. This repo has seve
 # 1) Pull production env when validating a production build locally
 vercel pull --yes --environment=production
 
-# 2) Fast checks: env, type-check, DB drift scaffold
+# 2) Fast checks: env, type-check, DB drift
 npm run check
 
-# 3) Full release check: fast checks + production-env build + production smoke
+# 3) Full release check: fast checks + read-only DB smoke + production-env build + production smoke
 npm run release:check
 ```
 
@@ -21,6 +21,7 @@ Equivalent manual breakdown:
 npm run env:check
 npm run type-check
 npm run db:drift
+npm run db:smoke
 npm run build:prod-env
 npm run smoke:prod
 ```
@@ -62,6 +63,9 @@ Run `npm run env:check` for the canonical list. The groups are:
 
 The checker prints missing keys only and never prints secret values.
 
-## Known rough edge
+## DB safety checks
 
-Supabase CLI is not currently linked for this local clone, so `npx supabase db query --linked ...` fails with `Cannot find project ref`. Until the repo cleanup closes that gap, apply one-off KB/data changes through a controlled service-role script or link the project explicitly.
+- `npm run db:drift` regenerates Supabase types from the linked project and compares them to `types/supabase.ts`.
+- `npm run db:smoke` runs read-only Supabase checks for contact search, journey lookup, call participant mapping, active KB docs, and MasterSuite sync history.
+
+The local Supabase CLI is linked to project ref `llnrvophuvrqcqducgrr`.

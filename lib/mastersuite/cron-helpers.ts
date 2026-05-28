@@ -13,7 +13,7 @@ export async function withCronLogging<T>(
   jobName: string,
   timeoutMs: number,
   syncFn: () => Promise<T>,
-  formatResult: (result: T) => { status: string; result: Record<string, unknown>; error: string | null }
+  formatResult: (result: T) => { status: "success" | "failed"; result: Record<string, unknown>; error: string | null }
 ): Promise<NextResponse> {
   const supabase = createServerClient();
 

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     110_000,
     () => syncAllEos(),
     ({ results, totalErrors }) => ({
-      status: totalErrors > 0 ? "completed_with_errors" : "completed",
+      status: totalErrors > 0 ? "failed" : "success",
       result: results as unknown as Record<string, unknown>,
       error: totalErrors > 0 ? `${totalErrors} errors across sync functions` : null,
     })

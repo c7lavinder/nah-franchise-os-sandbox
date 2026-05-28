@@ -36,6 +36,10 @@ This backlog turns the cleanup plan into execution-sized tasks. Keep changes sma
    - `lib/mastersuite/health.test.ts` covers required env checks without running heavy sync.
    - `lib/mastersuite/health.ts` provides reusable non-heavy health helpers.
 
+16. **Read-only DB smoke checks** — done
+   - `scripts/db-smoke.ts` checks contact search, journey lookup, call participant mapping, active KB docs, and MasterSuite sync history.
+   - `npm run db:smoke` is wired into `npm run release:check`.
+
 ## Medium refactors
 
 11. **Typed env module**
@@ -60,6 +64,6 @@ This backlog turns the cleanup plan into execution-sized tasks. Keep changes sma
 
 ## Backburner
 
-16. **`mastersuiteapp.com/frandev` proxy/deploy map**
+17. **`mastersuiteapp.com/frandev` proxy/deploy map**
    - Parked because original URL/login works and Ben is not needed for normal FranDev builds.
    - Revisit only when the domain/proxy becomes a product requirement.

@@ -54,7 +54,19 @@ DB drift check passed. types/supabase.ts matches project llnrvophuvrqcqducgrr.
 
 If drift is detected, regenerate `types/supabase.ts`, run `npm run type-check`, and commit the type update with the migration/schema change.
 
+## DB smoke tooling
+
+`npm run db:smoke` runs read-only checks against the current Supabase project for:
+
+- contact search base table
+- journey pipeline lookup table
+- call participant mapping table
+- active knowledge documents
+- MasterSuite/GHL sync history in `cron_job_log`
+
+The command is included in `npm run release:check` so schema contracts are checked before production builds/deploys.
+
 ## Remaining DB cleanup opportunities
 
-- Add DB smoke checks for contact search, journey lookup, call participant mapping, KB retrieval, and MasterSuite sync counts.
+- Add deeper DB smoke assertions for representative seeded records when stable fixtures exist.
 - Capture and burn down future type drift in small domain batches whenever regenerated types surface issues.
