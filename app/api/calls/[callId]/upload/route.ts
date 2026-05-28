@@ -36,7 +36,8 @@ async function resolveFromTranscript(
   supabase: ReturnType<typeof createServerClient>,
   callId: string,
   transcript: string,
-  hostedByUserId: string | null
+  hostedByUserId: string | null,
+  selectedContactId: string | null
 ) {
   const meta = extractSpeakers(transcript);
   if (meta.participantSignals.length === 0) return;
@@ -59,6 +60,42 @@ async function resolveFromTranscript(
     },
     resolverDb
   );
+
+  // Manual prospect selection wins as explicit user context. Speaker extraction
+  // is often imperfect on pasted transcripts; if the uploader selected a
+  // prospect/journey, keep that mapping even when speaker names are vague or
+  // misspelled.
+  if (selectedContactId && !match.contact_id) {
+    const journey = await resolverDb.getActiveJourneyForContact(selectedContactId, null);
+    match.contact_id = selectedContactId;
+    match.journey_id = journey?.journey_id ?? null;
+    match.journey_pipeline_state_id = journey?.journey_pipeline_state_id ?? null;
+    match.confidence = Math.max(match.confidence, 1);
+    match.reason = "manually selected by uploader";
+  }
+
+  if (selectedContactId && !match.participants.some((p) => p.contact_id === selectedContactId)) {
+    const { data: selected } = await supabase
+      .from("contacts")
+      .select("id, ghl_contact_id, first_name, last_name, email")
+      .eq("id", selectedContactId)
+      .maybeSingle();
+    if (selected) {
+      match.participants.push({
+        contact_id: selected.id,
+        user_id: null,
+        role: "prospect",
+        display_name: `${selected.first_name ?? ""} ${selected.last_name ?? ""}`.trim() || selected.email || "Selected prospect",
+        email: selected.email ?? null,
+        phone: null,
+        contact_ghl_id: selected.ghl_contact_id ?? null,
+        TerritorySlug: match.TerritorySlug,
+        journey_id: match.journey_id,
+        journey_pipeline_state_id: match.journey_pipeline_state_id,
+        match_method: "name",
+      });
+    }
+  }
 
   // Build the update payload — only set fields if resolver found something
   const updates: Record<string, unknown> = {};
@@ -115,12 +152,21 @@ async function resolveFromTranscript(
   // Insert call_participants rows
   const { data: existingParticipants } = await supabase
     .from("call_participants")
-    .select("display_name")
+    .select("display_name, user_id, contact_id")
     .eq("call_id", callId);
-  const existingNames = new Set((existingParticipants ?? []).map((p) => p.display_name?.toLowerCase()));
+  const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const existingKeys = new Set(
+    (existingParticipants ?? []).map((p) => p.user_id || p.contact_id || normalizeName(p.display_name ?? ""))
+  );
+  const seenKeys = new Set(existingKeys);
 
   const newParticipants = match.participants
-    .filter((p) => !existingNames.has(p.display_name.toLowerCase()))
+    .filter((p) => {
+      const key = p.user_id || p.contact_id || normalizeName(p.display_name);
+      if (!key || seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    })
     .map((p) => ({
       call_id: callId,
       user_id: p.user_id,
@@ -183,7 +229,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       await supabase.from("calls").update({ raw_transcript: text.trim(), status: "completed" }).eq("id", callId);
 
       // Extract speakers and resolve participants
-      await resolveFromTranscript(supabase, callId, text.trim(), call.hosted_by_user_id).catch((err) => {
+      await resolveFromTranscript(supabase, callId, text.trim(), call.hosted_by_user_id, call.contact_id).catch((err) => {
         console.error(`[upload] speaker resolution failed for call ${callId}:`, err);
       });
 
@@ -271,7 +317,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       // If we got a transcript, resolve speakers
       if (whisperText) {
-        await resolveFromTranscript(supabase, callId, whisperText, call.hosted_by_user_id).catch((err) => {
+        await resolveFromTranscript(supabase, callId, whisperText, call.hosted_by_user_id, call.contact_id).catch((err) => {
           console.error(`[upload] speaker resolution failed for call ${callId}:`, err);
         });
       }

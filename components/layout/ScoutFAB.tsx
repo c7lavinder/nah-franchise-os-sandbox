@@ -59,9 +59,10 @@ export default function ScoutFAB() {
     setThinking(true);
 
     try {
-      const res = await apiFetch("/api/scout/chat", {
+      const res = await fetch("/frandev/api/scout/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           message: trimmed,
           sessionId,

@@ -301,6 +301,19 @@ async function executeSearchContacts(input: Record<string, unknown>): Promise<To
       data = result.data;
       error = result.error;
 
+      // Also try reversed names, because users often ask “Patel Chintan” or
+      // paste names from exports with last name first.
+      if (!data?.length) {
+        const reversed = await supabase
+          .from("contacts")
+          .select(select)
+          .ilike("first_name", `%${words.slice(1).join(" ")}%`)
+          .ilike("last_name", `%${words[0]}%`)
+          .limit(limit);
+        data = reversed.data;
+        error = reversed.error;
+      }
+
       // If no results, fall back to OR search on each word
       if (!data?.length) {
         const orFilters = words
@@ -334,7 +347,10 @@ async function executeSearchContacts(input: Record<string, unknown>): Promise<To
         similarity_threshold: 0.2,
       });
       if (!fuzzy.error && fuzzy.data?.length) {
-        data = fuzzy.data;
+        const ids = fuzzy.data.map((c: any) => c.id);
+        const details = await supabase.from("contacts").select(select).in("id", ids);
+        const byId = new Map((details.data ?? []).map((c: any) => [c.id, c]));
+        data = fuzzy.data.map((c: any) => ({ ...(byId.get(c.id) ?? c), similarity_score: c.similarity_score }));
       }
     }
 

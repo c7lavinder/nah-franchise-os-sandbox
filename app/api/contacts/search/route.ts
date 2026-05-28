@@ -49,6 +49,15 @@ export async function GET(request: NextRequest) {
   }
 
   if (ids.length === 0) {
+    const { data: fuzzy } = await supabase.rpc("search_contacts_fuzzy", {
+      search_query: q,
+      max_results: 20,
+      similarity_threshold: 0.18,
+    });
+    ids = (fuzzy ?? []).map((c: { id: string }) => c.id);
+  }
+
+  if (ids.length === 0) {
     return NextResponse.json({ contacts: [] });
   }
 

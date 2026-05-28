@@ -3,7 +3,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 import { BASE_PATH } from "@/lib/base-path";
 
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, X, Loader2, Phone, Monitor, AlertTriangle, Upload } from "lucide-react";
+import { RefreshCw, X, Loader2, Phone, Monitor, AlertTriangle, Upload, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
 
@@ -42,6 +42,13 @@ function getBadCallReasons(c: Call): string[] {
 interface UserOption {
   id: string;
   full_name: string;
+}
+
+interface ContactOption {
+  id: string;
+  name: string;
+  email: string | null;
+  contactType?: string;
 }
 
 type TimeFilter = "week" | "month" | "all";
@@ -361,6 +368,10 @@ export default function CallsPage() {
   const [pastedTranscript, setPastedTranscript] = useState("");
   const [uploadDate, setUploadDate] = useState("");
   const [uploadHostedBy, setUploadHostedBy] = useState("");
+  const [prospectQuery, setProspectQuery] = useState("");
+  const [prospectResults, setProspectResults] = useState<ContactOption[]>([]);
+  const [selectedProspect, setSelectedProspect] = useState<ContactOption | null>(null);
+  const [prospectSearching, setProspectSearching] = useState(false);
   const [manualSaving, setManualSaving] = useState(false);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [uploadDragOver, setUploadDragOver] = useState(false);
@@ -443,6 +454,24 @@ export default function CallsPage() {
       .catch(() => {});
   }, [uploadExpanded]);
 
+  useEffect(() => {
+    if (!uploadExpanded || selectedProspect || prospectQuery.trim().length < 2) {
+      setProspectResults([]);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setProspectSearching(true);
+      apiFetch(`/api/contacts/search?q=${encodeURIComponent(prospectQuery)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => setProspectResults(data?.contacts ?? []))
+        .catch(() => setProspectResults([]))
+        .finally(() => setProspectSearching(false));
+    }, 250);
+
+    return () => clearTimeout(timeout);
+  }, [uploadExpanded, prospectQuery, selectedProspect]);
+
   async function handleUploadSubmit() {
     if (!uploadFile && !pastedTranscript.trim()) return;
     setManualSaving(true);
@@ -454,6 +483,7 @@ export default function CallsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
+          contact_id: selectedProspect?.id || undefined,
           hosted_by_user_id: uploadHostedBy || undefined,
           started_at: uploadDate || undefined,
         }),
@@ -482,6 +512,9 @@ export default function CallsPage() {
       setPastedTranscript("");
       setUploadDate("");
       setUploadHostedBy("");
+      setProspectQuery("");
+      setProspectResults([]);
+      setSelectedProspect(null);
       router.push(`/calls/${callId}`);
 
       // 4. Fire AI processing after navigation — use fetch() directly so
@@ -491,9 +524,11 @@ export default function CallsPage() {
         method: "POST",
         credentials: "include",
       }).catch(() => {});
-      fetch(`${base}/api/calls/${callId}/generate`, {
+      fetch(`${base}/api/calls/${callId}/generate?force=true`, {
         method: "POST",
         credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: true }),
       }).catch(() => {});
     } catch {
       /* ignore */
@@ -575,6 +610,9 @@ export default function CallsPage() {
                   setUploadExpanded(false);
                   setUploadFile(null);
                   setPastedTranscript("");
+                  setProspectQuery("");
+                  setProspectResults([]);
+                  setSelectedProspect(null);
                 }}
                 className="btn-ghost p-1"
               >
@@ -671,8 +709,70 @@ export default function CallsPage() {
               </div>
             </div>
 
+            {/* Prospect / journey mapping */}
+            <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+              <label className="block text-caption text-text-tertiary mb-1">Related prospect / journey</label>
+              {selectedProspect ? (
+                <div className="flex items-center justify-between gap-2 bg-bg-primary border border-border-default rounded-md px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-body-sm text-text-primary font-medium truncate">{selectedProspect.name}</p>
+                    <p className="text-caption text-text-tertiary truncate">
+                      {selectedProspect.contactType ?? "Prospect"}{selectedProspect.email ? ` · ${selectedProspect.email}` : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedProspect(null);
+                      setProspectQuery("");
+                    }}
+                    className="text-text-tertiary hover:text-danger flex-shrink-0"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-2.5 text-text-tertiary" />
+                  <input
+                    value={prospectQuery}
+                    onChange={(e) => setProspectQuery(e.target.value)}
+                    placeholder="Search prospect by name, email, or phone..."
+                    className="w-full bg-bg-primary border border-border-default rounded-md pl-9 pr-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary"
+                  />
+                  {(prospectSearching || prospectResults.length > 0) && (
+                    <div className="absolute z-20 mt-1 w-full bg-white border border-border-default rounded-md shadow-lg max-h-56 overflow-y-auto">
+                      {prospectSearching ? (
+                        <div className="px-3 py-2 text-caption text-text-tertiary flex items-center gap-2">
+                          <Loader2 size={12} className="animate-spin" /> Searching...
+                        </div>
+                      ) : (
+                        prospectResults.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedProspect(p);
+                              setProspectQuery(p.name);
+                              setProspectResults([]);
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-bg-hover"
+                          >
+                            <p className="text-body-sm text-text-primary font-medium">{p.name}</p>
+                            <p className="text-caption text-text-tertiary">
+                              {p.contactType ?? "Prospect"}{p.email ? ` · ${p.email}` : ""}
+                            </p>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <p className="text-caption text-text-tertiary mt-3">
-              AI will determine: title, call type, contact match, and coaching analysis.
+              AI will determine title and call type. Selecting a prospect gives the AI the right journey context before it analyzes the transcript.
             </p>
 
             <div className="flex items-center gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
@@ -688,6 +788,9 @@ export default function CallsPage() {
                   setUploadExpanded(false);
                   setUploadFile(null);
                   setPastedTranscript("");
+                  setProspectQuery("");
+                  setProspectResults([]);
+                  setSelectedProspect(null);
                 }}
                 className="btn-ghost px-3 py-2 text-body-sm"
               >
