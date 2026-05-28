@@ -13,8 +13,17 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getPipelinesFromSupabase } from "@/lib/pipelines/queries";
 
 type DashboardPeriod = "week" | "month" | "quarter" | "year";
+type HealthStatus = "healthy" | "degraded" | "critical";
 
 const VALID_PERIODS: ReadonlySet<string> = new Set<DashboardPeriod>(["week", "month", "quarter", "year"]);
+const SYNC_JOBS = [
+  "sync-ms-prospects",
+  "sync-ms-territories",
+  "sync-ms-properties",
+  "sync-ms-eos",
+  "sync-ms-lead-list",
+  "refresh-ghl-token",
+] as const;
 
 const PERIOD_DAYS: Record<DashboardPeriod, number> = {
   week: 7,
@@ -44,6 +53,17 @@ export async function GET(request: NextRequest) {
     // Pipelines + stages from Supabase
     const pipelines = await getPipelinesFromSupabase();
     const pipelineIds = pipelines.map((p) => p.id);
+
+    const [recentCronLogs, activeAlerts, pendingSuggestions] = await Promise.all([
+      supabase
+        .from("cron_job_log")
+        .select("job_name, status, error, started_at, finished_at")
+        .in("job_name", [...SYNC_JOBS])
+        .order("started_at", { ascending: false })
+        .limit(30),
+      supabase.from("inactivity_alerts").select("id", { count: "exact", head: true }).eq("is_resolved", false),
+      supabase.from("data_update_suggestions").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    ]);
 
     // Journey pipeline state — replaces GHL opportunities
     const { data: jpsRows } = await supabase
@@ -107,7 +127,39 @@ export async function GET(request: NextRequest) {
     const totalDeals = activeCount + completedCount;
     const conversionRate = totalDeals > 0 ? Math.round((completedCount / totalDeals) * 100) : 0;
 
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const cronRows = (recentCronLogs.data ?? []) as {
+      job_name: string;
+      status: string;
+      error: string | null;
+      started_at: string;
+      finished_at: string | null;
+    }[];
+    const cronFailures24h = cronRows.filter(
+      (log) => log.status !== "success" && new Date(log.started_at) > oneDayAgo
+    ).length;
+    const syncJobs = SYNC_JOBS.map((jobName) => {
+      const lastRun = cronRows.find((log) => log.job_name === jobName) ?? null;
+      return {
+        jobName,
+        label: jobName.replace("sync-ms-", "").replace("refresh-ghl-token", "GHL token").replace(/-/g, " "),
+        lastRunAt: lastRun?.started_at ?? null,
+        lastFinishedAt: lastRun?.finished_at ?? null,
+        status: lastRun?.status ?? "no_data",
+        error: lastRun?.error ?? null,
+      };
+    });
+    const failedSyncJobs = syncJobs.filter((job) => job.status === "failed").length;
+    const runningSyncJobs = syncJobs.filter((job) => job.status === "running").length;
+    const healthStatus: HealthStatus =
+      failedSyncJobs > 0 || cronFailures24h >= 3
+        ? "critical"
+        : cronFailures24h > 0 || runningSyncJobs > 0
+          ? "degraded"
+          : "healthy";
+
     return NextResponse.json({
+      generatedAt: new Date().toISOString(),
       kpis: {
         activeLeads: activeCount,
         won: completedCount,
@@ -124,6 +176,13 @@ export async function GET(request: NextRequest) {
         { name: "Unknown", count: unknownCount, color: "#737373" },
       ],
       period,
+      health: {
+        status: healthStatus,
+        cronFailures24h,
+        activeAlerts: activeAlerts.count ?? 0,
+        pendingSuggestions: pendingSuggestions.count ?? 0,
+        syncJobs,
+      },
     });
   } catch (err) {
     console.error("Dashboard fetch failed:", err);

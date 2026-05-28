@@ -2,10 +2,22 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/auth/api-fetch";
-import { Users, TrendingUp, Target, Award, BarChart3, Clock, Trophy, AlertTriangle } from "lucide-react";
+import {
+  Users,
+  TrendingUp,
+  Target,
+  Award,
+  BarChart3,
+  Clock,
+  Trophy,
+  AlertTriangle,
+  CheckCircle2,
+  RefreshCw,
+} from "lucide-react";
 
 /** Dashboard data shape from /api/dashboard */
 interface DashboardData {
+  generatedAt?: string;
   kpis: {
     activeLeads: number;
     won: number;
@@ -16,6 +28,20 @@ interface DashboardData {
   funnel: { pipelineName: string; stageName: string; count: number; avgDays: number }[];
   sources: { name: string; count: number; color: string }[];
   period: string;
+  health?: {
+    status: "healthy" | "degraded" | "critical";
+    cronFailures24h: number;
+    activeAlerts: number;
+    pendingSuggestions: number;
+    syncJobs: {
+      jobName: string;
+      label: string;
+      lastRunAt: string | null;
+      lastFinishedAt: string | null;
+      status: string;
+      error: string | null;
+    }[];
+  };
 }
 
 type Period = "week" | "month" | "quarter" | "year";
@@ -45,6 +71,85 @@ function KPICard({
       <div className="mt-3 flex items-end gap-1">
         <span className="text-3xl font-bold text-white">{value.toLocaleString()}</span>
         {suffix && <span className="mb-1 text-sm text-zinc-400">{suffix}</span>}
+      </div>
+    </div>
+  );
+}
+
+function formatRelativeTime(value: string | null) {
+  if (!value) return "Never";
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return "Unknown";
+  const diffMinutes = Math.max(0, Math.round((Date.now() - timestamp) / 60000));
+  if (diffMinutes < 1) return "Just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 48) return `${diffHours}h ago`;
+  return `${Math.round(diffHours / 24)}d ago`;
+}
+
+function statusTone(status: string) {
+  if (status === "healthy" || status === "success") return "border-green-800/60 bg-green-950/20 text-green-300";
+  if (status === "degraded" || status === "running") return "border-amber-800/60 bg-amber-950/20 text-amber-300";
+  return "border-red-800/60 bg-red-950/20 text-red-300";
+}
+
+function MissionControlCard({ health, generatedAt }: { health: DashboardData["health"]; generatedAt?: string }) {
+  if (!health) return null;
+  const Icon = health.status === "healthy" ? CheckCircle2 : AlertTriangle;
+  const failingJobs = health.syncJobs.filter((job) => job.status === "failed");
+
+  return (
+    <div className={`rounded-xl border p-5 ${statusTone(health.status)}`}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <Icon className="h-5 w-5" />
+            <h2 className="text-sm font-semibold text-white">Mission Control</h2>
+            <span className="rounded-full border border-current/30 px-2 py-0.5 text-xs capitalize">
+              {health.status}
+            </span>
+          </div>
+          <p className="mt-2 text-sm text-zinc-300">
+            Sync health, stack alerts, and reporting contracts last refreshed {formatRelativeTime(generatedAt ?? null)}.
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">
+          <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+            <div className="text-xl font-bold text-white">{health.cronFailures24h}</div>
+            <div className="text-xs text-zinc-400">cron failures</div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+            <div className="text-xl font-bold text-white">{health.activeAlerts}</div>
+            <div className="text-xs text-zinc-400">active alerts</div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+            <div className="text-xl font-bold text-white">{health.pendingSuggestions}</div>
+            <div className="text-xs text-zinc-400">suggestions</div>
+          </div>
+        </div>
+      </div>
+      {failingJobs.length > 0 && (
+        <div className="mt-4 rounded-lg border border-red-800/40 bg-red-950/20 p-3 text-sm text-red-200">
+          {failingJobs.length} sync job{failingJobs.length === 1 ? "" : "s"} failing:{" "}
+          {failingJobs.map((job) => job.label).join(", ")}
+        </div>
+      )}
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {health.syncJobs.map((job) => (
+          <div key={job.jobName} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm capitalize text-zinc-200">{job.label}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase ${statusTone(job.status)}`}>
+                {job.status}
+              </span>
+            </div>
+            <div className="mt-1 flex items-center gap-1 text-xs text-zinc-500">
+              <RefreshCw className="h-3 w-3" />
+              {formatRelativeTime(job.lastRunAt)}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -416,6 +521,8 @@ export default function DashboardPage() {
 
       {data && (
         <>
+          <MissionControlCard health={data.health} generatedAt={data.generatedAt} />
+
           {/* KPI cards */}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <KPICard
