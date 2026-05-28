@@ -49,9 +49,9 @@ This backlog turns the cleanup plan into execution-sized tasks. Keep changes sma
 13. **Scout domain split**
    - Separate prompt/context loading, tool schemas, tool execution, and client loop with clearer file names and tests.
 
-14. **MasterSuite sync boundary**
-   - Ensure sync routes only orchestrate; transformation/mapping lives under `lib/mastersuite`.
-   - Add per-sync docs for source tables and destination tables.
+14. **MasterSuite sync boundary** — done
+   - `docs/mastersuite-sync-boundaries.md` maps each MasterSuite sync entry point, source tables, destination tables, and idempotency/conflict key.
+   - Sync routes now have a documented boundary: authenticate/window/record metadata only; transformation and mapping stay under `lib/mastersuite`.
 
 15. **Lint debt snapshot** — done
    - `npm run lint` passes with warnings only.

@@ -80,8 +80,9 @@ All 216 API routes are protected. See `docs/security.md` for full details.
 11. `docs/db-schema-workflow.md` — DB/migration/type workflow
 12. `docs/cleanup-backlog.md` — cleanup tasks and acceptance notes
 13. `docs/lint-debt-snapshot.md` — current lint warning categories
-14. `docs/test-coverage-map.md` — current cleanup-critical tests
-15. `docs/runbook.md` — when things break
+14. `docs/mastersuite-sync-boundaries.md` — MasterSuite sync source/destination ownership map
+15. `docs/test-coverage-map.md` — current cleanup-critical tests
+16. `docs/runbook.md` — when things break
 
 ---
 
