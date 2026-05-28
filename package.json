@@ -27,7 +27,7 @@
     "check": "npm run env:check && npm run type-check && npm run db:drift",
     "release:check": "npm run check && npm run db:smoke && npm run build:prod-env && npm run smoke:prod",
     "test": "vitest run",
-    "test:cleanup": "vitest run lib/calls/upload-mapping.test.ts lib/contacts/search-planner.test.ts lib/mastersuite/health.test.ts lib/mastersuite/sync-health.test.ts",
+    "test:cleanup": "vitest run lib/calls/upload-mapping.test.ts lib/calls/upload-validation.test.ts lib/contacts/search-planner.test.ts lib/mastersuite/health.test.ts lib/mastersuite/sync-health.test.ts lib/mastersuite/cron-lock.test.ts tests/api/*.test.ts",
     "test:watch": "vitest",
     "prepare": "husky",
     "eval:retrieval": "npx tsx lib/rag/eval.ts"

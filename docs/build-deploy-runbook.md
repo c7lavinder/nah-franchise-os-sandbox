@@ -67,5 +67,6 @@ The checker prints missing keys only and never prints secret values.
 
 - `npm run db:drift` regenerates Supabase types from the linked project and compares them to `types/supabase.ts`.
 - `npm run db:smoke` runs read-only Supabase checks for contact search, journey lookup, call participant mapping, active KB docs, and MasterSuite sync history.
+- DB smoke fixture policy lives in `docs/db-smoke-fixtures.md`.
 
 The local Supabase CLI is linked to project ref `llnrvophuvrqcqducgrr`.

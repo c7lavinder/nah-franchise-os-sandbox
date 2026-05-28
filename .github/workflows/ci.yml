@@ -16,6 +16,20 @@ jobs:
           node-version: "20"
           cache: "npm"
       - run: npm ci
+      - name: Env contract check
+        run: npm run env:check
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          SUPABASE_SERVICE_KEY: ci-placeholder
+          NEXT_PUBLIC_BASE_PATH: /frandev
+          MASTERSUITE_API_JWT_SECRET: ci-placeholder
+          CRON_SECRET: ci-placeholder
+          ANTHROPIC_API_KEY: ci-placeholder
+          MASTERSUITE_DB_HOST: localhost
+          MASTERSUITE_DB_PORT: "3306"
+          MASTERSUITE_DB_USER: ci
+          MASTERSUITE_DB_PASSWORD: ci-placeholder
+          MASTERSUITE_DB_NAME: mastersuite
       - name: Type check
         run: npm run type-check
       - name: Cleanup-critical tests
@@ -24,3 +38,9 @@ jobs:
         run: npm run lint
       - name: Test suite
         run: npm test
+      - name: DB drift contract (secret-backed)
+        if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' }}
+        run: npm run db:drift
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: llnrvophuvrqcqducgrr

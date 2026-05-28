@@ -28,6 +28,7 @@ import { classifyCallType } from "@/lib/calls/classify-type";
 import { resolveCallTypeBySlug } from "@/lib/calls/resolve-call-type";
 import { transcribeAudio } from "@/lib/calls/whisper";
 import { applySelectedUploadContact, buildNewCallParticipants } from "@/lib/calls/upload-mapping";
+import { getUploadExtension, resolveUploadKind } from "@/lib/calls/upload-validation";
 
 /**
  * After a transcript is available, extract speakers, resolve participants,
@@ -164,11 +165,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const ext = getUploadExtension(file.name);
+  const uploadKind = resolveUploadKind(fileType, file.name);
 
   try {
     // ─── Transcript upload ────────────────────────────────────────────
-    if (fileType === "transcript" || ext === "txt") {
+    if (uploadKind === "transcript") {
       const text = await file.text();
       if (!text.trim()) return NextResponse.json({ error: "Empty transcript file" }, { status: 400 });
 
@@ -214,7 +216,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // ─── Audio/video recording upload ─────────────────────────────────
-    if (fileType === "recording" || ["mp4", "webm", "m4a", "mp3", "wav"].includes(ext)) {
+    if (uploadKind === "recording") {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const storagePath = `calls/${callId}/recording.${ext}`;

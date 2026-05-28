@@ -25,8 +25,8 @@ Recent fixes were small at the product level but slow operationally because code
 ### 1. Environment/build reliability
 
 1. Link or document Supabase project ref for this repo so migrations can be applied consistently.
-2. Convert scattered env expectations into a typed env module instead of reading `process.env` everywhere.
-3. Add CI step: `npm run env:check` with safe dummy/preview env plus `npm run type-check`.
+2. Convert scattered env expectations into a typed env module instead of reading `process.env` everywhere. — started/done for canonical env contract, checker, Supabase server, and MasterSuite client
+3. Add CI step: `npm run env:check` with safe dummy/preview env plus `npm run type-check`. — done
 4. Decide Node version and pin it (`.nvmrc` / `engines`) to avoid Node 20 vs 22/WebSocket surprises.
 5. Add a no-secret `.env.local.example` aligned with `scripts/check-env.ts` groups.
 
@@ -39,10 +39,10 @@ Recent fixes were small at the product level but slow operationally because code
 
 ### 3. Domain boundaries
 
-10. Move call upload/participant resolution/generation docs into one module guide; keep `lib/calls/*` as the canonical call intelligence domain.
-11. Split Scout into clear layers: prompt/context loading, tool definitions, tool execution, LLM client, UI routes.
-12. Document pipeline/journey source of truth and how call uploads should resolve prospect → journey → pipeline state.
-13. Keep MasterSuite sync under one domain boundary (`lib/mastersuite`, `scripts/run-ms-sync.ts`, cron routes) and avoid leaking DB details elsewhere.
+10. Move call upload/participant resolution/generation docs into one module guide; keep `lib/calls/*` as the canonical call intelligence domain. — started via upload mapping helper + route tests
+11. Split Scout into clear layers: prompt/context loading, tool definitions, tool execution, LLM client, UI routes. — documented boundary; deeper split remains incremental
+12. Document pipeline/journey source of truth and how call uploads should resolve prospect → journey → pipeline state. — done in domain docs and tests
+13. Keep MasterSuite sync under one domain boundary (`lib/mastersuite`, `scripts/run-ms-sync.ts`, cron routes) and avoid leaking DB details elsewhere. — done; sync health/locks now live in `lib/mastersuite`
 
 ### 4. Smoke tests and release safety
 
@@ -50,6 +50,7 @@ Recent fixes were small at the product level but slow operationally because code
 15. Add one call-upload fixture test for transcript + selected prospect mapping/deduping. — done
 16. Add one Scout/contact search fixture test for fuzzy/reordered names. — done
 17. Burn down lint warnings and keep lint clean. — done
+18. Add route-level API tests for contacts search, call upload validation, and admin sync-status. — done
 
 ### 5. Backburnered URL/proxy clarity
 

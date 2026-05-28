@@ -2,9 +2,9 @@
 
 This map is the first stop before editing FranDev. It shows where each major responsibility lives and which boundaries to respect.
 
-## Auth and base path
+## Auth, env, and base path
 
-**Owns:** login/session restore, MasterSuite JWT cookie, route protection, `/frandev` base path.
+**Owns:** login/session restore, MasterSuite JWT cookie, route protection, env contracts, `/frandev` base path.
 
 - `middleware.ts`, `src/middleware.ts` — route protection / redirects.
 - `lib/auth/session.ts` — server-side auth/session helpers.
@@ -13,6 +13,7 @@ This map is the first stop before editing FranDev. It shows where each major res
 - `lib/auth/AuthContext.tsx` — browser auth state and MasterSuite SSO restore.
 - `app/api/auth/*` — login, CRM callback, current user.
 - `lib/base-path.ts` — base path helpers.
+- `lib/env.ts` — typed env keys, required groups, and fail-fast env access.
 
 Rules:
 - Use `apiFetch` from client UI unless a route needs explicit `/frandev`/credentials handling.
@@ -48,6 +49,8 @@ Rules:
 - `app/api/calls/[callId]/upload/route.ts` — upload transcript/recording and participant resolution.
 - `app/api/calls/[callId]/generate/route.ts` — AI generation/reanalysis.
 - `lib/calls/resolve-participants.ts` — canonical participant/contact/journey matching.
+- `lib/calls/upload-mapping.ts` — selected prospect/journey mapping and participant dedupe for manual uploads.
+- `lib/calls/upload-validation.ts` — upload file-type/extension classification.
 - `lib/calls/classify.ts` — call type classification.
 - `lib/calls/coach.ts` — call coaching/analysis logic.
 
@@ -74,7 +77,8 @@ Rules:
 **Owns:** sync from MasterSuite MySQL into FranDev/Supabase mirrors.
 
 - `lib/mastersuite/client.ts` — MySQL client.
-- `lib/mastersuite/cron-helpers.ts` — cron auth/helpers.
+- `lib/mastersuite/cron-helpers.ts` — cron auth/helpers and no-overlap job logging.
+- `lib/mastersuite/cron-lock.ts` — stale/running MasterSuite sync lock helpers.
 - `lib/mastersuite/health.ts` — non-heavy env/connection health checks.
 - `lib/mastersuite/sync-health.ts` — canonical MasterSuite/GHL sync health summarization for Mission Control/admin status.
 - `lib/mastersuite/sync-*.ts` — sync jobs.

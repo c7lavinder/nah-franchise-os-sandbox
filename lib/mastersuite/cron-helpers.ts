@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { checkMSConnection } from "./client";
 import { createServerClient } from "@/lib/supabase/server";
+import { getStaleRunningCutoff, isActiveRunningJob } from "./cron-lock";
 
 /**
  * Wraps a MasterSuite cron sync function with:
@@ -17,7 +18,7 @@ export async function withCronLogging<T>(
 ): Promise<NextResponse> {
   const supabase = createServerClient();
 
-  // Clean up stale "running" entries older than 30 minutes
+  // Clean up stale "running" entries older than 30 minutes.
   await supabase
     .from("cron_job_log")
     .update({
@@ -27,7 +28,24 @@ export async function withCronLogging<T>(
     })
     .eq("job_name", jobName)
     .eq("status", "running")
-    .lt("started_at", new Date(Date.now() - 30 * 60 * 1000).toISOString());
+    .lt("started_at", getStaleRunningCutoff());
+
+  // Avoid overlapping MasterSuite syncs. Vercel cron/manual retries can overlap
+  // long jobs; a second run should exit cleanly instead of fighting over rows.
+  const { data: running } = await supabase
+    .from("cron_job_log")
+    .select("id, started_at")
+    .eq("job_name", jobName)
+    .eq("status", "running")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (running && isActiveRunningJob(running)) {
+    return NextResponse.json(
+      { success: false, skipped: true, reason: "already_running", jobName, startedAt: running.started_at },
+      { status: 202 }
+    );
+  }
 
   // Test MySQL connectivity BEFORE creating log entry
   try {
