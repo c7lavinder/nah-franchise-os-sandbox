@@ -75,7 +75,7 @@ export default function DailyHQPage() {
     } catch (err) {
       setSidebarError(err instanceof Error ? err.message : "Failed to load calendar and tasks");
     }
-  }, [user?.id]);
+  }, []);
 
   useEffect(() => {
     void fetchInbox();

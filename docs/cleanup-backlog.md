@@ -8,7 +8,7 @@ This backlog turns the cleanup plan into execution-sized tasks. Keep changes sma
 2. **Runtime pinning** — done via `.nvmrc` and `package.json` engines.
 3. **Production smoke checks** — done via `npm run smoke:prod`.
 4. **Domain ownership map** — done via `docs/domain-map.md`.
-5. **DB workflow doc/drift scaffold** — done via `docs/db-schema-workflow.md` and `npm run db:drift`.
+5. **DB workflow doc/drift checker** — done via `docs/db-schema-workflow.md` and CLI-based `npm run db:drift`.
 
 ## Completed DB workflow cleanup
 
@@ -53,10 +53,10 @@ This backlog turns the cleanup plan into execution-sized tasks. Keep changes sma
    - `docs/mastersuite-sync-boundaries.md` maps each MasterSuite sync entry point, source tables, destination tables, and idempotency/conflict key.
    - Sync routes now have a documented boundary: authenticate/window/record metadata only; transformation and mapping stay under `lib/mastersuite`.
 
-15. **Lint debt snapshot** — done
-   - `npm run lint` passes with warnings only.
+15. **Lint debt burn-down** — done
+   - `npm run lint` now returns no warnings or errors.
    - Snapshot captured in `docs/lint-debt-snapshot.md`.
-   - Burn down warnings in small batches without blocking urgent production deploys.
+   - Future warnings should be fixed or intentionally documented immediately.
 
 ## Backburner
 

@@ -10,7 +10,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
  * hit /api/contacts/[id]/emails and push back to GHL as additionalEmails.
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Mail, Plus, Star, Trash2, Loader2 } from "lucide-react";
 
 interface EmailRow {
@@ -34,14 +34,14 @@ export default function ContactEmailsPanel({ contactId, initialPrimaryEmail }: P
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function load(): Promise<void> {
+  const load = useCallback(async (): Promise<void> => {
     const res = await apiFetch(`/api/contacts/${contactId}/emails`, { cache: "no-store" });
     if (!res.ok) { setError("Failed to load emails"); return; }
     const body = (await res.json()) as { emails: EmailRow[] };
     setRows(body.emails);
-  }
+  }, [contactId]);
 
-  useEffect(() => { void load(); }, [contactId]);
+  useEffect(() => { void load(); }, [load]);
 
   async function handleAdd(): Promise<void> {
     setError(null);

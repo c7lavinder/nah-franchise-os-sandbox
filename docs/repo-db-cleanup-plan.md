@@ -12,7 +12,7 @@ Recent fixes were small at the product level but slow operationally because code
 - Preserve current production behavior while cleaning; prefer wrappers/docs/tests before risky rewrites.
 - Separate product domains: auth, Scout, calls, pipeline/journeys, MasterSuite sync, GHL, workflows.
 - Supabase migrations are the schema source of truth; generated types should match production.
-- Every cleanup batch must pass `npm run type-check` and `npm run build:prod-env`.
+- Every cleanup batch must pass `npm run check` and `npm run build:prod-env`; release candidates also pass `npm run smoke:prod`.
 
 ## Quick wins already started
 
@@ -32,10 +32,10 @@ Recent fixes were small at the product level but slow operationally because code
 
 ### 2. DB/schema hygiene
 
-6. Regenerate `types/supabase.ts` from production and track current type errors separately from feature work.
-7. Create a schema ownership map: contacts, journeys, calls, call participants, knowledge docs, MasterSuite mirrors.
-8. Audit stale/duplicate migrations and document which tables/columns are canonical vs legacy.
-9. Add DB smoke scripts for: contact search, journey lookup, call participant mapping, KB retrieval, MasterSuite sync counts.
+6. Regenerate `types/supabase.ts` from production and track current type errors separately from feature work. — done
+7. Create a schema ownership map: contacts, journeys, calls, call participants, knowledge docs, MasterSuite mirrors. — done in `docs/domain-map.md` and `docs/mastersuite-sync-boundaries.md`
+8. Add a read-only drift checker that compares generated Supabase types to checked-in `types/supabase.ts`. — done via `npm run db:drift`
+9. Add DB smoke scripts for: contact search, journey lookup, call participant mapping, KB retrieval, MasterSuite sync counts. — remaining enhancement
 
 ### 3. Domain boundaries
 
@@ -46,10 +46,10 @@ Recent fixes were small at the product level but slow operationally because code
 
 ### 4. Smoke tests and release safety
 
-14. Add lightweight smoke commands for `/frandev/login`, `/frandev/pipeline`, `/frandev/calls`, Scout chat route auth behavior, and the five MasterSuite cron endpoints.
-15. Add one call-upload fixture test for transcript + selected prospect mapping/deduping.
-16. Add one Scout search fixture test for fuzzy/reordered names.
-17. Keep lint separate until existing debt is burned down; do not let unrelated lint debt block urgent deploys.
+14. Add lightweight smoke commands for `/frandev/login`, `/frandev/pipeline`, `/frandev/calls`, Scout chat route auth behavior, and contacts search auth behavior. — done via `npm run smoke:prod`
+15. Add one call-upload fixture test for transcript + selected prospect mapping/deduping. — done
+16. Add one Scout/contact search fixture test for fuzzy/reordered names. — done
+17. Burn down lint warnings and keep lint clean. — done
 
 ### 5. Backburnered URL/proxy clarity
 

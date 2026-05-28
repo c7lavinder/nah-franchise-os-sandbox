@@ -2,125 +2,95 @@
 /**
  * DB drift report for FranDev.
  *
- * Compares production Supabase tables/columns (via information_schema) against
- * the checked-in generated types file. This is intentionally read-only and does
- * not print secrets.
+ * Read-only check that regenerates Supabase types from the linked production
+ * project and compares them to the checked-in types/supabase.ts. This avoids
+ * requiring an unsafe exec_sql RPC and catches schema/type drift before builds.
  */
 
-import { readFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
-import { createClient } from "@supabase/supabase-js";
-import WebSocket from "ws";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { resolve, join } from "node:path";
+import { spawnSync } from "node:child_process";
 
-function loadEnvFile(file: string) {
-  const path = resolve(process.cwd(), file);
-  if (!existsSync(path)) return;
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const index = trimmed.indexOf("=");
-    if (index <= 0) continue;
-    const key = trimmed.slice(0, index).trim();
-    let value = trimmed.slice(index + 1).trim();
-    value = value.replace(/^['"]|['"]$/g, "");
-    if (process.env[key] === undefined) process.env[key] = value;
+const DEFAULT_PROJECT_REF = "llnrvophuvrqcqducgrr";
+
+function readProjectRef() {
+  const linkedRefPath = resolve(process.cwd(), "supabase/.temp/project-ref");
+  if (existsSync(linkedRefPath)) {
+    const linked = readFileSync(linkedRefPath, "utf8").trim();
+    if (linked) return linked;
   }
+  return process.env.SUPABASE_PROJECT_REF || DEFAULT_PROJECT_REF;
 }
 
-loadEnvFile(".env.local");
-loadEnvFile(".vercel/.env.production.local");
-
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_KEY;
-
-if (!url || !serviceKey) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_KEY. Run `vercel pull --yes --environment=production` first.");
-  process.exit(1);
+function normalizeGeneratedTypes(text: string) {
+  return text
+    .replace(/^\/\*\*[\s\S]*?\*\/\n\n/, "")
+    .replace(/[ \t]+$/gm, "")
+    .trim();
 }
 
-type ColumnRow = {
-  table_name: string;
-  column_name: string;
-};
+function countTables(text: string) {
+  const matches = text.match(/^      [A-Za-z0-9_]+: \{/gm);
+  return matches?.length ?? 0;
+}
 
-function parseGeneratedTypeColumns(): Map<string, Set<string>> {
-  const file = resolve(process.cwd(), "types/supabase.ts");
-  const text = readFileSync(file, "utf8");
-  const tables = new Map<string, Set<string>>();
-
-  const tableRegex = /^      ([A-Za-z0-9_]+): \{\n        Row: \{\n([\s\S]*?)^        \};/gm;
-  let match: RegExpExecArray | null;
-  while ((match = tableRegex.exec(text))) {
-    const table = match[1];
-    const rowBlock = match[2];
-    const cols = new Set<string>();
-    for (const line of rowBlock.split("\n")) {
-      const col = line.match(/^          ([A-Za-z0-9_]+): /)?.[1];
-      if (col) cols.add(col);
-    }
-    tables.set(table, cols);
+function firstDiffLine(a: string, b: string) {
+  const aLines = a.split("\n");
+  const bLines = b.split("\n");
+  const max = Math.max(aLines.length, bLines.length);
+  for (let i = 0; i < max; i++) {
+    if (aLines[i] !== bLines[i]) return i + 1;
   }
-
-  return tables;
+  return null;
 }
 
 async function main() {
-  const supabase = createClient(url, serviceKey, {
-    auth: { persistSession: false },
-    realtime: { transport: WebSocket },
-  });
+  const projectRef = readProjectRef();
+  const tmp = mkdtempSync(join(tmpdir(), "frandev-db-drift-"));
+  const generatedPath = join(tmp, "supabase.generated.ts");
 
-  const { data, error } = await supabase.rpc("exec_sql" as never, {
-    sql: `
-      select table_name, column_name
-      from information_schema.columns
-      where table_schema = 'public'
-      order by table_name, ordinal_position
-    `,
-  } as never);
+  try {
+    const result = spawnSync(
+      "npx",
+      ["supabase", "gen", "types", "typescript", "--project-id", projectRef],
+      { encoding: "utf8", maxBuffer: 1024 * 1024 * 20 }
+    );
 
-  if (error) {
-    console.log("Could not query information_schema via exec_sql RPC.");
-    console.log("Fallback: regenerate types with `npx supabase gen types typescript --project-id <ref> > types/supabase.ts` after linking/project-ref setup.");
-    console.log(`Reason: ${error.message}`);
-    if (process.env.DB_DRIFT_STRICT === "true") process.exit(1);
-    console.log("\nSkipping drift comparison for now. Set DB_DRIFT_STRICT=true to make this failure blocking.");
-    return;
-  }
-
-  const remote = new Map<string, Set<string>>();
-  for (const row of (data ?? []) as unknown as ColumnRow[]) {
-    if (!remote.has(row.table_name)) remote.set(row.table_name, new Set());
-    remote.get(row.table_name)!.add(row.column_name);
-  }
-
-  const generated = parseGeneratedTypeColumns();
-  const missingTables = [...remote.keys()].filter((table) => !generated.has(table));
-  const staleTables = [...generated.keys()].filter((table) => !remote.has(table));
-
-  const columnDiffs: string[] = [];
-  for (const [table, remoteCols] of remote) {
-    const typedCols = generated.get(table);
-    if (!typedCols) continue;
-    const missingInTypes = [...remoteCols].filter((col) => !typedCols.has(col));
-    const staleInTypes = [...typedCols].filter((col) => !remoteCols.has(col));
-    if (missingInTypes.length || staleInTypes.length) {
-      columnDiffs.push(
-        `${table}: missing_in_types=${missingInTypes.join(",") || "-"}; stale_in_types=${staleInTypes.join(",") || "-"}`
-      );
+    if (result.status !== 0 || !result.stdout.trim()) {
+      console.error("Could not regenerate Supabase types for drift check.");
+      if (result.stderr) console.error(result.stderr.trim());
+      process.exit(1);
     }
+
+    writeFileSync(generatedPath, result.stdout);
+
+    const checkedInPath = resolve(process.cwd(), "types/supabase.ts");
+    const checkedInRaw = readFileSync(checkedInPath, "utf8");
+    const generatedRaw = result.stdout;
+    const checkedIn = normalizeGeneratedTypes(checkedInRaw);
+    const generated = normalizeGeneratedTypes(generatedRaw);
+
+    const checkedInTables = countTables(checkedIn);
+    const generatedTables = countTables(generated);
+
+    if (checkedIn === generated) {
+      console.log(`DB drift check passed. types/supabase.ts matches project ${projectRef}.`);
+      console.log(`Generated type tables: ${generatedTables}`);
+      return;
+    }
+
+    const diffLine = firstDiffLine(checkedIn, generated);
+    console.error("DB drift detected: types/supabase.ts does not match generated production types.");
+    console.error(`Project ref: ${projectRef}`);
+    console.error(`Checked-in type tables: ${checkedInTables}`);
+    console.error(`Generated type tables: ${generatedTables}`);
+    console.error(`First differing normalized line: ${diffLine ?? "unknown"}`);
+    console.error("Fix: npx supabase gen types typescript --project-id " + projectRef + " > types/supabase.ts");
+    process.exit(2);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
   }
-
-  console.log(`Remote public tables: ${remote.size}`);
-  console.log(`Generated type tables: ${generated.size}`);
-  console.log(`Tables missing in types: ${missingTables.length}`);
-  for (const table of missingTables.slice(0, 30)) console.log(`  + ${table}`);
-  console.log(`Tables stale in types: ${staleTables.length}`);
-  for (const table of staleTables.slice(0, 30)) console.log(`  - ${table}`);
-  console.log(`Tables with column drift: ${columnDiffs.length}`);
-  for (const diff of columnDiffs.slice(0, 60)) console.log(`  * ${diff}`);
-
-  if (missingTables.length || staleTables.length || columnDiffs.length) process.exitCode = 2;
 }
 
 void main();

@@ -33,14 +33,15 @@ npm run check
 - Covers multi-word last names.
 - Covers deduped, limited ID merging.
 
-### MasterSuite health
+### MasterSuite health and sync observability
 
 - File: `lib/mastersuite/health.test.ts`
 - Covers required MasterSuite DB env checks without running heavy sync.
+- File: `lib/mastersuite/sync-health.test.ts`
+- Covers healthy, stale, and failed MasterSuite/GHL sync states from `cron_job_log` rows.
 
 ## Still worth adding later
 
 - API-level `/api/contacts/search` test with mocked Supabase query builder.
 - Route-level call upload test with mocked Supabase + transcript file.
-- Non-heavy MasterSuite connection status route or script for production smoke checks.
 - Scout tool-executor test for fuzzy RPC fallback preserving journey links.

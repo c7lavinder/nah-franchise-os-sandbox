@@ -6,6 +6,7 @@
  */
 
 import { useState, useRef, useCallback } from "react";
+import Image from "next/image";
 import { Upload, X, Loader2, Paperclip, Image as ImageIcon, FileText } from "lucide-react";
 import { apiFetch } from "@/lib/auth/api-fetch";
 
@@ -128,9 +129,12 @@ export default function FileDropZone({
         <label className="block text-caption text-text-tertiary mb-1">{label}</label>
         <div className="flex items-center gap-2 bg-bg-secondary border border-border-default rounded-md px-3 py-2">
           {isImage ? (
-            <img
+            <Image
               src={uploadedFile.url}
               alt={uploadedFile.filename}
+              width={32}
+              height={32}
+              unoptimized
               className="w-8 h-8 rounded object-cover flex-shrink-0"
             />
           ) : (

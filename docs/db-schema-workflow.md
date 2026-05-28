@@ -27,14 +27,13 @@ npx supabase db query --linked -f supabase/migrations/file.sql
 3. Regenerate types:
 
 ```bash
-npx supabase gen types typescript --project-id <project-ref> > types/supabase.ts
+npx supabase gen types typescript --project-id llnrvophuvrqcqducgrr > types/supabase.ts
 ```
 
 4. Run:
 
 ```bash
-npm run env:check
-npm run type-check
+npm run check
 npm run build:prod-env
 npm run smoke:prod
 ```
@@ -43,12 +42,19 @@ npm run smoke:prod
 
 ## Drift tooling
 
-`npm run db:drift` is a read-only drift reporter intended to compare production `information_schema` to `types/supabase.ts`.
+`npm run db:drift` is now CLI-based and does not require an unsafe SQL execution RPC.
 
-It currently requires a SQL execution RPC (`exec_sql`). Since that RPC is not installed, the script reports that limitation and skips non-blocking unless `DB_DRIFT_STRICT=true` is set. The primary safe drift-control path today is regenerating `types/supabase.ts` from the linked project and running `npm run type-check`.
+It regenerates Supabase types from project `llnrvophuvrqcqducgrr` into a temp file, normalizes the generated header away, and compares the result to checked-in `types/supabase.ts`.
 
-## Cleanup TODO
+Expected clean output:
 
-- Decide whether to add a safe admin-only `exec_sql` RPC for drift reports or replace `npm run db:drift` with a CLI-only comparison.
+```bash
+DB drift check passed. types/supabase.ts matches project llnrvophuvrqcqducgrr.
+```
+
+If drift is detected, regenerate `types/supabase.ts`, run `npm run type-check`, and commit the type update with the migration/schema change.
+
+## Remaining DB cleanup opportunities
+
 - Add DB smoke checks for contact search, journey lookup, call participant mapping, KB retrieval, and MasterSuite sync counts.
 - Capture and burn down future type drift in small domain batches whenever regenerated types surface issues.

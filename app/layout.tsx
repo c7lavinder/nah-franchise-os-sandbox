@@ -1,6 +1,19 @@
 import type { Metadata } from "next";
+import { Roboto, Signika } from "next/font/google";
 import { AuthProvider } from "@/lib/auth/AuthContext";
 import "./globals.css";
+
+const roboto = Roboto({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "700"],
+  variable: "--font-roboto",
+});
+
+const signika = Signika({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-signika",
+});
 
 export const metadata: Metadata = {
   title: "NAH FranDev — Franchise Sales OS",
@@ -15,16 +28,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Signika:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className="bg-bg-primary text-text-primary font-sans antialiased min-h-screen">
+    <html lang="en" className={`${roboto.variable} ${signika.variable}`}>
+      <body className={`${roboto.className} bg-bg-primary text-text-primary font-sans antialiased min-h-screen`}>
         {/* Ambient glow background — fixed, behind everything */}
         <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden="true">
           <div

@@ -3,15 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
-
-const SYNC_JOBS = [
-  "sync-ms-prospects",
-  "sync-ms-territories",
-  "sync-ms-properties",
-  "sync-ms-eos",
-  "sync-ms-lead-list",
-  "refresh-ghl-token",
-];
+import { SYNC_JOBS, summarizeSyncHealth, type CronJobLogRow } from "@/lib/mastersuite/sync-health";
 
 /**
  * GET /api/admin/sync-status — returns sync health for admin banner.
@@ -27,6 +19,14 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServerClient();
   const failing: { job: string; since: string; consecutiveFailures: number; error: string }[] = [];
+
+  const { data: syncRows } = await supabase
+    .from("cron_job_log")
+    .select("job_name, status, error, started_at, finished_at")
+    .in("job_name", [...SYNC_JOBS])
+    .order("started_at", { ascending: false })
+    .limit(100);
+  const syncHealth = summarizeSyncHealth((syncRows ?? []) as CronJobLogRow[]);
 
   for (const job of SYNC_JOBS) {
     const { data: recent } = await supabase
@@ -90,8 +90,9 @@ export async function GET(request: NextRequest) {
   };
 
   return NextResponse.json({
-    healthy: failing.length === 0 && embeddingHealth.healthy,
+    healthy: failing.length === 0 && embeddingHealth.healthy && syncHealth.status !== "critical",
     failing,
+    syncHealth,
     embeddingHealth,
   });
 }

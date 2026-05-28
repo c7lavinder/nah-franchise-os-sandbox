@@ -40,6 +40,8 @@ interface DashboardData {
       lastFinishedAt: string | null;
       status: string;
       error: string | null;
+      lastSuccessAt?: string | null;
+      minutesSinceSuccess?: number | null;
     }[];
   };
 }
@@ -90,7 +92,7 @@ function formatRelativeTime(value: string | null) {
 
 function statusTone(status: string) {
   if (status === "healthy" || status === "success") return "border-green-800/60 bg-green-950/20 text-green-300";
-  if (status === "degraded" || status === "running") return "border-amber-800/60 bg-amber-950/20 text-amber-300";
+  if (status === "degraded" || status === "running" || status === "stale" || status === "no_data") return "border-amber-800/60 bg-amber-950/20 text-amber-300";
   return "border-red-800/60 bg-red-950/20 text-red-300";
 }
 
@@ -146,8 +148,9 @@ function MissionControlCard({ health, generatedAt }: { health: DashboardData["he
             </div>
             <div className="mt-1 flex items-center gap-1 text-xs text-zinc-500">
               <RefreshCw className="h-3 w-3" />
-              {formatRelativeTime(job.lastRunAt)}
+              success {formatRelativeTime(job.lastSuccessAt ?? job.lastRunAt)}
             </div>
+            {job.error && <div className="mt-1 truncate text-xs text-red-300" title={job.error}>{job.error}</div>}
           </div>
         ))}
       </div>

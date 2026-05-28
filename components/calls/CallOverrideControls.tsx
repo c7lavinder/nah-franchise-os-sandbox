@@ -750,21 +750,24 @@ function ReassignButton(props: Props) {
   // Collapse rows that share a contact_id — show one card, list the other
   // participant emails underneath. Keeps the star state unambiguous (one
   // star per contact, not per participant row).
-  const mappedPrimaries: ParticipantState[] = [];
-  const mappedMateEmails = new Map<string, string[]>();
-  const seenContacts = new Set<string>();
-  for (const r of mapped) {
-    const cid = r.contactId!;
-    if (!seenContacts.has(cid)) {
-      seenContacts.add(cid);
-      mappedPrimaries.push(r);
-      mappedMateEmails.set(cid, []);
-    } else {
-      const emails = mappedMateEmails.get(cid) ?? [];
-      if (r.email && !emails.includes(r.email)) emails.push(r.email);
-      mappedMateEmails.set(cid, emails);
+  const { mappedPrimaries, mappedMateEmails } = useMemo(() => {
+    const primaries: ParticipantState[] = [];
+    const mateEmails = new Map<string, string[]>();
+    const seenContacts = new Set<string>();
+    for (const r of mapped) {
+      const cid = r.contactId!;
+      if (!seenContacts.has(cid)) {
+        seenContacts.add(cid);
+        primaries.push(r);
+        mateEmails.set(cid, []);
+      } else {
+        const emails = mateEmails.get(cid) ?? [];
+        if (r.email && !emails.includes(r.email)) emails.push(r.email);
+        mateEmails.set(cid, emails);
+      }
     }
-  }
+    return { mappedPrimaries: primaries, mappedMateEmails: mateEmails };
+  }, [mapped]);
 
   // Group mapped contacts by their selected journey for the journey-centric view.
   const journeyGroups = useMemo(() => {

@@ -8,29 +8,18 @@ Command:
 npm run lint
 ```
 
-Result: passes with warnings only. No blocking lint errors.
+Result: clean.
 
-## Warning categories
+```bash
+✔ No ESLint warnings or errors
+```
 
-### React hook dependency warnings
+## What was cleaned up
 
-- `app/(auth)/daily-hq/page.tsx` — unnecessary `user.id` dependency in `useCallback`.
-- `components/calls/CallOverrideControls.tsx` — `mappedPrimaries` array should be memoized before use in `useMemo` deps.
-- `components/contact/ContactEmailsPanel.tsx` — missing `load` dependency in `useEffect`.
-- `components/leads/tabs/JourneyEosTab.tsx` — `effectiveMembers` conditional should be memoized before use in `useEffect` deps.
-- `components/pipeline/LeadList.tsx` — missing `visible` dependency in `useEffect`.
-- `components/pipeline/PipelineLeadList.tsx` — unnecessary `refreshKey` dependency in `useCallback`.
+- React hook dependency warnings in Daily HQ, contact emails, call override controls, Journey EOS, and pipeline lists.
+- Next.js font warning by moving Google fonts to `next/font/google`.
+- Next.js image warnings by replacing remaining low-risk `<img>` usage with `next/image`.
 
-### Next.js image/font warnings
+## Standard
 
-- `app/layout.tsx` — custom fonts warning from Next.
-- `components/layout/Sidebar.tsx` — two `<img>` warnings; consider `next/image`.
-- `components/ui/FileDropZone.tsx` — `<img>` warning; consider `next/image`.
-
-## Cleanup recommendation
-
-Treat lint as non-blocking for urgent fixes because it currently passes. Burn warnings down in small UI-safe batches:
-
-1. Hook dependency/memo cleanup.
-2. Image/font warnings.
-3. Re-run `npm run lint && npm run type-check && npm run smoke:prod`.
+Lint should stay clean. If a future warning cannot be safely fixed immediately, document the reason in this file and keep the warning count intentional, not accidental.

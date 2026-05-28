@@ -29,6 +29,7 @@ Rules:
 - `lib/scout/client.ts` — conversation loop and system prompt assembly.
 - `lib/scout/tools.ts` — tool schemas.
 - `lib/scout/tool-executor.ts` — tool execution.
+- `lib/contacts/search-planner.ts` — canonical contact/prospect search query planning shared by search surfaces.
 - `lib/scout/data-tools.ts` — structured data helpers.
 - `lib/scout/prompt-loader.ts` — DB/code prompt loading.
 
@@ -74,6 +75,8 @@ Rules:
 
 - `lib/mastersuite/client.ts` — MySQL client.
 - `lib/mastersuite/cron-helpers.ts` — cron auth/helpers.
+- `lib/mastersuite/health.ts` — non-heavy env/connection health checks.
+- `lib/mastersuite/sync-health.ts` — canonical MasterSuite/GHL sync health summarization for Mission Control/admin status.
 - `lib/mastersuite/sync-*.ts` — sync jobs.
 - `scripts/run-ms-sync.ts`, `scripts/sync-mastersuite.ts` — manual runners.
 - `app/api/cron/sync-ms-*` — Vercel cron endpoints.

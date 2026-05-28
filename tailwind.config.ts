@@ -73,8 +73,8 @@ const config: Config = {
         "nah-orange": "#00a1e1",
       },
       fontFamily: {
-        headline: ["Signika", "sans-serif"],
-        sans: ["Roboto", "sans-serif"],
+        headline: ["var(--font-signika)", "Signika", "sans-serif"],
+        sans: ["var(--font-roboto)", "Roboto", "sans-serif"],
         mono: ["JetBrains Mono", "Fira Code", "Courier New", "monospace"],
       },
       fontSize: {

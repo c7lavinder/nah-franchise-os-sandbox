@@ -21,7 +21,7 @@
  *    above Territory EOS.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import EosTab from "@/components/leads/tabs/EosTab";
 import TerritoryEosTab from "@/components/territories/tabs/EosTab";
 
@@ -58,8 +58,10 @@ export default function JourneyEosTab({
 }: Props) {
   // Ensure the primary contact is always in the list even if the parent
   // didn't pass coreMembers (defensive for legacy callers).
-  const effectiveMembers: CoreMember[] =
-    coreMembers.length > 0 ? coreMembers : [{ contactId, name: primaryContactName ?? "Primary" }];
+  const effectiveMembers: CoreMember[] = useMemo(
+    () => (coreMembers.length > 0 ? coreMembers : [{ contactId, name: primaryContactName ?? "Primary" }]),
+    [coreMembers, contactId, primaryContactName]
+  );
 
   const [selectedContactId, setSelectedContactId] = useState<string>(effectiveMembers[0]?.contactId ?? contactId);
 

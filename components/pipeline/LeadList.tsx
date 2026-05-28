@@ -1,7 +1,7 @@
 "use client";
 import { apiFetch } from "@/lib/auth/api-fetch";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   ChevronDown, ChevronRight, MapPin, Megaphone, Loader2,
 } from "lucide-react";
@@ -129,7 +129,7 @@ export default function LeadList({
     return sortAsc ? -cmp : cmp;
   });
 
-  const visible = sorted.slice(0, visibleCount);
+  const visible = useMemo(() => sorted.slice(0, visibleCount), [sorted, visibleCount]);
   const hasMore = sorted.length > visibleCount;
 
   // Enrich visible leads with contact data
@@ -162,7 +162,7 @@ export default function LeadList({
     if (visible.length > 0) {
       void enrichContacts(visible);
     }
-  }, [visible.length, enrichContacts]);
+  }, [visible, enrichContacts]);
 
   function toggleSort(field: SortField) {
     if (sortField === field) setSortAsc(!sortAsc);

@@ -205,7 +205,7 @@ export default function PipelineLeadList({
         setLoadingMore(false);
       }
     },
-    [selectedStageId, searchQuery, refreshKey]
+    [selectedStageId, searchQuery]
   );
 
   async function handleLoadMore() {
@@ -218,7 +218,7 @@ export default function PipelineLeadList({
     return () => {
       abortRef.current?.abort();
     };
-  }, [fetchContacts]);
+  }, [fetchContacts, refreshKey]);
 
   // Fetch appointments once on mount (separate from contacts to avoid lag)
   const [appointmentMap, setAppointmentMap] = useState<Record<string, { title: string; startTime: string }>>({});
