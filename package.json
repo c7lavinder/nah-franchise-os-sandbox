@@ -22,6 +22,7 @@
     "type-check": "tsc --noEmit",
     "env:check": "tsx scripts/check-env.ts",
     "smoke:prod": "tsx scripts/smoke-prod.ts",
+    "db:drift": "tsx scripts/db-drift-report.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "husky",

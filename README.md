@@ -76,7 +76,8 @@ All 216 API routes are protected. See `docs/security.md` for full details.
 7. `docs/build-deploy-runbook.md` — build/deploy/smoke-test workflow
 8. `docs/repo-db-cleanup-plan.md` — cleanup priorities for faster future builds
 9. `docs/domain-map.md` — where each major product/system domain lives
-10. `docs/runbook.md` — when things break
+10. `docs/db-schema-workflow.md` — DB/migration/type workflow
+11. `docs/runbook.md` — when things break
 
 ---
 
