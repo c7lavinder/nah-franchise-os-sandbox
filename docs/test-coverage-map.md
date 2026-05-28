@@ -34,6 +34,10 @@ npm run check
 - Covers normalized forward + reversed name matching, e.g. `Chintan Patel` and `Patel Chintan`.
 - Covers multi-word last names.
 - Covers deduped, limited ID merging.
+- File: `lib/scout/contact-utils.test.ts`
+- Covers safe GHL/UUID contact filter construction.
+- File: `lib/scout/input-parser.test.ts`
+- Covers nested JSON tool input parsing and fallback behavior.
 
 ### MasterSuite health, sync observability, and cron locks
 

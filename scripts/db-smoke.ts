@@ -9,7 +9,8 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createServerClient } from "@/lib/supabase/server";
+import { DB_SMOKE_CONTRACTS } from "@/lib/db/smoke-contract";
+import { createTypedServerClient } from "@/lib/supabase/server";
 import { SYNC_JOBS, summarizeSyncHealth, type CronJobLogRow } from "@/lib/mastersuite/sync-health";
 
 function loadEnvFiles() {
@@ -57,37 +58,41 @@ function queryResult(name: string, result: { count: number | null; error: { mess
 
 async function main() {
   loadEnvFiles();
-  const supabase = createServerClient();
+  const supabase = createTypedServerClient();
 
   const checks = await Promise.all([
-    runCheck("contact search base table", async () => {
+    runCheck(DB_SMOKE_CONTRACTS.contacts.name, async () => {
+      const contract = DB_SMOKE_CONTRACTS.contacts;
       const result = await supabase
-        .from("contacts")
-        .select("id, first_name, last_name, email, phone", { count: "exact", head: false })
+        .from(contract.table)
+        .select(contract.selectedColumns, { count: "exact", head: false })
         .limit(1);
-      return queryResult("contact search base table", result);
+      return queryResult(contract.name, result, contract.minRows);
     }),
-    runCheck("journey lookup tables", async () => {
+    runCheck(DB_SMOKE_CONTRACTS.journeys.name, async () => {
+      const contract = DB_SMOKE_CONTRACTS.journeys;
       const result = await supabase
-        .from("journey_pipeline_state")
-        .select("id, journey_id, pipeline_id, current_stage_id", { count: "exact", head: false })
+        .from(contract.table)
+        .select(contract.selectedColumns, { count: "exact", head: false })
         .limit(1);
-      return queryResult("journey lookup tables", result);
+      return queryResult(contract.name, result, contract.minRows);
     }),
-    runCheck("call participant mapping table", async () => {
+    runCheck(DB_SMOKE_CONTRACTS.callParticipants.name, async () => {
+      const contract = DB_SMOKE_CONTRACTS.callParticipants;
       const result = await supabase
-        .from("call_participants")
-        .select("id, call_id, contact_id, journey_pipeline_state_id", { count: "exact", head: false })
+        .from(contract.table)
+        .select(contract.selectedColumns, { count: "exact", head: false })
         .limit(1);
-      return queryResult("call participant mapping table", result);
+      return queryResult(contract.name, result, contract.minRows);
     }),
-    runCheck("knowledge retrieval base table", async () => {
+    runCheck(DB_SMOKE_CONTRACTS.knowledge.name, async () => {
+      const contract = DB_SMOKE_CONTRACTS.knowledge;
       const result = await supabase
-        .from("knowledge_documents")
-        .select("id, title, category", { count: "exact", head: false })
+        .from(contract.table)
+        .select(contract.selectedColumns, { count: "exact", head: false })
         .eq("is_active", true)
         .limit(1);
-      return queryResult("knowledge retrieval base table", result);
+      return queryResult(contract.name, result, contract.minRows);
     }),
     runCheck("MasterSuite sync health log", async () => {
       const { data, error, count } = await supabase

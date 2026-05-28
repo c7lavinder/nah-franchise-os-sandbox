@@ -29,7 +29,9 @@ Rules:
 - `app/api/scout/chat/route.ts`, `app/api/scout/chat-stream/route.ts` — chat APIs.
 - `lib/scout/client.ts` — conversation loop and system prompt assembly.
 - `lib/scout/tools.ts` — tool schemas.
-- `lib/scout/tool-executor.ts` — tool execution.
+- `lib/scout/tool-executor.ts` — tool execution dispatcher and tool-specific behavior.
+- `lib/scout/contact-utils.ts` — contact/user lookup helpers used by Scout tools.
+- `lib/scout/input-parser.ts` — safe parsing for nested JSON tool inputs.
 - `lib/contacts/search-planner.ts` — canonical contact/prospect search query planning shared by search surfaces.
 - `lib/scout/data-tools.ts` — structured data helpers.
 - `lib/scout/prompt-loader.ts` — DB/code prompt loading.
@@ -49,6 +51,7 @@ Rules:
 - `app/api/calls/[callId]/upload/route.ts` — upload transcript/recording and participant resolution.
 - `app/api/calls/[callId]/generate/route.ts` — AI generation/reanalysis.
 - `lib/calls/resolve-participants.ts` — canonical participant/contact/journey matching.
+- `lib/calls/upload-call-record.ts` — call record loading for upload routes.
 - `lib/calls/upload-mapping.ts` — selected prospect/journey mapping and participant dedupe for manual uploads.
 - `lib/calls/upload-validation.ts` — upload file-type/extension classification.
 - `lib/calls/classify.ts` — call type classification.

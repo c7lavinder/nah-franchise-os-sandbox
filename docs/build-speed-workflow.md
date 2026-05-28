@@ -8,7 +8,8 @@ Use these while actively editing:
 
 ```bash
 npm run test:cleanup   # ~1s: risky cleanup-critical fixture tests
-npm run check          # ~2s after env is present: env + type-check + DB drift scaffold
+npm run check          # env + type-check + DB drift scaffold
+npm run build:profile  # fast static profile of large/import-heavy files
 ```
 
 `test:cleanup` covers the currently highest-risk paths:
@@ -16,6 +17,8 @@ npm run check          # ~2s after env is present: env + type-check + DB drift s
 - call upload selected-prospect mapping/dedupe
 - contact/Scout search planning
 - MasterSuite sync env health without running heavy sync
+- Scout contact utility/input parsing boundaries
+- route-level contacts/call-upload/admin sync behavior
 
 ## Release gate
 
@@ -49,5 +52,6 @@ Before cleanup, failures appeared late during full Next builds or production dep
 - Type/schema mismatch: `npm run type-check` with regenerated Supabase types
 - Risky behavior regressions: `npm run test:cleanup`
 - Production route availability: `npm run smoke:prod`
+- Large/import-heavy refactor candidates: `npm run build:profile`
 
 This lets us iterate quickly with fast checks, then use the full release gate only when the change is ready.

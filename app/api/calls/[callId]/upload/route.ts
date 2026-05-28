@@ -29,6 +29,7 @@ import { resolveCallTypeBySlug } from "@/lib/calls/resolve-call-type";
 import { transcribeAudio } from "@/lib/calls/whisper";
 import { applySelectedUploadContact, buildNewCallParticipants } from "@/lib/calls/upload-mapping";
 import { getUploadExtension, resolveUploadKind } from "@/lib/calls/upload-validation";
+import { loadUploadableCall } from "@/lib/calls/upload-call-record";
 
 /**
  * After a transcript is available, extract speakers, resolve participants,
@@ -152,11 +153,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { callId } = await params;
   const supabase = createServerClient();
 
-  const { data: call } = await supabase
-    .from("calls")
-    .select("id, contact_id, sub_task_id, journey_pipeline_state_id, hosted_by_user_id")
-    .eq("id", callId)
-    .single();
+  const call = await loadUploadableCall(supabase, callId);
   if (!call) return NextResponse.json({ error: "Call not found" }, { status: 404 });
 
   const formData = await request.formData();

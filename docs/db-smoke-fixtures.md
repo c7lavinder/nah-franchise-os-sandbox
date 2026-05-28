@@ -2,7 +2,7 @@
 
 Purpose: keep release validation meaningful without exposing sensitive data or relying on brittle private records.
 
-`npm run db:smoke` is intentionally read-only. It currently validates table contracts and minimum data presence for the highest-risk paths:
+`npm run db:smoke` is intentionally read-only. The canonical smoke contract lives in `lib/db/smoke-contract.ts`. It currently validates table contracts and minimum data presence for the highest-risk paths:
 
 1. Contact search base table: `contacts`
 2. Journey lookup: `journey_pipeline_state`
@@ -23,7 +23,7 @@ Only add named record fixtures when they are intentionally created for testing a
 
 ## Future fixture candidates
 
-When we create safe synthetic rows, add checks for:
+When we create safe synthetic rows, use the fixture tags already declared in `lib/db/smoke-contract.ts` and add checks for:
 
 - a synthetic contact that appears in `/api/contacts/search`
 - a synthetic journey with active pipeline state

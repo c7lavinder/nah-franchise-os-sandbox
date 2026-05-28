@@ -58,20 +58,32 @@ This backlog turns the cleanup plan into execution-sized tasks. Keep changes sma
 16. **CI release gate alignment** — done
    - CI now runs env contract check with safe dummy env, type-check, cleanup tests, lint, full tests, and secret-backed DB drift when available.
 
-## Remaining medium refactors
+## Completed follow-on refactors
 
-17. **Call domain consolidation**
+17. **Call domain consolidation** — advanced
    - Keep participant matching, call classification, AI generation, and review-package rules under `lib/calls`.
-   - Reduce duplicated route-level logic.
+   - Upload routes now delegate record loading, file classification, selected-contact mapping, and dedupe helpers to `lib/calls`.
 
-18. **Scout domain split**
-   - Separate prompt/context loading, tool schemas, tool execution, and client loop with clearer file names and tests.
+18. **Scout domain split** — advanced
+   - Tool execution remains centralized, but contact/user lookup helpers and nested input parsing now live in focused modules with tests.
+   - Added `lib/scout/contact-utils.ts`, `lib/scout/input-parser.ts`, and cleanup-test coverage.
 
-19. **MasterSuite sync boundary** — done
+19. **Typed Supabase migration / stale-column cleanup** — advanced
+   - `scripts/db-smoke.ts` now uses `createTypedServerClient()` against the generated Supabase contract.
+   - Legacy app routes can keep migrating domain-by-domain without blocking builds.
+
+20. **Synthetic DB fixture contract** — advanced
+   - `lib/db/smoke-contract.ts` captures stable read-only smoke contracts and future safe synthetic fixture tags.
+   - `docs/db-smoke-fixtures.md` points future fixture work at the canonical contract.
+
+21. **Build/bundle profiling** — added
+   - `npm run build:profile` reports large source files, import-heavy files, and app route/page size candidates without adding dependencies.
+
+22. **MasterSuite sync boundary** — done
    - `docs/mastersuite-sync-boundaries.md` maps each MasterSuite sync entry point, source tables, destination tables, and idempotency/conflict key.
    - Sync routes now have a documented boundary: authenticate/window/record metadata only; transformation and mapping stay under `lib/mastersuite`.
 
-20. **Lint debt burn-down** — done
+23. **Lint debt burn-down** — done
    - `npm run lint` now returns no warnings or errors.
    - Snapshot captured in `docs/lint-debt-snapshot.md`.
    - Future warnings should be fixed or intentionally documented immediately.
