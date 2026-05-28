@@ -75,6 +75,26 @@
       "schedule": "0 8 * * *"
     },
     {
+      "path": "/frandev/api/cron/sync-ms-territories",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/frandev/api/cron/sync-ms-prospects",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/frandev/api/cron/sync-ms-lead-list",
+      "schedule": "17,47 * * * *"
+    },
+    {
+      "path": "/frandev/api/cron/sync-ms-properties",
+      "schedule": "7,37 * * * *"
+    },
+    {
+      "path": "/frandev/api/cron/sync-ms-eos",
+      "schedule": "22,52 * * * *"
+    },
+    {
       "path": "/frandev/api/cron/sync-ghl-calendar",
       "schedule": "*/30 * * * *"
     },
