@@ -24,16 +24,17 @@ This backlog turns the cleanup plan into execution-sized tasks. Keep changes sma
 
 ## Next cleanup batch
 
-8. **Call upload fixture test**
-   - Fixture: transcript + selected prospect.
-   - Assert call maps to selected contact/journey and dedupes participants.
+8. **Call upload fixture test** — done
+   - `lib/calls/upload-mapping.test.ts` covers selected prospect mapping and participant dedupe.
+   - Upload route now delegates selected-contact/dedupe logic to `lib/calls/upload-mapping.ts`.
 
-9. **Scout search fixture test**
-   - Fixture: reordered/imperfect name query.
-   - Assert route/tool returns likely prospect/journey link.
+9. **Scout/contact search fixture test** — done
+   - `lib/contacts/search-planner.test.ts` covers normalized, forward, reversed, multi-word, and deduped search planning.
+   - Contact search route now delegates query planning to `lib/contacts/search-planner.ts`.
 
-10. **MasterSuite sync smoke health**
-   - Add a non-heavy health/status endpoint or script that checks env/connectivity without running full sync.
+10. **MasterSuite sync smoke health** — done
+   - `lib/mastersuite/health.test.ts` covers required env checks without running heavy sync.
+   - `lib/mastersuite/health.ts` provides reusable non-heavy health helpers.
 
 ## Medium refactors
 

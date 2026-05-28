@@ -79,7 +79,8 @@ All 216 API routes are protected. See `docs/security.md` for full details.
 10. `docs/db-schema-workflow.md` — DB/migration/type workflow
 11. `docs/cleanup-backlog.md` — cleanup tasks and acceptance notes
 12. `docs/lint-debt-snapshot.md` — current lint warning categories
-13. `docs/runbook.md` — when things break
+13. `docs/test-coverage-map.md` — current cleanup-critical tests
+14. `docs/runbook.md` — when things break
 
 ---
 
