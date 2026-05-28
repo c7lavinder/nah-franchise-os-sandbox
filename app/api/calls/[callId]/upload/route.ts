@@ -27,6 +27,7 @@ import { upsertCallJunctions } from "@/lib/calls/processors/upsert-call-junction
 import { classifyCallType } from "@/lib/calls/classify-type";
 import { resolveCallTypeBySlug } from "@/lib/calls/resolve-call-type";
 import { transcribeAudio } from "@/lib/calls/whisper";
+import { applySelectedUploadContact, buildNewCallParticipants } from "@/lib/calls/upload-mapping";
 
 /**
  * After a transcript is available, extract speakers, resolve participants,
@@ -65,36 +66,18 @@ async function resolveFromTranscript(
   // is often imperfect on pasted transcripts; if the uploader selected a
   // prospect/journey, keep that mapping even when speaker names are vague or
   // misspelled.
-  if (selectedContactId && !match.contact_id) {
-    const journey = await resolverDb.getActiveJourneyForContact(selectedContactId, null);
-    match.contact_id = selectedContactId;
-    match.journey_id = journey?.journey_id ?? null;
-    match.journey_pipeline_state_id = journey?.journey_pipeline_state_id ?? null;
-    match.confidence = Math.max(match.confidence, 1);
-    match.reason = "manually selected by uploader";
-  }
-
-  if (selectedContactId && !match.participants.some((p) => p.contact_id === selectedContactId)) {
-    const { data: selected } = await supabase
-      .from("contacts")
-      .select("id, ghl_contact_id, first_name, last_name, email")
-      .eq("id", selectedContactId)
-      .maybeSingle();
-    if (selected) {
-      match.participants.push({
-        contact_id: selected.id,
-        user_id: null,
-        role: "prospect",
-        display_name: `${selected.first_name ?? ""} ${selected.last_name ?? ""}`.trim() || selected.email || "Selected prospect",
-        email: selected.email ?? null,
-        phone: null,
-        contact_ghl_id: selected.ghl_contact_id ?? null,
-        TerritorySlug: match.TerritorySlug,
-        journey_id: match.journey_id,
-        journey_pipeline_state_id: match.journey_pipeline_state_id,
-        match_method: "name",
-      });
-    }
+  if (selectedContactId) {
+    const [journey, selectedRes] = await Promise.all([
+      !match.contact_id ? resolverDb.getActiveJourneyForContact(selectedContactId, null) : Promise.resolve(null),
+      !match.participants.some((p) => p.contact_id === selectedContactId)
+        ? supabase
+            .from("contacts")
+            .select("id, ghl_contact_id, first_name, last_name, email")
+            .eq("id", selectedContactId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    applySelectedUploadContact(match, selectedContactId, selectedRes.data, journey);
   }
 
   // Build the update payload — only set fields if resolver found something
@@ -154,28 +137,7 @@ async function resolveFromTranscript(
     .from("call_participants")
     .select("display_name, user_id, contact_id")
     .eq("call_id", callId);
-  const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  const existingKeys = new Set(
-    (existingParticipants ?? []).map((p) => p.user_id || p.contact_id || normalizeName(p.display_name ?? ""))
-  );
-  const seenKeys = new Set(existingKeys);
-
-  const newParticipants = match.participants
-    .filter((p) => {
-      const key = p.user_id || p.contact_id || normalizeName(p.display_name);
-      if (!key || seenKeys.has(key)) return false;
-      seenKeys.add(key);
-      return true;
-    })
-    .map((p) => ({
-      call_id: callId,
-      user_id: p.user_id,
-      contact_id: p.contact_id,
-      role: p.role,
-      display_name: p.display_name,
-      email: p.email,
-      journey_pipeline_state_id: p.journey_pipeline_state_id,
-    }));
+  const newParticipants = buildNewCallParticipants(callId, match, existingParticipants ?? []);
 
   if (newParticipants.length > 0) {
     await supabase.from("call_participants").insert(newParticipants);
