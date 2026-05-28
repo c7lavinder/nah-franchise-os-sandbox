@@ -23,6 +23,8 @@
     "env:check": "tsx scripts/check-env.ts",
     "smoke:prod": "tsx scripts/smoke-prod.ts",
     "db:drift": "tsx scripts/db-drift-report.ts",
+    "check": "npm run env:check && npm run type-check && npm run db:drift",
+    "release:check": "npm run check && npm run build:prod-env && npm run smoke:prod",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "husky",

@@ -8,14 +8,21 @@ Purpose: make local validation and production deploys boring. This repo has seve
 # 1) Pull production env when validating a production build locally
 vercel pull --yes --environment=production
 
-# 2) Check required env without printing secret values
+# 2) Fast checks: env, type-check, DB drift scaffold
+npm run check
+
+# 3) Full release check: fast checks + production-env build + production smoke
+npm run release:check
+```
+
+Equivalent manual breakdown:
+
+```bash
 npm run env:check
-
-# 3) Type-check first: fast signal for code errors
 npm run type-check
-
-# 4) Build with pulled Vercel env loaded explicitly
+npm run db:drift
 npm run build:prod-env
+npm run smoke:prod
 ```
 
 `npm run build` is still the normal Next build. Use `npm run build:prod-env` when reproducing Vercel behavior locally.
