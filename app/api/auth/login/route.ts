@@ -32,9 +32,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Authentication service is not configured" }, { status: 500 });
     }
 
+    // Be tolerant of private-network service names. Some self-hosted
+    // deployments provide `mastersuite-api` or `://mastersuite-api`; normalize
+    // both to http:// so login does not crash on URL construction.
+    const normalizedApiUrl = apiUrl.startsWith("://")
+      ? `http${apiUrl}`
+      : /^https?:\/\//i.test(apiUrl)
+        ? apiUrl
+        : `http://${apiUrl}`;
+
     let loginUrl: string;
     try {
-      loginUrl = new URL("/auth/login", apiUrl).toString();
+      loginUrl = new URL("/auth/login", normalizedApiUrl).toString();
     } catch {
       console.error("Invalid MASTERSUITE_API_URL", { apiUrl });
       return NextResponse.json({ error: "Authentication service URL is invalid" }, { status: 500 });
