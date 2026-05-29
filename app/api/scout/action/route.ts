@@ -11,6 +11,14 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
+import {
+  evaluateScoutSendRuntimeSafety,
+  firstFailedRuntimeGate,
+  isCustomerFacingScoutSend,
+  validateScoutActionApproval,
+  type ActionSafetyMetadata,
+  type SendRuntimeChecks,
+} from "@/lib/ghl/action-safety";
 import { createServerClient } from "@/lib/supabase/server";
 import { enrollContact, pauseEnrollment, resumeEnrollment, exitEnrollment } from "@/lib/workflows/enrollment";
 import type {
@@ -78,12 +86,69 @@ async function loadFieldMapping(): Promise<Map<string, string>> {
 interface ActionRequestBody {
   action: DraftedAction;
   userId: string;
-  sessionId: string;
+  sessionId?: string;
 }
 
 /** UUID v4-ish detector — used to spot when a caller mistakenly passed a
  *  Supabase contact UUID where GHL expects its own contact ID. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function ensureActionLogSession(sessionId: string | undefined, userId: string): Promise<string> {
+  if (sessionId && UUID_RE.test(sessionId)) return sessionId;
+
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("sessions")
+    .insert({
+      user_id: userId,
+      conversation_history: [],
+      context_summary: "Direct Scout action approval audit session",
+      is_active: false,
+      ended_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (error || !data?.id) {
+    throw new Error(`Unable to create action audit session: ${error?.message ?? "missing session id"}`);
+  }
+
+  return data.id;
+}
+
+async function logApprovedCustomerFacingSend(
+  action: DraftedAction,
+  sessionId: string,
+  userId: string,
+  safetyMetadata: ActionSafetyMetadata,
+  runtimeChecks: SendRuntimeChecks
+): Promise<void> {
+  const supabase = createServerClient();
+  const { error } = await supabase.from("scout_action_logs").insert({
+    user_id: userId,
+    session_id: sessionId,
+    action_type: action.type,
+    action_status: "approved_for_execution",
+    ghl_contact_id: action.contactId,
+    draft_content: action.payload as unknown as Record<string, unknown>,
+    final_content: action.payload as unknown as Record<string, unknown>,
+    confirmed_at: new Date().toISOString(),
+    risk_tier: safetyMetadata.riskTier,
+    approval_source: safetyMetadata.approvalSource,
+    approved_by_user_id: safetyMetadata.approvedByUserId,
+    safety_checks: {
+      requiredGates: safetyMetadata.requiredGates,
+      requiresHumanApproval: safetyMetadata.requiresHumanApproval,
+      customerFacingSend: true,
+      runtimeChecks,
+    },
+    output_schema_version: safetyMetadata.outputSchemaVersion,
+  });
+
+  if (error) {
+    throw new Error(`Unable to write pre-send approval log: ${error.message}`);
+  }
+}
 
 /** Translate a Supabase contact UUID into the matching ghl_contact_id.
  *  Returns the input unchanged if it's already a GHL id. */
@@ -110,6 +175,25 @@ export async function POST(request: NextRequest) {
     body.action.contactId = await resolveGhlContactId(body.action.contactId);
 
     const { action } = body;
+    const safetyDecision = validateScoutActionApproval(action, user.id);
+    if (!safetyDecision.allowed) {
+      return NextResponse.json({ error: safetyDecision.error, success: false }, { status: safetyDecision.status });
+    }
+
+    const actionLogSessionId = await ensureActionLogSession(body.sessionId, user.id);
+    const runtimeChecks = await evaluateScoutSendRuntimeSafety(action);
+    const failedRuntimeGate = isCustomerFacingScoutSend(action) ? firstFailedRuntimeGate(runtimeChecks) : null;
+    if (failedRuntimeGate) {
+      return NextResponse.json(
+        { error: `Send safety gate failed: ${failedRuntimeGate.reason}`, success: false, safetyChecks: runtimeChecks },
+        { status: 409 }
+      );
+    }
+
+    if (isCustomerFacingScoutSend(action)) {
+      await logApprovedCustomerFacingSend(action, actionLogSessionId, user.id, safetyDecision.metadata, runtimeChecks);
+    }
+
     let ghlResponse: Record<string, unknown> | null = null;
     let errorMessage: string | null = null;
 
@@ -565,7 +649,7 @@ export async function POST(request: NextRequest) {
 
       await supabase.from("scout_action_logs").insert({
         user_id: user.id,
-        session_id: body.sessionId,
+        session_id: actionLogSessionId,
         action_type: action.type,
         action_status: errorMessage ? "failed" : "executed",
         ghl_contact_id: action.contactId,
@@ -575,6 +659,16 @@ export async function POST(request: NextRequest) {
         error_message: errorMessage,
         confirmed_at: now,
         executed_at: errorMessage ? null : now,
+        risk_tier: safetyDecision.metadata.riskTier,
+        approval_source: safetyDecision.metadata.approvalSource,
+        approved_by_user_id: safetyDecision.metadata.approvedByUserId,
+        safety_checks: {
+          requiredGates: safetyDecision.metadata.requiredGates,
+          requiresHumanApproval: safetyDecision.metadata.requiresHumanApproval,
+          customerFacingSend: isCustomerFacingScoutSend(action),
+          runtimeChecks,
+        },
+        output_schema_version: safetyDecision.metadata.outputSchemaVersion,
       });
     } catch {
       console.error("Failed to log action execution — continuing");

@@ -13,4 +13,5 @@ Every Scout action follows Draft-Review-Confirm (DRC): Scout drafts the action, 
 - All Scout tools that produce side effects are "draft_*" tools
 - Frontend must show a confirmation UI for every drafted action
 - Action logs capture both the draft and the final version
+- Customer-facing sends also follow the Phase 4 send safety contract in [ADR 0004](./0004-send-safety-and-agent-control-plane.md)
 - Slightly slower than autonomous execution, but dramatically safer

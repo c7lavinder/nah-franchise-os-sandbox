@@ -150,6 +150,7 @@ export default function DraftedActionCard({ action, onConfirm, onCancel, isExecu
   function handleConfirm() {
     const updated: DraftedAction = {
       ...action,
+      status: "confirmed",
       contactId: editedContactId,
       contactName: editedContactName,
       payload: editedPayload,

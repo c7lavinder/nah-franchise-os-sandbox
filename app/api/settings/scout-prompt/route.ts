@@ -12,7 +12,7 @@ import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { clearPromptCache } from "@/lib/scout/prompt-loader";
 
-const ALLOWED_KEYS = ["scout_identity", "scout_rules", "scout_profile_context"];
+const ALLOWED_KEYS = ["scout_identity", "scout_rules", "scout_profile_context", "scout_calendars"];
 
 export async function GET(request: NextRequest) {
   const user = await requireAuth(request);

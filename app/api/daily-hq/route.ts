@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
+import { getWorkQueueItems, syncWorkQueueSources } from "@/lib/work-queue/sources";
 import type { GHLAppointment } from "@/types/ghl";
 import type { InactivityAlert } from "@/types/database";
 
@@ -33,12 +34,20 @@ export async function GET(request: NextRequest) {
   const ghlUserId = appUser?.ghl_user_id ?? null;
 
   // Fetch all data in parallel for speed
-  const [alertsResult, pipelineResult, appointmentsResult, scorecardResult, tasksResult] = await Promise.allSettled([
+  const [
+    alertsResult,
+    pipelineResult,
+    appointmentsResult,
+    scorecardResult,
+    tasksResult,
+    workQueueResult,
+  ] = await Promise.allSettled([
     fetchAlerts(userId),
     fetchPipelineSnapshot(userId),
     fetchUpcoming(ghlUserId),
     fetchScorecard(userId, ghlUserId),
     fetchTasks(ghlUserId),
+    fetchWorkQueue(userId),
   ]);
 
   const alerts = alertsResult.status === "fulfilled" ? alertsResult.value : [];
@@ -49,6 +58,7 @@ export async function GET(request: NextRequest) {
       ? scorecardResult.value
       : { calls: 0, texts: 0, emails: 0, stageMoves: 0, newContacted: 0 };
   const tasks = tasksResult.status === "fulfilled" ? tasksResult.value : [];
+  const workQueue = workQueueResult.status === "fulfilled" ? workQueueResult.value : [];
 
   return NextResponse.json({
     scorecard,
@@ -56,7 +66,19 @@ export async function GET(request: NextRequest) {
     tasks,
     pipeline,
     upcoming,
+    workQueue,
   });
+}
+
+/** Sync and fetch normalized Work Queue items for the Daily HQ right rail. */
+async function fetchWorkQueue(userId: string) {
+  try {
+    await syncWorkQueueSources({ assignedUserId: userId });
+    return getWorkQueueItems({ assignedUserId: userId, limit: 20 });
+  } catch (err) {
+    console.error("Failed to fetch work queue:", err instanceof Error ? err.message : err);
+    return [];
+  }
 }
 
 /** Fetch unresolved alerts for this user from Supabase */

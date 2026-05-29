@@ -1,9 +1,3 @@
-/**
- * AUTO-GENERATED — do not edit manually.
- * Regenerate: npx supabase gen types typescript --project-id llnrvophuvrqcqducgrr > types/supabase.ts
- * Generated: 2026-05-28
- */
-
 export type Json =
   | string
   | number
@@ -18,8 +12,285 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
+      agent_actions: {
+        Row: {
+          action_type: string
+          approved_at: string | null
+          created_at: string
+          executed_at: string | null
+          final_payload: Json | null
+          id: string
+          output_schema_version: string
+          proposed_payload: Json
+          provider_gate: Json
+          quiet_hours_check: Json
+          requires_human_approval: boolean
+          retry_policy: Json
+          risk_tier: string
+          run_id: string
+          send_cap_check: Json
+          status: string
+          suppression_checks: Json
+          target_id: string | null
+          target_type: string | null
+          template_check: Json
+        }
+        Insert: {
+          action_type: string
+          approved_at?: string | null
+          created_at?: string
+          executed_at?: string | null
+          final_payload?: Json | null
+          id?: string
+          output_schema_version?: string
+          proposed_payload?: Json
+          provider_gate?: Json
+          quiet_hours_check?: Json
+          requires_human_approval?: boolean
+          retry_policy?: Json
+          risk_tier?: string
+          run_id: string
+          send_cap_check?: Json
+          status?: string
+          suppression_checks?: Json
+          target_id?: string | null
+          target_type?: string | null
+          template_check?: Json
+        }
+        Update: {
+          action_type?: string
+          approved_at?: string | null
+          created_at?: string
+          executed_at?: string | null
+          final_payload?: Json | null
+          id?: string
+          output_schema_version?: string
+          proposed_payload?: Json
+          provider_gate?: Json
+          quiet_hours_check?: Json
+          requires_human_approval?: boolean
+          retry_policy?: Json
+          risk_tier?: string
+          run_id?: string
+          send_cap_check?: Json
+          status?: string
+          suppression_checks?: Json
+          target_id?: string | null
+          target_type?: string | null
+          template_check?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_actions_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_approvals: {
+        Row: {
+          action_id: string
+          approval_source: string
+          created_at: string
+          decided_by_user_id: string | null
+          decision: string
+          decision_reason: string | null
+          final_payload: Json | null
+          id: string
+          output_schema_version: string
+          requested_by_user_id: string | null
+          run_id: string | null
+        }
+        Insert: {
+          action_id: string
+          approval_source?: string
+          created_at?: string
+          decided_by_user_id?: string | null
+          decision: string
+          decision_reason?: string | null
+          final_payload?: Json | null
+          id?: string
+          output_schema_version?: string
+          requested_by_user_id?: string | null
+          run_id?: string | null
+        }
+        Update: {
+          action_id?: string
+          approval_source?: string
+          created_at?: string
+          decided_by_user_id?: string | null
+          decision?: string
+          decision_reason?: string | null
+          final_payload?: Json | null
+          id?: string
+          output_schema_version?: string
+          requested_by_user_id?: string | null
+          run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_approvals_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "agent_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_approvals_decided_by_user_id_fkey"
+            columns: ["decided_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_approvals_requested_by_user_id_fkey"
+            columns: ["requested_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_approvals_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_run_events: {
+        Row: {
+          action_id: string | null
+          created_at: string
+          event_payload: Json
+          event_type: string
+          id: string
+          output_schema_version: string
+          run_id: string
+        }
+        Insert: {
+          action_id?: string | null
+          created_at?: string
+          event_payload?: Json
+          event_type: string
+          id?: string
+          output_schema_version?: string
+          run_id: string
+        }
+        Update: {
+          action_id?: string | null
+          created_at?: string
+          event_payload?: Json
+          event_type?: string
+          id?: string
+          output_schema_version?: string
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_run_events_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "agent_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_run_events_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_runs: {
+        Row: {
+          agent_key: string
+          agent_name: string | null
+          attempt_count: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          input: Json
+          output: Json | null
+          output_schema_version: string
+          requested_by_user_id: string | null
+          retry_policy: Json
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          agent_key: string
+          agent_name?: string | null
+          attempt_count?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          input?: Json
+          output?: Json | null
+          output_schema_version?: string
+          requested_by_user_id?: string | null
+          retry_policy?: Json
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          agent_key?: string
+          agent_name?: string | null
+          attempt_count?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          input?: Json
+          output?: Json | null
+          output_schema_version?: string
+          requested_by_user_id?: string | null
+          retry_policy?: Json
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_requested_by_user_id_fkey"
+            columns: ["requested_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_settings: {
         Row: {
           created_at: string | null
@@ -3087,6 +3358,8 @@ export type Database = {
       ghl_action_drafts: {
         Row: {
           action_type: string
+          approval_source: string | null
+          approved_by_user_id: string | null
           confirmed_at: string | null
           contact_id: string | null
           created_at: string
@@ -3097,11 +3370,16 @@ export type Database = {
           executed_at: string | null
           id: string
           outcome: Json | null
+          output_schema_version: string
           params: Json
+          risk_tier: string | null
+          safety_checks: Json
           status: string
         }
         Insert: {
           action_type: string
+          approval_source?: string | null
+          approved_by_user_id?: string | null
           confirmed_at?: string | null
           contact_id?: string | null
           created_at?: string
@@ -3112,11 +3390,16 @@ export type Database = {
           executed_at?: string | null
           id?: string
           outcome?: Json | null
+          output_schema_version?: string
           params?: Json
+          risk_tier?: string | null
+          safety_checks?: Json
           status?: string
         }
         Update: {
           action_type?: string
+          approval_source?: string | null
+          approved_by_user_id?: string | null
           confirmed_at?: string | null
           contact_id?: string | null
           created_at?: string
@@ -3127,10 +3410,20 @@ export type Database = {
           executed_at?: string | null
           id?: string
           outcome?: Json | null
+          output_schema_version?: string
           params?: Json
+          risk_tier?: string | null
+          safety_checks?: Json
           status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ghl_action_drafts_approved_by_user_id_fkey"
+            columns: ["approved_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ghl_action_drafts_contact_id_fkey"
             columns: ["contact_id"]
@@ -3923,6 +4216,8 @@ export type Database = {
           model: string
           output_content: Json
           output_tokens: number | null
+          prompt_blocks: Json
+          prompt_version: string | null
           stop_reason: string | null
           tool_calls: Json | null
           user_id: string | null
@@ -3938,6 +4233,8 @@ export type Database = {
           model: string
           output_content: Json
           output_tokens?: number | null
+          prompt_blocks?: Json
+          prompt_version?: string | null
           stop_reason?: string | null
           tool_calls?: Json | null
           user_id?: string | null
@@ -3953,6 +4250,8 @@ export type Database = {
           model?: string
           output_content?: Json
           output_tokens?: number | null
+          prompt_blocks?: Json
+          prompt_version?: string | null
           stop_reason?: string | null
           tool_calls?: Json | null
           user_id?: string | null
@@ -8515,6 +8814,8 @@ export type Database = {
         Row: {
           action_status: string
           action_type: string
+          approval_source: string | null
+          approved_by_user_id: string | null
           confirmed_at: string | null
           created_at: string | null
           draft_content: Json
@@ -8524,12 +8825,17 @@ export type Database = {
           ghl_contact_id: string | null
           ghl_response: Json | null
           id: string
+          output_schema_version: string
+          risk_tier: string | null
+          safety_checks: Json
           session_id: string
           user_id: string
         }
         Insert: {
           action_status: string
           action_type: string
+          approval_source?: string | null
+          approved_by_user_id?: string | null
           confirmed_at?: string | null
           created_at?: string | null
           draft_content: Json
@@ -8539,12 +8845,17 @@ export type Database = {
           ghl_contact_id?: string | null
           ghl_response?: Json | null
           id?: string
+          output_schema_version?: string
+          risk_tier?: string | null
+          safety_checks?: Json
           session_id: string
           user_id: string
         }
         Update: {
           action_status?: string
           action_type?: string
+          approval_source?: string | null
+          approved_by_user_id?: string | null
           confirmed_at?: string | null
           created_at?: string | null
           draft_content?: Json
@@ -8554,10 +8865,20 @@ export type Database = {
           ghl_contact_id?: string | null
           ghl_response?: Json | null
           id?: string
+          output_schema_version?: string
+          risk_tier?: string | null
+          safety_checks?: Json
           session_id?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "scout_action_logs_approved_by_user_id_fkey"
+            columns: ["approved_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "scout_action_logs_session_id_fkey"
             columns: ["session_id"]
@@ -8873,6 +9194,39 @@ export type Database = {
             referencedColumns: ["TerritorySlug"]
           },
         ]
+      }
+      sync_watermarks: {
+        Row: {
+          created_at: string
+          last_attempt_at: string | null
+          last_attempt_cursor: string | null
+          last_success_at: string | null
+          last_success_cursor: string | null
+          metadata: Json
+          stream_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          last_attempt_at?: string | null
+          last_attempt_cursor?: string | null
+          last_success_at?: string | null
+          last_success_cursor?: string | null
+          metadata?: Json
+          stream_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          last_attempt_at?: string | null
+          last_attempt_cursor?: string | null
+          last_success_at?: string | null
+          last_success_cursor?: string | null
+          metadata?: Json
+          stream_name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       system_logs: {
         Row: {
@@ -9851,6 +10205,84 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      work_queue_items: {
+        Row: {
+          assigned_user_id: string | null
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string
+          description: string | null
+          due_at: string | null
+          ghl_contact_id: string | null
+          id: string
+          last_seen_at: string
+          priority: string
+          source_id: string
+          source_payload: Json
+          source_table: string
+          source_type: string
+          stale_at: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_user_id?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_at?: string | null
+          ghl_contact_id?: string | null
+          id?: string
+          last_seen_at?: string
+          priority?: string
+          source_id: string
+          source_payload?: Json
+          source_table: string
+          source_type: string
+          stale_at?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_user_id?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_at?: string | null
+          ghl_contact_id?: string | null
+          id?: string
+          last_seen_at?: string
+          priority?: string
+          source_id?: string
+          source_payload?: Json
+          source_table?: string
+          source_type?: string
+          stale_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_queue_items_assigned_user_id_fkey"
+            columns: ["assigned_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_queue_items_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       workflow_ab_tests: {
         Row: {
@@ -10860,6 +11292,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       cron_job_status: ["running", "success", "failed"],

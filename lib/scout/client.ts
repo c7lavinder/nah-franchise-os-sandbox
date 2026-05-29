@@ -16,7 +16,13 @@ import { logLLMCall } from "./llm-logger";
 import { logRetrieval } from "./retrieval-logger";
 import { SCOUT_MODELS } from "./model-router";
 import { loadUserMemory, formatMemoryForPrompt } from "./memory";
-import { loadPromptSection } from "./prompt-loader";
+import {
+  createPromptBlockMetadata,
+  createPromptVersion,
+  loadPromptSectionWithMetadata,
+  type PromptBlockMetadata,
+} from "./prompt-loader";
+import { loadDataFreshness } from "./data-freshness";
 import { createServerClient } from "@/lib/supabase/server";
 import type { ScoutToolName, DraftedAction } from "@/types/scout";
 import type { UserRole } from "@/types/database";
@@ -522,42 +528,6 @@ async function loadTeamRoster(supabase: ReturnType<typeof createServerClient>): 
   }
 }
 
-/** Check when key data syncs last ran and return a one-liner for the system prompt */
-async function loadDataFreshness(supabase: ReturnType<typeof createServerClient>): Promise<string> {
-  try {
-    const jobs = ["sync-ms-prospects", "sync-ms-properties", "sync-ms-territories"];
-    const { data } = await supabase
-      .from("cron_job_log")
-      .select("job_name, finished_at")
-      .in("job_name", jobs)
-      .eq("status", "completed")
-      .order("finished_at", { ascending: false })
-      .limit(3);
-
-    if (!data || data.length === 0) {
-      return "DATA FRESHNESS: No successful data syncs recorded. Territory and property data may be incomplete.";
-    }
-
-    const lines: string[] = [];
-    for (const job of jobs) {
-      const row = data.find((r) => r.job_name === job);
-      if (row?.finished_at) {
-        const hoursAgo = Math.round((Date.now() - new Date(row.finished_at).getTime()) / (1000 * 60 * 60));
-        if (hoursAgo > 24) {
-          lines.push(`${job}: last synced ${hoursAgo}h ago (STALE)`);
-        }
-      } else {
-        lines.push(`${job}: no successful sync on record`);
-      }
-    }
-
-    if (lines.length === 0) return "";
-    return `DATA FRESHNESS WARNING — Some data may be stale. If a query returns zeros or empty results, mention that data was last synced over 24h ago rather than speculating about causes.\n${lines.join("\n")}`;
-  } catch {
-    return "";
-  }
-}
-
 /** Loads a rich data snapshot for Scout's context — pipeline, alerts, user activity */
 async function loadPipelineSnapshot(userId: string): Promise<string> {
   try {
@@ -674,6 +644,11 @@ export interface PrefetchResult {
   chunkMeta: Array<{ contentType: string; sourceId?: string; similarity: number; contentPreview: string }>;
 }
 
+export interface ScoutPromptMetadata {
+  version: string;
+  blocks: PromptBlockMetadata[];
+}
+
 /**
  * Pre-fetch relevant context based on the user's message.
  * Uses the question classifier to determine retrieval strategy and token budget.
@@ -773,6 +748,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
   systemPrompt: string;
   ghlUserId: string | null;
   prefetch: PrefetchResult;
+  promptMetadata: ScoutPromptMetadata;
 }> {
   const supabaseForUser = createServerClient();
   const { data: currentUser } = await supabaseForUser
@@ -791,9 +767,9 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
     pipelineSnapshot,
     userMemory,
     territoryCountResult,
-    rules,
-    profileCtx,
-    calendars,
+    rulesResult,
+    profileCtxResult,
+    calendarsResult,
     freshness,
     preFetchedContext,
     teamRoster,
@@ -808,10 +784,10 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
         .eq("status", "active");
       return count ?? 64;
     })(),
-    loadPromptSection("scout_rules", SCOUT_RULES),
-    loadPromptSection("scout_profile_context", PROFILE_AND_SCORING_CONTEXT),
-    loadPromptSection("scout_calendars", CALENDAR_CONTEXT),
-    loadDataFreshness(supabaseForUser),
+    loadPromptSectionWithMetadata("scout_rules", SCOUT_RULES),
+    loadPromptSectionWithMetadata("scout_profile_context", PROFILE_AND_SCORING_CONTEXT),
+    loadPromptSectionWithMetadata("scout_calendars", CALENDAR_CONTEXT),
+    loadDataFreshness(supabaseForUser as never),
     latestMessage
       ? prefetchContext(latestMessage, input.pageContext?.contactId)
       : Promise.resolve({
@@ -823,29 +799,40 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
         } as PrefetchResult),
     loadTeamRoster(supabaseForUser),
   ]);
-  const identity = await loadPromptSection("scout_identity", getScoutIdentity(territoryCountResult));
+  const identityResult = await loadPromptSectionWithMetadata("scout_identity", getScoutIdentity(territoryCountResult));
 
   const pageContextLine = formatPageContextForPrompt(input.pageContext);
+  const roleBehavior = getRoleBehavior(input.userRole);
+  const currentUserContext = `CURRENT USER: ${input.userName} (ID: ${input.userId}, Role: ${input.userRole})`;
+  const memoryContext = formatMemoryForPrompt(userMemory);
 
-  const systemPrompt = [
-    identity,
-    getRoleBehavior(input.userRole),
-    `CURRENT USER: ${input.userName} (ID: ${input.userId}, Role: ${input.userRole})`,
-    teamRoster,
-    pageContextLine,
-    freshness,
-    formatMemoryForPrompt(userMemory),
-    pipelineSnapshot,
-    preFetchedContext.contextString,
-    profileCtx,
-    calendars,
-    knowledgeBase,
-    rules,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  const promptParts = [
+    { content: identityResult.value, metadata: identityResult.metadata },
+    { content: roleBehavior, metadata: createPromptBlockMetadata("role_behavior", roleBehavior, "code") },
+    { content: currentUserContext, metadata: createPromptBlockMetadata("current_user", currentUserContext, "runtime") },
+    { content: teamRoster, metadata: createPromptBlockMetadata("team_roster", teamRoster, "runtime") },
+    { content: pageContextLine, metadata: createPromptBlockMetadata("page_context", pageContextLine, "runtime") },
+    { content: freshness, metadata: createPromptBlockMetadata("data_freshness", freshness, "runtime") },
+    { content: memoryContext, metadata: createPromptBlockMetadata("user_memory", memoryContext, "runtime") },
+    { content: pipelineSnapshot, metadata: createPromptBlockMetadata("pipeline_snapshot", pipelineSnapshot, "runtime") },
+    {
+      content: preFetchedContext.contextString,
+      metadata: createPromptBlockMetadata("prefetch_context", preFetchedContext.contextString, "runtime"),
+    },
+    { content: profileCtxResult.value, metadata: profileCtxResult.metadata },
+    { content: calendarsResult.value, metadata: calendarsResult.metadata },
+    { content: knowledgeBase, metadata: createPromptBlockMetadata("knowledge_base", knowledgeBase, "runtime") },
+    { content: rulesResult.value, metadata: rulesResult.metadata },
+  ].filter((part) => Boolean(part.content));
 
-  return { systemPrompt, ghlUserId, prefetch: preFetchedContext };
+  const systemPrompt = promptParts.map((part) => part.content).join("\n\n");
+  const blocks = promptParts.map((part) => part.metadata);
+  const promptMetadata = {
+    version: createPromptVersion(blocks),
+    blocks,
+  };
+
+  return { systemPrompt, ghlUserId, prefetch: preFetchedContext, promptMetadata };
 }
 
 /**
@@ -854,7 +841,7 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
  */
 export async function runConversationTurn(input: ScoutConversationInput): Promise<ScoutConversationOutput> {
   const client = createAnthropicClient();
-  const { systemPrompt, ghlUserId, prefetch } = await buildSystemPrompt(input);
+  const { systemPrompt, ghlUserId, prefetch, promptMetadata } = await buildSystemPrompt(input);
 
   let messages: Anthropic.Messages.MessageParam[] = [...input.messages];
   const draftedActions: DraftedAction[] = [];
@@ -902,6 +889,8 @@ export async function runConversationTurn(input: ScoutConversationInput): Promis
         error: errorMsg,
         iteration: iterations,
         caller: "scout_chat",
+        promptVersion: promptMetadata.version,
+        promptBlocks: promptMetadata.blocks,
       }).catch(() => {
         /* swallow — logging must never block */
       });
@@ -930,6 +919,8 @@ export async function runConversationTurn(input: ScoutConversationInput): Promis
       latencyMs,
       iteration: iterations,
       caller: "scout_chat",
+      promptVersion: promptMetadata.version,
+      promptBlocks: promptMetadata.blocks,
     }).catch(() => {
       /* swallow — logging must never block */
     });

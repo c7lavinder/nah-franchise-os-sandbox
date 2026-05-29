@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
   };
 
   // Build system prompt (loads KB, pipeline snapshot, memory)
-  const { systemPrompt, ghlUserId, prefetch } = await buildSystemPrompt(input);
+  const { systemPrompt, ghlUserId, prefetch, promptMetadata } = await buildSystemPrompt(input);
 
   // Create the SSE stream
   const encoder = new TextEncoder();
@@ -126,6 +126,7 @@ export async function POST(request: NextRequest) {
           messages,
           input,
           ghlUserId,
+          promptMetadata,
           onEvent: (event) => {
             sendEvent(event.type, event.data);
 

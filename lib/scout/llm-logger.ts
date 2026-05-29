@@ -10,6 +10,7 @@
  */
 
 import { createServerClient } from "@/lib/supabase/server";
+import type { PromptBlockMetadata } from "./prompt-loader";
 
 /** Parameters for logging a single Claude API call */
 export interface LLMCallLogParams {
@@ -39,6 +40,10 @@ export interface LLMCallLogParams {
   iteration?: number;
   /** Caller identifier — e.g. "scout_chat", "rewrite_engine" */
   caller?: string;
+  /** Composite version hash of prompt blocks sent as the Anthropic system prompt */
+  promptVersion?: string;
+  /** Compact per-block prompt metadata for audit/debugging without storing extra prompt text */
+  promptBlocks?: PromptBlockMetadata[];
 }
 
 /**
@@ -51,9 +56,7 @@ export async function logLLMCall(params: LLMCallLogParams): Promise<string | nul
   try {
     const supabase = createServerClient();
 
-    const { data, error } = await supabase
-      .from("llm_call_logs")
-      .insert({
+    const insertPayload = {
         user_id: params.userId ?? null,
         model: params.model,
         input_messages: params.inputMessages as unknown as Record<string, unknown>,
@@ -67,9 +70,28 @@ export async function logLLMCall(params: LLMCallLogParams): Promise<string | nul
         latency_ms: params.latencyMs,
         error_message: params.error ?? null,
         iteration: params.iteration ?? 1,
-      })
+        prompt_version: params.promptVersion ?? null,
+        prompt_blocks: (params.promptBlocks ?? []) as unknown as Record<string, unknown>,
+      };
+
+    let { data, error } = await supabase
+      .from("llm_call_logs")
+      .insert(insertPayload)
       .select("id")
       .single();
+
+    // Backward compatibility for environments that have not applied the
+    // prompt metadata migration yet. Logging still works; metadata starts
+    // flowing once the migration lands.
+    if (
+      error &&
+      (error.message.includes("prompt_version") || error.message.includes("prompt_blocks"))
+    ) {
+      const { prompt_version: _promptVersion, prompt_blocks: _promptBlocks, ...legacyPayload } = insertPayload;
+      const retry = await supabase.from("llm_call_logs").insert(legacyPayload).select("id").single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       console.error("LLM log insert failed:", error.message);

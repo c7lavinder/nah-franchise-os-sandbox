@@ -25,6 +25,7 @@ This map keeps MasterSuite sync ownership explicit so future cleanup can move ro
 ## Current cleanup seams
 
 - Prospect-style syncs duplicate contact dedupe, journey slugging, and pipeline-state creation. Safest next refactor: extract these into a small `lib/mastersuite/prospect-import.ts` helper with tests before changing route behavior.
+- `sync_watermarks` exists as the incremental-sync foundation for `sync-ms-prospects`; the current route still uses the 7-day lookback until the next pass wires cursor reads/writes.
 - Property sync contains several independent destination upserts in one file. Safest next refactor: extract pure row mappers first, then add tests around mapper output.
 - EOS sync has the broadest table surface. Avoid broad rewrites; split only by destination family when touching a specific failing or changing area.
 - Routes already delegate most transformation. Keep that boundary; do not move mapping back into API handlers.

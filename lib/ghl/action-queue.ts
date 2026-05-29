@@ -8,6 +8,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { checkActionPermission, type GHLActionCode } from "./permissions";
 import { executeGHLAction, type ActionResult } from "./actions/executor";
+import { buildGHLActionSafetyMetadata, isCustomerFacingGHLActionCode } from "./action-safety";
 
 export interface DraftAction {
   id: string;
@@ -46,6 +47,8 @@ export async function draftAction(
       drafted_by_source: source,
       params,
       status: "draft",
+      risk_tier: buildGHLActionSafetyMetadata(actionType, userId).riskTier,
+      output_schema_version: "send-safety.v1",
     })
     .select("id")
     .single();
@@ -119,12 +122,22 @@ export async function confirmAction(
 
   // Mark as confirmed
   const paramsToUse = finalParams ?? draft.params;
+  const safetyMetadata = buildGHLActionSafetyMetadata(draft.action_type as GHLActionCode, userId);
   await supabase
     .from("ghl_action_drafts")
     .update({
       status: "confirmed",
       confirmed_at: new Date().toISOString(),
       edited_params: finalParams ?? null,
+      risk_tier: safetyMetadata.riskTier,
+      approval_source: safetyMetadata.approvalSource,
+      approved_by_user_id: safetyMetadata.approvedByUserId,
+      safety_checks: {
+        requiredGates: safetyMetadata.requiredGates,
+        requiresHumanApproval: safetyMetadata.requiresHumanApproval,
+        customerFacingSend: isCustomerFacingGHLActionCode(draft.action_type as GHLActionCode),
+      },
+      output_schema_version: safetyMetadata.outputSchemaVersion,
     })
     .eq("id", draftId);
 

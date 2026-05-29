@@ -19,6 +19,7 @@ import { loadUserMemory, formatMemoryForPrompt } from "./memory";
 import { createServerClient } from "@/lib/supabase/server";
 import type { ScoutToolName, DraftedAction } from "@/types/scout";
 import type { ScoutConversationInput } from "./client";
+import type { ScoutPromptMetadata } from "./client";
 
 // Re-use system prompt assembly from the main client.
 // We import indirectly to avoid circular deps — the shared bits are
@@ -53,9 +54,10 @@ export async function runStreamingTurn(params: {
   messages: Anthropic.Messages.MessageParam[];
   input: ScoutConversationInput;
   ghlUserId: string | null;
+  promptMetadata?: ScoutPromptMetadata;
   onEvent: (event: StreamEvent) => void;
 }): Promise<void> {
-  const { systemPrompt, input, ghlUserId, onEvent } = params;
+  const { systemPrompt, input, ghlUserId, promptMetadata, onEvent } = params;
   let messages = [...params.messages];
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -123,6 +125,8 @@ export async function runStreamingTurn(params: {
         latencyMs,
         iteration: iterations,
         caller: "scout_chat_stream",
+        promptVersion: promptMetadata?.version,
+        promptBlocks: promptMetadata?.blocks,
       }).catch(() => {});
 
       // Handle tool calls
@@ -197,6 +201,8 @@ export async function runStreamingTurn(params: {
         error: errorMsg,
         iteration: iterations,
         caller: "scout_chat_stream",
+        promptVersion: promptMetadata?.version,
+        promptBlocks: promptMetadata?.blocks,
       }).catch(() => {});
       onEvent({ type: "error", data: JSON.stringify({ error: errorMsg }) });
       return;

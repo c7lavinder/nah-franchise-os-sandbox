@@ -1,48 +1,62 @@
 ---
-Last verified: 2026-05-22
+Last verified: 2026-05-29
 Source: code (lib/scout/tools.ts)
 ---
 
 # Scout Tools — Catalog
 
-Scout has 23 tools defined in `lib/scout/tools.ts`, executed in `lib/scout/executor.ts`.
+Scout has 37 tools defined in `lib/scout/tools.ts`, executed in `lib/scout/tool-executor.ts`.
 
 ---
 
 ## Read tools (no side effects)
 
-| Tool                        | Input                                   | Returns                                          | Notes                                            |
-| --------------------------- | --------------------------------------- | ------------------------------------------------ | ------------------------------------------------ |
-| `get_entity`                | entityType, entityId                    | Full entity record (contact, territory, journey) | Primary lookup tool                              |
-| `query`                     | table, filters, select, limit           | Raw Supabase query results                       | Flexible data access                             |
-| `aggregate`                 | table, filters, groupBy, metric         | Aggregated counts/sums                           | For dashboard-style questions                    |
-| `search_contacts`           | query (name/email/phone)                | Matching contacts                                | Fuzzy search                                     |
-| `get_pipeline`              | pipelineSlug?                           | Pipeline stages + contact counts                 | Overview of all pipelines                        |
-| `get_next_action`           | contactId                               | Recommended next step for a contact              | Uses stage + sub-task state                      |
-| `get_schedule`              | userId?, days?                          | Upcoming appointments from GHL                   | Calendar integration                             |
-| `get_calendar_availability` | calendar_hint, start, end, timezone?    | Open slots on a specific GHL calendar            | Call before draft_appointment for vague times    |
-| `search_knowledge`          | query                                   | Matching KB documents by hybrid search           | Voyage AI + BM25 + reranking                     |
-| `search_transcripts`        | query, contact_id?, limit?              | Matching call transcript chunks                  | Semantic search across past calls                |
-| `search_documents`          | query, journey_id?, contact_id?, limit? | Matching document chunks                         | Semantic search across uploaded docs             |
-| `workflow_analyze`          | workflowId                              | Health score (A-F) + diagnosis                   | Workflow intelligence                            |
-| `workflow_rewrite`          | workflowId, stepId, context             | 3 rewrite variants                               | AI-suggested improvements                        |
-| `trainual_status`           | contactId                               | Trainual completion % + last activity            | PTO tracking                                     |
-| `describe_data`             | table?                                  | Table list + key columns + row counts            | Self-awareness — use before claiming data access |
+- `get_entity` — full entity record for contact, territory, journey, or opportunity.
+- `query` — filtered rows for supported collections.
+- `aggregate` — counts, sums, averages, min/max, and group-bys.
+- `search_contacts` — fuzzy contact lookup by name, email, or phone.
+- `get_pipeline` — pipeline structure and open opportunities.
+- `get_next_action` — recommendation engine for one contact.
+- `get_schedule` — upcoming appointments for a date range.
+- `get_calendar_availability` — open slots on a named calendar.
+- `get_contact_insights` — prospect analytics by lens.
+- `get_contact_calls` — call history, grades, summaries, and pending action items.
+- `get_tasks` — open contact tasks.
+- `complete_task` — completes an existing task when explicitly requested.
+- `search_knowledge` — hybrid KB search with source results.
+- `search_transcripts` — semantic search across call transcripts.
+- `search_documents` — semantic search across uploaded journey documents.
+- `get_journey_documents` — uploaded document metadata and extracted text.
+- `workflow_analyze` — workflow health score and diagnosis.
+- `workflow_rewrite` — rewrite variants for an underperforming workflow step.
+- `trainual_status` — Trainual completion, activity, and nudge state.
+- `territory_performance` — territory KPIs from operational data.
+- `network_benchmarks` — network averages, high performers, rankings, and totals.
+- `compare_territories` — side-by-side comparison for 2-5 territories.
+- `describe_data` — database table/column inventory and row counts.
+- `get_compliance` — FDD, agreement, training, registration, background check, and insurance status.
 
 ## Draft tools (produce actions for human review — DRC pattern)
 
-| Tool                       | Input                                    | Produces                                                 | Notes                          |
-| -------------------------- | ---------------------------------------- | -------------------------------------------------------- | ------------------------------ |
-| `draft_message`            | contactId, channel, content              | Message draft (SMS or Email)                             | Human confirms before send     |
-| `draft_task`               | contactId, title, description, dueDate   | GHL task draft                                           | Human confirms before create   |
-| `draft_stage_move`         | contactId, newStage                      | Pipeline stage move draft                                | Enforces stage move rules      |
-| `draft_profile_update`     | contactId, fields[]                      | Profile field update draft                               | Updates candidate intelligence |
-| `draft_eos_update`         | entityType, entityId, section, updates[] | EOS data update draft                                    | Contact or territory EOS       |
-| `draft_market_data_update` | territorySlug, fields[]                  | Territory market data draft                              | Market research updates        |
-| `draft_journey_action`     | kind, contactId, ...                     | Journey action draft (enroll/pause/resume/exit workflow) | Workflow management            |
-| `draft_appointment`        | contactId, title, startTime, endTime     | GHL appointment draft                                    | Calendar scheduling            |
-| `draft_note`               | contactId, body                          | GHL note draft                                           | Contact notes                  |
-| `draft_trigger_workflow`   | contactId, workflowName                  | GHL workflow trigger draft                               | External workflow triggers     |
+- `draft_message` — SMS or email draft.
+- `draft_task` — task draft with due date and optional assignee.
+- `draft_stage_move` — pipeline stage change draft.
+- `draft_profile_update` — candidate profile field update draft.
+- `draft_eos_update` — contact or territory EOS update draft.
+- `draft_market_data_update` — territory market data update draft.
+- `draft_journey_action` — workflow enroll, pause, resume, or exit draft.
+- `draft_appointment` — calendar appointment draft.
+- `draft_note` — contact note draft.
+- `draft_trigger_workflow` — external/native workflow trigger draft.
+- `draft_knowledge_doc` — KB document suggestion for admin review.
+- `draft_sub_task_log` — pipeline sub-task milestone log draft.
+- `draft_compliance_update` — compliance record update draft.
+
+## Send safety contract
+
+Scout may draft SMS/email content, but `/api/scout/action` only executes actions posted with `status: "confirmed"`. Customer-facing sends are logged as `approved_for_execution` before the GHL provider call, then logged again with the execution result.
+
+Required gates are defined in `lib/ghl/action-safety.ts`: human approval, immutable action log, quiet hours, suppression list, daily send cap, approved template, and provider health. Phase 4 records these gates as structured metadata; future policy work should fill the gate outcomes before enabling any autonomous sends.
 
 ---
 
@@ -66,7 +80,7 @@ Add a new entry to the `tools` array:
 }
 ```
 
-### 2. Implement execution — `lib/scout/executor.ts`
+### 2. Implement execution — `lib/scout/tool-executor.ts`
 
 Add a `case` in the tool executor switch:
 

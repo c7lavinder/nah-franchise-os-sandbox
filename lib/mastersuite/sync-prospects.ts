@@ -214,11 +214,17 @@ async function fetchProspects(since?: string): Promise<Prospect[]> {
 
 export async function syncProspects(
   since?: string
-): Promise<{ created: number; wired: number; skipped: number; errors: string[] }> {
+): Promise<{ created: number; wired: number; skipped: number; errors: string[]; sourceCursor: string | null }> {
   const sb = getServiceSupabase();
   const errors: string[] = [];
 
   const allProspects = await fetchProspects(since);
+  const sourceCursor = allProspects.reduce<string | null>((latest, prospect) => {
+    const candidate = toDateOrNull(prospect.insertedAt);
+    if (!candidate) return latest;
+    if (!latest) return candidate;
+    return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
+  }, null);
 
   // Collect all emails and deterministic IDs for batch dedup
   const allEmails = [...new Set(allProspects.filter((p) => p.email && p.email.length > 5).map((p) => p.email!))];
@@ -359,7 +365,7 @@ export async function syncProspects(
     if (!err) wired++;
   }
 
-  return { created, wired, skipped, errors };
+  return { created, wired, skipped, errors, sourceCursor };
 }
 
 // ---------------------------------------------------------------------------

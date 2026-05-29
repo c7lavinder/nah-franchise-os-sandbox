@@ -57,7 +57,7 @@ kb_gap_signals (0): id, query, resolved, resolved_by_doc_id, results_found, sear
 knowledge_documents (57): category, content, created_at, id, is_active, last_retrieved_at, priority, status +4 more
 lead_sources (5): created_at, id, is_active, name, sort_order
 lead_sub_sources (16): created_at, id, is_active, lead_source_id, name, sort_order
-llm_call_logs (563): created_at, error_message, id, input_messages, input_tokens, iteration, latency_ms, model +5 more
+llm_call_logs (563): created_at, error_message, id, input_messages, input_tokens, iteration, latency_ms, model +7 more
 market_signals (0): id, observed_at, signal_key, signal_type, signal_value, source
 ms_construction_default_rooms (0): Description, IconUrl, Name, RoomToken
 ms_construction_property_rooms (0): ConstructionPropertyRoomId, PropertyId, RoomToken

@@ -1,11 +1,11 @@
 ---
-Last verified: 2026-04-27
+Last verified: 2026-05-29
 Source: code (lib/scout/)
 ---
 
 # Scout — AI Sales Coach
 
-Scout is the AI brain of the NAH Franchise OS. Powered by Claude Haiku 4.5.
+Scout is the AI brain of the NAH Franchise OS. It uses an Opus orchestrator on the first LLM iteration and a Haiku executor on follow-up iterations.
 
 ---
 
@@ -20,7 +20,7 @@ Scout is the AI brain of the NAH Franchise OS. Powered by Claude Haiku 4.5.
 
 ## Tool-call loop
 
-Scout uses Anthropic's tool-use API. The loop lives in `lib/scout/client.ts`:
+Scout uses Anthropic's tool-use API. The non-streaming loop lives in `lib/scout/client.ts`; the SSE loop lives in `lib/scout/stream.ts`.
 
 1. User sends a message via `/api/scout/chat`
 2. System prompt + user memory + knowledge base context injected
@@ -29,15 +29,18 @@ Scout uses Anthropic's tool-use API. The loop lives in `lib/scout/client.ts`:
 5. Loop continues until Claude produces a text response (no more tool calls)
 6. If a drafted action was produced, it's returned alongside the text response
 
-**Max iterations:** Controlled by `maxToolCalls` in the conversation turn config.
+**Max iterations:** 15 tool-call iterations.
 
 ---
 
 ## System prompt
 
-Currently hardcoded in `lib/scout/client.ts` (line ~39).
+Prompt assembly happens in `buildSystemPrompt()` in `lib/scout/client.ts`.
 
-**Tier 1 gap #1:** Externalize the system prompt to a database-backed config so changes don't require a deploy.
+Prompt sections are mixed from code, runtime context, and DB-backed overrides:
+- `scout_identity`, `scout_profile_context`, and `scout_calendars` can be overridden through `app_settings`.
+- `scout_rules` is intentionally code-only so stale DB content cannot override DRC, source attribution, prompt-injection, or compliance rules.
+- LLM calls log compact `prompt_version` and `prompt_blocks` metadata in `llm_call_logs` for auditability.
 
 The prompt includes:
 - Scout identity and behavior rules
@@ -52,10 +55,10 @@ The prompt includes:
 
 Before each conversation turn, Scout loads relevant KB documents from the `knowledge_documents` table:
 - Filtered by category relevance to the current page context
-- Top-10 by priority score
+- Top-25 by priority score
 - Injected as system context, not as tool results
 
-**Tier 1 gap #1:** Expand KB capacity, add embedding-based retrieval (pgvector table exists but not wired).
+Scout also pre-fetches relevant retrieval chunks for some questions through the RAG classifier/retriever path and logs retrieval quality separately.
 
 ---
 
@@ -84,4 +87,4 @@ Memory is loaded into the system prompt on each turn, giving Scout continuity ac
 
 ## Adding a new tool
 
-See `docs/scout-tools.md` for the tool catalog and the 3-file recipe for adding new tools.
+See `docs/scout-tools.md` for the current 37-tool catalog and the 3-file recipe for adding new tools.

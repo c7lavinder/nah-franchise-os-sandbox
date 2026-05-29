@@ -6,9 +6,22 @@ import { useState, useEffect, useCallback } from "react";
 import { Bot, AlertTriangle } from "lucide-react";
 import type { GHLConversation, GHLAppointment, GHLTask } from "@/types/ghl";
 import { ConversationList, ConversationThread, InboxFilters } from "@/components/inbox";
-import { TodayCalendar, TaskPanel } from "@/components/daily-hq";
+import { TodayCalendar, TaskPanel, WorkQueuePanel } from "@/components/daily-hq";
 import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
 import { useAuth } from "@/lib/auth/AuthContext";
+
+interface WorkQueueItem {
+  id: string;
+  status: string;
+  statusLabel: string;
+  priority: "low" | "medium" | "high" | "critical";
+  title: string;
+  description: string | null;
+  contactId: string | null;
+  ghlContactId: string | null;
+  sourceType: string;
+  dueAt: string | null;
+}
 
 /**
  * Daily HQ — Chad's Command Center
@@ -36,6 +49,7 @@ export default function DailyHQPage() {
 
   // Task state
   const [tasks, setTasks] = useState<GHLTask[]>([]);
+  const [workQueue, setWorkQueue] = useState<WorkQueueItem[]>([]);
   const [sidebarError, setSidebarError] = useState<string | null>(null);
 
   // Fetch inbox
@@ -68,6 +82,7 @@ export default function DailyHQPage() {
         const data = await res.json();
         setAppointments(data.upcoming ?? []);
         setTasks(data.tasks ?? []);
+        setWorkQueue(data.workQueue ?? []);
       } else {
         const errBody = await res.json().catch(() => ({}));
         setSidebarError(`Failed to load calendar and tasks (${res.status})`);
@@ -181,6 +196,7 @@ export default function DailyHQPage() {
         {/* RIGHT PANEL — Priority Leads + Calendar + Tasks */}
         <div className="lg:col-span-2 flex flex-col gap-4 min-h-0 overflow-y-auto">
           {sidebarError && <p className="text-caption text-danger">{sidebarError}</p>}
+          <WorkQueuePanel items={workQueue} />
           <TodayCalendar appointments={appointments} />
           <TaskPanel tasks={tasks} onTaskUpdated={fetchSidebar} />
         </div>

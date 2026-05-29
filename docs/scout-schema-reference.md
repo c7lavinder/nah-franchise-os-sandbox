@@ -135,7 +135,7 @@ created_at (timestamptz), id (uuid), is_active (boolean), lead_source_id (uuid),
 
 ### llm_call_logs (563 rows)
 
-created_at (timestamptz), error_message (text), id (uuid), input_messages (jsonb), input_tokens (integer), iteration (integer), latency_ms (integer), model (varchar(100)), output_content (jsonb), output_tokens (integer), stop_reason (varchar(50)), tool_calls (jsonb), user_id (varchar(255))
+created_at (timestamptz), error_message (text), id (uuid), input_messages (jsonb), input_tokens (integer), iteration (integer), latency_ms (integer), model (varchar(100)), output_content (jsonb), output_tokens (integer), prompt_blocks (jsonb), prompt_version (text), stop_reason (varchar(50)), tool_calls (jsonb), user_id (varchar(255))
 
 ### market_signals (0 rows)
 
