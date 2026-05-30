@@ -50,7 +50,7 @@ describe("applySelectedUploadContact", () => {
     ]);
   });
 
-  it("does not overwrite an existing resolver contact match", () => {
+  it("overrides an existing resolver contact match when uploader selected a prospect", () => {
     const match = applySelectedUploadContact(
       baseMatch({ contact_id: "resolved-contact", confidence: 0.9, reason: "matched contact by phone" }),
       "selected-contact",
@@ -58,9 +58,9 @@ describe("applySelectedUploadContact", () => {
       null
     );
 
-    expect(match.contact_id).toBe("resolved-contact");
-    expect(match.confidence).toBe(0.9);
-    expect(match.reason).toBe("matched contact by phone");
+    expect(match.contact_id).toBe("selected-contact");
+    expect(match.confidence).toBe(1);
+    expect(match.reason).toBe("manually selected by uploader");
   });
 });
 

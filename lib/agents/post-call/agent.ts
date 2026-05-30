@@ -197,7 +197,7 @@ export async function runPostCallAgent(
   }
 
   // 3. Write results to DB
-  await writeResults(callId, context.contactId, { summary, coaching, actions, extractions }, supabase);
+  await writeResults(callId, context, { summary, coaching, actions, extractions }, supabase);
 
   // 3b. Auto-save high-confidence extractions to contact profile fields
   if (extractions && extractions.extractions.length > 0 && context.contactId) {
@@ -836,11 +836,12 @@ interface AgentResults {
 
 async function writeResults(
   callId: string,
-  contactId: string | null,
+  context: CallContext,
   results: AgentResults,
   supabase: ReturnType<typeof createServerClient>
 ): Promise<void> {
   const now = new Date().toISOString();
+  const contactId = context.isTeamCall ? null : context.contactId;
 
   // Summary + coaching → calls table
   const callUpdate: Record<string, unknown> = {};

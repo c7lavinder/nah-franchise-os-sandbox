@@ -472,8 +472,9 @@ export function formatTranscript(
   // Build raw speaker label → display name map (for "Speaker N" labels, device names, etc.)
   const speakerMap = buildSpeakerMap(blocks, participants);
 
-  // Format each turn, merging consecutive same-speaker blocks
-  // UNKNOWN_SPEAKER short utterances get merged into previous speaker's block
+  // Format each turn, merging consecutive same-speaker blocks. Keep unknown
+  // backchannels as their own turns so small "yes"/"right" interjections do
+  // not get attributed to the prior speaker.
   const lines: string[] = [];
   let prevSpeaker = "";
 
@@ -484,15 +485,7 @@ export function formatTranscript(
     const spokenText = applyTranscriptionFixes((t.words ?? t.text ?? "").trim());
     if (!spokenText) continue;
 
-    // Check if this is an unknown short utterance (backchannel like "Good.", "Probably.", "Yeah.")
     const isUnknown = rawName === "UNKNOWN_SPEAKER" || rawName === "Unknown";
-    const isShortUtterance = spokenText.split(/\s+/).length <= 5;
-
-    if (isUnknown && isShortUtterance && lines.length > 0) {
-      // Merge short unknown utterances into previous speaker's block
-      lines[lines.length - 1] += " " + spokenText;
-      continue;
-    }
 
     // Resolve speaker name:
     // 1. If block has email → use cleaned participant name
@@ -507,9 +500,8 @@ export function formatTranscript(
       displayName = cleanSpeakerName(rawName);
     }
 
-    // For longer unknown blocks, label them but don't lose the text
-    if (isUnknown && !isShortUtterance) {
-      displayName = prevSpeaker || "Unknown";
+    if (isUnknown) {
+      displayName = "Unknown";
     }
 
     // Merge consecutive turns from the same speaker

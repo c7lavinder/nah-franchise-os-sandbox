@@ -70,7 +70,7 @@ async function resolveFromTranscript(
   // misspelled.
   if (selectedContactId) {
     const [journey, selectedRes] = await Promise.all([
-      !match.contact_id ? resolverDb.getActiveJourneyForContact(selectedContactId, null) : Promise.resolve(null),
+      resolverDb.getActiveJourneyForContact(selectedContactId, null),
       !match.participants.some((p) => p.contact_id === selectedContactId)
         ? supabase
             .from("contacts")

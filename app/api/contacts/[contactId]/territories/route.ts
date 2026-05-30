@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data: ownerRows, error } = await supabase
     .from("territory_owners")
-    .select("*, territories (TerritorySlug, Nickname, status)")
+    .select("*, territories (TerritorySlug, Nickname, status, FranchiseAgreementDate)")
     .eq("ghl_contact_id", ghlContactId)
     .order("start_date", { ascending: false });
 

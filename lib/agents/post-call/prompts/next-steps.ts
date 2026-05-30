@@ -219,7 +219,10 @@ function buildTeamCallBlock(roster: RosterEntry[]): string {
     "- If someone reports a franchisee win → suggest data extraction or note for that franchisee",
     "- If a territory issue is raised → suggest a task to address it",
     "- If a process change is decided → suggest a KB update task",
-    "- If follow-up is needed with a specific person → suggest the comms/task for that person",
+    "- Default to call-level actions for broad system initiatives, announcements, playbook notes, and follow-up ideas",
+    "- Only make a person-specific action when the transcript explicitly assigns that person as owner or recipient",
+    "- For every person-specific action, include metadata.assignment_reason with the exact transcript evidence",
+    "- For call-level actions, use contact_name \"Call\" and include metadata.assignment_scope \"call\"",
     "",
     "Tag EVERY action with the correct contact_name from the roster below.",
     "Generate up to 10 actions if the call covers many topics/people.",
@@ -312,11 +315,46 @@ export function parseResult(rawText: string): NextStepsResult | null {
   }
 }
 
+export function sanitizeGroupCallActions(result: NextStepsResult | null, isGroupCall: boolean): NextStepsResult | null {
+  if (!result || !isGroupCall) return result;
+
+  return {
+    actions: result.actions.map((action) => {
+      const metadata = { ...(action.metadata ?? {}) };
+      const assignmentReason = typeof metadata.assignment_reason === "string" ? metadata.assignment_reason.trim() : "";
+      const explicitOwner = metadata.explicit_owner === true || assignmentReason.length > 0;
+
+      if (explicitOwner) {
+        return {
+          ...action,
+          metadata: {
+            ...metadata,
+            assignment_scope: metadata.assignment_scope ?? "person",
+            assignment_reason: assignmentReason || "Explicit owner named in transcript",
+          },
+        };
+      }
+
+      delete metadata.target_contact_name;
+      metadata.assignment_scope = "call";
+      metadata.assignment_reason = "Call-level item: no explicit individual owner found in transcript.";
+
+      return {
+        ...action,
+        contact_name: "Call",
+        target_contact_name: undefined,
+        metadata,
+      };
+    }),
+  };
+}
+
 export async function runNextSteps(ctx: CallContext, model?: string): Promise<NextStepsResult | null> {
-  return callClaude({
+  const result = await callClaude({
     model,
     systemPrompt: SYSTEM,
     userPrompt: buildPrompt(ctx),
     parse: parseResult,
   });
+  return sanitizeGroupCallActions(result, ctx.isTeamCall);
 }

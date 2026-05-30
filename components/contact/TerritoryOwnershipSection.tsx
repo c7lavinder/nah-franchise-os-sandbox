@@ -11,7 +11,7 @@ interface TerritoryOwnership {
   role: string;
   start_date: string;
   end_date: string | null;
-  territories: { TerritorySlug: string; Nickname: string; status: string } | null;
+  territories: { TerritorySlug: string; Nickname: string; status: string; FranchiseAgreementDate?: string | null } | null;
 }
 
 interface TerritoryOption {
@@ -138,6 +138,11 @@ export default function TerritoryOwnershipSection({
     : internalTab;
   const activeTab = controlled ? controlledIdx : internalTab;
   const active = allTabs[activeTab];
+  const displayStartDate =
+    active?.territories?.FranchiseAgreementDate &&
+    (!active.start_date || active.territories.FranchiseAgreementDate < active.start_date)
+      ? active.territories.FranchiseAgreementDate
+      : active?.start_date;
 
   const handleTabClick = (i: number) => {
     if (onTerritoryChange) onTerritoryChange(allTabs[i]?.TerritorySlug ?? null);
@@ -223,7 +228,7 @@ export default function TerritoryOwnershipSection({
               </Link>
               <div className="text-caption text-text-tertiary">
                 {active.isCurrent ? "Current" : "Former"} {active.role} since{" "}
-                {new Date(active.start_date).toLocaleDateString()}
+                {displayStartDate ? new Date(displayStartDate).toLocaleDateString() : "unknown"}
                 {active.end_date && ` — ended ${new Date(active.end_date).toLocaleDateString()}`}
               </div>
             </div>

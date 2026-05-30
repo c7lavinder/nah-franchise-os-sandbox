@@ -154,6 +154,7 @@ export default function CallDataTab(props: CallDataTabProps) {
   const totalExtracted = props.dataExtractions.filter((e) => !!e.extracted_value).length;
   const totalSaved = props.dataExtractions.filter((e) => e.saved_to_profile).length;
   const completePct = totalExtracted > 0 ? Math.round((totalSaved / totalExtracted) * 100) : 0;
+  const hasMapping = (props.linkedContacts ?? []).some((c) => !!c.id) || (props.callTerritories ?? []).length > 0;
 
   if (state === "no_transcript") {
     return (
@@ -176,6 +177,15 @@ export default function CallDataTab(props: CallDataTabProps) {
       <div className="text-center py-12">
         <Loader2 size={20} className="animate-spin text-text-tertiary mx-auto mb-2" />
         <p className="text-body-sm text-text-tertiary">Scout is extracting data points...</p>
+      </div>
+    );
+  }
+  if (props.hasGenerated && props.dataExtractions.length === 0 && !hasMapping) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-body-sm text-text-tertiary">
+          Map the prospect, journey, or territory first, then regenerate to extract data points.
+        </p>
       </div>
     );
   }

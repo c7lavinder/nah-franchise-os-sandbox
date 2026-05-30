@@ -28,14 +28,12 @@ export function applySelectedUploadContact(
 ): ResolveResult {
   if (!selectedContactId) return match;
 
-  if (!match.contact_id) {
-    match.contact_id = selectedContactId;
-    match.journey_id = selectedJourney?.journey_id ?? null;
-    match.journey_pipeline_state_id = selectedJourney?.journey_pipeline_state_id ?? null;
-    match.TerritorySlug = selectedJourney?.TerritorySlug ?? match.TerritorySlug;
-    match.confidence = Math.max(match.confidence, 1);
-    match.reason = "manually selected by uploader";
-  }
+  match.contact_id = selectedContactId;
+  match.journey_id = selectedJourney?.journey_id ?? match.journey_id;
+  match.journey_pipeline_state_id = selectedJourney?.journey_pipeline_state_id ?? match.journey_pipeline_state_id;
+  match.TerritorySlug = selectedJourney?.TerritorySlug ?? match.TerritorySlug;
+  match.confidence = 1;
+  match.reason = "manually selected by uploader";
 
   if (selectedContact && !match.participants.some((p) => p.contact_id === selectedContactId)) {
     match.participants.push({

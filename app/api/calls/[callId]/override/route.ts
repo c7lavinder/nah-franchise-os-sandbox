@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 /**
  * POST /api/calls/[callId]/override — manual reassignment.
@@ -30,6 +31,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/auth";
+import { runPostCallAgent } from "@/lib/agents/post-call/agent";
 
 interface ParticipantUpdate {
   id: string;
@@ -231,11 +233,40 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
+  let reprocess:
+    | { attempted: false }
+    | { attempted: true; success: boolean; actionsCount: number; extractionsCount: number; errors: string[] } = {
+    attempted: false,
+  };
+  if (hasContactChange || hasParticipantUpdates || hasTerritoriesList || hasJourneysList) {
+    const { data: processingState } = await supabase
+      .from("calls")
+      .select("raw_transcript, ai_summary_generated_at")
+      .eq("id", callId)
+      .maybeSingle();
+    const { count: extractionCount } = await supabase
+      .from("call_data_extractions")
+      .select("id", { count: "exact", head: true })
+      .eq("call_id", callId);
+
+    if (processingState?.raw_transcript && processingState.ai_summary_generated_at && (extractionCount ?? 0) === 0) {
+      const result = await runPostCallAgent(callId);
+      reprocess = {
+        attempted: true,
+        success: result.success,
+        actionsCount: result.actionsCount,
+        extractionsCount: result.extractionsCount,
+        errors: result.errors,
+      };
+    }
+  }
+
   return NextResponse.json({
     success: true,
     participantsUpdated,
     territoriesWritten,
     journeysWritten,
     callUpdates,
+    reprocess,
   });
 }
