@@ -11,6 +11,12 @@ const AGENT_DEFS = [
   { name: "pre-call-brief", label: "Pre-Call Brief", trigger: "Call scheduled, daily 7am cron" },
   { name: "reengagement-signal", label: "Re-engagement Signal", trigger: "Monthly cron (1st of month)" },
   { name: "journey-brief", label: "Journey Brief", trigger: "Stage change, call graded, property sync, nightly cron" },
+  {
+    name: "data-intelligence",
+    label: "Data Intelligence",
+    trigger: "Manual data coverage audit, future weekly cron",
+    description: "Maps what data exists, where it is stored, how Scout retrieves it, and which sources need sync or indexing work.",
+  },
 ];
 
 export async function GET(request: NextRequest) {

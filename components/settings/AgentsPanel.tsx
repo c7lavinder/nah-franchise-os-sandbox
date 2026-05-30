@@ -8,6 +8,7 @@ interface AgentInfo {
   name: string;
   label: string;
   trigger: string;
+  description?: string;
   enabled: boolean;
   runsMTD: number;
   suggestionsMTD: number;
@@ -21,6 +22,12 @@ const AGENT_DEFS = [
   { name: "pre-call-brief", label: "Pre-Call Brief", trigger: "Call scheduled, daily 7am cron" },
   { name: "reengagement-signal", label: "Re-engagement Signal", trigger: "Monthly cron (1st of month)" },
   { name: "journey-brief", label: "Journey Brief", trigger: "Stage change, call graded, property sync, nightly cron" },
+  {
+    name: "data-intelligence",
+    label: "Data Intelligence",
+    trigger: "Manual data coverage audit, future weekly cron",
+    description: "Understands what data exists, where it is stored, and how Scout should retrieve it.",
+  },
 ];
 
 export default function AgentsPanel() {
@@ -71,6 +78,7 @@ export default function AgentsPanel() {
         "pre-call-brief": { url: "/api/cron/pre-call-briefs", method: "GET" },
         "reengagement-signal": { url: "/api/cron/reengagement-scan", method: "GET" },
         "journey-brief": { url: "/api/cron/generate-briefs", method: "POST" },
+        "data-intelligence": { url: "/api/agents/data-intelligence/run", method: "POST" },
       };
       const ep = endpoints[name];
       if (ep) await fetch(ep.url, { method: ep.method });
@@ -100,6 +108,7 @@ export default function AgentsPanel() {
             <div className="flex-1">
               <div className="text-body-sm font-medium text-text-primary">{agent.label}</div>
               <div className="text-caption text-text-tertiary">{agent.trigger}</div>
+              {agent.description && <div className="text-caption text-text-secondary mt-1">{agent.description}</div>}
             </div>
 
             {/* Toggle */}
