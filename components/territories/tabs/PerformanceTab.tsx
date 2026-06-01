@@ -327,7 +327,7 @@ function PropertyFunnelStory({
           const stepPct = index === 0 ? 100 : pctOf(stage.count, previousCount);
           const color = STAGE_COLORS[stage.stage] ?? "#6b7280";
           const label = STAGE_LABELS[stage.stage] ?? stage.stage;
-          const widthPct = Math.max(leadPct, stage.count > 0 ? 5 : 0);
+          const widthPct = stage.count > 0 ? Math.max(leadPct, 1) : 0;
 
           return (
             <div
