@@ -10,6 +10,32 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
+import { assignTerritoryPerformanceLabels } from "@/lib/territory-performance-quartiles";
+
+type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string };
+type PropertyRow = { PropertyId: number; TerritorySlug: string };
+type InventoryRow = { PropertyId: number; Inv_ContractedPurchaseDate: string | null; Inv_PurchaseDate: string | null };
+
+function stageKey(status: string | null): string | null {
+  if (!status) return null;
+  const trimmed = status.trim();
+  if (trimmed === "1" || trimmed.startsWith("1 ")) return "1";
+  if (trimmed === "4" || trimmed.startsWith("4 ")) return "4";
+  return null;
+}
+
+async function fetchPaged<T>(queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null }>) {
+  const rows: T[] = [];
+  let offset = 0;
+  while (true) {
+    const { data } = await queryFactory(offset, offset + 999);
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < 1000) break;
+    offset += 1000;
+  }
+  return rows;
+}
 
 export async function GET(request: NextRequest) {
   {
@@ -115,7 +141,14 @@ export async function GET(request: NextRequest) {
   // High Performers: 10+ purchases in last 12 months
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const currentMonthStart = new Date();
+  currentMonthStart.setDate(1);
+  currentMonthStart.setHours(0, 0, 0, 0);
   const highPerformerSlugs = new Set<string>();
+  const purchasesBySlug: Record<string, number> = {};
+  const activeSlugs = (territories ?? []).filter((t) => t.status === "active").map((t) => t.TerritorySlug);
 
   if (slugs.length > 0) {
     // Start from inventory (small set) then look up territories
@@ -145,9 +178,109 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  const performanceLabelBySlug = new Map<string, { quartile: string; score: number; rank: number; status: string }>();
+  if (activeSlugs.length > 0) {
+    const [leadListRes, inventory30Res] = await Promise.all([
+      supabase
+        .from("ms_lead_list_counts")
+        .select("TerritorySlug, count")
+        .in("TerritorySlug", activeSlugs)
+        .gte("month", currentMonthStart.toISOString().slice(0, 10)),
+      supabase
+        .from("ms_property_inventory")
+        .select("PropertyId, Inv_ContractedPurchaseDate, Inv_PurchaseDate")
+        .or(
+          `Inv_ContractedPurchaseDate.gte.${thirtyDaysAgo.toISOString()},Inv_PurchaseDate.gte.${thirtyDaysAgo.toISOString()}`
+        ),
+    ]);
+
+    const leadListBySlug = new Map<string, number>();
+    for (const row of leadListRes.data ?? []) {
+      leadListBySlug.set(row.TerritorySlug, (leadListBySlug.get(row.TerritorySlug) ?? 0) + Number(row.count ?? 0));
+    }
+
+    const history30 = await fetchPaged<HistRow>((from, to) =>
+      supabase
+        .from("ms_property_status_history")
+        .select("PropertyId, NewStatus, Inserted")
+        .gte("Inserted", thirtyDaysAgo.toISOString())
+        .range(from, to)
+    );
+    const propertyIdsToLookup = [
+      ...new Set([
+        ...history30.map((h) => h.PropertyId),
+        ...((inventory30Res.data ?? []) as InventoryRow[]).map((i) => i.PropertyId),
+      ]),
+    ];
+    const propertyById = new Map<number, PropertyRow>();
+    for (let i = 0; i < propertyIdsToLookup.length; i += 500) {
+      const { data: props } = await supabase
+        .from("ms_properties")
+        .select("PropertyId, TerritorySlug")
+        .in("PropertyId", propertyIdsToLookup.slice(i, i + 500))
+        .in("TerritorySlug", activeSlugs)
+        .eq("Archived", false);
+      for (const prop of (props ?? []) as PropertyRow[]) propertyById.set(prop.PropertyId, prop);
+    }
+
+    const stage1BySlug = new Map<string, Set<number>>();
+    const stage4BySlug = new Map<string, Set<number>>();
+    for (const row of history30) {
+      const prop = propertyById.get(row.PropertyId);
+      if (!prop) continue;
+      const key = stageKey(row.NewStatus);
+      if (key === "1") {
+        if (!stage1BySlug.has(prop.TerritorySlug)) stage1BySlug.set(prop.TerritorySlug, new Set());
+        stage1BySlug.get(prop.TerritorySlug)!.add(row.PropertyId);
+      }
+      if (key === "4") {
+        if (!stage4BySlug.has(prop.TerritorySlug)) stage4BySlug.set(prop.TerritorySlug, new Set());
+        stage4BySlug.get(prop.TerritorySlug)!.add(row.PropertyId);
+      }
+    }
+
+    const contracts30BySlug = new Map<string, number>();
+    const purchases30BySlug = new Map<string, number>();
+    for (const row of (inventory30Res.data ?? []) as InventoryRow[]) {
+      const prop = propertyById.get(row.PropertyId);
+      if (!prop) continue;
+      if (row.Inv_ContractedPurchaseDate && new Date(row.Inv_ContractedPurchaseDate) >= thirtyDaysAgo) {
+        contracts30BySlug.set(prop.TerritorySlug, (contracts30BySlug.get(prop.TerritorySlug) ?? 0) + 1);
+      }
+      if (row.Inv_PurchaseDate && new Date(row.Inv_PurchaseDate) >= thirtyDaysAgo) {
+        purchases30BySlug.set(prop.TerritorySlug, (purchases30BySlug.get(prop.TerritorySlug) ?? 0) + 1);
+      }
+    }
+
+    const scored = assignTerritoryPerformanceLabels(
+      (territories ?? [])
+        .filter((t) => t.status === "active")
+        .map((t) => ({
+          slug: t.TerritorySlug,
+          name: t.Nickname,
+          leadListInsertedMonth: leadListBySlug.get(t.TerritorySlug) ?? 0,
+          stage1Last30d: stage1BySlug.get(t.TerritorySlug)?.size ?? 0,
+          stage4Last30d: stage4BySlug.get(t.TerritorySlug)?.size ?? 0,
+          contractsLast30d: contracts30BySlug.get(t.TerritorySlug) ?? 0,
+          purchasesLast30d: purchases30BySlug.get(t.TerritorySlug) ?? 0,
+          purchasesT12: purchasesBySlug[t.TerritorySlug] ?? 0,
+        }))
+    );
+
+    for (const territory of scored) {
+      performanceLabelBySlug.set(territory.slug, {
+        quartile: territory.quartile,
+        score: territory.score,
+        rank: territory.rank,
+        status: territory.status,
+      });
+    }
+  }
+
   const cards = (territories ?? []).map((t) => {
     const owner = ownerMap.get(t.TerritorySlug);
     const pipelineStage = stageBySlug.get(t.TerritorySlug) ?? null;
+    const performanceLabel = performanceLabelBySlug.get(t.TerritorySlug) ?? null;
     return {
       TerritorySlug: t.TerritorySlug,
       Nickname: t.Nickname,
@@ -159,6 +292,10 @@ export async function GET(request: NextRequest) {
       stage_slug: pipelineStage?.stageSlug ?? null,
       pipeline_slug: pipelineStage?.pipelineSlug ?? null,
       highPerformer: highPerformerSlugs.has(t.TerritorySlug),
+      performanceQuartile: performanceLabel?.quartile ?? null,
+      performanceScore: performanceLabel?.score ?? null,
+      performanceRank: performanceLabel?.rank ?? null,
+      performanceStatus: performanceLabel?.status ?? null,
     };
   });
 

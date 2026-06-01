@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
+import { assignTerritoryPerformanceLabels } from "@/lib/territory-performance-quartiles";
 
 type Territory = { TerritorySlug: string; Nickname: string | null; region: string | null };
 type ScorecardMetric = { TerritorySlug: string; goal: string | null; actual: string | null };
@@ -345,10 +346,11 @@ export async function GET(request: NextRequest) {
       opportunityScore: leadList + stage1 * 10 + stage4 * 20 - purchases30 * 50,
     };
   });
+  const scoredTerritories = assignTerritoryPerformanceLabels(territoryDiagnostics);
 
   const rockRows = (rocksRes.data ?? []) as Rock[];
   const healthValues = [...healthBySlug.values()].filter((v): v is number => v !== null);
-  const purchasesT12Values = territoryDiagnostics.map((t) => t.purchasesT12);
+  const purchasesT12Values = scoredTerritories.map((t) => t.purchasesT12);
 
   return NextResponse.json(
     {
@@ -372,10 +374,10 @@ export async function GET(request: NextRequest) {
         contractsLast30d: sum([...contracts30BySlug.values()]),
         purchasesLast30d: sum([...purchases30BySlug.values()]),
         medianPurchasesT12: median(purchasesT12Values),
-        highPerformersT12: territoryDiagnostics.filter((t) => t.purchasesT12 >= 10).length,
-        territories: territoryDiagnostics,
-        focusTerritories: [...territoryDiagnostics].sort((a, b) => b.severity - a.severity).slice(0, 6),
-        opportunityTerritories: [...territoryDiagnostics]
+        highPerformersT12: scoredTerritories.filter((t) => t.purchasesT12 >= 10).length,
+        territories: scoredTerritories,
+        focusTerritories: [...scoredTerritories].sort((a, b) => b.severity - a.severity).slice(0, 6),
+        opportunityTerritories: [...scoredTerritories]
           .filter((t) => t.leadListInsertedMonth > 0 || t.stage1Last30d > 0 || t.stage4Last30d > 0)
           .sort((a, b) => b.opportunityScore - a.opportunityScore)
           .slice(0, 6),

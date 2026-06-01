@@ -41,6 +41,10 @@ interface TerritoryFocus {
   purchasesT12: number;
   openIssues: number;
   openTodos: number;
+  quartile: "Q1" | "Q2" | "Q3" | "Q4";
+  score: number;
+  rank: number;
+  status: string;
 }
 
 interface L10Data {
@@ -175,6 +179,13 @@ function percent(numerator: number, denominator: number) {
   return Math.round((numerator / denominator) * 100);
 }
 
+const QUARTILE_STYLES: Record<TerritoryFocus["quartile"], string> = {
+  Q1: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  Q2: "border-yellow-200 bg-yellow-50 text-yellow-700",
+  Q3: "border-orange-200 bg-orange-50 text-orange-700",
+  Q4: "border-red-200 bg-red-50 text-red-700",
+};
+
 type QuartileBox = {
   label: string;
   sub: string;
@@ -288,7 +299,14 @@ function QuartileCard({ box, territories }: { box: QuartileBox; territories: Ter
             className="flex items-center justify-between gap-3 rounded-md border border-border-default px-3 py-2 hover:bg-bg-hover"
           >
             <span className="min-w-0 truncate text-sm font-medium text-text-primary">{territory.name}</span>
-            <span className="text-sm font-semibold text-text-secondary">{fmt(box.getValue(territory))}</span>
+            <span className="flex flex-shrink-0 items-center gap-2">
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${QUARTILE_STYLES[territory.quartile]}`}
+              >
+                {territory.quartile}
+              </span>
+              <span className="text-sm font-semibold text-text-secondary">{fmt(box.getValue(territory))}</span>
+            </span>
           </a>
         ))}
       </div>
@@ -308,6 +326,11 @@ function TerritoryRow({ territory }: { territory: TerritoryFocus }) {
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="truncate font-semibold text-text-primary">{territory.name}</span>
+          <span
+            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${QUARTILE_STYLES[territory.quartile]}`}
+          >
+            {territory.quartile} · {territory.score} pts
+          </span>
           {isCritical && <AlertTriangle className="h-4 w-4 flex-shrink-0 text-danger" />}
         </div>
         <div className="mt-1 flex items-center gap-1 text-xs text-text-tertiary">

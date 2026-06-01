@@ -17,6 +17,10 @@ interface TerritoryCard {
   stage_slug: string | null;
   pipeline_slug: string | null;
   highPerformer?: boolean;
+  performanceQuartile?: "Q1" | "Q2" | "Q3" | "Q4" | null;
+  performanceScore?: number | null;
+  performanceRank?: number | null;
+  performanceStatus?: string | null;
 }
 
 /** Label colors matching wave gradient circles — custom hex */
@@ -46,7 +50,14 @@ const STATUS_STYLES: Record<string, { label: string; bgColor: string; color: str
   available: { label: "Available", bgColor: "bg-[#e3f2fd]", color: "text-[#1565c0]" },
 };
 
-type SortField = "name" | "status" | "owner";
+const QUARTILE_STYLES: Record<string, { bg: string; text: string }> = {
+  Q1: { bg: "bg-emerald-50", text: "text-emerald-700" },
+  Q2: { bg: "bg-yellow-50", text: "text-yellow-700" },
+  Q3: { bg: "bg-orange-50", text: "text-orange-700" },
+  Q4: { bg: "bg-red-50", text: "text-red-700" },
+};
+
+type SortField = "name" | "status" | "performance" | "owner";
 const PAGE_SIZE = 50;
 
 export default function TerritoryCardList({ status, statusFilter, stageId, searchQuery }: Props) {
@@ -90,6 +101,11 @@ export default function TerritoryCardList({ status, statusFilter, stageId, searc
         break;
       case "status":
         cmp = a.status.localeCompare(b.status);
+        break;
+      case "performance":
+        cmp = (a.performanceRank ?? 999).toString().localeCompare((b.performanceRank ?? 999).toString(), undefined, {
+          numeric: true,
+        });
         break;
       case "owner":
         cmp = (a.owner_name ?? "zzz").localeCompare(b.owner_name ?? "zzz");
@@ -135,13 +151,13 @@ export default function TerritoryCardList({ status, statusFilter, stageId, searc
 
       {/* Sort controls */}
       <div className="flex gap-4 mb-2 px-3 py-2 bg-bg-secondary rounded-t-lg border border-border-default border-b-0">
-        {(["name", "status", "owner"] as SortField[]).map((field) => (
+        {(["name", "status", "performance", "owner"] as SortField[]).map((field) => (
           <button
             key={field}
             onClick={() => toggleSort(field)}
             className={`text-caption font-medium ${sortField === field ? "text-nah-orange" : "text-text-tertiary"} hover:text-text-primary`}
           >
-            {field === "name" ? "Name" : field === "status" ? "Status" : "Owner"}
+            {field === "name" ? "Name" : field === "status" ? "Status" : field === "performance" ? "Quartile" : "Owner"}
             {sortField === field && (sortAsc ? " ↑" : " ↓")}
           </button>
         ))}
@@ -162,6 +178,7 @@ export default function TerritoryCardList({ status, statusFilter, stageId, searc
           const sc = card.stage_slug
             ? (STAGE_COLORS[card.stage_slug] ?? { bg: "bg-gray-100", text: "text-gray-600" })
             : null;
+          const qc = card.performanceQuartile ? QUARTILE_STYLES[card.performanceQuartile] : null;
 
           return (
             <Link
@@ -180,6 +197,14 @@ export default function TerritoryCardList({ status, statusFilter, stageId, searc
                 {card.highPerformer && (
                   <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-success/10 text-success whitespace-nowrap">
                     High Performer
+                  </span>
+                )}
+                {card.performanceQuartile && qc && (
+                  <span
+                    className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${qc.bg} ${qc.text}`}
+                    title={`${card.performanceStatus ?? card.performanceQuartile} · ${card.performanceScore ?? 0} pts · rank ${card.performanceRank ?? "—"}`}
+                  >
+                    {card.performanceQuartile} · {card.performanceScore} pts
                   </span>
                 )}
               </p>
