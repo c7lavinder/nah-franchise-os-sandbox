@@ -260,6 +260,9 @@ type QuartileBox = {
   label: string;
   sub: string;
   valueLabel: string;
+  activeLabel: string;
+  noActivityLabel: string;
+  dataNote?: string;
   direction: "higher" | "lower";
   getValue: (territory: TerritoryFocus) => number;
   format?: (value: number) => string;
@@ -268,8 +271,11 @@ type QuartileBox = {
 const QUARTILE_BOXES: QuartileBox[] = [
   {
     label: "Lead List Inserted",
-    sub: "Are they feeding the postcard / lead-mining machine?",
+    sub: "Stage 0 lead-list volume from monthly aggregate counts.",
     valueLabel: "records",
+    activeLabel: "territories with Stage 0 volume",
+    noActivityLabel: "No Stage 0 aggregate count",
+    dataNote: "Stage 0 raw properties are not loaded here; this uses monthly lead-list aggregates.",
     direction: "higher",
     getValue: (t) => t.leadListInsertedMonth,
   },
@@ -277,6 +283,8 @@ const QUARTILE_BOXES: QuartileBox[] = [
     label: "Stage 1 Leads",
     sub: "Are lead-list and marketing activities creating real seller leads?",
     valueLabel: "leads",
+    activeLabel: "territories with Stage 1 leads",
+    noActivityLabel: "No Stage 1 leads",
     direction: "higher",
     getValue: (t) => t.stage1Last30d,
   },
@@ -284,6 +292,8 @@ const QUARTILE_BOXES: QuartileBox[] = [
     label: "Stage 3 Worked",
     sub: "Are new leads getting worked far enough to become real opportunities?",
     valueLabel: "worked",
+    activeLabel: "territories with worked leads",
+    noActivityLabel: "No Stage 3 movement",
     direction: "higher",
     getValue: (t) => t.stage3Last30d,
   },
@@ -291,6 +301,8 @@ const QUARTILE_BOXES: QuartileBox[] = [
     label: "Stage 4 Offers",
     sub: "Are they actually working leads far enough to make offers?",
     valueLabel: "offers",
+    activeLabel: "territories with offers",
+    noActivityLabel: "No Stage 4 offers",
     direction: "higher",
     getValue: (t) => t.stage4Last30d,
   },
@@ -298,6 +310,8 @@ const QUARTILE_BOXES: QuartileBox[] = [
     label: "Lead Work Rate",
     sub: "How much Stage 1 activity is reaching worked/offer stages?",
     valueLabel: "worked",
+    activeLabel: "territories with lead work",
+    noActivityLabel: "No measurable work rate",
     direction: "higher",
     getValue: (t) => t.leadWorkRate,
     format: (value) => `${value}%`,
@@ -306,6 +320,8 @@ const QUARTILE_BOXES: QuartileBox[] = [
     label: "Contracts",
     sub: "Are offers turning into signed purchase contracts?",
     valueLabel: "contracts",
+    activeLabel: "territories with contracts",
+    noActivityLabel: "No contracts",
     direction: "higher",
     getValue: (t) => t.contractsLast30d,
   },
@@ -313,30 +329,44 @@ const QUARTILE_BOXES: QuartileBox[] = [
     label: "Purchases",
     sub: "Who is converting activity into bought houses?",
     valueLabel: "purchases",
+    activeLabel: "territories with purchases",
+    noActivityLabel: "No purchases",
     direction: "higher",
     getValue: (t) => t.purchasesLast30d,
   },
   {
-    label: "T12 Buying",
-    sub: "Longer-term buying momentum across active territories.",
+    label: "Trailing 12 Buying",
+    sub: "Longer-term purchase history, always trailing 12 months.",
     valueLabel: "T12 buys",
+    activeLabel: "territories with T12 buys",
+    noActivityLabel: "No T12 purchases",
+    dataNote: "This card does not change to T1/T3/T6; it is the trailing-12 baseline.",
     direction: "higher",
     getValue: (t) => t.purchasesT12,
   },
 ];
 
-function QuartileCard({ box, territories }: { box: QuartileBox; territories: TerritoryFocus[] }) {
+function QuartileCard({
+  box,
+  territories,
+  selectedPeriodLabel,
+}: {
+  box: QuartileBox;
+  territories: TerritoryFocus[];
+  selectedPeriodLabel: string;
+}) {
   const sorted = [...territories].sort((a, b) => {
     const diff = box.getValue(b) - box.getValue(a);
     return box.direction === "higher" ? diff : -diff;
   });
   const quartileSize = Math.max(1, Math.ceil(sorted.length / 4));
   const top = sorted.slice(0, quartileSize);
-  const spendTime = sorted.slice(-quartileSize).reverse();
+  const noActivity = sorted.filter((territory) => box.getValue(territory) === 0);
+  const active = sorted.filter((territory) => box.getValue(territory) > 0);
+  const spendTime = noActivity.length > 0 ? noActivity : sorted.slice(-quartileSize).reverse();
   const topMedian = top.length > 0 ? Math.round(top.reduce((sum, t) => sum + box.getValue(t), 0) / top.length) : 0;
-  const focusMedian =
-    spendTime.length > 0 ? Math.round(spendTime.reduce((sum, t) => sum + box.getValue(t), 0) / spendTime.length) : 0;
   const fmt = box.format ?? ((value: number) => formatNumber(value));
+  const noActivityScope = box.label === "Trailing 12 Buying" ? "T12" : selectedPeriodLabel;
 
   return (
     <div className="rounded-lg border border-border-default bg-white p-4 shadow-sm">
@@ -344,6 +374,7 @@ function QuartileCard({ box, territories }: { box: QuartileBox; territories: Ter
         <div>
           <h3 className="text-card-title text-text-primary">{box.label}</h3>
           <p className="mt-1 text-xs text-text-secondary">{box.sub}</p>
+          {box.dataNote && <p className="mt-2 text-[11px] leading-snug text-text-tertiary">{box.dataNote}</p>}
         </div>
         <span className="rounded-full bg-bg-tertiary px-2 py-1 text-xs font-semibold text-text-tertiary">
           Quartiles
@@ -356,10 +387,13 @@ function QuartileCard({ box, territories }: { box: QuartileBox; territories: Ter
           <div className="text-xs text-emerald-700">{box.valueLabel}</div>
         </div>
         <div className="rounded-lg bg-amber-50 p-3">
-          <div className="text-xs font-semibold uppercase text-amber-700">Spend Time</div>
-          <div className="mt-1 text-xl font-bold text-amber-900">{fmt(focusMedian)}</div>
-          <div className="text-xs text-amber-700">{box.valueLabel}</div>
+          <div className="text-xs font-semibold uppercase text-amber-700">No Activity</div>
+          <div className="mt-1 text-xl font-bold text-amber-900">{noActivity.length}</div>
+          <div className="text-xs text-amber-700">territories</div>
         </div>
+      </div>
+      <div className="mt-3 text-xs text-text-secondary">
+        {active.length} {box.activeLabel}; {noActivity.length} showing no activity in {noActivityScope}.
       </div>
       <div className="mt-4 space-y-2">
         {spendTime.slice(0, 4).map((territory) => (
@@ -375,7 +409,9 @@ function QuartileCard({ box, territories }: { box: QuartileBox; territories: Ter
               >
                 {territory.quartile}
               </span>
-              <span className="text-sm font-semibold text-text-secondary">{fmt(box.getValue(territory))}</span>
+              <span className="text-sm font-semibold text-text-secondary">
+                {box.getValue(territory) === 0 ? box.noActivityLabel : fmt(box.getValue(territory))}
+              </span>
             </span>
           </a>
         ))}
@@ -761,7 +797,11 @@ export default function L10Page() {
           <HeaderCard
             label="Buying Momentum"
             value={formatNumber(coaching.purchasesLast30d)}
-            detail={`${coaching.contractsLast30d} contracts in ${selectedPeriodLabel}; ${coaching.highPerformersT12} T12 high-performing territories tracked.`}
+            detail={
+              coaching.purchasesLast30d === 0 && coaching.contractsLast30d === 0
+                ? `No contracts or closed purchases are showing in ${selectedPeriodLabel}; ${coaching.highPerformersT12} T12 high-performing territories tracked.`
+                : `${coaching.contractsLast30d} contracts and ${coaching.purchasesLast30d} closed purchases in ${selectedPeriodLabel}; ${coaching.highPerformersT12} T12 high-performing territories tracked.`
+            }
             icon={CheckCircle2}
             tone="green"
           />
@@ -778,7 +818,7 @@ export default function L10Page() {
           <ScoreboardStat
             label="Lead List"
             value={formatNumber(coaching.leadListInsertedMonth)}
-            sub={selectedPeriodLabel}
+            sub="Stage 0 aggregate"
           />
           <ScoreboardStat label="Stage 1" value={formatNumber(coaching.stage1Last30d)} sub={selectedPeriodLabel} />
           <ScoreboardStat label="Stage 3" value={formatNumber(coaching.stage3Last30d)} sub="worked leads" />
@@ -846,11 +886,16 @@ export default function L10Page() {
         <section className="space-y-4">
           <SectionHeader
             title="Diagnostic Boxes"
-            sub="The eight-box coaching detail stays below the board for metric-specific inspection."
+            sub="Metric-specific inspection. Stage 0 is aggregate lead-list count; stages 1+ and purchases use property-level records."
           />
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {QUARTILE_BOXES.map((box) => (
-              <QuartileCard key={box.label} box={box} territories={coaching.territories} />
+              <QuartileCard
+                key={box.label}
+                box={box}
+                territories={coaching.territories}
+                selectedPeriodLabel={selectedPeriodLabel}
+              />
             ))}
           </div>
         </section>
