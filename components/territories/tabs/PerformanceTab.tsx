@@ -1,18 +1,7 @@
 "use client";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { useState, useEffect, useCallback } from "react";
-import {
-  Loader2,
-  DollarSign,
-  Clock,
-  Target,
-  TrendingUp,
-  TrendingDown,
-  AlertTriangle,
-  Home,
-  Package,
-  X,
-} from "lucide-react";
+import { Loader2, DollarSign, Clock, Target, TrendingUp, AlertTriangle, Home, Package, X } from "lucide-react";
 
 interface FunnelStage {
   stage: string;
@@ -79,11 +68,11 @@ const PREV_LABELS: Record<Period, string> = {
 };
 
 const STAGE_LABELS: Record<string, string> = {
-  "1": "Stage 1",
+  "1": "Leads Entered",
   "2": "Stage 2",
   "3": "Stage 3",
   "4": "Stage 4",
-  "5 Contract": "Contract",
+  "5 Contract": "Contracts",
   "6 Purchase": "Purchased",
 };
 
@@ -96,10 +85,9 @@ const STAGE_COLORS: Record<string, string> = {
   "6 Purchase": "#22c55e",
 };
 
-function funnelWidthPct(count: number, baseline: number): number {
-  if (baseline <= 0 || count <= 0) return 10;
-  const pctOfBaseline = count / baseline;
-  return Math.max(Math.sqrt(pctOfBaseline) * 100, 10);
+function pctOf(numerator: number, denominator: number): number {
+  if (denominator <= 0) return 0;
+  return Math.round((numerator / denominator) * 100);
 }
 
 function fmt$(n: number): string {
@@ -107,21 +95,6 @@ function fmt$(n: number): string {
 }
 function fmtDate(d: string): string {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
-}
-
-function ChangeIndicator({ current, previous }: { current: number; previous: number }) {
-  if (previous === 0 && current === 0) return null;
-  if (previous === 0) return <span className="text-[10px] text-success font-medium">NEW</span>;
-  const pctChange = Math.round(((current - previous) / previous) * 100);
-  if (pctChange === 0) return <span className="text-[10px] text-text-tertiary">0%</span>;
-  const isUp = pctChange > 0;
-  return (
-    <span className={`text-[10px] font-medium flex items-center gap-0.5 ${isUp ? "text-success" : "text-danger"}`}>
-      {isUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-      {isUp ? "+" : ""}
-      {pctChange}%
-    </span>
-  );
 }
 
 export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: string }) {
@@ -158,8 +131,7 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
     );
   if (!data || !data.kpis) return <div className="text-text-secondary py-6">No performance data available.</div>;
 
-  const { kpis, funnel, prevFunnel, soldProperties, inventoryProperties, leadCategories } = data;
-  const stage1Count = funnel[0]?.count ?? 0;
+  const { kpis, funnel, soldProperties, inventoryProperties, leadCategories } = data;
 
   return (
     <div className="space-y-6">
@@ -245,56 +217,12 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
         </div>
       )}
 
-      {/* Funnel — each stage as % of Stage 1, with period-over-period change */}
-      <div className="bg-bg-primary border border-border-default rounded-lg p-5">
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="text-body-sm font-semibold text-text-primary">Property Funnel</h3>
-          <span className="text-caption text-text-tertiary">{PREV_LABELS[period]}</span>
-        </div>
-        <p className="text-caption text-text-tertiary mb-4">
-          {selectedCategory ? `${selectedCategory} — ` : ""}
-          {PERIOD_LABELS[period]}
-        </p>
-        <div className="flex flex-col items-center gap-1">
-          {funnel.map((f, i) => {
-            const pct = stage1Count > 0 ? (f.count / stage1Count) * 100 : 0;
-            const widthPct = funnelWidthPct(f.count, stage1Count);
-            const prevCount = prevFunnel[i]?.count ?? 0;
-            const color = STAGE_COLORS[f.stage] ?? "#6b7280";
-            const label = STAGE_LABELS[f.stage] ?? f.stage;
-
-            return (
-              <div key={f.stage} className="w-full flex flex-col items-center">
-                <div
-                  className="relative flex items-center justify-between px-4 py-2.5 transition-all"
-                  style={{
-                    width: `${widthPct}%`,
-                    minWidth: "116px",
-                    backgroundColor: `${color}15`,
-                    borderLeft: `3px solid ${color}`,
-                    borderRight: `3px solid ${color}`,
-                    clipPath:
-                      i < funnel.length - 1
-                        ? `polygon(0 0, 100% 0, 97% 100%, 3% 100%)`
-                        : `polygon(2% 0, 98% 0, 100% 100%, 0% 100%)`,
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-body-sm font-semibold" style={{ color }}>
-                      {label}
-                    </span>
-                    <span className="text-[10px] text-text-tertiary">{i === 0 ? "100%" : `${pct.toFixed(0)}%`}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-body-sm font-bold text-text-primary">{f.count}</span>
-                    <ChangeIndicator current={f.count} previous={prevCount} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <PropertyFunnelStory
+        funnel={funnel}
+        periodLabel={PERIOD_LABELS[period]}
+        categoryLabel={selectedCategory}
+        comparisonLabel={PREV_LABELS[period]}
+      />
 
       {/* Active Inventory List */}
       {inventoryProperties.length > 0 && (
@@ -334,6 +262,109 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PropertyFunnelStory({
+  funnel,
+  periodLabel,
+  categoryLabel,
+  comparisonLabel,
+}: {
+  funnel: FunnelStage[];
+  periodLabel: string;
+  categoryLabel: string | null;
+  comparisonLabel: string;
+}) {
+  const stage1Count = funnel[0]?.count ?? 0;
+  const stage4Count = funnel.find((f) => f.stage === "4")?.count ?? 0;
+  const contractCount = funnel.find((f) => f.stage === "5 Contract")?.count ?? 0;
+  const purchaseCount = funnel.find((f) => f.stage === "6 Purchase")?.count ?? 0;
+  const stage4Pct = pctOf(stage4Count, stage1Count);
+  const contractPct = pctOf(contractCount, stage4Count);
+  const purchasePct = pctOf(purchaseCount, contractCount);
+
+  return (
+    <div className="bg-bg-primary border border-border-default rounded-lg p-5">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h3 className="text-body-sm font-semibold text-text-primary">Property Funnel</h3>
+          <p className="text-caption text-text-tertiary mt-1">
+            {categoryLabel ? `${categoryLabel} - ` : ""}
+            {periodLabel}
+          </p>
+        </div>
+        {comparisonLabel && <span className="text-caption text-text-tertiary shrink-0">{comparisonLabel}</span>}
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <FunnelStoryStat value={stage1Count} label="entered" />
+        <FunnelStoryStat value={`${stage4Pct}%`} label="reached Stage 4" />
+        <FunnelStoryStat value={purchaseCount} label="purchased" />
+      </div>
+
+      <div className="space-y-3">
+        {funnel.map((stage, index) => {
+          const previousCount = index > 0 ? (funnel[index - 1]?.count ?? 0) : stage.count;
+          const leadPct = index === 0 ? 100 : pctOf(stage.count, stage1Count);
+          const stepPct = index === 0 ? 100 : pctOf(stage.count, previousCount);
+          const dropCount = Math.max(previousCount - stage.count, 0);
+          const color = STAGE_COLORS[stage.stage] ?? "#6b7280";
+          const label = STAGE_LABELS[stage.stage] ?? stage.stage;
+          const widthPct = Math.max(leadPct, stage.count > 0 ? 3 : 0);
+
+          return (
+            <div
+              key={stage.stage}
+              className="grid grid-cols-1 gap-2 lg:grid-cols-[128px_minmax(0,1fr)_160px] lg:items-center lg:gap-4"
+            >
+              <div className="min-w-0">
+                <p className="text-body-sm font-semibold text-text-primary truncate">{label}</p>
+                <p className="text-caption text-text-tertiary">{stage.count.toLocaleString()} properties</p>
+              </div>
+              <div className="h-8 rounded-md bg-bg-secondary border border-border-default overflow-hidden">
+                <div
+                  className="h-full rounded-md transition-all duration-500"
+                  style={{ width: `${widthPct}%`, backgroundColor: `${color}80` }}
+                />
+              </div>
+              <div className="lg:text-right">
+                <p className="text-body-sm font-semibold text-text-primary">{leadPct}% of leads</p>
+                <p className="text-caption text-text-tertiary">
+                  {index === 0 ? "starting point" : `${stepPct}% from prior, ${dropCount} dropped`}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-3 border-t border-border-default pt-4">
+        <div className="rounded-lg bg-bg-secondary px-3 py-2">
+          <p className="text-caption text-text-tertiary">Stage 4 to contract</p>
+          <p className="text-body-sm font-semibold text-text-primary">
+            {contractCount.toLocaleString()} of {stage4Count.toLocaleString()} moved forward ({contractPct}%)
+          </p>
+        </div>
+        <div className="rounded-lg bg-bg-secondary px-3 py-2">
+          <p className="text-caption text-text-tertiary">Contract to purchase</p>
+          <p className="text-body-sm font-semibold text-text-primary">
+            {purchaseCount.toLocaleString()} of {contractCount.toLocaleString()} closed ({purchasePct}%)
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FunnelStoryStat({ value, label }: { value: number | string; label: string }) {
+  return (
+    <div className="rounded-lg bg-bg-secondary px-3 py-2">
+      <p className="text-lg font-bold text-text-primary">
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </p>
+      <p className="text-caption text-text-tertiary">{label}</p>
     </div>
   );
 }
