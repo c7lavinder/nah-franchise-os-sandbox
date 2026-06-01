@@ -96,6 +96,12 @@ const STAGE_COLORS: Record<string, string> = {
   "6 Purchase": "#22c55e",
 };
 
+function funnelWidthPct(count: number, baseline: number): number {
+  if (baseline <= 0 || count <= 0) return 10;
+  const pctOfBaseline = count / baseline;
+  return Math.max(Math.sqrt(pctOfBaseline) * 100, 10);
+}
+
 function fmt$(n: number): string {
   return `$${n.toLocaleString()}`;
 }
@@ -252,7 +258,7 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
         <div className="flex flex-col items-center gap-1">
           {funnel.map((f, i) => {
             const pct = stage1Count > 0 ? (f.count / stage1Count) * 100 : 0;
-            const widthPct = Math.max(pct, 15);
+            const widthPct = funnelWidthPct(f.count, stage1Count);
             const prevCount = prevFunnel[i]?.count ?? 0;
             const color = STAGE_COLORS[f.stage] ?? "#6b7280";
             const label = STAGE_LABELS[f.stage] ?? f.stage;
@@ -263,7 +269,7 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
                   className="relative flex items-center justify-between px-4 py-2.5 transition-all"
                   style={{
                     width: `${widthPct}%`,
-                    minWidth: "200px",
+                    minWidth: "116px",
                     backgroundColor: `${color}15`,
                     borderLeft: `3px solid ${color}`,
                     borderRight: `3px solid ${color}`,
