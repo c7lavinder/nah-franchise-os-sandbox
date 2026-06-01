@@ -25,6 +25,18 @@ type CalcRow = { PropertyId: number; Calculated_Inv_Profit: number | null; Calcu
 
 const STAGE_ORDER = ["1", "2", "3", "4", "5 Contract", "6 Purchase"];
 
+function stageKey(status: string | null): string | null {
+  if (!status) return null;
+  const trimmed = status.trim();
+  if (trimmed === "1" || trimmed.startsWith("1 ")) return "1";
+  if (trimmed === "2" || trimmed.startsWith("2 ")) return "2";
+  if (trimmed === "3" || trimmed.startsWith("3 ")) return "3";
+  if (trimmed === "4" || trimmed.startsWith("4 ")) return "4";
+  if (trimmed === "5" || trimmed.startsWith("5 ")) return "5 Contract";
+  if (trimmed === "6" || trimmed.startsWith("6 ")) return "6 Purchase";
+  return null;
+}
+
 function computeFunnel(history: HistRow[], propertyFilter?: Set<number>) {
   const stageRank: Record<string, number> = {};
   STAGE_ORDER.forEach((s, i) => {
@@ -34,7 +46,9 @@ function computeFunnel(history: HistRow[], propertyFilter?: Set<number>) {
   const highest = new Map<number, number>();
   for (const h of history) {
     if (propertyFilter && !propertyFilter.has(h.PropertyId)) continue;
-    const rank = stageRank[h.NewStatus ?? ""];
+    const key = stageKey(h.NewStatus);
+    if (!key) continue;
+    const rank = stageRank[key];
     if (rank !== undefined) {
       const cur = highest.get(h.PropertyId) ?? -1;
       if (rank > cur) highest.set(h.PropertyId, rank);
@@ -149,7 +163,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // 4. Leads Entered = Stage 1 entries in current period
   const enteredStage1 = new Set<number>();
   for (const h of currentHistory) {
-    if (h.NewStatus === "1") {
+    if (stageKey(h.NewStatus) === "1") {
       if (!filteredPropertyIds || filteredPropertyIds.has(h.PropertyId)) {
         enteredStage1.add(h.PropertyId);
       }
@@ -163,7 +177,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
   const prevEnteredStage1 = new Set<number>();
   for (const h of prevHistory) {
-    if (h.NewStatus === "1") {
+    if (stageKey(h.NewStatus) === "1") {
       if (!filteredPropertyIds || filteredPropertyIds.has(h.PropertyId)) {
         prevEnteredStage1.add(h.PropertyId);
       }
@@ -249,8 +263,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // 10. Lead category breakdown
   const leadCategories: Record<string, number> = {};
+  const leadCategoryPropertyIds = new Set<number>();
   for (const h of currentHistory) {
-    if (h.NewStatus === "1") {
+    if (stageKey(h.NewStatus) === "1" && !leadCategoryPropertyIds.has(h.PropertyId)) {
+      leadCategoryPropertyIds.add(h.PropertyId);
       const prop = propMap.get(h.PropertyId);
       const cat = prop?.LeadCategory || "Unknown";
       leadCategories[cat] = (leadCategories[cat] || 0) + 1;

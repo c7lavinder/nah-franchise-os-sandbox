@@ -61,15 +61,22 @@ interface PerformanceData {
   period: string;
 }
 
-type Period = "t1" | "t3" | "t12" | "all";
+type Period = "t1" | "t3" | "t12" | "ytd" | "all";
 
 const PERIOD_LABELS: Record<Period, string> = {
   t1: "Last Month",
   t3: "Last 3 Months",
   t12: "Last 12 Months",
+  ytd: "YTD",
   all: "All Time",
 };
-const PREV_LABELS: Record<Period, string> = { t1: "vs prior month", t3: "vs prior 3mo", t12: "vs prior 12mo", all: "" };
+const PREV_LABELS: Record<Period, string> = {
+  t1: "vs prior month",
+  t3: "vs prior 3mo",
+  t12: "vs prior 12mo",
+  ytd: "vs prior YTD",
+  all: "",
+};
 
 const STAGE_LABELS: Record<string, string> = {
   "1": "Stage 1",
@@ -114,7 +121,7 @@ function ChangeIndicator({ current, previous }: { current: number; previous: num
 export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: string }) {
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<Period>("t3");
+  const [period, setPeriod] = useState<Period>("ytd");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const fetchData = useCallback(
@@ -153,7 +160,7 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
       {/* Period Toggle */}
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1 bg-bg-secondary border border-border-default rounded-lg p-1">
-          {(["t1", "t3", "t12", "all"] as Period[]).map((p) => (
+          {(["t1", "t3", "t12", "ytd", "all"] as Period[]).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}

@@ -2288,6 +2288,18 @@ function computePeriodStart(period: string): Date {
   return new Date(now.getFullYear(), now.getMonth() - months, now.getDate());
 }
 
+function masterSuiteStageKey(status: string | null): string | null {
+  if (!status) return null;
+  const trimmed = status.trim();
+  if (trimmed === "1" || trimmed.startsWith("1 ")) return "1";
+  if (trimmed === "2" || trimmed.startsWith("2 ")) return "2";
+  if (trimmed === "3" || trimmed.startsWith("3 ")) return "3";
+  if (trimmed === "4" || trimmed.startsWith("4 ")) return "4";
+  if (trimmed === "5" || trimmed.startsWith("5 ")) return "5 Contract";
+  if (trimmed === "6" || trimmed.startsWith("6 ")) return "6 Purchase";
+  return null;
+}
+
 /**
  * Dynamic data catalog — reads the full schema reference generated from migrations.
  * Loaded once at startup, cached in memory.
@@ -2492,7 +2504,9 @@ async function executeTerritoryPerformance(input: Record<string, unknown>): Prom
 
       const highest = new Map<number, number>();
       for (const h of history) {
-        const rank = stageRank[h.NewStatus ?? ""];
+        const key = masterSuiteStageKey(h.NewStatus);
+        if (!key) continue;
+        const rank = stageRank[key];
         if (rank !== undefined) {
           const cur = highest.get(h.PropertyId) ?? -1;
           if (rank > cur) highest.set(h.PropertyId, rank);
