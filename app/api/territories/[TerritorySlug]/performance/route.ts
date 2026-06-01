@@ -6,6 +6,7 @@ import { createServerClient } from "@/lib/supabase/server";
 
 type PropRow = {
   PropertyId: number;
+  TerritorySlug?: string | null;
   Status: string;
   Inserted: string | null;
   Address1: string | null;
@@ -24,6 +25,12 @@ type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string 
 type CalcRow = { PropertyId: number; Calculated_Inv_Profit: number | null; Calculated_Arv: number | null };
 
 const STAGE_ORDER = ["1", "2", "3", "4", "5 Contract", "6 Purchase"];
+const MONTHLY_STAGE_BENCHMARKS: Partial<Record<string, number>> = {
+  "1": 30,
+  "4": 10,
+  "5 Contract": 1,
+  "6 Purchase": 1,
+};
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
 };
@@ -68,6 +75,29 @@ function isInRange(value: string | null, start: Date, endExclusive: Date): boole
   if (!value) return false;
   const date = new Date(value);
   return date >= start && date < endExclusive;
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[mid];
+  return Number(((sorted[mid - 1] + sorted[mid]) / 2).toFixed(1));
+}
+
+function benchmarkMultiplier(period: string, now: Date): number | null {
+  if (period === "t1") return 1;
+  if (period === "t3") return 3;
+  if (period === "t12") return 12;
+  if (period === "ytd") return now.getMonth() + 1;
+  return null;
+}
+
+function buildBenchmark(stage: string, period: string, now: Date): number | null {
+  const monthly = MONTHLY_STAGE_BENCHMARKS[stage];
+  const multiplier = benchmarkMultiplier(period, now);
+  if (monthly == null || multiplier == null) return null;
+  return monthly * multiplier;
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ TerritorySlug: string }> }) {
@@ -192,7 +222,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return history;
   }
 
-  const currentHistory = await fetchStatusHistory(periodStartISO, shouldCapStatusHistory ? periodEndExclusiveISO : undefined);
+  const currentHistory = await fetchStatusHistory(
+    periodStartISO,
+    shouldCapStatusHistory ? periodEndExclusiveISO : undefined
+  );
   const prevHistory = await fetchStatusHistory(
     prevPeriodStartISO,
     shouldCapStatusHistory ? prevPeriodEndExclusiveISO : periodStartISO
@@ -223,6 +256,92 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
   const funnel = computeFunnel(currentHistory, funnelFilter);
   const prevFunnel = computeFunnel(prevHistory, prevEnteredStage1);
+
+  // Median comparison across active territories for the same period/category.
+  const { data: activeTerritories } = await supabase
+    .from("territories")
+    .select("TerritorySlug")
+    .eq("status", "active")
+    .eq("ExcludeFromGlobalCalculations", false);
+  const activeTerritorySlugs = ((activeTerritories ?? []) as { TerritorySlug: string }[])
+    .map((t) => t.TerritorySlug)
+    .filter(Boolean);
+
+  let comparisonRows = STAGE_ORDER.map((stage) => ({
+    stage,
+    medianActiveTerritory: null as number | null,
+    benchmark: buildBenchmark(stage, period, now),
+  }));
+  let activeTerritoryComparisonCount = 0;
+
+  if (activeTerritorySlugs.length > 0) {
+    let comparisonProperties: Pick<PropRow, "PropertyId" | "TerritorySlug" | "LeadCategory">[] = [];
+    for (let i = 0; i < activeTerritorySlugs.length; i += 500) {
+      const { data: page } = await supabase
+        .from("ms_properties")
+        .select("PropertyId, TerritorySlug, LeadCategory")
+        .in("TerritorySlug", activeTerritorySlugs.slice(i, i + 500))
+        .eq("Archived", false);
+      if (page)
+        comparisonProperties = comparisonProperties.concat(
+          page as Pick<PropRow, "PropertyId" | "TerritorySlug" | "LeadCategory">[]
+        );
+    }
+
+    const comparisonPropertyIds = comparisonProperties.map((p) => p.PropertyId);
+    const comparisonPropMap = new Map(comparisonProperties.map((p) => [p.PropertyId, p]));
+
+    let comparisonHistory: HistRow[] = [];
+    for (let i = 0; i < comparisonPropertyIds.length; i += 500) {
+      const { data: page } = await supabase
+        .from("ms_property_status_history")
+        .select("PropertyId, NewStatus, Inserted")
+        .in("PropertyId", comparisonPropertyIds.slice(i, i + 500))
+        .gte("Inserted", periodStart.toISOString())
+        .lt("Inserted", periodEndExclusiveISO);
+      if (page) comparisonHistory = comparisonHistory.concat(page as HistRow[]);
+    }
+
+    const historiesByTerritory = new Map<string, HistRow[]>();
+    const enteredStage1ByTerritory = new Map<string, Set<number>>();
+
+    for (const h of comparisonHistory) {
+      const prop = comparisonPropMap.get(h.PropertyId);
+      const territory = prop?.TerritorySlug;
+      if (!territory) continue;
+      if (leadCategoryFilter && (prop?.LeadCategory || "Unknown") !== leadCategoryFilter) continue;
+
+      const rows = historiesByTerritory.get(territory) ?? [];
+      rows.push(h);
+      historiesByTerritory.set(territory, rows);
+
+      if (stageKey(h.NewStatus) === "1") {
+        const entered = enteredStage1ByTerritory.get(territory) ?? new Set<number>();
+        entered.add(h.PropertyId);
+        enteredStage1ByTerritory.set(territory, entered);
+      }
+    }
+
+    const stageCountsByStage = new Map<string, number[]>();
+    activeTerritoryComparisonCount = activeTerritorySlugs.length;
+
+    for (const slug of activeTerritorySlugs) {
+      const history = historiesByTerritory.get(slug) ?? [];
+      const entrants = enteredStage1ByTerritory.get(slug) ?? new Set<number>();
+      const territoryFunnel = computeFunnel(history, entrants);
+      for (const row of territoryFunnel) {
+        const counts = stageCountsByStage.get(row.stage) ?? [];
+        counts.push(row.count);
+        stageCountsByStage.set(row.stage, counts);
+      }
+    }
+
+    comparisonRows = STAGE_ORDER.map((stage) => ({
+      stage,
+      medianActiveTerritory: median(stageCountsByStage.get(stage) ?? []),
+      benchmark: buildBenchmark(stage, period, now),
+    }));
+  }
 
   // 6. Sold in period + Active Inventory
   const soldInPeriod: InvRow[] = [];
@@ -396,6 +515,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
       funnel,
       prevFunnel,
+      comparisonRows,
+      activeTerritoryComparisonCount,
       soldProperties,
       inventoryProperties,
       leadCategories,

@@ -20,6 +20,12 @@ interface FunnelStage {
   count: number;
 }
 
+interface FunnelComparisonRow {
+  stage: string;
+  medianActiveTerritory: number | null;
+  benchmark: number | null;
+}
+
 interface Stage {
   label: string;
   date: string | null;
@@ -55,6 +61,8 @@ interface PerformanceData {
   kpis: KPIs | null;
   funnel: FunnelStage[];
   prevFunnel: FunnelStage[];
+  comparisonRows?: FunnelComparisonRow[];
+  activeTerritoryComparisonCount?: number;
   soldProperties: PropertyRow[];
   inventoryProperties: PropertyRow[];
   leadCategories: Record<string, number>;
@@ -143,7 +151,15 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
     );
   if (!data || !data.kpis) return <div className="text-text-secondary py-6">No performance data available.</div>;
 
-  const { kpis, funnel, soldProperties, inventoryProperties, leadCategories } = data;
+  const {
+    kpis,
+    funnel,
+    comparisonRows = [],
+    activeTerritoryComparisonCount = 0,
+    soldProperties,
+    inventoryProperties,
+    leadCategories,
+  } = data;
 
   return (
     <div className="space-y-6">
@@ -229,12 +245,19 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
         </div>
       )}
 
-      <PropertyFunnelStory
-        funnel={funnel}
-        periodLabel={PERIOD_LABELS[period]}
-        categoryLabel={selectedCategory}
-        comparisonLabel={PREV_LABELS[period]}
-      />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <PropertyFunnelStory
+          funnel={funnel}
+          periodLabel={PERIOD_LABELS[period]}
+          categoryLabel={selectedCategory}
+          comparisonLabel={PREV_LABELS[period]}
+        />
+        <PipelineComparisonTable
+          funnel={funnel}
+          comparisonRows={comparisonRows}
+          activeTerritoryComparisonCount={activeTerritoryComparisonCount}
+        />
+      </div>
 
       {/* Active Inventory List */}
       {inventoryProperties.length > 0 && (
@@ -392,6 +415,57 @@ function PropertyFunnelStory({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function PipelineComparisonTable({
+  funnel,
+  comparisonRows,
+  activeTerritoryComparisonCount,
+}: {
+  funnel: FunnelStage[];
+  comparisonRows: FunnelComparisonRow[];
+  activeTerritoryComparisonCount: number;
+}) {
+  return (
+    <div className="bg-bg-primary border border-border-default rounded-lg p-4">
+      <div className="mb-3">
+        <h3 className="text-body-sm font-semibold text-text-primary">Pipeline Comparison</h3>
+        <p className="text-caption text-text-tertiary">
+          Median across {activeTerritoryComparisonCount || "active"} active territories
+        </p>
+      </div>
+      <div className="overflow-hidden rounded-md border border-border-default">
+        <div className="grid grid-cols-[1.15fr_0.8fr_0.8fr_0.8fr] bg-bg-secondary px-3 py-2 text-[10px] font-semibold uppercase text-text-tertiary">
+          <span>Stage</span>
+          <span className="text-right">This</span>
+          <span className="text-right">Median</span>
+          <span className="text-right">Target</span>
+        </div>
+        <div className="divide-y divide-border-default/60">
+          {funnel.map((stage) => {
+            const comparison = comparisonRows.find((row) => row.stage === stage.stage);
+            const label = STAGE_LABELS[stage.stage] ?? stage.stage;
+            const benchmark = comparison?.benchmark;
+
+            return (
+              <div
+                key={stage.stage}
+                className="grid grid-cols-[1.15fr_0.8fr_0.8fr_0.8fr] items-center px-3 py-2 text-caption"
+              >
+                <span className="font-medium text-text-primary">{label}</span>
+                <span className="text-right font-semibold text-text-primary">{stage.count}</span>
+                <span className="text-right text-text-secondary">{comparison?.medianActiveTerritory ?? "—"}</span>
+                <span className="text-right text-text-secondary">{benchmark == null ? "—" : benchmark}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <p className="mt-3 text-[10px] leading-relaxed text-text-tertiary">
+        Targets scale from monthly goals: 30 Stage 1 leads, 10 Stage 4 offers, 1 contract, and 1 purchase.
+      </p>
     </div>
   );
 }
