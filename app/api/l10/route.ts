@@ -125,6 +125,7 @@ export async function GET(request: NextRequest) {
           purchasesLast30d: 0,
           medianPurchasesT12: null,
           highPerformersT12: 0,
+          territories: [],
           focusTerritories: [],
           opportunityTerritories: [],
         },
@@ -372,8 +373,9 @@ export async function GET(request: NextRequest) {
         purchasesLast30d: sum([...purchases30BySlug.values()]),
         medianPurchasesT12: median(purchasesT12Values),
         highPerformersT12: territoryDiagnostics.filter((t) => t.purchasesT12 >= 10).length,
-        focusTerritories: territoryDiagnostics.sort((a, b) => b.severity - a.severity).slice(0, 6),
-        opportunityTerritories: territoryDiagnostics
+        territories: territoryDiagnostics,
+        focusTerritories: [...territoryDiagnostics].sort((a, b) => b.severity - a.severity).slice(0, 6),
+        opportunityTerritories: [...territoryDiagnostics]
           .filter((t) => t.leadListInsertedMonth > 0 || t.stage1Last30d > 0 || t.stage4Last30d > 0)
           .sort((a, b) => b.opportunityScore - a.opportunityScore)
           .slice(0, 6),

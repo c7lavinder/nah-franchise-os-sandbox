@@ -62,6 +62,7 @@ interface L10Data {
     purchasesLast30d: number;
     medianPurchasesT12: number | null;
     highPerformersT12: number;
+    territories: TerritoryFocus[];
     focusTerritories: TerritoryFocus[];
     opportunityTerritories: TerritoryFocus[];
   };
@@ -165,6 +166,132 @@ function SectionHeader({ title, sub }: { title: string; sub: string }) {
     <div>
       <h2 className="text-section-title text-text-primary">{title}</h2>
       <p className="mt-1 text-sm text-text-secondary">{sub}</p>
+    </div>
+  );
+}
+
+function percent(numerator: number, denominator: number) {
+  if (denominator <= 0) return 0;
+  return Math.round((numerator / denominator) * 100);
+}
+
+type QuartileBox = {
+  label: string;
+  sub: string;
+  valueLabel: string;
+  direction: "higher" | "lower";
+  getValue: (territory: TerritoryFocus) => number;
+  format?: (value: number) => string;
+};
+
+const QUARTILE_BOXES: QuartileBox[] = [
+  {
+    label: "Lead List Inserted",
+    sub: "Are they feeding the postcard / lead-mining machine?",
+    valueLabel: "records",
+    direction: "higher",
+    getValue: (t) => t.leadListInsertedMonth,
+  },
+  {
+    label: "Stage 1 Leads",
+    sub: "Are lead-list and marketing activities creating real seller leads?",
+    valueLabel: "leads",
+    direction: "higher",
+    getValue: (t) => t.stage1Last30d,
+  },
+  {
+    label: "Stage 4 Offers",
+    sub: "Are they actually working leads far enough to make offers?",
+    valueLabel: "offers",
+    direction: "higher",
+    getValue: (t) => t.stage4Last30d,
+  },
+  {
+    label: "Lead Work Rate",
+    sub: "How much Stage 1 activity is reaching Stage 4?",
+    valueLabel: "Stage 1 to 4",
+    direction: "higher",
+    getValue: (t) => percent(t.stage4Last30d, t.stage1Last30d),
+    format: (value) => `${value}%`,
+  },
+  {
+    label: "Contracts",
+    sub: "Are offers turning into signed purchase contracts?",
+    valueLabel: "contracts",
+    direction: "higher",
+    getValue: (t) => t.contractsLast30d,
+  },
+  {
+    label: "Purchases",
+    sub: "Who is converting activity into bought houses?",
+    valueLabel: "purchases",
+    direction: "higher",
+    getValue: (t) => t.purchasesLast30d,
+  },
+  {
+    label: "T12 Buying",
+    sub: "Longer-term buying momentum across active territories.",
+    valueLabel: "T12 buys",
+    direction: "higher",
+    getValue: (t) => t.purchasesT12,
+  },
+  {
+    label: "Lead Work Gap",
+    sub: "Lead-list volume that is not showing up as worked seller leads.",
+    valueLabel: "gap",
+    direction: "lower",
+    getValue: (t) => Math.max(0, t.leadListInsertedMonth - t.stage1Last30d),
+  },
+];
+
+function QuartileCard({ box, territories }: { box: QuartileBox; territories: TerritoryFocus[] }) {
+  const sorted = [...territories].sort((a, b) => {
+    const diff = box.getValue(b) - box.getValue(a);
+    return box.direction === "higher" ? diff : -diff;
+  });
+  const quartileSize = Math.max(1, Math.ceil(sorted.length / 4));
+  const top = sorted.slice(0, quartileSize);
+  const spendTime = sorted.slice(-quartileSize).reverse();
+  const topMedian = top.length > 0 ? Math.round(top.reduce((sum, t) => sum + box.getValue(t), 0) / top.length) : 0;
+  const focusMedian =
+    spendTime.length > 0 ? Math.round(spendTime.reduce((sum, t) => sum + box.getValue(t), 0) / spendTime.length) : 0;
+  const fmt = box.format ?? ((value: number) => formatNumber(value));
+
+  return (
+    <div className="rounded-lg border border-border-default bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-card-title text-text-primary">{box.label}</h3>
+          <p className="mt-1 text-xs text-text-secondary">{box.sub}</p>
+        </div>
+        <span className="rounded-full bg-bg-tertiary px-2 py-1 text-xs font-semibold text-text-tertiary">
+          Quartiles
+        </span>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="rounded-lg bg-emerald-50 p-3">
+          <div className="text-xs font-semibold uppercase text-emerald-700">Model</div>
+          <div className="mt-1 text-xl font-bold text-emerald-900">{fmt(topMedian)}</div>
+          <div className="text-xs text-emerald-700">{box.valueLabel}</div>
+        </div>
+        <div className="rounded-lg bg-amber-50 p-3">
+          <div className="text-xs font-semibold uppercase text-amber-700">Spend Time</div>
+          <div className="mt-1 text-xl font-bold text-amber-900">{fmt(focusMedian)}</div>
+          <div className="text-xs text-amber-700">{box.valueLabel}</div>
+        </div>
+      </div>
+      <div className="mt-4 space-y-2">
+        {spendTime.slice(0, 4).map((territory) => (
+          <a
+            key={territory.slug}
+            href={`/territories/${territory.slug}`}
+            className="flex items-center justify-between gap-3 rounded-md border border-border-default px-3 py-2 hover:bg-bg-hover"
+          >
+            <span className="min-w-0 truncate text-sm font-medium text-text-primary">{territory.name}</span>
+            <span className="text-sm font-semibold text-text-secondary">{fmt(box.getValue(territory))}</span>
+          </a>
+        ))}
+      </div>
     </div>
   );
 }
@@ -397,6 +524,18 @@ export default function L10Page() {
           </div>
         </section>
       </div>
+
+      <section className="space-y-4">
+        <SectionHeader
+          title="Territory Quartile Board"
+          sub="Eight coaching boxes for all active territories. The right side of each box shows who John and Chad should spend time on."
+        />
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {QUARTILE_BOXES.map((box) => (
+            <QuartileCard key={box.label} box={box} territories={coaching.territories} />
+          ))}
+        </div>
+      </section>
 
       <section className="rounded-lg border border-border-default bg-white shadow-sm">
         <div className="border-b border-border-default p-5">
