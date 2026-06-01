@@ -105,6 +105,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
   const prevPeriodStartISO = prevPeriodStart.toISOString();
   const periodEndExclusiveISO = periodEndExclusive.toISOString();
+  const shouldCapStatusHistory = period !== "all" && period !== "ytd";
 
   // 1. All non-archived properties (paginate)
   let properties: PropRow[] = [];
@@ -166,20 +167,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // 3. Status history — fetch BOTH current AND previous period in one pass
   let allHistory: HistRow[] = [];
   for (let i = 0; i < propertyIds.length; i += 500) {
-    const { data: page } = await supabase
+    let historyQuery = supabase
       .from("ms_property_status_history")
       .select("PropertyId, NewStatus, Inserted")
       .in("PropertyId", propertyIds.slice(i, i + 500))
-      .gte("Inserted", prevPeriodStartISO)
-      .lt("Inserted", periodEndExclusiveISO);
+      .gte("Inserted", prevPeriodStartISO);
+    if (shouldCapStatusHistory) historyQuery = historyQuery.lt("Inserted", periodEndExclusiveISO);
+    const { data: page } = await historyQuery;
     if (page) allHistory = allHistory.concat(page as HistRow[]);
   }
 
   // Split into current and previous period
-  const currentHistory = allHistory.filter((h) => isInRange(h.Inserted, periodStart, periodEndExclusive));
+  const currentHistory = allHistory.filter((h) =>
+    shouldCapStatusHistory
+      ? isInRange(h.Inserted, periodStart, periodEndExclusive)
+      : new Date(h.Inserted) >= periodStart
+  );
   const prevHistory = allHistory.filter((h) => {
     const d = new Date(h.Inserted);
-    return d >= prevPeriodStart && d < prevPeriodEndExclusive;
+    return d >= prevPeriodStart && (shouldCapStatusHistory ? d < prevPeriodEndExclusive : d < periodStart);
   });
 
   // 4. Leads Entered = Stage 1 entries in current period

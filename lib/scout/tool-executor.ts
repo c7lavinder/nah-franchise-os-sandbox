@@ -2439,6 +2439,7 @@ async function executeTerritoryPerformance(input: Record<string, unknown>): Prom
     const { periodStart, periodEndExclusive, prevPeriodStart, prevPeriodEndExclusive } = computePeriodRange(period);
     const periodISO = periodStart.toISOString();
     const periodEndExclusiveISO = periodEndExclusive.toISOString();
+    const shouldCapStatusHistory = period !== "all" && period !== "ytd";
     const supabase = createServerClient();
 
     // 1. Inventory rows with purchase dates for this territory
@@ -2527,12 +2528,13 @@ async function executeTerritoryPerformance(input: Record<string, unknown>): Prom
     if (propIds.length > 0) {
       let history: { PropertyId: number; NewStatus: string | null }[] = [];
       for (let i = 0; i < propIds.length; i += 500) {
-        const { data: page } = await supabase
+        let historyQuery = supabase
           .from("ms_property_status_history")
           .select("PropertyId, NewStatus")
           .in("PropertyId", propIds.slice(i, i + 500))
-          .gte("Inserted", periodISO)
-          .lt("Inserted", periodEndExclusiveISO);
+          .gte("Inserted", periodISO);
+        if (shouldCapStatusHistory) historyQuery = historyQuery.lt("Inserted", periodEndExclusiveISO);
+        const { data: page } = await historyQuery;
         if (page) history = history.concat(page as typeof history);
       }
 

@@ -47,3 +47,4 @@ supabase/.temp/
 
 # Legacy
 /commands/Commands Memory/
+.env*.local
