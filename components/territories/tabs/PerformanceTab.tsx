@@ -1,7 +1,19 @@
 "use client";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, DollarSign, Clock, Target, TrendingUp, AlertTriangle, Home, Package, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowDown,
+  Clock,
+  DollarSign,
+  Gauge,
+  Home,
+  Loader2,
+  Package,
+  Target,
+  TrendingUp,
+  X,
+} from "lucide-react";
 
 interface FunnelStage {
   stage: string;
@@ -68,12 +80,12 @@ const PREV_LABELS: Record<Period, string> = {
 };
 
 const STAGE_LABELS: Record<string, string> = {
-  "1": "Leads Entered",
+  "1": "Stage 1",
   "2": "Stage 2",
   "3": "Stage 3",
   "4": "Stage 4",
-  "5 Contract": "Contracts",
-  "6 Purchase": "Purchased",
+  "5 Contract": "Stage 5 Contract",
+  "6 Purchase": "Stage 6 Purchase",
 };
 
 const STAGE_COLORS: Record<string, string> = {
@@ -278,16 +290,26 @@ function PropertyFunnelStory({
   comparisonLabel: string;
 }) {
   const stage1Count = funnel[0]?.count ?? 0;
-  const stage4Count = funnel.find((f) => f.stage === "4")?.count ?? 0;
-  const contractCount = funnel.find((f) => f.stage === "5 Contract")?.count ?? 0;
-  const purchaseCount = funnel.find((f) => f.stage === "6 Purchase")?.count ?? 0;
-  const stage4Pct = pctOf(stage4Count, stage1Count);
-  const contractPct = pctOf(contractCount, stage4Count);
-  const purchasePct = pctOf(purchaseCount, contractCount);
+  const transitions = funnel.slice(1).map((stage, index) => {
+    const previous = funnel[index];
+    const previousCount = previous?.count ?? 0;
+    const lostCount = Math.max(previousCount - stage.count, 0);
+    const stepPct = pctOf(stage.count, previousCount);
+    return {
+      from: STAGE_LABELS[previous?.stage ?? ""] ?? previous?.stage ?? "Prior stage",
+      to: STAGE_LABELS[stage.stage] ?? stage.stage,
+      lostCount,
+      stepPct,
+    };
+  });
+  const bottlenecks = transitions
+    .filter((transition) => transition.lostCount > 0)
+    .sort((a, b) => b.lostCount - a.lostCount)
+    .slice(0, 3);
 
   return (
     <div className="bg-bg-primary border border-border-default rounded-lg p-5">
-      <div className="flex items-start justify-between gap-4 mb-4">
+      <div className="flex items-start justify-between gap-4 mb-5">
         <div>
           <h3 className="text-body-sm font-semibold text-text-primary">Property Funnel</h3>
           <p className="text-caption text-text-tertiary mt-1">
@@ -298,73 +320,78 @@ function PropertyFunnelStory({
         {comparisonLabel && <span className="text-caption text-text-tertiary shrink-0">{comparisonLabel}</span>}
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        <FunnelStoryStat value={stage1Count} label="entered" />
-        <FunnelStoryStat value={`${stage4Pct}%`} label="reached Stage 4" />
-        <FunnelStoryStat value={purchaseCount} label="purchased" />
-      </div>
-
       <div className="space-y-3">
         {funnel.map((stage, index) => {
           const previousCount = index > 0 ? (funnel[index - 1]?.count ?? 0) : stage.count;
           const leadPct = index === 0 ? 100 : pctOf(stage.count, stage1Count);
           const stepPct = index === 0 ? 100 : pctOf(stage.count, previousCount);
-          const dropCount = Math.max(previousCount - stage.count, 0);
           const color = STAGE_COLORS[stage.stage] ?? "#6b7280";
           const label = STAGE_LABELS[stage.stage] ?? stage.stage;
-          const widthPct = Math.max(leadPct, stage.count > 0 ? 3 : 0);
+          const widthPct = Math.max(leadPct, stage.count > 0 ? 5 : 0);
 
           return (
             <div
               key={stage.stage}
-              className="grid grid-cols-1 gap-2 lg:grid-cols-[128px_minmax(0,1fr)_160px] lg:items-center lg:gap-4"
+              className="grid grid-cols-[92px_minmax(0,1fr)_76px] items-center gap-3 sm:grid-cols-[120px_minmax(0,1fr)_92px]"
             >
               <div className="min-w-0">
-                <p className="text-body-sm font-semibold text-text-primary truncate">{label}</p>
-                <p className="text-caption text-text-tertiary">{stage.count.toLocaleString()} properties</p>
+                <p className="truncate text-caption font-semibold text-text-primary">{label}</p>
+                <p className="text-[11px] text-text-tertiary">{index === 0 ? "start" : `${stepPct}% from prior`}</p>
               </div>
-              <div className="h-8 rounded-md bg-bg-secondary border border-border-default overflow-hidden">
+              <div className="h-8 overflow-hidden rounded-md border border-border-default bg-bg-tertiary">
                 <div
                   className="h-full rounded-md transition-all duration-500"
-                  style={{ width: `${widthPct}%`, backgroundColor: `${color}80` }}
+                  style={{ width: `${widthPct}%`, backgroundColor: `${color}99` }}
                 />
               </div>
-              <div className="lg:text-right">
-                <p className="text-body-sm font-semibold text-text-primary">{leadPct}% of leads</p>
-                <p className="text-caption text-text-tertiary">
-                  {index === 0 ? "starting point" : `${stepPct}% from prior, ${dropCount} dropped`}
-                </p>
+              <div className="text-right">
+                <p className="text-body-sm font-bold text-text-primary">{stage.count.toLocaleString()}</p>
+                <p className="text-[11px] text-text-tertiary">{leadPct}%</p>
               </div>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 border-t border-border-default pt-4">
-        <div className="rounded-lg bg-bg-secondary px-3 py-2">
-          <p className="text-caption text-text-tertiary">Stage 4 to contract</p>
-          <p className="text-body-sm font-semibold text-text-primary">
-            {contractCount.toLocaleString()} of {stage4Count.toLocaleString()} moved forward ({contractPct}%)
-          </p>
+      <div className="mt-5 rounded-lg border border-border-default bg-bg-secondary p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
+            <Gauge size={17} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-caption text-text-tertiary">Bottleneck board</p>
+            <p className="mt-1 text-body-sm font-semibold text-text-primary">
+              Biggest pressure point:{" "}
+              {bottlenecks[0] ? `${bottlenecks[0].from} to ${bottlenecks[0].to}` : "not enough movement yet"}
+            </p>
+          </div>
         </div>
-        <div className="rounded-lg bg-bg-secondary px-3 py-2">
-          <p className="text-caption text-text-tertiary">Contract to purchase</p>
-          <p className="text-body-sm font-semibold text-text-primary">
-            {purchaseCount.toLocaleString()} of {contractCount.toLocaleString()} closed ({purchasePct}%)
-          </p>
+
+        <div className="mt-3 grid gap-2 md:grid-cols-3">
+          {bottlenecks.length > 0 ? (
+            bottlenecks.map((item) => (
+              <div key={`${item.from}-${item.to}`} className="rounded-md bg-white/70 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <ArrowDown size={14} className={item.lostCount > 0 ? "text-danger" : "text-text-tertiary"} />
+                  <p className="min-w-0 truncate text-caption font-semibold text-text-primary">
+                    {item.from} to {item.to}
+                  </p>
+                </div>
+                <p className="mt-1 text-[11px] text-text-tertiary">
+                  {item.lostCount.toLocaleString()} did not advance - {item.stepPct}% conversion
+                </p>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-md bg-white/70 px-3 py-2 md:col-span-3">
+              <p className="text-caption font-semibold text-text-primary">No drop-off to call out yet</p>
+              <p className="mt-1 text-[11px] text-text-tertiary">
+                As volume moves through the stages, this will highlight where attention is needed.
+              </p>
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function FunnelStoryStat({ value, label }: { value: number | string; label: string }) {
-  return (
-    <div className="rounded-lg bg-bg-secondary px-3 py-2">
-      <p className="text-lg font-bold text-text-primary">
-        {typeof value === "number" ? value.toLocaleString() : value}
-      </p>
-      <p className="text-caption text-text-tertiary">{label}</p>
     </div>
   );
 }
