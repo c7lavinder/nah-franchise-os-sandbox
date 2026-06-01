@@ -103,8 +103,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     prevPeriodStart = new Date(now.getFullYear(), now.getMonth() - periodMonths * 2, now.getDate());
     prevPeriodEndExclusive = periodStart;
   }
+  const periodStartISO = periodStart.toISOString();
   const prevPeriodStartISO = prevPeriodStart.toISOString();
   const periodEndExclusiveISO = periodEndExclusive.toISOString();
+  const prevPeriodEndExclusiveISO = prevPeriodEndExclusive.toISOString();
   const shouldCapStatusHistory = period !== "all" && period !== "ytd";
 
   // 1. All non-archived properties (paginate)
@@ -164,29 +166,37 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (page) inventory = inventory.concat(page as InvRow[]);
   }
 
-  // 3. Status history — fetch BOTH current AND previous period in one pass
-  let allHistory: HistRow[] = [];
-  for (let i = 0; i < propertyIds.length; i += 500) {
-    let historyQuery = supabase
-      .from("ms_property_status_history")
-      .select("PropertyId, NewStatus, Inserted")
-      .in("PropertyId", propertyIds.slice(i, i + 500))
-      .gte("Inserted", prevPeriodStartISO);
-    if (shouldCapStatusHistory) historyQuery = historyQuery.lt("Inserted", periodEndExclusiveISO);
-    const { data: page } = await historyQuery;
-    if (page) allHistory = allHistory.concat(page as HistRow[]);
+  // 3. Status history — fetch current and previous windows separately.
+  // Supabase caps each select at 1,000 rows by default; paginate so YTD does not
+  // truncate early in high-volume territories.
+  async function fetchStatusHistory(startISO: string, endISO?: string): Promise<HistRow[]> {
+    let history: HistRow[] = [];
+    for (let i = 0; i < propertyIds.length; i += 500) {
+      let offset = 0;
+      while (true) {
+        let historyQuery = supabase
+          .from("ms_property_status_history")
+          .select("PropertyId, NewStatus, Inserted")
+          .in("PropertyId", propertyIds.slice(i, i + 500))
+          .gte("Inserted", startISO)
+          .order("Inserted")
+          .range(offset, offset + 999);
+        if (endISO) historyQuery = historyQuery.lt("Inserted", endISO);
+        const { data: page } = await historyQuery;
+        if (!page || page.length === 0) break;
+        history = history.concat(page as HistRow[]);
+        if (page.length < 1000) break;
+        offset += 1000;
+      }
+    }
+    return history;
   }
 
-  // Split into current and previous period
-  const currentHistory = allHistory.filter((h) =>
-    shouldCapStatusHistory
-      ? isInRange(h.Inserted, periodStart, periodEndExclusive)
-      : new Date(h.Inserted) >= periodStart
+  const currentHistory = await fetchStatusHistory(periodStartISO, shouldCapStatusHistory ? periodEndExclusiveISO : undefined);
+  const prevHistory = await fetchStatusHistory(
+    prevPeriodStartISO,
+    shouldCapStatusHistory ? prevPeriodEndExclusiveISO : periodStartISO
   );
-  const prevHistory = allHistory.filter((h) => {
-    const d = new Date(h.Inserted);
-    return d >= prevPeriodStart && (shouldCapStatusHistory ? d < prevPeriodEndExclusive : d < periodStart);
-  });
 
   // 4. Leads Entered = Stage 1 entries in current period
   const enteredStage1 = new Set<number>();
