@@ -21,6 +21,9 @@ interface TerritoryCard {
   performanceScore?: number | null;
   performanceRank?: number | null;
   performanceStatus?: string | null;
+  performanceCoachingFlag?: string | null;
+  performanceCoachingReason?: string | null;
+  performanceLeadWorkRate?: number | null;
 }
 
 /** Label colors matching wave gradient circles — custom hex */
@@ -202,9 +205,17 @@ export default function TerritoryCardList({ status, statusFilter, stageId, searc
                 {card.performanceQuartile && qc && (
                   <span
                     className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${qc.bg} ${qc.text}`}
-                    title={`${card.performanceStatus ?? card.performanceQuartile} · ${card.performanceScore ?? 0} pts · rank ${card.performanceRank ?? "—"}`}
+                    title={`${card.performanceStatus ?? card.performanceQuartile} · ${card.performanceScore ?? 0} pts · rank ${card.performanceRank ?? "—"} · ${card.performanceCoachingReason ?? "No coaching reason"}`}
                   >
                     {card.performanceQuartile} · {card.performanceScore} pts
+                  </span>
+                )}
+                {card.performanceCoachingFlag && (
+                  <span
+                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-nah-blue-light text-nah-blue whitespace-nowrap"
+                    title={`${card.performanceCoachingReason ?? card.performanceCoachingFlag}${card.performanceLeadWorkRate == null ? "" : ` · ${card.performanceLeadWorkRate}% worked`}`}
+                  >
+                    {card.performanceCoachingFlag}
                   </span>
                 )}
               </p>

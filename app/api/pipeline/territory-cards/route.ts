@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
-import { assignTerritoryPerformanceLabels } from "@/lib/territory-performance-quartiles";
+import { quartileScoringAgent } from "@/lib/agents/quartile-scoring-agent";
 
 type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string };
 type PropertyRow = { PropertyId: number; TerritorySlug: string };
@@ -20,6 +20,7 @@ function stageKey(status: string | null): string | null {
   if (!status) return null;
   const trimmed = status.trim();
   if (trimmed === "1" || trimmed.startsWith("1 ")) return "1";
+  if (trimmed === "3" || trimmed.startsWith("3 ")) return "3";
   if (trimmed === "4" || trimmed.startsWith("4 ")) return "4";
   return null;
 }
@@ -178,7 +179,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const performanceLabelBySlug = new Map<string, { quartile: string; score: number; rank: number; status: string }>();
+  const performanceLabelBySlug = new Map<
+    string,
+    {
+      quartile: string;
+      score: number;
+      rank: number;
+      status: string;
+      coachingFlag: string;
+      coachingReason: string;
+      leadWorkRate: number;
+    }
+  >();
   if (activeSlugs.length > 0) {
     const [leadListRes, inventory30Res] = await Promise.all([
       supabase
@@ -224,6 +236,7 @@ export async function GET(request: NextRequest) {
     }
 
     const stage1BySlug = new Map<string, Set<number>>();
+    const stage3BySlug = new Map<string, Set<number>>();
     const stage4BySlug = new Map<string, Set<number>>();
     for (const row of history30) {
       const prop = propertyById.get(row.PropertyId);
@@ -232,6 +245,10 @@ export async function GET(request: NextRequest) {
       if (key === "1") {
         if (!stage1BySlug.has(prop.TerritorySlug)) stage1BySlug.set(prop.TerritorySlug, new Set());
         stage1BySlug.get(prop.TerritorySlug)!.add(row.PropertyId);
+      }
+      if (key === "3") {
+        if (!stage3BySlug.has(prop.TerritorySlug)) stage3BySlug.set(prop.TerritorySlug, new Set());
+        stage3BySlug.get(prop.TerritorySlug)!.add(row.PropertyId);
       }
       if (key === "4") {
         if (!stage4BySlug.has(prop.TerritorySlug)) stage4BySlug.set(prop.TerritorySlug, new Set());
@@ -252,7 +269,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const scored = assignTerritoryPerformanceLabels(
+    const scored = quartileScoringAgent.assignQuartiles(
       (territories ?? [])
         .filter((t) => t.status === "active")
         .map((t) => ({
@@ -260,6 +277,7 @@ export async function GET(request: NextRequest) {
           name: t.Nickname,
           leadListInsertedMonth: leadListBySlug.get(t.TerritorySlug) ?? 0,
           stage1Last30d: stage1BySlug.get(t.TerritorySlug)?.size ?? 0,
+          stage3Last30d: stage3BySlug.get(t.TerritorySlug)?.size ?? 0,
           stage4Last30d: stage4BySlug.get(t.TerritorySlug)?.size ?? 0,
           contractsLast30d: contracts30BySlug.get(t.TerritorySlug) ?? 0,
           purchasesLast30d: purchases30BySlug.get(t.TerritorySlug) ?? 0,
@@ -273,6 +291,9 @@ export async function GET(request: NextRequest) {
         score: territory.score,
         rank: territory.rank,
         status: territory.status,
+        coachingFlag: territory.coachingFlag,
+        coachingReason: territory.coachingReason,
+        leadWorkRate: territory.leadWorkRate,
       });
     }
   }
@@ -296,6 +317,9 @@ export async function GET(request: NextRequest) {
       performanceScore: performanceLabel?.score ?? null,
       performanceRank: performanceLabel?.rank ?? null,
       performanceStatus: performanceLabel?.status ?? null,
+      performanceCoachingFlag: performanceLabel?.coachingFlag ?? null,
+      performanceCoachingReason: performanceLabel?.coachingReason ?? null,
+      performanceLeadWorkRate: performanceLabel?.leadWorkRate ?? null,
     };
   });
 

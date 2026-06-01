@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
-import { assignTerritoryPerformanceLabels } from "@/lib/territory-performance-quartiles";
+import { quartileScoringAgent } from "@/lib/agents/quartile-scoring-agent";
 
 type Territory = { TerritorySlug: string; Nickname: string | null; region: string | null };
 type ScorecardMetric = { TerritorySlug: string; goal: string | null; actual: string | null };
@@ -270,6 +270,7 @@ export async function GET(request: NextRequest) {
   }
 
   const stage1BySlug = new Map<string, Set<number>>();
+  const stage3BySlug = new Map<string, Set<number>>();
   const stage4BySlug = new Map<string, Set<number>>();
   for (const row of history30) {
     const prop = propertyById.get(row.PropertyId);
@@ -278,6 +279,10 @@ export async function GET(request: NextRequest) {
     if (key === "1") {
       if (!stage1BySlug.has(prop.TerritorySlug)) stage1BySlug.set(prop.TerritorySlug, new Set());
       stage1BySlug.get(prop.TerritorySlug)!.add(row.PropertyId);
+    }
+    if (key === "3") {
+      if (!stage3BySlug.has(prop.TerritorySlug)) stage3BySlug.set(prop.TerritorySlug, new Set());
+      stage3BySlug.get(prop.TerritorySlug)!.add(row.PropertyId);
     }
     if (key === "4") {
       if (!stage4BySlug.has(prop.TerritorySlug)) stage4BySlug.set(prop.TerritorySlug, new Set());
@@ -336,6 +341,7 @@ export async function GET(request: NextRequest) {
       health,
       leadListInsertedMonth: leadList,
       stage1Last30d: stage1,
+      stage3Last30d: stage3BySlug.get(slug)?.size ?? 0,
       stage4Last30d: stage4,
       contractsLast30d: contracts30BySlug.get(slug) ?? 0,
       purchasesLast30d: purchases30,
@@ -346,7 +352,7 @@ export async function GET(request: NextRequest) {
       opportunityScore: leadList + stage1 * 10 + stage4 * 20 - purchases30 * 50,
     };
   });
-  const scoredTerritories = assignTerritoryPerformanceLabels(territoryDiagnostics);
+  const scoredTerritories = quartileScoringAgent.assignQuartiles(territoryDiagnostics);
 
   const rockRows = (rocksRes.data ?? []) as Rock[];
   const healthValues = [...healthBySlug.values()].filter((v): v is number => v !== null);

@@ -45,6 +45,9 @@ interface TerritoryFocus {
   score: number;
   rank: number;
   status: string;
+  leadWorkRate: number;
+  coachingFlag: string;
+  coachingReason: string;
 }
 
 interface L10Data {
@@ -337,6 +340,12 @@ function TerritoryRow({ territory }: { territory: TerritoryFocus }) {
           <MapPin className="h-3 w-3" />
           {territory.region ?? territory.slug}
         </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-nah-blue-light px-2 py-1 text-[11px] font-semibold text-nah-blue">
+            {territory.coachingFlag}
+          </span>
+          <span className="min-w-0 text-xs text-text-secondary">{territory.coachingReason}</span>
+        </div>
       </div>
       <div>
         <div className="text-sm font-semibold text-text-primary">{formatNumber(territory.leadListInsertedMonth)}</div>
@@ -346,7 +355,7 @@ function TerritoryRow({ territory }: { territory: TerritoryFocus }) {
         <div className="text-sm font-semibold text-text-primary">
           {territory.stage1Last30d} <span className="text-text-tertiary">/</span> {territory.stage4Last30d}
         </div>
-        <div className="text-xs text-text-tertiary">Stage 1 / Stage 4</div>
+        <div className="text-xs text-text-tertiary">Stage 1 / Stage 4 · {territory.leadWorkRate}% worked</div>
       </div>
       <div>
         <div className="text-sm font-semibold text-text-primary">
