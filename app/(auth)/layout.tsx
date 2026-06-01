@@ -13,6 +13,7 @@ function getPageTitle(pathname: string): string {
     "/scout": "Scout AI",
     "/daily-hq": "Daily HQ",
     "/pipeline": "Pipeline",
+    "/pipeline-examples": "Pipeline Examples",
     "/dashboard": "Dashboard",
     "/knowledge": "Knowledge Base",
     "/settings": "Settings",
