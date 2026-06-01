@@ -18,7 +18,7 @@ export async function apiFetch(url: string, init: RequestInit = {}): Promise<Res
   const resolvedUrl = url.startsWith("/") ? `${BASE_PATH}${url}` : url;
 
   // Browser sends httpOnly cookies automatically with credentials: "include"
-  const res = await fetch(resolvedUrl, { ...init, credentials: "include" });
+  const res = await fetch(resolvedUrl, { cache: "no-store", ...init, credentials: "include" });
 
   // On 401, session expired — redirect to login
   if (res.status === 401) {

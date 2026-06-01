@@ -24,6 +24,9 @@ type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string 
 type CalcRow = { PropertyId: number; Calculated_Inv_Profit: number | null; Calculated_Arv: number | null };
 
 const STAGE_ORDER = ["1", "2", "3", "4", "5 Contract", "6 Purchase"];
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+};
 
 function stageKey(status: string | null): string | null {
   if (!status) return null;
@@ -109,15 +112,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const propMap = new Map(properties.map((p) => [p.PropertyId, p]));
 
   if (propertyIds.length === 0) {
-    return NextResponse.json({
-      kpis: null,
-      funnel: [],
-      prevFunnel: [],
-      soldProperties: [],
-      inventoryProperties: [],
-      leadCategories: {},
-      period,
-    });
+    return NextResponse.json(
+      {
+        kpis: null,
+        funnel: [],
+        prevFunnel: [],
+        soldProperties: [],
+        inventoryProperties: [],
+        leadCategories: {},
+        period,
+      },
+      { headers: NO_STORE_HEADERS }
+    );
   }
 
   // Lead category filter — build a set of matching property IDs
@@ -341,25 +347,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const s4PlusCount = funnel.find((f) => f.stage === "4")?.count ?? 0;
   const conversionRate = enteredStage1.size > 0 ? Number(((s4PlusCount / enteredStage1.size) * 100).toFixed(1)) : null;
 
-  return NextResponse.json({
-    kpis: {
-      leadsEntered: enteredStage1.size,
-      leadProgression: conversionRate,
-      avgLeadToPurchase,
-      avgCycleDays,
-      activeInventory: activeInventoryRows.length,
-      purchasedInPeriod: purchasedInPeriod.length,
-      soldInPeriod: soldInPeriod.length,
-      avgProfit: profitCount > 0 ? Math.round(totalProfit / profitCount) : null,
-      totalProfit: profitCount > 0 ? Math.round(totalProfit) : null,
-      conversionRate,
+  return NextResponse.json(
+    {
+      kpis: {
+        leadsEntered: enteredStage1.size,
+        leadProgression: conversionRate,
+        avgLeadToPurchase,
+        avgCycleDays,
+        activeInventory: activeInventoryRows.length,
+        purchasedInPeriod: purchasedInPeriod.length,
+        soldInPeriod: soldInPeriod.length,
+        avgProfit: profitCount > 0 ? Math.round(totalProfit / profitCount) : null,
+        totalProfit: profitCount > 0 ? Math.round(totalProfit) : null,
+        conversionRate,
+      },
+      funnel,
+      prevFunnel,
+      soldProperties,
+      inventoryProperties,
+      leadCategories,
+      leadCategoryFilter,
+      period,
     },
-    funnel,
-    prevFunnel,
-    soldProperties,
-    inventoryProperties,
-    leadCategories,
-    leadCategoryFilter,
-    period,
-  });
+    { headers: NO_STORE_HEADERS }
+  );
 }
