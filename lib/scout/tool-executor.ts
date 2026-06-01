@@ -2288,6 +2288,50 @@ function computePeriodStart(period: string): Date {
   return new Date(now.getFullYear(), now.getMonth() - months, now.getDate());
 }
 
+function computePeriodRange(period: string): {
+  periodStart: Date;
+  periodEndExclusive: Date;
+  prevPeriodStart: Date;
+  prevPeriodEndExclusive: Date;
+} {
+  const now = new Date();
+  const todayEndExclusive = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+  if (period === "all") {
+    const periodStart = new Date(2000, 0, 1);
+    return {
+      periodStart,
+      periodEndExclusive: todayEndExclusive,
+      prevPeriodStart: new Date(2000, 0, 1),
+      prevPeriodEndExclusive: periodStart,
+    };
+  }
+
+  if (period === "ytd") {
+    return {
+      periodStart: new Date(now.getFullYear(), 0, 1),
+      periodEndExclusive: todayEndExclusive,
+      prevPeriodStart: new Date(now.getFullYear() - 1, 0, 1),
+      prevPeriodEndExclusive: new Date(now.getFullYear() - 1, now.getMonth(), now.getDate() + 1),
+    };
+  }
+
+  const months = period === "t1" ? 1 : period === "t12" ? 12 : 3;
+  const periodStart = new Date(now.getFullYear(), now.getMonth() - months, now.getDate());
+  return {
+    periodStart,
+    periodEndExclusive: todayEndExclusive,
+    prevPeriodStart: new Date(now.getFullYear(), now.getMonth() - months * 2, now.getDate()),
+    prevPeriodEndExclusive: periodStart,
+  };
+}
+
+function isInPeriod(value: string | null, start: Date, endExclusive: Date): boolean {
+  if (!value) return false;
+  const date = new Date(value);
+  return date >= start && date < endExclusive;
+}
+
 function masterSuiteStageKey(status: string | null): string | null {
   if (!status) return null;
   const trimmed = status.trim();
@@ -2392,21 +2436,10 @@ async function executeTerritoryPerformance(input: Record<string, unknown>): Prom
   try {
     const slug = input.TerritorySlug as string;
     const period = (input.period as string) ?? "t3";
-    const periodStart = computePeriodStart(period);
+    const { periodStart, periodEndExclusive, prevPeriodStart, prevPeriodEndExclusive } = computePeriodRange(period);
     const periodISO = periodStart.toISOString();
+    const periodEndExclusiveISO = periodEndExclusive.toISOString();
     const supabase = createServerClient();
-
-    // Compute previous period start for trend comparison
-    const now = new Date();
-    let prevPeriodStart: Date;
-    if (period === "all") {
-      prevPeriodStart = new Date(2000, 0, 1);
-    } else if (period === "ytd") {
-      prevPeriodStart = new Date(now.getFullYear() - 1, 0, 1);
-    } else {
-      const months = period === "t1" ? 1 : period === "t12" ? 12 : 3;
-      prevPeriodStart = new Date(now.getFullYear(), now.getMonth() - months * 2, now.getDate());
-    }
 
     // 1. Inventory rows with purchase dates for this territory
     let inventory: {
@@ -2431,17 +2464,17 @@ async function executeTerritoryPerformance(input: Record<string, unknown>): Prom
     }
 
     // 2. Filter to period + previous period for trend
-    const purchasedInPeriod = inventory.filter((i) => new Date(i.Inv_PurchaseDate) >= periodStart);
-    const soldInPeriod = inventory.filter((i) => i.Inv_SellDate && new Date(i.Inv_SellDate) >= periodStart);
+    const purchasedInPeriod = inventory.filter((i) => isInPeriod(i.Inv_PurchaseDate, periodStart, periodEndExclusive));
+    const soldInPeriod = inventory.filter((i) => isInPeriod(i.Inv_SellDate, periodStart, periodEndExclusive));
     const activeInventory = inventory.filter((i) => !i.Inv_SellDate);
     const prevPurchased = inventory.filter((i) => {
       const d = new Date(i.Inv_PurchaseDate);
-      return d >= prevPeriodStart && d < periodStart;
+      return d >= prevPeriodStart && d < prevPeriodEndExclusive;
     });
     const prevSold = inventory.filter((i) => {
       if (!i.Inv_SellDate) return false;
       const d = new Date(i.Inv_SellDate);
-      return d >= prevPeriodStart && d < periodStart;
+      return d >= prevPeriodStart && d < prevPeriodEndExclusive;
     });
 
     // 3. Profit for sold properties
@@ -2498,7 +2531,8 @@ async function executeTerritoryPerformance(input: Record<string, unknown>): Prom
           .from("ms_property_status_history")
           .select("PropertyId, NewStatus")
           .in("PropertyId", propIds.slice(i, i + 500))
-          .gte("Inserted", periodISO);
+          .gte("Inserted", periodISO)
+          .lt("Inserted", periodEndExclusiveISO);
         if (page) history = history.concat(page as typeof history);
       }
 
@@ -2673,7 +2707,7 @@ async function executeTerritoryPerformance(input: Record<string, unknown>): Prom
 async function executeNetworkBenchmarks(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
     const period = (input.period as string) ?? "t12";
-    const periodStart = computePeriodStart(period);
+    const { periodStart, periodEndExclusive } = computePeriodRange(period);
     const supabase = createServerClient();
 
     // 1. Get all active territories
@@ -2751,8 +2785,8 @@ async function executeNetworkBenchmarks(input: Record<string, unknown>): Promise
 
     for (const slug of slugs) {
       const inv = byTerritory.get(slug) ?? [];
-      const purchased = inv.filter((i) => new Date(i.Inv_PurchaseDate) >= periodStart).length;
-      const sold = inv.filter((i) => i.Inv_SellDate && new Date(i.Inv_SellDate) >= periodStart).length;
+      const purchased = inv.filter((i) => isInPeriod(i.Inv_PurchaseDate, periodStart, periodEndExclusive)).length;
+      const sold = inv.filter((i) => isInPeriod(i.Inv_SellDate, periodStart, periodEndExclusive)).length;
       const active = inv.filter((i) => !i.Inv_SellDate).length;
       const t12p = inv.filter((i) => new Date(i.Inv_PurchaseDate) >= t12Start).length;
 
@@ -2770,7 +2804,7 @@ async function executeNetworkBenchmarks(input: Record<string, unknown>): Promise
     const soldInPeriodIds: number[] = [];
     const soldByTerritory = new Map<string, number[]>();
     for (const inv of allInventory) {
-      if (inv.Inv_SellDate && new Date(inv.Inv_SellDate) >= periodStart) {
+      if (isInPeriod(inv.Inv_SellDate, periodStart, periodEndExclusive)) {
         soldInPeriodIds.push(inv.PropertyId);
         const existing = soldByTerritory.get(inv.TerritorySlug) ?? [];
         existing.push(inv.PropertyId);
@@ -2874,7 +2908,7 @@ async function executeCompareTerritories(input: Record<string, unknown>): Promis
       return { data: JSON.stringify({ error: "Need at least 2 territory slugs to compare" }) };
     }
     const period = (input.period as string) ?? "t12";
-    const periodStart = computePeriodStart(period);
+    const { periodStart, periodEndExclusive } = computePeriodRange(period);
     const t12Start = computePeriodStart("t12");
     const supabase = createServerClient();
 
@@ -2915,7 +2949,7 @@ async function executeCompareTerritories(input: Record<string, unknown>): Promis
     const soldInPeriodIds: number[] = [];
     const soldByTerritory = new Map<string, number[]>();
     for (const inv of allInventory) {
-      if (inv.Inv_SellDate && new Date(inv.Inv_SellDate) >= periodStart) {
+      if (isInPeriod(inv.Inv_SellDate, periodStart, periodEndExclusive)) {
         soldInPeriodIds.push(inv.PropertyId);
         const arr = soldByTerritory.get(inv.TerritorySlug) ?? [];
         arr.push(inv.PropertyId);
@@ -3005,14 +3039,14 @@ async function executeCompareTerritories(input: Record<string, unknown>): Promis
     const comparison = slugs.map((slug) => {
       const territory = territoryMap.get(slug) as Record<string, unknown> | undefined;
       const inv = allInventory.filter((i) => i.TerritorySlug === slug);
-      const purchased = inv.filter((i) => new Date(i.Inv_PurchaseDate) >= periodStart).length;
-      const sold = inv.filter((i) => i.Inv_SellDate && new Date(i.Inv_SellDate) >= periodStart).length;
+      const purchased = inv.filter((i) => isInPeriod(i.Inv_PurchaseDate, periodStart, periodEndExclusive)).length;
+      const sold = inv.filter((i) => isInPeriod(i.Inv_SellDate, periodStart, periodEndExclusive)).length;
       const active = inv.filter((i) => !i.Inv_SellDate).length;
       const t12p = inv.filter((i) => new Date(i.Inv_PurchaseDate) >= t12Start).length;
       const profit = profitByTerritory.get(slug);
 
       // Cycle days for sold in period
-      const soldInv = inv.filter((i) => i.Inv_SellDate && new Date(i.Inv_SellDate) >= periodStart);
+      const soldInv = inv.filter((i) => isInPeriod(i.Inv_SellDate, periodStart, periodEndExclusive));
       const cycleDays = soldInv
         .map((i) =>
           Math.round((new Date(i.Inv_SellDate!).getTime() - new Date(i.Inv_PurchaseDate).getTime()) / 86400000)

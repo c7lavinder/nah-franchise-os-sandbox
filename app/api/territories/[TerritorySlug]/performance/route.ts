@@ -64,6 +64,12 @@ function computeFunnel(history: HistRow[], propertyFilter?: Set<number>) {
   }));
 }
 
+function isInRange(value: string | null, start: Date, endExclusive: Date): boolean {
+  if (!value) return false;
+  const date = new Date(value);
+  return date >= start && date < endExclusive;
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ TerritorySlug: string }> }) {
   const user = await requireAuth(request);
   if (user instanceof Response) return user;
@@ -74,22 +80,31 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const supabase = createServerClient();
 
   const now = new Date();
+  const todayEndExclusive = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   let periodStart: Date;
+  let periodEndExclusive: Date;
   let prevPeriodStart: Date;
+  let prevPeriodEndExclusive: Date;
 
   if (period === "all") {
     periodStart = new Date(2000, 0, 1);
+    periodEndExclusive = todayEndExclusive;
     prevPeriodStart = new Date(2000, 0, 1);
+    prevPeriodEndExclusive = periodStart;
   } else if (period === "ytd") {
     periodStart = new Date(now.getFullYear(), 0, 1);
+    periodEndExclusive = todayEndExclusive;
     prevPeriodStart = new Date(now.getFullYear() - 1, 0, 1);
+    prevPeriodEndExclusive = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate() + 1);
   } else {
     const periodMonths = period === "t1" ? 1 : period === "t12" ? 12 : 3;
     periodStart = new Date(now.getFullYear(), now.getMonth() - periodMonths, now.getDate());
+    periodEndExclusive = todayEndExclusive;
     prevPeriodStart = new Date(now.getFullYear(), now.getMonth() - periodMonths * 2, now.getDate());
+    prevPeriodEndExclusive = periodStart;
   }
-  const periodStartISO = periodStart.toISOString();
   const prevPeriodStartISO = prevPeriodStart.toISOString();
+  const periodEndExclusiveISO = periodEndExclusive.toISOString();
 
   // 1. All non-archived properties (paginate)
   let properties: PropRow[] = [];
@@ -155,15 +170,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .from("ms_property_status_history")
       .select("PropertyId, NewStatus, Inserted")
       .in("PropertyId", propertyIds.slice(i, i + 500))
-      .gte("Inserted", prevPeriodStartISO);
+      .gte("Inserted", prevPeriodStartISO)
+      .lt("Inserted", periodEndExclusiveISO);
     if (page) allHistory = allHistory.concat(page as HistRow[]);
   }
 
   // Split into current and previous period
-  const currentHistory = allHistory.filter((h) => new Date(h.Inserted) >= periodStart);
+  const currentHistory = allHistory.filter((h) => isInRange(h.Inserted, periodStart, periodEndExclusive));
   const prevHistory = allHistory.filter((h) => {
     const d = new Date(h.Inserted);
-    return d >= prevPeriodStart && d < periodStart;
+    return d >= prevPeriodStart && d < prevPeriodEndExclusive;
   });
 
   // 4. Leads Entered = Stage 1 entries in current period
@@ -198,7 +214,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   for (const inv of inventory) {
     if (filteredPropertyIds && !filteredPropertyIds.has(inv.PropertyId)) continue;
     const sellDate = inv.Inv_SellDate ? new Date(inv.Inv_SellDate) : null;
-    if (sellDate && sellDate >= periodStart) soldInPeriod.push(inv);
+    if (sellDate && sellDate >= periodStart && sellDate < periodEndExclusive) soldInPeriod.push(inv);
     if (!inv.Inv_SellDate) activeInventoryRows.push(inv);
   }
 
@@ -250,7 +266,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // 9b. Lead-to-purchase days (Inserted → Inv_PurchaseDate) for purchased in period
   const purchasedInPeriod = inventory.filter((inv) => {
     if (filteredPropertyIds && !filteredPropertyIds.has(inv.PropertyId)) return false;
-    return new Date(inv.Inv_PurchaseDate) >= periodStart;
+    return isInRange(inv.Inv_PurchaseDate, periodStart, periodEndExclusive);
   });
   const leadToPurchaseDays: number[] = [];
   for (const inv of purchasedInPeriod) {
@@ -271,6 +287,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const leadCategories: Record<string, number> = {};
   const leadCategoryPropertyIds = new Set<number>();
   for (const h of currentHistory) {
+    if (filteredPropertyIds && !filteredPropertyIds.has(h.PropertyId)) continue;
     if (stageKey(h.NewStatus) === "1" && !leadCategoryPropertyIds.has(h.PropertyId)) {
       leadCategoryPropertyIds.add(h.PropertyId);
       const prop = propMap.get(h.PropertyId);
