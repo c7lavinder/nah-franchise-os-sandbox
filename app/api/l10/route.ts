@@ -27,6 +27,14 @@ type Todo = { TerritorySlug: string; title: string; assignee: string | null; due
 type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string };
 type PropertyRow = { PropertyId: number; TerritorySlug: string };
 type InventoryRow = { PropertyId: number; Inv_ContractedPurchaseDate: string | null; Inv_PurchaseDate: string | null };
+type L10PeriodKey = "T1" | "T3" | "T6" | "T12";
+
+const PERIODS: Record<L10PeriodKey, { label: string; days: number }> = {
+  T1: { label: "T1", days: 30 },
+  T3: { label: "T3", days: 90 },
+  T6: { label: "T6", days: 180 },
+  T12: { label: "T12", days: 365 },
+};
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -69,6 +77,16 @@ function sum(values: number[]) {
   return values.reduce((total, value) => total + value, 0);
 }
 
+function periodFromRequest(request: NextRequest) {
+  const requested = request.nextUrl.searchParams.get("period")?.toUpperCase();
+  if (requested === "T3" || requested === "T6" || requested === "T12") return requested;
+  return "T1";
+}
+
+function monthlyPace(value: number, periodDays: number) {
+  return Math.round((value / periodDays) * 30);
+}
+
 async function fetchPaged<T>(queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null }>) {
   const rows: T[] = [];
   let offset = 0;
@@ -88,11 +106,12 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServerClient();
   const now = new Date();
-  const twoWeeksAgo = daysAgo(14);
-  const thirtyDaysAgo = daysAgo(30);
+  const periodKey = periodFromRequest(request);
+  const period = PERIODS[periodKey];
+  const periodStart = daysAgo(period.days);
+  const leadListPeriodMonthStart = monthStart(periodStart);
   const twelveMonthsAgo = new Date(now);
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-  const currentMonthStart = monthStart(now);
 
   const { data: territories, error: territoryError } = await supabase
     .from("territories")
@@ -109,10 +128,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         generatedAt: now.toISOString(),
+        period: { key: periodKey, label: period.label, days: period.days },
         devSales: {
           activeProspects: 0,
-          newProspects14d: 0,
-          moved14d: 0,
+          newProspectsPeriod: 0,
+          movedPeriod: 0,
           stalledProspects: 0,
           stageCounts: [],
           repsToFocus: [],
@@ -170,12 +190,12 @@ export async function GET(request: NextRequest) {
       .from("ms_lead_list_counts")
       .select("TerritorySlug, count")
       .in("TerritorySlug", activeSlugs)
-      .gte("month", currentMonthStart.toISOString().slice(0, 10)),
+      .gte("month", leadListPeriodMonthStart.toISOString().slice(0, 10)),
     supabase
       .from("ms_property_inventory")
       .select("PropertyId, Inv_ContractedPurchaseDate, Inv_PurchaseDate")
       .or(
-        `Inv_ContractedPurchaseDate.gte.${thirtyDaysAgo.toISOString()},Inv_PurchaseDate.gte.${thirtyDaysAgo.toISOString()}`
+        `Inv_ContractedPurchaseDate.gte.${periodStart.toISOString()},Inv_PurchaseDate.gte.${periodStart.toISOString()}`
       ),
     supabase
       .from("ms_property_inventory")
@@ -214,11 +234,11 @@ export async function GET(request: NextRequest) {
     stage: stage.name,
     count: salesRows.filter((row) => row.current_stage_id === stage.id).length,
   }));
-  const newProspects14d = salesRows.filter((row) => new Date(row.entered_pipeline_at) >= twoWeeksAgo).length;
+  const newProspectsPeriod = salesRows.filter((row) => new Date(row.entered_pipeline_at) >= periodStart).length;
   const moved14d = salesRows.filter(
-    (row) => new Date(row.entered_current_stage_at ?? row.updated_at) >= twoWeeksAgo
+    (row) => new Date(row.entered_current_stage_at ?? row.updated_at) >= periodStart
   ).length;
-  const stalledRows = salesRows.filter((row) => new Date(row.entered_current_stage_at ?? row.updated_at) < twoWeeksAgo);
+  const stalledRows = salesRows.filter((row) => new Date(row.entered_current_stage_at ?? row.updated_at) < periodStart);
   const stalledByRep = new Map<string, number>();
   for (const row of stalledRows) {
     const name = row.assigned_user_id ? (userNameById.get(row.assigned_user_id) ?? "Assigned") : "Unassigned";
@@ -251,7 +271,7 @@ export async function GET(request: NextRequest) {
     supabase
       .from("ms_property_status_history")
       .select("PropertyId, NewStatus, Inserted")
-      .gte("Inserted", thirtyDaysAgo.toISOString())
+      .gte("Inserted", periodStart.toISOString())
       .range(from, to)
   );
   const historyPropertyIds = [...new Set(history30.map((h) => h.PropertyId))];
@@ -296,10 +316,10 @@ export async function GET(request: NextRequest) {
   for (const row of (inventory30Res.data ?? []) as InventoryRow[]) {
     const prop = propertyById.get(row.PropertyId);
     if (!prop) continue;
-    if (row.Inv_ContractedPurchaseDate && new Date(row.Inv_ContractedPurchaseDate) >= thirtyDaysAgo) {
+    if (row.Inv_ContractedPurchaseDate && new Date(row.Inv_ContractedPurchaseDate) >= periodStart) {
       contracts30BySlug.set(prop.TerritorySlug, (contracts30BySlug.get(prop.TerritorySlug) ?? 0) + 1);
     }
-    if (row.Inv_PurchaseDate && new Date(row.Inv_PurchaseDate) >= thirtyDaysAgo) {
+    if (row.Inv_PurchaseDate && new Date(row.Inv_PurchaseDate) >= periodStart) {
       purchases30BySlug.set(prop.TerritorySlug, (purchases30BySlug.get(prop.TerritorySlug) ?? 0) + 1);
     }
   }
@@ -353,7 +373,28 @@ export async function GET(request: NextRequest) {
       opportunityScore: leadList + stage1 * 10 + stage4 * 20 - purchases30 * 50,
     };
   });
-  const scoredTerritories = quartileScoringAgent.assignQuartiles(territoryDiagnostics);
+  const diagnosticsBySlug = new Map(territoryDiagnostics.map((territory) => [territory.slug, territory]));
+  const scoringDiagnostics = territoryDiagnostics.map((territory) => ({
+    ...territory,
+    leadListInsertedMonth: monthlyPace(territory.leadListInsertedMonth, period.days),
+    stage1Last30d: monthlyPace(territory.stage1Last30d, period.days),
+    stage3Last30d: monthlyPace(territory.stage3Last30d, period.days),
+    stage4Last30d: monthlyPace(territory.stage4Last30d, period.days),
+    contractsLast30d: monthlyPace(territory.contractsLast30d, period.days),
+    purchasesLast30d: monthlyPace(territory.purchasesLast30d, period.days),
+  }));
+  const scoredTerritories = quartileScoringAgent.assignQuartiles(scoringDiagnostics).map((territory) => ({
+    ...territory,
+    ...diagnosticsBySlug.get(territory.slug),
+    quartile: territory.quartile,
+    score: territory.score,
+    rank: territory.rank,
+    status: territory.status,
+    leadWorkRate: territory.leadWorkRate,
+    coachingFlag: territory.coachingFlag,
+    coachingReason: territory.coachingReason,
+    scoreFactors: territory.scoreFactors,
+  }));
 
   const rockRows = (rocksRes.data ?? []) as Rock[];
   const healthValues = [...healthBySlug.values()].filter((v): v is number => v !== null);
@@ -362,10 +403,11 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
     {
       generatedAt: now.toISOString(),
+      period: { key: periodKey, label: period.label, days: period.days },
       devSales: {
         activeProspects: salesRows.length,
-        newProspects14d,
-        moved14d,
+        newProspectsPeriod,
+        movedPeriod: moved14d,
         stalledProspects: stalledRows.length,
         stageCounts,
         repsToFocus: [...stalledByRep.entries()]

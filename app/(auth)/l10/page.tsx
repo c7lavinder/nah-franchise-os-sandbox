@@ -28,6 +28,8 @@ interface RepFocus {
   stalled: number;
 }
 
+type L10PeriodKey = "T1" | "T3" | "T6" | "T12";
+
 interface TerritoryFocus {
   slug: string;
   name: string;
@@ -53,10 +55,15 @@ interface TerritoryFocus {
 
 interface L10Data {
   generatedAt: string;
+  period: {
+    key: L10PeriodKey;
+    label: string;
+    days: number;
+  };
   devSales: {
     activeProspects: number;
-    newProspects14d: number;
-    moved14d: number;
+    newProspectsPeriod: number;
+    movedPeriod: number;
     stalledProspects: number;
     stageCounts: StageCount[];
     repsToFocus: RepFocus[];
@@ -85,6 +92,13 @@ interface L10Data {
   issues: { TerritorySlug: string; title: string; priority: string | null; created_at: string | null }[];
   todos: { TerritorySlug: string; title: string; assignee: string | null; due_date: string | null }[];
 }
+
+const PERIOD_OPTIONS: { key: L10PeriodKey; label: string; sub: string }[] = [
+  { key: "T1", label: "T1", sub: "30 days" },
+  { key: "T3", label: "T3", sub: "90 days" },
+  { key: "T6", label: "T6", sub: "180 days" },
+  { key: "T12", label: "T12", sub: "365 days" },
+];
 
 function formatNumber(value: number | null | undefined) {
   if (value == null) return "-";
@@ -192,6 +206,40 @@ function SectionHeader({ title, sub }: { title: string; sub: string }) {
 function percent(numerator: number, denominator: number) {
   if (denominator <= 0) return 0;
   return Math.round((numerator / denominator) * 100);
+}
+
+function periodLabel(data: L10Data) {
+  return `${data.period.label} (${data.period.days} days)`;
+}
+
+function territoryInsight(territory: TerritoryFocus, label: string) {
+  if (
+    territory.leadListInsertedMonth === 0 &&
+    territory.stage1Last30d === 0 &&
+    territory.stage3Last30d === 0 &&
+    territory.stage4Last30d === 0
+  ) {
+    return `No lead creation or lead-work activity in ${label}.`;
+  }
+  if (territory.leadListInsertedMonth > 0 && territory.stage1Last30d === 0) {
+    return "Lead-list work exists, but it has not produced Stage 1 leads yet.";
+  }
+  if (territory.stage1Last30d > 0 && territory.stage3Last30d === 0 && territory.stage4Last30d === 0) {
+    return "Stage 1 leads exist, but none are showing worked or offer-stage movement.";
+  }
+  if (territory.stage3Last30d > 0 && territory.stage4Last30d === 0) {
+    return "Leads are being worked, but offers are not showing up yet.";
+  }
+  if (territory.stage4Last30d > 0 && territory.contractsLast30d === 0) {
+    return "Offers are happening, but no contracts are showing in this period.";
+  }
+  if (territory.contractsLast30d > 0 && territory.purchasesLast30d === 0) {
+    return "Contracts are present; watch whether they convert to purchases.";
+  }
+  if (territory.purchasesLast30d > 0) {
+    return "Buying activity is showing in the selected period.";
+  }
+  return territory.coachingReason;
 }
 
 const QUARTILE_STYLES: Record<TerritoryFocus["quartile"], string> = {
@@ -336,7 +384,13 @@ function QuartileCard({ box, territories }: { box: QuartileBox; territories: Ter
   );
 }
 
-function CompactTerritoryRow({ territory }: { territory: TerritoryFocus }) {
+function CompactTerritoryRow({
+  territory,
+  selectedPeriodLabel,
+}: {
+  territory: TerritoryFocus;
+  selectedPeriodLabel: string;
+}) {
   return (
     <a
       href={`/territories/${territory.slug}`}
@@ -374,7 +428,9 @@ function CompactTerritoryRow({ territory }: { territory: TerritoryFocus }) {
           <div className="text-text-tertiary">buy</div>
         </div>
       </div>
-      <div className="mt-2 line-clamp-2 text-xs text-text-secondary">{territory.coachingReason}</div>
+      <div className="mt-2 line-clamp-2 text-xs text-text-secondary">
+        {territoryInsight(territory, selectedPeriodLabel)}
+      </div>
     </a>
   );
 }
@@ -382,9 +438,11 @@ function CompactTerritoryRow({ territory }: { territory: TerritoryFocus }) {
 function QuartileOperatingColumn({
   quartile,
   territories,
+  selectedPeriodLabel,
 }: {
   quartile: TerritoryFocus["quartile"];
   territories: TerritoryFocus[];
+  selectedPeriodLabel: string;
 }) {
   const meta = QUARTILE_DESCRIPTIONS[quartile];
   const sorted = [...territories].sort((a, b) => {
@@ -408,7 +466,7 @@ function QuartileOperatingColumn({
       </div>
       <div className="space-y-2">
         {sorted.slice(0, 6).map((territory) => (
-          <CompactTerritoryRow key={territory.slug} territory={territory} />
+          <CompactTerritoryRow key={territory.slug} territory={territory} selectedPeriodLabel={selectedPeriodLabel} />
         ))}
         {sorted.length === 0 && (
           <div className="rounded-md border border-border-default bg-white p-3 text-sm text-text-secondary">
@@ -420,7 +478,17 @@ function QuartileOperatingColumn({
   );
 }
 
-function AgendaBlock({ time, title, territories }: { time: string; title: string; territories: TerritoryFocus[] }) {
+function AgendaBlock({
+  time,
+  title,
+  territories,
+  selectedPeriodLabel,
+}: {
+  time: string;
+  title: string;
+  territories: TerritoryFocus[];
+  selectedPeriodLabel: string;
+}) {
   return (
     <div className="rounded-lg border border-border-default bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -443,7 +511,7 @@ function AgendaBlock({ time, title, territories }: { time: string; title: string
                 {territory.quartile}
               </span>
             </div>
-            <div className="mt-1 text-xs text-text-secondary">{territory.coachingReason}</div>
+            <div className="mt-1 text-xs text-text-secondary">{territoryInsight(territory, selectedPeriodLabel)}</div>
           </div>
         ))}
         {territories.length === 0 && <div className="text-sm text-text-secondary">No matching territories.</div>}
@@ -452,7 +520,7 @@ function AgendaBlock({ time, title, territories }: { time: string; title: string
   );
 }
 
-function TerritoryRow({ territory }: { territory: TerritoryFocus }) {
+function TerritoryRow({ territory, selectedPeriodLabel }: { territory: TerritoryFocus; selectedPeriodLabel: string }) {
   const healthLabel = territory.health == null ? "No EOS score" : `${territory.health}% EOS`;
   const isCritical = territory.purchasesLast30d === 0 || (territory.health != null && territory.health < 60);
 
@@ -479,7 +547,9 @@ function TerritoryRow({ territory }: { territory: TerritoryFocus }) {
           <span className="rounded-full bg-nah-blue-light px-2 py-1 text-[11px] font-semibold text-nah-blue">
             {territory.coachingFlag}
           </span>
-          <span className="min-w-0 text-xs text-text-secondary">{territory.coachingReason}</span>
+          <span className="min-w-0 text-xs text-text-secondary">
+            {territoryInsight(territory, selectedPeriodLabel)}
+          </span>
         </div>
       </div>
       <div>
@@ -496,7 +566,7 @@ function TerritoryRow({ territory }: { territory: TerritoryFocus }) {
         <div className="text-sm font-semibold text-text-primary">
           {territory.purchasesLast30d} <span className="text-text-tertiary">/</span> {territory.purchasesT12}
         </div>
-        <div className="text-xs text-text-tertiary">30d / T12 buys</div>
+        <div className="text-xs text-text-tertiary">{selectedPeriodLabel} / T12 buys</div>
       </div>
       <div className="flex items-center justify-between gap-3 md:justify-end">
         <span className="rounded-full border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary">
@@ -511,6 +581,7 @@ function TerritoryRow({ territory }: { territory: TerritoryFocus }) {
 export default function L10Page() {
   const { user } = useAuth();
   const router = useRouter();
+  const [selectedPeriod, setSelectedPeriod] = useState<L10PeriodKey>("T1");
   const [data, setData] = useState<L10Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -523,7 +594,9 @@ export default function L10Page() {
 
   useEffect(() => {
     if (!user || user.role !== "admin") return;
-    apiFetch("/api/l10")
+    setLoading(true);
+    setError(null);
+    apiFetch(`/api/l10?period=${selectedPeriod}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -531,7 +604,7 @@ export default function L10Page() {
       .then((d) => setData(d))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user, selectedPeriod]);
 
   const maxSalesStage = useMemo(() => Math.max(...(data?.devSales.stageCounts.map((s) => s.count) ?? [1]), 1), [data]);
 
@@ -550,6 +623,7 @@ export default function L10Page() {
   }
 
   const { devSales, coaching, operatingHealth } = data;
+  const selectedPeriodLabel = periodLabel(data);
   const quartileGroups: Record<TerritoryFocus["quartile"], TerritoryFocus[]> = {
     Q1: coaching.territories.filter((territory) => territory.quartile === "Q1"),
     Q2: coaching.territories.filter((territory) => territory.quartile === "Q2"),
@@ -568,30 +642,56 @@ export default function L10Page() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 p-6">
+      <div className="flex flex-col gap-3 rounded-lg border border-border-default bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="text-sm font-semibold text-text-primary">L10 Period</div>
+          <div className="mt-1 text-xs text-text-secondary">
+            Sales and coaching metrics update together. Use longer windows when the 30-day view is too noisy.
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {PERIOD_OPTIONS.map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              onClick={() => setSelectedPeriod(option.key)}
+              className={`rounded-lg border px-3 py-2 text-left transition ${
+                selectedPeriod === option.key
+                  ? "border-nah-blue bg-nah-blue-light text-nah-blue"
+                  : "border-border-default bg-white text-text-secondary hover:bg-bg-hover"
+              }`}
+            >
+              <div className="text-sm font-bold">{option.label}</div>
+              <div className="text-[11px]">{option.sub}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <section className="space-y-4">
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <SectionHeader title="Sales" sub="Biweekly FranDev sales operating view." />
+          <SectionHeader title="Sales" sub={`FranDev sales operating view for ${selectedPeriodLabel}.`} />
           <div className="text-xs text-text-tertiary">Updated {formatRelativeTime(data.generatedAt)}</div>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
           <HeaderCard
             label="Active Prospects"
             value={devSales.activeProspects}
-            detail={`${devSales.newProspects14d} new prospects in the last 14 days.`}
+            detail={`${devSales.newProspectsPeriod} new prospects in ${selectedPeriodLabel}.`}
             icon={Users}
             tone="blue"
           />
           <HeaderCard
             label="Stage Movement"
-            value={devSales.moved14d}
-            detail="Prospects that advanced through the sales pipeline in the last 14 days."
+            value={devSales.movedPeriod}
+            detail={`Prospects that advanced through the sales pipeline in ${selectedPeriodLabel}.`}
             icon={TrendingUp}
             tone="green"
           />
           <HeaderCard
             label="Stalled"
             value={devSales.stalledProspects}
-            detail="Prospects old enough to inspect in the biweekly sales meeting."
+            detail={`Prospects sitting in the same stage longer than ${selectedPeriodLabel}.`}
             icon={AlertTriangle}
             tone="amber"
           />
@@ -645,19 +745,23 @@ export default function L10Page() {
       </section>
 
       <section className="space-y-4">
-        <SectionHeader title="Coaching" sub="Weekly territory operating view for John, Erin, and Chad." />
+        <SectionHeader title="Coaching" sub={`Territory operating view for ${selectedPeriodLabel}.`} />
         <div className="grid gap-4 md:grid-cols-3">
           <HeaderCard
             label="Network Lead Gen Health"
             value={formatNumber(coaching.leadListInsertedMonth)}
-            detail={`${coaching.stage1Last30d} Stage 1 leads from current lead generation and marketing work.`}
+            detail={
+              coaching.stage1Last30d === 0
+                ? `No Stage 1 leads are showing in ${selectedPeriodLabel}.`
+                : `${coaching.stage1Last30d} Stage 1 leads are showing in ${selectedPeriodLabel}.`
+            }
             icon={BarChart3}
             tone="blue"
           />
           <HeaderCard
             label="Buying Momentum"
             value={formatNumber(coaching.purchasesLast30d)}
-            detail={`${coaching.contractsLast30d} contracts, ${coaching.highPerformersT12} T12 high-performing territories tracked.`}
+            detail={`${coaching.contractsLast30d} contracts in ${selectedPeriodLabel}; ${coaching.highPerformersT12} T12 high-performing territories tracked.`}
             icon={CheckCircle2}
             tone="green"
           />
@@ -671,16 +775,20 @@ export default function L10Page() {
         </div>
 
         <div className="grid overflow-hidden rounded-lg border border-border-default bg-white shadow-sm sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
-          <ScoreboardStat label="Lead List" value={formatNumber(coaching.leadListInsertedMonth)} sub="current month" />
-          <ScoreboardStat label="Stage 1" value={formatNumber(coaching.stage1Last30d)} sub="last 30 days" />
+          <ScoreboardStat
+            label="Lead List"
+            value={formatNumber(coaching.leadListInsertedMonth)}
+            sub={selectedPeriodLabel}
+          />
+          <ScoreboardStat label="Stage 1" value={formatNumber(coaching.stage1Last30d)} sub={selectedPeriodLabel} />
           <ScoreboardStat label="Stage 3" value={formatNumber(coaching.stage3Last30d)} sub="worked leads" />
           <ScoreboardStat
             label="Stage 4"
             value={formatNumber(coaching.stage4Last30d)}
             sub={`${stage1ToOfferRate}% S1 to S4`}
           />
-          <ScoreboardStat label="Contracts" value={formatNumber(coaching.contractsLast30d)} sub="last 30 days" />
-          <ScoreboardStat label="Purchases" value={formatNumber(coaching.purchasesLast30d)} sub="last 30 days" />
+          <ScoreboardStat label="Contracts" value={formatNumber(coaching.contractsLast30d)} sub={selectedPeriodLabel} />
+          <ScoreboardStat label="Purchases" value={formatNumber(coaching.purchasesLast30d)} sub={selectedPeriodLabel} />
           <ScoreboardStat label="Active" value={formatNumber(coaching.activeTerritories)} sub="territories" />
           <ScoreboardStat label="Q4" value={formatNumber(quartileGroups.Q4.length)} sub="immediate action" />
         </div>
@@ -695,7 +803,12 @@ export default function L10Page() {
           </div>
           <div className="grid gap-4 xl:grid-cols-4">
             {(["Q1", "Q2", "Q3", "Q4"] as const).map((quartile) => (
-              <QuartileOperatingColumn key={quartile} quartile={quartile} territories={quartileGroups[quartile]} />
+              <QuartileOperatingColumn
+                key={quartile}
+                quartile={quartile}
+                territories={quartileGroups[quartile]}
+                selectedPeriodLabel={selectedPeriodLabel}
+              />
             ))}
           </div>
         </section>
@@ -703,10 +816,30 @@ export default function L10Page() {
         <section className="space-y-4">
           <SectionHeader title="Coaching Agenda" sub="Suggested weekly meeting flow from the quartile agent." />
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <AgendaBlock time="First 10" title="Q4 urgent territories" territories={q4Urgent} />
-            <AgendaBlock time="Next 10" title="Lead gen gaps" territories={leadGenGaps} />
-            <AgendaBlock time="Next 10" title="Leads not worked" territories={notWorkingLeads} />
-            <AgendaBlock time="Final 10" title="Move-up candidates" territories={moveUpCandidates} />
+            <AgendaBlock
+              time="First 10"
+              title="Q4 urgent territories"
+              territories={q4Urgent}
+              selectedPeriodLabel={selectedPeriodLabel}
+            />
+            <AgendaBlock
+              time="Next 10"
+              title="Lead gen gaps"
+              territories={leadGenGaps}
+              selectedPeriodLabel={selectedPeriodLabel}
+            />
+            <AgendaBlock
+              time="Next 10"
+              title="Leads not worked"
+              territories={notWorkingLeads}
+              selectedPeriodLabel={selectedPeriodLabel}
+            />
+            <AgendaBlock
+              time="Final 10"
+              title="Move-up candidates"
+              territories={moveUpCandidates}
+              selectedPeriodLabel={selectedPeriodLabel}
+            />
           </div>
         </section>
 
@@ -731,7 +864,7 @@ export default function L10Page() {
           </div>
           <div className="divide-y divide-border-default">
             {coaching.focusTerritories.map((territory) => (
-              <TerritoryRow key={territory.slug} territory={territory} />
+              <TerritoryRow key={territory.slug} territory={territory} selectedPeriodLabel={selectedPeriodLabel} />
             ))}
             {coaching.focusTerritories.length === 0 && (
               <div className="px-5 py-8 text-center text-sm text-text-secondary">
@@ -750,7 +883,7 @@ export default function L10Page() {
           </div>
           <div className="divide-y divide-border-default">
             {moveUpCandidates.slice(0, 8).map((territory) => (
-              <TerritoryRow key={territory.slug} territory={territory} />
+              <TerritoryRow key={territory.slug} territory={territory} selectedPeriodLabel={selectedPeriodLabel} />
             ))}
             {moveUpCandidates.length === 0 && (
               <div className="px-5 py-8 text-center text-sm text-text-secondary">No move-up candidates found yet.</div>
