@@ -11,6 +11,7 @@ type PropRow = {
   Inserted: string | null;
   Address1: string | null;
   LeadCategory: string | null;
+  LeadType?: string | null;
 };
 type InvRow = {
   PropertyId: number;
@@ -23,6 +24,8 @@ type InvRow = {
 };
 type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string };
 type CalcRow = { PropertyId: number; Calculated_Inv_Profit: number | null; Calculated_Arv: number | null };
+type LeadListPropertyRow = { PropertyId: number; LeadType: string | null; Inserted: string };
+type Stage0OriginRow = { PropertyId: number; original_stage0_inserted_at: string };
 
 const STAGE_ORDER = ["1", "2", "3", "4", "5 Contract", "6 Purchase"];
 const MONTHLY_STAGE_BENCHMARKS: Partial<Record<string, number>> = {
@@ -31,6 +34,7 @@ const MONTHLY_STAGE_BENCHMARKS: Partial<Record<string, number>> = {
   "5 Contract": 1,
   "6 Purchase": 1,
 };
+const MONTHLY_LEAD_LIST_BENCHMARK = 1000;
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
 };
@@ -45,6 +49,19 @@ function stageKey(status: string | null): string | null {
   if (trimmed === "5" || trimmed.startsWith("5 ")) return "5 Contract";
   if (trimmed === "6" || trimmed.startsWith("6 ")) return "6 Purchase";
   return null;
+}
+
+async function fetchPaged<T>(queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null }>) {
+  const rows: T[] = [];
+  let offset = 0;
+  while (true) {
+    const { data } = await queryFactory(offset, offset + 999);
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < 1000) break;
+    offset += 1000;
+  }
+  return rows;
 }
 
 function computeFunnel(history: HistRow[], propertyFilter?: Set<number>) {
@@ -98,6 +115,12 @@ function buildBenchmark(stage: string, period: string, now: Date): number | null
   const multiplier = benchmarkMultiplier(period, now);
   if (monthly == null || multiplier == null) return null;
   return monthly * multiplier;
+}
+
+function buildLeadListBenchmark(period: string, now: Date): number | null {
+  const multiplier = benchmarkMultiplier(period, now);
+  if (multiplier == null) return null;
+  return MONTHLY_LEAD_LIST_BENCHMARK * multiplier;
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ TerritorySlug: string }> }) {
@@ -168,6 +191,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         soldProperties: [],
         inventoryProperties: [],
         leadCategories: {},
+        leadListBuilding: {
+          total: 0,
+          benchmark: buildLeadListBenchmark(period, now),
+          benchmarkMonthly: MONTHLY_LEAD_LIST_BENCHMARK,
+          leadTypes: {},
+        },
         period,
       },
       { headers: NO_STORE_HEADERS }
@@ -182,6 +211,51 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if ((p.LeadCategory || "Unknown") === leadCategoryFilter) filteredPropertyIds.add(p.PropertyId);
     }
   }
+
+  // Stage 0 / Lead List Building — kept separate from the Stage 1+ performance funnel.
+  const rawLeadListRows = await fetchPaged<LeadListPropertyRow>((from, to) =>
+    supabase
+      .from("ms_lead_list_properties")
+      .select("PropertyId, LeadType, Inserted")
+      .eq("TerritorySlug", TerritorySlug)
+      .gte("Inserted", periodStartISO)
+      .lt("Inserted", periodEndExclusiveISO)
+      .range(from, to)
+  );
+  const stage0OriginRows = await fetchPaged<Stage0OriginRow>((from, to) =>
+    supabase
+      .from("ms_property_stage0_origins")
+      .select("PropertyId, original_stage0_inserted_at")
+      .eq("TerritorySlug", TerritorySlug)
+      .gte("original_stage0_inserted_at", periodStartISO)
+      .lt("original_stage0_inserted_at", periodEndExclusiveISO)
+      .range(from, to)
+  );
+
+  const leadListTypeByPropertyId = new Map<number, string>();
+  for (const row of rawLeadListRows) {
+    leadListTypeByPropertyId.set(row.PropertyId, row.LeadType || "Unknown");
+  }
+
+  const originIdsMissingRawLeadType = stage0OriginRows
+    .map((row) => row.PropertyId)
+    .filter((id) => !leadListTypeByPropertyId.has(id));
+
+  for (let i = 0; i < originIdsMissingRawLeadType.length; i += 500) {
+    const { data: originProps } = await supabase
+      .from("ms_properties")
+      .select("PropertyId, LeadType")
+      .in("PropertyId", originIdsMissingRawLeadType.slice(i, i + 500));
+    for (const prop of (originProps ?? []) as Pick<PropRow, "PropertyId" | "LeadType">[]) {
+      leadListTypeByPropertyId.set(prop.PropertyId, prop.LeadType || "Unknown");
+    }
+  }
+
+  const leadListTypes: Record<string, number> = {};
+  for (const leadType of leadListTypeByPropertyId.values()) {
+    leadListTypes[leadType] = (leadListTypes[leadType] || 0) + 1;
+  }
+  const leadListBenchmark = buildLeadListBenchmark(period, now);
 
   // 2. Inventory rows with purchase dates
   let inventory: InvRow[] = [];
@@ -520,6 +594,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       soldProperties,
       inventoryProperties,
       leadCategories,
+      leadListBuilding: {
+        total: leadListTypeByPropertyId.size,
+        benchmark: leadListBenchmark,
+        benchmarkMonthly: MONTHLY_LEAD_LIST_BENCHMARK,
+        leadTypes: leadListTypes,
+      },
       leadCategoryFilter,
       period,
     },

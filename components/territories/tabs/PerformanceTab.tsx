@@ -10,6 +10,7 @@ import {
   Home,
   Loader2,
   Package,
+  PieChart,
   Target,
   TrendingUp,
   X,
@@ -57,6 +58,13 @@ interface KPIs {
   conversionRate: number | null;
 }
 
+interface LeadListBuilding {
+  total: number;
+  benchmark: number | null;
+  benchmarkMonthly: number;
+  leadTypes: Record<string, number>;
+}
+
 interface PerformanceData {
   kpis: KPIs | null;
   funnel: FunnelStage[];
@@ -66,6 +74,7 @@ interface PerformanceData {
   soldProperties: PropertyRow[];
   inventoryProperties: PropertyRow[];
   leadCategories: Record<string, number>;
+  leadListBuilding?: LeadListBuilding;
   leadCategoryFilter: string | null;
   period: string;
 }
@@ -104,6 +113,18 @@ const STAGE_COLORS: Record<string, string> = {
   "5 Contract": "#f97316",
   "6 Purchase": "#22c55e",
 };
+
+const LEAD_TYPE_COLORS = [
+  "#2563eb",
+  "#f97316",
+  "#16a34a",
+  "#dc2626",
+  "#7c3aed",
+  "#0891b2",
+  "#ca8a04",
+  "#db2777",
+  "#64748b",
+];
 
 function pctOf(numerator: number, denominator: number): number {
   if (denominator <= 0) return 0;
@@ -159,6 +180,7 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
     soldProperties,
     inventoryProperties,
     leadCategories,
+    leadListBuilding,
   } = data;
 
   return (
@@ -223,6 +245,10 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
           isMoney
         />
       </div>
+
+      {leadListBuilding && (
+        <LeadListBuildingPanel leadListBuilding={leadListBuilding} periodLabel={PERIOD_LABELS[period]} />
+      )}
 
       {/* Lead Sources — clickable to filter funnel */}
       {Object.keys(leadCategories).length > 0 && !selectedCategory && (
@@ -296,6 +322,108 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function LeadListBuildingPanel({
+  leadListBuilding,
+  periodLabel,
+}: {
+  leadListBuilding: LeadListBuilding;
+  periodLabel: string;
+}) {
+  const sortedTypes = Object.entries(leadListBuilding.leadTypes).sort(([, a], [, b]) => b - a);
+  const topTypes = sortedTypes.slice(0, 7);
+  const otherCount = sortedTypes.slice(7).reduce((total, [, count]) => total + count, 0);
+  const chartRows = otherCount > 0 ? [...topTypes, ["Other", otherCount] as [string, number]] : topTypes;
+  const benchmark = leadListBuilding.benchmark;
+  const progressPct = benchmark ? Math.min(Math.round((leadListBuilding.total / benchmark) * 100), 100) : null;
+  const shortBy = benchmark == null ? null : Math.max(benchmark - leadListBuilding.total, 0);
+
+  let cursor = 0;
+  const gradientStops =
+    chartRows.length > 0
+      ? chartRows
+          .map(([, count], index) => {
+            const start = cursor;
+            const end = cursor + (count / leadListBuilding.total) * 100;
+            cursor = end;
+            const color = LEAD_TYPE_COLORS[index % LEAD_TYPE_COLORS.length];
+            return `${color} ${start}% ${end}%`;
+          })
+          .join(", ")
+      : "#e5e7eb 0% 100%";
+
+  return (
+    <div className="bg-bg-primary border border-border-default rounded-lg p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <PieChart size={15} className="text-nah-orange" />
+            <h3 className="text-body-sm font-semibold text-text-primary">Lead List Building</h3>
+          </div>
+          <p className="mt-1 text-caption text-text-tertiary">
+            Counts properties created in 0 Lead List during {periodLabel}.
+          </p>
+          <div className="mt-4 flex items-end gap-3">
+            <div className="text-3xl font-bold text-text-primary">{leadListBuilding.total.toLocaleString()}</div>
+            <div className="pb-1 text-caption font-medium text-text-tertiary">Lead List Created</div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-[180px_minmax(0,1fr)] lg:w-[560px]">
+          <div className="flex items-center justify-center">
+            <div
+              className="relative h-36 w-36 rounded-full border border-border-default shadow-inner"
+              style={{ background: `conic-gradient(${gradientStops})` }}
+              aria-label="Lead type mix"
+            >
+              <div className="absolute inset-8 rounded-full border border-border-default bg-bg-primary" />
+            </div>
+          </div>
+
+          <div className="min-w-0 space-y-4">
+            <div className="grid grid-cols-2 gap-2">
+              {chartRows.map(([leadType, count], index) => (
+                <div key={leadType} className="flex min-w-0 items-center gap-2 rounded-md bg-bg-secondary px-2 py-1.5">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: LEAD_TYPE_COLORS[index % LEAD_TYPE_COLORS.length] }}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-caption text-text-secondary">{leadType}</span>
+                  <span className="text-caption font-semibold text-text-primary">{count.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-lg border border-border-default bg-bg-secondary p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-caption font-semibold text-text-primary">Benchmark Progression</p>
+                  <p className="text-[11px] text-text-tertiary">
+                    {benchmark == null
+                      ? `${leadListBuilding.benchmarkMonthly.toLocaleString()} per month benchmark`
+                      : `${leadListBuilding.total.toLocaleString()} / ${benchmark.toLocaleString()} target`}
+                  </p>
+                </div>
+                {progressPct != null && <div className="text-body-sm font-bold text-text-primary">{progressPct}%</div>}
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-bg-tertiary">
+                <div
+                  className="h-full rounded-full bg-nah-orange transition-all"
+                  style={{ width: `${progressPct ?? 0}%` }}
+                />
+              </div>
+              {shortBy != null && (
+                <p className="mt-2 text-[11px] text-text-tertiary">
+                  {shortBy === 0 ? "At or above benchmark." : `${shortBy.toLocaleString()} short of benchmark.`}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
