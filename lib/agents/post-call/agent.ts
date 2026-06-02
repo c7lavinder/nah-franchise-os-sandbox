@@ -199,13 +199,13 @@ export async function runPostCallAgent(
   // 3. Write results to DB
   await writeResults(callId, context, { summary, coaching, actions, extractions }, supabase);
 
-  // 3b. Auto-save high-confidence extractions to contact profile fields
-  if (extractions && extractions.extractions.length > 0 && context.contactId) {
+  // 3b. Auto-save eligible extractions to profile data stores
+  if (extractions && extractions.extractions.length > 0) {
     try {
       const autoSaveResult = await autoSaveExtractions(callId, supabase);
       if (autoSaveResult.saved > 0) {
         console.log(
-          `[post-call-agent] ${callId} auto-saved ${autoSaveResult.saved} extractions (${autoSaveResult.highConfidence} auto, ${autoSaveResult.mediumConfidence} pending review)`
+          `[post-call-agent] ${callId} auto-saved ${autoSaveResult.saved} extractions (${autoSaveResult.highConfidence} high, ${autoSaveResult.mediumConfidence} medium)`
         );
       }
     } catch (err) {
