@@ -104,7 +104,7 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
         setProfileOpen(false);
         setSidebarHovered(false);
       }}
-      className="group fixed left-0 top-0 bottom-0 z-[100] w-[80px] hover:w-[280px] overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+      className="group fixed left-0 top-0 bottom-0 z-[180] w-[280px] overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:z-[100] lg:w-[80px] lg:hover:w-[280px]"
       style={{
         background: "rgba(255, 255, 255, 0.6)",
         backdropFilter: "blur(16px)",
@@ -120,9 +120,9 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
             alt="NAH"
             width={36}
             height={36}
-            className="block group-hover:hidden flex-shrink-0"
+            className="hidden flex-shrink-0 lg:block lg:group-hover:hidden"
           />
-          <div className="hidden group-hover:flex items-center gap-2">
+          <div className="flex items-center gap-2 lg:hidden lg:group-hover:flex">
             <Image
               src="/frandev/images/nah-logo.svg"
               alt="New Again Houses"
@@ -154,7 +154,7 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
                 }`}
               >
                 <Icon size={20} className="flex-shrink-0" />
-                <span className="text-nav opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap">
+                <span className="text-nav opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap lg:opacity-0 lg:group-hover:opacity-100">
                   {item.label}
                 </span>
               </Link>
@@ -178,7 +178,7 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
                 {initials}
               </div>
             </div>
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap flex-1 text-left">
+            <div className="opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap flex-1 text-left lg:opacity-0 lg:group-hover:opacity-100">
               <p className="text-sm font-semibold text-text-primary">{user?.fullName ?? "User"}</p>
               <p className="text-xs text-text-secondary capitalize">
                 {user?.role === "leadership" || user?.role === "admin" ? "Admin" : (user?.role ?? "rep")}
@@ -186,7 +186,7 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
             </div>
             <ChevronUp
               size={14}
-              className={`text-text-tertiary opacity-0 group-hover:opacity-100 transition-all duration-200 delay-100 ${
+              className={`text-text-tertiary opacity-100 transition-all duration-200 delay-100 lg:opacity-0 lg:group-hover:opacity-100 ${
                 profileOpen ? "" : "rotate-180"
               }`}
             />

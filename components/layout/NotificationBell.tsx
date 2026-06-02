@@ -120,7 +120,7 @@ export default function NotificationBell({ onNavClick, forceClose }: Notificatio
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
-        <span className="text-nav opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap">
+        <span className="text-nav opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap lg:opacity-0 lg:group-hover:opacity-100">
           Notifications {unreadCount > 0 ? `(${unreadCount})` : ""}
         </span>
       </button>

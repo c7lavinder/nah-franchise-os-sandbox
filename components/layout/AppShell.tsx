@@ -26,19 +26,21 @@ export default function AppShell({ children, userName, userRole }: AppShellProps
   return (
     <div className="flex min-h-screen">
       {/* Mobile hamburger */}
-      <button
-        onClick={() => setMobileMenuOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-[200] p-2 rounded-xl bg-surface-glass backdrop-blur-lg border border-border-glass"
-        aria-label="Open menu"
-      >
-        <Menu size={20} className="text-text-primary" />
-      </button>
+      {!mobileMenuOpen && (
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className="lg:hidden fixed top-4 left-4 z-[200] p-2 rounded-xl bg-surface-glass backdrop-blur-lg border border-border-glass"
+          aria-label="Open menu"
+        >
+          <Menu size={20} className="text-text-primary" />
+        </button>
+      )}
 
       {/* Mobile overlay */}
       {mobileMenuOpen && (
         <>
-          <div className="fixed inset-0 bg-black/30 z-[150] lg:hidden" onClick={() => setMobileMenuOpen(false)} />
-          <div className="fixed top-4 right-4 z-[200] lg:hidden">
+          <div className="fixed inset-0 bg-black/30 z-[140] lg:hidden" onClick={() => setMobileMenuOpen(false)} />
+          <div className="fixed top-4 right-4 z-[220] lg:hidden">
             <button
               onClick={() => setMobileMenuOpen(false)}
               className="p-2 rounded-xl bg-surface-glass backdrop-blur-lg border border-border-glass"
