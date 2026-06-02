@@ -14,7 +14,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { quartileScoringAgent } from "@/lib/agents/quartile-scoring-agent";
 
 type Territory = { TerritorySlug: string; Nickname: string | null; region: string | null };
-type ScorecardMetric = { TerritorySlug: string; goal: string | null; actual: string | null };
+type ScorecardMetric = { TerritorySlug: string; goal_value: string | null; actual_value: string | null };
 type Rock = { TerritorySlug: string; status: string | null };
 type Issue = {
   TerritorySlug: string;
@@ -194,20 +194,20 @@ export async function GET(request: NextRequest) {
   ] = await Promise.all([
     supabase.from("pipelines").select("id, slug").in("slug", ["sales", "runway", "onboarding"]),
     supabase.from("pipeline_stages").select("id, pipeline_id, slug, name, sort_order, is_terminal").order("sort_order"),
-    supabase.from("eos_territory_scorecard").select("TerritorySlug, goal, actual").in("TerritorySlug", activeSlugs),
+    supabase.from("eos_territory_scorecard").select("TerritorySlug, goal_value").in("TerritorySlug", activeSlugs),
     supabase.from("eos_territory_rocks").select("TerritorySlug, status").in("TerritorySlug", activeSlugs),
     supabase
       .from("eos_territory_issues")
-      .select("TerritorySlug, title, priority, status, created_at")
+      .select("TerritorySlug, Issue, is_done, created_at")
       .in("TerritorySlug", activeSlugs)
-      .eq("status", "open")
+      .eq("is_done", false)
       .order("created_at", { ascending: true }),
     supabase
       .from("eos_territory_todos")
-      .select("TerritorySlug, title, assignee, due_date, done")
+      .select("TerritorySlug, Todo, is_done, updated_at")
       .in("TerritorySlug", activeSlugs)
-      .eq("done", false)
-      .order("due_date", { ascending: true }),
+      .eq("is_done", false)
+      .order("updated_at", { ascending: true }),
     supabase
       .from("ms_lead_list_counts")
       .select("TerritorySlug, LeadCategory, LeadType, count")
@@ -314,8 +314,8 @@ export async function GET(request: NextRequest) {
   const healthBySlug = new Map<string, number | null>();
   for (const territory of activeTerritories) {
     const metrics = scorecardBySlug.get(territory.TerritorySlug) ?? [];
-    const measurable = metrics.filter((m) => numberValue(m.goal) != null && numberValue(m.actual) != null);
-    const atGoal = measurable.filter((m) => numberValue(m.actual)! >= numberValue(m.goal)!).length;
+    const measurable = metrics.filter((m) => numberValue(m.goal_value) != null && numberValue(m.actual_value) != null);
+    const atGoal = measurable.filter((m) => numberValue(m.actual_value)! >= numberValue(m.goal_value)!).length;
     healthBySlug.set(
       territory.TerritorySlug,
       measurable.length > 0 ? Math.round((atGoal / measurable.length) * 100) : null
@@ -491,8 +491,32 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const issues = (issuesRes.data ?? []) as Issue[];
-  const todos = (todosRes.data ?? []) as Todo[];
+  const issues = (
+    (issuesRes.data ?? []) as Array<{
+      TerritorySlug: string;
+      Issue: string | null;
+      created_at: string | null;
+    }>
+  ).map((issue) => ({
+    TerritorySlug: issue.TerritorySlug,
+    title: issue.Issue ?? "",
+    priority: null,
+    status: "open",
+    created_at: issue.created_at,
+  })) satisfies Issue[];
+  const todos = (
+    (todosRes.data ?? []) as Array<{
+      TerritorySlug: string;
+      Todo: string | null;
+      updated_at: string | null;
+    }>
+  ).map((todo) => ({
+    TerritorySlug: todo.TerritorySlug,
+    title: todo.Todo ?? "",
+    assignee: null,
+    due_date: todo.updated_at,
+    done: false,
+  })) satisfies Todo[];
   const issuesBySlug = new Map<string, number>();
   for (const issue of issues) issuesBySlug.set(issue.TerritorySlug, (issuesBySlug.get(issue.TerritorySlug) ?? 0) + 1);
   const todosBySlug = new Map<string, number>();
