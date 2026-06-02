@@ -18,6 +18,7 @@ function getPageTitle(pathname: string): string {
     "/knowledge": "Knowledge Base",
     "/settings": "Settings",
     "/audit": "Audit",
+    "/agents": "Agents",
     "/workflows": "Workflows",
     "/onboarding": "Onboarding",
   };

@@ -204,6 +204,17 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
               }}
             >
               <Link
+                href="/agents"
+                onClick={() => {
+                  setProfileOpen(false);
+                  onNavClick?.();
+                }}
+                className="flex items-center gap-3 px-4 py-3 text-text-secondary hover:bg-[rgba(0,161,225,0.05)] hover:text-nah-blue transition-colors"
+              >
+                <Bot size={16} />
+                <span className="text-sm font-medium">Agents</span>
+              </Link>
+              <Link
                 href="/workflows"
                 onClick={() => {
                   setProfileOpen(false);
