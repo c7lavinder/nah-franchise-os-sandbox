@@ -488,12 +488,16 @@ function applyFilter<T extends FilterBuilder>(q: T, col: string, f: FilterOp): T
 // get_entity() — rich profile for one entity
 // ════════════════════════════════════════════════════════════════════
 
-export async function executeGetEntity(type: EntityType, id: string): Promise<string> {
+export async function executeGetEntity(
+  type: EntityType,
+  id: string,
+  options: { refreshStaleBriefs?: boolean } = {}
+): Promise<string> {
   switch (type) {
     case "contact":
-      return getContactProfile(id);
+      return getContactProfile(id, options);
     case "territory":
-      return getTerritoryProfile(id);
+      return getTerritoryProfile(id, options);
     case "journey":
       return getJourneyProfile(id);
     case "opportunity":
@@ -505,7 +509,7 @@ export async function executeGetEntity(type: EntityType, id: string): Promise<st
   }
 }
 
-async function getContactProfile(contactId: string): Promise<string> {
+async function getContactProfile(contactId: string, options: { refreshStaleBriefs?: boolean } = {}): Promise<string> {
   try {
     const contact = await ghl.getContact(contactId);
     const supabase = createServerClient();
@@ -624,7 +628,7 @@ async function getContactProfile(contactId: string): Promise<string> {
 
     // Pre-computed brief (instant context snapshot)
     // If stale, regenerate inline (~1-2s) instead of waiting for nightly cron
-    if (briefRes.data?.stale) {
+    if (briefRes.data?.stale && options.refreshStaleBriefs !== false) {
       try {
         const freshBrief = await generateAndStoreContactBrief(sbContactId);
         const lines: string[] = [];
@@ -809,7 +813,7 @@ async function getContactProfile(contactId: string): Promise<string> {
   }
 }
 
-async function getTerritoryProfile(slug: string): Promise<string> {
+async function getTerritoryProfile(slug: string, options: { refreshStaleBriefs?: boolean } = {}): Promise<string> {
   try {
     const supabase = createServerClient();
     const [
@@ -882,7 +886,7 @@ async function getTerritoryProfile(slug: string): Promise<string> {
 
     // Regenerate stale territory brief inline
     let territoryBriefSummary = (territoryBriefRes.data as any)?.summary ?? null;
-    if ((territoryBriefRes.data as any)?.stale) {
+    if ((territoryBriefRes.data as any)?.stale && options.refreshStaleBriefs !== false) {
       try {
         const freshBrief = await generateAndStoreTerritoryBrief(slug);
         territoryBriefSummary = `${freshBrief.nickname} (${slug}) — T12: ${freshBrief.performance.t12Purchases} purchased, ${freshBrief.performance.t12Sales} sold`;

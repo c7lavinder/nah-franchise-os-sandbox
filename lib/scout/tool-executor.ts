@@ -51,7 +51,9 @@ export async function executeTool(
     // General data primitives
     case "get_entity":
       return {
-        data: await executeGetEntity(input.type as EntityType, input.id as string),
+        data: await executeGetEntity(input.type as EntityType, input.id as string, {
+          refreshStaleBriefs: input.__aiApiReadOnly === true ? false : undefined,
+        }),
       };
     case "query":
       return { data: await executeQueryTool(input) };
@@ -670,11 +672,13 @@ async function executeSearchKnowledge(input: Record<string, unknown>): Promise<T
         .toLowerCase()
         .split(/\s+/)
         .filter((w) => w.length > 2);
-      await supabase.from("kb_gap_signals").insert({
-        query: queryText,
-        results_found: 0,
-        suggested_category: queryWords[0] ?? null,
-      });
+      if (input.__aiApiReadOnly !== true) {
+        await supabase.from("kb_gap_signals").insert({
+          query: queryText,
+          results_found: 0,
+          suggested_category: queryWords[0] ?? null,
+        });
+      }
       return { data: "No knowledge base documents found matching your query." };
     }
 
@@ -714,16 +718,18 @@ async function executeSearchKnowledge(input: Record<string, unknown>): Promise<T
           }
         }
 
-        // Update retrieval metrics (fire-and-forget)
-        const now = new Date().toISOString();
-        for (const doc of fullDocs) {
-          void supabase
-            .from("knowledge_documents")
-            .update({
-              last_retrieved_at: now,
-              retrieval_count: ((doc as any).retrieval_count ?? 0) + 1,
-            })
-            .eq("id", doc.id);
+        // Update retrieval metrics for in-app Scout only. External AI API token access stays read-only except audit logs.
+        if (input.__aiApiReadOnly !== true) {
+          const now = new Date().toISOString();
+          for (const doc of fullDocs) {
+            void supabase
+              .from("knowledge_documents")
+              .update({
+                last_retrieved_at: now,
+                retrieval_count: ((doc as any).retrieval_count ?? 0) + 1,
+              })
+              .eq("id", doc.id);
+          }
         }
       }
     }

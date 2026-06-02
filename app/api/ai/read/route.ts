@@ -3,8 +3,47 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { bearerToken, logAiApiActivity, validateAiApiToken } from "@/lib/ai-api-tokens";
+import { executeTool } from "@/lib/scout/tool-executor";
+import { SCOUT_TOOLS } from "@/lib/scout/tools";
+import type { ScoutToolName } from "@/types/scout";
 
 const ADMIN_ROLES = new Set(["admin", "operator", "leadership"]);
+const READ_ONLY_SCOUT_TOOLS = new Set<ScoutToolName>([
+  "get_entity",
+  "query",
+  "aggregate",
+  "search_contacts",
+  "get_pipeline",
+  "get_next_action",
+  "get_schedule",
+  "get_calendar_availability",
+  "get_contact_insights",
+  "get_contact_calls",
+  "get_tasks",
+  "search_knowledge",
+  "search_transcripts",
+  "search_documents",
+  "get_journey_documents",
+  "workflow_analyze",
+  "trainual_status",
+  "get_compliance",
+  "territory_performance",
+  "network_benchmarks",
+  "compare_territories",
+  "describe_data",
+]);
+
+function parseToolInput(raw: string | null): Record<string, unknown> {
+  if (!raw) return {};
+  if (raw.length > 10000) {
+    throw new Error("Tool input is too large. Keep input JSON under 10,000 characters.");
+  }
+  const parsed = JSON.parse(raw) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Tool input must be a JSON object.");
+  }
+  return parsed as Record<string, unknown>;
+}
 
 export async function GET(request: NextRequest) {
   const secret = bearerToken(request);
@@ -31,9 +70,63 @@ export async function GET(request: NextRequest) {
     tokenPrefix: token.token_prefix,
     endpoint: url.pathname,
     resource,
-    requestParams: { limit },
+    requestParams: {
+      limit,
+      tool: url.searchParams.get("tool"),
+    },
     userAgent: request.headers.get("user-agent"),
   });
+
+  if (resource === "scout_tools") {
+    const tools = SCOUT_TOOLS.filter((tool) => READ_ONLY_SCOUT_TOOLS.has(tool.name)).map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.input_schema,
+    }));
+    return NextResponse.json({
+      resource,
+      scope: "AI_READ_ONLY",
+      requestedBy: token.user,
+      tools,
+      blockedToolTypes: ["draft_*", "complete_task", "workflow_rewrite", "draft_compliance_update"],
+    });
+  }
+
+  if (resource === "scout_tool") {
+    const toolName = url.searchParams.get("tool") as ScoutToolName | null;
+    if (!toolName || !READ_ONLY_SCOUT_TOOLS.has(toolName)) {
+      return NextResponse.json(
+        {
+          error: "Tool is missing or not allowed for AI_READ_ONLY access",
+          allowedTools: Array.from(READ_ONLY_SCOUT_TOOLS).sort(),
+        },
+        { status: 400 }
+      );
+    }
+
+    let input: Record<string, unknown>;
+    try {
+      input = parseToolInput(url.searchParams.get("input"));
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Invalid tool input" }, { status: 400 });
+    }
+
+    const result = await executeTool(toolName, {
+      ...input,
+      __aiApiReadOnly: true,
+      user_id: token.user_id,
+      user_role: token.user.role,
+      current_user_id: token.user_id,
+    });
+
+    return NextResponse.json({
+      resource,
+      scope: "AI_READ_ONLY",
+      requestedBy: token.user,
+      tool: toolName,
+      result: result.data,
+    });
+  }
 
   if (resource === "users") {
     let query = supabase
@@ -112,6 +205,6 @@ export async function GET(request: NextRequest) {
       activeTerritories: territoriesRes.count ?? 0,
       aiApiPullsLast24h: activityRes.count ?? 0,
     },
-    availableResources: ["overview", "users", "contacts", "l10"],
+    availableResources: ["overview", "users", "contacts", "l10", "scout_tools", "scout_tool"],
   });
 }
