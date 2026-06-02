@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -187,15 +188,7 @@ function ScoreboardStat({ label, value, sub }: { label: string; value: string | 
   );
 }
 
-function BenchmarkProgress({
-  value,
-  benchmark,
-  label,
-}: {
-  value: number;
-  benchmark: number;
-  label: string;
-}) {
+function BenchmarkProgress({ value, benchmark, label }: { value: number; benchmark: number; label: string }) {
   const progress = benchmark > 0 ? Math.min(Math.round((value / benchmark) * 100), 100) : 0;
   const shortBy = Math.max(benchmark - value, 0);
 
@@ -424,7 +417,7 @@ function QuartileCard({
       </div>
       <div className="mt-4 space-y-2">
         {spendTime.slice(0, 4).map((territory) => (
-          <a
+          <Link
             key={territory.slug}
             href={`/territories/${territory.slug}`}
             className="flex items-center justify-between gap-3 rounded-md border border-border-default px-3 py-2 hover:bg-bg-hover"
@@ -440,7 +433,7 @@ function QuartileCard({
                 {box.getValue(territory) === 0 ? box.noActivityLabel : fmt(box.getValue(territory))}
               </span>
             </span>
-          </a>
+          </Link>
         ))}
       </div>
     </div>
@@ -455,7 +448,7 @@ function CompactTerritoryRow({
   selectedPeriodLabel: string;
 }) {
   return (
-    <a
+    <Link
       href={`/territories/${territory.slug}`}
       className="block rounded-md border border-border-default bg-white px-3 py-2 hover:bg-bg-hover"
     >
@@ -494,7 +487,7 @@ function CompactTerritoryRow({
       <div className="mt-2 line-clamp-2 text-xs text-text-secondary">
         {territoryInsight(territory, selectedPeriodLabel)}
       </div>
-    </a>
+    </Link>
   );
 }
 
@@ -624,11 +617,13 @@ function FlowMetric({
   value,
   sub,
   highlight,
+  suffix = "%",
 }: {
   label: string;
   value: number;
   sub: string;
   highlight?: boolean;
+  suffix?: string;
 }) {
   return (
     <div
@@ -637,7 +632,10 @@ function FlowMetric({
       }`}
     >
       <div className="text-xs font-semibold uppercase text-text-tertiary">{label}</div>
-      <div className="mt-2 text-3xl font-bold text-text-primary">{formatNumber(value)}</div>
+      <div className="mt-2 text-3xl font-bold text-text-primary">
+        {formatNumber(value)}
+        {suffix}
+      </div>
       <div className="mt-1 text-xs text-text-secondary">{sub}</div>
     </div>
   );
@@ -651,7 +649,15 @@ function SalesFunnelBoard({
   selectedPeriodLabel: string;
 }) {
   const max = Math.max(...stages.map((stage) => stage.value), 1);
-  const colors = ["bg-sky-500", "bg-cyan-500", "bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-slate-700"];
+  const colors = [
+    "bg-sky-500",
+    "bg-cyan-500",
+    "bg-violet-500",
+    "bg-emerald-500",
+    "bg-amber-500",
+    "bg-rose-500",
+    "bg-slate-700",
+  ];
 
   return (
     <div className="space-y-4">
@@ -667,7 +673,9 @@ function SalesFunnelBoard({
             title="Sales Stage Funnel"
             sub={`Properties counted once for each sales stage reached in ${selectedPeriodLabel}.`}
           />
-          <div className="text-xs text-text-tertiary">Stage 0 lead list is shown separately from Stage 1+ movement.</div>
+          <div className="text-xs text-text-tertiary">
+            Stage 0 lead list is shown separately from Stage 1+ movement.
+          </div>
         </div>
         <div className="space-y-3">
           {stages.map((stage, index) => {
@@ -685,7 +693,10 @@ function SalesFunnelBoard({
                   <div className="text-xs text-text-tertiary">{conversion}</div>
                 </div>
                 <div className="relative h-11 overflow-hidden rounded-lg bg-slate-100">
-                  <div className={`h-full rounded-lg ${colors[index % colors.length]}`} style={{ width: `${width}%` }} />
+                  <div
+                    className={`h-full rounded-lg ${colors[index % colors.length]}`}
+                    style={{ width: `${width}%` }}
+                  />
                   <div className="absolute inset-0 flex items-center px-3">
                     <span className="text-sm font-bold text-white drop-shadow-sm">{formatNumber(stage.value)}</span>
                   </div>
@@ -705,7 +716,7 @@ function TerritoryRow({ territory, selectedPeriodLabel }: { territory: Territory
   const isCritical = territory.purchasesLast30d === 0 || (territory.health != null && territory.health < 60);
 
   return (
-    <a
+    <Link
       href={`/territories/${territory.slug}`}
       className="grid gap-3 border-b border-border-default px-4 py-3 last:border-0 hover:bg-bg-hover md:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_auto]"
     >
@@ -754,7 +765,7 @@ function TerritoryRow({ territory, selectedPeriodLabel }: { territory: Territory
         </span>
         <ArrowRight className="h-4 w-4 text-text-tertiary" />
       </div>
-    </a>
+    </Link>
   );
 }
 
@@ -910,10 +921,7 @@ export default function L10Page() {
               </div>
             </div>
             <div>
-              <SectionHeader
-                title="Sales Attention"
-                sub="Where sales work is leaking before purchases."
-              />
+              <SectionHeader title="Sales Attention" sub="Where sales work is leaking before purchases." />
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <FlowMetric
                   label="S1 to S3"
@@ -934,6 +942,55 @@ export default function L10Page() {
               </div>
             </div>
           </div>
+        </section>
+
+        <section className="rounded-lg border border-border-default bg-white p-5 shadow-sm">
+          <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <SectionHeader
+              title="Sales Workload"
+              sub="Current rep workload and prospects that need movement in the sales pipeline."
+            />
+            <div className="text-xs text-text-tertiary">Pulled from active sales pipeline state</div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricTile
+              label="Active Prospects"
+              value={formatNumber(data.devSales.activeProspects)}
+              sub="currently in sales stages"
+              icon={Target}
+            />
+            <MetricTile
+              label="New Prospects"
+              value={formatNumber(data.devSales.newProspectsPeriod)}
+              sub={`entered in ${selectedPeriodLabel}`}
+              icon={TrendingUp}
+            />
+            <MetricTile
+              label="Moved"
+              value={formatNumber(data.devSales.movedPeriod)}
+              sub={`stage movement in ${selectedPeriodLabel}`}
+              icon={ArrowRight}
+            />
+            <MetricTile
+              label="Stalled"
+              value={formatNumber(data.devSales.stalledProspects)}
+              sub={`no movement in ${selectedPeriodLabel}`}
+              icon={AlertTriangle}
+            />
+          </div>
+          {data.devSales.repsToFocus.length > 0 && (
+            <div className="mt-4 rounded-lg bg-bg-secondary p-3">
+              <div className="mb-2 text-xs font-semibold uppercase text-text-tertiary">Rep Focus</div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                {data.devSales.repsToFocus.map((rep) => (
+                  <div key={rep.name} className="rounded-md border border-border-default bg-white px-3 py-2">
+                    <div className="truncate text-sm font-semibold text-text-primary">{rep.name}</div>
+                    <div className="text-xs text-text-secondary">{formatNumber(rep.stalled)} stalled prospects</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       </section>
 
@@ -1042,8 +1099,8 @@ export default function L10Page() {
 
         <section className="space-y-4">
           <SectionHeader
-            title="Diagnostic Boxes"
-            sub="Metric-specific inspection. Stage 0 is aggregate lead-list count; stages 1+ and purchases use property-level records."
+            title="Territory Diagnostics"
+            sub="Metric-specific coaching inspection. Stage 0 is lead-list volume; stages 1+ and purchases use property-level records."
           />
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {QUARTILE_BOXES.map((box) => (
