@@ -26,7 +26,12 @@ type Issue = {
 type Todo = { TerritorySlug: string; title: string; assignee: string | null; due_date: string | null; done: boolean };
 type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string };
 type PropertyRow = { PropertyId: number; TerritorySlug: string };
-type LeadListPropertyRow = { PropertyId: number; TerritorySlug: string | null };
+type LeadListPropertyRow = {
+  PropertyId: number;
+  TerritorySlug: string | null;
+  LeadCategory: string | null;
+  LeadType: string | null;
+};
 type Stage0OriginRow = { PropertyId: number; TerritorySlug: string | null };
 type InventoryRow = { PropertyId: number; Inv_ContractedPurchaseDate: string | null; Inv_PurchaseDate: string | null };
 type L10PeriodKey = "T1" | "T3" | "T6" | "T12";
@@ -82,11 +87,20 @@ function sum(values: number[]) {
 function periodFromRequest(request: NextRequest) {
   const requested = request.nextUrl.searchParams.get("period")?.toUpperCase();
   if (requested === "T3" || requested === "T6" || requested === "T12") return requested;
-  return "T1";
+  return "T3";
 }
 
 function monthlyPace(value: number, periodDays: number) {
   return Math.round((value / periodDays) * 30);
+}
+
+function moneyValue(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function leadMixLabel(row: { LeadCategory?: string | null; LeadType?: string | null }) {
+  return row.LeadType || row.LeadCategory || "Uncategorized";
 }
 
 async function fetchPaged<T>(queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null }>) {
@@ -134,6 +148,8 @@ export async function GET(request: NextRequest) {
         devSales: {
           activeProspects: 0,
           newProspectsPeriod: 0,
+          ptoEnrolleesPeriod: 0,
+          closedFranchiseesPeriod: 0,
           movedPeriod: 0,
           stalledProspects: 0,
           stageCounts: [],
@@ -150,6 +166,9 @@ export async function GET(request: NextRequest) {
           purchasesLast30d: 0,
           medianPurchasesT12: null,
           highPerformersT12: 0,
+          royaltiesPaid: 0,
+          royaltiesDue: 0,
+          leadListMix: [],
           territories: [],
           focusTerritories: [],
           opportunityTerritories: [],
@@ -191,7 +210,7 @@ export async function GET(request: NextRequest) {
       .order("due_date", { ascending: true }),
     supabase
       .from("ms_lead_list_counts")
-      .select("TerritorySlug, count")
+      .select("TerritorySlug, LeadCategory, LeadType, count")
       .in("TerritorySlug", activeSlugs)
       .gte("month", leadListPeriodMonthStart.toISOString().slice(0, 10)),
     supabase
@@ -211,20 +230,26 @@ export async function GET(request: NextRequest) {
   const stages = stagesRes.data ?? [];
   const pipelineIdBySlug = new Map(pipelines.map((p) => [p.slug, p.id]));
   const salesPipelineId = pipelineIdBySlug.get("sales") ?? "__none__";
-  const salesStages = stages.filter((s) => s.pipeline_id === salesPipelineId && !s.is_terminal);
+  const salesStages = stages.filter((s) => s.pipeline_id === salesPipelineId);
+  const activeSalesStages = salesStages.filter((s) => !s.is_terminal);
   const salesStageIds = salesStages.map((s) => s.id);
+  const activeSalesStageIds = activeSalesStages.map((s) => s.id);
 
   const salesRows =
     salesStageIds.length > 0
       ? await fetchPaged<any>((from, to) =>
           supabase
             .from("journey_pipeline_state")
-            .select("id, current_stage_id, entered_pipeline_at, entered_current_stage_at, updated_at, assigned_user_id")
-            .eq("is_active", true)
+            .select(
+              "id, current_stage_id, entered_pipeline_at, entered_current_stage_at, updated_at, assigned_user_id, is_active, closed_at"
+            )
             .in("current_stage_id", salesStageIds)
             .range(from, to)
         )
       : [];
+  const activeSalesRows = salesRows.filter(
+    (row) => row.is_active === true && activeSalesStageIds.includes(row.current_stage_id)
+  );
 
   const assignedUserIds = [...new Set(salesRows.map((r) => r.assigned_user_id).filter(Boolean) as string[])];
   const { data: users } =
@@ -238,15 +263,47 @@ export async function GET(request: NextRequest) {
     count: salesRows.filter((row) => row.current_stage_id === stage.id).length,
   }));
   const newProspectsPeriod = salesRows.filter((row) => new Date(row.entered_pipeline_at) >= periodStart).length;
+  const closedStageIds = salesStages
+    .filter((stage) => stage.slug === "closed" || stage.is_terminal)
+    .map((stage) => stage.id);
+  const closedFranchiseesPeriod = salesRows.filter((row) => {
+    if (!closedStageIds.includes(row.current_stage_id)) return false;
+    const closedAt = row.closed_at ?? row.entered_current_stage_at ?? row.updated_at;
+    return closedAt ? new Date(closedAt) >= periodStart : false;
+  }).length;
   const moved14d = salesRows.filter(
     (row) => new Date(row.entered_current_stage_at ?? row.updated_at) >= periodStart
   ).length;
-  const stalledRows = salesRows.filter((row) => new Date(row.entered_current_stage_at ?? row.updated_at) < periodStart);
+  const stalledRows = activeSalesRows.filter(
+    (row) => new Date(row.entered_current_stage_at ?? row.updated_at) < periodStart
+  );
   const stalledByRep = new Map<string, number>();
   for (const row of stalledRows) {
     const name = row.assigned_user_id ? (userNameById.get(row.assigned_user_id) ?? "Assigned") : "Unassigned";
     stalledByRep.set(name, (stalledByRep.get(name) ?? 0) + 1);
   }
+
+  const ptoTask = salesStageIds.length
+    ? await supabase
+        .from("pipeline_sub_tasks")
+        .select("id")
+        .in("stage_id", salesStageIds)
+        .eq("slug", "pto")
+        .maybeSingle()
+    : { data: null };
+  const ptoTaskId = ptoTask.data?.id;
+  const ptoLogs = ptoTaskId
+    ? await fetchPaged<{ journey_pipeline_state_id: string | null }>((from, to) =>
+        supabase
+          .from("contact_sub_task_logs")
+          .select("journey_pipeline_state_id")
+          .eq("sub_task_id", ptoTaskId)
+          .is("deleted_at", null)
+          .gte("created_at", periodStart.toISOString())
+          .range(from, to)
+      )
+    : [];
+  const ptoEnrolleesPeriod = new Set(ptoLogs.map((row) => row.journey_pipeline_state_id).filter(Boolean)).size;
 
   const scorecardBySlug = new Map<string, ScorecardMetric[]>();
   for (const metric of (scorecardRes.data ?? []) as ScorecardMetric[]) {
@@ -268,7 +325,7 @@ export async function GET(request: NextRequest) {
   const rawLeadListRows = await fetchPaged<LeadListPropertyRow>((from, to) =>
     supabase
       .from("ms_lead_list_properties")
-      .select("PropertyId, TerritorySlug")
+      .select("PropertyId, TerritorySlug, LeadCategory, LeadType")
       .in("TerritorySlug", activeSlugs)
       .gte("Inserted", periodStart.toISOString())
       .range(from, to)
@@ -302,6 +359,27 @@ export async function GET(request: NextRequest) {
       leadListBySlug.set(row.TerritorySlug, (leadListBySlug.get(row.TerritorySlug) ?? 0) + Number(row.count ?? 0));
     }
   }
+
+  const leadListMixByLabel = new Map<string, number>();
+  if (rawLeadListRows.length > 0) {
+    for (const row of rawLeadListRows) {
+      const label = leadMixLabel(row);
+      leadListMixByLabel.set(label, (leadListMixByLabel.get(label) ?? 0) + 1);
+    }
+  } else {
+    for (const row of (leadListRes.data ?? []) as {
+      LeadCategory: string | null;
+      LeadType: string | null;
+      count: number;
+    }[]) {
+      const label = leadMixLabel(row);
+      leadListMixByLabel.set(label, (leadListMixByLabel.get(label) ?? 0) + Number(row.count ?? 0));
+    }
+  }
+  const leadListMix = [...leadListMixByLabel.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
 
   const history30 = await fetchPaged<HistRow>((from, to) =>
     supabase
@@ -382,6 +460,37 @@ export async function GET(request: NextRequest) {
     purchasesT12BySlug.set(prop.TerritorySlug, (purchasesT12BySlug.get(prop.TerritorySlug) ?? 0) + 1);
   }
 
+  const purchasedProperties = await fetchPaged<{ PropertyId: number }>((from, to) =>
+    supabase
+      .from("ms_property_inventory")
+      .select(`"PropertyId", ms_properties!inner("TerritorySlug")`)
+      .not("Inv_PurchaseDate", "is", null)
+      .in("ms_properties.TerritorySlug", activeSlugs)
+      .range(from, to)
+  );
+  const purchasedPropertyIds = purchasedProperties.map((property) => property.PropertyId);
+  let royaltiesPaid = 0;
+  let royaltiesDue = 0;
+  for (let i = 0; i < purchasedPropertyIds.length; i += 500) {
+    const { data: royaltyRows } = await supabase
+      .from("ms_property_royalty")
+      .select(
+        `"PropertyId", "AcquisitionRoyaltyPaid", "DispositionRoyaltyPaid", "DelayedRoyaltyFeePaid", "RoyaltyTrueUpPaid", "Calculated_AcquisitionRoyaltyDue", "Calculated_DispositionRoyaltyDue", "Calculated_DelayedRoyaltyFeeDue", "Calculated_RoyaltyTrueUpDue"`
+      )
+      .in("PropertyId", purchasedPropertyIds.slice(i, i + 500));
+    for (const row of (royaltyRows ?? []) as any[]) {
+      const acqPaid = moneyValue(row.AcquisitionRoyaltyPaid);
+      const dispoPaid = moneyValue(row.DispositionRoyaltyPaid);
+      const delayedPaid = moneyValue(row.DelayedRoyaltyFeePaid);
+      const trueUpPaid = moneyValue(row.RoyaltyTrueUpPaid);
+      royaltiesPaid += acqPaid + dispoPaid + delayedPaid + trueUpPaid;
+      royaltiesDue += acqPaid > 0 ? 0 : moneyValue(row.Calculated_AcquisitionRoyaltyDue);
+      royaltiesDue += dispoPaid > 0 ? 0 : moneyValue(row.Calculated_DispositionRoyaltyDue);
+      royaltiesDue += delayedPaid > 0 ? 0 : moneyValue(row.Calculated_DelayedRoyaltyFeeDue);
+      royaltiesDue += trueUpPaid > 0 ? 0 : moneyValue(row.Calculated_RoyaltyTrueUpDue);
+    }
+  }
+
   const issues = (issuesRes.data ?? []) as Issue[];
   const todos = (todosRes.data ?? []) as Todo[];
   const issuesBySlug = new Map<string, number>();
@@ -460,8 +569,10 @@ export async function GET(request: NextRequest) {
       generatedAt: now.toISOString(),
       period: { key: periodKey, label: period.label, days: period.days },
       devSales: {
-        activeProspects: salesRows.length,
+        activeProspects: activeSalesRows.length,
         newProspectsPeriod,
+        ptoEnrolleesPeriod,
+        closedFranchiseesPeriod,
         movedPeriod: moved14d,
         stalledProspects: stalledRows.length,
         stageCounts,
@@ -481,6 +592,9 @@ export async function GET(request: NextRequest) {
         purchasesLast30d: sum(scoredTerritories.map((t) => t.purchasesLast30d)),
         medianPurchasesT12: median(purchasesT12Values),
         highPerformersT12: scoredTerritories.filter((t) => t.purchasesT12 >= 10).length,
+        royaltiesPaid: Math.round(royaltiesPaid * 100) / 100,
+        royaltiesDue: Math.round(royaltiesDue * 100) / 100,
+        leadListMix,
         territories: scoredTerritories,
         focusTerritories: [...scoredTerritories].sort((a, b) => b.severity - a.severity).slice(0, 6),
         opportunityTerritories: [...scoredTerritories]
