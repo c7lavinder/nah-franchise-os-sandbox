@@ -44,15 +44,15 @@ const STAGE_CONTEXT: Record<string, string> = {
   // Onboarding pipeline
   setup: "New franchisee onboarding setup",
   training: "Franchisee in training",
+  "launch-prep": "Franchisee preparing systems, marketing, and first lead flow for launch",
   onboarded: "Franchisee fully onboarded and operational",
   // Territory pipeline
   active: "Active franchisee with awarded territory — buying and flipping properties",
   running: "Franchisee actively running their territory operations",
   // Runway pipeline
-  "first-offers": "Active franchisee making first property offers",
-  "first-acquisition": "Franchisee acquiring first property",
+  "first-offer": "Active franchisee making first property offers",
+  "first-purchase": "Franchisee acquiring first property",
   "inventory-building": "Franchisee building property inventory",
-  "runway-complete": "Franchisee graduated to independent operations",
   // Follow-up pipeline
   followup: "Dropped from sales — specific reason to resume later",
   nurture: "Long-term cold storage — no active engagement",
@@ -319,8 +319,9 @@ const STAGE_DEFAULT_ACTIONS: Record<string, string> = {
   closed: "Transition to onboarding — schedule setup kickoff",
   setup: "Complete onboarding setup checklist",
   training: "Continue franchisee training program",
-  "first-offers": "Optimize marketing and get first 10 offers sent",
-  "first-acquisition": "Close first property and start rehab",
+  "launch-prep": "Finish launch checklist and turn on first lead flow",
+  "first-offer": "Optimize marketing and get first 10 offers sent",
+  "first-purchase": "Close first property and start rehab",
   "inventory-building": "Build to 2+ properties in inventory",
   active: "Review territory performance and property pipeline",
   running: "Monitor deal flow and operational metrics",
@@ -338,28 +339,28 @@ const LATE_STAGES = new Set([
   "closed",
   "setup",
   "training",
+  "launch-prep",
   "onboarded",
   "running",
-  "first-offers",
-  "first-acquisition",
+  "first-offer",
+  "first-purchase",
   "inventory-building",
-  "runway-complete",
   "active",
 ]);
 
 // Stages where sitting for a long time is expected — don't warn about velocity
 const NO_VELOCITY_WARNING = new Set([
   "closed",
-  "runway-complete",
   "active",
   "running",
   "onboarded",
   "nurture",
   "inventory-building",
-  "first-offers",
-  "first-acquisition",
+  "first-offer",
+  "first-purchase",
   "setup",
   "training",
+  "launch-prep",
 ]);
 
 interface NextActionInput {

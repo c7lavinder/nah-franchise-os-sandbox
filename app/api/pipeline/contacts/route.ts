@@ -260,7 +260,6 @@ export async function GET(request: NextRequest) {
       const isTerminal =
         stage?.slug === "closed" ||
         stage?.slug === "onboarded" ||
-        stage?.slug === "runway-complete" ||
         stage?.slug === "running" ||
         (stage as StageRow & { is_terminal?: boolean })?.is_terminal === true;
 
