@@ -8,7 +8,7 @@ interface KPIs {
   leadProgression: number | null;
   purchasedInPeriod: number;
   soldInPeriod: number;
-  avgLeadToPurchase: number | null;
+  activeInventory: number;
   avgProfit: number | null;
 }
 
@@ -47,7 +47,7 @@ export default function TerritoryPerformanceCard({ TerritorySlug, Nickname }: Pr
       <div className="flex items-center gap-1.5 mb-2">
         <BarChart3 size={14} className="text-text-tertiary" />
         <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">
-          {Nickname.toUpperCase()} T3 PERFORMANCE
+          {Nickname.toUpperCase()} TERRITORY SNAPSHOT
         </h3>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -64,10 +64,8 @@ export default function TerritoryPerformanceCard({ TerritorySlug, Nickname }: Pr
           <div className="text-body-sm font-bold text-text-primary">{kpis.soldInPeriod}</div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">Lead to Purchase</div>
-          <div className="text-body-sm font-bold text-text-primary">
-            {kpis.avgLeadToPurchase != null ? `${kpis.avgLeadToPurchase}d` : "—"}
-          </div>
+          <div className="text-[10px] text-text-tertiary">Current Inventory</div>
+          <div className="text-body-sm font-bold text-text-primary">{kpis.activeInventory}</div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
           <div className="text-[10px] text-text-tertiary">Avg Profit T3</div>
