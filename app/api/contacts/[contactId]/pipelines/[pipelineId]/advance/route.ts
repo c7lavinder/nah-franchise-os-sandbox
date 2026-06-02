@@ -25,6 +25,7 @@ import { syncStageToGHL } from "@/lib/ghl/stage-sync";
 import { carryForwardContactEos } from "@/lib/eos/carry-forward";
 import { matchWorkflowTriggers } from "@/lib/workflows/trigger-matcher";
 import { checkExitConditions } from "@/lib/workflows/enrollment";
+import { isSubStageMoveLog } from "@/lib/contacts/stage-visual-state";
 
 export async function POST(
   request: NextRequest,
@@ -168,14 +169,14 @@ export async function POST(
       for (const task of (subTasks ?? []).filter((t) => t.is_required)) {
         const { data: logs } = await supabase
           .from("contact_sub_task_logs")
-          .select("state_advance")
+          .select("state_advance, metadata")
           .eq("journey_pipeline_state_id", canonical.id)
           .eq("sub_task_id", task.id)
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
-          .limit(1);
+          .limit(10);
 
-        const latest = logs?.[0];
+        const latest = logs?.find((log) => !isSubStageMoveLog(log));
         const complete = task.state_type === "single" ? !!latest : latest?.state_advance === "second";
         if (!complete) {
           return NextResponse.json(

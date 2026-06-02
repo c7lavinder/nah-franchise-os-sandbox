@@ -19,6 +19,7 @@ import { resolveContactId } from "@/lib/contacts/pipeline-state";
 import { checkAutoAdvance } from "@/lib/contacts/auto-advance";
 import { matchWorkflowTriggers } from "@/lib/workflows/trigger-matcher";
 import { checkExitConditions } from "@/lib/workflows/enrollment";
+import { isSubStageMoveLog } from "@/lib/contacts/stage-visual-state";
 
 interface LogBody {
   contentType: string;
@@ -135,14 +136,14 @@ export async function POST(
 
         const { data: taskLogs } = await supabase
           .from("contact_sub_task_logs")
-          .select("state_advance")
+          .select("state_advance, metadata")
           .eq("journey_pipeline_state_id", pipelineState.id)
           .eq("sub_task_id", task.id)
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
-          .limit(1);
+          .limit(10);
 
-        const latestLog = taskLogs?.[0];
+        const latestLog = taskLogs?.find((log) => !isSubStageMoveLog(log));
         const taskSubDef = await supabase.from("pipeline_sub_tasks").select("state_type").eq("id", task.id).single();
 
         const taskComplete =

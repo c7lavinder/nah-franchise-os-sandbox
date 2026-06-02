@@ -10,6 +10,16 @@ import type { PipelineStage, PipelineSubTask, SubTaskLog } from "./pipeline-stat
 export type CircleState = "empty" | "half" | "full";
 export type ColorLabel = "fresh" | "at_risk" | "losing";
 
+export const SUB_STAGE_MOVE_METADATA_KIND = "sub_stage_move";
+
+export function isSubStageMoveLog(log: Pick<SubTaskLog, "metadata">): boolean {
+  return log.metadata?.kind === SUB_STAGE_MOVE_METADATA_KIND;
+}
+
+export function isCompletionLog(log: Pick<SubTaskLog, "deleted_at" | "metadata">): boolean {
+  return !log.deleted_at && !isSubStageMoveLog(log);
+}
+
 /**
  * Compute whether a stage circle should be empty, half-filled, or full.
  * - 'empty': stage hasn't been reached yet (sort_order > current stage sort_order)
@@ -55,7 +65,7 @@ export function computeStageVisualState(
  * - 'full': for two-state subs, latest log is 'second'; for single-state, any log
  */
 export function computeSubTaskVisualState(subTask: PipelineSubTask, logs: SubTaskLog[]): CircleState {
-  const activeLogs = logs.filter((l) => !l.deleted_at);
+  const activeLogs = logs.filter(isCompletionLog);
   if (activeLogs.length === 0) return "empty";
 
   if (subTask.state_type === "single") return "full";

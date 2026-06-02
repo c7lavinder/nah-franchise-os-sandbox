@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
+import { SUB_STAGE_MOVE_METADATA_KIND } from "@/lib/contacts/stage-visual-state";
 
 interface MoveBody {
   stateId: string;
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
       // Look up the sub-task to find its stage_id
       const { data: subTask, error: stError } = await supabase
         .from("pipeline_sub_tasks")
-        .select("id, stage_id")
+        .select("id, name, stage_id")
         .eq("id", body.targetId)
         .single();
 
@@ -51,11 +52,12 @@ export async function POST(request: NextRequest) {
       // Get the current state to check if stage is changing
       const { data: current } = await supabase
         .from("journey_pipeline_state")
-        .select("current_stage_id")
+        .select("current_stage_id, current_sub_task_id")
         .eq("id", body.stateId)
         .single();
 
       const stageChanging = current?.current_stage_id !== subTask.stage_id;
+      const subTaskChanging = current?.current_sub_task_id !== subTask.id;
 
       const { error: updateError } = await supabase
         .from("journey_pipeline_state")
@@ -74,6 +76,39 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         return NextResponse.json({ error: updateError.message }, { status: 500 });
       }
+
+      if (stageChanging) {
+        await supabase.from("pipeline_stage_history").insert({
+          journey_pipeline_state_id: body.stateId,
+          from_stage_id: current?.current_stage_id ?? null,
+          to_stage_id: subTask.stage_id,
+          moved_by_user_id: user.id,
+          reason: "Moved on pipeline board",
+          was_skip: false,
+          was_revert: false,
+          was_auto: false,
+        });
+      }
+
+      if (subTaskChanging) {
+        await supabase.from("contact_sub_task_logs").insert({
+          journey_pipeline_state_id: body.stateId,
+          sub_task_id: subTask.id,
+          logger_user_id: null,
+          source: "api",
+          state_advance: null,
+          content_type: "note",
+          content_text: `Moved into ${subTask.name}`,
+          metadata: {
+            kind: SUB_STAGE_MOVE_METADATA_KIND,
+            source: "pipeline_board",
+            from_stage_id: current?.current_stage_id ?? null,
+            to_stage_id: subTask.stage_id,
+            from_sub_task_id: current?.current_sub_task_id ?? null,
+            to_sub_task_id: subTask.id,
+          },
+        });
+      }
     } else {
       // targetType === "unsorted" — move to stage, clear sub-task
       const { data: stage, error: sgError } = await supabase
@@ -88,7 +123,7 @@ export async function POST(request: NextRequest) {
 
       const { data: current } = await supabase
         .from("journey_pipeline_state")
-        .select("current_stage_id")
+        .select("current_stage_id, current_sub_task_id")
         .eq("id", body.stateId)
         .single();
 
@@ -110,6 +145,19 @@ export async function POST(request: NextRequest) {
 
       if (updateError) {
         return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+
+      if (stageChanging) {
+        await supabase.from("pipeline_stage_history").insert({
+          journey_pipeline_state_id: body.stateId,
+          from_stage_id: current?.current_stage_id ?? null,
+          to_stage_id: stage.id,
+          moved_by_user_id: user.id,
+          reason: "Moved on pipeline board",
+          was_skip: false,
+          was_revert: false,
+          was_auto: false,
+        });
       }
     }
 

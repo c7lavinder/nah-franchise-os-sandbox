@@ -20,6 +20,7 @@ import {
   computeStageVisualState,
   computeColorLabel,
   getCurrentStageSortOrder,
+  isCompletionLog,
 } from "@/lib/contacts/stage-visual-state";
 import type { CircleState } from "@/lib/contacts/stage-visual-state";
 import type { SubTaskLog, StageHistoryEntry } from "@/lib/contacts/pipeline-state";
@@ -149,7 +150,7 @@ export default function PipelineBar({
   const allComplete = currentStageTasks
     .filter((t) => t.is_required)
     .every((t) => {
-      const logs = (currentLogsMap.get(t.id) ?? []).filter((l) => !l.deleted_at);
+      const logs = (currentLogsMap.get(t.id) ?? []).filter(isCompletionLog);
       if (logs.length === 0) return false;
       if (t.state_type === "single") return true;
       return logs[0]?.state_advance === "second";
@@ -236,7 +237,7 @@ export default function PipelineBar({
               isPassed &&
               requiredTasks.length > 0 &&
               requiredTasks.some((t) => {
-                const logs = (logsMap.get(t.id) ?? []).filter((l) => !l.deleted_at);
+                const logs = (logsMap.get(t.id) ?? []).filter(isCompletionLog);
                 return logs.length === 0;
               });
 

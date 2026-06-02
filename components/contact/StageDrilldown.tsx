@@ -1,19 +1,17 @@
 "use client";
-import { apiFetch } from "@/lib/auth/api-fetch";
 
 /**
  * StageDrilldown — sub-tasks + stage history when a stage is clicked.
- * Sprint 4B: adds log modal on sub-task click, separate history toggle.
+ * Shows sub-stage timestamp/history without manual journey logging.
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AlertTriangle, RotateCcw, Bot, ArrowRight } from "lucide-react";
 import { titleCase } from "@/lib/format/contact";
 import SubTaskCircle from "./SubTaskCircle";
 import SubTaskLogHistory from "./SubTaskLogHistory";
-import SubTaskLogModal from "./SubTaskLogModal";
 import type { PipelineSubTask, SubTaskLog, StageHistoryEntry } from "@/lib/contacts/pipeline-state";
-import { computeSubTaskVisualState } from "@/lib/contacts/stage-visual-state";
+import { computeSubTaskVisualState, isCompletionLog } from "@/lib/contacts/stage-visual-state";
 
 interface StageDrilldownProps {
   contactId: string;
@@ -26,37 +24,15 @@ interface StageDrilldownProps {
 }
 
 export default function StageDrilldown({
-  contactId,
   subTasks,
   logsBySubTask,
   stageHistory,
   stageId,
   isPastStage,
-  onRefresh,
 }: StageDrilldownProps) {
   const [expandedSubTask, setExpandedSubTask] = useState<string | null>(null);
-  const [logModalSubTask, setLogModalSubTask] = useState<PipelineSubTask | null>(null);
-  const [editingLog, setEditingLog] = useState<SubTaskLog | null>(null);
-  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
-
-  // Fetch users for logger select
-  useEffect(() => {
-    apiFetch("/api/pipeline/users")
-      .then((r) => (r.ok ? r.json() : { users: [] }))
-      .then((d) => setUsers(d.users ?? []))
-      .catch(() => {});
-  }, []);
 
   const relevantHistory = stageHistory.filter((h) => h.to_stage_id === stageId);
-
-  function handleEditFromHistory(log: SubTaskLog) {
-    // Find the sub-task this log belongs to so we can open the modal in edit mode
-    const task = subTasks.find((t) => t.id === log.sub_task_id);
-    if (task) {
-      setEditingLog(log);
-      setLogModalSubTask(task);
-    }
-  }
 
   return (
     <div className="mt-3 bg-bg-secondary border border-border-default rounded-lg p-4">
@@ -71,10 +47,10 @@ export default function StageDrilldown({
               <div className="space-y-0.5">
                 {subTasks.map((task) => {
                   const logs = logsBySubTask.get(task.id) ?? [];
-                  const activeLogs = logs.filter((l) => !l.deleted_at);
+                  const completionLogs = logs.filter(isCompletionLog);
                   const state = computeSubTaskVisualState(task, logs);
                   const isHistoryExpanded = expandedSubTask === task.id;
-                  const isMissing = isPastStage && task.is_required && activeLogs.length === 0;
+                  const isMissing = isPastStage && task.is_required && completionLogs.length === 0;
 
                   return (
                     <div key={task.id}>
@@ -87,23 +63,9 @@ export default function StageDrilldown({
                         logCount={logs.length}
                         isExpanded={isHistoryExpanded}
                         isMissingLog={isMissing}
-                        onClick={() => {
-                          setEditingLog(null);
-                          setLogModalSubTask(task);
-                        }}
+                        onClick={() => setExpandedSubTask(isHistoryExpanded ? null : task.id)}
                       />
-                      {/* View history toggle — only when logs exist */}
-                      {logs.length > 0 && (
-                        <button
-                          onClick={() => setExpandedSubTask(isHistoryExpanded ? null : task.id)}
-                          className="ml-10 text-[11px] text-nah-blue hover:underline"
-                        >
-                          {isHistoryExpanded ? "Hide Logs" : `View ${logs.length} Log${logs.length !== 1 ? "s" : ""}`}
-                        </button>
-                      )}
-                      {isHistoryExpanded && (
-                        <SubTaskLogHistory logs={logs} onRefresh={onRefresh} onEdit={handleEditFromHistory} />
-                      )}
+                      {isHistoryExpanded && logs.length > 0 && <SubTaskLogHistory logs={logs} />}
                     </div>
                   );
                 })}
@@ -147,33 +109,6 @@ export default function StageDrilldown({
           )}
         </div>
       </div>
-
-      {/* Log modal */}
-      {logModalSubTask && (
-        <SubTaskLogModal
-          contactId={contactId}
-          subTaskId={logModalSubTask.id}
-          subTaskName={logModalSubTask.name}
-          stateType={logModalSubTask.state_type}
-          firstStateLabel={logModalSubTask.first_state_label}
-          secondStateLabel={logModalSubTask.second_state_label}
-          defaultLoggerUserId={logModalSubTask.default_logger_user_id ?? null}
-          defaultLoggerName={users.find((u) => u.id === logModalSubTask.default_logger_user_id)?.name ?? null}
-          users={users}
-          existingLogs={logsBySubTask.get(logModalSubTask.id) ?? []}
-          editingLog={editingLog}
-          onClose={() => {
-            setLogModalSubTask(null);
-            setEditingLog(null);
-          }}
-          onSuccess={() => {
-            setLogModalSubTask(null);
-            setEditingLog(null);
-            onRefresh();
-          }}
-          onLogDeleted={onRefresh}
-        />
-      )}
     </div>
   );
 }

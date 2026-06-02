@@ -12,6 +12,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { syncStageToGHL } from "@/lib/ghl/stage-sync";
 import { carryForwardContactEos } from "@/lib/eos/carry-forward";
+import { isSubStageMoveLog } from "@/lib/contacts/stage-visual-state";
 
 interface AutoAdvanceResult {
   advanced: boolean;
@@ -44,14 +45,14 @@ export async function checkAutoAdvance(jpsId: string, currentStageId: string): P
   for (const task of requiredTasks) {
     const { data: logs } = await supabase
       .from("contact_sub_task_logs")
-      .select("state_advance")
+      .select("state_advance, metadata")
       .eq("journey_pipeline_state_id", jpsId)
       .eq("sub_task_id", task.id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-      .limit(1);
+      .limit(10);
 
-    const latest = logs?.[0];
+    const latest = logs?.find((log) => !isSubStageMoveLog(log));
     const complete = task.state_type === "single" ? !!latest : latest?.state_advance === "second";
 
     if (!complete) {

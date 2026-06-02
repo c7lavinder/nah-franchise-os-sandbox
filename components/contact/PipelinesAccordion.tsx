@@ -19,6 +19,7 @@ import {
   computeStageVisualState,
   computeColorLabel,
   getCurrentStageSortOrder,
+  isCompletionLog,
 } from "@/lib/contacts/stage-visual-state";
 import type { CircleState } from "@/lib/contacts/stage-visual-state";
 
@@ -76,31 +77,36 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
   const [successFlash, setSuccessFlash] = useState(false);
   const isInitialLoad = pipelineStates.length === 0;
 
-  const fetchData = useCallback(async (showSuccess?: boolean) => {
-    // Only show full spinner on initial load, not on refresh
-    if (isInitialLoad) setLoading(true);
-    try {
-      const res = await apiFetch(`/api/contacts/${contactId}/pipeline-state`);
-      if (res.ok) {
-        const data = await res.json();
-        const states = data.pipelineStates ?? [];
-        setPipelineStates(states);
+  const fetchData = useCallback(
+    async (showSuccess?: boolean) => {
+      // Only show full spinner on initial load, not on refresh
+      if (isInitialLoad) setLoading(true);
+      try {
+        const res = await apiFetch(`/api/contacts/${contactId}/pipeline-state`);
+        if (res.ok) {
+          const data = await res.json();
+          const states = data.pipelineStates ?? [];
+          setPipelineStates(states);
 
-        // Auto-expand pipeline + current stage on first load only
-        if (isInitialLoad && states.length > 0) {
-          setExpandedPipeline(states[0].id);
-          setExpandedStage(states[0].current_stage_id);
-        }
+          // Auto-expand pipeline + current stage on first load only
+          if (isInitialLoad && states.length > 0) {
+            setExpandedPipeline(states[0].id);
+            setExpandedStage(states[0].current_stage_id);
+          }
 
-        // Show brief success flash after write operations
-        if (showSuccess) {
-          setSuccessFlash(true);
-          setTimeout(() => setSuccessFlash(false), 2000);
+          // Show brief success flash after write operations
+          if (showSuccess) {
+            setSuccessFlash(true);
+            setTimeout(() => setSuccessFlash(false), 2000);
+          }
         }
+      } catch {
+        /* silent */
       }
-    } catch { /* silent */ }
-    setLoading(false);
-  }, [contactId, isInitialLoad]);
+      setLoading(false);
+    },
+    [contactId, isInitialLoad]
+  );
 
   useEffect(() => {
     void fetchData();
@@ -119,9 +125,7 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <GitBranch size={32} className="text-text-tertiary mb-3" />
         <p className="text-body-sm text-text-tertiary">No active pipelines for this contact</p>
-        <p className="text-caption text-text-tertiary mt-1">
-          This contact hasn&apos;t been synced to a pipeline yet.
-        </p>
+        <p className="text-caption text-text-tertiary mt-1">This contact hasn&apos;t been synced to a pipeline yet.</p>
       </div>
     );
   }
@@ -149,13 +153,13 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
                 onClick={() => setExpandedPipeline(isExpanded ? null : pState.id)}
                 className="w-full flex items-center gap-3 px-4 py-3 bg-bg-secondary hover:bg-bg-hover transition-colors"
               >
-                {isExpanded ? <ChevronDown size={16} className="text-text-tertiary" /> : <ChevronRight size={16} className="text-text-tertiary" />}
-                <span className="text-body-sm font-medium text-text-primary">{pState.pipeline_name}</span>
-                {currentStage && (
-                  <span className="text-caption text-text-tertiary">
-                    Current: {currentStage.name}
-                  </span>
+                {isExpanded ? (
+                  <ChevronDown size={16} className="text-text-tertiary" />
+                ) : (
+                  <ChevronRight size={16} className="text-text-tertiary" />
                 )}
+                <span className="text-body-sm font-medium text-text-primary">{pState.pipeline_name}</span>
+                {currentStage && <span className="text-caption text-text-tertiary">Current: {currentStage.name}</span>}
                 <ColorDot label={colorLabel} />
               </button>
             )}
@@ -167,11 +171,7 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
                 {singlePipeline && (
                   <div className="flex items-center gap-2 mb-4">
                     <span className="text-overline text-text-tertiary tracking-wider">{pState.pipeline_name}</span>
-                    {currentStage && (
-                      <span className="text-caption text-text-tertiary">
-                        — {currentStage.name}
-                      </span>
-                    )}
+                    {currentStage && <span className="text-caption text-text-tertiary">— {currentStage.name}</span>}
                     <ColorDot label={colorLabel} />
                   </div>
                 )}
@@ -190,10 +190,9 @@ export default function PipelinesAccordion({ contactId }: PipelinesAccordionProp
                 />
 
                 {/* §1.13: Re-engaged → Resume Sales prompt */}
-                {pState.pipeline_slug === "followup" &&
-                  currentStage?.slug === "reengaged" && (
-                    <ResumeSalesPrompt contactId={contactId} onRefresh={() => fetchData(true)} />
-                  )}
+                {pState.pipeline_slug === "followup" && currentStage?.slug === "reengaged" && (
+                  <ResumeSalesPrompt contactId={contactId} onRefresh={() => fetchData(true)} />
+                )}
               </div>
             )}
           </div>
@@ -231,14 +230,16 @@ function StagesRow({
     <div>
       {/* Horizontal stage circles */}
       <div className="relative">
-        {stages.length > 1 && (
-          <div className="absolute top-6 left-8 right-8 h-0.5 bg-border-default hidden sm:block" />
-        )}
+        {stages.length > 1 && <div className="absolute top-6 left-8 right-8 h-0.5 bg-border-default hidden sm:block" />}
         <div className="flex items-start justify-between gap-1">
           {stages.map((stage) => {
             const logsMap = new Map(Object.entries(stage.logsBySubTask));
             const state: CircleState = computeStageVisualState(
-              stage, currentStageId, currentSortOrder, stage.subTasks, logsMap
+              stage,
+              currentStageId,
+              currentSortOrder,
+              stage.subTasks,
+              logsMap
             );
             const isCurrent = stage.id === currentStageId;
             const totalLogs = stage.totalLogs;
@@ -261,22 +262,23 @@ function StagesRow({
       </div>
 
       {/* Drilldown when stage is expanded */}
-      {expandedStage && (() => {
-        const stage = stages.find((s) => s.id === expandedStage);
-        if (!stage) return null;
-        const logsMap = new Map(Object.entries(stage.logsBySubTask));
+      {expandedStage &&
+        (() => {
+          const stage = stages.find((s) => s.id === expandedStage);
+          if (!stage) return null;
+          const logsMap = new Map(Object.entries(stage.logsBySubTask));
 
-        return (
-          <StageDrilldown
-            contactId={contactId}
-            subTasks={stage.subTasks}
-            logsBySubTask={logsMap}
-            stageHistory={stageHistory}
-            stageId={expandedStage}
-            onRefresh={onRefresh}
-          />
-        );
-      })()}
+          return (
+            <StageDrilldown
+              contactId={contactId}
+              subTasks={stage.subTasks}
+              logsBySubTask={logsMap}
+              stageHistory={stageHistory}
+              stageId={expandedStage}
+              onRefresh={onRefresh}
+            />
+          );
+        })()}
 
       {/* Stage action buttons */}
       {(() => {
@@ -291,7 +293,7 @@ function StagesRow({
         const allComplete = currentStageTasks
           .filter((t) => t.is_required)
           .every((t) => {
-            const logs = (currentLogsMap.get(t.id) ?? []).filter((l) => !l.deleted_at);
+            const logs = (currentLogsMap.get(t.id) ?? []).filter(isCompletionLog);
             if (logs.length === 0) return false;
             if (t.state_type === "single") return true;
             return logs[0]?.state_advance === "second";
