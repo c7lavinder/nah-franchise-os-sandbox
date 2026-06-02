@@ -6,6 +6,12 @@ const supabase = getServiceSupabase();
 
 const BATCH_SIZE = 500;
 
+type LeadListPropertySyncResult = {
+  upserted: number;
+  markedMovedOut: number;
+  errors: string[];
+};
+
 function toISOOrNull(val: unknown): string | null {
   if (!val) return null;
   const d = new Date(val as string);
@@ -21,6 +27,52 @@ function toDateOrNull(val: unknown): string | null {
 function toBoolOrNull(val: unknown): boolean | null {
   if (val === null || val === undefined) return null;
   return val === 1 || val === true;
+}
+
+function mapLeadListProperty(row: Record<string, unknown>) {
+  return {
+    PropertyId: row.PropertyId as number,
+    Archived: toBoolOrNull(row.Archived) ?? false,
+    TerritorySlug: row.TerritorySlug as string,
+    PropertyType: row.PropertyType,
+    BatchId: row.BatchId,
+    Inserted: toISOOrNull(row.Inserted),
+    InsertedBy: row.InsertedBy,
+    LastModified: toISOOrNull(row.LastModified),
+    LastModifiedBy: row.LastModifiedBy,
+    PropertyReviewedDate: toISOOrNull(row.PropertyReviewedDate),
+    PropertyReviewedBy: row.PropertyReviewedBy,
+    PropertyReviewedByFriendlyName: row.PropertyReviewedByFriendlyName,
+    PropertyUrl: row.PropertyUrl,
+    AddressSlugVerbose: row.AddressSlugVerbose,
+    AddressSlugShort: row.AddressSlugShort,
+    Address1: row.Address1,
+    Streetname: row.Streetname,
+    Zip: row.Zip,
+    City: row.City,
+    State: row.State,
+    County: row.County,
+    GoogleCity: row.GoogleCity,
+    GoogleState: row.GoogleState,
+    GoogleCounty: row.GoogleCounty,
+    Latitude: row.Latitude,
+    Longitude: row.Longitude,
+    AutoTerritorySlug: row.AutoTerritorySlug,
+    ZillowPropertyId: row.ZillowPropertyId,
+    OwnerOfferStatus: row.OwnerOfferStatus,
+    DirectSellerNotes: row.DirectSellerNotes,
+    OwnerLeadSource: row.OwnerLeadSource,
+    Vacant: row.Vacant,
+    Septic: row.Septic,
+    RoadType: row.RoadType,
+    LeadCategory: row.LeadCategory,
+    LeadType: row.LeadType,
+    LeadClassification: row.LeadClassification,
+    LeadSubType2: row.LeadSubType2,
+    Status: row.Status,
+    is_current_lead_list: true,
+    ms_synced_at: new Date().toISOString(),
+  };
 }
 
 /**
@@ -546,6 +598,131 @@ export async function syncProperties(since?: string): Promise<{
 }
 
 /**
+ * Sync lean raw Lead List properties.
+ *
+ * Backfill mode (no since): upserts every current "0 Lead List" row.
+ * Incremental mode (since): upserts recently modified current rows and marks
+ * rows that moved out of "0 Lead List" as no longer current. Once moved out,
+ * syncProperties(since) owns the full ms_properties row.
+ */
+export async function syncLeadListProperties(since?: string): Promise<LeadListPropertySyncResult> {
+  const errors: string[] = [];
+  let upserted = 0;
+  let markedMovedOut = 0;
+
+  const { data: validTerritories } = await supabase.from("territories").select("TerritorySlug");
+  const validSlugs = new Set((validTerritories || []).map((t: { TerritorySlug: string }) => t.TerritorySlug));
+
+  let leadListWhere = "WHERE ps.Archived = 0 AND ps.Status = '0 Lead List'";
+  const leadListParams: (string | number)[] = [];
+  if (since) {
+    leadListWhere += " AND ps.LastModified > ?";
+    leadListParams.push(since);
+  }
+
+  let cursor = 0;
+  while (true) {
+    const rows = await queryMS<Record<string, unknown>>(
+      `SELECT
+         ps.PropertyId,
+         ps.Archived,
+         ps.TerritorySlug,
+         ps.PropertyType,
+         ps.BatchId,
+         ps.Inserted,
+         ps.InsertedBy,
+         ps.LastModified,
+         ps.LastModifiedBy,
+         ps.PropertyReviewedDate,
+         ps.PropertyReviewedBy,
+         ps.PropertyReviewedByFriendlyName,
+         ps.PropertyUrl,
+         ps.AddressSlugVerbose,
+         ps.AddressSlugShort,
+         ps.Address1,
+         ps.Streetname,
+         ps.Zip,
+         ps.City,
+         ps.State,
+         ps.County,
+         ps.GoogleCity,
+         ps.GoogleState,
+         ps.GoogleCounty,
+         ps.Latitude,
+         ps.Longitude,
+         ps.AutoTerritorySlug,
+         ps.ZillowPropertyId,
+         ps.OwnerOfferStatus,
+         ps.DirectSellerNotes,
+         ps.OwnerLeadSource,
+         ps.Vacant,
+         ps.Septic,
+         ps.RoadType,
+         ps.LeadCategory,
+         ps.LeadType,
+         ps.LeadClassification,
+         ps.LeadSubType2,
+         ps.Status
+       FROM PropertySummaries ps
+       ${leadListWhere} AND ps.PropertyId > ?
+       ORDER BY ps.PropertyId
+       LIMIT ${BATCH_SIZE}`,
+      [...leadListParams, cursor]
+    );
+
+    if (rows.length === 0) break;
+    cursor = rows.reduce((max, row) => Math.max(max, Number(row.PropertyId) || 0), cursor);
+
+    const records = rows
+      .filter((row) => validSlugs.has(row.TerritorySlug as string))
+      .map((row) => mapLeadListProperty(row));
+
+    if (records.length === 0) {
+      if (rows.length < BATCH_SIZE) break;
+      continue;
+    }
+
+    const { error } = await supabase.from("ms_lead_list_properties").upsert(records, { onConflict: "PropertyId" });
+    if (error) {
+      errors.push(`ms_lead_list_properties after PropertyId ${cursor}: ${error.message}`);
+    } else {
+      upserted += records.length;
+    }
+
+    if (rows.length < BATCH_SIZE) break;
+  }
+
+  if (since) {
+    const movedRows = await queryMS<{ PropertyId: number }>(
+      `SELECT ps.PropertyId
+       FROM PropertySummaries ps
+       WHERE ps.LastModified > ? AND (ps.Archived != 0 OR ps.Status != '0 Lead List')`,
+      [since]
+    );
+
+    const movedIds = movedRows.map((row) => row.PropertyId).filter(Boolean);
+    for (let i = 0; i < movedIds.length; i += BATCH_SIZE) {
+      const batchIds = movedIds.slice(i, i + BATCH_SIZE);
+      const { error } = await supabase
+        .from("ms_lead_list_properties")
+        .update({
+          is_current_lead_list: false,
+          ms_synced_at: new Date().toISOString(),
+        })
+        .in("PropertyId", batchIds);
+
+      if (error) {
+        errors.push(`ms_lead_list_properties moved-out batch ${i}: ${error.message}`);
+      } else {
+        markedMovedOut += batchIds.length;
+      }
+    }
+  }
+
+  return { upserted, markedMovedOut, errors };
+}
+
+/**
  * Sync Lead List aggregate counts.
  * Full recount — runs daily.
  */
@@ -600,4 +777,17 @@ export async function syncLeadListCounts(): Promise<{ synced: number; errors: st
   }
 
   return { synced, errors };
+}
+
+export async function syncLeadList(since?: string): Promise<{
+  counts: { synced: number; errors: string[] };
+  properties: LeadListPropertySyncResult;
+  errors: string[];
+}> {
+  const [counts, properties] = await Promise.all([syncLeadListCounts(), syncLeadListProperties(since)]);
+  return {
+    counts,
+    properties,
+    errors: [...counts.errors, ...properties.errors],
+  };
 }

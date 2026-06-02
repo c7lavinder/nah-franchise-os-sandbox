@@ -4,8 +4,8 @@ export const dynamic = "force-dynamic";
  * GET /api/l10
  *
  * Team-wide L10 operating view for FranDev sales + franchisee coaching.
- * This intentionally uses aggregate MasterSuite tables for Stage 0 lead-list
- * work so the page does not scan the raw 900k+ lead-list property set.
+ * Stage 0 lead-list volume uses lean raw ms_lead_list_properties when
+ * available, with ms_lead_list_counts as the fallback during rollout/backfill.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -26,6 +26,7 @@ type Issue = {
 type Todo = { TerritorySlug: string; title: string; assignee: string | null; due_date: string | null; done: boolean };
 type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string };
 type PropertyRow = { PropertyId: number; TerritorySlug: string };
+type LeadListPropertyRow = { PropertyId: number; TerritorySlug: string | null };
 type InventoryRow = { PropertyId: number; Inv_ContractedPurchaseDate: string | null; Inv_PurchaseDate: string | null };
 type L10PeriodKey = "T1" | "T3" | "T6" | "T12";
 
@@ -262,9 +263,26 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const rawLeadListRows = await fetchPaged<LeadListPropertyRow>((from, to) =>
+    supabase
+      .from("ms_lead_list_properties")
+      .select("PropertyId, TerritorySlug")
+      .eq("is_current_lead_list", true)
+      .in("TerritorySlug", activeSlugs)
+      .gte("Inserted", periodStart.toISOString())
+      .range(from, to)
+  );
+
   const leadListBySlug = new Map<string, number>();
-  for (const row of (leadListRes.data ?? []) as { TerritorySlug: string; count: number }[]) {
-    leadListBySlug.set(row.TerritorySlug, (leadListBySlug.get(row.TerritorySlug) ?? 0) + Number(row.count ?? 0));
+  if (rawLeadListRows.length > 0) {
+    for (const row of rawLeadListRows) {
+      if (!row.TerritorySlug) continue;
+      leadListBySlug.set(row.TerritorySlug, (leadListBySlug.get(row.TerritorySlug) ?? 0) + 1);
+    }
+  } else {
+    for (const row of (leadListRes.data ?? []) as { TerritorySlug: string; count: number }[]) {
+      leadListBySlug.set(row.TerritorySlug, (leadListBySlug.get(row.TerritorySlug) ?? 0) + Number(row.count ?? 0));
+    }
   }
 
   const history30 = await fetchPaged<HistRow>((from, to) =>

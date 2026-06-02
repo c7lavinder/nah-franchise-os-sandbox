@@ -86,11 +86,11 @@ async function main() {
     errors.push(`prospects: ${err.message}`);
   }
 
-  // Lead list counts
+  // Lead list counts + lean raw properties
   try {
-    console.log("\n[5/5] Syncing lead list counts...");
-    const { syncLeadListCounts } = require("@/lib/mastersuite/sync-properties");
-    const r = await syncLeadListCounts();
+    console.log("\n[5/5] Syncing lead list counts and lean properties...");
+    const { syncLeadList } = require("@/lib/mastersuite/sync-properties");
+    const r = await syncLeadList();
     results.leadList = r;
     console.log("  Done:", JSON.stringify(r).slice(0, 150));
   } catch (err: any) {

@@ -1,7 +1,12 @@
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import { syncTerritories } from "../lib/mastersuite/sync-territories";
-import { syncProperties, syncLeadListCounts } from "../lib/mastersuite/sync-properties";
+import {
+  syncLeadList,
+  syncLeadListCounts,
+  syncLeadListProperties,
+  syncProperties,
+} from "../lib/mastersuite/sync-properties";
 
 // Override the supabase client in sync modules to disable realtime
 process.env.SUPABASE_DISABLE_REALTIME = "true";
@@ -35,10 +40,33 @@ async function main() {
     }
   }
 
-  if (target === "lead-list" || target === "all") {
+  if (target === "lead-list-counts") {
     console.log("\nSyncing lead list counts...");
     const result = await syncLeadListCounts();
     console.log(`  Synced: ${result.synced}`);
+    if (result.errors.length > 0) {
+      console.log(`  Errors: ${result.errors.length}`);
+      result.errors.slice(0, 5).forEach((e) => console.log(`    - ${e}`));
+    }
+  }
+
+  if (target === "lead-list-properties") {
+    console.log("\nSyncing lead list properties...");
+    const result = await syncLeadListProperties(args[1]);
+    console.log(`  Upserted: ${result.upserted}`);
+    console.log(`  Moved out: ${result.markedMovedOut}`);
+    if (result.errors.length > 0) {
+      console.log(`  Errors: ${result.errors.length}`);
+      result.errors.slice(0, 5).forEach((e) => console.log(`    - ${e}`));
+    }
+  }
+
+  if (target === "lead-list" || target === "all") {
+    console.log("\nSyncing lead list counts and lean properties...");
+    const result = await syncLeadList(args[1]);
+    console.log(`  Count rows: ${result.counts.synced}`);
+    console.log(`  Properties upserted: ${result.properties.upserted}`);
+    console.log(`  Properties moved out: ${result.properties.markedMovedOut}`);
     if (result.errors.length > 0) {
       console.log(`  Errors: ${result.errors.length}`);
       result.errors.slice(0, 5).forEach((e) => console.log(`    - ${e}`));
