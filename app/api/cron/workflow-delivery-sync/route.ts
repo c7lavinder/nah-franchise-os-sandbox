@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { syncDeliveryData, syncStageEnrollments } from "@/lib/workflows/delivery-sync";
 
-export async function POST(request: NextRequest) {
+async function handleWorkflowDeliverySync(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader !== `Bearer ${cronSecret}` && process.env.NODE_ENV !== "development") {
@@ -27,10 +27,7 @@ export async function POST(request: NextRequest) {
     const startTime = Date.now();
 
     // Run both sync jobs
-    const [deliveryResult, enrollmentResult] = await Promise.all([
-      syncDeliveryData(),
-      syncStageEnrollments(),
-    ]);
+    const [deliveryResult, enrollmentResult] = await Promise.all([syncDeliveryData(), syncStageEnrollments()]);
 
     const durationMs = Date.now() - startTime;
 
@@ -57,9 +54,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("[workflow-delivery-sync] Fatal error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Sync failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Sync failed" }, { status: 500 });
   }
+}
+
+export async function GET(request: NextRequest) {
+  return handleWorkflowDeliverySync(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handleWorkflowDeliverySync(request);
 }

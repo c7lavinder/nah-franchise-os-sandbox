@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeAllWorkflows } from "@/lib/workflows/health-scoring";
 
-export async function POST(request: NextRequest) {
+async function handleWorkflowAnalysis(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader !== `Bearer ${cronSecret}` && process.env.NODE_ENV !== "development") {
@@ -42,9 +42,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ summary, analyses });
   } catch (err) {
     console.error("[workflow-analysis] Fatal error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Analysis failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Analysis failed" }, { status: 500 });
   }
+}
+
+export async function GET(request: NextRequest) {
+  return handleWorkflowAnalysis(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handleWorkflowAnalysis(request);
 }

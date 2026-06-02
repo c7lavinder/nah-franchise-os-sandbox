@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { runScheduler } from "@/lib/workflows/scheduler";
 
-export async function POST(request: NextRequest) {
+async function handleWorkflowScheduler(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader !== `Bearer ${cronSecret}` && process.env.NODE_ENV !== "development") {
@@ -27,9 +27,9 @@ export async function POST(request: NextRequest) {
 
     console.log(
       `[workflow-scheduler] Processed ${result.enrollmentsProcessed} enrollments, ` +
-      `${result.stepsExecuted} executed, ${result.stepsQueued} queued, ` +
-      `${result.enrollmentsAdvanced} advanced, ${result.enrollmentsExpired} expired, ` +
-      `${result.errors.length} errors in ${durationMs}ms`
+        `${result.stepsExecuted} executed, ${result.stepsQueued} queued, ` +
+        `${result.enrollmentsAdvanced} advanced, ${result.enrollmentsExpired} expired, ` +
+        `${result.errors.length} errors in ${durationMs}ms`
     );
 
     return NextResponse.json({
@@ -38,9 +38,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("[workflow-scheduler] Fatal error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Scheduler failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Scheduler failed" }, { status: 500 });
   }
+}
+
+export async function GET(request: NextRequest) {
+  return handleWorkflowScheduler(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handleWorkflowScheduler(request);
 }

@@ -21,7 +21,7 @@ import {
 /** Default: flag enrollments with no activity for 5+ days */
 const STALE_ENROLLMENT_DAYS = 5;
 
-export async function POST(request: NextRequest) {
+async function handleWorkflowNotifications(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader !== `Bearer ${cronSecret}` && process.env.NODE_ENV !== "development") {
@@ -34,13 +34,9 @@ export async function POST(request: NextRequest) {
       notifyStaleEnrollments(STALE_ENROLLMENT_DAYS),
     ]);
 
-    const totalCreated =
-      confirmationResult.alertsCreated +
-      healthResult.alertsCreated +
-      staleResult.alertsCreated;
+    const totalCreated = confirmationResult.alertsCreated + healthResult.alertsCreated + staleResult.alertsCreated;
 
-    const totalErrors =
-      confirmationResult.errors + healthResult.errors + staleResult.errors;
+    const totalErrors = confirmationResult.errors + healthResult.errors + staleResult.errors;
 
     return NextResponse.json({
       totalAlertsCreated: totalCreated,
@@ -53,9 +49,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     console.error("Workflow notifications cron failed:", err);
-    return NextResponse.json(
-      { error: "Workflow notifications cron failed" },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: "Workflow notifications cron failed" }, { status: 502 });
   }
+}
+
+export async function GET(request: NextRequest) {
+  return handleWorkflowNotifications(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handleWorkflowNotifications(request);
 }
