@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
+import { recordStageTransitionHistory } from "@/lib/contacts/stage-transition-logs";
 import { syncStageToGHL } from "@/lib/ghl/stage-sync";
 import { carryForwardContactEos } from "@/lib/eos/carry-forward";
 import { matchWorkflowTriggers } from "@/lib/workflows/trigger-matcher";
@@ -31,6 +32,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ contactId: string; pipelineId: string }> }
 ) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+
   try {
     const { contactId: rawId, pipelineId } = await params;
     const { reason, force, TerritorySlug } = (await request.json()) as {
@@ -96,14 +100,16 @@ export async function POST(
         })
         .eq("id", jps.id);
 
-      await supabase.from("pipeline_stage_history").insert({
-        journey_pipeline_state_id: jps.id,
-        from_stage_id: jps.current_stage_id,
-        to_stage_id: nextStage.id,
+      await recordStageTransitionHistory({
+        supabase,
+        journeyPipelineStateId: jps.id,
+        stages,
+        fromStageId: jps.current_stage_id,
+        toStageId: nextStage.id,
+        movedByUserId: user.id,
         reason: reason ?? (force ? "Skipped forward (territory)" : null),
-        was_skip: force ?? false,
-        was_revert: false,
-        was_auto: false,
+        timestamp: now,
+        forceSkip: force ?? false,
       });
 
       const { data: pipeline } = await supabase.from("pipelines").select("slug").eq("id", pipelineId).single();
@@ -210,17 +216,19 @@ export async function POST(
       })
       .in("id", jpsIds);
 
-    await supabase.from("pipeline_stage_history").insert(
-      jpsRows.map((r) => ({
-        journey_pipeline_state_id: r.id,
-        from_stage_id: r.current_stage_id,
-        to_stage_id: nextStage.id,
+    for (const row of jpsRows) {
+      await recordStageTransitionHistory({
+        supabase,
+        journeyPipelineStateId: row.id,
+        stages,
+        fromStageId: row.current_stage_id,
+        toStageId: nextStage.id,
+        movedByUserId: user.id,
         reason: reason ?? (force ? "Skipped forward" : null),
-        was_skip: force ?? false,
-        was_revert: false,
-        was_auto: false,
-      }))
-    );
+        timestamp: now,
+        forceSkip: force ?? false,
+      });
+    }
 
     const { data: pipeline } = await supabase.from("pipelines").select("slug").eq("id", pipelineId).single();
     const { data: nextStageDef } = await supabase

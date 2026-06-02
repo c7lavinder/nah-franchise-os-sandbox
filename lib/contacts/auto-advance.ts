@@ -13,6 +13,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { syncStageToGHL } from "@/lib/ghl/stage-sync";
 import { carryForwardContactEos } from "@/lib/eos/carry-forward";
 import { isSubStageMoveLog } from "@/lib/contacts/stage-visual-state";
+import { recordStageTransitionHistory } from "@/lib/contacts/stage-transition-logs";
 
 interface AutoAdvanceResult {
   advanced: boolean;
@@ -111,17 +112,18 @@ export async function checkAutoAdvance(jpsId: string, currentStageId: string): P
     })
     .in("id", ids);
 
-  await supabase.from("pipeline_stage_history").insert(
-    toAdvance.map((r) => ({
-      journey_pipeline_state_id: r.id,
-      from_stage_id: r.current_stage_id,
-      to_stage_id: nextStage.id,
+  for (const row of toAdvance) {
+    await recordStageTransitionHistory({
+      supabase,
+      journeyPipelineStateId: row.id,
+      stages: stages ?? [],
+      fromStageId: row.current_stage_id,
+      toStageId: nextStage.id,
       reason: "Auto-advanced: all required sub-tasks complete",
-      was_skip: false,
-      was_revert: false,
-      was_auto: true,
-    }))
-  );
+      timestamp: now,
+      wasAuto: true,
+    });
+  }
 
   // Auto-spawn when the new stage is terminal with an auto_spawn_pipeline_id.
   if (nextStage.is_terminal && nextStage.auto_spawn_pipeline_id) {

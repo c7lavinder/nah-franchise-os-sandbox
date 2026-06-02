@@ -18,7 +18,7 @@ interface SubTaskCircleProps {
   logCount: number;
   isExpanded: boolean;
   isMissingLog?: boolean;
-  onClick: () => void;
+  onClick?: () => void;
 }
 
 function getStateLabel(
@@ -47,12 +47,20 @@ export default function SubTaskCircle({
   onClick,
 }: SubTaskCircleProps) {
   const label = getStateLabel(state, stateType, firstStateLabel, secondStateLabel);
+  const clickable = Boolean(onClick);
 
   return (
     <button
       onClick={onClick}
+      disabled={!clickable}
       className={`flex items-center gap-3 w-full py-1.5 rounded-md px-2 transition-colors text-left ${
-        isMissingLog ? "bg-amber-50 hover:bg-amber-100/60" : "hover:bg-bg-hover"
+        isMissingLog
+          ? clickable
+            ? "bg-amber-50 hover:bg-amber-100/60"
+            : "bg-amber-50"
+          : clickable
+            ? "hover:bg-bg-hover"
+            : ""
       }`}
     >
       {/* Small circle */}

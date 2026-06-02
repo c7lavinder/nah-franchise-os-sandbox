@@ -24,7 +24,6 @@ import {
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { titleCase, capitalizeName } from "@/lib/format/contact";
 import SubTaskCircle from "@/components/contact/SubTaskCircle";
-import SubTaskLogModal from "@/components/contact/SubTaskLogModal";
 import { computeSubTaskVisualState } from "@/lib/contacts/stage-visual-state";
 import type { PipelineSubTask, SubTaskLog } from "@/lib/contacts/pipeline-state";
 import { useToast } from "@/components/ui/Toast";
@@ -89,8 +88,6 @@ export default function PipelineQuickPanel({
   const [journeyMembers, setJourneyMembers] = useState<JourneyMember[]>([]);
   const [appointments, setAppointments] = useState<{ title: string; startTime: string }[]>([]);
   const [acting, setActing] = useState(false);
-  const [logModalTask, setLogModalTask] = useState<PipelineSubTask | null>(null);
-  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [allStages, setAllStages] = useState<StageData[]>([]);
 
@@ -100,10 +97,9 @@ export default function PipelineQuickPanel({
     setLoading(true);
     try {
       // All fetches in parallel
-      const [stateRes, pendingRes, usersRes, membersRes, aptRes] = await Promise.all([
+      const [stateRes, pendingRes, membersRes, aptRes] = await Promise.all([
         apiFetch(`/api/contacts/${identifier}/pipeline-state`),
         ghlContactId ? apiFetch(`/api/workflows/pending-steps?ghl_contact_id=${ghlContactId}`) : Promise.resolve(null),
-        apiFetch("/api/pipeline/users"),
         apiFetch(`/api/contacts/${identifier}/journey-members`),
         ghlContactId ? apiFetch(`/api/contacts/${identifier}/appointments`) : Promise.resolve(null),
       ]);
@@ -129,12 +125,6 @@ export default function PipelineQuickPanel({
       if (pendingRes?.ok) {
         const d = await pendingRes.json();
         setPendingSteps((d.pendingSteps ?? []).slice(0, 5));
-      }
-
-      // Users
-      if (usersRes.ok) {
-        const d = await usersRes.json();
-        setUsers(d.users ?? []);
       }
 
       // Journey members
@@ -256,12 +246,6 @@ export default function PipelineQuickPanel({
     setActing(false);
   }
 
-  function handleLogSuccess() {
-    setLogModalTask(null);
-    void fetchData();
-    onRefresh();
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-6 bg-bg-secondary border border-border-default border-t-0 rounded-b-lg">
@@ -333,7 +317,6 @@ export default function PipelineQuickPanel({
                     secondStateLabel={task.second_state_label}
                     logCount={logs.length}
                     isExpanded={false}
-                    onClick={() => setLogModalTask(task)}
                   />
                 );
               })}
@@ -442,28 +425,6 @@ export default function PipelineQuickPanel({
           </>
         )}
       </div>
-
-      {/* Sub-task log modal */}
-      {logModalTask && (
-        <SubTaskLogModal
-          contactId={contactId}
-          subTaskId={logModalTask.id}
-          subTaskName={logModalTask.name}
-          stateType={logModalTask.state_type}
-          firstStateLabel={logModalTask.first_state_label}
-          secondStateLabel={logModalTask.second_state_label}
-          defaultLoggerUserId={logModalTask.default_logger_user_id ?? null}
-          defaultLoggerName={users.find((u) => u.id === logModalTask.default_logger_user_id)?.name ?? null}
-          users={users}
-          existingLogs={logsBySubTask[logModalTask.id] ?? []}
-          onClose={() => setLogModalTask(null)}
-          onSuccess={handleLogSuccess}
-          onLogDeleted={() => {
-            void fetchData();
-            onRefresh();
-          }}
-        />
-      )}
 
       {/* Territory creation modal — shown before closing a sales deal */}
       {showTerritoryModal && ghlContactId && (

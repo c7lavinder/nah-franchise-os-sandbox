@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
+import { recordStageTransitionHistory } from "@/lib/contacts/stage-transition-logs";
 import { createServerClient } from "@/lib/supabase/server";
 import { SUB_STAGE_MOVE_METADATA_KIND } from "@/lib/contacts/stage-visual-state";
 
@@ -77,17 +78,31 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: updateError.message }, { status: 500 });
       }
 
-      if (stageChanging) {
-        await supabase.from("pipeline_stage_history").insert({
-          journey_pipeline_state_id: body.stateId,
-          from_stage_id: current?.current_stage_id ?? null,
-          to_stage_id: subTask.stage_id,
-          moved_by_user_id: user.id,
-          reason: "Moved on pipeline board",
-          was_skip: false,
-          was_revert: false,
-          was_auto: false,
-        });
+      if (stageChanging && current?.current_stage_id) {
+        const { data: targetStage } = await supabase
+          .from("pipeline_stages")
+          .select("pipeline_id")
+          .eq("id", subTask.stage_id)
+          .single();
+
+        if (targetStage?.pipeline_id) {
+          const { data: stages } = await supabase
+            .from("pipeline_stages")
+            .select("id, sort_order")
+            .eq("pipeline_id", targetStage.pipeline_id)
+            .order("sort_order");
+
+          await recordStageTransitionHistory({
+            supabase,
+            journeyPipelineStateId: body.stateId,
+            stages: stages ?? [],
+            fromStageId: current.current_stage_id,
+            toStageId: subTask.stage_id,
+            movedByUserId: user.id,
+            reason: "Moved on pipeline board",
+            timestamp: now,
+          });
+        }
       }
 
       if (subTaskChanging) {
@@ -113,7 +128,7 @@ export async function POST(request: NextRequest) {
       // targetType === "unsorted" — move to stage, clear sub-task
       const { data: stage, error: sgError } = await supabase
         .from("pipeline_stages")
-        .select("id")
+        .select("id, pipeline_id")
         .eq("id", body.targetId)
         .single();
 
@@ -147,16 +162,22 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: updateError.message }, { status: 500 });
       }
 
-      if (stageChanging) {
-        await supabase.from("pipeline_stage_history").insert({
-          journey_pipeline_state_id: body.stateId,
-          from_stage_id: current?.current_stage_id ?? null,
-          to_stage_id: stage.id,
-          moved_by_user_id: user.id,
+      if (stageChanging && current?.current_stage_id) {
+        const { data: stages } = await supabase
+          .from("pipeline_stages")
+          .select("id, sort_order")
+          .eq("pipeline_id", stage.pipeline_id)
+          .order("sort_order");
+
+        await recordStageTransitionHistory({
+          supabase,
+          journeyPipelineStateId: body.stateId,
+          stages: stages ?? [],
+          fromStageId: current.current_stage_id,
+          toStageId: stage.id,
+          movedByUserId: user.id,
           reason: "Moved on pipeline board",
-          was_skip: false,
-          was_revert: false,
-          was_auto: false,
+          timestamp: now,
         });
       }
     }
