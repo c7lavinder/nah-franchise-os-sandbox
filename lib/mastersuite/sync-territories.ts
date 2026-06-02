@@ -117,7 +117,11 @@ async function fetchAll<T>(table: string, select: string, build: (query: any) =>
   return rows;
 }
 
-async function seedMissingTerritoryPipelineRows(): Promise<{ inserted: number; errors: string[] }> {
+async function syncTerritoryPipelineRowsToActiveStatus(): Promise<{
+  inserted: number;
+  deactivated: number;
+  errors: string[];
+}> {
   const errors: string[] = [];
 
   const [pipelines, stages, subTasks, territories, owners] = await Promise.all([
@@ -148,7 +152,37 @@ async function seedMissingTerritoryPipelineRows(): Promise<{ inserted: number; e
   const onboardingPipeline = pipelines.find((pipeline) => pipeline.slug === ONBOARDING_PIPELINE_SLUG);
   const runwayPipeline = pipelines.find((pipeline) => pipeline.slug === RUNWAY_PIPELINE_SLUG);
   if (!onboardingPipeline || !runwayPipeline) {
-    return { inserted: 0, errors: ["Missing onboarding or runway pipeline"] };
+    return { inserted: 0, deactivated: 0, errors: ["Missing onboarding or runway pipeline"] };
+  }
+
+  const activeTerritorySlugs = new Set(territories.map((territory) => territory.TerritorySlug));
+  const activePipelineIds = [onboardingPipeline.id, runwayPipeline.id];
+  const activeRows = await fetchAll<{ id: string; TerritorySlug: string | null }>(
+    "journey_pipeline_state",
+    "id, TerritorySlug",
+    (query) =>
+      query
+        .eq("is_active", true)
+        .in("pipeline_id", activePipelineIds)
+        .not("TerritorySlug", "is", null)
+  );
+  const rowsToDeactivate = activeRows.filter(
+    (row) => row.TerritorySlug && !activeTerritorySlugs.has(row.TerritorySlug)
+  );
+
+  let deactivated = 0;
+  const now = new Date().toISOString();
+  for (let i = 0; i < rowsToDeactivate.length; i += 500) {
+    const batch = rowsToDeactivate.slice(i, i + 500);
+    const { error } = await supabase
+      .from("journey_pipeline_state")
+      .update({ is_active: false, closed_at: now, updated_at: now })
+      .in(
+        "id",
+        batch.map((row) => row.id)
+      );
+    if (error) errors.push(`deactivate journey_pipeline_state batch ${i}: ${error.message}`);
+    else deactivated += batch.length;
   }
 
   const stageByPipelineAndSlug = new Map<string, { id: string; pipeline_id: string; slug: string }>();
@@ -182,7 +216,7 @@ async function seedMissingTerritoryPipelineRows(): Promise<{ inserted: number; e
     (query) =>
       query
         .eq("is_active", true)
-        .in("pipeline_id", [onboardingPipeline.id, runwayPipeline.id])
+        .in("pipeline_id", activePipelineIds)
         .not("TerritorySlug", "is", null)
   );
   const existingKeys = new Set(
@@ -214,9 +248,9 @@ async function seedMissingTerritoryPipelineRows(): Promise<{ inserted: number; e
         pipeline_id: pipeline.id,
         current_stage_id: stage.id,
         current_sub_task_id: firstSubTaskByStage.get(stage.id) ?? null,
-        current_sub_task_started_at: owner.start_date ?? new Date().toISOString(),
-        entered_pipeline_at: owner.start_date ?? new Date().toISOString(),
-        entered_current_stage_at: owner.start_date ?? new Date().toISOString(),
+        current_sub_task_started_at: owner.start_date ?? now,
+        entered_pipeline_at: owner.start_date ?? now,
+        entered_current_stage_at: owner.start_date ?? now,
         is_active: true,
       });
       existingKeys.add(key);
@@ -231,7 +265,7 @@ async function seedMissingTerritoryPipelineRows(): Promise<{ inserted: number; e
     else inserted += batch.length;
   }
 
-  return { inserted, errors };
+  return { inserted, deactivated, errors };
 }
 
 export async function syncTerritories(): Promise<{ synced: number; errors: string[] }> {
@@ -320,7 +354,7 @@ export async function syncTerritories(): Promise<{ synced: number; errors: strin
     }
   }
 
-  const pipelineStateResult = await seedMissingTerritoryPipelineRows();
+  const pipelineStateResult = await syncTerritoryPipelineRowsToActiveStatus();
   errors.push(...pipelineStateResult.errors);
 
   return { synced, errors };
