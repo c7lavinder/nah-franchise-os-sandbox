@@ -6,10 +6,10 @@ import { BarChart3, Loader2 } from "lucide-react";
 interface KPIs {
   leadsEntered: number;
   leadProgression: number | null;
-  activeInventory: number;
+  purchasedInPeriod: number;
   soldInPeriod: number;
+  avgLeadToPurchase: number | null;
   avgProfit: number | null;
-  conversionRate: number | null;
 }
 
 interface Props {
@@ -22,7 +22,9 @@ export default function TerritoryPerformanceCard({ TerritorySlug, Nickname }: Pr
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch(`/api/territories/${TerritorySlug}/performance`)
+    setLoading(true);
+    setKpis(null);
+    apiFetch(`/api/territories/${TerritorySlug}/performance?period=t3`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.kpis) setKpis(d.kpis);
@@ -45,36 +47,36 @@ export default function TerritoryPerformanceCard({ TerritorySlug, Nickname }: Pr
       <div className="flex items-center gap-1.5 mb-2">
         <BarChart3 size={14} className="text-text-tertiary" />
         <h3 className="text-[10px] font-semibold text-text-tertiary tracking-wider">
-          {Nickname.toUpperCase()} PERFORMANCE
+          {Nickname.toUpperCase()} T3 PERFORMANCE
         </h3>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">Leads Entered</div>
+          <div className="text-[10px] text-text-tertiary">Leads Entered T3</div>
           <div className="text-body-sm font-bold text-text-primary">{kpis.leadsEntered}</div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">Sold (3mo)</div>
+          <div className="text-[10px] text-text-tertiary">Purchases T3</div>
+          <div className="text-body-sm font-bold text-text-primary">{kpis.purchasedInPeriod}</div>
+        </div>
+        <div className="bg-bg-tertiary rounded px-2 py-1.5">
+          <div className="text-[10px] text-text-tertiary">Sold T3</div>
           <div className="text-body-sm font-bold text-text-primary">{kpis.soldInPeriod}</div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">Inventory</div>
-          <div className="text-body-sm font-bold text-text-primary">{kpis.activeInventory}</div>
-        </div>
-        <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">Conversion</div>
+          <div className="text-[10px] text-text-tertiary">Lead to Purchase</div>
           <div className="text-body-sm font-bold text-text-primary">
-            {kpis.conversionRate != null ? `${kpis.conversionRate}%` : "—"}
+            {kpis.avgLeadToPurchase != null ? `${kpis.avgLeadToPurchase}d` : "—"}
           </div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">Avg Profit</div>
+          <div className="text-[10px] text-text-tertiary">Avg Profit T3</div>
           <div className="text-body-sm font-bold text-text-primary">
             {kpis.avgProfit != null ? `$${kpis.avgProfit.toLocaleString()}` : "—"}
           </div>
         </div>
         <div className="bg-bg-tertiary rounded px-2 py-1.5">
-          <div className="text-[10px] text-text-tertiary">Progression</div>
+          <div className="text-[10px] text-text-tertiary">S1 to S4 T3</div>
           <div className="text-body-sm font-bold text-text-primary">
             {kpis.leadProgression != null ? `${kpis.leadProgression}%` : "—"}
           </div>
