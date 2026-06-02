@@ -77,6 +77,8 @@ interface WorkflowPreviewPanelProps {
   onConfirm: () => void;
   onKeepEditing: () => void;
   isConfirming: boolean;
+  confirmLabel?: string;
+  confirmingLabel?: string;
 }
 
 export default function WorkflowPreviewPanel({
@@ -84,6 +86,8 @@ export default function WorkflowPreviewPanel({
   onConfirm,
   onKeepEditing,
   isConfirming,
+  confirmLabel = "Confirm & Create",
+  confirmingLabel = "Creating...",
 }: WorkflowPreviewPanelProps) {
   if (!draft) {
     return (
@@ -253,7 +257,7 @@ export default function WorkflowPreviewPanel({
           className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-scout-purple text-white font-medium text-body-sm hover:bg-scout-purple/90 disabled:opacity-50 transition-colors"
         >
           <CheckCircle size={16} />
-          {isConfirming ? "Creating..." : "Confirm & Create"}
+          {isConfirming ? confirmingLabel : confirmLabel}
         </button>
         <button
           onClick={onKeepEditing}

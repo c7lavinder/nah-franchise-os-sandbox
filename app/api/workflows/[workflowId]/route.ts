@@ -45,6 +45,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const allowedFields = [
       "name",
       "description",
+      "workflow_type",
+      "trigger_type",
       "status",
       "primary_metric_name",
       "trigger_config",
