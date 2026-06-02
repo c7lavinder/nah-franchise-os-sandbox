@@ -24,6 +24,7 @@ import {
   ExternalLink,
   Flag,
   Sparkles,
+  Key,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -74,7 +75,7 @@ interface BugReport {
 type BugStatus = BugReport["status"];
 type BugPriority = BugReport["priority"] | "any";
 type BugTypeFilter = BugReport["report_type"] | "any";
-type AuditTab = "scout" | "bugs" | "flagged" | "briefs";
+type AuditTab = "scout" | "bugs" | "flagged" | "briefs" | "aiApi";
 
 interface JourneyBriefEntry {
   journey_id: string;
@@ -98,6 +99,19 @@ interface FlaggedResponse {
   ai_response: string;
   page_url: string | null;
   created_at: string;
+}
+
+interface AiApiActivity {
+  id: string;
+  token_prefix: string | null;
+  endpoint: string;
+  resource: string;
+  method: string;
+  status_code: number;
+  request_params: Record<string, unknown>;
+  user_agent: string | null;
+  created_at: string;
+  user: { id: string; email: string; full_name: string } | null;
 }
 
 const STATUS_CONFIG: Record<BugStatus, { label: string; icon: typeof Clock; color: string; bg: string }> = {
@@ -260,6 +274,11 @@ export default function AuditPage() {
   const [briefsLoading, setBriefsLoading] = useState(false);
   const [expandedBrief, setExpandedBrief] = useState<string | null>(null);
 
+  // AI API activity state
+  const [aiApiActivity, setAiApiActivity] = useState<AiApiActivity[]>([]);
+  const [aiApiLoading, setAiApiLoading] = useState(false);
+  const [expandedAiApi, setExpandedAiApi] = useState<string | null>(null);
+
   useEffect(() => {
     if (user && user.role !== "admin") {
       router.push("/daily-hq");
@@ -383,6 +402,23 @@ export default function AuditPage() {
     if (activeTab === "briefs") fetchBriefs();
   }, [activeTab, fetchBriefs]);
 
+  const fetchAiApiActivity = useCallback(async () => {
+    setAiApiLoading(true);
+    try {
+      const res = await apiFetch("/api/admin/ai-api-activity?limit=100");
+      const data = await res.json();
+      setAiApiActivity(Array.isArray(data.activity) ? data.activity : []);
+    } catch {
+      setAiApiActivity([]);
+    } finally {
+      setAiApiLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "aiApi") fetchAiApiActivity();
+  }, [activeTab, fetchAiApiActivity]);
+
   if (!user || user.role !== "admin") {
     return null;
   }
@@ -454,8 +490,121 @@ export default function AuditPage() {
               <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{briefs.length}</span>
             )}
           </button>
+          <button
+            onClick={() => setActiveTab("aiApi")}
+            className={`pb-3 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+              activeTab === "aiApi"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <Key className="w-4 h-4" />
+            AI API
+            {aiApiActivity.length > 0 && (
+              <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
+                {aiApiActivity.length}
+              </span>
+            )}
+          </button>
         </nav>
       </div>
+
+      {activeTab === "aiApi" && (
+        <>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">
+              Read-only API pulls from external AI agents. Token values stay hidden; only prefixes are shown.
+            </p>
+            <button
+              onClick={fetchAiApiActivity}
+              className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Refresh
+            </button>
+          </div>
+
+          {aiApiLoading ? (
+            <div className="text-center py-12 text-gray-400">Loading...</div>
+          ) : aiApiActivity.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">No AI API activity yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {aiApiActivity.map((row) => {
+                const isExpanded = expandedAiApi === row.id;
+                const time = new Date(row.created_at);
+                return (
+                  <div key={row.id} className="border rounded-lg bg-white border-gray-200">
+                    <button
+                      onClick={() => setExpandedAiApi(isExpanded ? null : row.id)}
+                      className="w-full px-4 py-3 flex items-start gap-3 text-left hover:bg-gray-50 transition-colors"
+                    >
+                      <Key size={14} className="text-blue-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="text-sm font-medium text-gray-900">{row.resource}</span>
+                          <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium">
+                            {row.method}
+                          </span>
+                          <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                            {row.status_code}
+                          </span>
+                          <span className="text-[11px] text-gray-400">
+                            {row.user?.full_name ?? row.user?.email ?? "Unknown user"}
+                          </span>
+                          <span className="text-[11px] text-gray-400">
+                            {time.toLocaleDateString()}{" "}
+                            {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 truncate">
+                          {row.endpoint} · {row.token_prefix ? `${row.token_prefix}...` : "no token prefix"}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 pt-1">
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        )}
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="px-4 pb-4 border-t border-gray-100 space-y-3 mt-0">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">
+                              Token
+                            </div>
+                            <p className="text-xs text-gray-700 font-mono">
+                              {row.token_prefix ? `${row.token_prefix}...` : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">
+                              User agent
+                            </div>
+                            <p className="text-xs text-gray-700">{row.user_agent ?? "—"}</p>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">
+                            Request params
+                          </div>
+                          <pre className="text-xs text-gray-600 whitespace-pre-wrap bg-gray-50 rounded p-2 border border-gray-100">
+                            {JSON.stringify(row.request_params ?? {}, null, 2)}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
 
       {activeTab === "bugs" && (
         <>
