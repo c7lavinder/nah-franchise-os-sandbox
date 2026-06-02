@@ -30,6 +30,7 @@ import LeadSourcesPanel from "@/components/settings/LeadSourcesPanel";
 import AppSettingsPanel from "@/components/settings/AppSettingsPanel";
 import PermissionsPanel from "@/components/settings/PermissionsPanel";
 import CalendarsPanel from "@/components/settings/CalendarsPanel";
+import MyAiTokenCard from "@/components/settings/MyAiTokenCard";
 
 interface SetupItem {
   label: string;
@@ -324,6 +325,8 @@ export default function SettingsPage() {
                 </>
               )}
             </div>
+
+            <MyAiTokenCard />
 
             {/* Scout AI Config */}
             <div className="card">
