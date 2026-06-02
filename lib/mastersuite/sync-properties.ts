@@ -12,6 +12,11 @@ type LeadListPropertySyncResult = {
   errors: string[];
 };
 
+type Stage0OriginSyncResult = {
+  upserted: number;
+  errors: string[];
+};
+
 function toISOOrNull(val: unknown): string | null {
   if (!val) return null;
   const d = new Date(val as string);
@@ -75,16 +80,175 @@ function mapLeadListProperty(row: Record<string, unknown>) {
   };
 }
 
+async function fetchPagedFromSupabase<T>(
+  queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null; error?: { message: string } | null }>
+) {
+  const rows: T[] = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await queryFactory(offset, offset + 999);
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < 1000) break;
+    offset += 1000;
+  }
+  return rows;
+}
+
+async function upsertStage0OriginsForPropertyIds(propertyIds: number[]): Promise<Stage0OriginSyncResult> {
+  const errors: string[] = [];
+  let upserted = 0;
+  const uniqueIds = [...new Set(propertyIds.filter(Boolean))];
+
+  for (let i = 0; i < uniqueIds.length; i += BATCH_SIZE) {
+    const batchIds = uniqueIds.slice(i, i + BATCH_SIZE);
+
+    try {
+      const { data: props, error: propsError } = await supabase
+        .from("ms_properties")
+        .select("PropertyId, TerritorySlug")
+        .in("PropertyId", batchIds);
+
+      if (propsError) {
+        errors.push(`stage0 origin properties batch ${i}: ${propsError.message}`);
+        continue;
+      }
+
+      const territoryByPropertyId = new Map(
+        ((props ?? []) as { PropertyId: number; TerritorySlug: string | null }[]).map((prop) => [
+          prop.PropertyId,
+          prop.TerritorySlug,
+        ])
+      );
+
+      if (territoryByPropertyId.size === 0) continue;
+
+      const { data: historyRows, error: historyError } = await supabase
+        .from("ms_property_status_history")
+        .select("PropertyId, Inserted, NewStatus")
+        .in("PropertyId", batchIds)
+        .eq("NewStatus", "0 Lead List")
+        .order("Inserted", { ascending: true });
+
+      if (historyError) {
+        errors.push(`stage0 origin status history batch ${i}: ${historyError.message}`);
+        continue;
+      }
+
+      const { data: leadListRows, error: leadListError } = await supabase
+        .from("ms_lead_list_properties")
+        .select("PropertyId, Inserted, Status")
+        .in("PropertyId", batchIds)
+        .not("Inserted", "is", null);
+
+      if (leadListError) {
+        errors.push(`stage0 origin lead-list batch ${i}: ${leadListError.message}`);
+        continue;
+      }
+
+      const originByPropertyId = new Map<
+        number,
+        { insertedAt: string; evidenceSource: "status_history" | "lead_list_properties"; evidenceStatus: string | null }
+      >();
+
+      for (const row of (leadListRows ?? []) as { PropertyId: number; Inserted: string; Status: string | null }[]) {
+        originByPropertyId.set(row.PropertyId, {
+          insertedAt: row.Inserted,
+          evidenceSource: "lead_list_properties",
+          evidenceStatus: row.Status,
+        });
+      }
+
+      for (const row of (historyRows ?? []) as { PropertyId: number; Inserted: string; NewStatus: string | null }[]) {
+        const existing = originByPropertyId.get(row.PropertyId);
+        if (!existing || new Date(row.Inserted) < new Date(existing.insertedAt)) {
+          originByPropertyId.set(row.PropertyId, {
+            insertedAt: row.Inserted,
+            evidenceSource: "status_history",
+            evidenceStatus: row.NewStatus,
+          });
+        } else if (existing.evidenceSource !== "status_history") {
+          originByPropertyId.set(row.PropertyId, {
+            insertedAt: existing.insertedAt,
+            evidenceSource: "status_history",
+            evidenceStatus: row.NewStatus,
+          });
+        }
+      }
+
+      const records = [...originByPropertyId.entries()]
+        .map(([PropertyId, origin]) => ({
+          PropertyId,
+          TerritorySlug: territoryByPropertyId.get(PropertyId),
+          original_stage0_inserted_at: origin.insertedAt,
+          evidence_source: origin.evidenceSource,
+          evidence_status: origin.evidenceStatus,
+          ms_synced_at: new Date().toISOString(),
+        }))
+        .filter((record) => record.TerritorySlug && record.original_stage0_inserted_at);
+
+      if (records.length === 0) continue;
+
+      const { error } = await supabase
+        .from("ms_property_stage0_origins")
+        .upsert(records, { onConflict: "PropertyId" });
+
+      if (error) {
+        errors.push(`ms_property_stage0_origins batch ${i}: ${error.message}`);
+      } else {
+        upserted += records.length;
+      }
+    } catch (err) {
+      errors.push(`stage0 origin batch ${i}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  return { upserted, errors };
+}
+
+export async function syncStage0Origins(propertyIds?: number[]): Promise<Stage0OriginSyncResult> {
+  if (propertyIds) return upsertStage0OriginsForPropertyIds(propertyIds);
+
+  const errors: string[] = [];
+  let upserted = 0;
+
+  try {
+    const allProperties = await fetchPagedFromSupabase<{ PropertyId: number }>((from, to) =>
+      supabase.from("ms_properties").select("PropertyId").range(from, to)
+    );
+
+    for (let i = 0; i < allProperties.length; i += BATCH_SIZE) {
+      const result = await upsertStage0OriginsForPropertyIds(
+        allProperties.slice(i, i + BATCH_SIZE).map((row) => row.PropertyId)
+      );
+      upserted += result.upserted;
+      errors.push(...result.errors);
+    }
+  } catch (err) {
+    errors.push(`stage0 origin backfill: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  return { upserted, errors };
+}
+
 /**
  * Sync properties from MasterSuite — non-Lead-List only.
  * Uses incremental sync via LastModified timestamp.
  */
 export async function syncProperties(since?: string): Promise<{
-  synced: { properties: number; calculations: number; inventory: number; statusHistory: number; royalty: number };
+  synced: {
+    properties: number;
+    calculations: number;
+    inventory: number;
+    statusHistory: number;
+    royalty: number;
+    stage0Origins: number;
+  };
   errors: string[];
 }> {
   const errors: string[] = [];
-  const counts = { properties: 0, calculations: 0, inventory: 0, statusHistory: 0, royalty: 0 };
+  const counts = { properties: 0, calculations: 0, inventory: 0, statusHistory: 0, royalty: 0, stage0Origins: 0 };
 
   // Build WHERE clause — exclude Lead List, optionally filter by LastModified
   let whereClause = "WHERE ps.Archived = 0 AND ps.Status != '0 Lead List'";
@@ -582,6 +746,12 @@ export async function syncProperties(since?: string): Promise<{
     }
   } catch (err) {
     errors.push(`royalty backfill: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  if (propertyIds.length > 0) {
+    const stage0Origins = await syncStage0Origins(propertyIds as number[]);
+    counts.stage0Origins += stage0Origins.upserted;
+    errors.push(...stage0Origins.errors);
   }
 
   // Mark journey briefs stale for territories that had property data synced

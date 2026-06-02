@@ -5,6 +5,7 @@ import {
   syncLeadList,
   syncLeadListCounts,
   syncLeadListProperties,
+  syncStage0Origins,
 } from "@/lib/mastersuite/sync-properties";
 
 export async function POST(request: NextRequest) {
@@ -19,7 +20,17 @@ export async function POST(request: NextRequest) {
     leadListOnly?: boolean;
     leadListCountsOnly?: boolean;
     leadListPropertiesOnly?: boolean;
+    stage0OriginsOnly?: boolean;
   };
+
+  if (body.stage0OriginsOnly) {
+    const result = await syncStage0Origins();
+    return NextResponse.json({
+      success: result.errors.length === 0,
+      synced: result.upserted,
+      errors: result.errors,
+    });
+  }
 
   if (body.leadListPropertiesOnly) {
     const result = await syncLeadListProperties(body.since);

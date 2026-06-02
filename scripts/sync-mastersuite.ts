@@ -6,6 +6,7 @@ import {
   syncLeadListCounts,
   syncLeadListProperties,
   syncProperties,
+  syncStage0Origins,
 } from "../lib/mastersuite/sync-properties";
 
 // Override the supabase client in sync modules to disable realtime
@@ -34,6 +35,17 @@ async function main() {
     console.log(`  Calculations: ${result.synced.calculations}`);
     console.log(`  Inventory: ${result.synced.inventory}`);
     console.log(`  Status History: ${result.synced.statusHistory}`);
+    console.log(`  Stage 0 Origins: ${result.synced.stage0Origins}`);
+    if (result.errors.length > 0) {
+      console.log(`  Errors: ${result.errors.length}`);
+      result.errors.slice(0, 10).forEach((e) => console.log(`    - ${e}`));
+    }
+  }
+
+  if (target === "stage0-origins") {
+    console.log("\nBackfilling Stage 0 origins...");
+    const result = await syncStage0Origins();
+    console.log(`  Upserted: ${result.upserted}`);
     if (result.errors.length > 0) {
       console.log(`  Errors: ${result.errors.length}`);
       result.errors.slice(0, 10).forEach((e) => console.log(`    - ${e}`));

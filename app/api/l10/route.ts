@@ -27,6 +27,7 @@ type Todo = { TerritorySlug: string; title: string; assignee: string | null; due
 type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string };
 type PropertyRow = { PropertyId: number; TerritorySlug: string };
 type LeadListPropertyRow = { PropertyId: number; TerritorySlug: string | null };
+type Stage0OriginRow = { PropertyId: number; TerritorySlug: string | null };
 type InventoryRow = { PropertyId: number; Inv_ContractedPurchaseDate: string | null; Inv_PurchaseDate: string | null };
 type L10PeriodKey = "T1" | "T3" | "T6" | "T12";
 
@@ -267,17 +268,33 @@ export async function GET(request: NextRequest) {
     supabase
       .from("ms_lead_list_properties")
       .select("PropertyId, TerritorySlug")
-      .eq("is_current_lead_list", true)
       .in("TerritorySlug", activeSlugs)
       .gte("Inserted", periodStart.toISOString())
       .range(from, to)
   );
+  const stage0OriginRows = await fetchPaged<Stage0OriginRow>((from, to) =>
+    supabase
+      .from("ms_property_stage0_origins")
+      .select("PropertyId, TerritorySlug")
+      .in("TerritorySlug", activeSlugs)
+      .gte("original_stage0_inserted_at", periodStart.toISOString())
+      .range(from, to)
+  );
 
   const leadListBySlug = new Map<string, number>();
-  if (rawLeadListRows.length > 0) {
-    for (const row of rawLeadListRows) {
-      if (!row.TerritorySlug) continue;
-      leadListBySlug.set(row.TerritorySlug, (leadListBySlug.get(row.TerritorySlug) ?? 0) + 1);
+  const leadListPropertyTerritory = new Map<number, string>();
+  for (const row of rawLeadListRows) {
+    if (!row.TerritorySlug) continue;
+    leadListPropertyTerritory.set(row.PropertyId, row.TerritorySlug);
+  }
+  for (const row of stage0OriginRows) {
+    if (!row.TerritorySlug || leadListPropertyTerritory.has(row.PropertyId)) continue;
+    leadListPropertyTerritory.set(row.PropertyId, row.TerritorySlug);
+  }
+
+  if (leadListPropertyTerritory.size > 0) {
+    for (const slug of leadListPropertyTerritory.values()) {
+      leadListBySlug.set(slug, (leadListBySlug.get(slug) ?? 0) + 1);
     }
   } else {
     for (const row of (leadListRes.data ?? []) as { TerritorySlug: string; count: number }[]) {
