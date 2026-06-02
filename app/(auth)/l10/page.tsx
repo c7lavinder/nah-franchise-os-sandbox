@@ -7,13 +7,11 @@ import {
   ArrowRight,
   BarChart3,
   CheckCircle2,
-  CircleDot,
   Clock3,
   Loader2,
   MapPin,
   Target,
   TrendingUp,
-  Users,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { apiFetch } from "@/lib/auth/api-fetch";
@@ -37,6 +35,7 @@ interface TerritoryFocus {
   health: number | null;
   leadListInsertedMonth: number;
   stage1Last30d: number;
+  stage2Last30d: number;
   stage3Last30d: number;
   stage4Last30d: number;
   contractsLast30d: number;
@@ -72,6 +71,7 @@ interface L10Data {
     activeTerritories: number;
     leadListInsertedMonth: number;
     stage1Last30d: number;
+    stage2Last30d: number;
     stage3Last30d: number;
     stage4Last30d: number;
     contractsLast30d: number;
@@ -99,6 +99,8 @@ const PERIOD_OPTIONS: { key: L10PeriodKey; label: string; sub: string }[] = [
   { key: "T6", label: "T6", sub: "180 days" },
   { key: "T12", label: "T12", sub: "365 days" },
 ];
+
+const MONTHLY_LEAD_LIST_BENCHMARK_PER_TERRITORY = 1000;
 
 function formatNumber(value: number | null | undefined) {
   if (value == null) return "-";
@@ -185,11 +187,32 @@ function ScoreboardStat({ label, value, sub }: { label: string; value: string | 
   );
 }
 
-function ProgressBar({ value, max }: { value: number; max: number }) {
-  const width = max > 0 ? Math.max(5, Math.round((value / max) * 100)) : 0;
+function BenchmarkProgress({
+  value,
+  benchmark,
+  label,
+}: {
+  value: number;
+  benchmark: number;
+  label: string;
+}) {
+  const progress = benchmark > 0 ? Math.min(Math.round((value / benchmark) * 100), 100) : 0;
+  const shortBy = Math.max(benchmark - value, 0);
+
   return (
-    <div className="h-2 rounded-full bg-slate-100">
-      <div className="h-2 rounded-full bg-nah-blue" style={{ width: `${width}%` }} />
+    <div>
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <span className="font-medium text-text-secondary">{label}</span>
+        <span className="font-semibold text-text-primary">
+          {formatNumber(value)} / {formatNumber(benchmark)}
+        </span>
+      </div>
+      <div className="mt-2 h-2 rounded-full bg-slate-100">
+        <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${progress}%` }} />
+      </div>
+      <div className="mt-1 text-xs text-text-tertiary">
+        {progress}% to pace{shortBy > 0 ? ` · ${formatNumber(shortBy)} short` : " · at or above pace"}
+      </div>
     </div>
   );
 }
@@ -210,6 +233,10 @@ function percent(numerator: number, denominator: number) {
 
 function periodLabel(data: L10Data) {
   return `${data.period.label} (${data.period.days} days)`;
+}
+
+function scaledLeadListBenchmark(activeTerritories: number, days: number) {
+  return Math.round(activeTerritories * MONTHLY_LEAD_LIST_BENCHMARK_PER_TERRITORY * (days / 30));
 }
 
 function territoryInsight(territory: TerritoryFocus, label: string) {
@@ -556,6 +583,123 @@ function AgendaBlock({
   );
 }
 
+function MeetingFocusCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  sub: string;
+  icon: React.ElementType;
+  tone: "blue" | "green" | "amber" | "red";
+}) {
+  const tones = {
+    blue: "border-nah-blue/20 bg-nah-blue-light text-nah-blue",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    amber: "border-amber-200 bg-amber-50 text-amber-700",
+    red: "border-red-200 bg-red-50 text-red-700",
+  };
+
+  return (
+    <div className="rounded-lg border border-border-default bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase text-text-tertiary">{label}</div>
+          <div className="mt-2 text-2xl font-bold text-text-primary">{value}</div>
+          <div className="mt-1 text-sm text-text-secondary">{sub}</div>
+        </div>
+        <div className={`rounded-lg border p-2 ${tones[tone]}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FlowMetric({
+  label,
+  value,
+  sub,
+  highlight,
+}: {
+  label: string;
+  value: number;
+  sub: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-lg border p-4 ${
+        highlight ? "border-nah-blue/25 bg-nah-blue-light" : "border-border-default bg-white"
+      }`}
+    >
+      <div className="text-xs font-semibold uppercase text-text-tertiary">{label}</div>
+      <div className="mt-2 text-3xl font-bold text-text-primary">{formatNumber(value)}</div>
+      <div className="mt-1 text-xs text-text-secondary">{sub}</div>
+    </div>
+  );
+}
+
+function SalesFunnelBoard({
+  stages,
+  selectedPeriodLabel,
+}: {
+  stages: { label: string; value: number; sub: string }[];
+  selectedPeriodLabel: string;
+}) {
+  const max = Math.max(...stages.map((stage) => stage.value), 1);
+  const colors = ["bg-sky-500", "bg-cyan-500", "bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-slate-700"];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid overflow-hidden rounded-lg border border-border-default bg-white shadow-sm sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        {stages.map((stage) => (
+          <ScoreboardStat key={stage.label} label={stage.label} value={formatNumber(stage.value)} sub={stage.sub} />
+        ))}
+      </div>
+
+      <section className="rounded-lg border border-border-default bg-white p-5 shadow-sm">
+        <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <SectionHeader
+            title="Sales Stage Funnel"
+            sub={`Properties counted once for each sales stage reached in ${selectedPeriodLabel}.`}
+          />
+          <div className="text-xs text-text-tertiary">Stage 0 lead list is shown separately from Stage 1+ movement.</div>
+        </div>
+        <div className="space-y-3">
+          {stages.map((stage, index) => {
+            const previous = index > 0 ? stages[index - 1].value : stage.value;
+            const conversion = index === 0 ? "Start" : `${percent(stage.value, previous)}% from prior`;
+            const width = stage.value > 0 ? Math.max(7, Math.round((stage.value / max) * 100)) : 2;
+
+            return (
+              <div
+                key={stage.label}
+                className="grid grid-cols-[92px_1fr_74px] items-center gap-3 md:grid-cols-[140px_1fr_100px]"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-text-primary">{stage.label}</div>
+                  <div className="text-xs text-text-tertiary">{conversion}</div>
+                </div>
+                <div className="relative h-11 overflow-hidden rounded-lg bg-slate-100">
+                  <div className={`h-full rounded-lg ${colors[index % colors.length]}`} style={{ width: `${width}%` }} />
+                  <div className="absolute inset-0 flex items-center px-3">
+                    <span className="text-sm font-bold text-white drop-shadow-sm">{formatNumber(stage.value)}</span>
+                  </div>
+                </div>
+                <div className="text-right text-xs leading-snug text-text-secondary">{stage.sub}</div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function TerritoryRow({ territory, selectedPeriodLabel }: { territory: TerritoryFocus; selectedPeriodLabel: string }) {
   const healthLabel = territory.health == null ? "No EOS score" : `${territory.health}% EOS`;
   const isCritical = territory.purchasesLast30d === 0 || (territory.health != null && territory.health < 60);
@@ -642,8 +786,6 @@ export default function L10Page() {
       .finally(() => setLoading(false));
   }, [user, selectedPeriod]);
 
-  const maxSalesStage = useMemo(() => Math.max(...(data?.devSales.stageCounts.map((s) => s.count) ?? [1]), 1), [data]);
-
   if (!user || user.role !== "admin") return null;
 
   if (loading) {
@@ -658,7 +800,7 @@ export default function L10Page() {
     return <div className="p-8 text-danger">Failed to load L10 data: {error ?? "Unknown error"}</div>;
   }
 
-  const { devSales, coaching, operatingHealth } = data;
+  const { coaching, operatingHealth } = data;
   const selectedPeriodLabel = periodLabel(data);
   const quartileGroups: Record<TerritoryFocus["quartile"], TerritoryFocus[]> = {
     Q1: coaching.territories.filter((territory) => territory.quartile === "Q1"),
@@ -675,6 +817,16 @@ export default function L10Page() {
     .sort((a, b) => b.score - a.score || a.rank - b.rank);
   const attentionSlugs = new Set([...q4Urgent, ...leadGenGaps, ...notWorkingLeads].map((territory) => territory.slug));
   const stage1ToOfferRate = percent(coaching.stage4Last30d, coaching.stage1Last30d);
+  const leadListBenchmark = scaledLeadListBenchmark(coaching.activeTerritories, data.period.days);
+  const salesStageMetrics = [
+    { label: "Lead List", value: coaching.leadListInsertedMonth, sub: "Stage 0" },
+    { label: "Stage 1", value: coaching.stage1Last30d, sub: selectedPeriodLabel },
+    { label: "Stage 2", value: coaching.stage2Last30d, sub: "early sales" },
+    { label: "Stage 3", value: coaching.stage3Last30d, sub: "worked leads" },
+    { label: "Stage 4", value: coaching.stage4Last30d, sub: "offers" },
+    { label: "Contracts", value: coaching.contractsLast30d, sub: "Stage 5" },
+    { label: "Purchases", value: coaching.purchasesLast30d, sub: "Stage 6" },
+  ];
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 p-6">
@@ -709,75 +861,80 @@ export default function L10Page() {
           <SectionHeader title="Sales" sub={`FranDev sales operating view for ${selectedPeriodLabel}.`} />
           <div className="text-xs text-text-tertiary">Updated {formatRelativeTime(data.generatedAt)}</div>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          <HeaderCard
-            label="Active Prospects"
-            value={devSales.activeProspects}
-            detail={`${devSales.newProspectsPeriod} new prospects in ${selectedPeriodLabel}.`}
-            icon={Users}
+        <div className="grid gap-4 md:grid-cols-4">
+          <MeetingFocusCard
+            label="Lead List Pace"
+            value={formatNumber(coaching.leadListInsertedMonth)}
+            sub={`${formatNumber(leadListBenchmark)} target for ${selectedPeriodLabel}`}
+            icon={BarChart3}
             tone="blue"
           />
-          <HeaderCard
-            label="Stage Movement"
-            value={devSales.movedPeriod}
-            detail={`Prospects that advanced through the sales pipeline in ${selectedPeriodLabel}.`}
+          <MeetingFocusCard
+            label="Stage 1 to Stage 4"
+            value={`${stage1ToOfferRate}%`}
+            sub={`${formatNumber(coaching.stage1Last30d)} leads to ${formatNumber(coaching.stage4Last30d)} offers`}
             icon={TrendingUp}
             tone="green"
           />
-          <HeaderCard
-            label="Stalled"
-            value={devSales.stalledProspects}
-            detail={`Prospects sitting in the same stage longer than ${selectedPeriodLabel}.`}
-            icon={AlertTriangle}
+          <MeetingFocusCard
+            label="Contracts"
+            value={formatNumber(coaching.contractsLast30d)}
+            sub="Stage 5 reached"
+            icon={CheckCircle2}
             tone="amber"
           />
+          <MeetingFocusCard
+            label="Purchases"
+            value={formatNumber(coaching.purchasesLast30d)}
+            sub="Stage 6 reached"
+            icon={Target}
+            tone="red"
+          />
         </div>
-        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <section className="rounded-lg border border-border-default bg-white p-5 shadow-sm">
-            <SectionHeader title="Sales Journey" sub="Pipeline shape for the franchise development sales path." />
-            <div className="mt-5 space-y-4">
-              {devSales.stageCounts.map((stage) => (
-                <div key={stage.stage}>
-                  <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                    <span className="truncate font-medium text-text-primary">{stage.stage}</span>
-                    <span className="font-semibold text-text-primary">{stage.count}</span>
-                  </div>
-                  <ProgressBar value={stage.count} max={maxSalesStage} />
-                </div>
-              ))}
-              {devSales.stageCounts.length === 0 && (
-                <div className="rounded-lg border border-border-default bg-bg-tertiary p-4 text-sm text-text-secondary">
-                  No active sales-stage data is available yet.
-                </div>
-              )}
-            </div>
-          </section>
 
-          <section className="rounded-lg border border-border-default bg-white shadow-sm">
-            <div className="border-b border-border-default p-5">
+        <SalesFunnelBoard stages={salesStageMetrics} selectedPeriodLabel={selectedPeriodLabel} />
+
+        <section className="rounded-lg border border-border-default bg-white p-5 shadow-sm">
+          <div className="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
+            <div>
+              <SectionHeader
+                title="Lead List Pace"
+                sub="How Stage 0 volume compares with the expected list-building pace."
+              />
+              <div className="mt-4">
+                <BenchmarkProgress
+                  value={coaching.leadListInsertedMonth}
+                  benchmark={leadListBenchmark}
+                  label={`Stage 0 records in ${selectedPeriodLabel}`}
+                />
+              </div>
+            </div>
+            <div>
               <SectionHeader
                 title="Sales Attention"
-                sub="People or ownership buckets where stalled work should get time."
+                sub="Where sales work is leaking before purchases."
               />
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <FlowMetric
+                  label="S1 to S3"
+                  value={percent(coaching.stage3Last30d, coaching.stage1Last30d)}
+                  sub="lead work rate"
+                  highlight
+                />
+                <FlowMetric
+                  label="S4 to Contracts"
+                  value={percent(coaching.contractsLast30d, coaching.stage4Last30d)}
+                  sub="offer conversion"
+                />
+                <FlowMetric
+                  label="Contracts to Buys"
+                  value={percent(coaching.purchasesLast30d, coaching.contractsLast30d)}
+                  sub="purchase conversion"
+                />
+              </div>
             </div>
-            <div className="divide-y divide-border-default">
-              {devSales.repsToFocus.map((rep) => (
-                <div key={rep.name} className="flex items-center justify-between gap-4 px-5 py-4">
-                  <div>
-                    <div className="font-semibold text-text-primary">{rep.name}</div>
-                    <div className="text-sm text-text-secondary">Stalled prospects assigned here</div>
-                  </div>
-                  <div className="rounded-lg bg-amber-50 px-3 py-2 text-lg font-bold text-amber-700">{rep.stalled}</div>
-                </div>
-              ))}
-              {devSales.repsToFocus.length === 0 && (
-                <div className="px-5 py-8 text-center text-sm text-text-secondary">
-                  No stalled rep focus buckets right now.
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </section>
 
       <section className="space-y-4">

@@ -143,6 +143,7 @@ export async function GET(request: NextRequest) {
           activeTerritories: 0,
           leadListInsertedMonth: 0,
           stage1Last30d: 0,
+          stage2Last30d: 0,
           stage3Last30d: 0,
           stage4Last30d: 0,
           contractsLast30d: 0,
@@ -326,8 +327,11 @@ export async function GET(request: NextRequest) {
   }
 
   const stage1BySlug = new Map<string, Set<number>>();
+  const stage2BySlug = new Map<string, Set<number>>();
   const stage3BySlug = new Map<string, Set<number>>();
   const stage4BySlug = new Map<string, Set<number>>();
+  const stage5BySlug = new Map<string, Set<number>>();
+  const stage6BySlug = new Map<string, Set<number>>();
   for (const row of history30) {
     const prop = propertyById.get(row.PropertyId);
     if (!prop) continue;
@@ -336,6 +340,10 @@ export async function GET(request: NextRequest) {
       if (!stage1BySlug.has(prop.TerritorySlug)) stage1BySlug.set(prop.TerritorySlug, new Set());
       stage1BySlug.get(prop.TerritorySlug)!.add(row.PropertyId);
     }
+    if (key === "2") {
+      if (!stage2BySlug.has(prop.TerritorySlug)) stage2BySlug.set(prop.TerritorySlug, new Set());
+      stage2BySlug.get(prop.TerritorySlug)!.add(row.PropertyId);
+    }
     if (key === "3") {
       if (!stage3BySlug.has(prop.TerritorySlug)) stage3BySlug.set(prop.TerritorySlug, new Set());
       stage3BySlug.get(prop.TerritorySlug)!.add(row.PropertyId);
@@ -343,6 +351,14 @@ export async function GET(request: NextRequest) {
     if (key === "4") {
       if (!stage4BySlug.has(prop.TerritorySlug)) stage4BySlug.set(prop.TerritorySlug, new Set());
       stage4BySlug.get(prop.TerritorySlug)!.add(row.PropertyId);
+    }
+    if (key === "5 Contract") {
+      if (!stage5BySlug.has(prop.TerritorySlug)) stage5BySlug.set(prop.TerritorySlug, new Set());
+      stage5BySlug.get(prop.TerritorySlug)!.add(row.PropertyId);
+    }
+    if (key === "6 Purchase") {
+      if (!stage6BySlug.has(prop.TerritorySlug)) stage6BySlug.set(prop.TerritorySlug, new Set());
+      stage6BySlug.get(prop.TerritorySlug)!.add(row.PropertyId);
     }
   }
 
@@ -381,10 +397,12 @@ export async function GET(request: NextRequest) {
     const stage1 = stage1BySlug.get(slug)?.size ?? 0;
     const stage4 = stage4BySlug.get(slug)?.size ?? 0;
     const leadList = leadListBySlug.get(slug) ?? 0;
+    const contracts = Math.max(contracts30BySlug.get(slug) ?? 0, stage5BySlug.get(slug)?.size ?? 0);
+    const purchases = Math.max(purchases30BySlug.get(slug) ?? 0, stage6BySlug.get(slug)?.size ?? 0);
     const openIssues = issuesBySlug.get(slug) ?? 0;
     const openTodos = todosBySlug.get(slug) ?? 0;
     const severity =
-      (purchases30 === 0 ? 4 : 0) +
+      (purchases === 0 ? 4 : 0) +
       (purchasesT12 < 3 ? 3 : purchasesT12 < 10 ? 1 : 0) +
       (health != null && health < 60 ? 2 : 0) +
       openIssues +
@@ -397,10 +415,11 @@ export async function GET(request: NextRequest) {
       health,
       leadListInsertedMonth: leadList,
       stage1Last30d: stage1,
+      stage2Last30d: stage2BySlug.get(slug)?.size ?? 0,
       stage3Last30d: stage3BySlug.get(slug)?.size ?? 0,
       stage4Last30d: stage4,
-      contractsLast30d: contracts30BySlug.get(slug) ?? 0,
-      purchasesLast30d: purchases30,
+      contractsLast30d: contracts,
+      purchasesLast30d: purchases,
       purchasesT12,
       openIssues,
       openTodos,
@@ -413,6 +432,7 @@ export async function GET(request: NextRequest) {
     ...territory,
     leadListInsertedMonth: monthlyPace(territory.leadListInsertedMonth, period.days),
     stage1Last30d: monthlyPace(territory.stage1Last30d, period.days),
+    stage2Last30d: monthlyPace(territory.stage2Last30d, period.days),
     stage3Last30d: monthlyPace(territory.stage3Last30d, period.days),
     stage4Last30d: monthlyPace(territory.stage4Last30d, period.days),
     contractsLast30d: monthlyPace(territory.contractsLast30d, period.days),
@@ -454,10 +474,11 @@ export async function GET(request: NextRequest) {
         activeTerritories: activeTerritories.length,
         leadListInsertedMonth: sum([...leadListBySlug.values()]),
         stage1Last30d: sum([...stage1BySlug.values()].map((set) => set.size)),
+        stage2Last30d: sum([...stage2BySlug.values()].map((set) => set.size)),
         stage3Last30d: sum([...stage3BySlug.values()].map((set) => set.size)),
         stage4Last30d: sum([...stage4BySlug.values()].map((set) => set.size)),
-        contractsLast30d: sum([...contracts30BySlug.values()]),
-        purchasesLast30d: sum([...purchases30BySlug.values()]),
+        contractsLast30d: sum(scoredTerritories.map((t) => t.contractsLast30d)),
+        purchasesLast30d: sum(scoredTerritories.map((t) => t.purchasesLast30d)),
         medianPurchasesT12: median(purchasesT12Values),
         highPerformersT12: scoredTerritories.filter((t) => t.purchasesT12 >= 10).length,
         territories: scoredTerritories,
