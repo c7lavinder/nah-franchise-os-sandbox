@@ -514,7 +514,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   function buildJourney(inv: InvRow) {
     const totalDays = Math.round((now.getTime() - new Date(inv.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24));
     const isSold = !!inv.Inv_SellDate;
-    const status = inv.Inv_Status;
 
     const stages = [
       { label: "Purchased", date: inv.Inv_PurchaseDate, days: null as number | null },
@@ -530,13 +529,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
       { label: "Listed", date: inv.Inv_ListDate, days: dBtwn(inv.Inv_CompletionDate, inv.Inv_ListDate) },
       {
-        label: isSold ? "Sold" : status === "Rented" ? "Rented" : "Sold",
+        label: isSold ? "Sold" : inv.Inv_Status === "Rented" ? "Rented" : "Sold",
         date: inv.Inv_SellDate,
         days: dBtwn(inv.Inv_ListDate, inv.Inv_SellDate),
       },
     ];
+    const currentStage = [...stages].reverse().find((stage) => stage.date)?.label ?? inv.Inv_Status ?? null;
 
-    return { stages, currentPhase: status, totalDays, purchaseDate: inv.Inv_PurchaseDate };
+    return { stages, currentPhase: currentStage, totalDays, purchaseDate: inv.Inv_PurchaseDate };
   }
 
   // 11. Sold property list
