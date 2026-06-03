@@ -1,6 +1,7 @@
 "use client";
 
 import { apiFetch } from "@/lib/auth/api-fetch";
+import AgentCharacterPortrait from "@/components/agents/AgentCharacterPortrait";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -70,6 +71,20 @@ const samplePrompts = [
   "What would make you more useful?",
   "Where are your biggest data gaps?",
 ];
+
+const agentPortraitVariants: Record<string, number> = {
+  "post-call": 0,
+  "contact-research": 1,
+  "territory-market": 2,
+  "pre-call-brief": 3,
+  "reengagement-signal": 4,
+  "journey-brief": 5,
+  "data-intelligence": 6,
+  "runway-pipeline-guardian": 7,
+  "marketing-intelligence": 8,
+  "workflow-qa": 9,
+  "eos-sync": 10,
+};
 
 const cardPortraits: Record<string, CardPortrait> = {
   "post-call": {
@@ -257,83 +272,30 @@ function metricLabel(value: number) {
   return Number.isFinite(value) ? value.toLocaleString() : "0";
 }
 
-function AgentBaseballPortrait({ agent, compact = false }: { agent: AgentTeamCard; compact?: boolean }) {
+function AgentCardPortrait({ agent, compact = false }: { agent: AgentTeamCard; compact?: boolean }) {
   const portrait = getCardPortrait(agent);
-  const opacity = agent.status === "planned" ? 0.66 : 1;
-  const idPrefix = `${agent.name}-${compact ? "compact" : "card"}`;
-  const lean = portrait.stance === "angle" ? 5 : 0;
 
   return (
     <div
       className={`relative overflow-hidden rounded-md border border-white/70 shadow-inner ${
         compact ? "h-24 w-20" : "aspect-[5/4] w-full"
       }`}
-      style={{ background: portrait.background }}
+      style={{
+        backgroundImage: `radial-gradient(circle at 50% 22%, #ffffff 0, ${portrait.background} 52%, ${portrait.pattern} 100%)`,
+      }}
     >
-      <svg viewBox="0 0 260 210" className="h-full w-full" role="img" aria-label={`${agent.label} portrait`}>
-        <defs>
-          <linearGradient id={`${idPrefix}-skin`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#ffe3c8" stopOpacity="0.42" />
-            <stop offset="0.46" stopColor={portrait.skin} />
-            <stop offset="1" stopColor={portrait.skinShadow} stopOpacity="0.82" />
-          </linearGradient>
-          <linearGradient id={`${idPrefix}-hair`} x1="0.2" y1="0" x2="0.75" y2="1">
-            <stop offset="0" stopColor={portrait.hair} />
-            <stop offset="1" stopColor={portrait.hairShadow} />
-          </linearGradient>
-          <linearGradient id={`${idPrefix}-jacket`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor={portrait.trim} stopOpacity="0.32" />
-            <stop offset="0.44" stopColor={portrait.shirt} />
-            <stop offset="1" stopColor={portrait.shirt} stopOpacity="0.9" />
-          </linearGradient>
-          <radialGradient id={`${idPrefix}-field`} cx="50%" cy="30%" r="74%">
-            <stop offset="0" stopColor="#ffffff" stopOpacity="0.94" />
-            <stop offset="0.56" stopColor={portrait.background} stopOpacity="0.72" />
-            <stop offset="1" stopColor={portrait.pattern} stopOpacity="0.34" />
-          </radialGradient>
-          <linearGradient id={`${idPrefix}-sheen`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#ffffff" stopOpacity="0.72" />
-            <stop offset="0.48" stopColor="#ffffff" stopOpacity="0" />
-            <stop offset="1" stopColor="#111827" stopOpacity="0.08" />
-          </linearGradient>
-        </defs>
-        <rect width="260" height="210" fill={`url(#${idPrefix}-field)`} />
-        <path d="M-18 171 C32 138 74 198 123 174 C178 147 215 160 278 129 L278 230 L-18 230 Z" fill={portrait.pattern} opacity="0.24" />
-        <path d="M55 47 H205" stroke={portrait.pattern} strokeWidth="8" strokeLinecap="round" opacity="0.12" />
-        <path d="M72 68 H188" stroke={portrait.pattern} strokeWidth="5" strokeLinecap="round" opacity="0.1" />
-
-        <g opacity={opacity} transform={`translate(${lean} 0)`}>
-          <ellipse cx="130" cy="198" rx="77" ry="14" fill="#0f172a" opacity="0.11" />
-          <path d="M75 210 C80 174 101 150 126 147 H134 C160 150 181 174 186 210 Z" fill={`url(#${idPrefix}-jacket)`} />
-          <path d="M104 154 L130 178 L156 154 L166 210 H94 Z" fill="#ffffff" opacity="0.96" />
-          <path d="M94 158 L126 184 L101 210 H72 C77 184 84 168 94 158 Z" fill={`url(#${idPrefix}-jacket)`} />
-          <path d="M166 158 L134 184 L159 210 H188 C183 184 176 168 166 158 Z" fill={`url(#${idPrefix}-jacket)`} />
-          <path d="M113 137 C115 153 122 160 130 160 C138 160 145 153 147 137 Z" fill={portrait.skinShadow} opacity="0.78" />
-
-          <ellipse cx="92" cy="110" rx="12" ry="17" fill={`url(#${idPrefix}-skin)`} />
-          <ellipse cx="168" cy="110" rx="12" ry="17" fill={`url(#${idPrefix}-skin)`} />
-          <path d="M86 93 C86 55 104 32 130 32 C156 32 174 55 174 93 V107 C174 138 156 158 130 158 C104 158 86 138 86 107 Z" fill={`url(#${idPrefix}-skin)`} />
-          <path d="M86 95 C88 58 105 34 130 32 C155 32 174 56 174 96 C158 91 143 80 132 59 C119 78 103 91 86 95 Z" fill={`url(#${idPrefix}-hair)`} />
-          <path d="M86 96 C101 91 118 78 132 58 C146 80 159 91 174 96 C171 64 154 36 130 36 C106 36 90 62 86 96 Z" fill={`url(#${idPrefix}-hair)`} opacity="0.88" />
-
-          <path d="M100 102 C108 98 117 98 124 102" stroke={portrait.hairShadow} strokeWidth="4" strokeLinecap="round" opacity="0.72" />
-          <path d="M137 102 C145 98 154 98 162 102" stroke={portrait.hairShadow} strokeWidth="4" strokeLinecap="round" opacity="0.72" />
-          <ellipse cx="114" cy="116" rx="5.5" ry="7" fill="#263445" opacity="0.9" />
-          <ellipse cx="148" cy="116" rx="5.5" ry="7" fill="#263445" opacity="0.9" />
-          <circle cx="116" cy="113" r="1.6" fill="#fff" opacity="0.8" />
-          <circle cx="150" cy="113" r="1.6" fill="#fff" opacity="0.8" />
-          <path d="M131 116 C128 125 128 131 136 133" stroke={portrait.skinShadow} strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.46" />
-          <path d="M115 141 C124 148 139 148 148 141" stroke="#6f3c25" strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.54" />
-          <path d="M102 129 C108 132 114 132 119 129" stroke={portrait.skinShadow} strokeWidth="2" strokeLinecap="round" opacity="0.18" />
-          <path d="M158 129 C152 132 146 132 141 129" stroke={portrait.skinShadow} strokeWidth="2" strokeLinecap="round" opacity="0.18" />
-        </g>
-        <rect width="260" height="210" fill={`url(#${idPrefix}-sheen)`} opacity="0.34" />
-      </svg>
-      <div className="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">
-        #{portrait.number}
-      </div>
-      <div className="absolute right-2 top-2 rounded bg-white/85 px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow">
-        {portrait.rating}
+      <AgentCharacterPortrait
+        variant={agentPortraitVariants[agent.name] ?? 0}
+        label={agent.label}
+        className={
+          compact
+            ? "absolute bottom-0 left-1/2 h-24 w-20 -translate-x-1/2 rounded-none border-0 bg-transparent shadow-none"
+            : "absolute bottom-0 left-1/2 h-full w-full -translate-x-1/2 rounded-none border-0 bg-transparent shadow-none"
+        }
+      />
+      <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white/70 to-transparent" />
+      <div className="absolute left-2 top-2 rounded bg-white/85 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-primary shadow-sm">
+        Character
       </div>
     </div>
   );
@@ -564,7 +526,7 @@ export default function AgentsPanel() {
                         >
                           <div className="mb-2 flex items-center justify-between gap-2">
                             <div className="rounded bg-black px-2 py-1 text-[10px] font-black uppercase tracking-wide text-white">
-                              FranDev AI
+                              AI teammate
                             </div>
                             <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusStyle[agent.status]}`}>
                               {agent.status.replace("-", " ")}
@@ -572,7 +534,7 @@ export default function AgentsPanel() {
                           </div>
 
                           <button type="button" onClick={() => setActiveAgentName(agent.name)} className="block w-full">
-                            <AgentBaseballPortrait agent={agent} />
+                            <AgentCardPortrait agent={agent} />
                           </button>
 
                           <div className="mt-3 rounded-md bg-white/90 p-3 shadow-sm">
@@ -668,7 +630,7 @@ export default function AgentsPanel() {
           {activeAgent ? (
             <>
               <div className="flex items-start gap-3 border-b border-border-default pb-4">
-                <AgentBaseballPortrait agent={activeAgent} compact />
+                <AgentCardPortrait agent={activeAgent} compact />
                 <div>
                   <h3 className="text-card-title text-text-primary">{activeAgent.label}</h3>
                   <p className="text-caption text-text-tertiary">{activeAgent.roleTitle}</p>
