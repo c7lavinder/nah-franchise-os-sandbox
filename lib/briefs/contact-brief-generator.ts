@@ -90,6 +90,7 @@ export async function generateContactBrief(contactId: string): Promise<{
       .from("call_participants")
       .select("calls!inner(started_at, ai_summary, call_types(name))")
       .eq("contact_id", contactId)
+      .is("calls.deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(5),
     supabase
@@ -189,6 +190,7 @@ export async function generateContactBrief(contactId: string): Promise<{
       .from("call_participants")
       .select("calls!inner(id, title, started_at, call_grades(overall_grade, criteria_scores))")
       .eq("contact_id", contactId)
+      .is("calls.deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(10),
     // Overdue commitments

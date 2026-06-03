@@ -3167,6 +3167,7 @@ async function executeGetContactCalls(input: Record<string, unknown>): Promise<T
         "call_id, calls!inner(id, title, started_at, duration_seconds, status, ai_summary, coaching_score, call_type_id)"
       )
       .eq("contact_id", supabaseId)
+      .is("calls.deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(10);
 

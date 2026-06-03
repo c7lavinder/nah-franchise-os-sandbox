@@ -12,7 +12,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { callId } = await params;
   const supabase = createServerClient();
 
-  const { data: call } = await supabase.from("calls").select("*").eq("id", callId).single();
+  const { data: call } = await supabase.from("calls").select("*").eq("id", callId).is("deleted_at", null).single();
   if (!call) return NextResponse.json({ error: "Call not found" }, { status: 404 });
 
   // Enrich with names + contact info

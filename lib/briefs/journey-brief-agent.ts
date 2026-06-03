@@ -141,6 +141,7 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
          call_types(name))`
       )
       .eq("contact_id", primaryContactId)
+      .is("calls.deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(5),
     supabase.from("candidate_intelligence").select("current_score").eq("contact_id", primaryContactId).maybeSingle(),

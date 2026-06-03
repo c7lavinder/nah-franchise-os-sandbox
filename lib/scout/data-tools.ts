@@ -542,6 +542,7 @@ async function getContactProfile(contactId: string, options: { refreshStaleBrief
           "call_id, role, calls!inner(id, title, started_at, duration_seconds, status, ai_summary, coaching_score, call_types(name))"
         )
         .eq("contact_id", sbContactId)
+        .is("calls.deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(5),
       supabase.from("objection_registry").select("*").eq("contact_id", sbContactId).eq("resolved", false),
@@ -557,6 +558,7 @@ async function getContactProfile(contactId: string, options: { refreshStaleBrief
         .from("call_participants")
         .select("calls!inner(id, started_at, duration_seconds, call_grades(overall_grade, overall_score, created_at))")
         .eq("contact_id", sbContactId)
+        .is("calls.deleted_at", null)
         .order("created_at", { ascending: true }),
       // All objections (including resolved) for recurring pattern detection
       supabase
@@ -1046,6 +1048,7 @@ async function getJourneyProfile(journeyId: string): Promise<string> {
         .from("call_participants")
         .select("contact_id, calls!inner(id, title, started_at, duration_seconds, ai_summary, call_types(name))")
         .in("contact_id", memberContactIds)
+        .is("calls.deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(10);
 
