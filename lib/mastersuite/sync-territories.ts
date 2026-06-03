@@ -91,14 +91,34 @@ function toDate(val: string | null): string | null {
 function onboardingStageSlug(territory: {
   FranchiseAgreementDate: string | null;
   TrainingCompleteDate: string | null;
+  hasPurchasedProperty: boolean;
 }) {
-  if (territory.TrainingCompleteDate) return "onboarded";
+  if (territory.hasPurchasedProperty) return "onboarded";
+  if (territory.TrainingCompleteDate) return "launch-prep";
   if (territory.FranchiseAgreementDate) return "training";
   return "setup";
 }
 
-function runwayStageSlug(territory: { FirstPurchaseDate: string | null }) {
-  return territory.FirstPurchaseDate ? "running" : "first-offer";
+async function getPurchasedTerritorySlugs(): Promise<Set<string>> {
+  const purchasedInventory = await fetchAll<{ PropertyId: number }>("ms_property_inventory", "PropertyId", (query) =>
+    query.not("Inv_PurchaseDate", "is", null)
+  );
+  const propertyIds = [...new Set(purchasedInventory.map((row) => row.PropertyId).filter(Boolean))];
+  const slugs = new Set<string>();
+
+  for (let i = 0; i < propertyIds.length; i += 500) {
+    const batch = propertyIds.slice(i, i + 500);
+    const properties = await fetchAll<{ PropertyId: number; TerritorySlug: string | null }>(
+      "ms_properties",
+      "PropertyId, TerritorySlug",
+      (query) => query.in("PropertyId", batch)
+    );
+    for (const property of properties) {
+      if (property.TerritorySlug) slugs.add(property.TerritorySlug);
+    }
+  }
+
+  return slugs;
 }
 
 async function fetchAll<T>(table: string, select: string, build: (query: any) => any = (query) => query): Promise<T[]> {
@@ -124,7 +144,7 @@ async function syncTerritoryPipelineRowsToActiveStatus(): Promise<{
 }> {
   const errors: string[] = [];
 
-  const [pipelines, stages, subTasks, territories, owners] = await Promise.all([
+  const [pipelines, stages, subTasks, territories, owners, purchasedTerritorySlugs] = await Promise.all([
     fetchAll<{ id: string; slug: string }>("pipelines", "id, slug"),
     fetchAll<{ id: string; pipeline_id: string; slug: string }>("pipeline_stages", "id, pipeline_id, slug"),
     fetchAll<{ id: string; stage_id: string; sort_order: number | null }>(
@@ -147,6 +167,7 @@ async function syncTerritoryPipelineRowsToActiveStatus(): Promise<{
       "TerritorySlug, ghl_contact_id, start_date",
       (query) => query.is("end_date", null)
     ),
+    getPurchasedTerritorySlugs(),
   ]);
 
   const onboardingPipeline = pipelines.find((pipeline) => pipeline.slug === ONBOARDING_PIPELINE_SLUG);
@@ -156,18 +177,22 @@ async function syncTerritoryPipelineRowsToActiveStatus(): Promise<{
   }
 
   const activeTerritorySlugs = new Set(territories.map((territory) => territory.TerritorySlug));
+  const runwayEligibleTerritorySlugs = new Set(
+    territories
+      .filter((territory) => territory.FirstPurchaseDate || purchasedTerritorySlugs.has(territory.TerritorySlug))
+      .map((territory) => territory.TerritorySlug)
+  );
   const activePipelineIds = [onboardingPipeline.id, runwayPipeline.id];
-  const activeRows = await fetchAll<{ id: string; TerritorySlug: string | null }>(
+  const activeRows = await fetchAll<{ id: string; pipeline_id: string; TerritorySlug: string | null }>(
     "journey_pipeline_state",
-    "id, TerritorySlug",
-    (query) =>
-      query
-        .eq("is_active", true)
-        .in("pipeline_id", activePipelineIds)
-        .not("TerritorySlug", "is", null)
+    "id, pipeline_id, TerritorySlug",
+    (query) => query.eq("is_active", true).in("pipeline_id", activePipelineIds).not("TerritorySlug", "is", null)
   );
   const rowsToDeactivate = activeRows.filter(
-    (row) => row.TerritorySlug && !activeTerritorySlugs.has(row.TerritorySlug)
+    (row) =>
+      row.TerritorySlug &&
+      (!activeTerritorySlugs.has(row.TerritorySlug) ||
+        (row.pipeline_id === runwayPipeline.id && !runwayEligibleTerritorySlugs.has(row.TerritorySlug)))
   );
 
   let deactivated = 0;
@@ -213,11 +238,7 @@ async function syncTerritoryPipelineRowsToActiveStatus(): Promise<{
   const existingRows = await fetchAll<{ journey_id: string; TerritorySlug: string | null; pipeline_id: string }>(
     "journey_pipeline_state",
     "journey_id, TerritorySlug, pipeline_id",
-    (query) =>
-      query
-        .eq("is_active", true)
-        .in("pipeline_id", activePipelineIds)
-        .not("TerritorySlug", "is", null)
+    (query) => query.eq("is_active", true).in("pipeline_id", activePipelineIds).not("TerritorySlug", "is", null)
   );
   const existingKeys = new Set(
     existingRows.map((row) => `${row.journey_id}:${row.TerritorySlug ?? ""}:${row.pipeline_id}`)
@@ -230,12 +251,16 @@ async function syncTerritoryPipelineRowsToActiveStatus(): Promise<{
     const territory = activeTerritoryBySlug.get(owner.TerritorySlug);
     if (!journey || !territory) continue;
 
-    const onboardingStage = stageByPipelineAndSlug.get(`${onboardingPipeline.id}:${onboardingStageSlug(territory)}`);
-    const runwayStage = stageByPipelineAndSlug.get(`${runwayPipeline.id}:${runwayStageSlug(territory)}`);
-    for (const [pipeline, stage] of [
-      [onboardingPipeline, onboardingStage],
-      [runwayPipeline, runwayStage],
-    ] as const) {
+    const hasPurchasedProperty = !!territory.FirstPurchaseDate || purchasedTerritorySlugs.has(territory.TerritorySlug);
+    const onboardingStage = stageByPipelineAndSlug.get(
+      `${onboardingPipeline.id}:${onboardingStageSlug({ ...territory, hasPurchasedProperty })}`
+    );
+    const pipelineStages = [[onboardingPipeline, onboardingStage]] as const;
+    const stagesToSeed = hasPurchasedProperty
+      ? [...pipelineStages, [runwayPipeline, stageByPipelineAndSlug.get(`${runwayPipeline.id}:running`)] as const]
+      : pipelineStages;
+
+    for (const [pipeline, stage] of stagesToSeed) {
       if (!stage) {
         errors.push(`${owner.TerritorySlug}: missing stage for ${pipeline.slug}`);
         continue;
