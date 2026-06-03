@@ -633,7 +633,7 @@ function NoSoldFallback({
   sub: string;
   isMoney?: boolean;
 }) {
-  if (value != null && value > 0)
+  if (value != null && (isMoney || value > 0))
     return <KPICard icon={Icon} label={label} value={isMoney ? fmt$(value) : String(value)} sub={sub} />;
   return (
     <div className="bg-bg-secondary rounded-lg p-3">
