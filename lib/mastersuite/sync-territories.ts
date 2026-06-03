@@ -1,5 +1,6 @@
 import { queryMS } from "./client";
 import { getServiceSupabase } from "./supabase";
+import { emptyRunwayFacts, runwayTargetForFacts, type RunwayFacts } from "./runway-target";
 
 const supabase = getServiceSupabase();
 const ONBOARDING_PIPELINE_SLUG = "onboarding";
@@ -99,26 +100,68 @@ function onboardingStageSlug(territory: {
   return "setup";
 }
 
-async function getPurchasedTerritorySlugs(): Promise<Set<string>> {
-  const purchasedInventory = await fetchAll<{ PropertyId: number }>("ms_property_inventory", "PropertyId", (query) =>
-    query.not("Inv_PurchaseDate", "is", null)
-  );
-  const propertyIds = [...new Set(purchasedInventory.map((row) => row.PropertyId).filter(Boolean))];
-  const slugs = new Set<string>();
+function propertyStageNumber(status: string | null): number | null {
+  const match = (status ?? "").trim().match(/^(\d+)/);
+  return match ? Number(match[1]) : null;
+}
 
-  for (let i = 0; i < propertyIds.length; i += 500) {
-    const batch = propertyIds.slice(i, i + 500);
-    const properties = await fetchAll<{ PropertyId: number; TerritorySlug: string | null }>(
-      "ms_properties",
-      "PropertyId, TerritorySlug",
-      (query) => query.in("PropertyId", batch)
-    );
-    for (const property of properties) {
-      if (property.TerritorySlug) slugs.add(property.TerritorySlug);
-    }
+async function getRunwayFactsByTerritory(): Promise<Map<string, RunwayFacts>> {
+  const [properties, inventory, statusHistory] = await Promise.all([
+    fetchAll<{ PropertyId: number; TerritorySlug: string | null }>("ms_properties", "PropertyId, TerritorySlug"),
+    fetchAll<{
+      PropertyId: number;
+      Inv_ContractedPurchaseDate: string | null;
+      Inv_PurchaseDate: string | null;
+      Inv_ConstructionStartDate: string | null;
+      Inv_CompletionDate: string | null;
+    }>(
+      "ms_property_inventory",
+      "PropertyId, Inv_ContractedPurchaseDate, Inv_PurchaseDate, Inv_ConstructionStartDate, Inv_CompletionDate"
+    ),
+    fetchAll<{ PropertyId: number; NewStatus: string | null }>("ms_property_status_history", "PropertyId, NewStatus"),
+  ]);
+
+  const territoryByPropertyId = new Map(
+    properties
+      .filter((property) => property.TerritorySlug)
+      .map((property) => [property.PropertyId, property.TerritorySlug as string])
+  );
+  const factsByTerritory = new Map<string, RunwayFacts>();
+  const offerPropertyIdsByTerritory = new Map<string, Set<number>>();
+
+  function factsForTerritory(slug: string): RunwayFacts {
+    const existing = factsByTerritory.get(slug);
+    if (existing) return existing;
+    const facts = emptyRunwayFacts();
+    factsByTerritory.set(slug, facts);
+    return facts;
   }
 
-  return slugs;
+  for (const row of inventory) {
+    const slug = territoryByPropertyId.get(row.PropertyId);
+    if (!slug) continue;
+    const facts = factsForTerritory(slug);
+    if (row.Inv_ContractedPurchaseDate) facts.contractCount++;
+    if (row.Inv_PurchaseDate) facts.purchaseCount++;
+    if (row.Inv_ConstructionStartDate) facts.constructionStartCount++;
+    if (row.Inv_CompletionDate) facts.completionCount++;
+  }
+
+  for (const row of statusHistory) {
+    const stageNumber = propertyStageNumber(row.NewStatus);
+    if (stageNumber === null || stageNumber < 4) continue;
+    const slug = territoryByPropertyId.get(row.PropertyId);
+    if (!slug) continue;
+    const ids = offerPropertyIdsByTerritory.get(slug) ?? new Set<number>();
+    ids.add(row.PropertyId);
+    offerPropertyIdsByTerritory.set(slug, ids);
+  }
+
+  for (const [slug, propertyIds] of offerPropertyIdsByTerritory) {
+    factsForTerritory(slug).offerCount = propertyIds.size;
+  }
+
+  return factsByTerritory;
 }
 
 async function fetchAll<T>(table: string, select: string, build: (query: any) => any = (query) => query): Promise<T[]> {
@@ -144,12 +187,12 @@ async function syncTerritoryPipelineRowsToActiveStatus(): Promise<{
 }> {
   const errors: string[] = [];
 
-  const [pipelines, stages, subTasks, territories, owners, purchasedTerritorySlugs] = await Promise.all([
+  const [pipelines, stages, subTasks, territories, owners, runwayFactsByTerritory] = await Promise.all([
     fetchAll<{ id: string; slug: string }>("pipelines", "id, slug"),
     fetchAll<{ id: string; pipeline_id: string; slug: string }>("pipeline_stages", "id, pipeline_id, slug"),
-    fetchAll<{ id: string; stage_id: string; sort_order: number | null }>(
+    fetchAll<{ id: string; stage_id: string; slug: string; sort_order: number | null }>(
       "pipeline_sub_tasks",
-      "id, stage_id, sort_order"
+      "id, stage_id, slug, sort_order"
     ),
     fetchAll<{
       TerritorySlug: string;
@@ -167,7 +210,7 @@ async function syncTerritoryPipelineRowsToActiveStatus(): Promise<{
       "TerritorySlug, ghl_contact_id, start_date",
       (query) => query.is("end_date", null)
     ),
-    getPurchasedTerritorySlugs(),
+    getRunwayFactsByTerritory(),
   ]);
 
   const onboardingPipeline = pipelines.find((pipeline) => pipeline.slug === ONBOARDING_PIPELINE_SLUG);
@@ -179,7 +222,10 @@ async function syncTerritoryPipelineRowsToActiveStatus(): Promise<{
   const activeTerritorySlugs = new Set(territories.map((territory) => territory.TerritorySlug));
   const runwayEligibleTerritorySlugs = new Set(
     territories
-      .filter((territory) => territory.FirstPurchaseDate || purchasedTerritorySlugs.has(territory.TerritorySlug))
+      .filter((territory) => {
+        const facts = runwayFactsByTerritory.get(territory.TerritorySlug) ?? emptyRunwayFacts();
+        return territory.FirstPurchaseDate || facts.purchaseCount > 0;
+      })
       .map((territory) => territory.TerritorySlug)
   );
   const activePipelineIds = [onboardingPipeline.id, runwayPipeline.id];
@@ -218,6 +264,7 @@ async function syncTerritoryPipelineRowsToActiveStatus(): Promise<{
   for (const task of [...subTasks].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))) {
     if (!firstSubTaskByStage.has(task.stage_id)) firstSubTaskByStage.set(task.stage_id, task.id);
   }
+  const subTaskByStageAndSlug = new Map(subTasks.map((task) => [`${task.stage_id}:${task.slug}`, task.id]));
 
   const activeTerritoryBySlug = new Map(territories.map((territory) => [territory.TerritorySlug, territory]));
   const activeOwners = owners.filter((owner) => owner.ghl_contact_id && activeTerritoryBySlug.has(owner.TerritorySlug));
@@ -235,29 +282,53 @@ async function syncTerritoryPipelineRowsToActiveStatus(): Promise<{
   );
   const journeyByContact = new Map(journeys.map((journey) => [journey.primary_contact_id, journey]));
 
-  const existingRows = await fetchAll<{ journey_id: string; TerritorySlug: string | null; pipeline_id: string }>(
+  const existingRows = await fetchAll<{
+    id: string;
+    journey_id: string;
+    TerritorySlug: string | null;
+    pipeline_id: string;
+    current_stage_id: string;
+    current_sub_task_id: string | null;
+    is_active: boolean;
+  }>(
     "journey_pipeline_state",
-    "journey_id, TerritorySlug, pipeline_id",
-    (query) => query.eq("is_active", true).in("pipeline_id", activePipelineIds).not("TerritorySlug", "is", null)
+    "id, journey_id, TerritorySlug, pipeline_id, current_stage_id, current_sub_task_id, is_active",
+    (query) => query.in("pipeline_id", activePipelineIds).not("TerritorySlug", "is", null)
   );
-  const existingKeys = new Set(
-    existingRows.map((row) => `${row.journey_id}:${row.TerritorySlug ?? ""}:${row.pipeline_id}`)
-  );
+  const existingByKey = new Map<string, (typeof existingRows)[number]>();
+  for (const row of existingRows) {
+    const key = `${row.journey_id}:${row.TerritorySlug ?? ""}:${row.pipeline_id}`;
+    const existing = existingByKey.get(key);
+    if (!existing || (row.is_active && !existing.is_active)) {
+      existingByKey.set(key, row);
+    }
+  }
 
   const records: Record<string, unknown>[] = [];
+  const rowsToUpdate: Array<{
+    id: string;
+    current_stage_id: string;
+    current_sub_task_id: string | null;
+    is_active: boolean;
+  }> = [];
   for (const owner of activeOwners) {
     const contact = owner.ghl_contact_id ? contactByGhl.get(owner.ghl_contact_id) : null;
     const journey = contact ? journeyByContact.get(contact.id) : null;
     const territory = activeTerritoryBySlug.get(owner.TerritorySlug);
     if (!journey || !territory) continue;
 
-    const hasPurchasedProperty = !!territory.FirstPurchaseDate || purchasedTerritorySlugs.has(territory.TerritorySlug);
+    const runwayFacts = runwayFactsByTerritory.get(territory.TerritorySlug) ?? emptyRunwayFacts();
+    const hasPurchasedProperty = !!territory.FirstPurchaseDate || runwayFacts.purchaseCount > 0;
+    const runwayTarget = runwayTargetForFacts(runwayFacts, !!territory.FirstPurchaseDate);
     const onboardingStage = stageByPipelineAndSlug.get(
       `${onboardingPipeline.id}:${onboardingStageSlug({ ...territory, hasPurchasedProperty })}`
     );
     const pipelineStages = [[onboardingPipeline, onboardingStage]] as const;
-    const stagesToSeed = hasPurchasedProperty
-      ? [...pipelineStages, [runwayPipeline, stageByPipelineAndSlug.get(`${runwayPipeline.id}:running`)] as const]
+    const stagesToSeed = runwayTarget
+      ? [
+          ...pipelineStages,
+          [runwayPipeline, stageByPipelineAndSlug.get(`${runwayPipeline.id}:${runwayTarget.stageSlug}`)] as const,
+        ]
       : pipelineStages;
 
     for (const [pipeline, stage] of stagesToSeed) {
@@ -266,20 +337,65 @@ async function syncTerritoryPipelineRowsToActiveStatus(): Promise<{
         continue;
       }
       const key = `${journey.id}:${owner.TerritorySlug}:${pipeline.id}`;
-      if (existingKeys.has(key)) continue;
+      const targetSubTaskId =
+        pipeline.id === runwayPipeline.id && runwayTarget?.subTaskSlug
+          ? (subTaskByStageAndSlug.get(`${stage.id}:${runwayTarget.subTaskSlug}`) ?? firstSubTaskByStage.get(stage.id))
+          : firstSubTaskByStage.get(stage.id);
+      const existing = existingByKey.get(key);
+      if (existing) {
+        const nextSubTaskId = targetSubTaskId ?? null;
+        if (
+          existing.current_stage_id !== stage.id ||
+          existing.current_sub_task_id !== nextSubTaskId ||
+          existing.is_active !== true
+        ) {
+          rowsToUpdate.push({
+            id: existing.id,
+            current_stage_id: stage.id,
+            current_sub_task_id: nextSubTaskId,
+            is_active: true,
+          });
+        }
+        continue;
+      }
       records.push({
         journey_id: journey.id,
         TerritorySlug: owner.TerritorySlug,
         pipeline_id: pipeline.id,
         current_stage_id: stage.id,
-        current_sub_task_id: firstSubTaskByStage.get(stage.id) ?? null,
+        current_sub_task_id: targetSubTaskId ?? null,
         current_sub_task_started_at: owner.start_date ?? now,
         entered_pipeline_at: owner.start_date ?? now,
         entered_current_stage_at: owner.start_date ?? now,
         is_active: true,
       });
-      existingKeys.add(key);
+      existingByKey.set(key, {
+        id: "",
+        journey_id: journey.id,
+        TerritorySlug: owner.TerritorySlug,
+        pipeline_id: pipeline.id,
+        current_stage_id: stage.id,
+        current_sub_task_id: targetSubTaskId ?? null,
+        is_active: true,
+      });
     }
+  }
+
+  for (const row of rowsToUpdate) {
+    const { error } = await supabase
+      .from("journey_pipeline_state")
+      .update({
+        current_stage_id: row.current_stage_id,
+        current_sub_task_id: row.current_sub_task_id,
+        entered_current_stage_at: now,
+        current_sub_task_started_at: now,
+        is_active: row.is_active,
+        closed_at: null,
+        closed_reason: null,
+        updated_at: now,
+      })
+      .eq("id", row.id);
+    if (error) errors.push(`journey_pipeline_state update ${row.id}: ${error.message}`);
   }
 
   let inserted = 0;
