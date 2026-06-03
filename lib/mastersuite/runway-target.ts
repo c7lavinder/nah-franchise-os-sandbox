@@ -8,7 +8,7 @@ export type RunwayFacts = {
 
 export type RunwayTarget = {
   stageSlug: "first-purchase" | "inventory-building" | "running";
-  subTaskSlug: "first-contract" | "closing" | "construction-start" | "first-completed" | "hundred-offers" | null;
+  subTaskSlug: "first-contract" | "closing" | "construction-start" | "first-completed" | "twenty-five-offers" | null;
 };
 
 export function emptyRunwayFacts(): RunwayFacts {
@@ -26,7 +26,7 @@ export function runwayTargetForFacts(
   hasTerritoryFirstPurchaseDate: boolean
 ): RunwayTarget | null {
   if (facts.purchaseCount >= 3) return { stageSlug: "running", subTaskSlug: null };
-  if (facts.offerCount >= 100) return { stageSlug: "inventory-building", subTaskSlug: "hundred-offers" };
+  if (facts.offerCount >= 25) return { stageSlug: "inventory-building", subTaskSlug: "twenty-five-offers" };
   if (facts.completionCount >= 1) return { stageSlug: "inventory-building", subTaskSlug: "first-completed" };
   if (facts.constructionStartCount >= 1) return { stageSlug: "first-purchase", subTaskSlug: "construction-start" };
   if (facts.purchaseCount >= 1 || hasTerritoryFirstPurchaseDate) {

@@ -324,7 +324,7 @@ async function syncTerritoryPipelineRowsToActiveStatus(): Promise<{
       `${onboardingPipeline.id}:${onboardingStageSlug({ ...territory, hasPurchasedProperty })}`
     );
     const pipelineStages = [[onboardingPipeline, onboardingStage]] as const;
-    const stagesToSeed = runwayTarget
+    const stagesToSeed = hasPurchasedProperty && runwayTarget
       ? [
           ...pipelineStages,
           [runwayPipeline, stageByPipelineAndSlug.get(`${runwayPipeline.id}:${runwayTarget.stageSlug}`)] as const,

@@ -1,4 +1,4 @@
--- Put 1st Completed before 100 Offers in Runway Inventory Building.
+-- Put 1st Completed before 25 Offers in Runway Inventory Building.
 
 DO $$
 DECLARE
@@ -13,11 +13,11 @@ BEGIN
     UPDATE pipeline_sub_tasks
     SET sort_order = CASE slug
       WHEN 'first-completed' THEN 1
-      WHEN 'hundred-offers' THEN 2
+      WHEN 'twenty-five-offers' THEN 2
       WHEN 'three-purchased' THEN 3
       ELSE sort_order
     END
     WHERE stage_id = v_inventory_id
-      AND slug IN ('first-completed', 'hundred-offers', 'three-purchased');
+      AND slug IN ('first-completed', 'twenty-five-offers', 'three-purchased');
   END IF;
 END $$;

@@ -26,16 +26,16 @@ describe("runwayTargetForFacts", () => {
     });
   });
 
-  it("orders Inventory Building milestones as 1st Completed before 100 Offers before Running", () => {
+  it("orders Inventory Building milestones as 1st Completed before 25 Offers before Running", () => {
     expect(runwayTargetForFacts(facts({ purchaseCount: 1, completionCount: 1 }), false)).toEqual({
       stageSlug: "inventory-building",
       subTaskSlug: "first-completed",
     });
-    expect(runwayTargetForFacts(facts({ purchaseCount: 1, completionCount: 1, offerCount: 100 }), false)).toEqual({
+    expect(runwayTargetForFacts(facts({ purchaseCount: 1, completionCount: 1, offerCount: 25 }), false)).toEqual({
       stageSlug: "inventory-building",
-      subTaskSlug: "hundred-offers",
+      subTaskSlug: "twenty-five-offers",
     });
-    expect(runwayTargetForFacts(facts({ purchaseCount: 3, completionCount: 1, offerCount: 100 }), false)).toEqual({
+    expect(runwayTargetForFacts(facts({ purchaseCount: 3, completionCount: 1, offerCount: 25 }), false)).toEqual({
       stageSlug: "running",
       subTaskSlug: null,
     });

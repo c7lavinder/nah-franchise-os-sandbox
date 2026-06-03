@@ -60,9 +60,8 @@ BEGIN
     'closing-set',
     'closing',
     'construction-start',
-    'hundred-offers',
+    'twenty-five-offers',
     'three-purchased',
     'first-completed'
   );
 END $$;
-
