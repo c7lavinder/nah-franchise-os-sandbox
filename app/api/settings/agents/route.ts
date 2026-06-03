@@ -3,29 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
-
-const AGENT_DEFS = [
-  { name: "post-call", label: "Post-Call Agent", trigger: "Read.ai webhook (auto), Generate button (manual)" },
-  { name: "contact-research", label: "Contact Research", trigger: "New contact, Research button, 30-day cron" },
-  { name: "territory-market", label: "Territory Market", trigger: "Territory presented, Research button, 30-day cron" },
-  { name: "pre-call-brief", label: "Pre-Call Brief", trigger: "Call scheduled, daily 7am cron" },
-  { name: "reengagement-signal", label: "Re-engagement Signal", trigger: "Monthly cron (1st of month)" },
-  { name: "journey-brief", label: "Journey Brief", trigger: "Stage change, call graded, property sync, nightly cron" },
-  {
-    name: "data-intelligence",
-    label: "Data Intelligence",
-    trigger: "Manual data coverage audit, future weekly cron",
-    description:
-      "Maps what data exists, where it is stored, how Scout retrieves it, and which sources need sync or indexing work.",
-  },
-  {
-    name: "runway-pipeline-guardian",
-    label: "Runway Pipeline Guardian",
-    trigger: "After MasterSuite territory sync, every 30-minute cron, Run button",
-    description:
-      "Audits runway eligibility and stage placement against MasterSuite evidence: purchase required, 1st completed, 25 offers, and 3 purchased/running.",
-  },
-];
+import { AGENT_CATEGORIES, AGENT_REGISTRY } from "@/lib/agents/agent-registry";
 
 export async function GET(request: NextRequest) {
   {
@@ -50,13 +28,23 @@ export async function GET(request: NextRequest) {
 
   const agents = [];
 
-  for (const def of AGENT_DEFS) {
+  for (const def of AGENT_REGISTRY) {
     // Count runs MTD
-    const { count: runsMTD } = await supabase
+    const runQuery = supabase
       .from("integration_logs")
       .select("id", { count: "exact", head: true })
       .eq("integration_name", def.name)
       .gte("created_at", monthStart);
+
+    const { count: runsMTD } = await runQuery;
+
+    const { data: lastRun } = await supabase
+      .from("integration_logs")
+      .select("created_at, status, error_message")
+      .eq("integration_name", def.name)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     // Count suggestions MTD. Post-call writes to call_data_extractions;
     // the other agents write to data_update_suggestions.
@@ -82,12 +70,15 @@ export async function GET(request: NextRequest) {
 
     agents.push({
       ...def,
-      enabled: toggles[def.name] !== false,
+      enabled: def.status !== "planned" && toggles[def.name] !== false,
       runsMTD: runsMTD ?? 0,
       suggestionsMTD,
       costEstMTD: `$${costEst}`,
+      lastRunAt: lastRun?.created_at ?? null,
+      lastStatus: lastRun?.status ?? null,
+      lastError: lastRun?.error_message ?? null,
     });
   }
 
-  return NextResponse.json({ agents });
+  return NextResponse.json({ categories: AGENT_CATEGORIES, agents });
 }
