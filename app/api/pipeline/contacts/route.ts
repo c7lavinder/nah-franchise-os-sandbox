@@ -117,15 +117,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // For board view: fetch active rows + inactive rows in terminal stages.
-    // Terminal stages (Closed, Onboarded, Running) have is_active=false from
-    // the backfill but still need to appear on the board.
-    let terminalStageIds: string[] = [];
-    if (boardView) {
-      const { data: terminalStages } = await supabase.from("pipeline_stages").select("id").eq("is_terminal", true);
-      terminalStageIds = (terminalStages ?? []).map((s) => s.id);
-    }
-
     // Fetch every matching jps row, paginated. Total count is derived post-
     // dedupe since the unfiltered view collapses journeys across pipelines.
     const allRows: Record<string, unknown>[] = [];
@@ -158,31 +149,6 @@ export async function GET(request: NextRequest) {
       offset += PAGE_SIZE;
 
       if (allRows.length >= 10000) break;
-    }
-
-    // Board view: also fetch inactive rows in terminal stages
-    if (boardView && terminalStageIds.length > 0) {
-      let tOffset = 0;
-      let tMore = true;
-      while (tMore) {
-        let dbQuery = supabase
-          .from("journey_pipeline_state")
-          .select(SELECT_FIELDS)
-          .eq("is_active", false)
-          .in("current_stage_id", terminalStageIds);
-
-        if (matchingContactIds) dbQuery = dbQuery.in("journeys.primary_contact_id", matchingContactIds);
-        dbQuery = dbQuery.order("entered_current_stage_at", { ascending: false });
-        dbQuery = dbQuery.range(tOffset, tOffset + PAGE_SIZE - 1);
-
-        const { data: rows, error } = await dbQuery;
-        if (error) break;
-
-        allRows.push(...(rows ?? []));
-        tMore = (rows?.length ?? 0) === PAGE_SIZE;
-        tOffset += PAGE_SIZE;
-        if (allRows.length >= 10000) break;
-      }
     }
 
     const now = Date.now();
