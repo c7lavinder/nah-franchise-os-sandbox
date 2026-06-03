@@ -103,7 +103,9 @@ export default function BulkComposerModal({ contacts, initialKind = "sms", onClo
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
-            kind === "sms" ? { type: "SMS", message: body } : { type: "Email", subject, html: body }
+            kind === "sms"
+              ? { type: "SMS", message: body, confirmed: true }
+              : { type: "Email", subject, html: body, confirmed: true }
           ),
         });
         if (!res.ok) {

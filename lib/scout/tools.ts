@@ -445,8 +445,8 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   {
     name: "complete_task",
     description:
-      "Mark a GHL task as complete. Use when the user says 'check off', 'complete', 'done', or 'mark as done' for a task. " +
-      "If there is only one open task for the contact, complete it without asking which one.",
+      "Prepare a task-completion recommendation for human review. NEVER marks a GHL task complete directly. " +
+      "Use when the user says 'check off', 'complete', 'done', or 'mark as done' for a task.",
     input_schema: {
       type: "object",
       properties: {

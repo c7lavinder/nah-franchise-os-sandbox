@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  CUSTOMER_FACING_SENDS_ENABLED_ENV,
   SEND_SAFETY_CONTRACT,
+  customerFacingSendsEnabled,
   isWithinQuietHours,
   isCustomerFacingGHLActionCode,
   isCustomerFacingScoutSend,
   validateScoutActionApproval,
 } from "@/lib/ghl/action-safety";
+import { executeGHLAction } from "@/lib/ghl/actions/executor";
 import type { DraftedAction } from "@/types/scout";
 
 function messageAction(status: DraftedAction["status"]): DraftedAction {
@@ -54,5 +57,22 @@ describe("send safety contract", () => {
   it("enforces the configured quiet-hours window across midnight", () => {
     expect(isWithinQuietHours(new Date("2026-05-29T03:00:00.000Z"))).toBe(true); // 23:00 America/New_York
     expect(isWithinQuietHours(new Date("2026-05-29T14:00:00.000Z"))).toBe(false); // 10:00 America/New_York
+  });
+
+  it("keeps customer-facing sends disabled unless the live-send env switch is enabled", async () => {
+    const previous = process.env[CUSTOMER_FACING_SENDS_ENABLED_ENV];
+    delete process.env[CUSTOMER_FACING_SENDS_ENABLED_ENV];
+
+    expect(customerFacingSendsEnabled()).toBe(false);
+
+    const decision = await executeGHLAction("C1", { contactId: "ghl-contact-1", message: "Test" }, "user-1", null);
+    expect(decision.success).toBe(false);
+    expect(decision.error).toContain(CUSTOMER_FACING_SENDS_ENABLED_ENV);
+
+    if (previous === undefined) {
+      delete process.env[CUSTOMER_FACING_SENDS_ENABLED_ENV];
+    } else {
+      process.env[CUSTOMER_FACING_SENDS_ENABLED_ENV] = previous;
+    }
   });
 });

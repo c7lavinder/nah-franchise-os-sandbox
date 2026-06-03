@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";
+import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 
 interface ActionToExecute {
@@ -24,11 +25,21 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { callId: string } }
 ) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+
   try {
     const body = (await request.json()) as { actions: ActionToExecute[] };
 
     if (!body.actions?.length) {
       return NextResponse.json({ error: "No actions to execute" }, { status: 400 });
+    }
+
+    if (body.actions.some((action) => action.type === "sms" || action.type === "email")) {
+      return NextResponse.json(
+        { error: "Customer-facing call actions must use the Scout draft-review-confirm flow.", success: false },
+        { status: 409 }
+      );
     }
 
     const results: { action: string; status: "success" | "failed"; error?: string }[] = [];

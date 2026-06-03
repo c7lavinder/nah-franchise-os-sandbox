@@ -6,17 +6,33 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { sendMessage } from "@/lib/ghl/client";
+import { requireAuth } from "@/lib/auth";
+import { customerFacingSendsDisabledReason, customerFacingSendsEnabled } from "@/lib/ghl/action-safety";
+import { sendMessage } from "@/lib/ghl/client";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ contactId: string }> }
 ) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+
   const { contactId } = await params;
   const body = await request.json();
 
   if (!body.type || !["SMS", "Email"].includes(body.type)) {
     return NextResponse.json({ error: "type must be SMS or Email" }, { status: 400 });
+  }
+
+  if (body.confirmed !== true) {
+    return NextResponse.json(
+      { error: "Customer-facing sends require explicit human confirmation.", success: false },
+      { status: 409 }
+    );
+  }
+
+  if (!customerFacingSendsEnabled()) {
+    return NextResponse.json({ error: customerFacingSendsDisabledReason(), success: false }, { status: 409 });
   }
 
   try {

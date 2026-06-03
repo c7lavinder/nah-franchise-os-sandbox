@@ -57,6 +57,8 @@ const AUTO_EXECUTE_TYPES: WorkflowStepType[] = [
   "trigger_workflow",
 ];
 
+const CUSTOMER_FACING_SEND_STEP_TYPES = new Set<WorkflowStepType>(["sms", "email", "send_reminder"]);
+
 /**
  * Maps workflow step types to GHL action codes.
  * Steps in this map are executed via the shared executeGHLAction() executor,
@@ -295,8 +297,11 @@ async function processEnrollment(
       continue;
     }
 
-    // Check if this step should auto-execute or queue for confirmation
-    const requiresConfirmation = step.requires_confirmation && !AUTO_EXECUTE_TYPES.includes(step.step_type);
+    // Customer-facing send steps always queue for human confirmation, even
+    // when older workflow data has requires_confirmation=false.
+    const requiresConfirmation =
+      CUSTOMER_FACING_SEND_STEP_TYPES.has(step.step_type) ||
+      (step.requires_confirmation && !AUTO_EXECUTE_TYPES.includes(step.step_type));
 
     if (requiresConfirmation) {
       // Queue for human review — create a log entry with pending status

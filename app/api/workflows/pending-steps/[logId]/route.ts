@@ -21,6 +21,7 @@ import { advanceDay } from "@/lib/workflows/enrollment";
 const STEP_ACTION_MAP: Record<string, GHLActionCode> = {
   sms: "C1",
   email: "C2",
+  send_reminder: "A5",
 };
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ logId: string }> }) {
@@ -120,6 +121,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         contactId: enrollment.ghl_contact_id,
         message: content,
       };
+    } else if (step.step_type === "send_reminder") {
+      actionParams = {
+        contactId: enrollment.ghl_contact_id,
+        reminderMessage: content || "Reminder: You have an upcoming call with New Again Houses.",
+      };
     } else {
       // email
       const trackedHtml = prepareEmailForTracking(content, logId);
@@ -160,8 +166,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         confirmed_at: new Date().toISOString(),
         executed_at: new Date().toISOString(),
         ghl_message_id: ghlMessageId,
-        delivered: true,
-        delivery_data: { queued: false, confirmedBy: user.fullName },
+        delivered: false,
+        delivery_data: { queued: false, confirmedBy: user.fullName, providerAccepted: true },
       })
       .eq("id", logId);
 

@@ -446,10 +446,13 @@ async function executeCompleteTask(input: Record<string, unknown>): Promise<Tool
       return { data: "Could not determine which task to complete." };
     }
 
-    await ghl.updateTask(contactId, taskId, { completed: true });
     const contactName = await getContactName(contactId);
 
-    return { data: `Task completed for ${contactName}.` };
+    return {
+      data:
+        `Task completion prepared for ${contactName}. ` +
+        `Scout cannot mark tasks complete directly; a human must complete task ${taskId} through the confirmed action UI.`,
+    };
   } catch (err) {
     return { data: `Error completing task: ${err instanceof Error ? err.message : "Unknown error"}` };
   }

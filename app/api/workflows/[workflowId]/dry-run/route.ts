@@ -66,6 +66,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       "pipeline_move",
       "trigger_workflow",
     ];
+    const customerFacingSendStepTypes = new Set(["sms", "email", "send_reminder"]);
 
     // Personalize content
     function personalize(text: string | null): string {
@@ -91,7 +92,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         day: dayNum,
         steps: daySteps.map((step) => {
           const condConfig = (step.condition_config ?? {}) as Record<string, unknown>;
-          const needsApproval = step.requires_confirmation && !autoExecuteTypes.includes(step.step_type);
+          const needsApproval =
+            customerFacingSendStepTypes.has(step.step_type) ||
+            (step.requires_confirmation && !autoExecuteTypes.includes(step.step_type));
 
           let from: string | null = null;
           let to: string | null = null;

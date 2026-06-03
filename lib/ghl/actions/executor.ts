@@ -7,6 +7,11 @@
  */
 
 import * as ghl from "@/lib/ghl/client";
+import {
+  customerFacingSendsDisabledReason,
+  customerFacingSendsEnabled,
+  isCustomerFacingGHLActionCode,
+} from "@/lib/ghl/action-safety";
 import type { GHLActionCode } from "@/lib/ghl/permissions";
 
 export interface ActionResult {
@@ -27,6 +32,14 @@ export async function executeGHLAction(
   contactId: string | null
 ): Promise<ActionResult> {
   try {
+    if (isCustomerFacingGHLActionCode(actionCode) && !customerFacingSendsEnabled()) {
+      return {
+        success: false,
+        actionCode,
+        error: customerFacingSendsDisabledReason(),
+      };
+    }
+
     switch (actionCode) {
       // ============ Communication (C1-C8) ============
 

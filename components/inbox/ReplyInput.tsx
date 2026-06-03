@@ -28,8 +28,8 @@ export default function ReplyInput({ contactId, defaultChannel = "SMS", onSent }
 
     try {
       const body = channel === "SMS"
-        ? { type: "SMS", contactId, message: message.trim() }
-        : { type: "Email", contactId, subject: subject.trim(), html: message.trim() };
+        ? { type: "SMS", contactId, message: message.trim(), confirmed: true }
+        : { type: "Email", contactId, subject: subject.trim(), html: message.trim(), confirmed: true };
 
       const res = await apiFetch("/api/inbox/send", {
         method: "POST",

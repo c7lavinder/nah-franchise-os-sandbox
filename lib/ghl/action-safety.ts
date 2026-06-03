@@ -49,6 +49,16 @@ export const SEND_SAFETY_CONTRACT = {
     "Scout and agentic flows may draft customer-facing sends, but execution requires explicit human confirmation and an append-only approval log.",
 } as const;
 
+export const CUSTOMER_FACING_SENDS_ENABLED_ENV = "CUSTOMER_FACING_SENDS_ENABLED";
+
+export function customerFacingSendsEnabled(): boolean {
+  return process.env[CUSTOMER_FACING_SENDS_ENABLED_ENV] === "true";
+}
+
+export function customerFacingSendsDisabledReason(): string {
+  return `${CUSTOMER_FACING_SENDS_ENABLED_ENV} must be true before any customer-facing SMS/email send can execute.`;
+}
+
 export interface SendRuntimeCheck {
   passed: boolean;
   reason: string;
@@ -237,9 +247,17 @@ export async function evaluateScoutSendRuntimeSafety(
       reason: payload.content?.trim() ? "human_reviewed_draft_content" : "empty_content_blocked_by_ghl_payload_validation",
     },
     providerHealth:
-      process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID
-        ? { passed: true, reason: "ghl_env_present" }
-        : { passed: false, reason: "missing_ghl_provider_env" },
+      process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID && customerFacingSendsEnabled()
+        ? { passed: true, reason: "ghl_env_present_and_customer_facing_sends_enabled" }
+        : {
+            passed: false,
+            reason: !customerFacingSendsEnabled()
+              ? "customer_facing_sends_disabled"
+              : "missing_ghl_provider_env",
+            details: !customerFacingSendsEnabled()
+              ? { requiredEnv: CUSTOMER_FACING_SENDS_ENABLED_ENV }
+              : undefined,
+          },
   };
 }
 

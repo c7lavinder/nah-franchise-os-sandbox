@@ -9,7 +9,9 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";
+import * as ghl from "@/lib/ghl";
+import { customerFacingSendsDisabledReason, customerFacingSendsEnabled } from "@/lib/ghl/action-safety";
 import { createServerClient } from "@/lib/supabase/server";
 import type { GHLSendMessagePayload } from "@/types/ghl";
 
@@ -20,6 +22,7 @@ interface SendRequest {
   subject?: string;
   html?: string;
   emailFrom?: string;
+  confirmed?: boolean;
 }
 
 /** Update engagement tracking fields after sending a message */
@@ -86,6 +89,17 @@ export async function POST(request: NextRequest) {
 
     if (!body.contactId || !body.type) {
       return NextResponse.json({ error: "contactId and type are required" }, { status: 400 });
+    }
+
+    if (body.confirmed !== true) {
+      return NextResponse.json(
+        { error: "Customer-facing sends require explicit human confirmation.", success: false },
+        { status: 409 }
+      );
+    }
+
+    if (!customerFacingSendsEnabled()) {
+      return NextResponse.json({ error: customerFacingSendsDisabledReason(), success: false }, { status: 409 });
     }
 
     let payload: GHLSendMessagePayload;
