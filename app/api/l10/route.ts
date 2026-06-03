@@ -34,6 +34,7 @@ type LeadListPropertyRow = {
 };
 type Stage0OriginRow = { PropertyId: number; TerritorySlug: string | null };
 type InventoryRow = { PropertyId: number; Inv_ContractedPurchaseDate: string | null; Inv_PurchaseDate: string | null };
+type PipelineStageHistoryRow = { journey_pipeline_state_id: string | null; to_stage_id: string; created_at: string };
 type L10PeriodKey = "T1" | "T3" | "T6" | "T12";
 
 const PERIODS: Record<L10PeriodKey, { label: string; days: number }> = {
@@ -86,7 +87,7 @@ function sum(values: number[]) {
 
 function periodFromRequest(request: NextRequest) {
   const requested = request.nextUrl.searchParams.get("period")?.toUpperCase();
-  if (requested === "T3" || requested === "T6" || requested === "T12") return requested;
+  if (requested === "T1" || requested === "T3" || requested === "T6" || requested === "T12") return requested;
   return "T3";
 }
 
@@ -97,6 +98,10 @@ function monthlyPace(value: number, periodDays: number) {
 function moneyValue(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+function isInPeriod(value: string | null | undefined, periodStart: Date) {
+  return value ? new Date(value) >= periodStart : false;
 }
 
 function leadMixLabel(row: { LeadCategory?: string | null; LeadType?: string | null }) {
@@ -250,6 +255,17 @@ export async function GET(request: NextRequest) {
   const activeSalesRows = salesRows.filter(
     (row) => row.is_active === true && activeSalesStageIds.includes(row.current_stage_id)
   );
+  const stageHistoryRows =
+    salesStageIds.length > 0
+      ? await fetchPaged<PipelineStageHistoryRow>((from, to) =>
+          supabase
+            .from("pipeline_stage_history")
+            .select("journey_pipeline_state_id, to_stage_id, created_at")
+            .in("to_stage_id", salesStageIds)
+            .gte("created_at", periodStart.toISOString())
+            .range(from, to)
+        )
+      : [];
 
   const assignedUserIds = [...new Set(salesRows.map((r) => r.assigned_user_id).filter(Boolean) as string[])];
   const { data: users } =
@@ -258,11 +274,31 @@ export async function GET(request: NextRequest) {
       : { data: [] as { id: string; full_name: string | null }[] };
   const userNameById = new Map((users ?? []).map((u) => [u.id, u.full_name ?? "Unassigned"]));
 
+  const stageEnteredIds = new Map<string, Set<string>>();
+  for (const stage of salesStages) stageEnteredIds.set(stage.id, new Set());
+  for (const row of stageHistoryRows) {
+    if (!row.journey_pipeline_state_id) continue;
+    stageEnteredIds.get(row.to_stage_id)?.add(row.journey_pipeline_state_id);
+  }
+  for (const row of salesRows) {
+    const enteredCurrentStage = row.entered_current_stage_at ?? row.updated_at;
+    if (enteredCurrentStage && new Date(enteredCurrentStage) >= periodStart) {
+      stageEnteredIds.get(row.current_stage_id)?.add(row.id);
+    }
+  }
+  const newProspectsPeriod = salesRows.filter((row) => new Date(row.entered_pipeline_at) >= periodStart).length;
+  const engagementStage = salesStages.find((stage) => stage.slug === "engagement");
+  if (engagementStage) {
+    const engagementIds = stageEnteredIds.get(engagementStage.id) ?? new Set<string>();
+    for (const row of salesRows) {
+      if (new Date(row.entered_pipeline_at) >= periodStart) engagementIds.add(row.id);
+    }
+    stageEnteredIds.set(engagementStage.id, engagementIds);
+  }
   const stageCounts = salesStages.map((stage) => ({
     stage: stage.name,
-    count: salesRows.filter((row) => row.current_stage_id === stage.id).length,
+    count: stageEnteredIds.get(stage.id)?.size ?? 0,
   }));
-  const newProspectsPeriod = salesRows.filter((row) => new Date(row.entered_pipeline_at) >= periodStart).length;
   const closedStageIds = salesStages
     .filter((stage) => stage.slug === "closed" || stage.is_terminal)
     .map((stage) => stage.id);
@@ -475,7 +511,7 @@ export async function GET(request: NextRequest) {
     const { data: royaltyRows } = await supabase
       .from("ms_property_royalty")
       .select(
-        `"PropertyId", "AcquisitionRoyaltyPaid", "DispositionRoyaltyPaid", "DelayedRoyaltyFeePaid", "RoyaltyTrueUpPaid", "Calculated_AcquisitionRoyaltyDue", "Calculated_DispositionRoyaltyDue", "Calculated_DelayedRoyaltyFeeDue", "Calculated_RoyaltyTrueUpDue"`
+        `"PropertyId", "AcquisitionRoyaltyPaid", "AcquisitionRoyaltyPaidDate", "DispositionRoyaltyPaid", "DispositionRoyaltyPaidDate", "DelayedRoyaltyFeePaid", "DelayedRoyaltyFeePaidDate", "RoyaltyTrueUpPaid", "RoyaltyTrueUpPaidDate", "Calculated_AcquisitionRoyaltyDue", "Calculated_AcquisitionRoyaltyDueDate", "Calculated_DispositionRoyaltyDue", "Calculated_DispositionRoyaltyDueDate", "Calculated_DelayedRoyaltyFeeDue", "Calculated_DelayedRoyaltyFeeDueDate", "Calculated_RoyaltyTrueUpDue", "Calculated_RoyaltyTrueUpDueDate"`
       )
       .in("PropertyId", purchasedPropertyIds.slice(i, i + 500));
     for (const row of (royaltyRows ?? []) as any[]) {
@@ -483,11 +519,22 @@ export async function GET(request: NextRequest) {
       const dispoPaid = moneyValue(row.DispositionRoyaltyPaid);
       const delayedPaid = moneyValue(row.DelayedRoyaltyFeePaid);
       const trueUpPaid = moneyValue(row.RoyaltyTrueUpPaid);
-      royaltiesPaid += acqPaid + dispoPaid + delayedPaid + trueUpPaid;
-      royaltiesDue += acqPaid > 0 ? 0 : moneyValue(row.Calculated_AcquisitionRoyaltyDue);
-      royaltiesDue += dispoPaid > 0 ? 0 : moneyValue(row.Calculated_DispositionRoyaltyDue);
-      royaltiesDue += delayedPaid > 0 ? 0 : moneyValue(row.Calculated_DelayedRoyaltyFeeDue);
-      royaltiesDue += trueUpPaid > 0 ? 0 : moneyValue(row.Calculated_RoyaltyTrueUpDue);
+      if (isInPeriod(row.AcquisitionRoyaltyPaidDate, periodStart)) royaltiesPaid += acqPaid;
+      if (isInPeriod(row.DispositionRoyaltyPaidDate, periodStart)) royaltiesPaid += dispoPaid;
+      if (isInPeriod(row.DelayedRoyaltyFeePaidDate, periodStart)) royaltiesPaid += delayedPaid;
+      if (isInPeriod(row.RoyaltyTrueUpPaidDate, periodStart)) royaltiesPaid += trueUpPaid;
+      if (acqPaid === 0 && isInPeriod(row.Calculated_AcquisitionRoyaltyDueDate, periodStart)) {
+        royaltiesDue += moneyValue(row.Calculated_AcquisitionRoyaltyDue);
+      }
+      if (dispoPaid === 0 && isInPeriod(row.Calculated_DispositionRoyaltyDueDate, periodStart)) {
+        royaltiesDue += moneyValue(row.Calculated_DispositionRoyaltyDue);
+      }
+      if (delayedPaid === 0 && isInPeriod(row.Calculated_DelayedRoyaltyFeeDueDate, periodStart)) {
+        royaltiesDue += moneyValue(row.Calculated_DelayedRoyaltyFeeDue);
+      }
+      if (trueUpPaid === 0 && isInPeriod(row.Calculated_RoyaltyTrueUpDueDate, periodStart)) {
+        royaltiesDue += moneyValue(row.Calculated_RoyaltyTrueUpDue);
+      }
     }
   }
 

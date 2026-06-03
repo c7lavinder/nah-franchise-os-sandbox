@@ -7,12 +7,8 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
-  CheckCircle2,
-  Clock3,
   Loader2,
   MapPin,
-  Target,
-  TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { apiFetch } from "@/lib/auth/api-fetch";
@@ -173,25 +169,16 @@ function BigBlueCard({
   label,
   value,
   detail,
-  icon: Icon,
 }: {
   label: string;
   value: string | number;
   detail: string;
-  icon: React.ElementType;
 }) {
   return (
-    <div className="rounded-lg border border-nah-blue/20 bg-nah-blue p-6 text-white shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="text-xs font-semibold uppercase text-white/75">{label}</div>
-          <div className="mt-3 text-4xl font-bold">{value}</div>
-          <p className="mt-3 text-sm text-white/80">{detail}</p>
-        </div>
-        <div className="rounded-lg border border-white/20 bg-white/10 p-2">
-          <Icon className="h-6 w-6" />
-        </div>
-      </div>
+    <div className="rounded-xl bg-gradient-to-br from-nah-blue to-[#0080b8] px-5 py-4 text-white shadow-md">
+      <span className="text-4xl font-extrabold leading-none tracking-tight">{value}</span>
+      <p className="mt-1.5 text-sm font-medium text-white/80">{label}</p>
+      <p className="text-[11px] text-white/50">{detail}</p>
     </div>
   );
 }
@@ -632,7 +619,7 @@ function QuartileOperatingColumn({
         <div className="rounded-lg bg-white px-2 py-1 text-sm font-bold text-text-primary">{territories.length}</div>
       </div>
       <div className="space-y-2">
-        {sorted.slice(0, 6).map((territory) => (
+        {sorted.map((territory) => (
           <CompactTerritoryRow key={territory.slug} territory={territory} selectedPeriodLabel={selectedPeriodLabel} />
         ))}
         {sorted.length === 0 && (
@@ -754,67 +741,14 @@ function FlowMetric({
 
 function SalesFunnelBoard({
   stages,
-  selectedPeriodLabel,
 }: {
   stages: { label: string; value: number; sub: string }[];
-  selectedPeriodLabel: string;
 }) {
-  const max = Math.max(...stages.map((stage) => stage.value), 1);
-  const colors = [
-    "bg-sky-500",
-    "bg-cyan-500",
-    "bg-violet-500",
-    "bg-emerald-500",
-    "bg-amber-500",
-    "bg-rose-500",
-    "bg-slate-700",
-  ];
-
   return (
-    <div className="space-y-4">
-      <div className="grid overflow-hidden rounded-lg border border-border-default bg-white shadow-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {stages.map((stage) => (
-          <ScoreboardStat key={stage.label} label={stage.label} value={formatNumber(stage.value)} sub={stage.sub} />
-        ))}
-      </div>
-
-      <section className="rounded-lg border border-border-default bg-white p-5 shadow-sm">
-        <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <SectionHeader
-            title="Path to Ownership Pipeline"
-            sub={`Prospects by current franchise sales stage in ${selectedPeriodLabel}.`}
-          />
-          <div className="text-xs text-text-tertiary">Aligned to Pipeline page stages</div>
-        </div>
-        <div className="space-y-3">
-          {stages.map((stage, index) => {
-            const stageContext = index === 0 ? "First touch" : "Current stage";
-            const width = stage.value > 0 ? Math.max(7, Math.round((stage.value / max) * 100)) : 2;
-
-            return (
-              <div
-                key={stage.label}
-                className="grid grid-cols-[92px_1fr_74px] items-center gap-3 md:grid-cols-[140px_1fr_100px]"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold text-text-primary">{stage.label}</div>
-                  <div className="text-xs text-text-tertiary">{stageContext}</div>
-                </div>
-                <div className="relative h-11 overflow-hidden rounded-lg bg-slate-100">
-                  <div
-                    className={`h-full rounded-lg ${colors[index % colors.length]}`}
-                    style={{ width: `${width}%` }}
-                  />
-                  <div className="absolute inset-0 flex items-center px-3">
-                    <span className="text-sm font-bold text-white drop-shadow-sm">{formatNumber(stage.value)}</span>
-                  </div>
-                </div>
-                <div className="text-right text-xs leading-snug text-text-secondary">{stage.sub}</div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+    <div className="grid overflow-hidden rounded-lg border border-border-default bg-white shadow-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {stages.map((stage) => (
+        <ScoreboardStat key={stage.label} label={stage.label} value={formatNumber(stage.value)} sub={stage.sub} />
+      ))}
     </div>
   );
 }
@@ -932,7 +866,7 @@ export default function L10Page() {
   const salesStageMetrics = desiredSalesStages.map((label) => ({
     label,
     value: salesStageByName.get(label) ?? 0,
-    sub: label === "Closed" ? "franchisees" : "prospects",
+    sub: label === "Closed" ? `closed in ${selectedPeriodLabel}` : `entered in ${selectedPeriodLabel}`,
   }));
 
   return (
@@ -976,23 +910,20 @@ export default function L10Page() {
             label="New Prospects"
             value={formatNumber(data.devSales.newProspectsPeriod)}
             detail={`Entered franchise sales in ${selectedPeriodLabel}`}
-            icon={TrendingUp}
           />
           <BigBlueCard
             label="New Path to Ownership"
             value={formatNumber(data.devSales.ptoEnrolleesPeriod)}
             detail={`PTO enrollments logged in ${selectedPeriodLabel}`}
-            icon={CheckCircle2}
           />
           <BigBlueCard
             label="Closed Franchisees"
             value={formatNumber(data.devSales.closedFranchiseesPeriod)}
             detail={`Reached Closed in ${selectedPeriodLabel}`}
-            icon={Target}
           />
         </div>
 
-        <SalesFunnelBoard stages={salesStageMetrics} selectedPeriodLabel={selectedPeriodLabel} />
+        <SalesFunnelBoard stages={salesStageMetrics} />
       </section>
 
       <section className="space-y-4">
