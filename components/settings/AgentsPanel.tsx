@@ -26,6 +26,21 @@ type AgentsResponse = {
   agents?: AgentTeamCard[];
 };
 
+type CardPortrait = {
+  skin: string;
+  skinShadow: string;
+  hair: string;
+  hairShadow: string;
+  shirt: string;
+  trim: string;
+  cap?: string;
+  background: string;
+  pattern: string;
+  number: string;
+  rating: string;
+  stance: "front" | "angle";
+};
+
 const FALLBACK_CATEGORIES: AgentCategory[] = [
   { key: "lead-management", label: "Lead Management", summary: "Prospect and rep support." },
   { key: "franchisee-management", label: "Franchisee Management", summary: "Onboarding, runway, and coaching." },
@@ -55,6 +70,174 @@ const samplePrompts = [
   "Where are your biggest data gaps?",
 ];
 
+const cardPortraits: Record<string, CardPortrait> = {
+  "post-call": {
+    skin: "#d8a16b",
+    skinShadow: "#b87542",
+    hair: "#2f2118",
+    hairShadow: "#1b120d",
+    shirt: "#0f78a8",
+    trim: "#f59e0b",
+    cap: "#0f78a8",
+    background: "#dff4fb",
+    pattern: "#9bd4ea",
+    number: "01",
+    rating: "92",
+    stance: "front",
+  },
+  "contact-research": {
+    skin: "#f0c7a2",
+    skinShadow: "#d39a72",
+    hair: "#24120d",
+    hairShadow: "#120907",
+    shirt: "#4f46e5",
+    trim: "#a78bfa",
+    background: "#e9e7ff",
+    pattern: "#b7b3ff",
+    number: "02",
+    rating: "88",
+    stance: "angle",
+  },
+  "pre-call-brief": {
+    skin: "#c88455",
+    skinShadow: "#9a5c34",
+    hair: "#1f2937",
+    hairShadow: "#111827",
+    shirt: "#d97706",
+    trim: "#fcd34d",
+    cap: "#b45309",
+    background: "#fff3d7",
+    pattern: "#f2be63",
+    number: "03",
+    rating: "86",
+    stance: "front",
+  },
+  "reengagement-signal": {
+    skin: "#e8b891",
+    skinShadow: "#c58158",
+    hair: "#5f3b20",
+    hairShadow: "#35200f",
+    shirt: "#059669",
+    trim: "#6ee7b7",
+    background: "#dff8ed",
+    pattern: "#8be0bb",
+    number: "04",
+    rating: "84",
+    stance: "angle",
+  },
+  "journey-brief": {
+    skin: "#f3d0b2",
+    skinShadow: "#d79f79",
+    hair: "#3b2a1a",
+    hairShadow: "#21170e",
+    shirt: "#1d4ed8",
+    trim: "#93c5fd",
+    background: "#e1edff",
+    pattern: "#a7c8ff",
+    number: "05",
+    rating: "90",
+    stance: "front",
+  },
+  "territory-market": {
+    skin: "#b8754d",
+    skinShadow: "#8d4e31",
+    hair: "#111827",
+    hairShadow: "#030712",
+    shirt: "#4d7c0f",
+    trim: "#bef264",
+    cap: "#365314",
+    background: "#eefbd8",
+    pattern: "#bde67b",
+    number: "06",
+    rating: "87",
+    stance: "angle",
+  },
+  "data-intelligence": {
+    skin: "#e2ad81",
+    skinShadow: "#b8754d",
+    hair: "#4b5563",
+    hairShadow: "#1f2937",
+    shirt: "#334155",
+    trim: "#67e8f9",
+    background: "#e8f4f7",
+    pattern: "#9fd5dc",
+    number: "07",
+    rating: "94",
+    stance: "front",
+  },
+  "runway-pipeline-guardian": {
+    skin: "#d49a73",
+    skinShadow: "#a76543",
+    hair: "#2a1710",
+    hairShadow: "#120907",
+    shirt: "#be123c",
+    trim: "#fda4af",
+    cap: "#881337",
+    background: "#ffe2e7",
+    pattern: "#f8a6b5",
+    number: "08",
+    rating: "91",
+    stance: "front",
+  },
+  "marketing-intelligence": {
+    skin: "#edc0a0",
+    skinShadow: "#c88d65",
+    hair: "#5b2333",
+    hairShadow: "#33101d",
+    shirt: "#c026d3",
+    trim: "#f0abfc",
+    background: "#fae8ff",
+    pattern: "#e7a7f5",
+    number: "09",
+    rating: "79",
+    stance: "angle",
+  },
+  "workflow-qa": {
+    skin: "#c98f68",
+    skinShadow: "#965b3c",
+    hair: "#172554",
+    hairShadow: "#0f172a",
+    shirt: "#0891b2",
+    trim: "#67e8f9",
+    background: "#dff8ff",
+    pattern: "#8edbec",
+    number: "10",
+    rating: "82",
+    stance: "front",
+  },
+  "eos-sync": {
+    skin: "#f1c19c",
+    skinShadow: "#cd8c63",
+    hair: "#6b3d18",
+    hairShadow: "#3b210b",
+    shirt: "#ca8a04",
+    trim: "#fde68a",
+    background: "#fff8d6",
+    pattern: "#edd56b",
+    number: "11",
+    rating: "80",
+    stance: "angle",
+  },
+};
+
+function getCardPortrait(agent: AgentTeamCard): CardPortrait {
+  return (
+    cardPortraits[agent.name] ?? {
+      skin: "#e2ad81",
+      skinShadow: "#b8754d",
+      hair: "#1f2937",
+      hairShadow: "#111827",
+      shirt: "#0f78a8",
+      trim: "#f59e0b",
+      background: "#eef7fb",
+      pattern: "#b8dce8",
+      number: "00",
+      rating: "80",
+      stance: "front",
+    }
+  );
+}
+
 function fallbackAgents(): AgentTeamCard[] {
   return [];
 }
@@ -71,6 +254,77 @@ function formatDate(value: string | null) {
 
 function metricLabel(value: number) {
   return Number.isFinite(value) ? value.toLocaleString() : "0";
+}
+
+function AgentBaseballPortrait({ agent, compact = false }: { agent: AgentTeamCard; compact?: boolean }) {
+  const portrait = getCardPortrait(agent);
+  const turn = portrait.stance === "angle" ? "translate(8 0)" : "";
+  const opacity = agent.status === "planned" ? 0.66 : 1;
+  const idPrefix = `${agent.name}-${compact ? "compact" : "card"}`;
+
+  return (
+    <div
+      className={`relative overflow-hidden rounded-md border border-white/70 shadow-inner ${
+        compact ? "h-24 w-20" : "aspect-[5/4] w-full"
+      }`}
+      style={{ background: portrait.background }}
+    >
+      <svg viewBox="0 0 260 210" className="h-full w-full" role="img" aria-label={`${agent.label} portrait`}>
+        <defs>
+          <linearGradient id={`${idPrefix}-sheen`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#ffffff" stopOpacity="0.9" />
+            <stop offset="0.44" stopColor="#ffffff" stopOpacity="0.05" />
+            <stop offset="1" stopColor="#000000" stopOpacity="0.1" />
+          </linearGradient>
+          <radialGradient id={`${idPrefix}-field`} cx="50%" cy="35%" r="70%">
+            <stop offset="0" stopColor="#ffffff" stopOpacity="0.85" />
+            <stop offset="1" stopColor={portrait.background} stopOpacity="0.2" />
+          </radialGradient>
+        </defs>
+        <rect width="260" height="210" fill={`url(#${idPrefix}-field)`} />
+        <path d="M-20 172 C40 120 90 230 150 168 C190 126 230 160 280 124 L280 230 L-20 230 Z" fill={portrait.pattern} opacity="0.38" />
+        <path d="M24 40 L236 40" stroke={portrait.pattern} strokeWidth="14" opacity="0.35" />
+        <path d="M34 70 L226 70" stroke={portrait.pattern} strokeWidth="8" opacity="0.25" />
+        <g opacity={opacity} transform={turn}>
+          <ellipse cx="130" cy="198" rx="84" ry="18" fill="#111827" opacity="0.14" />
+          <path d="M75 192 C80 154 98 130 128 130 C158 130 180 154 187 192 Z" fill={portrait.shirt} />
+          <path d="M96 188 L116 139 L130 163 L144 139 L164 188 Z" fill="#ffffff" opacity="0.86" />
+          <path d="M73 193 C83 164 96 147 112 139 L127 210 L75 210 Z" fill={portrait.shirt} />
+          <path d="M187 193 C177 164 160 145 145 139 L130 210 L188 210 Z" fill={portrait.shirt} />
+          <path d="M95 166 C112 177 145 178 164 166" stroke={portrait.trim} strokeWidth="5" strokeLinecap="round" opacity="0.95" />
+          <path d="M112 133 C112 148 120 157 130 157 C140 157 148 148 148 133 Z" fill={portrait.skinShadow} />
+          <ellipse cx="130" cy="91" rx="48" ry="55" fill={portrait.skin} />
+          <path d="M84 92 C88 49 109 28 135 30 C159 32 181 55 177 100 C160 89 143 71 132 50 C117 72 103 85 84 92 Z" fill={portrait.hair} />
+          <path d="M86 94 C85 132 105 153 130 153 C152 153 171 135 176 101 C157 104 142 86 131 58 C116 85 100 96 86 94 Z" fill={portrait.skin} />
+          <path d="M92 104 C84 99 76 103 76 114 C76 125 84 132 94 130" fill={portrait.skinShadow} opacity="0.85" />
+          <path d="M168 104 C177 99 184 104 184 115 C184 126 176 132 166 130" fill={portrait.skinShadow} opacity="0.85" />
+          <path d="M105 86 C114 80 123 81 130 87 C140 80 152 81 160 88" stroke={portrait.hairShadow} strokeWidth="4" strokeLinecap="round" opacity="0.45" />
+          <ellipse cx="112" cy="109" rx="5" ry="6" fill="#1f2937" />
+          <ellipse cx="150" cy="109" rx="5" ry="6" fill="#1f2937" />
+          <path d="M130 111 C127 122 125 128 133 130" stroke={portrait.skinShadow} strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.65" />
+          <path d="M114 137 C124 145 141 145 152 137" stroke="#7f3f24" strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.65" />
+          <path d="M95 99 C103 95 112 94 121 98" stroke={portrait.hairShadow} strokeWidth="4" strokeLinecap="round" />
+          <path d="M141 98 C151 94 160 95 168 100" stroke={portrait.hairShadow} strokeWidth="4" strokeLinecap="round" />
+          {portrait.cap ? (
+            <g>
+              <path d="M87 81 C92 43 112 30 134 30 C158 30 174 47 177 83 C151 73 121 72 87 81 Z" fill={portrait.cap} />
+              <path d="M94 78 C128 70 156 72 190 86 C156 88 122 88 94 78 Z" fill={portrait.trim} opacity="0.85" />
+              <text x="130" y="59" textAnchor="middle" fontSize="20" fontWeight="800" fill="#fff">
+                {agent.portrait.initials}
+              </text>
+            </g>
+          ) : null}
+        </g>
+        <rect width="260" height="210" fill={`url(#${idPrefix}-sheen)`} opacity="0.5" />
+      </svg>
+      <div className="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">
+        #{portrait.number}
+      </div>
+      <div className="absolute right-2 top-2 rounded bg-white/85 px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow">
+        {portrait.rating}
+      </div>
+    </div>
+  );
 }
 
 export default function AgentsPanel() {
@@ -237,42 +491,101 @@ export default function AgentsPanel() {
                   {categoryAgents.map((agent) => {
                     const selected = activeAgent?.name === agent.name;
                     const disabled = agent.status === "planned" || !agent.enabled;
+                    const portrait = getCardPortrait(agent);
 
                     return (
                       <article
                         key={agent.name}
-                        className={`rounded-lg border bg-bg-primary p-4 transition-colors ${
-                          selected ? "border-nah-blue shadow-sm" : "border-border-default hover:border-border-hover"
+                        className={`group overflow-hidden rounded-lg border bg-white p-2 shadow-sm transition-all ${
+                          selected
+                            ? "border-nah-blue ring-2 ring-nah-blue/10"
+                            : "border-border-default hover:-translate-y-0.5 hover:border-border-hover hover:shadow-md"
                         }`}
                       >
-                        <div className={`mb-4 rounded-lg bg-gradient-to-br ${agent.portrait.background} p-3`}>
-                          <div className="flex items-start justify-between gap-3">
+                        <div
+                          className="rounded-md border border-border-default bg-bg-primary p-3"
+                          style={{
+                            backgroundImage: `linear-gradient(135deg, ${portrait.background}, #ffffff 52%, ${portrait.background})`,
+                          }}
+                        >
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <div className="rounded bg-black px-2 py-1 text-[10px] font-black uppercase tracking-wide text-white">
+                              FranDev AI
+                            </div>
+                            <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusStyle[agent.status]}`}>
+                              {agent.status.replace("-", " ")}
+                            </span>
+                          </div>
+
+                          <button type="button" onClick={() => setActiveAgentName(agent.name)} className="block w-full">
+                            <AgentBaseballPortrait agent={agent} />
+                          </button>
+
+                          <div className="mt-3 rounded-md bg-white/90 p-3 shadow-sm">
                             <button
                               type="button"
                               onClick={() => setActiveAgentName(agent.name)}
-                              className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                              className="block min-w-0 text-left"
                             >
-                              <div
-                                className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${agent.portrait.accent} text-sm font-semibold text-white shadow-sm`}
-                              >
-                                {agent.portrait.initials}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h4 className="text-card-title text-text-primary">{agent.label}</h4>
-                                  <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusStyle[agent.status]}`}>
-                                    {agent.status.replace("-", " ")}
-                                  </span>
-                                </div>
-                                <p className="text-caption text-text-tertiary">{agent.roleTitle}</p>
-                              </div>
+                              <h4 className="font-headline text-[22px] leading-tight text-text-primary">{agent.label}</h4>
+                              <p className="mt-0.5 text-caption font-medium uppercase tracking-wide text-text-tertiary">
+                                {agent.roleTitle}
+                              </p>
+                            </button>
+
+                            <p className="mt-3 min-h-[40px] text-body-sm text-text-secondary">{agent.mission}</p>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-3 overflow-hidden rounded-md border border-border-default bg-white text-center">
+                            <div className="border-r border-border-default px-2 py-2">
+                              <div className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">Runs</div>
+                              <div className="text-body-sm font-black text-text-primary">{metricLabel(agent.runsMTD)}</div>
+                            </div>
+                            <div className="border-r border-border-default px-2 py-2">
+                              <div className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">Sugs</div>
+                              <div className="text-body-sm font-black text-text-primary">{metricLabel(agent.suggestionsMTD)}</div>
+                            </div>
+                            <div className="px-2 py-2">
+                              <div className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">Trust</div>
+                              <div className="truncate text-[11px] font-black text-text-primary">{trustLabel[agent.trustLevel]}</div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 space-y-2 rounded-md border border-border-default bg-white/75 p-3 text-caption text-text-secondary">
+                            <div className="flex items-start gap-2">
+                              <Sparkles size={13} className="mt-0.5 flex-shrink-0 text-nah-orange" />
+                              <span>{agent.trigger}</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <ShieldCheck size={13} className="mt-0.5 flex-shrink-0 text-nah-blue" />
+                              <span>{agent.guardrails[0]}</span>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setActiveAgentName(agent.name)}
+                              className="flex items-center gap-1.5 rounded-md border border-border-default bg-white px-3 py-2 text-caption font-bold text-text-primary hover:bg-bg-hover"
+                            >
+                              <MessageSquareText size={13} />
+                              Ask
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => triggerAgent(agent)}
+                              disabled={disabled || !agent.manualRun || triggering === agent.name}
+                              className="flex items-center gap-1.5 rounded-md bg-nah-blue px-3 py-2 text-caption font-bold text-white hover:bg-nah-blue-hover disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {triggering === agent.name ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                              Run
                             </button>
                             <button
                               type="button"
                               onClick={() => toggleAgent(agent.name, !agent.enabled)}
                               disabled={agent.status === "planned"}
                               aria-label={`${agent.enabled ? "Disable" : "Enable"} ${agent.label}`}
-                              className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                              className={`relative ml-auto h-6 w-11 flex-shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                                 agent.enabled ? "bg-success" : "bg-bg-tertiary"
                               }`}
                             >
@@ -283,55 +596,10 @@ export default function AgentsPanel() {
                               />
                             </button>
                           </div>
-                        </div>
 
-                        <p className="text-body-sm text-text-secondary">{agent.mission}</p>
-
-                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                          <div className="rounded-md bg-bg-secondary px-2 py-2">
-                            <div className="text-caption text-text-tertiary">Runs</div>
-                            <div className="text-body-sm font-semibold text-text-primary">{metricLabel(agent.runsMTD)}</div>
+                          <div className="mt-2 text-right text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+                            Last run: {formatDate(agent.lastRunAt)}
                           </div>
-                          <div className="rounded-md bg-bg-secondary px-2 py-2">
-                            <div className="text-caption text-text-tertiary">Suggestions</div>
-                            <div className="text-body-sm font-semibold text-text-primary">{metricLabel(agent.suggestionsMTD)}</div>
-                          </div>
-                          <div className="rounded-md bg-bg-secondary px-2 py-2">
-                            <div className="text-caption text-text-tertiary">Cost</div>
-                            <div className="text-body-sm font-semibold text-text-primary">{agent.costEstMTD}</div>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 space-y-2 text-caption text-text-secondary">
-                          <div className="flex items-start gap-2">
-                            <Sparkles size={13} className="mt-0.5 flex-shrink-0 text-nah-orange" />
-                            <span>{agent.trigger}</span>
-                          </div>
-                          <div className="flex items-start gap-2">
-                            <ShieldCheck size={13} className="mt-0.5 flex-shrink-0 text-nah-blue" />
-                            <span>{trustLabel[agent.trustLevel]} · {agent.guardrails[0]}</span>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setActiveAgentName(agent.name)}
-                            className="flex items-center gap-1.5 rounded-md border border-border-default bg-bg-secondary px-3 py-2 text-caption font-medium text-text-primary hover:bg-bg-hover"
-                          >
-                            <MessageSquareText size={13} />
-                            Ask
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => triggerAgent(agent)}
-                            disabled={disabled || !agent.manualRun || triggering === agent.name}
-                            className="flex items-center gap-1.5 rounded-md bg-nah-blue px-3 py-2 text-caption font-medium text-white hover:bg-nah-blue-hover disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            {triggering === agent.name ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-                            Run
-                          </button>
-                          <span className="text-caption text-text-tertiary">{formatDate(agent.lastRunAt)}</span>
                         </div>
                       </article>
                     );
@@ -346,12 +614,11 @@ export default function AgentsPanel() {
           {activeAgent ? (
             <>
               <div className="flex items-start gap-3 border-b border-border-default pb-4">
-                <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${activeAgent.portrait.accent} text-sm font-semibold text-white`}>
-                  {activeAgent.portrait.initials}
-                </div>
+                <AgentBaseballPortrait agent={activeAgent} compact />
                 <div>
                   <h3 className="text-card-title text-text-primary">{activeAgent.label}</h3>
                   <p className="text-caption text-text-tertiary">{activeAgent.roleTitle}</p>
+                  <p className="mt-2 text-caption text-text-secondary">{activeAgent.description}</p>
                 </div>
               </div>
 
