@@ -28,6 +28,7 @@ type AgentsResponse = {
 };
 
 type CardPortrait = {
+  imageUrl: string;
   skin: string;
   skinShadow: string;
   hair: string;
@@ -73,6 +74,7 @@ const samplePrompts = [
 
 const cardPortraits: Record<string, CardPortrait> = {
   "post-call": {
+    imageUrl: "https://randomuser.me/api/portraits/men/32.jpg",
     skin: "#d8a16b",
     skinShadow: "#b87542",
     hair: "#2f2118",
@@ -87,6 +89,7 @@ const cardPortraits: Record<string, CardPortrait> = {
     stance: "front",
   },
   "contact-research": {
+    imageUrl: "https://randomuser.me/api/portraits/women/44.jpg",
     skin: "#f0c7a2",
     skinShadow: "#d39a72",
     hair: "#24120d",
@@ -100,6 +103,7 @@ const cardPortraits: Record<string, CardPortrait> = {
     stance: "angle",
   },
   "pre-call-brief": {
+    imageUrl: "https://randomuser.me/api/portraits/men/46.jpg",
     skin: "#c88455",
     skinShadow: "#9a5c34",
     hair: "#1f2937",
@@ -114,6 +118,7 @@ const cardPortraits: Record<string, CardPortrait> = {
     stance: "front",
   },
   "reengagement-signal": {
+    imageUrl: "https://randomuser.me/api/portraits/women/65.jpg",
     skin: "#e8b891",
     skinShadow: "#c58158",
     hair: "#5f3b20",
@@ -127,6 +132,7 @@ const cardPortraits: Record<string, CardPortrait> = {
     stance: "angle",
   },
   "journey-brief": {
+    imageUrl: "https://randomuser.me/api/portraits/men/52.jpg",
     skin: "#f3d0b2",
     skinShadow: "#d79f79",
     hair: "#3b2a1a",
@@ -140,6 +146,7 @@ const cardPortraits: Record<string, CardPortrait> = {
     stance: "front",
   },
   "territory-market": {
+    imageUrl: "https://randomuser.me/api/portraits/men/75.jpg",
     skin: "#b8754d",
     skinShadow: "#8d4e31",
     hair: "#111827",
@@ -154,6 +161,7 @@ const cardPortraits: Record<string, CardPortrait> = {
     stance: "angle",
   },
   "data-intelligence": {
+    imageUrl: "https://randomuser.me/api/portraits/women/68.jpg",
     skin: "#e2ad81",
     skinShadow: "#b8754d",
     hair: "#4b5563",
@@ -167,6 +175,7 @@ const cardPortraits: Record<string, CardPortrait> = {
     stance: "front",
   },
   "runway-pipeline-guardian": {
+    imageUrl: "https://randomuser.me/api/portraits/men/64.jpg",
     skin: "#d49a73",
     skinShadow: "#a76543",
     hair: "#2a1710",
@@ -181,6 +190,7 @@ const cardPortraits: Record<string, CardPortrait> = {
     stance: "front",
   },
   "marketing-intelligence": {
+    imageUrl: "https://randomuser.me/api/portraits/women/17.jpg",
     skin: "#edc0a0",
     skinShadow: "#c88d65",
     hair: "#5b2333",
@@ -194,6 +204,7 @@ const cardPortraits: Record<string, CardPortrait> = {
     stance: "angle",
   },
   "workflow-qa": {
+    imageUrl: "https://randomuser.me/api/portraits/men/22.jpg",
     skin: "#c98f68",
     skinShadow: "#965b3c",
     hair: "#172554",
@@ -207,6 +218,7 @@ const cardPortraits: Record<string, CardPortrait> = {
     stance: "front",
   },
   "eos-sync": {
+    imageUrl: "https://randomuser.me/api/portraits/women/33.jpg",
     skin: "#f1c19c",
     skinShadow: "#cd8c63",
     hair: "#6b3d18",
@@ -224,6 +236,7 @@ const cardPortraits: Record<string, CardPortrait> = {
 function getCardPortrait(agent: AgentTeamCard): CardPortrait {
   return (
     cardPortraits[agent.name] ?? {
+      imageUrl: "https://randomuser.me/api/portraits/men/32.jpg",
       skin: "#e2ad81",
       skinShadow: "#b8754d",
       hair: "#1f2937",
@@ -259,9 +272,7 @@ function metricLabel(value: number) {
 
 function AgentBaseballPortrait({ agent, compact = false }: { agent: AgentTeamCard; compact?: boolean }) {
   const portrait = getCardPortrait(agent);
-  const turn = portrait.stance === "angle" ? "translate(6 0)" : "";
   const opacity = agent.status === "planned" ? 0.66 : 1;
-  const idPrefix = `${agent.name}-${compact ? "compact" : "card"}`;
 
   return (
     <div
@@ -270,70 +281,28 @@ function AgentBaseballPortrait({ agent, compact = false }: { agent: AgentTeamCar
       }`}
       style={{ background: portrait.background }}
     >
-      <svg viewBox="0 0 260 210" className="h-full w-full" role="img" aria-label={`${agent.label} portrait`}>
-        <defs>
-          <linearGradient id={`${idPrefix}-skin`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#ffe0c1" stopOpacity="0.45" />
-            <stop offset="0.42" stopColor={portrait.skin} />
-            <stop offset="1" stopColor={portrait.skinShadow} />
-          </linearGradient>
-          <linearGradient id={`${idPrefix}-hair`} x1="0" y1="0" x2="0.7" y2="1">
-            <stop offset="0" stopColor={portrait.hair} />
-            <stop offset="1" stopColor={portrait.hairShadow} />
-          </linearGradient>
-          <linearGradient id={`${idPrefix}-jersey`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor={portrait.trim} stopOpacity="0.32" />
-            <stop offset="0.48" stopColor={portrait.shirt} />
-            <stop offset="1" stopColor={portrait.shirt} stopOpacity="0.82" />
-          </linearGradient>
-          <linearGradient id={`${idPrefix}-sheen`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#ffffff" stopOpacity="0.9" />
-            <stop offset="0.44" stopColor="#ffffff" stopOpacity="0.05" />
-            <stop offset="1" stopColor="#000000" stopOpacity="0.1" />
-          </linearGradient>
-          <radialGradient id={`${idPrefix}-field`} cx="50%" cy="35%" r="70%">
-            <stop offset="0" stopColor="#ffffff" stopOpacity="0.85" />
-            <stop offset="1" stopColor={portrait.background} stopOpacity="0.2" />
-          </radialGradient>
-        </defs>
-        <rect width="260" height="210" fill={`url(#${idPrefix}-field)`} />
-        <path d="M-20 170 C38 128 86 222 148 170 C196 130 224 158 280 126 L280 230 L-20 230 Z" fill={portrait.pattern} opacity="0.28" />
-        <path d="M38 40 L222 40" stroke={portrait.pattern} strokeWidth="10" opacity="0.18" />
-        <path d="M50 66 L210 66" stroke={portrait.pattern} strokeWidth="6" opacity="0.12" />
-        <g opacity={opacity} transform={turn}>
-          <ellipse cx="130" cy="200" rx="86" ry="17" fill="#111827" opacity="0.1" />
-          <path d="M70 210 C73 168 94 142 126 139 L134 139 C166 142 187 168 190 210 Z" fill={`url(#${idPrefix}-jersey)`} />
-          <path d="M108 144 L130 166 L152 144 L161 210 L99 210 Z" fill="#ffffff" opacity="0.94" />
-          <path d="M101 151 L128 174 L94 210 L69 210 C74 177 85 160 101 151 Z" fill={`url(#${idPrefix}-jersey)`} />
-          <path d="M159 151 L132 174 L166 210 L191 210 C186 177 175 160 159 151 Z" fill={`url(#${idPrefix}-jersey)`} />
-          <path d="M114 135 C115 151 122 158 130 158 C138 158 145 151 146 135 Z" fill={portrait.skinShadow} opacity="0.9" />
-          <ellipse cx="92" cy="110" rx="13" ry="18" fill={`url(#${idPrefix}-skin)`} />
-          <ellipse cx="168" cy="110" rx="13" ry="18" fill={`url(#${idPrefix}-skin)`} />
-          <path d="M85 95 C85 58 103 34 130 32 C158 30 176 56 176 95 C176 134 156 154 130 154 C104 154 85 134 85 95 Z" fill={`url(#${idPrefix}-skin)`} />
-          <path d="M85 95 C87 56 106 33 132 31 C157 30 176 55 177 96 C160 94 145 80 133 57 C120 78 103 91 85 95 Z" fill={`url(#${idPrefix}-hair)`} />
-          <path d="M89 101 C105 94 119 82 132 58 C145 82 159 95 175 99 C172 123 157 151 130 151 C103 151 90 124 89 101 Z" fill={`url(#${idPrefix}-skin)`} />
-          <path d="M101 97 C110 91 121 91 128 97" stroke={portrait.hairShadow} strokeWidth="4" strokeLinecap="round" opacity="0.72" />
-          <path d="M139 97 C148 91 159 92 167 98" stroke={portrait.hairShadow} strokeWidth="4" strokeLinecap="round" opacity="0.72" />
-          <ellipse cx="114" cy="112" rx="5.5" ry="7" fill="#243142" opacity="0.88" />
-          <ellipse cx="150" cy="112" rx="5.5" ry="7" fill="#243142" opacity="0.88" />
-          <circle cx="116" cy="109" r="1.5" fill="#ffffff" opacity="0.75" />
-          <circle cx="152" cy="109" r="1.5" fill="#ffffff" opacity="0.75" />
-          <path d="M131 113 C127 124 127 131 136 132" stroke={portrait.skinShadow} strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.55" />
-          <path d="M116 139 C124 146 139 146 149 139" stroke="#6f3c25" strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.58" />
-          <path d="M98 122 C104 126 109 126 114 122" stroke={portrait.skinShadow} strokeWidth="2" strokeLinecap="round" opacity="0.22" />
-          <path d="M161 122 C156 126 151 126 146 122" stroke={portrait.skinShadow} strokeWidth="2" strokeLinecap="round" opacity="0.22" />
-          {portrait.cap ? (
-            <g>
-              <path d="M89 81 C96 46 113 34 134 35 C157 36 172 52 176 83 C151 76 121 75 89 81 Z" fill={portrait.cap} />
-              <path d="M94 80 C128 71 157 73 190 87 C155 90 122 89 94 80 Z" fill={portrait.trim} opacity="0.82" />
-              <text x="132" y="61" textAnchor="middle" fontSize="18" fontWeight="800" fill="#fff">
-                {agent.portrait.initials}
-              </text>
-            </g>
-          ) : null}
-        </g>
-        <rect width="260" height="210" fill={`url(#${idPrefix}-sheen)`} opacity="0.32" />
-      </svg>
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage: `radial-gradient(circle at 50% 24%, rgba(255,255,255,0.92), transparent 46%), linear-gradient(135deg, ${portrait.background}, #ffffff 54%, ${portrait.pattern})`,
+        }}
+      />
+      <div
+        className="absolute inset-x-5 bottom-0 top-8 overflow-hidden rounded-t-[999px] border border-white/70 bg-white/45 shadow-[0_18px_38px_rgba(15,23,42,0.16)]"
+        style={{ opacity }}
+      >
+        <img
+          src={portrait.imageUrl}
+          alt={`${agent.label} portrait`}
+          className="h-full w-full object-cover object-center"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-white/10" />
+      </div>
+      <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white/82 to-transparent" />
+      <div className="absolute left-1/2 top-2 -translate-x-1/2 rounded-full border border-white/80 bg-white/75 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-text-secondary shadow-sm">
+        {agent.portrait.initials}
+      </div>
       <div className="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">
         #{portrait.number}
       </div>
