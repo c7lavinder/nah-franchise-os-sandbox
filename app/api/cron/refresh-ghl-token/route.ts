@@ -14,6 +14,7 @@ import { createServerClient } from "@/lib/supabase/server";
 const TOKEN_URL = "https://services.leadconnectorhq.com/oauth/token";
 
 export async function GET(request: NextRequest) {
+  const startedAt = new Date().toISOString();
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader !== `Bearer ${cronSecret}` && process.env.NODE_ENV !== "development") {
@@ -51,6 +52,17 @@ export async function GET(request: NextRequest) {
     const expiresAt = new Date(JSON.parse(expiresRow.setting_value) as string);
     const hoursRemaining = (expiresAt.getTime() - Date.now()) / (1000 * 60 * 60);
     if (hoursRemaining > 6) {
+      await supabase.from("cron_job_log").insert({
+        job_name: "refresh-ghl-token",
+        status: "success",
+        started_at: startedAt,
+        finished_at: new Date().toISOString(),
+        result: {
+          status: "fresh",
+          hours_remaining: Math.round(hoursRemaining),
+          expires_at: expiresAt.toISOString(),
+        },
+      });
       return NextResponse.json({ status: "fresh", hoursRemaining: Math.round(hoursRemaining) });
     }
   }
@@ -104,6 +116,8 @@ export async function GET(request: NextRequest) {
   await supabase.from("cron_job_log").insert({
     job_name: "refresh-ghl-token",
     status: "success",
+    started_at: startedAt,
+    finished_at: new Date().toISOString(),
     result: { expires_at: expiresAt },
   });
 

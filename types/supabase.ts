@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       agent_actions: {
@@ -285,6 +260,120 @@ export type Database = {
           {
             foreignKeyName: "agent_runs_requested_by_user_id_fkey"
             columns: ["requested_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_api_activity: {
+        Row: {
+          created_at: string
+          endpoint: string
+          id: string
+          method: string
+          request_params: Json
+          resource: string
+          status_code: number
+          token_id: string | null
+          token_prefix: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          endpoint: string
+          id?: string
+          method?: string
+          request_params?: Json
+          resource: string
+          status_code?: number
+          token_id?: string | null
+          token_prefix?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string
+          id?: string
+          method?: string
+          request_params?: Json
+          resource?: string
+          status_code?: number
+          token_id?: string | null
+          token_prefix?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_api_activity_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "ai_api_tokens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_api_activity_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_api_tokens: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          last_used_at: string | null
+          name: string
+          revoked_at: string | null
+          scope: string
+          token_hash: string
+          token_prefix: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          last_used_at?: string | null
+          name?: string
+          revoked_at?: string | null
+          scope?: string
+          token_hash: string
+          token_prefix: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          last_used_at?: string | null
+          name?: string
+          revoked_at?: string | null
+          scope?: string
+          token_hash?: string
+          token_prefix?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_api_tokens_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_api_tokens_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -4741,6 +4830,174 @@ export type Database = {
           },
         ]
       }
+      ms_lead_list_properties: {
+        Row: {
+          Address1: string | null
+          AddressSlugShort: string | null
+          AddressSlugVerbose: string | null
+          Archived: boolean
+          AutoTerritorySlug: string | null
+          BatchId: string | null
+          City: string | null
+          County: string | null
+          DirectSellerNotes: string | null
+          GoogleCity: string | null
+          GoogleCounty: string | null
+          GoogleState: string | null
+          Inserted: string | null
+          InsertedBy: string | null
+          is_current_lead_list: boolean
+          LastModified: string | null
+          LastModifiedBy: string | null
+          Latitude: number | null
+          LeadCategory: string | null
+          LeadClassification: string | null
+          LeadSubType2: string | null
+          LeadType: string | null
+          Longitude: number | null
+          ms_synced_at: string
+          OwnerLeadSource: string | null
+          OwnerOfferStatus: string | null
+          PropertyId: number
+          PropertyReviewedBy: string | null
+          PropertyReviewedByFriendlyName: string | null
+          PropertyReviewedDate: string | null
+          PropertyType: string | null
+          PropertyUrl: string | null
+          RoadType: string | null
+          Septic: string | null
+          State: string | null
+          Status: string | null
+          Streetname: string | null
+          TerritorySlug: string | null
+          Vacant: string | null
+          ZillowPropertyId: string | null
+          Zip: string | null
+        }
+        Insert: {
+          Address1?: string | null
+          AddressSlugShort?: string | null
+          AddressSlugVerbose?: string | null
+          Archived?: boolean
+          AutoTerritorySlug?: string | null
+          BatchId?: string | null
+          City?: string | null
+          County?: string | null
+          DirectSellerNotes?: string | null
+          GoogleCity?: string | null
+          GoogleCounty?: string | null
+          GoogleState?: string | null
+          Inserted?: string | null
+          InsertedBy?: string | null
+          is_current_lead_list?: boolean
+          LastModified?: string | null
+          LastModifiedBy?: string | null
+          Latitude?: number | null
+          LeadCategory?: string | null
+          LeadClassification?: string | null
+          LeadSubType2?: string | null
+          LeadType?: string | null
+          Longitude?: number | null
+          ms_synced_at?: string
+          OwnerLeadSource?: string | null
+          OwnerOfferStatus?: string | null
+          PropertyId: number
+          PropertyReviewedBy?: string | null
+          PropertyReviewedByFriendlyName?: string | null
+          PropertyReviewedDate?: string | null
+          PropertyType?: string | null
+          PropertyUrl?: string | null
+          RoadType?: string | null
+          Septic?: string | null
+          State?: string | null
+          Status?: string | null
+          Streetname?: string | null
+          TerritorySlug?: string | null
+          Vacant?: string | null
+          ZillowPropertyId?: string | null
+          Zip?: string | null
+        }
+        Update: {
+          Address1?: string | null
+          AddressSlugShort?: string | null
+          AddressSlugVerbose?: string | null
+          Archived?: boolean
+          AutoTerritorySlug?: string | null
+          BatchId?: string | null
+          City?: string | null
+          County?: string | null
+          DirectSellerNotes?: string | null
+          GoogleCity?: string | null
+          GoogleCounty?: string | null
+          GoogleState?: string | null
+          Inserted?: string | null
+          InsertedBy?: string | null
+          is_current_lead_list?: boolean
+          LastModified?: string | null
+          LastModifiedBy?: string | null
+          Latitude?: number | null
+          LeadCategory?: string | null
+          LeadClassification?: string | null
+          LeadSubType2?: string | null
+          LeadType?: string | null
+          Longitude?: number | null
+          ms_synced_at?: string
+          OwnerLeadSource?: string | null
+          OwnerOfferStatus?: string | null
+          PropertyId?: number
+          PropertyReviewedBy?: string | null
+          PropertyReviewedByFriendlyName?: string | null
+          PropertyReviewedDate?: string | null
+          PropertyType?: string | null
+          PropertyUrl?: string | null
+          RoadType?: string | null
+          Septic?: string | null
+          State?: string | null
+          Status?: string | null
+          Streetname?: string | null
+          TerritorySlug?: string | null
+          Vacant?: string | null
+          ZillowPropertyId?: string | null
+          Zip?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ms_lead_list_properties_TerritorySlug_fkey"
+            columns: ["TerritorySlug"]
+            isOneToOne: false
+            referencedRelation: "contact_territory_history"
+            referencedColumns: ["TerritorySlug"]
+          },
+          {
+            foreignKeyName: "ms_lead_list_properties_TerritorySlug_fkey"
+            columns: ["TerritorySlug"]
+            isOneToOne: false
+            referencedRelation: "current_territory_owners"
+            referencedColumns: ["TerritorySlug"]
+          },
+          {
+            foreignKeyName: "ms_lead_list_properties_TerritorySlug_fkey"
+            columns: ["TerritorySlug"]
+            isOneToOne: false
+            referencedRelation: "territories"
+            referencedColumns: ["TerritorySlug"]
+          },
+          {
+            foreignKeyName: "ms_lead_list_properties_TerritorySlug_fkey"
+            columns: ["TerritorySlug"]
+            isOneToOne: false
+            referencedRelation: "territory_ownership_history"
+            referencedColumns: ["TerritorySlug"]
+          },
+          {
+            foreignKeyName: "ms_lead_list_properties_TerritorySlug_fkey"
+            columns: ["TerritorySlug"]
+            isOneToOne: false
+            referencedRelation: "territory_performance"
+            referencedColumns: ["TerritorySlug"]
+          },
+        ]
+      }
       ms_lead_type_categories: {
         Row: {
           LeadCategory: string
@@ -6952,6 +7209,76 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ms_properties"
             referencedColumns: ["PropertyId"]
+          },
+        ]
+      }
+      ms_property_stage0_origins: {
+        Row: {
+          evidence_source: string
+          evidence_status: string | null
+          ms_synced_at: string
+          original_stage0_inserted_at: string
+          PropertyId: number
+          TerritorySlug: string | null
+        }
+        Insert: {
+          evidence_source: string
+          evidence_status?: string | null
+          ms_synced_at?: string
+          original_stage0_inserted_at: string
+          PropertyId: number
+          TerritorySlug?: string | null
+        }
+        Update: {
+          evidence_source?: string
+          evidence_status?: string | null
+          ms_synced_at?: string
+          original_stage0_inserted_at?: string
+          PropertyId?: number
+          TerritorySlug?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ms_property_stage0_origins_PropertyId_fkey"
+            columns: ["PropertyId"]
+            isOneToOne: true
+            referencedRelation: "ms_properties"
+            referencedColumns: ["PropertyId"]
+          },
+          {
+            foreignKeyName: "ms_property_stage0_origins_TerritorySlug_fkey"
+            columns: ["TerritorySlug"]
+            isOneToOne: false
+            referencedRelation: "contact_territory_history"
+            referencedColumns: ["TerritorySlug"]
+          },
+          {
+            foreignKeyName: "ms_property_stage0_origins_TerritorySlug_fkey"
+            columns: ["TerritorySlug"]
+            isOneToOne: false
+            referencedRelation: "current_territory_owners"
+            referencedColumns: ["TerritorySlug"]
+          },
+          {
+            foreignKeyName: "ms_property_stage0_origins_TerritorySlug_fkey"
+            columns: ["TerritorySlug"]
+            isOneToOne: false
+            referencedRelation: "territories"
+            referencedColumns: ["TerritorySlug"]
+          },
+          {
+            foreignKeyName: "ms_property_stage0_origins_TerritorySlug_fkey"
+            columns: ["TerritorySlug"]
+            isOneToOne: false
+            referencedRelation: "territory_ownership_history"
+            referencedColumns: ["TerritorySlug"]
+          },
+          {
+            foreignKeyName: "ms_property_stage0_origins_TerritorySlug_fkey"
+            columns: ["TerritorySlug"]
+            isOneToOne: false
+            referencedRelation: "territory_performance"
+            referencedColumns: ["TerritorySlug"]
           },
         ]
       }
@@ -11292,9 +11619,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       cron_job_status: ["running", "success", "failed"],

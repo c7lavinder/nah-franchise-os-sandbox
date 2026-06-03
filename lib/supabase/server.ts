@@ -5,7 +5,7 @@
  * across 64 files (stale column references, join types, null handling).
  * Tracked for a dedicated cleanup session.
  *
- * Auto-generated types in types/supabase.ts are fresh (2026-04-30).
+ * Auto-generated types in types/supabase.ts are fresh (2026-06-03).
  * Regen: npx supabase gen types typescript --project-id llnrvophuvrqcqducgrr > types/supabase.ts
  */
 
