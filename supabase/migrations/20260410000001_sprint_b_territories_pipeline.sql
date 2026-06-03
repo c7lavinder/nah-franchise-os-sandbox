@@ -61,9 +61,9 @@ BEGIN
   IF v_inventory_id IS NOT NULL THEN
     INSERT INTO pipeline_sub_tasks (stage_id, slug, name, sort_order, state_type, is_required, default_logger_type)
     VALUES
-      (v_inventory_id, 'hundred-offers', '100 Offers', 1, 'single', true, 'user'),
-      (v_inventory_id, 'three-purchased', '3 Purchased', 2, 'single', true, 'user'),
-      (v_inventory_id, 'first-completed', '1st Completed', 3, 'single', true, 'user')
+      (v_inventory_id, 'first-completed', '1st Completed', 1, 'single', true, 'user'),
+      (v_inventory_id, 'hundred-offers', '100 Offers', 2, 'single', true, 'user'),
+      (v_inventory_id, 'three-purchased', '3 Purchased', 3, 'single', true, 'user')
     ON CONFLICT DO NOTHING;
   END IF;
 END $$;
