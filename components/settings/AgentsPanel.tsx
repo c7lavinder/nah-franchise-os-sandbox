@@ -259,7 +259,7 @@ function metricLabel(value: number) {
 
 function AgentBaseballPortrait({ agent, compact = false }: { agent: AgentTeamCard; compact?: boolean }) {
   const portrait = getCardPortrait(agent);
-  const turn = portrait.stance === "angle" ? "translate(8 0)" : "";
+  const turn = portrait.stance === "angle" ? "translate(6 0)" : "";
   const opacity = agent.status === "planned" ? 0.66 : 1;
   const idPrefix = `${agent.name}-${compact ? "compact" : "card"}`;
 
@@ -272,6 +272,20 @@ function AgentBaseballPortrait({ agent, compact = false }: { agent: AgentTeamCar
     >
       <svg viewBox="0 0 260 210" className="h-full w-full" role="img" aria-label={`${agent.label} portrait`}>
         <defs>
+          <linearGradient id={`${idPrefix}-skin`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#ffe0c1" stopOpacity="0.45" />
+            <stop offset="0.42" stopColor={portrait.skin} />
+            <stop offset="1" stopColor={portrait.skinShadow} />
+          </linearGradient>
+          <linearGradient id={`${idPrefix}-hair`} x1="0" y1="0" x2="0.7" y2="1">
+            <stop offset="0" stopColor={portrait.hair} />
+            <stop offset="1" stopColor={portrait.hairShadow} />
+          </linearGradient>
+          <linearGradient id={`${idPrefix}-jersey`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={portrait.trim} stopOpacity="0.32" />
+            <stop offset="0.48" stopColor={portrait.shirt} />
+            <stop offset="1" stopColor={portrait.shirt} stopOpacity="0.82" />
+          </linearGradient>
           <linearGradient id={`${idPrefix}-sheen`} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor="#ffffff" stopOpacity="0.9" />
             <stop offset="0.44" stopColor="#ffffff" stopOpacity="0.05" />
@@ -283,40 +297,42 @@ function AgentBaseballPortrait({ agent, compact = false }: { agent: AgentTeamCar
           </radialGradient>
         </defs>
         <rect width="260" height="210" fill={`url(#${idPrefix}-field)`} />
-        <path d="M-20 172 C40 120 90 230 150 168 C190 126 230 160 280 124 L280 230 L-20 230 Z" fill={portrait.pattern} opacity="0.38" />
-        <path d="M24 40 L236 40" stroke={portrait.pattern} strokeWidth="14" opacity="0.35" />
-        <path d="M34 70 L226 70" stroke={portrait.pattern} strokeWidth="8" opacity="0.25" />
+        <path d="M-20 170 C38 128 86 222 148 170 C196 130 224 158 280 126 L280 230 L-20 230 Z" fill={portrait.pattern} opacity="0.28" />
+        <path d="M38 40 L222 40" stroke={portrait.pattern} strokeWidth="10" opacity="0.18" />
+        <path d="M50 66 L210 66" stroke={portrait.pattern} strokeWidth="6" opacity="0.12" />
         <g opacity={opacity} transform={turn}>
-          <ellipse cx="130" cy="198" rx="84" ry="18" fill="#111827" opacity="0.14" />
-          <path d="M75 192 C80 154 98 130 128 130 C158 130 180 154 187 192 Z" fill={portrait.shirt} />
-          <path d="M96 188 L116 139 L130 163 L144 139 L164 188 Z" fill="#ffffff" opacity="0.86" />
-          <path d="M73 193 C83 164 96 147 112 139 L127 210 L75 210 Z" fill={portrait.shirt} />
-          <path d="M187 193 C177 164 160 145 145 139 L130 210 L188 210 Z" fill={portrait.shirt} />
-          <path d="M95 166 C112 177 145 178 164 166" stroke={portrait.trim} strokeWidth="5" strokeLinecap="round" opacity="0.95" />
-          <path d="M112 133 C112 148 120 157 130 157 C140 157 148 148 148 133 Z" fill={portrait.skinShadow} />
-          <ellipse cx="130" cy="91" rx="48" ry="55" fill={portrait.skin} />
-          <path d="M84 92 C88 49 109 28 135 30 C159 32 181 55 177 100 C160 89 143 71 132 50 C117 72 103 85 84 92 Z" fill={portrait.hair} />
-          <path d="M86 94 C85 132 105 153 130 153 C152 153 171 135 176 101 C157 104 142 86 131 58 C116 85 100 96 86 94 Z" fill={portrait.skin} />
-          <path d="M92 104 C84 99 76 103 76 114 C76 125 84 132 94 130" fill={portrait.skinShadow} opacity="0.85" />
-          <path d="M168 104 C177 99 184 104 184 115 C184 126 176 132 166 130" fill={portrait.skinShadow} opacity="0.85" />
-          <path d="M105 86 C114 80 123 81 130 87 C140 80 152 81 160 88" stroke={portrait.hairShadow} strokeWidth="4" strokeLinecap="round" opacity="0.45" />
-          <ellipse cx="112" cy="109" rx="5" ry="6" fill="#1f2937" />
-          <ellipse cx="150" cy="109" rx="5" ry="6" fill="#1f2937" />
-          <path d="M130 111 C127 122 125 128 133 130" stroke={portrait.skinShadow} strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.65" />
-          <path d="M114 137 C124 145 141 145 152 137" stroke="#7f3f24" strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.65" />
-          <path d="M95 99 C103 95 112 94 121 98" stroke={portrait.hairShadow} strokeWidth="4" strokeLinecap="round" />
-          <path d="M141 98 C151 94 160 95 168 100" stroke={portrait.hairShadow} strokeWidth="4" strokeLinecap="round" />
+          <ellipse cx="130" cy="200" rx="86" ry="17" fill="#111827" opacity="0.1" />
+          <path d="M70 210 C73 168 94 142 126 139 L134 139 C166 142 187 168 190 210 Z" fill={`url(#${idPrefix}-jersey)`} />
+          <path d="M108 144 L130 166 L152 144 L161 210 L99 210 Z" fill="#ffffff" opacity="0.94" />
+          <path d="M101 151 L128 174 L94 210 L69 210 C74 177 85 160 101 151 Z" fill={`url(#${idPrefix}-jersey)`} />
+          <path d="M159 151 L132 174 L166 210 L191 210 C186 177 175 160 159 151 Z" fill={`url(#${idPrefix}-jersey)`} />
+          <path d="M114 135 C115 151 122 158 130 158 C138 158 145 151 146 135 Z" fill={portrait.skinShadow} opacity="0.9" />
+          <ellipse cx="92" cy="110" rx="13" ry="18" fill={`url(#${idPrefix}-skin)`} />
+          <ellipse cx="168" cy="110" rx="13" ry="18" fill={`url(#${idPrefix}-skin)`} />
+          <path d="M85 95 C85 58 103 34 130 32 C158 30 176 56 176 95 C176 134 156 154 130 154 C104 154 85 134 85 95 Z" fill={`url(#${idPrefix}-skin)`} />
+          <path d="M85 95 C87 56 106 33 132 31 C157 30 176 55 177 96 C160 94 145 80 133 57 C120 78 103 91 85 95 Z" fill={`url(#${idPrefix}-hair)`} />
+          <path d="M89 101 C105 94 119 82 132 58 C145 82 159 95 175 99 C172 123 157 151 130 151 C103 151 90 124 89 101 Z" fill={`url(#${idPrefix}-skin)`} />
+          <path d="M101 97 C110 91 121 91 128 97" stroke={portrait.hairShadow} strokeWidth="4" strokeLinecap="round" opacity="0.72" />
+          <path d="M139 97 C148 91 159 92 167 98" stroke={portrait.hairShadow} strokeWidth="4" strokeLinecap="round" opacity="0.72" />
+          <ellipse cx="114" cy="112" rx="5.5" ry="7" fill="#243142" opacity="0.88" />
+          <ellipse cx="150" cy="112" rx="5.5" ry="7" fill="#243142" opacity="0.88" />
+          <circle cx="116" cy="109" r="1.5" fill="#ffffff" opacity="0.75" />
+          <circle cx="152" cy="109" r="1.5" fill="#ffffff" opacity="0.75" />
+          <path d="M131 113 C127 124 127 131 136 132" stroke={portrait.skinShadow} strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.55" />
+          <path d="M116 139 C124 146 139 146 149 139" stroke="#6f3c25" strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.58" />
+          <path d="M98 122 C104 126 109 126 114 122" stroke={portrait.skinShadow} strokeWidth="2" strokeLinecap="round" opacity="0.22" />
+          <path d="M161 122 C156 126 151 126 146 122" stroke={portrait.skinShadow} strokeWidth="2" strokeLinecap="round" opacity="0.22" />
           {portrait.cap ? (
             <g>
-              <path d="M87 81 C92 43 112 30 134 30 C158 30 174 47 177 83 C151 73 121 72 87 81 Z" fill={portrait.cap} />
-              <path d="M94 78 C128 70 156 72 190 86 C156 88 122 88 94 78 Z" fill={portrait.trim} opacity="0.85" />
-              <text x="130" y="59" textAnchor="middle" fontSize="20" fontWeight="800" fill="#fff">
+              <path d="M89 81 C96 46 113 34 134 35 C157 36 172 52 176 83 C151 76 121 75 89 81 Z" fill={portrait.cap} />
+              <path d="M94 80 C128 71 157 73 190 87 C155 90 122 89 94 80 Z" fill={portrait.trim} opacity="0.82" />
+              <text x="132" y="61" textAnchor="middle" fontSize="18" fontWeight="800" fill="#fff">
                 {agent.portrait.initials}
               </text>
             </g>
           ) : null}
         </g>
-        <rect width="260" height="210" fill={`url(#${idPrefix}-sheen)`} opacity="0.5" />
+        <rect width="260" height="210" fill={`url(#${idPrefix}-sheen)`} opacity="0.32" />
       </svg>
       <div className="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">
         #{portrait.number}
