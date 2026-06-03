@@ -16,6 +16,9 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { getStaleRunningCutoff } from "@/lib/mastersuite/cron-lock";
+
+const JOB_NAME = "coaching-brief";
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -26,9 +29,20 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServerClient();
 
+  await supabase
+    .from("cron_job_log")
+    .update({
+      finished_at: new Date().toISOString(),
+      status: "failed",
+      error: "Timed out: marked stale by next run",
+    })
+    .eq("job_name", JOB_NAME)
+    .eq("status", "running")
+    .lt("started_at", getStaleRunningCutoff());
+
   const { data: log } = await supabase
     .from("cron_job_log")
-    .insert({ job_name: "coaching-brief", status: "running" })
+    .insert({ job_name: JOB_NAME, status: "running" })
     .select("id")
     .single();
 
@@ -45,7 +59,7 @@ export async function GET(request: NextRequest) {
       if (log) {
         await supabase
           .from("cron_job_log")
-          .update({ finished_at: new Date().toISOString(), status: "completed", result: { briefsSent: 0 } })
+          .update({ finished_at: new Date().toISOString(), status: "success", result: { briefsSent: 0 } })
           .eq("id", log.id);
       }
       return NextResponse.json({ briefsSent: 0 });
@@ -198,7 +212,7 @@ export async function GET(request: NextRequest) {
         .from("cron_job_log")
         .update({
           finished_at: new Date().toISOString(),
-          status: "completed",
+          status: "success",
           result: { briefsSent },
         })
         .eq("id", log.id);
