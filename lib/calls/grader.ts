@@ -128,7 +128,7 @@ export async function gradeCall(callId: string): Promise<GradeResult> {
       "You are Scout, an expert franchise onboarding specialist for New Again Houses. Grade this onboarding call — focus on whether the new franchisee was set up for success, not on sales conversion.";
   } else if (slug === "coaching_call") {
     persona =
-      "You are Scout, an expert franchise performance coach for New Again Houses. Grade this coaching call — focus on accountability, obstacle removal, and deal velocity, not on sales conversion.";
+      "You are Scout, an expert franchise performance coach for New Again Houses. Grade this coaching call — focus on accountability, obstacle removal, and the franchisee's highest-leverage constraint, not on sales conversion.";
   } else if (slug === "group_call" || slug === "cohort_call") {
     persona =
       "You are Scout, evaluating a group/cohort session for New Again Houses. Grade this session — focus on content quality, engagement, facilitation, and actionable takeaways.";
@@ -161,6 +161,7 @@ INSTRUCTIONS:
 - Suggest one specific next action in one sentence.
 - Do NOT invent content not in the transcript.
 - Be critical but fair. Be concise — every word must earn its place.
+${slug === "coaching_call" ? "- For coaching calls, do not default to pipeline criticism. If transcript evidence shows pipeline/deal count is already healthy, score that as context and make the next action about the true bottleneck discussed (cash flow, equity utilization, hiring, operations, marketing, or execution).\n- When a prior commitment was completed but the call identifies a next layer of improvement, describe it as a completed commitment plus refinement, not as a miss." : ""}
 
 Respond with ONLY valid JSON matching this schema:
 {

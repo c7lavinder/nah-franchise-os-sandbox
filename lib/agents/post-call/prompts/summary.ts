@@ -52,6 +52,8 @@ Bad examples: "Intro Call w/ John Smith" (has name), "SBA funding timeline & ter
 SUMMARY INSTRUCTIONS:
 Write exactly ONE paragraph — 4 to 6 sentences maximum. Executive briefing, not a report.
 Pack the most important information: who the person is, where they are in the process, what was discussed, key signals, what was committed, anything critical missed.
+- For coaching calls, lead with the franchisee's biggest operational or financial constraint from the transcript, not the default pipeline stage.
+- If a prior commitment was completed but the transcript adds a more advanced expectation, say both things: completed commitment plus next-layer refinement.
 
 WRITING STANDARDS:
 - Write in complete, professional sentences. No shorthand.
