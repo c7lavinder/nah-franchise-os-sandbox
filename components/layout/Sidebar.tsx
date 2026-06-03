@@ -18,6 +18,7 @@ import {
   LogOut,
   ChevronUp,
   BarChart3,
+  Megaphone,
 } from "lucide-react";
 import type { UserRole } from "@/types/database";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -68,6 +69,12 @@ const NAV_ITEMS: NavItem[] = [
     href: "/l10",
     icon: BarChart3,
     roles: ["leadership", "admin", "operator"],
+  },
+  {
+    label: "Marketing",
+    href: "/marketing",
+    icon: Megaphone,
+    roles: ["leadership", "admin", "operator", "marketing"],
   },
 ];
 
