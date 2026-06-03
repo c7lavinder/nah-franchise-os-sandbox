@@ -17,6 +17,7 @@ import {
   executeGetEntity,
   executeQuery,
   executeAggregate,
+  resolveTerritorySlug,
   type EntityType,
   type QueryEntity,
   type FilterOp,
@@ -2443,13 +2444,15 @@ async function executeDescribeData(input: Record<string, unknown>): Promise<Tool
 
 async function executeTerritoryPerformance(input: Record<string, unknown>): Promise<ToolExecutionResult> {
   try {
-    const slug = input.TerritorySlug as string;
+    const requestedSlug = input.TerritorySlug as string;
     const period = (input.period as string) ?? "t3";
     const { periodStart, periodEndExclusive, prevPeriodStart, prevPeriodEndExclusive } = computePeriodRange(period);
     const periodISO = periodStart.toISOString();
     const periodEndExclusiveISO = periodEndExclusive.toISOString();
     const shouldCapStatusHistory = period !== "all" && period !== "ytd";
     const supabase = createServerClient();
+    const resolvedTerritory = await resolveTerritorySlug(requestedSlug, supabase);
+    const slug = resolvedTerritory?.TerritorySlug ?? requestedSlug;
 
     // 1. Inventory rows with purchase dates for this territory
     let inventory: {
@@ -2657,6 +2660,7 @@ async function executeTerritoryPerformance(input: Record<string, unknown>): Prom
     return {
       data: JSON.stringify({
         world: "acquisitions",
+        resolvedFrom: requestedSlug !== slug ? requestedSlug : undefined,
         territory: slug,
         territoryName: (territoryInfo as any)?.Nickname ?? slug,
         owners: ownerNames,

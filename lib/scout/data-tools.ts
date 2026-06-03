@@ -246,6 +246,68 @@ function worldForEntity(entity: string): "frandev" | "acquisitions" {
   return ACQUISITIONS_ENTITIES.has(entity) ? "acquisitions" : "frandev";
 }
 
+function normalizeTerritoryLookup(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function nameFromAccountEmail(value: unknown): string | null {
+  if (typeof value !== "string" || !value.includes("@")) return null;
+  const local = value.split("@")[0];
+  const parts = local
+    .split(/[._-]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length < 2) return null;
+  return parts.map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(" ");
+}
+
+type TerritoryLookupRow = {
+  TerritorySlug: string;
+  Nickname: string | null;
+  NahCity: string | null;
+  NahState: string | null;
+  MarketingName: string | null;
+  status: string | null;
+};
+
+export async function resolveTerritorySlug(
+  input: string,
+  supabase = createServerClient()
+): Promise<TerritoryLookupRow | null> {
+  const raw = input.trim();
+  if (!raw) return null;
+
+  const lookup = normalizeTerritoryLookup(raw);
+  const { data } = await supabase
+    .from("territories")
+    .select("TerritorySlug, Nickname, NahCity, NahState, MarketingName, status")
+    .limit(1000);
+
+  const rows = ((data ?? []) as TerritoryLookupRow[]).map((row) => {
+    const cityState = [row.NahCity, row.NahState].filter(Boolean).join(" ");
+    const labels = [row.TerritorySlug, row.Nickname, row.MarketingName, cityState].filter(Boolean) as string[];
+    const normalizedLabels = labels.map(normalizeTerritoryLookup);
+    const exact = normalizedLabels.some((label) => label === lookup);
+    const contains = normalizedLabels.some((label) => label.includes(lookup) || lookup.includes(label));
+    return { row, exact, contains };
+  });
+
+  const exactMatches = rows.filter((r) => r.exact);
+  const containsMatches = rows.filter((r) => r.contains);
+  const candidates = exactMatches.length > 0 ? exactMatches : containsMatches;
+  if (candidates.length === 0) return null;
+
+  return (
+    candidates.find((c) => c.row.status === "active")?.row ??
+    candidates.find((c) => c.row.status !== "inactive")?.row ??
+    candidates[0].row
+  );
+}
+
 // ════════════════════════════════════════════════════════════════════
 // query() — flexible filter, returns rows
 // ════════════════════════════════════════════════════════════════════
@@ -818,6 +880,8 @@ async function getContactProfile(contactId: string, options: { refreshStaleBrief
 async function getTerritoryProfile(slug: string, options: { refreshStaleBriefs?: boolean } = {}): Promise<string> {
   try {
     const supabase = createServerClient();
+    const resolved = await resolveTerritorySlug(slug, supabase);
+    const territorySlug = resolved?.TerritorySlug ?? slug;
     const [
       territoryRes,
       ownersRes,
@@ -832,41 +896,41 @@ async function getTerritoryProfile(slug: string, options: { refreshStaleBriefs?:
       inventoryRes,
       territoryBriefRes,
     ] = await Promise.all([
-      supabase.from("territories").select("*").eq("TerritorySlug", slug).single(),
+      supabase.from("territories").select("*").eq("TerritorySlug", territorySlug).single(),
       supabase
         .from("territory_owners")
         .select("ghl_contact_id, role, start_date, end_date, transfer_notes")
-        .eq("TerritorySlug", slug)
+        .eq("TerritorySlug", territorySlug)
         .is("end_date", null),
       supabase
         .from("territory_market_data")
         .select("field_name, field_value, source, source_date")
-        .eq("TerritorySlug", slug),
-      supabase.from("eos_territory_goals").select("*").eq("TerritorySlug", slug),
-      supabase.from("eos_territory_scorecard").select("*").eq("TerritorySlug", slug).order("sort_order"),
-      supabase.from("eos_territory_habits").select("*").eq("TerritorySlug", slug).order("sort_order"),
+        .eq("TerritorySlug", territorySlug),
+      supabase.from("eos_territory_goals").select("*").eq("TerritorySlug", territorySlug),
+      supabase.from("eos_territory_scorecard").select("*").eq("TerritorySlug", territorySlug).order("sort_order"),
+      supabase.from("eos_territory_habits").select("*").eq("TerritorySlug", territorySlug).order("sort_order"),
       supabase
         .from("eos_territory_rocks")
         .select("*")
-        .eq("TerritorySlug", slug)
+        .eq("TerritorySlug", territorySlug)
         .order("created_at", { ascending: false }),
-      supabase.from("eos_territory_issues").select("*").eq("TerritorySlug", slug).eq("is_done", false),
-      supabase.from("eos_territory_todos").select("*").eq("TerritorySlug", slug).eq("is_done", false),
+      supabase.from("eos_territory_issues").select("*").eq("TerritorySlug", territorySlug).eq("is_done", false),
+      supabase.from("eos_territory_todos").select("*").eq("TerritorySlug", territorySlug).eq("is_done", false),
       supabase
         .from("journey_pipeline_state")
         .select("journey_id, current_stage_id, entered_current_stage_at, pipeline_stages(name), pipelines(name)")
-        .eq("TerritorySlug", slug)
+        .eq("TerritorySlug", territorySlug)
         .eq("is_active", true),
       // Performance summary: recent inventory for T12 snapshot
       supabase
         .from("ms_property_inventory")
         .select("PropertyId, Inv_PurchaseDate, Inv_SellDate, Inv_Status")
-        .eq("TerritorySlug", slug)
+        .eq("TerritorySlug", territorySlug)
         .not("Inv_PurchaseDate", "is", null)
         .order("Inv_PurchaseDate", { ascending: false })
         .limit(500),
       // Pre-computed brief
-      supabase.from("territory_briefs").select("summary, stale").eq("territory_slug", slug).maybeSingle(),
+      supabase.from("territory_briefs").select("summary, stale").eq("territory_slug", territorySlug).maybeSingle(),
     ]);
 
     if (territoryRes.error || !territoryRes.data) {
@@ -890,17 +954,33 @@ async function getTerritoryProfile(slug: string, options: { refreshStaleBriefs?:
     let territoryBriefSummary = (territoryBriefRes.data as any)?.summary ?? null;
     if ((territoryBriefRes.data as any)?.stale && options.refreshStaleBriefs !== false) {
       try {
-        const freshBrief = await generateAndStoreTerritoryBrief(slug);
+        const freshBrief = await generateAndStoreTerritoryBrief(territorySlug);
         territoryBriefSummary = `${freshBrief.nickname} (${slug}) — T12: ${freshBrief.performance.t12Purchases} purchased, ${freshBrief.performance.t12Sales} sold`;
       } catch {
         // Fall back to stale brief
       }
     }
 
+    const territory = territoryRes.data as Record<string, unknown>;
+    const ownerNames = [
+      territory.PersonalName,
+      territory.Owner2,
+      territory.Owner3,
+      nameFromAccountEmail(territory.GoogleLicense1Account),
+      nameFromAccountEmail(territory.GoogleLicense2Account),
+      nameFromAccountEmail(territory.GoogleLicense3Account),
+      nameFromAccountEmail(territory.GoogleLicense4Account),
+    ].filter(
+      (name): name is string => typeof name === "string" && name.trim().length > 0
+    );
+    const uniqueOwnerNames = [...new Set(ownerNames)];
+
     return JSON.stringify({
+      resolvedFrom: slug !== territorySlug ? slug : undefined,
       briefSummary: territoryBriefSummary,
-      territory: territoryRes.data,
+      territory,
       activeOwners: ownersRes.data ?? [],
+      ownerNames: uniqueOwnerNames,
       performanceSummary: {
         t12Purchases,
         t12Sales,

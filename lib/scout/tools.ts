@@ -33,7 +33,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
         id: {
           type: "string",
           description:
-            "Entity identifier — GHL contact ID for contact, TerritorySlug for territory, UUID for journey, opportunity ID for opportunity",
+            "Entity identifier — GHL contact ID for contact, TerritorySlug or territory nickname/city for territory, UUID for journey, opportunity ID for opportunity",
         },
       },
       required: ["type", "id"],
@@ -715,7 +715,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
       properties: {
         TerritorySlug: {
           type: "string",
-          description: "Territory slug (e.g., 'spokane-wa')",
+          description: "Territory slug, nickname, or city/state (e.g., 'LAFALA', 'Lafayette, LA', 'Spokane WA')",
         },
         period: {
           type: "string",
