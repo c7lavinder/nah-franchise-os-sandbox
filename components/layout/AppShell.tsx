@@ -22,6 +22,7 @@ export default function AppShell({ children, userName, userRole }: AppShellProps
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const isScoutPage = pathname === "/scout";
+  const contentMaxWidth = pathname === "/agents" ? "max-w-[1680px]" : "max-w-content";
 
   return (
     <div className="flex min-h-screen">
@@ -58,7 +59,7 @@ export default function AppShell({ children, userName, userRole }: AppShellProps
 
       {/* Main content */}
       <main className="flex-1 ml-0 lg:ml-[80px] min-h-screen">
-        <div className="max-w-content mx-auto px-4 md:px-8 py-6">
+        <div className={`${contentMaxWidth} mx-auto px-4 md:px-8 py-6`}>
           {/* Admin sync alert */}
           {userRole === "admin" && <SyncAlertBanner />}
 

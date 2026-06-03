@@ -529,7 +529,7 @@ export default function AgentsPanel() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-5">
           {categories.map((category) => {
             const categoryAgents = agents.filter((agent) => agent.category === category.key);
@@ -541,7 +541,7 @@ export default function AgentsPanel() {
                   <h3 className="font-headline text-card-title text-text-primary">{category.label}</h3>
                   <p className="text-body-sm text-text-tertiary">{category.summary}</p>
                 </div>
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {categoryAgents.map((agent) => {
                     const selected = activeAgent?.name === agent.name;
                     const disabled = agent.status === "planned" || !agent.enabled;
