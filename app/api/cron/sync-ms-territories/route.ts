@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { syncTerritories } from "@/lib/mastersuite/sync-territories";
 import { createServerClient } from "@/lib/supabase/server";
 import { withCronLogging } from "@/lib/mastersuite/cron-helpers";
+import { runRunwayPipelineGuardian } from "@/lib/agents/runway-pipeline-guardian";
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -16,10 +17,14 @@ export async function GET(request: NextRequest) {
   return withCronLogging(
     "sync-ms-territories",
     50_000,
-    () => syncTerritories(),
+    async () => {
+      const syncResult = await syncTerritories();
+      const guardianResult = await runRunwayPipelineGuardian({ repair: false });
+      return { syncResult, guardianResult };
+    },
     (result) => {
       // Mark territory briefs stale after successful sync
-      if (result.synced > 0) {
+      if (result.syncResult.synced > 0) {
         const supabase = createServerClient();
         supabase
           .from("territory_briefs")
@@ -29,9 +34,21 @@ export async function GET(request: NextRequest) {
       }
 
       return {
-        status: result.errors.length === 0 ? "success" : "failed",
-        result: { synced: result.synced, errors: result.errors },
-        error: result.errors.length > 0 ? result.errors[0] : null,
+        status: result.syncResult.errors.length === 0 && result.guardianResult.success ? "success" : "failed",
+        result: {
+          synced: result.syncResult.synced,
+          errors: result.syncResult.errors,
+          runwayGuardian: {
+            success: result.guardianResult.success,
+            activeRunwayRows: result.guardianResult.audit.activeRunwayRows,
+            expectedRunwayRows: result.guardianResult.audit.expectedRunwayRows,
+            criticalIssues: result.guardianResult.audit.issues.filter((issue) => issue.severity === "critical").length,
+          },
+        },
+        error:
+          result.syncResult.errors.length > 0
+            ? result.syncResult.errors[0]
+            : (result.guardianResult.audit.issues[0]?.message ?? null),
       };
     }
   );

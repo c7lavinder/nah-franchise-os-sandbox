@@ -171,10 +171,19 @@ const CRON_DEFINITIONS = [
   {
     path: "/frandev/api/cron/sync-ms-territories",
     name: "MasterSuite Territory Sync",
-    schedule: "0 */6 * * *",
+    schedule: "*/30 * * * *",
     description: "Sync all 88 territories from MasterSuite — owner info, compliance, dates, marketing, vendor accounts",
     category: "pipeline",
-    frequency: "Every 6 hours",
+    frequency: "Every 30 minutes",
+  },
+  {
+    path: "/frandev/api/cron/runway-pipeline-guardian",
+    name: "Runway Pipeline Guardian",
+    schedule: "*/30 * * * *",
+    description:
+      "Audit and repair runway eligibility/stage placement against MasterSuite purchase, completion, Stage 4+, and running evidence",
+    category: "agents",
+    frequency: "Every 30 minutes",
   },
   {
     path: "/frandev/api/cron/sync-ms-lead-list",
@@ -239,6 +248,7 @@ export async function GET(request: NextRequest) {
       "territory-market",
       "reengagement-signal",
       "pre_call_brief_agent",
+      "runway-pipeline-guardian",
     ])
     .order("created_at", { ascending: false })
     .limit(100);

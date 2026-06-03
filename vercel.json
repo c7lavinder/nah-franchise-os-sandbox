@@ -79,6 +79,10 @@
       "schedule": "*/30 * * * *"
     },
     {
+      "path": "/frandev/api/cron/runway-pipeline-guardian",
+      "schedule": "*/30 * * * *"
+    },
+    {
       "path": "/frandev/api/cron/sync-ms-prospects",
       "schedule": "*/30 * * * *"
     },

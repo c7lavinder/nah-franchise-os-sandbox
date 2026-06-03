@@ -28,6 +28,13 @@ const AGENT_DEFS = [
     trigger: "Manual data coverage audit, future weekly cron",
     description: "Understands what data exists, where it is stored, and how Scout should retrieve it.",
   },
+  {
+    name: "runway-pipeline-guardian",
+    label: "Runway Pipeline Guardian",
+    trigger: "After MasterSuite territory sync, every 30-minute cron, Run button",
+    description:
+      "Audits runway eligibility and stage placement against MasterSuite evidence: purchase required, 1st completed, 25 offers, and 3 purchased/running.",
+  },
 ];
 
 export default function AgentsPanel() {
@@ -79,6 +86,7 @@ export default function AgentsPanel() {
         "reengagement-signal": { url: "/api/cron/reengagement-scan", method: "GET" },
         "journey-brief": { url: "/api/cron/generate-briefs", method: "POST" },
         "data-intelligence": { url: "/api/agents/data-intelligence/run", method: "POST" },
+        "runway-pipeline-guardian": { url: "/api/agents/runway-pipeline-guardian/run", method: "POST" },
       };
       const ep = endpoints[name];
       if (ep) await fetch(ep.url, { method: ep.method });

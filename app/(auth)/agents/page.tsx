@@ -7,7 +7,6 @@ import {
   CircleDashed,
   DatabaseZap,
   LineChart,
-  Map,
   MessageSquareText,
   Sparkles,
 } from "lucide-react";
@@ -27,13 +26,6 @@ const FUTURE_AGENTS = [
     icon: LineChart,
     description:
       "Summarizes Google Ads, Facebook Ads, nurturing campaigns, spend, lead quality, and missed lead-gen opportunities.",
-  },
-  {
-    name: "Territory Status Agent",
-    status: "Planned",
-    icon: Map,
-    description:
-      "Keeps active/inactive status, onboarding stage, runway stage, owner context, and territory gaps up to date.",
   },
   {
     name: "EOS Sync Agent",

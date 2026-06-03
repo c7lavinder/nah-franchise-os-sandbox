@@ -15,7 +15,15 @@ const AGENT_DEFS = [
     name: "data-intelligence",
     label: "Data Intelligence",
     trigger: "Manual data coverage audit, future weekly cron",
-    description: "Maps what data exists, where it is stored, how Scout retrieves it, and which sources need sync or indexing work.",
+    description:
+      "Maps what data exists, where it is stored, how Scout retrieves it, and which sources need sync or indexing work.",
+  },
+  {
+    name: "runway-pipeline-guardian",
+    label: "Runway Pipeline Guardian",
+    trigger: "After MasterSuite territory sync, every 30-minute cron, Run button",
+    description:
+      "Audits runway eligibility and stage placement against MasterSuite evidence: purchase required, 1st completed, 25 offers, and 3 purchased/running.",
   },
 ];
 
