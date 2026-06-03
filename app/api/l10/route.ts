@@ -274,34 +274,44 @@ export async function GET(request: NextRequest) {
       : { data: [] as { id: string; full_name: string | null }[] };
   const userNameById = new Map((users ?? []).map((u) => [u.id, u.full_name ?? "Unassigned"]));
 
-  const stageEnteredIds = new Map<string, Set<string>>();
-  for (const stage of salesStages) stageEnteredIds.set(stage.id, new Set());
-  for (const row of stageHistoryRows) {
-    if (!row.journey_pipeline_state_id) continue;
-    stageEnteredIds.get(row.to_stage_id)?.add(row.journey_pipeline_state_id);
-  }
-  for (const row of salesRows) {
-    const enteredCurrentStage = row.entered_current_stage_at ?? row.updated_at;
-    if (enteredCurrentStage && new Date(enteredCurrentStage) >= periodStart) {
-      stageEnteredIds.get(row.current_stage_id)?.add(row.id);
-    }
-  }
-  const newProspectsPeriod = salesRows.filter((row) => new Date(row.entered_pipeline_at) >= periodStart).length;
-  const engagementStage = salesStages.find((stage) => stage.slug === "engagement");
-  if (engagementStage) {
-    const engagementIds = stageEnteredIds.get(engagementStage.id) ?? new Set<string>();
-    for (const row of salesRows) {
-      if (new Date(row.entered_pipeline_at) >= periodStart) engagementIds.add(row.id);
-    }
-    stageEnteredIds.set(engagementStage.id, engagementIds);
-  }
-  const stageCounts = salesStages.map((stage) => ({
-    stage: stage.name,
-    count: stageEnteredIds.get(stage.id)?.size ?? 0,
-  }));
   const closedStageIds = salesStages
     .filter((stage) => stage.slug === "closed" || stage.is_terminal)
     .map((stage) => stage.id);
+  const stageSortOrderById = new Map(salesStages.map((stage) => [stage.id, Number(stage.sort_order ?? 0)]));
+  const reachedStageSortByJourney = new Map<string, number>();
+  const markReached = (journeyPipelineStateId: string | null | undefined, stageId: string | null | undefined) => {
+    if (!journeyPipelineStateId || !stageId) return;
+    const sortOrder = stageSortOrderById.get(stageId);
+    if (sortOrder == null) return;
+    reachedStageSortByJourney.set(
+      journeyPipelineStateId,
+      Math.max(reachedStageSortByJourney.get(journeyPipelineStateId) ?? -1, sortOrder)
+    );
+  };
+
+  for (const row of stageHistoryRows) {
+    markReached(row.journey_pipeline_state_id, row.to_stage_id);
+  }
+  const newProspectsPeriod = salesRows.filter((row) => new Date(row.entered_pipeline_at) >= periodStart).length;
+  const engagementStage = salesStages.find((stage) => stage.slug === "engagement");
+  for (const row of salesRows) {
+    if (engagementStage && new Date(row.entered_pipeline_at) >= periodStart) {
+      markReached(row.id, engagementStage.id);
+    }
+    const enteredCurrentStage = row.entered_current_stage_at ?? row.updated_at;
+    if (enteredCurrentStage && new Date(enteredCurrentStage) >= periodStart) {
+      markReached(row.id, row.current_stage_id);
+    }
+    const closedAt = row.closed_at ?? row.entered_current_stage_at ?? row.updated_at;
+    if (closedStageIds.includes(row.current_stage_id) && isInPeriod(closedAt, periodStart)) {
+      markReached(row.id, row.current_stage_id);
+    }
+  }
+  const stageCounts = salesStages.map((stage) => ({
+    stage: stage.name,
+    count: [...reachedStageSortByJourney.values()].filter((sortOrder) => sortOrder >= Number(stage.sort_order ?? 0))
+      .length,
+  }));
   const closedFranchiseesPeriod = salesRows.filter((row) => {
     if (!closedStageIds.includes(row.current_stage_id)) return false;
     const closedAt = row.closed_at ?? row.entered_current_stage_at ?? row.updated_at;

@@ -866,7 +866,7 @@ export default function L10Page() {
   const salesStageMetrics = desiredSalesStages.map((label) => ({
     label,
     value: salesStageByName.get(label) ?? 0,
-    sub: label === "Closed" ? `closed in ${selectedPeriodLabel}` : `entered in ${selectedPeriodLabel}`,
+    sub: label === "Closed" ? `closed in ${selectedPeriodLabel}` : `reached in ${selectedPeriodLabel}`,
   }));
 
   return (
