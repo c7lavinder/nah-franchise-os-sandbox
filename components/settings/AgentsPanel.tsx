@@ -13,6 +13,7 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  Save,
 } from "lucide-react";
 import type { AgentCategory, AgentTeamCard } from "@/lib/agents/agent-registry";
 
@@ -336,6 +337,9 @@ export default function AgentsPanel() {
   const [chatDraft, setChatDraft] = useState("");
   const [chatting, setChatting] = useState(false);
   const [chatHistory, setChatHistory] = useState<Record<string, ChatMessage[]>>({});
+  const [trainingDrafts, setTrainingDrafts] = useState<Record<string, string>>({});
+  const [trainingSaving, setTrainingSaving] = useState(false);
+  const [trainingSavedAt, setTrainingSavedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -345,6 +349,9 @@ export default function AgentsPanel() {
         setCategories(data.categories?.length ? data.categories : FALLBACK_CATEGORIES);
         setAgents(data.agents ?? []);
         setActiveAgentName((current) => current ?? data.agents?.[0]?.name ?? null);
+        setTrainingDrafts(
+          Object.fromEntries((data.agents ?? []).map((agent) => [agent.name, agent.trainingNotes ?? ""]))
+        );
       })
       .catch(() => {
         setError("Agent registry could not load. Try refreshing after checking app auth or data access.");
@@ -359,6 +366,7 @@ export default function AgentsPanel() {
   );
 
   const activeMessages = activeAgent ? chatHistory[activeAgent.name] ?? [] : [];
+  const activeTrainingDraft = activeAgent ? trainingDrafts[activeAgent.name] ?? activeAgent.trainingNotes ?? "" : "";
 
   async function toggleAgent(name: string, enabled: boolean) {
     setAgents((prev) => prev.map((agent) => (agent.name === name ? { ...agent, enabled } : agent)));
@@ -427,6 +435,41 @@ export default function AgentsPanel() {
       }));
     } finally {
       setChatting(false);
+    }
+  }
+
+  async function saveTrainingNotes() {
+    if (!activeAgent || trainingSaving) return;
+
+    setTrainingSaving(true);
+    setError(null);
+    try {
+      const response = await apiFetch(`/api/agents/${activeAgent.name}/training`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: activeTrainingDraft }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Training save failed");
+
+      setAgents((prev) =>
+        prev.map((agent) =>
+          agent.name === activeAgent.name
+            ? {
+                ...agent,
+                trainingNotes: data.trainingNotes ?? activeTrainingDraft,
+                trainingUpdatedAt: data.trainingUpdatedAt ?? new Date().toISOString(),
+                trainingUpdatedBy: data.trainingUpdatedBy ?? "Current user",
+              }
+            : agent
+        )
+      );
+      setTrainingSavedAt(new Date().toISOString());
+    } catch (trainingError) {
+      const messageText = trainingError instanceof Error ? trainingError.message : "Training save failed";
+      setError(`${activeAgent.label} training could not be saved. ${messageText}`);
+    } finally {
+      setTrainingSaving(false);
     }
   }
 
@@ -619,6 +662,12 @@ export default function AgentsPanel() {
                   <h3 className="text-card-title text-text-primary">{activeAgent.label}</h3>
                   <p className="text-caption text-text-tertiary">{activeAgent.roleTitle}</p>
                   <p className="mt-2 text-caption text-text-secondary">{activeAgent.description}</p>
+                  {activeAgent.trainingUpdatedAt ? (
+                    <p className="mt-2 text-[11px] font-medium text-text-tertiary">
+                      Trained {formatDate(activeAgent.trainingUpdatedAt)}
+                      {activeAgent.trainingUpdatedBy ? ` by ${activeAgent.trainingUpdatedBy}` : ""}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -643,6 +692,43 @@ export default function AgentsPanel() {
                       </li>
                     ))}
                   </ul>
+                </div>
+
+                <div className="rounded-lg border border-border-default bg-bg-secondary p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-wide text-text-tertiary">
+                      <Sparkles size={13} />
+                      Train this agent
+                    </div>
+                    <span className="text-[11px] text-text-tertiary">{activeTrainingDraft.length}/8000</span>
+                  </div>
+                  <p className="mt-2 text-caption text-text-secondary">
+                    Add corrections, rules, examples, tone preferences, and things this agent should remember before it answers.
+                  </p>
+                  <textarea
+                    value={activeTrainingDraft}
+                    maxLength={8000}
+                    onChange={(event) =>
+                      activeAgent &&
+                      setTrainingDrafts((prev) => ({ ...prev, [activeAgent.name]: event.target.value }))
+                    }
+                    placeholder={`Teach ${activeAgent.label} how to think. Example: When reviewing runway, always explain the MasterSuite evidence first.`}
+                    className="mt-3 min-h-[130px] w-full resize-y rounded-md border border-border-default bg-bg-primary px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-nah-blue"
+                  />
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <div className="text-[11px] text-text-tertiary">
+                      {trainingSavedAt ? `Saved ${formatDate(trainingSavedAt)}` : "Saved notes are injected into this agent's chat context."}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={saveTrainingNotes}
+                      disabled={trainingSaving || activeTrainingDraft === (activeAgent.trainingNotes ?? "")}
+                      className="flex items-center gap-1.5 rounded-md bg-nah-blue px-3 py-2 text-caption font-bold text-white hover:bg-nah-blue-hover disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {trainingSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                      Save training
+                    </button>
+                  </div>
                 </div>
 
                 <div className="rounded-lg border border-border-default bg-bg-secondary p-3">

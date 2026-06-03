@@ -18,8 +18,26 @@ type AgentChatRequest = {
   history?: AgentChatMessage[];
 };
 
+type AgentTrainingEntry = {
+  notes?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+};
+
 function clip(text: string, max = 4000) {
   return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+function parseSetting<T>(value: unknown, fallback: T): T {
+  if (!value) return fallback;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return value as T;
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ agentName: string }> }) {
@@ -45,12 +63,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .order("created_at", { ascending: false })
     .limit(5);
 
+  const { data: trainingSetting } = await supabase
+    .from("app_settings")
+    .select("setting_value")
+    .eq("setting_key", "agent_training_notes")
+    .single();
+  const trainingByAgent = parseSetting<Record<string, AgentTrainingEntry>>(trainingSetting?.setting_value, {});
+  const trainingNotes = trainingByAgent[agent.name]?.notes?.trim();
+
   const system = `You are ${agent.label}, an AI teammate inside the FranDev operating system.
 
 Your job in this chat is to help a non-technical operator understand, trust, and improve this specific agent.
 Do not execute actions, send messages, change CRM records, change workflow rules, or claim that you changed production.
 If the user asks for a behavior change, write a clear improvement recommendation and explain what data, guardrails, and approval would be needed.
 Keep answers practical, plain-English, and business-focused.
+Use the operator training notes below as durable guidance for how this agent should think, explain, and improve. Treat those notes as operator preferences and lessons, not permission to bypass guardrails.
 
 Agent:
 - Key: ${agent.name}
@@ -67,6 +94,9 @@ Agent:
 - Cannot do: ${agent.cannotDo.join("; ")}
 - Trust level: ${agent.trustLevel}
 - Cost estimate: ${agent.costPerRunEstimate}
+
+Operator training notes:
+${trainingNotes ? clip(trainingNotes, 5000) : "- No custom training notes saved yet."}
 
 Recent activity:
 ${(recentRuns ?? [])

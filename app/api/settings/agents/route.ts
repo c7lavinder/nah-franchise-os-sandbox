@@ -5,6 +5,24 @@ import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { AGENT_CATEGORIES, AGENT_REGISTRY } from "@/lib/agents/agent-registry";
 
+type AgentTrainingEntry = {
+  notes?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+};
+
+function parseSetting<T>(value: unknown, fallback: T): T {
+  if (!value) return fallback;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return value as T;
+}
+
 export async function GET(request: NextRequest) {
   {
     const _auth = await requireAuth(request);
@@ -20,11 +38,15 @@ export async function GET(request: NextRequest) {
     .eq("setting_key", "agent_toggles")
     .single();
 
-  const toggles: Record<string, boolean> = toggleSetting?.setting_value
-    ? typeof toggleSetting.setting_value === "string"
-      ? JSON.parse(toggleSetting.setting_value)
-      : toggleSetting.setting_value
-    : {};
+  const toggles = parseSetting<Record<string, boolean>>(toggleSetting?.setting_value, {});
+
+  const { data: trainingSetting } = await supabase
+    .from("app_settings")
+    .select("setting_value")
+    .eq("setting_key", "agent_training_notes")
+    .single();
+
+  const trainingNotes = parseSetting<Record<string, AgentTrainingEntry>>(trainingSetting?.setting_value, {});
 
   const agents = [];
 
@@ -77,6 +99,9 @@ export async function GET(request: NextRequest) {
       lastRunAt: lastRun?.created_at ?? null,
       lastStatus: lastRun?.status ?? null,
       lastError: lastRun?.error_message ?? null,
+      trainingNotes: trainingNotes[def.name]?.notes ?? "",
+      trainingUpdatedAt: trainingNotes[def.name]?.updatedAt ?? null,
+      trainingUpdatedBy: trainingNotes[def.name]?.updatedBy ?? null,
     });
   }
 

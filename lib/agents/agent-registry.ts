@@ -60,6 +60,9 @@ export interface AgentRuntimeStats {
   lastRunAt: string | null;
   lastStatus: string | null;
   lastError: string | null;
+  trainingNotes: string;
+  trainingUpdatedAt: string | null;
+  trainingUpdatedBy: string | null;
 }
 
 export type AgentTeamCard = AgentRegistryEntry & AgentRuntimeStats;
@@ -457,4 +460,3 @@ export const AGENT_REGISTRY: AgentRegistryEntry[] = [
 export function getAgentByName(name: string): AgentRegistryEntry | undefined {
   return AGENT_REGISTRY.find((agent) => agent.name === name);
 }
-
