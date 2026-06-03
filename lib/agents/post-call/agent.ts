@@ -295,6 +295,19 @@ async function loadCallContext(
 
   if (!call) return null;
 
+  const { data: primaryCallJourney } = await supabase
+    .from("call_journeys")
+    .select("journey_id, journey_pipeline_state_id, is_primary, journeys ( primary_contact_id )")
+    .eq("call_id", callId)
+    .order("is_primary", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const primaryJourney = Array.isArray(primaryCallJourney?.journeys)
+    ? primaryCallJourney?.journeys[0]
+    : primaryCallJourney?.journeys;
+  const primaryJourneyId = primaryCallJourney?.journey_id ?? null;
+  const effectiveContactId = call.contact_id ?? primaryJourney?.primary_contact_id ?? null;
+
   // Prefer call_transcripts table, fall back to raw_transcript
   const { data: transcriptRow } = await supabase
     .from("call_transcripts")
@@ -319,11 +332,11 @@ async function loadCallContext(
 
   // Resolve contact name
   let contactName: string | null = null;
-  if (call.contact_id) {
+  if (effectiveContactId) {
     const { data: c } = await supabase
       .from("contacts")
       .select("first_name, last_name")
-      .eq("id", call.contact_id)
+      .eq("id", effectiveContactId)
       .single();
     if (c) contactName = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || null;
   }
@@ -365,7 +378,7 @@ async function loadCallContext(
   // Resolve territories linked to contact(s)
   const territoryNames: string[] = [];
   const contactIds = (contactParticipants ?? []).map((p) => p.contact_id).filter(Boolean) as string[];
-  if (call.contact_id && !contactIds.includes(call.contact_id)) contactIds.push(call.contact_id);
+  if (effectiveContactId && !contactIds.includes(effectiveContactId)) contactIds.push(effectiveContactId);
   if (contactIds.length > 0) {
     const { data: owners } = await supabase
       .from("territory_owners")
@@ -407,21 +420,21 @@ async function loadCallContext(
   // onboarding), the canonical NULL-territory row is preferred; otherwise
   // any active jps row. Logs are queried by the jps FK.
   const pipelinePositions: PipelinePosition[] = [];
-  if (call.contact_id) {
+  if (effectiveContactId) {
     // Check both primary ownership and membership (spouse, co_primary, etc.)
-    let journeyId: string | null = null;
+    let journeyId: string | null = primaryJourneyId;
     const { data: primaryJourney } = await supabase
       .from("journeys")
       .select("id")
-      .eq("primary_contact_id", call.contact_id)
+      .eq("primary_contact_id", effectiveContactId)
       .maybeSingle();
-    journeyId = primaryJourney?.id ?? null;
+    journeyId = journeyId ?? primaryJourney?.id ?? null;
 
     if (!journeyId) {
       const { data: memberRow } = await supabase
         .from("journey_contacts")
         .select("journey_id, journeys!inner(id, status)")
-        .eq("contact_id", call.contact_id)
+        .eq("contact_id", effectiveContactId)
         .is("left_at", null)
         .limit(1)
         .maybeSingle();
@@ -506,15 +519,14 @@ async function loadCallContext(
   // Load feedback patterns for the learning loop
   const feedback = await retrieveFeedback({
     callTypeSlug,
-    contactId: call.contact_id,
+    contactId: effectiveContactId,
   });
 
   // Determine if team/group call (no specific external contact focus)
   const isTeamCall =
     callTypeSlug === "team_call" ||
     callTypeSlug === "internal" ||
-    callTypeSlug === "group_call" ||
-    callTypeSlug === "cohort_call" ||
+    ((callTypeSlug === "group_call" || callTypeSlug === "cohort_call") && contactNames.length >= 6) ||
     (contactNames.length === 0 && teamMembers.length >= 2);
 
   // For team/group calls: load a lightweight roster of all active contacts + territories
@@ -639,7 +651,7 @@ async function loadCallContext(
   // When length >= 2 this is a partnership journey (e.g. Kevin + Kylie Kremer)
   // and Scout must pick target_contact_name per action so data lands on the
   // right partner profile.
-  const journeyPartners = await loadJourneyPartners(supabase, call.contact_id);
+  const journeyPartners = await loadJourneyPartners(supabase, effectiveContactId, primaryJourneyId);
 
   return {
     callId,
@@ -647,7 +659,8 @@ async function loadCallContext(
     callType,
     callTypeSlug,
     contactName,
-    contactId: call.contact_id,
+    contactId: effectiveContactId,
+    primaryJourneyId,
     teamMembers,
     callDate: call.started_at,
     durationSeconds: call.duration_seconds,
@@ -670,20 +683,24 @@ async function loadCallContext(
  */
 async function loadJourneyPartners(
   supabase: ReturnType<typeof createServerClient>,
-  callContactId: string | null
+  callContactId: string | null,
+  preferredJourneyId?: string | null
 ): Promise<JourneyPartner[]> {
-  if (!callContactId) return [];
-
   // Resolve journey: first as primary, then as a member (co_primary/etc).
-  let journeyId: string | null = null;
-  const { data: journeyAsPrimary } = await supabase
-    .from("journeys")
-    .select("id")
-    .eq("primary_contact_id", callContactId)
-    .maybeSingle();
-  journeyId = journeyAsPrimary?.id ?? null;
+  let journeyId: string | null = preferredJourneyId ?? null;
 
-  if (!journeyId) {
+  if (!callContactId && !journeyId) return [];
+
+  if (!journeyId && callContactId) {
+    const { data: journeyAsPrimary } = await supabase
+      .from("journeys")
+      .select("id")
+      .eq("primary_contact_id", callContactId)
+      .maybeSingle();
+    journeyId = journeyAsPrimary?.id ?? null;
+  }
+
+  if (!journeyId && callContactId) {
     const { data: membership } = await supabase
       .from("journey_contacts")
       .select("journey_id")
@@ -864,10 +881,12 @@ async function writeResults(
 
   // Resolve the journey for the call's primary contact (Phase 2 tagging).
   // Cached once and reused across action items + extractions.
-  const primaryJourneyId = contactId
-    ? ((await supabase.from("journeys").select("id").eq("primary_contact_id", contactId).maybeSingle()).data?.id ??
-      null)
-    : null;
+  const primaryJourneyId =
+    context.primaryJourneyId ??
+    (contactId
+      ? ((await supabase.from("journeys").select("id").eq("primary_contact_id", contactId).maybeSingle()).data?.id ??
+        null)
+      : null);
 
   // Action items → call_action_items
   if (results.actions && results.actions.actions.length > 0) {
@@ -979,6 +998,11 @@ async function writeResults(
         .select("id, primary_contact_id")
         .in("primary_contact_id", [...contactIdsInPlay]);
       for (const j of js ?? []) journeyByContact.set(j.primary_contact_id, j.id);
+    }
+    if (primaryJourneyId && context.journeyPartners.length >= 2) {
+      for (const partner of context.journeyPartners) {
+        journeyByContact.set(partner.contactId, primaryJourneyId);
+      }
     }
 
     const rows = results.extractions.extractions

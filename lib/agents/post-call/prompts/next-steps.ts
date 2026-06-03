@@ -133,7 +133,11 @@ certain actions, keep suggesting those.
 ${ctx.feedbackBlock}
 
 ${ctx.isTeamCall ? buildTeamCallBlock(ctx.roster) : ""}
-${!ctx.isTeamCall && ctx.contactNames.length > 1 ? buildMultiContactActionsBlock(ctx.contactNames) : ""}
+${
+  !ctx.isTeamCall && ctx.contactNames.length > 1 && ctx.journeyPartners.length < 2
+    ? buildMultiContactActionsBlock(ctx.contactNames)
+    : ""
+}
 
 Return only a valid JSON array. No preamble, no markdown fences.
 

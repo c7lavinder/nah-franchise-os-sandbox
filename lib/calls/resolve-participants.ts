@@ -467,17 +467,18 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
 
       const { data: memberRows } = await supabase
         .from("journey_contacts")
-        .select("journey_id, journeys!inner(id, updated_at, status)")
+        .select("journey_id, role, journeys!inner(id, updated_at, status)")
         .eq("contact_id", contactId)
         .is("left_at", null);
 
-      type JourneyRow = { id: string; updated_at: string; isPrimary: boolean };
+      type JourneyRow = { id: string; updated_at: string; isPrimary: boolean; isCoPrimary: boolean };
       const candidates: JourneyRow[] = [];
       for (const j of primaryJourneys ?? []) {
-        candidates.push({ id: j.id, updated_at: j.updated_at, isPrimary: true });
+        candidates.push({ id: j.id, updated_at: j.updated_at, isPrimary: true, isCoPrimary: true });
       }
       for (const m of (memberRows ?? []) as unknown as {
         journey_id: string;
+        role: string | null;
         journeys: { id: string; updated_at: string; status: string } | null;
       }[]) {
         if (!m.journeys || m.journeys.status !== "active") continue;
@@ -486,23 +487,22 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
           id: m.journey_id,
           updated_at: m.journeys.updated_at,
           isPrimary: false,
+          isCoPrimary: m.role === "primary" || m.role === "co_primary",
         });
       }
       if (candidates.length === 0) return null;
 
-      // Primary-journey membership wins; tie-break most-recent updated_at.
-      candidates.sort((a, b) => {
-        if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
-        return b.updated_at.localeCompare(a.updated_at);
-      });
-      const journey = candidates[0];
-
-      // 2. Pick the jps row. Prefer the one matching the call's territory; then
-      //    the pre-award NULL-territory row; then the most-recently-updated active.
+      // 2. Pick the best active jps row across the contact's candidate
+      //    journeys. A contact can be the primary on an old nurture journey
+      //    and a co-primary on the real franchise journey. In that case, the
+      //    territory-bearing co-primary journey is the correct call context.
       const { data: jpsRows } = await supabase
         .from("journey_pipeline_state")
-        .select("id, TerritorySlug, updated_at, is_active")
-        .eq("journey_id", journey.id)
+        .select("id, journey_id, TerritorySlug, updated_at, is_active")
+        .in(
+          "journey_id",
+          candidates.map((c) => c.id)
+        )
         .eq("is_active", true);
 
       if (!jpsRows || jpsRows.length === 0) return null;
@@ -512,12 +512,24 @@ export function createSupabaseResolverDb(supabase: SupabaseClient): ResolverDb {
       //   2. Otherwise prefer most-recently-updated jps — this surfaces the
       //      journey's current stage (onboarding/runway) instead of a stale
       //      pre-award sales row that lingers after the journey advances.
+      const candidateById = new Map(candidates.map((c) => [c.id, c]));
       const ranked = [...jpsRows].sort((a, b) => {
+        const aCand = candidateById.get((a as { journey_id?: string }).journey_id ?? "");
+        const bCand = candidateById.get((b as { journey_id?: string }).journey_id ?? "");
         const aTerrMatch = territoryMsSlug !== null && a.TerritorySlug === territoryMsSlug ? 1 : 0;
         const bTerrMatch = territoryMsSlug !== null && b.TerritorySlug === territoryMsSlug ? 1 : 0;
         if (aTerrMatch !== bTerrMatch) return bTerrMatch - aTerrMatch;
+        const aTerritoryBearingPartner = a.TerritorySlug !== null && aCand?.isCoPrimary ? 1 : 0;
+        const bTerritoryBearingPartner = b.TerritorySlug !== null && bCand?.isCoPrimary ? 1 : 0;
+        if (aTerritoryBearingPartner !== bTerritoryBearingPartner) {
+          return bTerritoryBearingPartner - aTerritoryBearingPartner;
+        }
+        const aPrimary = aCand?.isPrimary ? 1 : 0;
+        const bPrimary = bCand?.isPrimary ? 1 : 0;
+        if (aPrimary !== bPrimary) return bPrimary - aPrimary;
         return b.updated_at.localeCompare(a.updated_at);
       });
+      const journey = candidateById.get((ranked[0] as { journey_id?: string }).journey_id ?? "") ?? candidates[0];
 
       return {
         journey_id: journey.id,

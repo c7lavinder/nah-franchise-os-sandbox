@@ -21,6 +21,7 @@ interface JourneyFixture {
   primaryContactId: string;
   updatedAt: string;
 }
+type JourneyMemberFixture = string | { journeyId: string; role?: string };
 interface JpsFixture {
   id: string;
   journeyId: string;
@@ -35,7 +36,7 @@ interface Fixture {
   teamUsers: Map<string, { id: string; full_name: string }>;
   territories: Map<string, string>; // ghl_contact_id -> TerritorySlug
   journeys?: JourneyFixture[];
-  journeyMembers?: Map<string, string[]>; // contact_id -> journey_ids (non-primary)
+  journeyMembers?: Map<string, JourneyMemberFixture[]>; // contact_id -> journey memberships (non-primary)
   jps?: JpsFixture[];
   /** Journey ids that have an active jps in the runway pipeline. */
   inRunway?: Set<string>;
@@ -75,33 +76,45 @@ function makeDb(fx: Fixture): ResolverDb {
       const members = fx.journeyMembers ?? new Map();
       const jpsRows = (fx.jps ?? []).filter((r) => r.isActive);
 
-      type Cand = { id: string; updatedAt: string; isPrimary: boolean };
+      type Cand = { id: string; updatedAt: string; isPrimary: boolean; isCoPrimary: boolean };
       const cands: Cand[] = [];
       for (const j of journeys) {
         if (j.primaryContactId === contactId) {
-          cands.push({ id: j.id, updatedAt: j.updatedAt, isPrimary: true });
+          cands.push({ id: j.id, updatedAt: j.updatedAt, isPrimary: true, isCoPrimary: true });
         }
       }
-      for (const jid of members.get(contactId) ?? []) {
+      for (const member of members.get(contactId) ?? []) {
+        const jid = typeof member === "string" ? member : member.journeyId;
         if (cands.some((c) => c.id === jid)) continue;
         const j = journeys.find((x) => x.id === jid);
         if (!j) continue;
-        cands.push({ id: j.id, updatedAt: j.updatedAt, isPrimary: false });
+        const role = typeof member === "string" ? null : member.role;
+        cands.push({
+          id: j.id,
+          updatedAt: j.updatedAt,
+          isPrimary: false,
+          isCoPrimary: role === "primary" || role === "co_primary",
+        });
       }
       if (cands.length === 0) return null;
-      cands.sort((a, b) => {
-        if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
-        return b.updatedAt.localeCompare(a.updatedAt);
-      });
-      const chosen = cands[0];
-      const rows = jpsRows.filter((r) => r.journeyId === chosen.id);
+      const rows = jpsRows.filter((r) => cands.some((c) => c.id === r.journeyId));
       if (rows.length === 0) return null;
+      const candById = new Map(cands.map((c) => [c.id, c]));
       rows.sort((a, b) => {
+        const aCand = candById.get(a.journeyId);
+        const bCand = candById.get(b.journeyId);
         const aMatch = territoryMsSlug !== null && a.territoryMsSlug === territoryMsSlug ? 1 : 0;
         const bMatch = territoryMsSlug !== null && b.territoryMsSlug === territoryMsSlug ? 1 : 0;
         if (aMatch !== bMatch) return bMatch - aMatch;
+        const aPartnerTerritory = a.territoryMsSlug !== null && aCand?.isCoPrimary ? 1 : 0;
+        const bPartnerTerritory = b.territoryMsSlug !== null && bCand?.isCoPrimary ? 1 : 0;
+        if (aPartnerTerritory !== bPartnerTerritory) return bPartnerTerritory - aPartnerTerritory;
+        const aPrimary = aCand?.isPrimary ? 1 : 0;
+        const bPrimary = bCand?.isPrimary ? 1 : 0;
+        if (aPrimary !== bPrimary) return bPrimary - aPrimary;
         return b.updatedAt.localeCompare(a.updatedAt);
       });
+      const chosen = candById.get(rows[0].journeyId)!;
       return {
         journey_id: chosen.id,
         journey_pipeline_state_id: rows[0].id,
@@ -591,6 +604,40 @@ describe("resolveCallParticipants — journey selection", () => {
     expect(p1?.journey_pipeline_state_id).toBe("jps-a");
     expect(p2?.journey_id).toBe("j-b");
     expect(p2?.journey_pipeline_state_id).toBe("jps-b");
+  });
+
+  it("prefers a territory-bearing co-primary franchise journey over an older primary nurture journey", async () => {
+    const db = makeDb({
+      contacts: [c({ id: "larry", email: "larry@x.com" })],
+      teamEmails: new Set(),
+      teamUsers: new Map(),
+      territories: new Map(),
+      journeys: [
+        { id: "j-nurture", primaryContactId: "larry", updatedAt: "2026-05-26T00:00:00Z" },
+        { id: "j-wichita", primaryContactId: "jonathan", updatedAt: "2026-05-06T00:00:00Z" },
+      ],
+      journeyMembers: new Map([["larry", [{ journeyId: "j-wichita", role: "co_primary" }]]]),
+      jps: [
+        {
+          id: "jps-nurture",
+          journeyId: "j-nurture",
+          territoryMsSlug: null,
+          updatedAt: "2026-05-26T00:00:00Z",
+          isActive: true,
+        },
+        {
+          id: "jps-wichita",
+          journeyId: "j-wichita",
+          territoryMsSlug: "WICHTA",
+          updatedAt: "2026-05-06T00:00:00Z",
+          isActive: true,
+        },
+      ],
+    });
+    const r = await resolveCallParticipants(baseInput({ participants: [{ email: "larry@x.com" }] }), db);
+    expect(r.journey_id).toBe("j-wichita");
+    expect(r.journey_pipeline_state_id).toBe("jps-wichita");
+    expect(r.TerritorySlug).toBe("WICHTA");
   });
 
   it("inactive jps rows are ignored", async () => {

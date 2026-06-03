@@ -40,6 +40,7 @@ export interface CallContext {
   callTypeSlug: string | null;
   contactName: string | null;
   contactId: string | null;
+  primaryJourneyId: string | null;
   teamMembers: string[];
   callDate: string | null;
   durationSeconds: number | null;
