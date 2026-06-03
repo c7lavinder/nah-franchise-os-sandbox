@@ -929,6 +929,24 @@ export default function L10Page() {
       <section className="space-y-4">
         <SectionHeader title="Coaching" sub={`Territory operating view for ${selectedPeriodLabel}.`} />
 
+        <div className="grid gap-4 md:grid-cols-3">
+          <BigBlueCard
+            label="Stage 1 Touched"
+            value={formatNumber(coaching.stage1Last30d)}
+            detail={`Total Stage 1 touches in ${selectedPeriodLabel}`}
+          />
+          <BigBlueCard
+            label="Stage 4 Touched"
+            value={formatNumber(coaching.stage4Last30d)}
+            detail={`Total Stage 4 touches in ${selectedPeriodLabel}`}
+          />
+          <BigBlueCard
+            label="Purchased"
+            value={formatNumber(coaching.purchasesLast30d)}
+            detail={`Total purchases in ${selectedPeriodLabel}`}
+          />
+        </div>
+
         <div className="grid overflow-hidden rounded-lg border border-border-default bg-white shadow-sm sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
           <ScoreboardStat
             label="Lead List"
