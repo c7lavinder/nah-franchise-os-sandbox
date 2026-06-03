@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { executeGHLAction } from "@/lib/ghl/actions/executor";
+import { triggerNdaAutomationIfNeeded } from "@/lib/calls/nda-automation";
 import type { GHLActionCode } from "@/lib/ghl/permissions";
 
 interface PatchBody {
@@ -40,7 +41,7 @@ export async function PATCH(
   // Verify the action item exists and belongs to this call
   const { data: item } = await supabase
     .from("call_action_items")
-    .select("id, call_id, contact_id, category, title, description, ghl_action")
+    .select("id, call_id, contact_id, category, title, description, metadata, ghl_action")
     .eq("id", actionId)
     .eq("call_id", callId)
     .single();
@@ -146,6 +147,8 @@ export async function PATCH(
     .update(updateFields)
     .eq("id", actionId);
 
+  const ndaAutomation = await triggerNdaAutomationIfNeeded(supabase, item, payload);
+
   // Write feedback row with full payload for learning loop
   await supabase.from("call_action_feedback").insert({
     call_action_item_id: actionId,
@@ -157,10 +160,11 @@ export async function PATCH(
       original_description: item.description,
       pushed_fields: payload,
       was_edited: body.action === "edit_push",
+      nda_automation: ndaAutomation,
     },
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, nda_automation: ndaAutomation });
 }
 
 // --- Execution helpers ---
