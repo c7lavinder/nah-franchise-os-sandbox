@@ -13,6 +13,8 @@ import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
 import { customerFacingSendsDisabledReason, customerFacingSendsEnabled } from "@/lib/ghl/action-safety";
 import { createServerClient } from "@/lib/supabase/server";
+import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
+import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
 import type { GHLSendMessagePayload } from "@/types/ghl";
 
 interface SendRequest {
@@ -126,7 +128,10 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    const message = await ghl.sendMessage(payload);
+    const message =
+      body.type === "SMS" && signalHouseEnabled()
+        ? await sendContactSmsViaSignalHouse(body.contactId, body.message!.trim())
+        : await ghl.sendMessage(payload);
 
     // Update touch tracking in background (don't block the response)
     void updateTouchFields(body.contactId, body.type);

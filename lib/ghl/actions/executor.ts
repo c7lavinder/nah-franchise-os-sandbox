@@ -12,6 +12,8 @@ import {
   customerFacingSendsEnabled,
   isCustomerFacingGHLActionCode,
 } from "@/lib/ghl/action-safety";
+import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
+import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
 import type { GHLActionCode } from "@/lib/ghl/permissions";
 
 export interface ActionResult {
@@ -45,11 +47,14 @@ export async function executeGHLAction(
 
       case "C1": {
         // Send SMS
-        const result = await ghl.sendMessage({
-          type: "SMS",
-          contactId: String(params.contactId ?? contactId),
-          message: String(params.message),
-        });
+        const targetContactId = String(params.contactId ?? contactId);
+        const result = signalHouseEnabled()
+          ? await sendContactSmsViaSignalHouse(targetContactId, String(params.message))
+          : await ghl.sendMessage({
+              type: "SMS",
+              contactId: targetContactId,
+              message: String(params.message),
+            });
         return { success: true, actionCode, data: result };
       }
 
@@ -67,11 +72,14 @@ export async function executeGHLAction(
 
       case "C3": {
         // Send Template SMS
-        const result = await ghl.sendMessage({
-          type: "SMS",
-          contactId: String(params.contactId ?? contactId),
-          message: String(params.templateContent),
-        });
+        const targetContactId = String(params.contactId ?? contactId);
+        const result = signalHouseEnabled()
+          ? await sendContactSmsViaSignalHouse(targetContactId, String(params.templateContent))
+          : await ghl.sendMessage({
+              type: "SMS",
+              contactId: targetContactId,
+              message: String(params.templateContent),
+            });
         return { success: true, actionCode, data: result };
       }
 
@@ -221,11 +229,15 @@ export async function executeGHLAction(
 
       case "A5": {
         // Send Appointment Reminder
-        const result = await ghl.sendMessage({
-          type: "SMS",
-          contactId: String(params.contactId ?? contactId),
-          message: String(params.reminderMessage ?? "Reminder: You have an upcoming call with New Again Houses."),
-        });
+        const targetContactId = String(params.contactId ?? contactId);
+        const reminderMessage = String(params.reminderMessage ?? "Reminder: You have an upcoming call with New Again Houses.");
+        const result = signalHouseEnabled()
+          ? await sendContactSmsViaSignalHouse(targetContactId, reminderMessage)
+          : await ghl.sendMessage({
+              type: "SMS",
+              contactId: targetContactId,
+              message: reminderMessage,
+            });
         return { success: true, actionCode, data: result };
       }
 
