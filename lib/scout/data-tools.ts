@@ -38,7 +38,8 @@ export type QueryEntity =
   | "objections"
   | "workflow_enrollments"
   | "inventory"
-  | "properties";
+  | "properties"
+  | "royalty";
 
 export interface FilterOp {
   field: string;
@@ -234,13 +235,39 @@ const ENTITIES: Record<QueryEntity, EntityConfig> = {
     aggregatable: ["Stage1Arv", "Stage1Price"],
     defaultOrder: { field: "Inserted", direction: "desc" },
   },
+  royalty: {
+    table: "ms_property_royalty",
+    filterable: {
+      PropertyId: "PropertyId",
+      AcquisitionRoyaltyPaid: "AcquisitionRoyaltyPaid",
+      AcquisitionRoyaltyPaidDate: "AcquisitionRoyaltyPaidDate",
+      Calculated_AcquisitionRoyaltyDue: "Calculated_AcquisitionRoyaltyDue",
+      DispositionRoyaltyPaid: "DispositionRoyaltyPaid",
+      DispositionRoyaltyPaidDate: "DispositionRoyaltyPaidDate",
+      Calculated_DispositionRoyaltyDue: "Calculated_DispositionRoyaltyDue",
+      DelayedRoyaltyFeePaid: "DelayedRoyaltyFeePaid",
+      DelayedRoyaltyFeePaidDate: "DelayedRoyaltyFeePaidDate",
+      Calculated_DelayedRoyaltyFeeDue: "Calculated_DelayedRoyaltyFeeDue",
+      ms_synced_at: "ms_synced_at",
+    },
+    groupable: [],
+    aggregatable: [
+      "AcquisitionRoyaltyPaid",
+      "Calculated_AcquisitionRoyaltyDue",
+      "DispositionRoyaltyPaid",
+      "Calculated_DispositionRoyaltyDue",
+      "DelayedRoyaltyFeePaid",
+      "Calculated_DelayedRoyaltyFeeDue",
+    ],
+    defaultOrder: { field: "PropertyId", direction: "desc" },
+  },
 };
 
 // ════════════════════════════════════════════════════════════════════
 // WORLD LABEL — which domain does this entity belong to?
 // ════════════════════════════════════════════════════════════════════
 
-const ACQUISITIONS_ENTITIES: ReadonlySet<string> = new Set(["inventory", "properties", "territories"]);
+const ACQUISITIONS_ENTITIES: ReadonlySet<string> = new Set(["inventory", "properties", "territories", "royalty"]);
 
 function worldForEntity(entity: string): "frandev" | "acquisitions" {
   return ACQUISITIONS_ENTITIES.has(entity) ? "acquisitions" : "frandev";
