@@ -20,6 +20,7 @@ import {
   type SendRuntimeChecks,
 } from "@/lib/ghl/action-safety";
 import { createServerClient } from "@/lib/supabase/server";
+import { getAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
 import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
 import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
 import { enrollContact, pauseEnrollment, resumeEnrollment, exitEnrollment } from "@/lib/workflows/enrollment";
@@ -212,22 +213,28 @@ export async function POST(request: NextRequest) {
               const { data: u } = await sb.from("users").select("email").eq("id", user.id).single();
               return u?.email ?? process.env.GHL_SENDING_EMAIL ?? "notifications@newagainhouses.com";
             })());
-          const result =
-            payload.channel === "Email"
-              ? await ghl.sendMessage({
-                  type: "Email",
-                  contactId: action.contactId,
-                  html: payload.content,
-                  subject: payload.subject ?? "NAH Franchise",
-                  emailFrom: senderEmail,
-                })
-              : signalHouseEnabled()
-                ? await sendContactSmsViaSignalHouse(action.contactId, payload.content)
-                : await ghl.sendMessage({
-                    type: "SMS",
-                    contactId: action.contactId,
-                    message: payload.content,
-                  });
+          let result;
+          if (payload.channel === "Email") {
+            result = await ghl.sendMessage({
+              type: "Email",
+              contactId: action.contactId,
+              html: payload.content,
+              subject: payload.subject ?? "NAH Franchise",
+              emailFrom: senderEmail,
+            });
+          } else if (signalHouseEnabled()) {
+            const fromNumber = await getAssignedSignalHouseNumber(user.id);
+            if (!fromNumber) {
+              throw new Error("Your user does not have a SignalHouse sending number assigned in Settings.");
+            }
+            result = await sendContactSmsViaSignalHouse(action.contactId, payload.content, { fromNumber });
+          } else {
+            result = await ghl.sendMessage({
+              type: "SMS",
+              contactId: action.contactId,
+              message: payload.content,
+            });
+          }
           ghlResponse = result as unknown as Record<string, unknown>;
           break;
         }

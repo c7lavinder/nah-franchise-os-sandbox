@@ -63,6 +63,7 @@ export default function DailyHQPage() {
       if (res.ok) {
         const data = await res.json();
         setConversations(data.conversations ?? []);
+        setInboxError(data.setupRequired ? data.error ?? "Assign a SignalHouse number in Settings." : null);
       } else {
         setInboxError("Failed to load inbox");
       }
@@ -95,6 +96,12 @@ export default function DailyHQPage() {
   useEffect(() => {
     void fetchInbox();
   }, [fetchInbox]);
+
+  useEffect(() => {
+    if (selectedConv && !conversations.some((conversation) => conversation.id === selectedConv.id)) {
+      setSelectedConv(null);
+    }
+  }, [conversations, selectedConv]);
 
   useEffect(() => {
     void fetchSidebar();
@@ -169,6 +176,7 @@ export default function DailyHQPage() {
               searchQuery={inboxSearch}
               onSearchChange={setInboxSearch}
             />
+            {inboxError && <p className="px-3 py-2 text-caption text-danger border-b border-border-default">{inboxError}</p>}
             <ConversationList
               conversations={filteredConversations}
               selectedId={selectedConv?.id ?? null}

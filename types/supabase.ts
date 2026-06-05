@@ -9396,6 +9396,32 @@ export type Database = {
           },
         ]
       }
+      sms_conversation_reads: {
+        Row: {
+          conversation_key: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          conversation_key: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          conversation_key?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_conversation_reads_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sms_messages: {
         Row: {
           body: string | null
@@ -10569,6 +10595,7 @@ export type Database = {
         Row: {
           created_at: string | null
           email: string
+          assigned_signalhouse_number: string | null
           full_name: string
           ghl_user_id: string | null
           id: string
@@ -10583,6 +10610,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           email: string
+          assigned_signalhouse_number?: string | null
           full_name: string
           ghl_user_id?: string | null
           id?: string
@@ -10597,6 +10625,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           email?: string
+          assigned_signalhouse_number?: string | null
           full_name?: string
           ghl_user_id?: string | null
           id?: string

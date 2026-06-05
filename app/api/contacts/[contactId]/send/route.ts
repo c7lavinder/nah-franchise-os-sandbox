@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { customerFacingSendsDisabledReason, customerFacingSendsEnabled } from "@/lib/ghl/action-safety";
 import { sendMessage } from "@/lib/ghl/client";
+import { getAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
 import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
 import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
 
@@ -42,13 +43,23 @@ export async function POST(
       if (!body.message?.trim()) {
         return NextResponse.json({ error: "message is required" }, { status: 400 });
       }
-      const msg = signalHouseEnabled()
-        ? await sendContactSmsViaSignalHouse(contactId, body.message.trim())
-        : await sendMessage({
-            type: "SMS",
-            contactId,
-            message: body.message.trim(),
-          });
+      let msg;
+      if (signalHouseEnabled()) {
+        const fromNumber = await getAssignedSignalHouseNumber(user.id);
+        if (!fromNumber) {
+          return NextResponse.json(
+            { error: "Your user does not have a SignalHouse sending number assigned in Settings.", success: false },
+            { status: 409 }
+          );
+        }
+        msg = await sendContactSmsViaSignalHouse(contactId, body.message.trim(), { fromNumber });
+      } else {
+        msg = await sendMessage({
+          type: "SMS",
+          contactId,
+          message: body.message.trim(),
+        });
+      }
       return NextResponse.json({ success: true, messageId: msg.id });
     }
 

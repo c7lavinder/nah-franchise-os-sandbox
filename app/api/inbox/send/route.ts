@@ -13,6 +13,7 @@ import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
 import { customerFacingSendsDisabledReason, customerFacingSendsEnabled } from "@/lib/ghl/action-safety";
 import { createServerClient } from "@/lib/supabase/server";
+import { getAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
 import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
 import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
 import type { GHLSendMessagePayload } from "@/types/ghl";
@@ -85,7 +86,8 @@ async function updateTouchFields(contactId: string, channel: "SMS" | "Email") {
 }
 
 export async function POST(request: NextRequest) {
-  { const _auth = await requireAuth(request); if (_auth instanceof Response) return _auth; }
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
   try {
     const body = (await request.json()) as SendRequest;
 
@@ -128,10 +130,19 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    const message =
-      body.type === "SMS" && signalHouseEnabled()
-        ? await sendContactSmsViaSignalHouse(body.contactId, body.message!.trim())
-        : await ghl.sendMessage(payload);
+    let message;
+    if (body.type === "SMS" && signalHouseEnabled()) {
+      const fromNumber = await getAssignedSignalHouseNumber(user.id);
+      if (!fromNumber) {
+        return NextResponse.json(
+          { error: "Your user does not have a SignalHouse sending number assigned in Settings.", success: false },
+          { status: 409 }
+        );
+      }
+      message = await sendContactSmsViaSignalHouse(body.contactId, body.message!.trim(), { fromNumber });
+    } else {
+      message = await ghl.sendMessage(payload);
+    }
 
     // Update touch tracking in background (don't block the response)
     void updateTouchFields(body.contactId, body.type);

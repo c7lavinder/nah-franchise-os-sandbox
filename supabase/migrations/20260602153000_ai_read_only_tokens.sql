@@ -43,10 +43,12 @@ CREATE INDEX IF NOT EXISTS idx_ai_api_activity_resource ON ai_api_activity(resou
 ALTER TABLE ai_api_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_api_activity ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "ai_tokens_admin_read" ON ai_api_tokens;
 CREATE POLICY "ai_tokens_admin_read" ON ai_api_tokens FOR SELECT USING (
   EXISTS (SELECT 1 FROM users u WHERE u.id::text = auth.uid()::text AND u.role = 'admin')
 );
 
+DROP POLICY IF EXISTS "ai_activity_admin_read" ON ai_api_activity;
 CREATE POLICY "ai_activity_admin_read" ON ai_api_activity FOR SELECT USING (
   EXISTS (SELECT 1 FROM users u WHERE u.id::text = auth.uid()::text AND u.role = 'admin')
 );

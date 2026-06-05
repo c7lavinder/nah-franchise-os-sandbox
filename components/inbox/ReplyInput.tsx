@@ -2,39 +2,31 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState } from "react";
-import { Send, Loader2, MessageSquare, Mail } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
 
 interface ReplyInputProps {
   contactId: string;
-  defaultChannel?: "SMS" | "Email";
+  disabled?: boolean;
+  disabledReason?: string;
   onSent: () => void;
 }
 
-export default function ReplyInput({ contactId, defaultChannel = "SMS", onSent }: ReplyInputProps) {
-  const [channel, setChannel] = useState<"SMS" | "Email">(defaultChannel);
+export default function ReplyInput({ contactId, disabled = false, disabledReason, onSent }: ReplyInputProps) {
   const [message, setMessage] = useState("");
-  const [subject, setSubject] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSend() {
-    if (sending) return;
-
-    if (channel === "SMS" && !message.trim()) return;
-    if (channel === "Email" && (!message.trim() || !subject.trim())) return;
+    if (sending || disabled || !message.trim()) return;
 
     setSending(true);
     setError(null);
 
     try {
-      const body = channel === "SMS"
-        ? { type: "SMS", contactId, message: message.trim(), confirmed: true }
-        : { type: "Email", contactId, subject: subject.trim(), html: message.trim(), confirmed: true };
-
       const res = await apiFetch("/api/inbox/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ type: "SMS", contactId, message: message.trim(), confirmed: true }),
       });
 
       if (!res.ok) {
@@ -43,7 +35,6 @@ export default function ReplyInput({ contactId, defaultChannel = "SMS", onSent }
       }
 
       setMessage("");
-      setSubject("");
       onSent();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send");
@@ -53,7 +44,7 @@ export default function ReplyInput({ contactId, defaultChannel = "SMS", onSent }
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey && channel === "SMS") {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void handleSend();
     }
@@ -61,61 +52,25 @@ export default function ReplyInput({ contactId, defaultChannel = "SMS", onSent }
 
   return (
     <div className="border-t border-border-default px-4 py-3 flex-shrink-0">
-      {error && (
-        <p className="text-caption text-danger mb-2">{error}</p>
+      {(error || (disabled && disabledReason)) && (
+        <p className="text-caption text-danger mb-2">{error ?? disabledReason}</p>
       )}
 
-      {/* Channel toggle */}
-      <div className="flex gap-1 mb-2">
-        <button
-          onClick={() => setChannel("SMS")}
-          className={`flex items-center gap-1 px-2 py-1 rounded text-caption font-medium transition-colors ${
-            channel === "SMS"
-              ? "bg-success/15 text-success"
-              : "text-text-tertiary hover:text-text-primary"
-          }`}
-        >
-          <MessageSquare size={12} /> SMS
-        </button>
-        <button
-          onClick={() => setChannel("Email")}
-          className={`flex items-center gap-1 px-2 py-1 rounded text-caption font-medium transition-colors ${
-            channel === "Email"
-              ? "bg-scout-purple/15 text-scout-purple"
-              : "text-text-tertiary hover:text-text-primary"
-          }`}
-        >
-          <Mail size={12} /> Email
-        </button>
-      </div>
-
-      {/* Subject line (email only) */}
-      {channel === "Email" && (
-        <input
-          type="text"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          placeholder="Subject..."
-          className="w-full bg-bg-secondary border border-border-default rounded-lg px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary focus:border-nah-orange focus:outline-none mb-2"
-          disabled={sending}
-        />
-      )}
-
-      {/* Message body */}
       <div className="flex gap-2">
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={channel === "SMS" ? "Type a message... (Enter to send)" : "Write your email..."}
+          placeholder="Type a message..."
           className="flex-1 bg-bg-secondary border border-border-default rounded-lg px-3 py-2 text-body-sm text-text-primary placeholder:text-text-tertiary focus:border-nah-orange focus:outline-none resize-none"
-          rows={channel === "Email" ? 3 : 1}
-          disabled={sending}
+          rows={1}
+          disabled={sending || disabled}
         />
         <button
           onClick={handleSend}
-          disabled={sending || (channel === "SMS" ? !message.trim() : !message.trim() || !subject.trim())}
+          disabled={sending || disabled || !message.trim()}
           className="btn-primary p-2.5 rounded-lg disabled:opacity-40 self-end"
+          title="Send SMS"
         >
           {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>

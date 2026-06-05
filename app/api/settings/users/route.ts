@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
+import { getConfiguredSignalHouseNumbers, normalizeAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
 import { createServerClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
@@ -14,14 +15,14 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, full_name, role, ghl_user_id, is_active, is_real_user, label_color, last_login_at, created_at")
+    .select("id, email, full_name, role, ghl_user_id, assigned_signalhouse_number, is_active, is_real_user, label_color, last_login_at, created_at")
     .order("full_name");
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ users: data ?? [] });
+  return NextResponse.json({ users: data ?? [], signalHouseNumbers: getConfiguredSignalHouseNumbers() });
 }
 
 /** PATCH — update a user's editable fields */
@@ -39,10 +40,15 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
 
-  const allowed = ["full_name", "role", "ghl_user_id", "is_active", "label_color"];
+  const allowed = ["full_name", "role", "ghl_user_id", "assigned_signalhouse_number", "is_active", "label_color"];
   const updates: Record<string, unknown> = {};
   for (const key of allowed) {
     if (fields[key] !== undefined) updates[key] = fields[key];
+  }
+  if (updates.assigned_signalhouse_number !== undefined) {
+    updates.assigned_signalhouse_number = normalizeAssignedSignalHouseNumber(
+      String(updates.assigned_signalhouse_number || "")
+    );
   }
 
   if (Object.keys(updates).length === 0) {
