@@ -9396,6 +9396,83 @@ export type Database = {
           },
         ]
       }
+      sms_messages: {
+        Row: {
+          body: string | null
+          carrier: string | null
+          contact_id: string | null
+          created_at: string
+          delivered_at: string | null
+          direction: string
+          failed_at: string | null
+          from_number: string | null
+          ghl_contact_id: string | null
+          id: string
+          message_type: string
+          provider: string
+          provider_message_id: string
+          raw_payload: Json
+          received_at: string | null
+          segment_count: number | null
+          sent_at: string | null
+          status: string | null
+          to_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          carrier?: string | null
+          contact_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          direction: string
+          failed_at?: string | null
+          from_number?: string | null
+          ghl_contact_id?: string | null
+          id?: string
+          message_type?: string
+          provider?: string
+          provider_message_id: string
+          raw_payload?: Json
+          received_at?: string | null
+          segment_count?: number | null
+          sent_at?: string | null
+          status?: string | null
+          to_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          carrier?: string | null
+          contact_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          direction?: string
+          failed_at?: string | null
+          from_number?: string | null
+          ghl_contact_id?: string | null
+          id?: string
+          message_type?: string
+          provider?: string
+          provider_message_id?: string
+          raw_payload?: Json
+          received_at?: string | null
+          segment_count?: number | null
+          sent_at?: string | null
+          status?: string | null
+          to_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suggestion_feedback: {
         Row: {
           accepted_value: Json | null

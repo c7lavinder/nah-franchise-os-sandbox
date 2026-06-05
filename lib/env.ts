@@ -23,6 +23,11 @@ export type EnvKey =
   | "GHL_CLIENT_SECRET"
   | "GHL_API_KEY"
   | "GHL_SENDING_EMAIL"
+  | "SMS_PROVIDER"
+  | "SIGNALHOUSE_API_TOKEN"
+  | "SIGNALHOUSE_FROM_NUMBER"
+  | "SIGNALHOUSE_WEBHOOK_SECRET"
+  | "SIGNALHOUSE_STATUS_CALLBACK_URL"
   | "READ_AI_API_KEY";
 
 export type EnvGroup = {
@@ -61,6 +66,17 @@ export const ENV_GROUPS: EnvGroup[] = [
     name: "GHL / Read.ai integrations",
     required: [],
     optional: ["GHL_LOCATION_ID", "GHL_CLIENT_ID", "GHL_CLIENT_SECRET", "READ_AI_API_KEY"],
+  },
+  {
+    name: "SMS provider",
+    required: [],
+    optional: [
+      "SMS_PROVIDER",
+      "SIGNALHOUSE_API_TOKEN",
+      "SIGNALHOUSE_FROM_NUMBER",
+      "SIGNALHOUSE_WEBHOOK_SECRET",
+      "SIGNALHOUSE_STATUS_CALLBACK_URL",
+    ],
   },
 ];
 

@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { customerFacingSendsDisabledReason, customerFacingSendsEnabled } from "@/lib/ghl/action-safety";
 import { sendMessage } from "@/lib/ghl/client";
+import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
+import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
 
 export async function POST(
   request: NextRequest,
@@ -40,11 +42,13 @@ export async function POST(
       if (!body.message?.trim()) {
         return NextResponse.json({ error: "message is required" }, { status: 400 });
       }
-      const msg = await sendMessage({
-        type: "SMS",
-        contactId,
-        message: body.message.trim(),
-      });
+      const msg = signalHouseEnabled()
+        ? await sendContactSmsViaSignalHouse(contactId, body.message.trim())
+        : await sendMessage({
+            type: "SMS",
+            contactId,
+            message: body.message.trim(),
+          });
       return NextResponse.json({ success: true, messageId: msg.id });
     }
 
