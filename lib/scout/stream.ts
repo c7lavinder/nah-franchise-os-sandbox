@@ -14,6 +14,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { SCOUT_TOOLS } from "./tools";
 import { executeTool } from "./tool-executor";
 import { logLLMCall } from "./llm-logger";
+import { trimMessagesForModel } from "./history-budget";
 // routeModel no longer used — Opus orchestrator pattern hardcodes models
 import { loadUserMemory, formatMemoryForPrompt } from "./memory";
 import { createServerClient } from "@/lib/supabase/server";
@@ -88,12 +89,13 @@ export async function runStreamingTurn(params: {
       // Use true streaming via Anthropic SDK.
       // During tool-call iterations we collect the full response.
       // During the final text response we emit tokens as they arrive.
+      const modelMessages = trimMessagesForModel(messages);
       const stream = client.messages.stream({
         model: activeModel,
         max_tokens: MAX_TOKENS,
         system: systemPrompt,
         tools,
-        messages,
+        messages: modelMessages,
       });
 
       // Collect text tokens in real-time — emit them as "text" events.
@@ -116,7 +118,7 @@ export async function runStreamingTurn(params: {
       logLLMCall({
         userId: input.userId,
         model: activeModel,
-        inputMessages: messages,
+        inputMessages: modelMessages,
         toolsProvided: tools.map((t) => t.name),
         responseContent: response.content as unknown[],
         toolCallsMade: toolCallNames,

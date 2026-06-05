@@ -23,6 +23,7 @@ import {
   type PromptBlockMetadata,
 } from "./prompt-loader";
 import { loadDataFreshness } from "./data-freshness";
+import { trimMessagesForModel } from "./history-budget";
 import { createServerClient } from "@/lib/supabase/server";
 import type { ScoutToolName, DraftedAction } from "@/types/scout";
 import type { UserRole } from "@/types/database";
@@ -864,13 +865,15 @@ export async function runConversationTurn(input: ScoutConversationInput): Promis
     const startTime = Date.now();
     let response: Anthropic.Messages.Message;
 
+    const modelMessages = trimMessagesForModel(messages);
+
     try {
       response = await client.messages.create({
         model: activeModel,
         max_tokens: MAX_TOKENS,
         system: systemPrompt,
         tools: formatToolsForAPI(),
-        messages,
+        messages: modelMessages,
       });
     } catch (err) {
       // Log failed API calls — fire-and-forget
@@ -879,7 +882,7 @@ export async function runConversationTurn(input: ScoutConversationInput): Promis
       logLLMCall({
         userId: input.userId,
         model: activeModel,
-        inputMessages: messages,
+        inputMessages: modelMessages,
         toolsProvided: toolNames,
         responseContent: [],
         toolCallsMade: [],
@@ -910,7 +913,7 @@ export async function runConversationTurn(input: ScoutConversationInput): Promis
     logLLMCall({
       userId: input.userId,
       model: activeModel,
-      inputMessages: messages,
+      inputMessages: modelMessages,
       toolsProvided: toolNames,
       responseContent: response.content as unknown[],
       toolCallsMade: toolCallNames,
