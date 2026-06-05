@@ -25,6 +25,7 @@ interface UserRow {
   full_name: string;
   role: string;
   ghl_user_id: string | null;
+  assigned_signalhouse_number: string | null;
   label_color: string | null;
   is_active: boolean;
   is_real_user: boolean;
@@ -145,6 +146,7 @@ function AiTokenCell({
 
 export default function UsersPanel() {
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [signalHouseNumbers, setSignalHouseNumbers] = useState<string[]>([]);
   const [aiTokens, setAiTokens] = useState<Record<string, AiToken>>({});
   const [generatedSecrets, setGeneratedSecrets] = useState<Record<string, string>>({});
   const [tokenBusyUserId, setTokenBusyUserId] = useState<string | null>(null);
@@ -167,6 +169,7 @@ export default function UsersPanel() {
     if (res.ok) {
       const d = await res.json();
       setUsers(d.users ?? []);
+      setSignalHouseNumbers(d.signalHouseNumbers ?? []);
     }
     setLoading(false);
   }
@@ -211,6 +214,7 @@ export default function UsersPanel() {
       full_name: u.full_name,
       role: u.role,
       ghl_user_id: u.ghl_user_id ?? "",
+      assigned_signalhouse_number: u.assigned_signalhouse_number ?? "",
       label_color: u.label_color ?? "#6B7280",
       is_active: u.is_active,
     });
@@ -230,6 +234,7 @@ export default function UsersPanel() {
         id,
         ...draft,
         ghl_user_id: draft.ghl_user_id || null,
+        assigned_signalhouse_number: draft.assigned_signalhouse_number || null,
         label_color: draft.label_color || null,
       }),
     });
@@ -270,11 +275,18 @@ export default function UsersPanel() {
       </div>
 
       <div className="border border-border-default rounded-lg overflow-hidden">
-        <div className="grid grid-cols-[1fr_40px_100px_140px_190px_100px_80px] gap-2 px-4 py-2 bg-bg-secondary text-caption font-medium text-text-tertiary">
+        <datalist id="signalhouse-numbers">
+          {signalHouseNumbers.map((number) => (
+            <option key={number} value={number} />
+          ))}
+        </datalist>
+
+        <div className="grid grid-cols-[1fr_40px_96px_128px_132px_176px_86px_76px] gap-2 px-4 py-2 bg-bg-secondary text-caption font-medium text-text-tertiary">
           <span>Name / Email</span>
           <span>Color</span>
           <span>Role</span>
           <span>GHL User ID</span>
+          <span>SMS Number</span>
           <span className="flex items-center gap-1">
             <Key size={10} /> AI Token
           </span>
@@ -290,7 +302,7 @@ export default function UsersPanel() {
             return (
               <div
                 key={u.id}
-                className="grid grid-cols-[1fr_40px_100px_140px_190px_100px_80px] gap-2 px-4 py-3 border-t border-border-default items-center bg-nah-blue/5"
+                className="grid grid-cols-[1fr_40px_96px_128px_132px_176px_86px_76px] gap-2 px-4 py-3 border-t border-border-default items-center bg-nah-blue/5"
               >
                 <div>
                   <input
@@ -322,6 +334,13 @@ export default function UsersPanel() {
                   value={(draft.ghl_user_id as string) ?? ""}
                   onChange={(e) => setDraft({ ...draft, ghl_user_id: e.target.value })}
                   placeholder="GHL ID..."
+                  className="bg-bg-secondary border border-border-default rounded px-2 py-1 text-body-sm text-text-primary font-mono text-[11px]"
+                />
+                <input
+                  value={(draft.assigned_signalhouse_number as string) ?? ""}
+                  onChange={(e) => setDraft({ ...draft, assigned_signalhouse_number: e.target.value })}
+                  placeholder="SMS #..."
+                  list="signalhouse-numbers"
                   className="bg-bg-secondary border border-border-default rounded px-2 py-1 text-body-sm text-text-primary font-mono text-[11px]"
                 />
                 <AiTokenCell
@@ -356,7 +375,7 @@ export default function UsersPanel() {
           return (
             <div
               key={u.id}
-              className="grid grid-cols-[1fr_40px_100px_140px_190px_100px_80px] gap-2 px-4 py-3 border-t border-border-default items-center hover:bg-bg-hover/30 transition-colors"
+              className="grid grid-cols-[1fr_40px_96px_128px_132px_176px_86px_76px] gap-2 px-4 py-3 border-t border-border-default items-center hover:bg-bg-hover/30 transition-colors"
             >
               <div>
                 <p className="text-body-sm font-medium text-text-primary">{u.full_name}</p>
@@ -377,6 +396,15 @@ export default function UsersPanel() {
                 {u.ghl_user_id ? (
                   <span className="text-[11px] font-mono text-text-secondary truncate block max-w-[130px]">
                     {u.ghl_user_id}
+                  </span>
+                ) : (
+                  <XCircle size={14} className="text-text-tertiary" />
+                )}
+              </div>
+              <div>
+                {u.assigned_signalhouse_number ? (
+                  <span className="text-[11px] font-mono text-text-secondary truncate block max-w-[120px]">
+                    {u.assigned_signalhouse_number}
                   </span>
                 ) : (
                   <XCircle size={14} className="text-text-tertiary" />
@@ -420,7 +448,7 @@ export default function UsersPanel() {
             {inactiveUsers.map((u) => (
               <div
                 key={u.id}
-                className="grid grid-cols-[1fr_40px_100px_140px_190px_100px_80px] gap-2 px-4 py-2 border-t border-border-default items-center opacity-50"
+                className="grid grid-cols-[1fr_40px_96px_128px_132px_176px_86px_76px] gap-2 px-4 py-2 border-t border-border-default items-center opacity-50"
               >
                 <div>
                   <p className="text-body-sm text-text-secondary">{u.full_name}</p>
@@ -438,6 +466,9 @@ export default function UsersPanel() {
                     <XCircle size={14} className="text-text-tertiary" />
                   )}
                 </div>
+                <span className="text-[11px] font-mono text-text-tertiary truncate">
+                  {u.assigned_signalhouse_number ?? "—"}
+                </span>
                 <span className="text-[11px] text-text-tertiary">—</span>
                 <span className="text-caption text-text-tertiary">Deactivated</span>
                 <button

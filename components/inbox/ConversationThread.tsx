@@ -2,7 +2,7 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, MessageSquare } from "lucide-react";
 import type { GHLConversation, GHLMessage } from "@/types/ghl";
 import ReplyInput from "./ReplyInput";
 
@@ -23,6 +23,10 @@ function formatMessageTime(dateAdded: string): string {
   const d = new Date(dateAdded);
   return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " +
     d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
 export default function ConversationThread({ conversation, onMessageSent }: ConversationThreadProps) {
@@ -61,18 +65,28 @@ export default function ConversationThread({ conversation, onMessageSent }: Conv
 
   const realMessages = messages.filter(isRealMessage);
   const contactName = conversation.contactName || conversation.fullName || "Unknown";
+  const assignedNumber = conversation.tags?.[0];
+  const canReply = isUuid(conversation.contactId);
 
   return (
     <div className="flex flex-col h-full">
       {/* Thread header */}
       <div className="px-4 py-3 border-b border-border-default flex-shrink-0">
-        <h3 className="text-body-sm font-semibold text-text-primary">{contactName}</h3>
-        {conversation.phone && (
-          <span className="text-caption text-text-tertiary">{conversation.phone}</span>
-        )}
-        {conversation.email && !conversation.phone && (
-          <span className="text-caption text-text-tertiary">{conversation.email}</span>
-        )}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-body-sm font-semibold text-text-primary truncate">{contactName}</h3>
+            {conversation.phone && (
+              <span className="text-caption text-text-tertiary">{conversation.phone}</span>
+            )}
+            {conversation.email && !conversation.phone && (
+              <span className="text-caption text-text-tertiary">{conversation.email}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 text-caption text-text-tertiary shrink-0">
+            <MessageSquare size={12} />
+            <span>{assignedNumber ?? "SignalHouse"}</span>
+          </div>
+        </div>
       </div>
 
       {/* Messages */}
@@ -114,9 +128,8 @@ export default function ConversationThread({ conversation, onMessageSent }: Conv
       {/* Reply input */}
       <ReplyInput
         contactId={conversation.contactId}
-        defaultChannel={
-          (conversation.lastMessageType as unknown as string) === "TYPE_EMAIL" ? "Email" : "SMS"
-        }
+        disabled={!canReply}
+        disabledReason="Match this phone to a contact before replying."
         onSent={() => {
           onMessageSent();
           // Refetch messages

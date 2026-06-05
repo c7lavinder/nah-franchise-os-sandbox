@@ -1,5 +1,6 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
+import { normalizeAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
 import { phoneLookupKey } from "@/lib/sms/phone";
 import { sendSignalHouseSms, type SignalHouseMessage } from "@/lib/sms/signalhouse-client";
 import type { GHLMessage } from "@/types/ghl";
@@ -26,7 +27,11 @@ async function findContactForSms(contactId: string): Promise<ContactRow | null> 
   return (data as ContactRow | null) ?? null;
 }
 
-async function logSignalHouseMessage(contact: ContactRow, message: SignalHouseMessage, body: string) {
+interface SendContactSmsOptions {
+  fromNumber?: string | null;
+}
+
+async function logSignalHouseMessage(contact: ContactRow, message: SignalHouseMessage, body: string, fromNumber?: string | null) {
   const supabase = createServerClient();
   await supabase.from("sms_messages").upsert(
     {
@@ -36,8 +41,8 @@ async function logSignalHouseMessage(contact: ContactRow, message: SignalHouseMe
       ghl_contact_id: contact.ghl_contact_id,
       direction: "outbound",
       message_type: message.messageType ?? "SMS",
-      from_number: message.senderPhoneNumber ?? message.phoneNumber ?? null,
-      to_number: message.recipientPhoneNumber ?? null,
+      from_number: normalizeAssignedSignalHouseNumber(message.senderPhoneNumber ?? message.phoneNumber ?? fromNumber),
+      to_number: normalizeAssignedSignalHouseNumber(message.recipientPhoneNumber),
       body,
       status: message.status ?? "ENQUEUED",
       segment_count: message.segmentCount ?? null,
@@ -49,14 +54,19 @@ async function logSignalHouseMessage(contact: ContactRow, message: SignalHouseMe
   );
 }
 
-export async function sendContactSmsViaSignalHouse(contactId: string, body: string): Promise<GHLMessage> {
+export async function sendContactSmsViaSignalHouse(
+  contactId: string,
+  body: string,
+  options: SendContactSmsOptions = {}
+): Promise<GHLMessage> {
   const contact = await findContactForSms(contactId);
   if (!contact?.phone) {
     throw new Error("Contact does not have a phone number for SignalHouse SMS.");
   }
 
-  const message = await sendSignalHouseSms({ to: contact.phone, body });
-  await logSignalHouseMessage(contact, message, body);
+  const from = normalizeAssignedSignalHouseNumber(options.fromNumber);
+  const message = await sendSignalHouseSms({ to: contact.phone, body, from: from ?? undefined });
+  await logSignalHouseMessage(contact, message, body, from);
 
   return {
     id: message._id,
@@ -66,8 +76,8 @@ export async function sendContactSmsViaSignalHouse(contactId: string, body: stri
     body,
     dateAdded: message.createdAt ?? new Date().toISOString(),
     status: message.status,
-    from: message.senderPhoneNumber ?? message.phoneNumber,
-    to: message.recipientPhoneNumber ?? phoneLookupKey(contact.phone),
+    from: normalizeAssignedSignalHouseNumber(message.senderPhoneNumber ?? message.phoneNumber ?? from) ?? undefined,
+    to: normalizeAssignedSignalHouseNumber(message.recipientPhoneNumber) ?? phoneLookupKey(contact.phone),
     source: "signalhouse",
   };
 }

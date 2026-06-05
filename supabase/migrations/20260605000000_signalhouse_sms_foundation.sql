@@ -36,6 +36,7 @@ CREATE INDEX IF NOT EXISTS idx_sms_messages_ghl_contact_time
 CREATE INDEX IF NOT EXISTS idx_sms_messages_status
   ON sms_messages(provider, status, updated_at DESC);
 
+DROP TRIGGER IF EXISTS sms_messages_updated_at ON sms_messages;
 CREATE TRIGGER sms_messages_updated_at
   BEFORE UPDATE ON sms_messages
   FOR EACH ROW

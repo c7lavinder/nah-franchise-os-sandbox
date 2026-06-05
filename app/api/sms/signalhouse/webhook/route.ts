@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";
 import { createServerClient } from "@/lib/supabase/server";
+import { normalizeAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
 import { phoneLookupKey } from "@/lib/sms/phone";
 
 type SignalHouseWebhookPayload = {
@@ -83,8 +84,8 @@ export async function POST(request: NextRequest) {
       ghl_contact_id: contact?.ghl_contact_id ?? null,
       direction,
       message_type: payload.messageType ?? "SMS",
-      from_number: payload.senderPhoneNumber ?? payload.phoneNumber ?? null,
-      to_number: payload.recipientPhoneNumber ?? null,
+      from_number: normalizeAssignedSignalHouseNumber(payload.senderPhoneNumber ?? payload.phoneNumber),
+      to_number: normalizeAssignedSignalHouseNumber(payload.recipientPhoneNumber),
       body: payload.messageBody ?? null,
       status: payload.status ?? null,
       segment_count: payload.segmentCount ?? null,
