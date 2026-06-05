@@ -214,6 +214,10 @@ export async function evaluateScoutSendRuntimeSafety(
 
   const sendCount = await countContactSendsToday(action.contactId);
   const payload = action.payload as DraftedMessagePayload;
+  const isSignalHouseSms = payload.channel === "SMS" && process.env.SMS_PROVIDER === "signalhouse";
+  const hasProviderEnv = isSignalHouseSms
+    ? Boolean(process.env.SIGNALHOUSE_API_TOKEN && process.env.SIGNALHOUSE_FROM_NUMBER)
+    : Boolean(process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID);
 
   return {
     quietHours: isWithinQuietHours(now)
@@ -247,13 +251,20 @@ export async function evaluateScoutSendRuntimeSafety(
       reason: payload.content?.trim() ? "human_reviewed_draft_content" : "empty_content_blocked_by_ghl_payload_validation",
     },
     providerHealth:
-      process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID && customerFacingSendsEnabled()
-        ? { passed: true, reason: "ghl_env_present_and_customer_facing_sends_enabled" }
+      hasProviderEnv && customerFacingSendsEnabled()
+        ? {
+            passed: true,
+            reason: isSignalHouseSms
+              ? "signalhouse_env_present_and_customer_facing_sends_enabled"
+              : "ghl_env_present_and_customer_facing_sends_enabled",
+          }
         : {
             passed: false,
             reason: !customerFacingSendsEnabled()
               ? "customer_facing_sends_disabled"
-              : "missing_ghl_provider_env",
+              : isSignalHouseSms
+                ? "missing_signalhouse_provider_env"
+                : "missing_ghl_provider_env",
             details: !customerFacingSendsEnabled()
               ? { requiredEnv: CUSTOMER_FACING_SENDS_ENABLED_ENV }
               : undefined,

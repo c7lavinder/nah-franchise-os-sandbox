@@ -20,6 +20,8 @@ import {
   type SendRuntimeChecks,
 } from "@/lib/ghl/action-safety";
 import { createServerClient } from "@/lib/supabase/server";
+import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
+import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
 import { enrollContact, pauseEnrollment, resumeEnrollment, exitEnrollment } from "@/lib/workflows/enrollment";
 import type {
   DraftedAction,
@@ -219,11 +221,13 @@ export async function POST(request: NextRequest) {
                   subject: payload.subject ?? "NAH Franchise",
                   emailFrom: senderEmail,
                 })
-              : await ghl.sendMessage({
-                  type: "SMS",
-                  contactId: action.contactId,
-                  message: payload.content,
-                });
+              : signalHouseEnabled()
+                ? await sendContactSmsViaSignalHouse(action.contactId, payload.content)
+                : await ghl.sendMessage({
+                    type: "SMS",
+                    contactId: action.contactId,
+                    message: payload.content,
+                  });
           ghlResponse = result as unknown as Record<string, unknown>;
           break;
         }
