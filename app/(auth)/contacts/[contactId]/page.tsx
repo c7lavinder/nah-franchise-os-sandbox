@@ -125,6 +125,14 @@ export default async function ContactPage({
   }
 
   const allJourneyIds = [...joined.keys()];
+  if (message && allJourneyIds.length > 0) {
+    const firstJourney = joined.values().next().value?.journey as JourneyRow | undefined;
+    if (firstJourney) {
+      const journeyHref = firstJourney.slug ? `/journeys/${firstJourney.slug}` : `/journeys/${firstJourney.id}`;
+      redirect(`${journeyHref}?message=${encodeURIComponent(message)}`);
+    }
+  }
+
   if (allJourneyIds.length === 0) {
     return renderSlim(contactId, contact, memberships, callRowsRes.data ?? [], callTypesRes.data ?? []);
   }
@@ -175,11 +183,6 @@ export default async function ContactPage({
   const role: "prospect" | "franchisee" = activeMatch.kind === "franchisee" ? "franchisee" : "prospect";
   const activeJourney = activeMatch.journey;
   const statesRaw = activeMatch.states;
-
-  if (message) {
-    const journeyHref = activeJourney.slug ? `/journeys/${activeJourney.slug}` : `/journeys/${activeJourney.id}`;
-    redirect(`${journeyHref}?message=${encodeURIComponent(message)}`);
-  }
 
   // Territories for the franchisee rich view: every TerritorySlug on
   // this person's franchise-role runway/onboarding journeys. No join
