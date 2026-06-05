@@ -44,7 +44,8 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     description:
       "Filter a collection of records and return matching rows. Use this for 'show me X where Y' questions. " +
       "Supported entities: contacts, journeys, pipeline_entries, territories, opportunities, call_logs, alerts, objections, workflow_enrollments, " +
-      "inventory (ms_property_inventory — purchase/sell dates, status), properties (ms_properties — leads, addresses, categories). " +
+      "inventory (ms_property_inventory — purchase/sell dates, status), properties (ms_properties — leads, addresses, categories), " +
+      "royalty (ms_property_royalty — paid/due acquisition, disposition, and delayed royalty calculations by PropertyId). " +
       "filters is a JSON array of {field, op, value} objects. Ops: eq, ne, gt, gte, lt, lte, in, ilike, is_null, not_null. " +
       "Each entity exposes its own filterable field set — if you use a wrong field, the error tells you what's allowed. " +
       "Defaults: limit=25 (max 100), order by updated_at desc when present.",
@@ -66,6 +67,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
             "workflow_enrollments",
             "inventory",
             "properties",
+            "royalty",
           ],
         },
         filters: {
@@ -111,6 +113,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
             "workflow_enrollments",
             "inventory",
             "properties",
+            "royalty",
           ],
         },
         metric: {

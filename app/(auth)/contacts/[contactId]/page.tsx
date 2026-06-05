@@ -65,13 +65,20 @@ const FRANCHISE_ROLES = new Set(["primary", "co_primary", "business_partner"]);
 const FRANCHISEE_PIPELINES = new Set(["runway", "onboarding"]);
 const PROSPECT_PIPELINES = new Set(["sales", "followup"]);
 
-export default async function ContactPage({ params }: { params: Promise<{ contactId: string }> }) {
+export default async function ContactPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ contactId: string }>;
+  searchParams: Promise<{ message?: string }>;
+}) {
   const { contactId: rawId } = await params;
+  const { message } = await searchParams;
   const supabase = createServerClient();
 
   const localId = await resolveContactId(rawId);
   if (!localId) notFound();
-  if (localId !== rawId) redirect(`/contacts/${localId}`);
+  if (localId !== rawId) redirect(`/contacts/${localId}${message ? `?message=${encodeURIComponent(message)}` : ""}`);
   const contactId = localId;
 
   const { data: contact } = await supabase
@@ -168,6 +175,11 @@ export default async function ContactPage({ params }: { params: Promise<{ contac
   const role: "prospect" | "franchisee" = activeMatch.kind === "franchisee" ? "franchisee" : "prospect";
   const activeJourney = activeMatch.journey;
   const statesRaw = activeMatch.states;
+
+  if (message) {
+    const journeyHref = activeJourney.slug ? `/journeys/${activeJourney.slug}` : `/journeys/${activeJourney.id}`;
+    redirect(`${journeyHref}?message=${encodeURIComponent(message)}`);
+  }
 
   // Territories for the franchisee rich view: every TerritorySlug on
   // this person's franchise-role runway/onboarding journeys. No join
