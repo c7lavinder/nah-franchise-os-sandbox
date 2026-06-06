@@ -3,13 +3,21 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Bot, Send, Paperclip, Mic, Loader2, CheckCheck } from "lucide-react";
+import { Bot, Send, Paperclip, Loader2, CheckCheck, X } from "lucide-react";
 import Image from "next/image";
 import { ScoutBubble, UserBubble, ThinkingIndicator, DraftedActionCard, VoiceRecorder } from "@/components/scout";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { parsePageContext } from "@/lib/scout/page-context";
 import type { ChatMessage, DraftedAction } from "@/types/scout";
 import type Anthropic from "@anthropic-ai/sdk";
+
+interface ScoutAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  text: string;
+}
 
 /** Scout AI page — full chat interface with tool-call support */
 export default function ScoutPage() {
@@ -21,11 +29,13 @@ export default function ScoutPage() {
   const [executingActionId, setExecutingActionId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<ScoutAttachment[]>([]);
 
   // Anthropic message history for the API — tracks the full conversation including tool calls
   const apiHistoryRef = useRef<Anthropic.Messages.MessageParam[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   /** Auto-scroll to the bottom when new messages arrive */
   const scrollToBottom = useCallback(() => {
@@ -73,19 +83,84 @@ export default function ScoutPage() {
   // Stable ID for the in-progress Scout message during streaming
   const streamMsgIdRef = useRef<string>("");
 
+  async function attachFiles(fileList: FileList | File[]) {
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
+
+    const formData = new FormData();
+    for (const file of files) formData.append("files", file);
+
+    try {
+      const res = await apiFetch("/api/scout/attachments", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to attach file");
+
+      const accepted: ScoutAttachment[] = (data.attachments ?? []).map(
+        (file: { name: string; type: string; size: number; text: string }) => ({
+          id: crypto.randomUUID(),
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          text: file.text,
+        })
+      );
+      const rejected = (data.rejected ?? []).map(
+        (file: { name: string; reason: string }) => `${file.name}: ${file.reason}`
+      );
+
+      if (accepted.length > 0) setAttachments((prev) => [...prev, ...accepted]);
+      setError(rejected.length > 0 ? rejected.join(". ") : null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to attach file");
+    }
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((prev) => prev.filter((file) => file.id !== id));
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    if (e.clipboardData.files.length > 0) {
+      e.preventDefault();
+      void attachFiles(e.clipboardData.files);
+    }
+  }
+
+  function buildMessageForScout(trimmed: string) {
+    if (attachments.length === 0) return trimmed;
+    const attachmentText = attachments
+      .map((file, index) =>
+        [`--- Attached file ${index + 1}: ${file.name} (${file.type}, ${file.size} bytes) ---`, file.text].join("\n")
+      )
+      .join("\n\n");
+    return `${trimmed || "Please review the attached file(s)."}\n\n${attachmentText}`;
+  }
+
+  function attachmentSummary() {
+    if (attachments.length === 0) return "";
+    return `\n\nAttached: ${attachments.map((file) => file.name).join(", ")}`;
+  }
+
+  const canSend = (inputValue.trim().length > 0 || attachments.length > 0) && !isThinking;
+
   /** Send a message to Scout (streaming) */
   async function handleSend() {
     const trimmed = inputValue.trim();
-    if (!trimmed || isThinking) return;
+    if (!canSend) return;
+    const scoutMessage = buildMessageForScout(trimmed);
 
     setInputValue("");
+    setAttachments([]);
     setError(null);
 
     // Add user message to the UI
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      content: trimmed,
+      content: `${trimmed || "Please review the attached file(s)."}${attachmentSummary()}`,
       timestamp: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMessage]);
@@ -110,7 +185,7 @@ export default function ScoutPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: trimmed,
+          message: scoutMessage,
           sessionId,
           history: apiHistoryRef.current,
           pageContext,
@@ -364,13 +439,47 @@ export default function ScoutPage() {
 
           {/* Input pill */}
           <div className="w-full max-w-[700px]">
+            {attachments.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2 justify-center">
+                {attachments.map((file) => (
+                  <span
+                    key={file.id}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border-default bg-bg-secondary px-2 py-1 text-caption text-text-secondary"
+                  >
+                    {file.name}
+                    <button onClick={() => removeAttachment(file.id)} className="text-text-tertiary hover:text-danger">
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="input-pill">
-              <Paperclip size={18} className="text-text-tertiary flex-shrink-0 ml-2" />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-text-tertiary hover:text-text-primary flex-shrink-0 ml-2"
+                title="Attach a file"
+              >
+                <Paperclip size={18} />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                accept=".txt,.md,.markdown,.csv,.json,.log,.html,.xml,.yaml,.yml,.tsv,.pdf,.docx,.xlsx,.xls,text/*"
+                onChange={(e) => {
+                  if (e.target.files) void attachFiles(e.target.files);
+                  e.currentTarget.value = "";
+                }}
+              />
               <input
                 ref={inputRef}
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
+                onPaste={handlePaste}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask Scout anything..."
                 className="bg-transparent border-none outline-none flex-1 px-4 text-body-lg text-text-primary placeholder:text-text-tertiary"
@@ -379,7 +488,7 @@ export default function ScoutPage() {
               <VoiceRecorder onTranscription={(text) => setInputValue(text)} disabled={isThinking} />
               <button
                 onClick={handleSend}
-                disabled={!inputValue.trim() || isThinking}
+                disabled={!canSend}
                 className="p-2 rounded-full bg-nah-blue text-white disabled:opacity-30 transition-opacity"
               >
                 <Send size={18} />
@@ -403,6 +512,7 @@ export default function ScoutPage() {
                   setMessages([]);
                   setSessionId(null);
                   apiHistoryRef.current = [];
+                  setAttachments([]);
                   setError(null);
                 }}
                 className="btn-ghost text-caption ml-auto"
@@ -467,12 +577,51 @@ export default function ScoutPage() {
 
             {/* Input */}
             <div className="p-3" style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+              {attachments.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {attachments.map((file) => (
+                    <span
+                      key={file.id}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border-default bg-bg-secondary px-2 py-1 text-caption text-text-secondary"
+                    >
+                      {file.name}
+                      <button
+                        onClick={() => removeAttachment(file.id)}
+                        className="text-text-tertiary hover:text-danger"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
               <div className="input-pill">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-text-tertiary hover:text-text-primary flex-shrink-0 ml-2"
+                  title="Attach a file"
+                  disabled={isThinking}
+                >
+                  <Paperclip size={18} />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  accept=".txt,.md,.markdown,.csv,.json,.log,.html,.xml,.yaml,.yml,.tsv,.pdf,.docx,.xlsx,.xls,text/*"
+                  onChange={(e) => {
+                    if (e.target.files) void attachFiles(e.target.files);
+                    e.currentTarget.value = "";
+                  }}
+                />
                 <input
                   ref={inputRef}
                   type="text"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
+                  onPaste={handlePaste}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask Scout anything..."
                   className="bg-transparent border-none outline-none flex-1 px-4 text-body text-text-primary placeholder:text-text-tertiary"
@@ -482,7 +631,7 @@ export default function ScoutPage() {
                 <VoiceRecorder onTranscription={(text) => setInputValue(text)} disabled={isThinking} />
                 <button
                   onClick={handleSend}
-                  disabled={!inputValue.trim() || isThinking}
+                  disabled={!canSend}
                   className="p-2 rounded-full bg-nah-blue text-white disabled:opacity-30 transition-opacity"
                 >
                   <Send size={18} />
