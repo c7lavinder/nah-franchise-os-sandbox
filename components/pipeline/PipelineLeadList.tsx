@@ -114,7 +114,7 @@ export default function PipelineLeadList({
 }: PipelineLeadListProps) {
   const [contacts, setContacts] = useState<PipelineContact[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sortField, setSortField] = useState<SortField>("urgency");
+  const [sortField, setSortField] = useState<SortField>("recent");
   const [sortAsc, setSortAsc] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
