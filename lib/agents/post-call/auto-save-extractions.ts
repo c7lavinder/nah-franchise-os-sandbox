@@ -5,8 +5,7 @@
  * this module saves eligible ones directly to profile data stores:
  *
  * - High confidence: saved with last_updated_by/source = 'ai-auto' / 'scout_extraction'
- * - Medium confidence: saved with last_updated_by = 'ai' for contact profile fields
- * - Low confidence: skipped
+ * - Medium/low confidence: skipped so they remain reviewable data points
  * - Manual values (last_updated_by = 'manual') are NEVER overwritten
  *
  * Also triggers intelligence score recalculation after saves.
@@ -30,7 +29,6 @@ interface AutoSaveResult {
   saved: number;
   skipped: number;
   highConfidence: number;
-  mediumConfidence: number;
   manualProtected: number;
   contactsUpdated: string[];
   territoriesUpdated: string[];
@@ -44,7 +42,6 @@ export async function autoSaveExtractions(
     saved: 0,
     skipped: 0,
     highConfidence: 0,
-    mediumConfidence: 0,
     manualProtected: 0,
     contactsUpdated: [],
     territoriesUpdated: [],
@@ -117,7 +114,7 @@ export async function autoSaveExtractions(
     }
 
     const confidence = normalizeConfidence(ext.confidence);
-    if (!confidence || confidence === "low") {
+    if (confidence !== "high") {
       result.skipped++;
       continue;
     }
@@ -187,14 +184,12 @@ export async function autoSaveExtractions(
       continue;
     }
 
-    const source = confidence === "high" ? "ai-auto" : "ai";
-
     const { error: upsertError } = await supabase.from("contact_profile_fields").upsert(
       {
         contact_id: ext.contact_id,
         field_name: ext.field_key,
         field_value: JSON.stringify(ext.extracted_value),
-        last_updated_by: source,
+        last_updated_by: "ai-auto",
         last_updated_at: new Date().toISOString(),
       },
       { onConflict: "contact_id,field_name" }
@@ -209,12 +204,7 @@ export async function autoSaveExtractions(
     savedExtractionIds.push(ext.id);
     contactsWithSaves.add(ext.contact_id);
     result.saved++;
-
-    if (confidence === "high") {
-      result.highConfidence++;
-    } else {
-      result.mediumConfidence++;
-    }
+    result.highConfidence++;
   }
 
   // Mark extractions as auto-saved
