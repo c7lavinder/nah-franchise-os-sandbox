@@ -205,7 +205,7 @@ export async function runPostCallAgent(
       const autoSaveResult = await autoSaveExtractions(callId, supabase);
       if (autoSaveResult.saved > 0) {
         console.log(
-          `[post-call-agent] ${callId} auto-saved ${autoSaveResult.saved} extractions (${autoSaveResult.highConfidence} high, ${autoSaveResult.mediumConfidence} medium)`
+          `[post-call-agent] ${callId} auto-saved ${autoSaveResult.saved} high-confidence extractions`
         );
       }
     } catch (err) {
