@@ -21,6 +21,11 @@ type ConfidenceLevel = "high" | "medium" | "low";
 
 const MARKET_FIELD_NAMES = new Set(MARKET_FIELDS.map((field) => field.name));
 
+interface ExistingProfileField {
+  lastUpdatedBy: string | null;
+  lastUpdatedAt: string | null;
+}
+
 interface AutoSaveResult {
   saved: number;
   skipped: number;
@@ -59,21 +64,45 @@ export async function autoSaveExtractions(
     return result;
   }
 
+  const { data: call } = await supabase
+    .from("calls")
+    .select("started_at, created_at")
+    .eq("id", callId)
+    .maybeSingle();
+  const callOccurredAt = parseTimestamp(call?.started_at ?? call?.created_at);
+
   // Get unique contact IDs to batch-fetch existing profile fields
   const contactIds = [...new Set(extractions.map((e) => e.contact_id).filter(Boolean))] as string[];
-  const existingByContact = new Map<string, Map<string, string>>();
+  const existingByContact = new Map<string, Map<string, ExistingProfileField>>();
 
   for (const cid of contactIds) {
     const { data: fields } = await supabase
       .from("contact_profile_fields")
-      .select("field_name, last_updated_by")
+      .select("field_name, last_updated_by, last_updated_at")
       .eq("contact_id", cid);
 
-    const fieldMap = new Map<string, string>();
+    const fieldMap = new Map<string, ExistingProfileField>();
     for (const f of fields ?? []) {
-      fieldMap.set(f.field_name, f.last_updated_by);
+      fieldMap.set(f.field_name, {
+        lastUpdatedBy: f.last_updated_by ?? null,
+        lastUpdatedAt: f.last_updated_at ?? null,
+      });
     }
     existingByContact.set(cid, fieldMap);
+  }
+
+  const territoryKeys = extractions
+    .filter((e) => e.field_category === "territory_market" && e.TerritorySlug)
+    .map((e) => ({ TerritorySlug: e.TerritorySlug as string, fieldKey: e.field_key }));
+  const existingTerritoryFields = new Map<string, string | null>();
+  for (const key of territoryKeys) {
+    const { data: row } = await supabase
+      .from("territory_market_data")
+      .select("updated_at")
+      .eq("TerritorySlug", key.TerritorySlug)
+      .eq("field_name", key.fieldKey)
+      .maybeSingle();
+    existingTerritoryFields.set(`${key.TerritorySlug}:${key.fieldKey}`, row?.updated_at ?? null);
   }
 
   const savedExtractionIds: string[] = [];
@@ -95,6 +124,12 @@ export async function autoSaveExtractions(
 
     if (ext.field_category === "territory_market") {
       if (!ext.TerritorySlug || confidence !== "high" || !MARKET_FIELD_NAMES.has(ext.field_key)) {
+        result.skipped++;
+        continue;
+      }
+
+      const existingUpdatedAt = existingTerritoryFields.get(`${ext.TerritorySlug}:${ext.field_key}`);
+      if (isExistingNewerThanCall(existingUpdatedAt, callOccurredAt)) {
         result.skipped++;
         continue;
       }
@@ -140,9 +175,14 @@ export async function autoSaveExtractions(
     }
 
     // Never overwrite manual values
-    const existingSource = existingByContact.get(ext.contact_id)?.get(ext.field_key);
-    if (existingSource === "manual") {
+    const existingField = existingByContact.get(ext.contact_id)?.get(ext.field_key);
+    if (existingField?.lastUpdatedBy === "manual") {
       result.manualProtected++;
+      result.skipped++;
+      continue;
+    }
+
+    if (isExistingNewerThanCall(existingField?.lastUpdatedAt, callOccurredAt)) {
       result.skipped++;
       continue;
     }
@@ -227,4 +267,16 @@ function normalizeNumericConfidence(confidence: number): ConfidenceLevel {
   if (confidence >= 0.85) return "high";
   if (confidence >= 0.6) return "medium";
   return "low";
+}
+
+function parseTimestamp(value: unknown): number | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function isExistingNewerThanCall(existingUpdatedAt: unknown, callOccurredAt: number | null): boolean {
+  if (!callOccurredAt) return false;
+  const existingTimestamp = parseTimestamp(existingUpdatedAt);
+  return existingTimestamp !== null && existingTimestamp > callOccurredAt;
 }
