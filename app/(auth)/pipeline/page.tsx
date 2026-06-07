@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import { capitalizeName } from "@/lib/format/contact";
+import ScoreCardRow from "@/components/scorecards/ScoreCardRow";
 import {
   DndContext,
   DragOverlay,
@@ -685,13 +686,8 @@ export default function PipelinePage() {
   return (
     // Break out of the AppShell max-w-content container to go full-width
     <div className="-mx-4 md:-mx-8 px-3">
-      {/* Page header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-h1 text-text-primary">Pipeline</h1>
-          <p className="text-caption text-text-tertiary mt-0.5">Drag prospects between stages and sub-tasks</p>
-        </div>
-      </div>
+      {/* Scorecards */}
+      <ScoreCardRow page="pipeline" />
 
       {/* Search bar */}
       <div className="relative mb-4 max-w-sm">
