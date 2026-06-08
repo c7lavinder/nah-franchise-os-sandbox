@@ -55,7 +55,7 @@ export async function autoSaveExtractions(
     .eq("saved_to_profile", false)
     .eq("dismissed", false)
     .eq("auto_saved", false)
-    .in("field_category", ["contact", "contact_eos", "territory_market"]);
+    .in("field_category", ["contact", "territory_market"]);
 
   if (error || !extractions || extractions.length === 0) {
     return result;
