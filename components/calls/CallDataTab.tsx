@@ -18,6 +18,7 @@ interface Extraction {
   TerritorySlug: string | null;
   target_scope: "single" | "both" | null;
   protected_by_newer_profile?: boolean;
+  unsupported_contact_field?: boolean;
 }
 
 interface PartnerOption {
@@ -282,7 +283,11 @@ export default function CallDataTab(props: CallDataTabProps) {
 }
 
 function isDefaultSelectable(extraction: Extraction): boolean {
-  return extraction.confidence?.toLowerCase() === "high" && !extraction.protected_by_newer_profile;
+  return (
+    extraction.confidence?.toLowerCase() === "high" &&
+    !extraction.protected_by_newer_profile &&
+    !extraction.unsupported_contact_field
+  );
 }
 
 function CategorySection({

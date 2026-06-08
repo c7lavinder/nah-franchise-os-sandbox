@@ -73,6 +73,7 @@ interface ExtractionData {
   TerritorySlug: string | null;
   target_scope: "single" | "both" | null;
   protected_by_newer_profile?: boolean;
+  unsupported_contact_field?: boolean;
 }
 
 interface PartnerOption {
@@ -145,6 +146,7 @@ export default function CallDataField({
   const isDone = extraction.saved_to_profile || extraction.dismissed;
   const isImportant = IMPORTANT_FIELDS.has(extraction.field_key);
   const protectedByNewerProfile = !!extraction.protected_by_newer_profile;
+  const unsupportedContactField = !!extraction.unsupported_contact_field;
 
   // Target label — always show where this extraction is being pushed.
   const isTerritoryField =
@@ -364,13 +366,15 @@ export default function CallDataField({
           <input
             type="checkbox"
             checked={selected ?? false}
-            onChange={protectedByNewerProfile ? undefined : onToggleSelected}
-            disabled={protectedByNewerProfile}
+            onChange={protectedByNewerProfile || unsupportedContactField ? undefined : onToggleSelected}
+            disabled={protectedByNewerProfile || unsupportedContactField}
             className="mt-1.5 w-4 h-4 rounded border-border-default accent-nah-blue cursor-pointer flex-shrink-0 disabled:cursor-not-allowed disabled:opacity-40"
             title={
-              protectedByNewerProfile
-                ? "Not preselected because a newer profile value already exists"
-                : "Include this row when 'Push selected' is clicked"
+              unsupportedContactField
+                ? "Not preselected because this is not a supported contact profile field"
+                : protectedByNewerProfile
+                  ? "Not preselected because a newer profile value already exists"
+                  : "Include this row when 'Push selected' is clicked"
             }
           />
         )}
@@ -384,6 +388,11 @@ export default function CallDataField({
             {!editing && protectedByNewerProfile && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-warning/40 bg-warning/15 text-warning flex items-center gap-1">
                 <AlertTriangle size={10} /> Newer profile value exists
+              </span>
+            )}
+            {!editing && unsupportedContactField && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-warning/40 bg-warning/15 text-warning flex items-center gap-1">
+                <AlertTriangle size={10} /> Unsupported contact field
               </span>
             )}
           </div>

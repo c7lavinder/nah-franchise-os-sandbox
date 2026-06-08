@@ -18,7 +18,8 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { createServerClient } from "@/lib/supabase/server";
+import { isValidFieldName } from "@/lib/profile/field-registry";
 
 const FIELD_MAP: Record<string, string> = {
   employment_status: "employment_status",
@@ -67,8 +68,10 @@ export async function POST(
 
   const now = new Date().toISOString();
   const targetType: "contact" | "territory" =
-    body.target_type
-    ?? (body.target_TerritorySlug ? "territory" : "contact");
+    body.target_type ??
+    (body.target_TerritorySlug || extraction.TerritorySlug || isTerritoryCategory(extraction.field_category)
+      ? "territory"
+      : "contact");
 
   if (targetType === "territory") {
     const slug = body.target_TerritorySlug ?? extraction.TerritorySlug;
@@ -112,6 +115,10 @@ export async function POST(
   if (!effectiveContactId) {
     return NextResponse.json({ error: "No contact selected" }, { status: 400 });
   }
+  const fieldName = normalizeContactFieldKey(extraction.field_key);
+  if (!isValidFieldName(fieldName)) {
+    return NextResponse.json({ error: `Unsupported contact profile field: ${extraction.field_key}` }, { status: 400 });
+  }
 
   const targetContactIds = effectiveScope === "both"
     ? await resolvePartnerContactIds(supabase, effectiveContactId, extraction.journey_id)
@@ -134,7 +141,7 @@ export async function POST(
       .upsert(
         {
           contact_id: cid,
-          field_name: extraction.field_key,
+          field_name: fieldName,
           field_value: JSON.stringify(extraction.extracted_value),
           last_updated_by: "ai",
           last_updated_at: now,
@@ -159,6 +166,24 @@ export async function POST(
     fanout_count: targetContactIds.length,
     scope: effectiveScope,
   });
+}
+
+const CONTACT_FIELD_ALIASES: Record<string, string> = {
+  decision_style: "decision_making_style",
+};
+
+function normalizeContactFieldKey(fieldKey: string): string {
+  return CONTACT_FIELD_ALIASES[fieldKey] ?? fieldKey;
+}
+
+function isTerritoryCategory(fieldCategory: string | null): boolean {
+  return (
+    fieldCategory === "territory" ||
+    fieldCategory === "territory_market" ||
+    fieldCategory === "business_financials" ||
+    fieldCategory === "business_health" ||
+    fieldCategory === "market"
+  );
 }
 
 async function resolvePartnerContactIds(
