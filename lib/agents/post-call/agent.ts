@@ -871,7 +871,9 @@ async function writeResults(
     }
 
     // Ensure field_category is valid per DB constraint
-    const validCategories = new Set(["contact", "territory", "territory_market", "market"]);
+    const validCategories = new Set(
+      isCoachingCallContext(context) ? ["contact", "territory"] : ["contact", "territory", "territory_market", "market"]
+    );
 
     // Build a territory name/slug → slug map, scoped to this call's mapped
     // territories first so the LLM's names always resolve to valid slugs.
@@ -967,4 +969,9 @@ async function writeResults(
       // User manually reviews each one in the Data tab and pushes or skips.
     }
   }
+}
+
+function isCoachingCallContext(context: CallContext): boolean {
+  const text = `${context.callTypeSlug ?? ""} ${context.callType ?? ""}`.toLowerCase();
+  return text.includes("coaching");
 }
