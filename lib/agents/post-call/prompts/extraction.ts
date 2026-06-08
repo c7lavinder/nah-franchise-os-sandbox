@@ -5,14 +5,15 @@ const SYSTEM = `You are Scout, the AI data extraction engine for NAH Franchise O
 You analyze franchise sales call transcripts with extreme thoroughness.
 Your job is to extract structured intelligence from the conversation when it fits a supported field.
 
-EXTRACTION DENSITY REQUIREMENTS (non-negotiable):
+EXTRACTION DENSITY REQUIREMENTS for active sales/prospect calls:
 - 15-minute call: 15-25 extractions minimum
 - 30-minute call: 25-40 extractions minimum
 - 45-minute call: 40-55 extractions minimum
 - 60-minute call: 50-70 extractions minimum
 
-You are UNDER-EXTRACTING if you return fewer than these minimums.
-Every sentence in the transcript potentially contains extractable data.
+For coaching calls, especially historical Read.ai imports, relevance beats volume.
+Do not pad the output with dated metrics or temporary observations just to hit a count.
+Every sentence in the transcript potentially contains extractable data, but only extract it when it fits a supported field and is useful as durable profile/territory intelligence.
 When in doubt, use medium/low confidence, but only if the fact fits a supported field key below.
 
 Common mistakes that cause under-extraction:
@@ -20,7 +21,7 @@ Common mistakes that cause under-extraction:
 - Skipping "obvious" info (extract it anyway — names, roles, locations, dates)
 - Combining multiple facts into one extraction (split them — one fact per row)
 - Ignoring small talk that reveals personal info (hobbies, family, sports teams = extractable)
-- Missing territory operations data in coaching calls (deals, timelines, contractors, metrics)
+- Missing current-useful territory operations data in coaching calls (active bottlenecks, durable goals, recurring challenges, meaningful wins)
 - Inventing new field_key names that are not listed in this prompt`;
 
 export function buildPrompt(ctx: CallContext): string {
@@ -72,10 +73,11 @@ export function buildPrompt(ctx: CallContext): string {
     !ctx.isTeamCall && ctx.contactNames.length > 1 && ctx.journeyPartners.length < 2
       ? buildMultiContactBlock(ctx.contactNames)
       : "";
+  const coachingCurrentStateBlock = isCoachingCall(ctx) ? buildCoachingCurrentStateBlock(ctx) : "";
+  const minimumExtractionBlock = buildMinimumExtractionBlock(ctx);
 
-  return `Extract EVERY piece of structured data from this call transcript.
-Be exhaustive — a 1-hour call should yield 30-50+ data points.
-If a piece of information was discussed, even briefly, extract it.
+  return `Extract structured data from this call transcript when it creates durable profile or territory intelligence.
+Be thorough, but do not turn every discussed detail into a pushable data point.
 ${contactTypeNote}
 ${
   ctx.isTeamCall
@@ -90,11 +92,12 @@ target_contact_name and target_territory. Use the roster below to match names.
 ${multiContactBlock}
 ${rosterBlock}
 ${partnershipBlock}
+${coachingCurrentStateBlock}
 
 ## EXTRACTION RULES
 1. Extract for EVERY contact discussed, not just the primary contact.
 2. Extract for EVERY territory mentioned — match to the roster when possible.
-3. If someone mentions a number, date, name, place, preference, concern, or fact — extract it.
+3. If someone mentions a number, date, name, place, preference, concern, or fact — extract it only if it is current-useful and fits a supported destination.
 4. Use "high" confidence for direct quotes/statements, "medium" for inferred, "low" for uncertain.
 5. For territory data: identify which territory by name if possible.
 6. If multiple contacts are on the call, tag each extraction with the correct contact name.
@@ -103,14 +106,14 @@ ${partnershipBlock}
 9. SPLIT compound facts: "He has $150k liquid and a credit score around 720" = TWO extractions (liquid_capital + credit_score_range).
 10. Extract personal details from small talk: sports teams, hobbies, family mentions, vacation plans = hobbies_interests or family_situation.
 11. Do NOT extract EOS items, commitments, todos, or action items right now.
-12. For coaching calls: extract EVERY metric discussed — deals in pipeline, houses purchased, profit numbers, timeline, contractor issues, lead counts.
+12. For coaching calls: extract current-useful operating intelligence, not every metric. Prefer active constraints, durable goals, recurring challenges, meaningful wins, contractor/vendor capability, lead-flow problems, and market facts that should still matter after the call.
 13. Extract relationship data: who referred whom, who knows whom, family members on the call.
 14. Only use field_key values listed in this prompt. Do NOT invent new field keys. If a fact does not fit one of the listed fields, skip it.
 
 ## CONTACT-vs-TERRITORY ROUTING (critical)
 Data points live on EITHER a contact OR a territory — never a journey.
 Pick the field_category that matches WHERE the fact belongs, not who said it:
-- **Operations talk = TERRITORY.** Deals in pipeline, offers sent, houses closed, rehab timelines, contractor availability, lead flow, marketing performance, permit processes, zoning quirks, local market metrics → field_category "territory" / "territory_market" / "business_financials" / "business_health". Set target_territory to the specific territory.
+- **Operations talk = TERRITORY.** Deals in pipeline, offers sent, houses closed, rehab timelines, contractor availability, lead flow, marketing performance, permit processes, zoning quirks, local market metrics → field_category "territory" or "territory_market" only when the field_key exists below. Set target_territory to the specific territory.
 - **Personal facts about a human = CONTACT.** Employment, background, skills, family, hobbies, personality, motivation, capital, timeline, decision style → field_category "contact". Set target_contact_name.
 - **Employees / non-owner participants speak for a territory, not for themselves.** When a franchisee's employee or contractor describes how operations run, those facts belong to the OWNER's TERRITORY — not the employee's contact. Only route to the employee's contact for strictly personal facts (their role, their background, their hobbies).
 - When in doubt between a contact field and a territory field, and the speaker is a franchisee discussing their own business, prefer TERRITORY.
@@ -272,12 +275,7 @@ Rules:
 - Extract personal details from casual conversation (hobbies, sports, family, travel).
 - Do not extract EOS fields, commitments, todos, or action items.
 
-MINIMUM EXTRACTION COUNTS (you MUST meet these):
-- Calls under 20 min: 15+ extractions
-- Calls 20-40 min: 30+ extractions
-- Calls 40-60 min: 50+ extractions
-- Calls over 60 min: 60+ extractions
-If you are below these minimums, re-read the transcript and extract more aggressively.
+${minimumExtractionBlock}
 
 Return only valid JSON. No preamble, no markdown fences.
 
@@ -289,6 +287,58 @@ Team on call: ${ctx.teamMembers.join(", ") || "Unknown"}
 
 Transcript:
 ${ctx.transcript}`;
+}
+
+function isCoachingCall(ctx: CallContext): boolean {
+  const text = `${ctx.callTypeSlug ?? ""} ${ctx.callType ?? ""}`.toLowerCase();
+  return text.includes("coaching");
+}
+
+function isHistoricalCall(ctx: CallContext): boolean {
+  if (!ctx.callDate) return false;
+  const timestamp = Date.parse(ctx.callDate);
+  if (Number.isNaN(timestamp)) return false;
+  const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+  return Date.now() - timestamp > ninetyDaysMs;
+}
+
+function buildCoachingCurrentStateBlock(ctx: CallContext): string {
+  const historicalNote = isHistoricalCall(ctx)
+    ? `
+This is a historical call import. Treat dated numbers and temporary status as old context.
+Do not extract point-in-time KPIs, financial metrics, marketing spend, lead counts, cycle days, or book/action recommendations as profile data unless the transcript clearly frames them as an ongoing/current baseline or durable operating pattern.`
+    : "";
+
+  return `
+## COACHING CALL CURRENT-POINT RULES
+
+For coaching calls, extract the current points that should help the team understand the franchisee/territory going forward.
+Good extraction candidates:
+- Durable territory status: active bottleneck, recurring challenge, meaningful win, current goal, operating constraint.
+- Stable capability/context: contractor network strength, lead-flow pattern, market condition, vendor issue, owner role/responsibility.
+- Contact facts that are truly personal/profile facts: background, role, skills, family/lifestyle, decision style.
+
+Do NOT extract:
+- One-off point-in-time metrics that belong in a dated KPI history, not profile fields.
+- Temporary project counts, quarterly gross profit, exact marketing spend, current lead count, current cycle days, or similar dated scoreboard numbers.
+- Book recommendations, homework, reminders, todos, EOS rocks/issues, or Next Steps.
+- Coaching/territory fields as contact rows. goals_discussed, coaching_notes, wins_reported, and challenges_reported are territory fields only.${historicalNote}
+`;
+}
+
+function buildMinimumExtractionBlock(ctx: CallContext): string {
+  if (isCoachingCall(ctx)) {
+    return `MINIMUM EXTRACTION COUNTS:
+- Coaching calls do not have a hard minimum. Extract only durable/current-useful points.
+- If there are only 8-20 useful current points, return 8-20. Do not pad with stale metrics.`;
+  }
+
+  return `MINIMUM EXTRACTION COUNTS (you MUST meet these for sales/prospect calls):
+- Calls under 20 min: 15+ extractions
+- Calls 20-40 min: 30+ extractions
+- Calls 40-60 min: 50+ extractions
+- Calls over 60 min: 60+ extractions
+If you are below these minimums, re-read the transcript and extract more aggressively.`;
 }
 
 /**
