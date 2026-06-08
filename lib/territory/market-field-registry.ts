@@ -1,5 +1,5 @@
 /**
- * Territory Market Data Field Registry — 114 fields, 9 categories
+ * Territory Market Data Field Registry — 118 fields, 9 categories
  *
  * Single source of truth for all market data fields on a territory.
  * Drives the Market & Financial UI, API validation, and data ingestion.
@@ -73,7 +73,7 @@ export const MARKET_CATEGORIES: { key: MarketCategory; label: string; icon: stri
 
 export const MARKET_FIELDS: MarketField[] = [
   // ═══════════════════════════════════════
-  // 1. TERRITORY OVERVIEW (8)
+  // 1. TERRITORY OVERVIEW (12)
   // ═══════════════════════════════════════
   {
     name: "region",
@@ -139,6 +139,42 @@ export const MARKET_FIELDS: MarketField[] = [
     dataType: "text",
     populationSource: "manual",
     autoPopulate: false,
+  },
+  {
+    name: "coaching_notes",
+    label: "Coaching Notes",
+    category: "territory_overview",
+    dataType: "text",
+    populationSource: "scout",
+    autoPopulate: true,
+    help: "Franchisee coaching context extracted from calls.",
+  },
+  {
+    name: "wins_reported",
+    label: "Wins Reported",
+    category: "territory_overview",
+    dataType: "text",
+    populationSource: "scout",
+    autoPopulate: true,
+    help: "Positive updates and wins extracted from territory calls.",
+  },
+  {
+    name: "challenges_reported",
+    label: "Challenges Reported",
+    category: "territory_overview",
+    dataType: "text",
+    populationSource: "scout",
+    autoPopulate: true,
+    help: "Obstacles, blockers, or territory challenges extracted from calls.",
+  },
+  {
+    name: "goals_discussed",
+    label: "Goals Discussed",
+    category: "territory_overview",
+    dataType: "text",
+    populationSource: "scout",
+    autoPopulate: true,
+    help: "Goals discussed with the franchisee or territory team.",
   },
 
   // ═══════════════════════════════════════

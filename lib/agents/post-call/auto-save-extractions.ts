@@ -19,6 +19,12 @@ import { MARKET_FIELDS } from "@/lib/territory/market-field-registry";
 type ConfidenceLevel = "high" | "medium" | "low";
 
 const MARKET_FIELD_NAMES = new Set(MARKET_FIELDS.map((field) => field.name));
+const TERRITORY_NOTE_FIELD_NAMES = new Set([
+  "coaching_notes",
+  "wins_reported",
+  "challenges_reported",
+  "goals_discussed",
+]);
 
 interface ExistingProfileField {
   lastUpdatedBy: string | null;
@@ -55,17 +61,13 @@ export async function autoSaveExtractions(
     .eq("saved_to_profile", false)
     .eq("dismissed", false)
     .eq("auto_saved", false)
-    .in("field_category", ["contact", "territory_market"]);
+    .in("field_category", ["contact", "territory_market", "territory"]);
 
   if (error || !extractions || extractions.length === 0) {
     return result;
   }
 
-  const { data: call } = await supabase
-    .from("calls")
-    .select("started_at, created_at")
-    .eq("id", callId)
-    .maybeSingle();
+  const { data: call } = await supabase.from("calls").select("started_at, created_at").eq("id", callId).maybeSingle();
   const callOccurredAt = parseTimestamp(call?.started_at ?? call?.created_at);
 
   // Get unique contact IDs to batch-fetch existing profile fields
@@ -89,17 +91,25 @@ export async function autoSaveExtractions(
   }
 
   const territoryKeys = extractions
-    .filter((e) => e.field_category === "territory_market" && e.TerritorySlug)
+    .filter(
+      (e) =>
+        (e.field_category === "territory_market" ||
+          (e.field_category === "territory" && TERRITORY_NOTE_FIELD_NAMES.has(e.field_key))) &&
+        e.TerritorySlug
+    )
     .map((e) => ({ TerritorySlug: e.TerritorySlug as string, fieldKey: e.field_key }));
-  const existingTerritoryFields = new Map<string, string | null>();
+  const existingTerritoryFields = new Map<string, { value: string | null; updatedAt: string | null }>();
   for (const key of territoryKeys) {
     const { data: row } = await supabase
       .from("territory_market_data")
-      .select("updated_at")
+      .select("field_value, updated_at")
       .eq("TerritorySlug", key.TerritorySlug)
       .eq("field_name", key.fieldKey)
       .maybeSingle();
-    existingTerritoryFields.set(`${key.TerritorySlug}:${key.fieldKey}`, row?.updated_at ?? null);
+    existingTerritoryFields.set(`${key.TerritorySlug}:${key.fieldKey}`, {
+      value: row?.field_value ?? null,
+      updatedAt: row?.updated_at ?? null,
+    });
   }
 
   const savedExtractionIds: string[] = [];
@@ -119,24 +129,30 @@ export async function autoSaveExtractions(
       continue;
     }
 
-    if (ext.field_category === "territory_market") {
-      if (!ext.TerritorySlug || confidence !== "high" || !MARKET_FIELD_NAMES.has(ext.field_key)) {
+    if (ext.field_category === "territory_market" || ext.field_category === "territory") {
+      const isTerritoryNote = ext.field_category === "territory" && TERRITORY_NOTE_FIELD_NAMES.has(ext.field_key);
+
+      if (!ext.TerritorySlug || confidence !== "high" || (!MARKET_FIELD_NAMES.has(ext.field_key) && !isTerritoryNote)) {
         result.skipped++;
         continue;
       }
 
-      const existingUpdatedAt = existingTerritoryFields.get(`${ext.TerritorySlug}:${ext.field_key}`);
-      if (isExistingNewerThanCall(existingUpdatedAt, callOccurredAt)) {
+      const existingField = existingTerritoryFields.get(`${ext.TerritorySlug}:${ext.field_key}`);
+      if (!isTerritoryNote && isExistingNewerThanCall(existingField?.updatedAt, callOccurredAt)) {
         result.skipped++;
         continue;
       }
 
       const now = new Date().toISOString();
+      const fieldValue = isTerritoryNote
+        ? appendNoteValue(existingField?.value, ext.extracted_value, callOccurredAt)
+        : String(ext.extracted_value);
+
       const { error: upsertError } = await supabase.from("territory_market_data").upsert(
         {
           TerritorySlug: ext.TerritorySlug,
           field_name: ext.field_key,
-          field_value: String(ext.extracted_value),
+          field_value: fieldValue,
           source: "scout_extraction",
           source_date: now,
           updated_at: now,
@@ -153,6 +169,10 @@ export async function autoSaveExtractions(
         continue;
       }
 
+      existingTerritoryFields.set(`${ext.TerritorySlug}:${ext.field_key}`, {
+        value: fieldValue,
+        updatedAt: now,
+      });
       territorySavedExtractionIds.push(ext.id);
       territoriesWithSaves.add(ext.TerritorySlug);
       result.saved++;
@@ -269,4 +289,21 @@ function isExistingNewerThanCall(existingUpdatedAt: unknown, callOccurredAt: num
   if (!callOccurredAt) return false;
   const existingTimestamp = parseTimestamp(existingUpdatedAt);
   return existingTimestamp !== null && existingTimestamp > callOccurredAt;
+}
+
+function appendNoteValue(
+  existingValue: string | null | undefined,
+  extractedValue: unknown,
+  callOccurredAt: number | null
+): string {
+  const text = String(extractedValue).trim();
+  const existing = existingValue?.trim() ?? "";
+  if (!text) return existing;
+  if (existing.includes(text)) return existing;
+
+  const noteDate = callOccurredAt
+    ? new Date(callOccurredAt).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+  const note = `- ${noteDate}: ${text}`;
+  return existing ? `${existing}\n${note}` : note;
 }
