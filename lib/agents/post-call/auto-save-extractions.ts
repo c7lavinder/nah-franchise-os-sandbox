@@ -138,6 +138,11 @@ export async function autoSaveExtractions(
         continue;
       }
 
+      if (isTerritoryNote && isActionItemLikeNote(ext.extracted_value)) {
+        result.skipped++;
+        continue;
+      }
+
       const existingField = existingTerritoryFields.get(`${ext.TerritorySlug}:${ext.field_key}`);
       if (!isTerritoryNote && isExistingNewerThanCall(existingField?.updatedAt, callOccurredAt)) {
         result.skipped++;
@@ -290,6 +295,14 @@ function isExistingNewerThanCall(existingUpdatedAt: unknown, callOccurredAt: num
   if (!callOccurredAt) return false;
   const existingTimestamp = parseTimestamp(existingUpdatedAt);
   return existingTimestamp !== null && existingTimestamp > callOccurredAt;
+}
+
+function isActionItemLikeNote(value: unknown): boolean {
+  const text = String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+  return /^(action item|todo|to-do|follow up|follow-up|commitment)\s*:/.test(text);
 }
 
 function appendNoteValue(
