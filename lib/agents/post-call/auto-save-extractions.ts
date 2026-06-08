@@ -94,7 +94,8 @@ export async function autoSaveExtractions(
     .filter(
       (e) =>
         (e.field_category === "territory_market" ||
-          (e.field_category === "territory" && TERRITORY_NOTE_FIELD_NAMES.has(e.field_key))) &&
+          (e.field_category === "territory" &&
+            (MARKET_FIELD_NAMES.has(e.field_key) || TERRITORY_NOTE_FIELD_NAMES.has(e.field_key)))) &&
         e.TerritorySlug
     )
     .map((e) => ({ TerritorySlug: e.TerritorySlug as string, fieldKey: e.field_key }));
