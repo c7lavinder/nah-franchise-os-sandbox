@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
+import { isValidFieldName } from "@/lib/profile/field-registry";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ callId: string }> }) {
   const { callId } = await params;
@@ -506,5 +507,7 @@ async function addNewerProfileProtectionFlags(
     ...e,
     protected_by_newer_profile:
       !!e.contact_id && newerFields.has(`${e.contact_id}:${normalizeContactFieldKey(e.field_key)}`),
+    unsupported_contact_field:
+      e.field_category === "contact" && !isValidFieldName(normalizeContactFieldKey(e.field_key)),
   }));
 }

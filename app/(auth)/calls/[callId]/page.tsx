@@ -177,6 +177,7 @@ interface Extraction {
   TerritorySlug: string | null;
   target_scope: "single" | "both" | null;
   protected_by_newer_profile?: boolean;
+  unsupported_contact_field?: boolean;
 }
 
 export default function CallDetailPage() {
