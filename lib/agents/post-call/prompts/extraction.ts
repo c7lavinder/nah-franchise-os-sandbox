@@ -24,7 +24,52 @@ Common mistakes that cause under-extraction:
 - Missing current-useful territory operations data in coaching calls (active bottlenecks, durable goals, recurring challenges, meaningful wins)
 - Inventing new field_key names that are not listed in this prompt`;
 
+const TERRITORY_MARKET_FIELD_BLOCK = `## TERRITORY MARKET DATA (field_category: "territory_market")
+These fields go into territory_market_data. Tag with target_territory name.
+Extract ANY of these when discussed:
+
+### Territory Overview
+- region, market_type (primary/secondary/tertiary), territory_value_est
+- counties_included, major_cities, territory_notes
+
+### Demographics
+- population_total, median_age, median_household_income, per_capita_income
+- poverty_rate, pct_bachelors_degree, avg_household_size, total_households
+
+### Housing
+- median_home_value, median_rent, homeownership_rate, vacancy_rate
+- median_year_built, pct_built_before_1970, housing_permits_annual
+- avg_property_tax, median_monthly_housing_cost
+
+### Real Estate Market
+- avg_days_on_market, list_to_sale_ratio, active_listings, months_of_inventory
+- price_per_sqft, yoy_home_appreciation, foreclosure_rate, distressed_property_pct
+- cash_buyer_pct, investor_purchase_pct, avg_seller_concession, pct_price_reductions
+
+### Flip Market
+- flip_rate, flip_volume_annual, avg_flip_profit, avg_flip_roi
+- avg_arv, avg_purchase_price, avg_purchase_discount, avg_rehab_cost
+- avg_hold_time_days, best_flip_zip_codes, best_price_range
+- flip_friendly_lenders, wholesale_deal_flow, avg_days_to_sell_flip
+
+### Economy & Employment
+- unemployment_rate, job_growth_rate_1yr, top_employer_1/2/3
+- top_industry_1/2/3, cost_of_living_index
+
+### Construction
+- contractor_availability (High/Medium/Low), avg_labor_rate_hr
+- avg_material_cost_sqft, avg_rehab_cost_sqft, permit_timeline_days
+- permit_cost_avg, inspection_requirements, hoa_prevalence
+- renovation_restrictions, construction_season
+
+### Competition
+- active_flippers_count, ibuyer_presence, wholesaler_activity
+- investor_saturation (Saturated/Moderate/Underserved)
+- competitor_presence, top_competitor_1/2/3
+- buy_box_overlap, competitive_advantage`;
+
 export function buildPrompt(ctx: CallContext): string {
+  const isCoaching = isCoachingCall(ctx);
   const contactBlock =
     ctx.contactNames.length > 0
       ? `Contacts on call: ${ctx.contactNames.join(", ")}`
@@ -49,7 +94,7 @@ export function buildPrompt(ctx: CallContext): string {
   // to route each territory-specific extraction to the right one.
   const callTerritoryBlock =
     ctx.callTerritories.length > 1
-      ? `\n**THIS CALL SPANS MULTIPLE TERRITORIES.** For every territory-specific data point (population, ARV, deals, contractors, market metrics, wins, challenges, goals), set target_territory to one of these EXACT names:\n${ctx.callTerritories.map((t) => `  - ${t.Nickname}${t.is_primary ? " (primary)" : ""}`).join("\n")}\nDo not leave target_territory null when the context makes clear which territory is being discussed. Listen for territory-specific cues ("in Cincinnati we...", "over in Dayton...") and attribute the extraction accordingly. If ambiguous, use the primary territory.`
+      ? `\n**THIS CALL SPANS MULTIPLE TERRITORIES.** For every territory-specific ${isCoaching ? "current qualitative point (wins, challenges, goals, bottlenecks, contractor/vendor context)" : "data point (population, ARV, deals, contractors, market metrics, wins, challenges, goals)"}, set target_territory to one of these EXACT names:\n${ctx.callTerritories.map((t) => `  - ${t.Nickname}${t.is_primary ? " (primary)" : ""}`).join("\n")}\nDo not leave target_territory null when the context makes clear which territory is being discussed. Listen for territory-specific cues ("in Cincinnati we...", "over in Dayton...") and attribute the extraction accordingly. If ambiguous, use the primary territory.`
       : ctx.callTerritories.length === 1
         ? `\nCall is mapped to territory: ${ctx.callTerritories[0].Nickname}. Use this exact name in target_territory for any territory-specific extraction.`
         : "";
@@ -57,7 +102,9 @@ export function buildPrompt(ctx: CallContext): string {
   const contactTypeNote = isProspect
     ? `\n**IMPORTANT: This contact is a PROSPECT (not yet a franchisee).** Focus on contact fields: financial capacity, motivation, timeline, territory preferences, competitive intel, family situation. Do NOT extract territory operations/coaching fields — they have no territory yet. Territory preference fields (desired_territory, market_area, territory_type_preference) ARE relevant.`
     : isFranchisee
-      ? `\n**This contact is an ACTIVE FRANCHISEE.** Extract both contact profile updates AND territory operations/coaching data. Coaching calls should yield goals, challenges, wins, deal updates, and operational metrics.`
+      ? isCoaching
+        ? `\n**This contact is an ACTIVE FRANCHISEE on a coaching call.** Extract stable contact profile updates and current qualitative territory coaching points. Do not extract transcript metrics; MasterSuite is the source of truth for numbers.`
+        : `\n**This contact is an ACTIVE FRANCHISEE.** Extract both contact profile updates AND territory operations/coaching data.`
       : "";
 
   // Build roster block for team/group calls
@@ -73,7 +120,8 @@ export function buildPrompt(ctx: CallContext): string {
     !ctx.isTeamCall && ctx.contactNames.length > 1 && ctx.journeyPartners.length < 2
       ? buildMultiContactBlock(ctx.contactNames)
       : "";
-  const coachingCurrentStateBlock = isCoachingCall(ctx) ? buildCoachingCurrentStateBlock(ctx) : "";
+  const coachingCurrentStateBlock = isCoaching ? buildCoachingCurrentStateBlock(ctx) : "";
+  const territoryMarketBlock = isCoaching ? buildCoachingTerritoryMarketBlock() : TERRITORY_MARKET_FIELD_BLOCK;
   const minimumExtractionBlock = buildMinimumExtractionBlock(ctx);
 
   return `Extract structured data from this call transcript when it creates durable profile or territory intelligence.
@@ -189,49 +237,7 @@ Extract for any territory discussed:
 - challenges_reported (challenges or problems mentioned)
 - wins_reported (successes or milestones achieved)
 
-## TERRITORY MARKET DATA (field_category: "territory_market")
-These fields go into territory_market_data. Tag with target_territory name.
-Extract ANY of these when discussed:
-
-### Territory Overview
-- region, market_type (primary/secondary/tertiary), territory_value_est
-- counties_included, major_cities, territory_notes
-
-### Demographics
-- population_total, median_age, median_household_income, per_capita_income
-- poverty_rate, pct_bachelors_degree, avg_household_size, total_households
-
-### Housing
-- median_home_value, median_rent, homeownership_rate, vacancy_rate
-- median_year_built, pct_built_before_1970, housing_permits_annual
-- avg_property_tax, median_monthly_housing_cost
-
-### Real Estate Market
-- avg_days_on_market, list_to_sale_ratio, active_listings, months_of_inventory
-- price_per_sqft, yoy_home_appreciation, foreclosure_rate, distressed_property_pct
-- cash_buyer_pct, investor_purchase_pct, avg_seller_concession, pct_price_reductions
-
-### Flip Market
-- flip_rate, flip_volume_annual, avg_flip_profit, avg_flip_roi
-- avg_arv, avg_purchase_price, avg_purchase_discount, avg_rehab_cost
-- avg_hold_time_days, best_flip_zip_codes, best_price_range
-- flip_friendly_lenders, wholesale_deal_flow, avg_days_to_sell_flip
-
-### Economy & Employment
-- unemployment_rate, job_growth_rate_1yr, top_employer_1/2/3
-- top_industry_1/2/3, cost_of_living_index
-
-### Construction
-- contractor_availability (High/Medium/Low), avg_labor_rate_hr
-- avg_material_cost_sqft, avg_rehab_cost_sqft, permit_timeline_days
-- permit_cost_avg, inspection_requirements, hoa_prevalence
-- renovation_restrictions, construction_season
-
-### Competition
-- active_flippers_count, ibuyer_presence, wholesaler_activity
-- investor_saturation (Saturated/Moderate/Underserved)
-- competitor_presence, top_competitor_1/2/3
-- buy_box_overlap, competitive_advantage
+${territoryMarketBlock}
 
 ## OUTPUT FORMAT
 Return a JSON object. Include target_scope ONLY when the partnership block above is present — otherwise omit it.
@@ -313,17 +319,24 @@ Do not extract point-in-time KPIs, financial metrics, marketing spend, lead coun
 ## COACHING CALL CURRENT-POINT RULES
 
 For coaching calls, extract the current points that should help the team understand the franchisee/territory going forward.
+MasterSuite is the source of truth for all quantitative metrics. Do not use call transcripts as metric data.
 Good extraction candidates:
 - Durable territory status: active bottleneck, recurring challenge, meaningful win, current goal, operating constraint.
-- Stable capability/context: contractor network strength, lead-flow pattern, market condition, vendor issue, owner role/responsibility.
+- Stable capability/context: contractor network strength, qualitative lead-flow pattern, market condition, vendor issue, owner role/responsibility.
 - Contact facts that are truly personal/profile facts: background, role, skills, family/lifestyle, decision style.
 
 Do NOT extract:
-- One-off point-in-time metrics that belong in a dated KPI history, not profile fields.
-- Temporary project counts, quarterly gross profit, exact marketing spend, current lead count, current cycle days, or similar dated scoreboard numbers.
+- Metrics of any kind from the transcript. Ignore profit, revenue, cash, marketing spend, lead counts, conversion rates, cycle days, ARV, rehab cost, property counts, pipeline counts, and exact dates as data points.
 - Book recommendations, homework, reminders, todos, EOS rocks/issues, or Next Steps.
 - Coaching/territory fields as contact rows. goals_discussed, coaching_notes, wins_reported, and challenges_reported are territory fields only.${historicalNote}
 `;
+}
+
+function buildCoachingTerritoryMarketBlock(): string {
+  return `## TERRITORY MARKET DATA
+Do not extract territory_market rows from coaching call transcripts.
+MasterSuite and the territory research agent own market, financial, lead, deal, and operating metrics.
+If the transcript contains a qualitative market condition that still matters, place it in a territory coaching field such as coaching_notes, challenges_reported, wins_reported, or goals_discussed.`;
 }
 
 function buildMinimumExtractionBlock(ctx: CallContext): string {
