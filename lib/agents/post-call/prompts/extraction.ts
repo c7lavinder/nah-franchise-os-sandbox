@@ -3,7 +3,7 @@ import { callClaude, stripFences } from "../call-claude";
 
 const SYSTEM = `You are Scout, the AI data extraction engine for NAH Franchise OS.
 You analyze franchise sales call transcripts with extreme thoroughness.
-Your job is to extract EVERY piece of structured intelligence from the conversation.
+Your job is to extract structured intelligence from the conversation when it fits a supported field.
 
 EXTRACTION DENSITY REQUIREMENTS (non-negotiable):
 - 15-minute call: 15-25 extractions minimum
@@ -13,7 +13,7 @@ EXTRACTION DENSITY REQUIREMENTS (non-negotiable):
 
 You are UNDER-EXTRACTING if you return fewer than these minimums.
 Every sentence in the transcript potentially contains extractable data.
-When in doubt, EXTRACT IT. Low-confidence extractions are better than missed data.
+When in doubt, use medium/low confidence, but only if the fact fits a supported field key below.
 
 Common mistakes that cause under-extraction:
 - Summarizing instead of extracting (extract each individual fact separately)
@@ -21,7 +21,7 @@ Common mistakes that cause under-extraction:
 - Combining multiple facts into one extraction (split them — one fact per row)
 - Ignoring small talk that reveals personal info (hobbies, family, sports teams = extractable)
 - Missing territory operations data in coaching calls (deals, timelines, contractors, metrics)
-- Missing EOS items: every problem mentioned = issue, every commitment = todo, every goal = rock`;
+- Inventing new field_key names that are not listed in this prompt`;
 
 export function buildPrompt(ctx: CallContext): string {
   const contactBlock =
@@ -48,7 +48,7 @@ export function buildPrompt(ctx: CallContext): string {
   // to route each territory-specific extraction to the right one.
   const callTerritoryBlock =
     ctx.callTerritories.length > 1
-      ? `\n**THIS CALL SPANS MULTIPLE TERRITORIES.** For every territory-specific data point (population, ARV, deals, contractors, market metrics, rocks, issues, todos), set target_territory to one of these EXACT names:\n${ctx.callTerritories.map((t) => `  - ${t.Nickname}${t.is_primary ? " (primary)" : ""}`).join("\n")}\nDo not leave target_territory null when the context makes clear which territory is being discussed. Listen for territory-specific cues ("in Cincinnati we...", "over in Dayton...") and attribute the extraction accordingly. If ambiguous, use the primary territory.`
+      ? `\n**THIS CALL SPANS MULTIPLE TERRITORIES.** For every territory-specific data point (population, ARV, deals, contractors, market metrics, wins, challenges, goals), set target_territory to one of these EXACT names:\n${ctx.callTerritories.map((t) => `  - ${t.Nickname}${t.is_primary ? " (primary)" : ""}`).join("\n")}\nDo not leave target_territory null when the context makes clear which territory is being discussed. Listen for territory-specific cues ("in Cincinnati we...", "over in Dayton...") and attribute the extraction accordingly. If ambiguous, use the primary territory.`
       : ctx.callTerritories.length === 1
         ? `\nCall is mapped to territory: ${ctx.callTerritories[0].Nickname}. Use this exact name in target_territory for any territory-specific extraction.`
         : "";
@@ -102,15 +102,16 @@ ${partnershipBlock}
 8. For TEAM CALLS: when someone says "Jacob is going cold" or "Ron's territory is doing well", tag those extractions to the specific person/territory from the roster.
 9. SPLIT compound facts: "He has $150k liquid and a credit score around 720" = TWO extractions (liquid_capital + credit_score_range).
 10. Extract personal details from small talk: sports teams, hobbies, family mentions, vacation plans = hobbies_interests or family_situation.
-11. Every problem/complaint = an "issue" extraction. Every commitment/next-step = a "todo" extraction. Every goal = a "rock" extraction.
+11. Do NOT extract EOS items, commitments, todos, or action items right now.
 12. For coaching calls: extract EVERY metric discussed — deals in pipeline, houses purchased, profit numbers, timeline, contractor issues, lead counts.
 13. Extract relationship data: who referred whom, who knows whom, family members on the call.
+14. Only use field_key values listed in this prompt. Do NOT invent new field keys. If a fact does not fit one of the listed fields, skip it.
 
 ## CONTACT-vs-TERRITORY ROUTING (critical)
 Data points live on EITHER a contact OR a territory — never a journey.
 Pick the field_category that matches WHERE the fact belongs, not who said it:
-- **Operations talk = TERRITORY.** Deals in pipeline, offers sent, houses closed, rehab timelines, contractor availability, lead flow, marketing performance, permit processes, zoning quirks, local market metrics → field_category "territory" / "territory_market" / "business_financials" / "business_health" / "territory_eos". Set target_territory to the specific territory.
-- **Personal facts about a human = CONTACT.** Employment, background, skills, family, hobbies, personality, motivation, capital, timeline, decision style → field_category "contact" / "contact_eos". Set target_contact_name.
+- **Operations talk = TERRITORY.** Deals in pipeline, offers sent, houses closed, rehab timelines, contractor availability, lead flow, marketing performance, permit processes, zoning quirks, local market metrics → field_category "territory" / "territory_market" / "business_financials" / "business_health". Set target_territory to the specific territory.
+- **Personal facts about a human = CONTACT.** Employment, background, skills, family, hobbies, personality, motivation, capital, timeline, decision style → field_category "contact". Set target_contact_name.
 - **Employees / non-owner participants speak for a territory, not for themselves.** When a franchisee's employee or contractor describes how operations run, those facts belong to the OWNER's TERRITORY — not the employee's contact. Only route to the employee's contact for strictly personal facts (their role, their background, their hobbies).
 - When in doubt between a contact field and a territory field, and the speaker is a franchisee discussing their own business, prefer TERRITORY.
 
@@ -176,40 +177,6 @@ Extract any of these that are mentioned or can be inferred:
 - travel_constraints
 - health_considerations
 
-## CONTACT EOS (field_category: "contact_eos")
-Personal goals and concerns shared by the prospect during the call.
-Extract these as structured items for the contact's EOS tab:
-
-### Goals (update existing — use field_key to identify which goal)
-- income_goal (what income they're targeting — e.g. "$200k year 1", "replace my $120k salary")
-- lifestyle_goal (what lifestyle change they want — e.g. "work from home", "be my own boss", "more time with family")
-- qol_goal (what success looks like personally — e.g. "financial freedom by 50", "build generational wealth")
-
-### Issues (create new items — each extraction = one issue)
-- issue (any concern, objection, or problem the prospect raised — e.g. "worried about contractor availability", "spouse not fully on board yet")
-
-### To-Dos (create new items — each extraction = one action item)
-- todo (any next step or action item discussed for this prospect — e.g. "send FDD by Friday", "schedule call with Guidant", "follow up on territory availability")
-
-## TERRITORY EOS (field_category: "territory_eos")
-Operational priorities and metrics discussed for a specific territory.
-Tag with target_territory name.
-
-### Rocks (create new — each extraction = one 90-day priority)
-- rock (a 90-day priority or goal discussed — e.g. "close 3 deals this quarter", "hire second contractor crew", "launch direct mail campaign")
-
-### Issues (create new — each extraction = one operational issue)
-- territory_issue (an operational problem discussed — e.g. "contractor no-shows on Mondays", "permits taking 6+ weeks", "low lead volume from Google Ads")
-
-### To-Dos (create new — each extraction = one action item)
-- territory_todo (a territory-level action item — e.g. "fire underperforming contractor", "set up Privy alerts for 3 new zip codes", "update Lowe's account")
-
-### Scorecard (update existing metrics)
-- scorecard_goal (a scorecard goal value mentioned — use field_key format: "t3_leads_entered", "t3_purchased", "t3_gross_profit", etc.)
-
-### Habits (update grades)
-- habit_grade (a habit grade discussed — field_key: "daily_tasks", "weekly_contractor_meeting", "biweekly_agent_meeting", "weekly_accounting", "monthly_lead_manager" — value: A/B/C/D/F)
-
 ## TERRITORY FIELDS (field_category: "territory")
 Extract for any territory discussed:
 
@@ -263,30 +230,6 @@ Extract ANY of these when discussed:
 - competitor_presence, top_competitor_1/2/3
 - buy_box_overlap, competitive_advantage
 
-## COMMITMENTS (field_category: "commitments")
-Extract EVERY promise, commitment, or pledge made during the call — by EITHER party (rep or contact).
-Each commitment = one extraction. Split compound commitments into separate rows.
-
-### Fields
-- commitment_text: the specific promise (e.g., "send FDD by Friday", "call back next Tuesday", "review the territory map this weekend")
-- commitment_due_date: when they committed to do it (ISO date if possible, relative timeframe if not — e.g., "2026-05-28", "end of week", "next Tuesday")
-- commitment_type: one of: document, follow_up, decision, consultation, information, action
-- committed_by_role: who made the promise — "rep" or "contact"
-
-### What counts as a commitment
-- "I'll send you the FDD" → commitment (type: document)
-- "Let me follow up next week" → commitment (type: follow_up)
-- "I'll have a decision by Friday" → commitment (type: decision)
-- "Let me talk to my wife and get back to you" → commitment (type: decision)
-- "I'll connect you with our financing partner" → commitment (type: consultation)
-- "I'll send over the territory breakdown" → commitment (type: information)
-- "I need to review the numbers this weekend" → commitment (type: action)
-
-### What does NOT count
-- Vague statements without a specific action ("I'm interested", "sounds good")
-- Past actions already completed ("I sent it yesterday")
-- Questions about next steps without an actual promise
-
 ## OUTPUT FORMAT
 Return a JSON object. Include target_scope ONLY when the partnership block above is present — otherwise omit it.
 {
@@ -309,68 +252,12 @@ Return a JSON object. Include target_scope ONLY when the partnership block above
       "target_territory": "Cincinnati"
     },
     {
-      "field_key": "income_goal",
-      "field_category": "contact_eos",
-      "extracted_value": "$200k in year 1",
-      "confidence": "high",
-      "target_contact_name": "Jacob Phillips",
-      "target_territory": null
-    },
-    {
-      "field_key": "issue",
-      "field_category": "contact_eos",
-      "extracted_value": "Worried about finding reliable contractors in his area",
-      "confidence": "high",
-      "target_contact_name": "Jacob Phillips",
-      "target_territory": null
-    },
-    {
-      "field_key": "rock",
-      "field_category": "territory_eos",
-      "extracted_value": "Close 3 deals by end of Q2",
-      "confidence": "high",
-      "target_contact_name": null,
-      "target_territory": "Cincinnati"
-    },
-    {
       "field_key": "avg_rehab_cost",
       "field_category": "territory_market",
       "extracted_value": "45000",
       "confidence": "high",
       "target_contact_name": null,
       "target_territory": "Cincinnati"
-    },
-    {
-      "field_key": "commitment_text",
-      "field_category": "commitments",
-      "extracted_value": "Send FDD by Friday",
-      "confidence": "high",
-      "target_contact_name": "Jacob Phillips",
-      "target_territory": null
-    },
-    {
-      "field_key": "commitment_due_date",
-      "field_category": "commitments",
-      "extracted_value": "2026-05-24",
-      "confidence": "high",
-      "target_contact_name": "Jacob Phillips",
-      "target_territory": null
-    },
-    {
-      "field_key": "commitment_type",
-      "field_category": "commitments",
-      "extracted_value": "document",
-      "confidence": "high",
-      "target_contact_name": "Jacob Phillips",
-      "target_territory": null
-    },
-    {
-      "field_key": "committed_by_role",
-      "field_category": "commitments",
-      "extracted_value": "rep",
-      "confidence": "high",
-      "target_contact_name": "Jacob Phillips",
-      "target_territory": null
     }
   ]
 }
@@ -383,7 +270,7 @@ Rules:
 - For target_scope: include ONLY when the partnership block above is present; follow its single-vs-both rules strictly.
 - SPLIT compound facts into separate extractions — one fact per row.
 - Extract personal details from casual conversation (hobbies, sports, family, travel).
-- Every problem = issue, every commitment = todo, every 90-day goal = rock.
+- Do not extract EOS fields, commitments, todos, or action items.
 
 MINIMUM EXTRACTION COUNTS (you MUST meet these):
 - Calls under 20 min: 15+ extractions
@@ -448,7 +335,7 @@ function buildPartnershipBlock(partners: JourneyPartner[]): string {
     "  - spouse_name, spouse_email, spouse_phone (these refer to ONE partner's spouse)",
     "",
     "### Rules:",
-    "1. EOS extractions (issues, todos, rocks under contact_eos) default to 'single' — attribute to whoever raised/owns them.",
+    "1. Do not extract EOS fields, commitments, todos, or action items.",
     "2. If you can't confidently attribute a contact fact to one partner, use 'both'.",
     "3. target_scope is REQUIRED on every contact-category extraction when this block is present.",
     "4. Territory-category extractions (field_category starts with 'territory') — ignore target_scope; route via target_territory as usual.",
