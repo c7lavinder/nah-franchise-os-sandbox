@@ -871,14 +871,7 @@ async function writeResults(
     }
 
     // Ensure field_category is valid per DB constraint
-    const validCategories = new Set([
-      "contact",
-      "territory",
-      "territory_market",
-      "market",
-      "business_financials",
-      "business_health",
-    ]);
+    const validCategories = new Set(["contact", "territory", "territory_market", "market"]);
 
     // Build a territory name/slug → slug map, scoped to this call's mapped
     // territories first so the LLM's names always resolve to valid slugs.
