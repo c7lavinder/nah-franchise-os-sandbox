@@ -149,7 +149,7 @@ Extract any of these that are mentioned or can be inferred:
 - availability_confirmed (can they start full-time?)
 - risk_tolerance (conservative/moderate/aggressive)
 - stated_why (their "why" in their own words)
-- decision_style (analytical/emotional/collaborative)
+- decision_making_style (analytical/gut/consensus)
 - decision_timeline (when they'll decide)
 - spouse_support_level (supportive/neutral/opposed/unknown)
 
@@ -330,7 +330,7 @@ function buildPartnershipBlock(partners: JourneyPartner[]): string {
     "  - employment_status, current_employer, current_role, years_in_current_role",
     "  - skill_set_notes, prior_re_experience, prior_business_ownership",
     "  - education_level, military_background, hobbies_interests",
-    "  - risk_tolerance, decision_style, stated_why, primary_motivation (when expressed individually)",
+    "  - risk_tolerance, decision_making_style, stated_why, primary_motivation (when expressed individually)",
     "  - personality traits, licenses, expertise, background",
     "  - spouse_name, spouse_email, spouse_phone (these refer to ONE partner's spouse)",
     "",

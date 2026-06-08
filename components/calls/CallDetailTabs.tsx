@@ -54,6 +54,7 @@ interface Extraction {
   dismissed: boolean;
   TerritorySlug: string | null;
   target_scope: "single" | "both" | null;
+  protected_by_newer_profile?: boolean;
 }
 
 interface LinkedContact {

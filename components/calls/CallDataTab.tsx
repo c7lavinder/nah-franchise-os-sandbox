@@ -17,6 +17,7 @@ interface Extraction {
   dismissed: boolean;
   TerritorySlug: string | null;
   target_scope: "single" | "both" | null;
+  protected_by_newer_profile?: boolean;
 }
 
 interface PartnerOption {
@@ -88,9 +89,10 @@ export default function CallDataTab(props: CallDataTabProps) {
   // the few they don't want rather than checking dozens individually.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchLoading, setBatchLoading] = useState(false);
+  const defaultSelectable = pending.filter((e) => isDefaultSelectable(e));
 
   useEffect(() => {
-    setSelected(new Set(pending.map((e) => e.id)));
+    setSelected(new Set(defaultSelectable.map((e) => e.id)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending.length]);
 
@@ -104,7 +106,7 @@ export default function CallDataTab(props: CallDataTabProps) {
   }
 
   function selectAll() {
-    setSelected(new Set(pending.map((e) => e.id)));
+    setSelected(new Set(defaultSelectable.map((e) => e.id)));
   }
 
   function clearAll() {
@@ -220,7 +222,7 @@ export default function CallDataTab(props: CallDataTabProps) {
             </span>
             <button
               onClick={selectAll}
-              disabled={selected.size === pending.length}
+              disabled={selected.size === defaultSelectable.length}
               className="text-caption text-nah-blue hover:underline disabled:opacity-40 disabled:no-underline"
             >
               Select all
@@ -277,6 +279,10 @@ export default function CallDataTab(props: CallDataTabProps) {
       )}
     </div>
   );
+}
+
+function isDefaultSelectable(extraction: Extraction): boolean {
+  return extraction.confidence?.toLowerCase() === "high" && !extraction.protected_by_newer_profile;
 }
 
 function CategorySection({
