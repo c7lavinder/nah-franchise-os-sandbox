@@ -72,6 +72,7 @@ interface ExtractionData {
   dismissed: boolean;
   TerritorySlug: string | null;
   target_scope: "single" | "both" | null;
+  protected_by_newer_profile?: boolean;
 }
 
 interface PartnerOption {
@@ -143,6 +144,7 @@ export default function CallDataField({
   const hasValue = !!extraction.extracted_value;
   const isDone = extraction.saved_to_profile || extraction.dismissed;
   const isImportant = IMPORTANT_FIELDS.has(extraction.field_key);
+  const protectedByNewerProfile = !!extraction.protected_by_newer_profile;
 
   // Target label — always show where this extraction is being pushed.
   const isTerritoryField =
@@ -362,9 +364,14 @@ export default function CallDataField({
           <input
             type="checkbox"
             checked={selected ?? false}
-            onChange={onToggleSelected}
-            className="mt-1.5 w-4 h-4 rounded border-border-default accent-nah-blue cursor-pointer flex-shrink-0"
-            title="Include this row when 'Push selected' is clicked"
+            onChange={protectedByNewerProfile ? undefined : onToggleSelected}
+            disabled={protectedByNewerProfile}
+            className="mt-1.5 w-4 h-4 rounded border-border-default accent-nah-blue cursor-pointer flex-shrink-0 disabled:cursor-not-allowed disabled:opacity-40"
+            title={
+              protectedByNewerProfile
+                ? "Not preselected because a newer profile value already exists"
+                : "Include this row when 'Push selected' is clicked"
+            }
           />
         )}
         <div className="flex-1 min-w-0">
@@ -373,6 +380,11 @@ export default function CallDataField({
             {!editing && <ConfidenceBadge confidence={extraction.confidence} />}
             {!editing && (
               <TargetBadge kind={targetKind} label={targetLabel} editable onClick={() => setPickerOpen((v) => !v)} />
+            )}
+            {!editing && protectedByNewerProfile && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-warning/40 bg-warning/15 text-warning flex items-center gap-1">
+                <AlertTriangle size={10} /> Newer profile value exists
+              </span>
             )}
           </div>
           {editing ? (

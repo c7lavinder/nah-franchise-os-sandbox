@@ -406,6 +406,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .eq("call_id", callId)
     .order("field_category", { ascending: true });
 
+  const enrichedDataExtractions = await addNewerProfileProtectionFlags(
+    supabase,
+    dataExtractions ?? [],
+    call.started_at ?? call.created_at
+  );
+
   // Count total contact profile fields populated (for completeness bar)
   let profileFieldCount = 0;
   if (call.contact_id) {
@@ -447,7 +453,58 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     transcriptSource: transcript?.source ?? (call.raw_transcript ? "read_ai" : null),
     grade,
     actionItems: actionItems ?? [],
-    dataExtractions: dataExtractions ?? [],
+    dataExtractions: enrichedDataExtractions,
     profileFieldCount,
   });
+}
+
+const CONTACT_FIELD_ALIASES: Record<string, string> = {
+  decision_style: "decision_making_style",
+};
+
+function normalizeContactFieldKey(fieldKey: string): string {
+  return CONTACT_FIELD_ALIASES[fieldKey] ?? fieldKey;
+}
+
+function parseTimestamp(value: unknown): number | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+async function addNewerProfileProtectionFlags(
+  supabase: ReturnType<typeof createServerClient>,
+  dataExtractions: any[],
+  callOccurredAt: string | null
+) {
+  const callTimestamp = parseTimestamp(callOccurredAt);
+  if (!callTimestamp || dataExtractions.length === 0) return dataExtractions;
+
+  const pendingContactRows = dataExtractions.filter(
+    (e) => e.contact_id && e.field_category === "contact" && !e.saved_to_profile && !e.dismissed
+  );
+  if (pendingContactRows.length === 0) return dataExtractions;
+
+  const contactIds = [...new Set(pendingContactRows.map((e) => e.contact_id).filter(Boolean))] as string[];
+  const fieldNames = [...new Set(pendingContactRows.map((e) => normalizeContactFieldKey(e.field_key)))];
+
+  const { data: existingFields } = await supabase
+    .from("contact_profile_fields")
+    .select("contact_id, field_name, last_updated_at")
+    .in("contact_id", contactIds)
+    .in("field_name", fieldNames);
+
+  const newerFields = new Set<string>();
+  for (const field of existingFields ?? []) {
+    const updatedAt = parseTimestamp(field.last_updated_at);
+    if (updatedAt !== null && updatedAt > callTimestamp) {
+      newerFields.add(`${field.contact_id}:${field.field_name}`);
+    }
+  }
+
+  return dataExtractions.map((e) => ({
+    ...e,
+    protected_by_newer_profile:
+      !!e.contact_id && newerFields.has(`${e.contact_id}:${normalizeContactFieldKey(e.field_key)}`),
+  }));
 }

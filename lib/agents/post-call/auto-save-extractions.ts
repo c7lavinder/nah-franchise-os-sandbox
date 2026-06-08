@@ -25,6 +25,9 @@ const TERRITORY_NOTE_FIELD_NAMES = new Set([
   "challenges_reported",
   "goals_discussed",
 ]);
+const CONTACT_FIELD_ALIASES: Record<string, string> = {
+  decision_style: "decision_making_style",
+};
 
 interface ExistingProfileField {
   lastUpdatedBy: string | null;
@@ -191,14 +194,16 @@ export async function autoSaveExtractions(
       continue;
     }
 
+    const fieldKey = normalizeContactFieldKey(ext.field_key);
+
     // Only save fields that exist in the profile registry
-    if (!isValidFieldName(ext.field_key)) {
+    if (!isValidFieldName(fieldKey)) {
       result.skipped++;
       continue;
     }
 
     // Never overwrite manual values
-    const existingField = existingByContact.get(ext.contact_id)?.get(ext.field_key);
+    const existingField = existingByContact.get(ext.contact_id)?.get(fieldKey);
     if (existingField?.lastUpdatedBy === "manual") {
       result.manualProtected++;
       result.skipped++;
@@ -213,7 +218,7 @@ export async function autoSaveExtractions(
     const { error: upsertError } = await supabase.from("contact_profile_fields").upsert(
       {
         contact_id: ext.contact_id,
-        field_name: ext.field_key,
+        field_name: fieldKey,
         field_value: JSON.stringify(ext.extracted_value),
         last_updated_by: "ai-auto",
         last_updated_at: new Date().toISOString(),
@@ -283,6 +288,10 @@ function normalizeNumericConfidence(confidence: number): ConfidenceLevel {
   if (confidence >= 0.85) return "high";
   if (confidence >= 0.6) return "medium";
   return "low";
+}
+
+function normalizeContactFieldKey(fieldKey: string): string {
+  return CONTACT_FIELD_ALIASES[fieldKey] ?? fieldKey;
 }
 
 function parseTimestamp(value: unknown): number | null {
