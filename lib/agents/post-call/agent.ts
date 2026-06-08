@@ -790,58 +790,6 @@ function resolveTerritory(name: string, map: Map<string, string>): string | null
   return map.get(name.toLowerCase()) ?? null;
 }
 
-// ── Partner resolution helpers ────────────────────────────
-
-/**
- * Build a lookup map of partner name → contact_id for the journey's active
- * primary + co_primary members. Keys are case-insensitive and cover full name,
- * last name, and first name so Scout's output matches regardless of format.
- */
-async function buildPartnerNameMap(
-  supabase: ReturnType<typeof createServerClient>,
-  journeyId: string | null
-): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  if (!journeyId) return map;
-
-  const { data: members } = await supabase
-    .from("journey_contacts")
-    .select("contact_id, contacts ( first_name, last_name )")
-    .eq("journey_id", journeyId)
-    .is("left_at", null)
-    .in("role", ["primary", "co_primary"]);
-
-  for (const m of members ?? []) {
-    if (!m.contact_id) continue;
-    const c = Array.isArray(m.contacts) ? m.contacts[0] : m.contacts;
-    const first = ((c as { first_name: string } | null)?.first_name ?? "").trim();
-    const last = ((c as { last_name: string } | null)?.last_name ?? "").trim();
-    const full = `${first} ${last}`.trim();
-    if (full) map.set(full.toLowerCase(), m.contact_id);
-    if (last) map.set(last.toLowerCase(), m.contact_id);
-    if (first) map.set(first.toLowerCase(), m.contact_id);
-  }
-  return map;
-}
-
-/**
- * Pick the contact_id an action should target. Priority:
- *   1. target_contact_name (partnership-aware picker from Scout)
- *   2. contact_name         (legacy per-action tag)
- *   3. fallbackContactId    (the call's primary contact)
- */
-function resolveActionTarget(
-  action: { target_contact_name?: string; contact_name?: string },
-  partnerNameToId: Map<string, string>,
-  fallbackContactId: string | null
-): string | null {
-  const tryLookup = (name: string | undefined): string | null => {
-    if (!name) return null;
-    return partnerNameToId.get(name.trim().toLowerCase()) ?? null;
-  };
-  return tryLookup(action.target_contact_name) ?? tryLookup(action.contact_name) ?? fallbackContactId;
-}
-
 // ── DB writer ──────────────────────────────────────────────
 
 interface AgentResults {
@@ -888,43 +836,16 @@ async function writeResults(
         null)
       : null);
 
-  // Action items → call_action_items
+  // Do not auto-create pushable Next Steps from Read.ai/post-call imports.
+  // Older backfills should enrich profiles and call history, not create a
+  // second task/action backlog for reps to triage.
   if (results.actions && results.actions.actions.length > 0) {
     await supabase
       .from("call_action_items")
-      .delete()
+      .update({ status: "skipped", skipped_at: new Date().toISOString() })
       .eq("call_id", callId)
       .eq("source", "scout")
       .eq("status", "pending");
-
-    // Build a partner-name → contact_id map so target_contact_name (e.g.
-    // "Kylie Kremer") resolves to the right partner on the journey. Lookups
-    // are case-insensitive and match on full name, last name, or first name.
-    const partnerNameToId = await buildPartnerNameMap(supabase, primaryJourneyId);
-
-    const rows = results.actions.actions.map((a) => {
-      const resolvedContactId = resolveActionTarget(a, partnerNameToId, contactId);
-      return {
-        call_id: callId,
-        contact_id: resolvedContactId ?? null,
-        journey_id: primaryJourneyId,
-        category: a.category,
-        title: a.title,
-        description: a.description ?? null,
-        why: a.why ?? null,
-        contact_name: a.contact_name ?? null,
-        assigned_to_name: a.assigned_to_name ?? null,
-        metadata: a.metadata ?? null,
-        source: "scout",
-        ghl_action: a.ghl_action ?? false,
-        status: "pending",
-      };
-    });
-
-    const { error: insertErr } = await supabase.from("call_action_items").insert(rows);
-    if (insertErr) {
-      console.error("[agent] call_action_items insert failed:", insertErr.message, insertErr.details);
-    }
   }
 
   // Data extractions → call_data_extractions
