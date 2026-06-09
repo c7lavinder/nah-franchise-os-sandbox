@@ -6,7 +6,9 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
+import { normalizeContactProfileFieldKey } from "@/lib/profile/field-aliases";
 
 interface PatchBody {
   action: "skip" | "edit_save";
@@ -63,7 +65,7 @@ export async function PATCH(
         .upsert(
           {
             contact_id: extraction.contact_id,
-            field_name: extraction.field_key,
+            field_name: normalizeContactProfileFieldKey(extraction.field_key),
             field_value: JSON.stringify(newValue),
             last_updated_by: "ai",
             last_updated_at: new Date().toISOString(),

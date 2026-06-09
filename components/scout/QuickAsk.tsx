@@ -8,7 +8,9 @@ import { parsePageContext } from "@/lib/scout/page-context";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { scoutLinkComponents } from "@/components/scout/ScoutBubble";
+import DraftedActionCard from "@/components/scout/DraftedActionCard";
 import type Anthropic from "@anthropic-ai/sdk";
+import type { DraftedAction } from "@/types/scout";
 
 const PLACEHOLDERS: Record<string, string> = {
   "/daily-hq": "What should I prioritize today? Who needs follow-up?",
@@ -23,6 +25,7 @@ const DEFAULT_PLACEHOLDER = "Ask Scout anything...";
 interface Exchange {
   userMessage: string;
   aiResponse: string;
+  draftedActions?: DraftedAction[];
 }
 
 interface QuickAskProps {
@@ -37,6 +40,7 @@ export default function QuickAsk({ context }: QuickAskProps) {
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [flaggedIndices, setFlaggedIndices] = useState<Set<number>>(new Set());
+  const [executingActionId, setExecutingActionId] = useState<string | null>(null);
   const historyRef = useRef<Anthropic.Messages.MessageParam[]>([]);
   const sessionIdRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -151,12 +155,71 @@ export default function QuickAsk({ context }: QuickAskProps) {
       const data = await res.json();
       sessionIdRef.current = data.sessionId;
       historyRef.current = data.history ?? [];
-      setExchanges((prev) => [...prev, { userMessage, aiResponse: data.message }]);
+      setExchanges((prev) => [
+        ...prev,
+        {
+          userMessage,
+          aiResponse: data.message,
+          draftedActions: Array.isArray(data.draftedActions) ? data.draftedActions : [],
+        },
+      ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connection error");
     } finally {
       setThinking(false);
     }
+  }
+
+  async function handleConfirmAction(exchangeIndex: number, action: DraftedAction) {
+    setExecutingActionId(action.id);
+
+    try {
+      const response = await apiFetch("/api/scout/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          sessionId: sessionIdRef.current ?? "quick-ask",
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ error: "Failed to execute action" }));
+        throw new Error(errData.error ?? "Failed to execute action");
+      }
+
+      setExchanges((prev) =>
+        prev.map((exchange, index) =>
+          index === exchangeIndex
+            ? {
+                ...exchange,
+                draftedActions: exchange.draftedActions?.map((drafted) =>
+                  drafted.id === action.id ? { ...drafted, status: "confirmed" as const } : drafted
+                ),
+              }
+            : exchange
+        )
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to execute action");
+    } finally {
+      setExecutingActionId(null);
+    }
+  }
+
+  function handleCancelAction(exchangeIndex: number, actionId: string) {
+    setExchanges((prev) =>
+      prev.map((exchange, index) =>
+        index === exchangeIndex
+          ? {
+              ...exchange,
+              draftedActions: exchange.draftedActions?.map((drafted) =>
+                drafted.id === actionId ? { ...drafted, status: "cancelled" as const } : drafted
+              ),
+            }
+          : exchange
+      )
+    );
   }
 
   const hasContent = exchanges.length > 0 || error;
@@ -238,6 +301,19 @@ export default function QuickAsk({ context }: QuickAskProps) {
                       {ex.aiResponse}
                     </ReactMarkdown>
                   </div>
+                  {ex.draftedActions && ex.draftedActions.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {ex.draftedActions.map((action) => (
+                        <DraftedActionCard
+                          key={action.id}
+                          action={action}
+                          onConfirm={(updatedAction) => handleConfirmAction(i, updatedAction)}
+                          onCancel={(actionId) => handleCancelAction(i, actionId)}
+                          isExecuting={executingActionId === action.id}
+                        />
+                      ))}
+                    </div>
+                  )}
                   {/* Flag / Unflag toggle button */}
                   <button
                     onClick={() => handleFlag(i)}

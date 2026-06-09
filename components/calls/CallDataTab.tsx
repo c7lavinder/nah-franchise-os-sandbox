@@ -372,7 +372,7 @@ function ReviewedBlock({
         ) : (
           <ChevronRight size={14} className="text-text-tertiary" />
         )}
-        <span className="text-overline text-text-tertiary tracking-wider">REVIEWED</span>
+        <span className="text-overline text-text-tertiary tracking-wider">SAVED / SKIPPED</span>
         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-tertiary">{items.length}</span>
       </button>
       {open && (

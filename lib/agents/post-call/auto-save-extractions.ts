@@ -13,6 +13,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import { isValidFieldName } from "@/lib/profile/field-registry";
+import { normalizeContactProfileFieldKey } from "@/lib/profile/field-aliases";
 import { updateCandidateScore } from "@/lib/intelligence/scoring";
 import { MARKET_FIELDS } from "@/lib/territory/market-field-registry";
 
@@ -25,10 +26,6 @@ const TERRITORY_NOTE_FIELD_NAMES = new Set([
   "challenges_reported",
   "goals_discussed",
 ]);
-const CONTACT_FIELD_ALIASES: Record<string, string> = {
-  decision_style: "decision_making_style",
-};
-
 interface ExistingProfileField {
   lastUpdatedBy: string | null;
   lastUpdatedAt: string | null;
@@ -194,7 +191,7 @@ export async function autoSaveExtractions(
       continue;
     }
 
-    const fieldKey = normalizeContactFieldKey(ext.field_key);
+    const fieldKey = normalizeContactProfileFieldKey(ext.field_key);
 
     // Only save fields that exist in the profile registry
     if (!isValidFieldName(fieldKey)) {
@@ -288,10 +285,6 @@ function normalizeNumericConfidence(confidence: number): ConfidenceLevel {
   if (confidence >= 0.85) return "high";
   if (confidence >= 0.6) return "medium";
   return "low";
-}
-
-function normalizeContactFieldKey(fieldKey: string): string {
-  return CONTACT_FIELD_ALIASES[fieldKey] ?? fieldKey;
 }
 
 function parseTimestamp(value: unknown): number | null {

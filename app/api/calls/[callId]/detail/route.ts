@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { isValidFieldName } from "@/lib/profile/field-registry";
+import { normalizeContactProfileFieldKey } from "@/lib/profile/field-aliases";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ callId: string }> }) {
   const { callId } = await params;
@@ -459,14 +460,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   });
 }
 
-const CONTACT_FIELD_ALIASES: Record<string, string> = {
-  decision_style: "decision_making_style",
-};
-
-function normalizeContactFieldKey(fieldKey: string): string {
-  return CONTACT_FIELD_ALIASES[fieldKey] ?? fieldKey;
-}
-
 function parseTimestamp(value: unknown): number | null {
   if (typeof value !== "string" || value.trim() === "") return null;
   const timestamp = Date.parse(value);
@@ -487,7 +480,7 @@ async function addNewerProfileProtectionFlags(
   if (pendingContactRows.length === 0) return dataExtractions;
 
   const contactIds = [...new Set(pendingContactRows.map((e) => e.contact_id).filter(Boolean))] as string[];
-  const fieldNames = [...new Set(pendingContactRows.map((e) => normalizeContactFieldKey(e.field_key)))];
+  const fieldNames = [...new Set(pendingContactRows.map((e) => normalizeContactProfileFieldKey(e.field_key)))];
 
   const { data: existingFields } = await supabase
     .from("contact_profile_fields")
@@ -506,8 +499,8 @@ async function addNewerProfileProtectionFlags(
   return dataExtractions.map((e) => ({
     ...e,
     protected_by_newer_profile:
-      !!e.contact_id && newerFields.has(`${e.contact_id}:${normalizeContactFieldKey(e.field_key)}`),
+      !!e.contact_id && newerFields.has(`${e.contact_id}:${normalizeContactProfileFieldKey(e.field_key)}`),
     unsupported_contact_field:
-      e.field_category === "contact" && !isValidFieldName(normalizeContactFieldKey(e.field_key)),
+      e.field_category === "contact" && !isValidFieldName(normalizeContactProfileFieldKey(e.field_key)),
   }));
 }

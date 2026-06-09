@@ -20,6 +20,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { isValidFieldName } from "@/lib/profile/field-registry";
+import { normalizeContactProfileFieldKey } from "@/lib/profile/field-aliases";
 
 const FIELD_MAP: Record<string, string> = {
   employment_status: "employment_status",
@@ -115,7 +116,7 @@ export async function POST(
   if (!effectiveContactId) {
     return NextResponse.json({ error: "No contact selected" }, { status: 400 });
   }
-  const fieldName = normalizeContactFieldKey(extraction.field_key);
+  const fieldName = normalizeContactProfileFieldKey(extraction.field_key);
   if (!isValidFieldName(fieldName)) {
     return NextResponse.json({ error: `Unsupported contact profile field: ${extraction.field_key}` }, { status: 400 });
   }
@@ -133,7 +134,7 @@ export async function POST(
     })
     .eq("id", extractionId);
 
-  const contactColumn = FIELD_MAP[extraction.field_key];
+  const contactColumn = FIELD_MAP[fieldName] ?? FIELD_MAP[extraction.field_key];
 
   for (const cid of targetContactIds) {
     const { error: profileError } = await supabase
@@ -166,14 +167,6 @@ export async function POST(
     fanout_count: targetContactIds.length,
     scope: effectiveScope,
   });
-}
-
-const CONTACT_FIELD_ALIASES: Record<string, string> = {
-  decision_style: "decision_making_style",
-};
-
-function normalizeContactFieldKey(fieldKey: string): string {
-  return CONTACT_FIELD_ALIASES[fieldKey] ?? fieldKey;
 }
 
 function isTerritoryCategory(fieldCategory: string | null): boolean {
