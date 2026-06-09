@@ -13,7 +13,13 @@ import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { quartileScoringAgent } from "@/lib/agents/quartile-scoring-agent";
 
-type Territory = { TerritorySlug: string; Nickname: string | null; region: string | null };
+type Territory = {
+  TerritorySlug: string;
+  Nickname: string | null;
+  region: string | null;
+  FranchiseAgreementDate: string | null;
+  FirstPurchaseDate: string | null;
+};
 type ScorecardMetric = { TerritorySlug: string; goal_value: string | null; actual_value: string | null };
 type Rock = { TerritorySlug: string; status: string | null };
 type Issue = {
@@ -81,6 +87,11 @@ function median(values: number[]) {
   return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
 }
 
+function average(values: number[]) {
+  if (values.length === 0) return null;
+  return Math.round(sum(values) / values.length);
+}
+
 function sum(values: number[]) {
   return values.reduce((total, value) => total + value, 0);
 }
@@ -102,6 +113,14 @@ function moneyValue(value: unknown): number {
 
 function isInPeriod(value: string | null | undefined, periodStart: Date) {
   return value ? new Date(value) >= periodStart : false;
+}
+
+function daysBetween(start: string | null | undefined, end: string | null | undefined) {
+  if (!start || !end) return null;
+  const startTime = new Date(start).getTime();
+  const endTime = new Date(end).getTime();
+  if (Number.isNaN(startTime) || Number.isNaN(endTime) || endTime < startTime) return null;
+  return Math.round((endTime - startTime) / (24 * 60 * 60 * 1000));
 }
 
 function leadMixLabel(row: { LeadCategory?: string | null; LeadType?: string | null }) {
@@ -136,7 +155,7 @@ export async function GET(request: NextRequest) {
 
   const { data: territories, error: territoryError } = await supabase
     .from("territories")
-    .select("TerritorySlug, Nickname, region")
+    .select("TerritorySlug, Nickname, region, FranchiseAgreementDate, FirstPurchaseDate")
     .eq("status", "active")
     .order("Nickname");
 
@@ -157,6 +176,12 @@ export async function GET(request: NextRequest) {
           closedFranchiseesPeriod: 0,
           movedPeriod: 0,
           stalledProspects: 0,
+          timing: {
+            avgProspectToClosedDays: null,
+            prospectToClosedCount: 0,
+            avgClosedToFirstPurchaseDays: null,
+            closedToFirstPurchaseCount: 0,
+          },
           stageCounts: [],
           repsToFocus: [],
         },
@@ -246,7 +271,7 @@ export async function GET(request: NextRequest) {
           supabase
             .from("journey_pipeline_state")
             .select(
-              "id, current_stage_id, entered_pipeline_at, entered_current_stage_at, updated_at, assigned_user_id, is_active, closed_at"
+              "id, journey_id, current_stage_id, entered_pipeline_at, entered_current_stage_at, updated_at, assigned_user_id, is_active, closed_at"
             )
             .in("current_stage_id", salesStageIds)
             .range(from, to)
@@ -317,6 +342,18 @@ export async function GET(request: NextRequest) {
     const closedAt = row.closed_at ?? row.entered_current_stage_at ?? row.updated_at;
     return closedAt ? new Date(closedAt) >= periodStart : false;
   }).length;
+  const prospectToClosedDurations = salesRows
+    .filter((row) => {
+      if (!closedStageIds.includes(row.current_stage_id)) return false;
+      const closedAt = row.closed_at ?? row.entered_current_stage_at ?? row.updated_at;
+      return isInPeriod(closedAt, periodStart);
+    })
+    .map((row) => daysBetween(row.entered_pipeline_at, row.closed_at ?? row.entered_current_stage_at ?? row.updated_at))
+    .filter((value): value is number => value != null);
+  const closedToFirstPurchaseDurations = activeTerritories
+    .filter((territory) => isInPeriod(territory.FirstPurchaseDate, periodStart))
+    .map((territory) => daysBetween(territory.FranchiseAgreementDate, territory.FirstPurchaseDate))
+    .filter((value): value is number => value != null);
   const moved14d = salesRows.filter(
     (row) => new Date(row.entered_current_stage_at ?? row.updated_at) >= periodStart
   ).length;
@@ -656,6 +693,12 @@ export async function GET(request: NextRequest) {
         closedFranchiseesPeriod,
         movedPeriod: moved14d,
         stalledProspects: stalledRows.length,
+        timing: {
+          avgProspectToClosedDays: average(prospectToClosedDurations),
+          prospectToClosedCount: prospectToClosedDurations.length,
+          avgClosedToFirstPurchaseDays: average(closedToFirstPurchaseDurations),
+          closedToFirstPurchaseCount: closedToFirstPurchaseDurations.length,
+        },
         stageCounts,
         repsToFocus: [...stalledByRep.entries()]
           .map(([name, stalled]) => ({ name, stalled }))

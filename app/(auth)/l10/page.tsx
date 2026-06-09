@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowRight, BarChart3, Loader2, MapPin } from "lucide-react";
+import { AlertTriangle, ArrowRight, BarChart3, Clock, Home, Loader2, MapPin } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import type { UserRole } from "@/types/database";
@@ -58,6 +58,12 @@ interface L10Data {
     closedFranchiseesPeriod: number;
     movedPeriod: number;
     stalledProspects: number;
+    timing: {
+      avgProspectToClosedDays: number | null;
+      prospectToClosedCount: number;
+      avgClosedToFirstPurchaseDays: number | null;
+      closedToFirstPurchaseCount: number;
+    };
     stageCounts: StageCount[];
     repsToFocus: RepFocus[];
   };
@@ -119,6 +125,11 @@ function formatMoney(value: number | null | undefined) {
   }).format(value);
 }
 
+function formatDays(value: number | null | undefined) {
+  if (value == null) return "-";
+  return `${formatNumber(value)}d`;
+}
+
 function formatRelativeTime(value: string | null) {
   if (!value) return "never";
   const timestamp = new Date(value).getTime();
@@ -172,6 +183,33 @@ function BigBlueCard({ label, value, detail }: { label: string; value: string | 
       <span className="text-4xl font-extrabold leading-none tracking-tight">{value}</span>
       <p className="mt-1.5 text-sm font-medium text-white/80">{label}</p>
       <p className="text-[11px] text-white/50">{detail}</p>
+    </div>
+  );
+}
+
+function TimingCard({
+  label,
+  value,
+  detail,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: React.ElementType;
+}) {
+  return (
+    <div className="rounded-lg border border-border-default bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase text-text-tertiary">{label}</div>
+          <div className="mt-2 text-3xl font-bold text-text-primary">{value}</div>
+          <div className="mt-1 text-xs text-text-secondary">{detail}</div>
+        </div>
+        <div className="rounded-lg border border-nah-blue/20 bg-nah-blue-light p-2 text-nah-blue">
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -910,6 +948,21 @@ export default function L10Page() {
             label="Closed Franchisees"
             value={formatNumber(data.devSales.closedFranchiseesPeriod)}
             detail={`Reached Closed in ${selectedPeriodLabel}`}
+          />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <TimingCard
+            label="Avg Prospect to Closed"
+            value={formatDays(data.devSales.timing.avgProspectToClosedDays)}
+            detail={`${formatNumber(data.devSales.timing.prospectToClosedCount)} closed franchisees in ${selectedPeriodLabel}`}
+            icon={Clock}
+          />
+          <TimingCard
+            label="Avg Closed to First House"
+            value={formatDays(data.devSales.timing.avgClosedToFirstPurchaseDays)}
+            detail={`${formatNumber(data.devSales.timing.closedToFirstPurchaseCount)} first purchases in ${selectedPeriodLabel}`}
+            icon={Home}
           />
         </div>
 

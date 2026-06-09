@@ -43,6 +43,7 @@ export default function DailyHQPage() {
   const [inboxLoading, setInboxLoading] = useState(true);
   const [inboxSearch, setInboxSearch] = useState("");
   const [inboxError, setInboxError] = useState<string | null>(null);
+  const [availableNumbers, setAvailableNumbers] = useState<string[]>([]);
 
   // Calendar state
   const [appointments, setAppointments] = useState<GHLAppointment[]>([]);
@@ -63,7 +64,8 @@ export default function DailyHQPage() {
       if (res.ok) {
         const data = await res.json();
         setConversations(data.conversations ?? []);
-        setInboxError(data.setupRequired ? data.error ?? "Assign a SignalHouse number in Settings." : null);
+        setAvailableNumbers(data.availableNumbers ?? []);
+        setInboxError(data.setupRequired ? (data.error ?? "Assign a SignalHouse number in Settings.") : null);
       } else {
         setInboxError("Failed to load inbox");
       }
@@ -176,7 +178,9 @@ export default function DailyHQPage() {
               searchQuery={inboxSearch}
               onSearchChange={setInboxSearch}
             />
-            {inboxError && <p className="px-3 py-2 text-caption text-danger border-b border-border-default">{inboxError}</p>}
+            {inboxError && (
+              <p className="px-3 py-2 text-caption text-danger border-b border-border-default">{inboxError}</p>
+            )}
             <ConversationList
               conversations={filteredConversations}
               selectedId={selectedConv?.id ?? null}
@@ -188,7 +192,11 @@ export default function DailyHQPage() {
           {/* Thread */}
           <div className="flex-1 flex flex-col min-h-0">
             {selectedConv ? (
-              <ConversationThread conversation={selectedConv} onMessageSent={fetchInbox} />
+              <ConversationThread
+                conversation={selectedConv}
+                availableNumbers={availableNumbers}
+                onMessageSent={fetchInbox}
+              />
             ) : (
               <div className="flex-1 flex items-center justify-center">
                 <div className="empty-state">

@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
-import { getAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
+import { getAssignedSignalHouseNumber, getConfiguredSignalHouseNumbers } from "@/lib/sms/number-assignment";
 import { phoneLookupKey } from "@/lib/sms/phone";
 import type { GHLConversation } from "@/types/ghl";
 
@@ -21,12 +21,12 @@ type SmsMessageRow = {
   received_at: string | null;
   contacts?:
     | {
-    id: string;
-    first_name: string | null;
-    last_name: string | null;
-    email: string | null;
-    phone: string | null;
-  }
+        id: string;
+        first_name: string | null;
+        last_name: string | null;
+        email: string | null;
+        phone: string | null;
+      }
     | {
         id: string;
         first_name: string | null;
@@ -93,7 +93,9 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from("sms_messages")
-      .select("id, contact_id, direction, message_type, from_number, to_number, body, status, created_at, sent_at, received_at, contacts(id, first_name, last_name, email, phone)")
+      .select(
+        "id, contact_id, direction, message_type, from_number, to_number, body, status, created_at, sent_at, received_at, contacts(id, first_name, last_name, email, phone)"
+      )
       .eq("provider", "signalhouse")
       .order("created_at", { ascending: false })
       .limit(500);
@@ -153,7 +155,14 @@ export async function GET(request: NextRequest) {
       .filter((conv) => !unreadOnly || (conv.unreadCount ?? 0) > 0)
       .slice(0, limit);
 
-    return NextResponse.json({ conversations, assignedNumber, scope: admin ? "all" : "assigned" });
+    const availableNumbers = getConfiguredSignalHouseNumbers();
+
+    return NextResponse.json({
+      conversations,
+      assignedNumber,
+      availableNumbers,
+      scope: admin ? "all" : "assigned",
+    });
   } catch (err) {
     console.error("Inbox fetch failed:", err);
     return NextResponse.json({ error: "Failed to load inbox" }, { status: 502 });

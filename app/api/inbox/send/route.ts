@@ -13,19 +13,53 @@ import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
 import { customerFacingSendsDisabledReason, customerFacingSendsEnabled } from "@/lib/ghl/action-safety";
 import { createServerClient } from "@/lib/supabase/server";
-import { getAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
+import {
+  getAssignedSignalHouseNumber,
+  getConfiguredSignalHouseNumbers,
+  normalizeAssignedSignalHouseNumber,
+} from "@/lib/sms/number-assignment";
 import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
-import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
+import { sendSignalHouseSms, signalHouseEnabled, type SignalHouseMessage } from "@/lib/sms/signalhouse-client";
 import type { GHLSendMessagePayload } from "@/types/ghl";
 
 interface SendRequest {
   type: "SMS" | "Email";
-  contactId: string;
+  contactId?: string | null;
+  toNumber?: string;
+  fromNumber?: string;
   message?: string;
   subject?: string;
   html?: string;
   emailFrom?: string;
   confirmed?: boolean;
+}
+
+async function logDirectSignalHouseMessage(
+  message: SignalHouseMessage,
+  body: string,
+  toNumber: string,
+  fromNumber: string
+) {
+  const supabase = createServerClient();
+  await supabase.from("sms_messages").upsert(
+    {
+      provider: "signalhouse",
+      provider_message_id: message._id,
+      contact_id: null,
+      ghl_contact_id: null,
+      direction: "outbound",
+      message_type: message.messageType ?? "SMS",
+      from_number: normalizeAssignedSignalHouseNumber(message.senderPhoneNumber ?? message.phoneNumber ?? fromNumber),
+      to_number: normalizeAssignedSignalHouseNumber(message.recipientPhoneNumber ?? toNumber),
+      body,
+      status: message.status ?? "ENQUEUED",
+      segment_count: message.segmentCount ?? null,
+      raw_payload: message,
+      sent_at: message.createdAt ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "provider,provider_message_id" }
+  );
 }
 
 /** Update engagement tracking fields after sending a message */
@@ -91,8 +125,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as SendRequest;
 
-    if (!body.contactId || !body.type) {
-      return NextResponse.json({ error: "contactId and type are required" }, { status: 400 });
+    if (!body.type) {
+      return NextResponse.json({ error: "type is required" }, { status: 400 });
     }
 
     if (body.confirmed !== true) {
@@ -112,12 +146,18 @@ export async function POST(request: NextRequest) {
       if (!body.message?.trim()) {
         return NextResponse.json({ error: "Message text is required for SMS" }, { status: 400 });
       }
+      if (!body.contactId && !body.toNumber) {
+        return NextResponse.json({ error: "A contact or phone number is required for SMS" }, { status: 400 });
+      }
       payload = {
         type: "SMS",
-        contactId: body.contactId,
+        contactId: body.contactId ?? "",
         message: body.message.trim(),
       };
     } else {
+      if (!body.contactId) {
+        return NextResponse.json({ error: "contactId is required for email" }, { status: 400 });
+      }
       if (!body.html?.trim() || !body.subject?.trim()) {
         return NextResponse.json({ error: "Subject and body are required for email" }, { status: 400 });
       }
@@ -132,20 +172,60 @@ export async function POST(request: NextRequest) {
 
     let message;
     if (body.type === "SMS" && signalHouseEnabled()) {
-      const fromNumber = await getAssignedSignalHouseNumber(user.id);
+      const requestedFromNumber = normalizeAssignedSignalHouseNumber(body.fromNumber);
+      const configuredNumbers = getConfiguredSignalHouseNumbers();
+      const assignedNumber = await getAssignedSignalHouseNumber(user.id);
+      const fromNumber = requestedFromNumber ?? assignedNumber;
       if (!fromNumber) {
         return NextResponse.json(
-          { error: "Your user does not have a SignalHouse sending number assigned in Settings.", success: false },
+          { error: "Choose a SignalHouse sending number before replying.", success: false },
           { status: 409 }
         );
       }
-      message = await sendContactSmsViaSignalHouse(body.contactId, body.message!.trim(), { fromNumber });
+      if (configuredNumbers.length > 0 && !configuredNumbers.includes(fromNumber)) {
+        return NextResponse.json(
+          { error: "That sending number is not configured for SignalHouse.", success: false },
+          { status: 403 }
+        );
+      }
+      if (body.contactId) {
+        message = await sendContactSmsViaSignalHouse(body.contactId, body.message!.trim(), { fromNumber });
+      } else {
+        const toNumber = normalizeAssignedSignalHouseNumber(body.toNumber);
+        if (!toNumber) {
+          return NextResponse.json(
+            { error: "A valid recipient phone number is required.", success: false },
+            { status: 400 }
+          );
+        }
+        const signalHouseMessage = await sendSignalHouseSms({
+          to: toNumber,
+          body: body.message!.trim(),
+          from: fromNumber,
+        });
+        await logDirectSignalHouseMessage(signalHouseMessage, body.message!.trim(), toNumber, fromNumber);
+        message = {
+          id: signalHouseMessage._id,
+          contactId: toNumber,
+          type: "SMS",
+          direction: "outbound",
+          body: body.message!.trim(),
+          dateAdded: signalHouseMessage.createdAt ?? new Date().toISOString(),
+          status: signalHouseMessage.status,
+          from:
+            normalizeAssignedSignalHouseNumber(
+              signalHouseMessage.senderPhoneNumber ?? signalHouseMessage.phoneNumber ?? fromNumber
+            ) ?? undefined,
+          to: normalizeAssignedSignalHouseNumber(signalHouseMessage.recipientPhoneNumber ?? toNumber) ?? undefined,
+          source: "signalhouse",
+        };
+      }
     } else {
       message = await ghl.sendMessage(payload);
     }
 
     // Update touch tracking in background (don't block the response)
-    void updateTouchFields(body.contactId, body.type);
+    if (body.contactId) void updateTouchFields(body.contactId, body.type);
 
     return NextResponse.json({ message });
   } catch (err) {

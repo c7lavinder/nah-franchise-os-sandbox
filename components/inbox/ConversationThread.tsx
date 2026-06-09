@@ -8,6 +8,7 @@ import ReplyInput from "./ReplyInput";
 
 interface ConversationThreadProps {
   conversation: GHLConversation;
+  availableNumbers: string[];
   onMessageSent: () => void;
 }
 
@@ -21,15 +22,22 @@ function isRealMessage(msg: GHLMessage): boolean {
 
 function formatMessageTime(dateAdded: string): string {
   const d = new Date(dateAdded);
-  return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " +
-    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return (
+    d.toLocaleDateString([], { month: "short", day: "numeric" }) +
+    " " +
+    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  );
 }
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
-export default function ConversationThread({ conversation, onMessageSent }: ConversationThreadProps) {
+function uniqueNumbers(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.filter(Boolean) as string[]));
+}
+
+export default function ConversationThread({ conversation, availableNumbers, onMessageSent }: ConversationThreadProps) {
   const [messages, setMessages] = useState<GHLMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -66,7 +74,9 @@ export default function ConversationThread({ conversation, onMessageSent }: Conv
   const realMessages = messages.filter(isRealMessage);
   const contactName = conversation.contactName || conversation.fullName || "Unknown";
   const assignedNumber = conversation.tags?.[0];
-  const canReply = isUuid(conversation.contactId);
+  const fromNumbers = uniqueNumbers([assignedNumber, ...availableNumbers]);
+  const canReply = Boolean(conversation.phone);
+  const localContactId = isUuid(conversation.contactId) ? conversation.contactId : null;
 
   return (
     <div className="flex flex-col h-full">
@@ -75,9 +85,7 @@ export default function ConversationThread({ conversation, onMessageSent }: Conv
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-body-sm font-semibold text-text-primary truncate">{contactName}</h3>
-            {conversation.phone && (
-              <span className="text-caption text-text-tertiary">{conversation.phone}</span>
-            )}
+            {conversation.phone && <span className="text-caption text-text-tertiary">{conversation.phone}</span>}
             {conversation.email && !conversation.phone && (
               <span className="text-caption text-text-tertiary">{conversation.email}</span>
             )}
@@ -98,9 +106,7 @@ export default function ConversationThread({ conversation, onMessageSent }: Conv
         )}
 
         {!loading && realMessages.length === 0 && (
-          <p className="text-caption text-text-tertiary text-center py-8">
-            No messages yet — send the first one below
-          </p>
+          <p className="text-caption text-text-tertiary text-center py-8">No messages yet — send the first one below</p>
         )}
 
         {realMessages.map((msg) => {
@@ -108,14 +114,14 @@ export default function ConversationThread({ conversation, onMessageSent }: Conv
 
           return (
             <div key={msg.id} className={`flex ${isOutbound ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[80%] px-3 py-2 rounded-lg ${
-                isOutbound
-                  ? "bg-nah-orange/10 border border-nah-orange/20"
-                  : "bg-bg-tertiary border border-border-default"
-              }`}>
-                <p className="text-body-sm text-text-primary whitespace-pre-wrap break-words">
-                  {msg.body}
-                </p>
+              <div
+                className={`max-w-[80%] px-3 py-2 rounded-lg ${
+                  isOutbound
+                    ? "bg-nah-orange/10 border border-nah-orange/20"
+                    : "bg-bg-tertiary border border-border-default"
+                }`}
+              >
+                <p className="text-body-sm text-text-primary whitespace-pre-wrap break-words">{msg.body}</p>
                 <p className={`text-caption mt-1 ${isOutbound ? "text-nah-orange/60" : "text-text-tertiary"}`}>
                   {formatMessageTime(msg.dateAdded)}
                 </p>
@@ -127,9 +133,12 @@ export default function ConversationThread({ conversation, onMessageSent }: Conv
 
       {/* Reply input */}
       <ReplyInput
-        contactId={conversation.contactId}
+        contactId={localContactId}
+        toNumber={conversation.phone}
+        fromNumbers={fromNumbers}
+        defaultFromNumber={assignedNumber}
         disabled={!canReply}
-        disabledReason="Match this phone to a contact before replying."
+        disabledReason="This conversation does not have a phone number to reply to."
         onSent={() => {
           onMessageSent();
           // Refetch messages
