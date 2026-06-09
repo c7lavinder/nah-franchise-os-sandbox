@@ -3,15 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  AlertTriangle,
-  ArrowRight,
-  BarChart3,
-  Loader2,
-  MapPin,
-} from "lucide-react";
+import { AlertTriangle, ArrowRight, BarChart3, Loader2, MapPin } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { apiFetch } from "@/lib/auth/api-fetch";
+import type { UserRole } from "@/types/database";
 
 interface StageCount {
   stage: string;
@@ -102,6 +97,12 @@ const PERIOD_OPTIONS: { key: L10PeriodKey; label: string; sub: string }[] = [
   { key: "T12", label: "T12", sub: "365 days" },
 ];
 
+const L10_ROLES: UserRole[] = ["admin", "operator", "leadership"];
+
+function canViewL10(role: UserRole | undefined) {
+  return role ? L10_ROLES.includes(role) : false;
+}
+
 const MONTHLY_LEAD_LIST_BENCHMARK_PER_TERRITORY = 1000;
 
 function formatNumber(value: number | null | undefined) {
@@ -165,15 +166,7 @@ function HeaderCard({
   );
 }
 
-function BigBlueCard({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string | number;
-  detail: string;
-}) {
+function BigBlueCard({ label, value, detail }: { label: string; value: string | number; detail: string }) {
   return (
     <div className="rounded-xl bg-gradient-to-br from-nah-blue to-[#0080b8] px-5 py-4 text-white shadow-md">
       <span className="text-4xl font-extrabold leading-none tracking-tight">{value}</span>
@@ -739,11 +732,7 @@ function FlowMetric({
   );
 }
 
-function SalesFunnelBoard({
-  stages,
-}: {
-  stages: { label: string; value: number; sub: string }[];
-}) {
+function SalesFunnelBoard({ stages }: { stages: { label: string; value: number; sub: string }[] }) {
   return (
     <div className="grid overflow-hidden rounded-lg border border-border-default bg-white shadow-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       {stages.map((stage) => (
@@ -818,15 +807,16 @@ export default function L10Page() {
   const [data, setData] = useState<L10Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const allowed = canViewL10(user?.role);
 
   useEffect(() => {
-    if (user && user.role !== "admin") {
+    if (user && !canViewL10(user.role)) {
       router.push("/daily-hq");
     }
   }, [user, router]);
 
   useEffect(() => {
-    if (!user || user.role !== "admin") return;
+    if (!user || !allowed) return;
     setLoading(true);
     setError(null);
     apiFetch(`/api/l10?period=${selectedPeriod}`)
@@ -837,9 +827,9 @@ export default function L10Page() {
       .then((d) => setData(d))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [user, selectedPeriod]);
+  }, [user, allowed, selectedPeriod]);
 
-  if (!user || user.role !== "admin") return null;
+  if (!user || !allowed) return null;
 
   if (loading) {
     return (

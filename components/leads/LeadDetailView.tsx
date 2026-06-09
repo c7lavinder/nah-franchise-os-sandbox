@@ -15,6 +15,7 @@ import {
   Award,
   ClipboardList,
   Calendar,
+  Trash2,
 } from "lucide-react";
 import { CallPanel } from "@/components/contact/ActionPanels";
 import { useShowSMS, useShowEmail, useShowAppointment } from "@/components/contact/ActionButtons";
@@ -42,6 +43,8 @@ import type { SplitTerritory } from "@/components/leads/SplitJourneyModal";
 import AddJourneyMemberModal from "@/components/leads/AddJourneyMemberModal";
 import { capitalizeName } from "@/lib/format/contact";
 import { useToast } from "@/components/ui/Toast";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import { useAuth } from "@/lib/auth/AuthContext";
 import type { SubTaskLog, StageHistoryEntry } from "@/lib/contacts/pipeline-state";
 import { Pencil, GitBranch, UserPlus } from "lucide-react";
 
@@ -212,6 +215,7 @@ export default function LeadDetailView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [contact, setContact] = useState<GHLContact | null>(null);
   const [localContact, setLocalContact] = useState<LocalContact | null>(null);
@@ -251,6 +255,8 @@ export default function LeadDetailView({
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [savingTitle, setSavingTitle] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingJourney, setDeletingJourney] = useState(false);
 
   // Keep the URL's ?territory= param in sync with the focused territory so
   // sharing the page or using back/forward preserves the selection. Browser
@@ -494,6 +500,25 @@ export default function LeadDetailView({
       setSavingTitle(false);
     }
   }
+
+  async function deleteJourney() {
+    if (!journeyId || deletingJourney) return;
+    setDeletingJourney(true);
+    try {
+      const res = await apiFetch(`/api/journeys/${journeyId}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(`Couldn't delete journey: ${data.error ?? "Delete failed"}`);
+        return;
+      }
+      toast("Journey deleted");
+      setDeleteConfirmOpen(false);
+      router.replace("/pipeline");
+    } finally {
+      setDeletingJourney(false);
+    }
+  }
+
   const hasPending = Object.keys(pendingChanges).length > 0;
   const selectedPipeline = pipelineStates.find((p) => p.id === selectedPipelineId);
   const drilldownStage = selectedPipeline?.stages.find((s) => s.id === drilldownStageId);
@@ -548,6 +573,7 @@ export default function LeadDetailView({
   // are 2+ members, but the action row renders whenever journeyId is set.
   const showProfileHeader = Boolean(journeyId);
   const profileTarget: LocalContact | null = isAltContact ? profileContactData : localContact;
+  const canDeleteJourney = Boolean(journeyId && (user?.role === "admin" || user?.role === "operator"));
 
   return (
     <div className="flex flex-col min-h-0">
@@ -639,6 +665,15 @@ export default function LeadDetailView({
             >
               Merge
             </button>
+            {canDeleteJourney && (
+              <button
+                onClick={() => setDeleteConfirmOpen(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-danger/10 text-danger text-caption font-medium hover:bg-danger/20 transition-colors"
+                title="Delete this journey and remove its KPI/AI data"
+              >
+                <Trash2 size={12} /> Delete Journey
+              </button>
+            )}
           </div>
         )}
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -1078,6 +1113,18 @@ export default function LeadDetailView({
           onClose={() => setAddMemberOpen(false)}
           onAdded={() => {
             router.refresh();
+          }}
+        />
+      )}
+      {deleteConfirmOpen && (
+        <ConfirmModal
+          title="Delete this journey?"
+          body="This removes the journey, pipeline state, stage/subtask history, journey documents, AI brief and embeddings, journey extractions/action items, and soft-deletes calls that only belonged to this journey. Contacts stay intact."
+          destructive
+          confirmLabel={deletingJourney ? "Deleting..." : "Delete journey"}
+          onConfirm={() => void deleteJourney()}
+          onCancel={() => {
+            if (!deletingJourney) setDeleteConfirmOpen(false);
           }}
         />
       )}

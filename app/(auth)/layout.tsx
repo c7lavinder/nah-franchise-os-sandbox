@@ -22,6 +22,7 @@ function getPageTitle(pathname: string): string {
     "/workflows": "Workflows",
     "/onboarding": "Onboarding",
     "/marketing": "Marketing",
+    "/l10": "L10",
   };
   // Check exact match first, then prefix match for dynamic routes
   if (titles[pathname]) return titles[pathname];
