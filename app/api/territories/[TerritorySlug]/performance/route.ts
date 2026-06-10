@@ -168,7 +168,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   while (true) {
     const { data: page } = await supabase
       .from("ms_properties")
-      .select("PropertyId, Status, Inserted, Address1, LeadCategory")
+      .select("PropertyId, Status, Inserted, Address1, LeadCategory, LeadType")
       .eq("TerritorySlug", TerritorySlug)
       .eq("Archived", false)
       .order("PropertyId")
@@ -191,6 +191,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         soldProperties: [],
         inventoryProperties: [],
         leadCategories: {},
+        leadTypes: {},
         leadListBuilding: {
           total: 0,
           benchmark: buildLeadListBenchmark(period, now),
@@ -494,6 +495,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // 10. Lead category breakdown
   const leadCategories: Record<string, number> = {};
+  const leadTypes: Record<string, number> = {};
   const leadCategoryPropertyIds = new Set<number>();
   for (const h of currentHistory) {
     if (filteredPropertyIds && !filteredPropertyIds.has(h.PropertyId)) continue;
@@ -501,7 +503,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       leadCategoryPropertyIds.add(h.PropertyId);
       const prop = propMap.get(h.PropertyId);
       const cat = prop?.LeadCategory || "Unknown";
+      const type = prop?.LeadType || "Unknown";
       leadCategories[cat] = (leadCategories[cat] || 0) + 1;
+      leadTypes[type] = (leadTypes[type] || 0) + 1;
     }
   }
 
@@ -551,6 +555,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       profit: calc?.Calculated_Inv_Profit != null ? Math.round(Number(calc.Calculated_Inv_Profit)) : null,
       arv: calc?.Calculated_Arv != null ? Math.round(Number(calc.Calculated_Arv)) : null,
       leadCategory: prop?.LeadCategory ?? null,
+      leadType: prop?.LeadType ?? null,
     };
   });
 
@@ -566,6 +571,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       arv: calc?.Calculated_Arv != null ? Math.round(Number(calc.Calculated_Arv)) : null,
       projectedProfit: calc?.Calculated_Inv_Profit != null ? Math.round(Number(calc.Calculated_Inv_Profit)) : null,
       leadCategory: prop?.LeadCategory ?? null,
+      leadType: prop?.LeadType ?? null,
     };
   });
 
@@ -594,6 +600,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       soldProperties,
       inventoryProperties,
       leadCategories,
+      leadTypes,
       leadListBuilding: {
         total: leadListTypeByPropertyId.size,
         benchmark: leadListBenchmark,

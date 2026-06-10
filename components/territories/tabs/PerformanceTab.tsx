@@ -44,6 +44,7 @@ interface PropertyRow {
   arv?: number | null;
   projectedProfit?: number | null;
   leadCategory?: string | null;
+  leadType?: string | null;
 }
 
 interface KPIs {
@@ -74,6 +75,7 @@ interface PerformanceData {
   soldProperties: PropertyRow[];
   inventoryProperties: PropertyRow[];
   leadCategories: Record<string, number>;
+  leadTypes: Record<string, number>;
   leadListBuilding?: LeadListBuilding;
   leadCategoryFilter: string | null;
   period: string;
@@ -180,6 +182,7 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
     soldProperties,
     inventoryProperties,
     leadCategories,
+    leadTypes,
     leadListBuilding,
   } = data;
 
@@ -266,6 +269,27 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
                   <span className="text-body-sm font-medium text-text-primary">{count}</span>
                   <span className="text-caption text-text-tertiary">{cat}</span>
                 </button>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {selectedCategory && Object.keys(leadTypes).length > 0 && (
+        <div className="bg-bg-primary border border-border-default rounded-lg p-4">
+          <h3 className="text-body-sm font-semibold text-text-primary mb-3">
+            Lead Types - {selectedCategory} - {PERIOD_LABELS[period]}
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(leadTypes)
+              .sort(([, a], [, b]) => b - a)
+              .map(([type, count]) => (
+                <div
+                  key={type}
+                  className="flex items-center gap-1.5 rounded-full border border-border-default bg-bg-secondary px-3 py-1"
+                >
+                  <span className="text-body-sm font-medium text-text-primary">{count}</span>
+                  <span className="text-caption text-text-tertiary">{type}</span>
+                </div>
               ))}
           </div>
         </div>
@@ -673,6 +697,11 @@ function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: 
           {p.leadCategory && (
             <span className="px-1.5 py-0.5 rounded bg-bg-tertiary text-[10px] text-text-tertiary shrink-0">
               {p.leadCategory}
+            </span>
+          )}
+          {p.leadType && (
+            <span className="px-1.5 py-0.5 rounded bg-nah-blue/10 text-[10px] text-nah-blue shrink-0">
+              {p.leadType}
             </span>
           )}
         </div>
