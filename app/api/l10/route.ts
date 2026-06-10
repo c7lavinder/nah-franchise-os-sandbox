@@ -13,7 +13,11 @@ import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { quartileScoringAgent } from "@/lib/agents/quartile-scoring-agent";
 
-type Territory = { TerritorySlug: string; Nickname: string | null; region: string | null };
+type Territory = {
+  TerritorySlug: string;
+  Nickname: string | null;
+  region: string | null;
+};
 type ScorecardMetric = { TerritorySlug: string; goal_value: string | null; actual_value: string | null };
 type Rock = { TerritorySlug: string; status: string | null };
 type Issue = {
@@ -85,6 +89,10 @@ function sum(values: number[]) {
   return values.reduce((total, value) => total + value, 0);
 }
 
+function average(values: number[]) {
+  return values.length > 0 ? Math.round(sum(values) / values.length) : null;
+}
+
 function periodFromRequest(request: NextRequest) {
   const requested = request.nextUrl.searchParams.get("period")?.toUpperCase();
   if (requested === "T1" || requested === "T3" || requested === "T6" || requested === "T12") return requested;
@@ -102,6 +110,15 @@ function moneyValue(value: unknown): number {
 
 function isInPeriod(value: string | null | undefined, periodStart: Date) {
   return value ? new Date(value) >= periodStart : false;
+}
+
+function daysBetween(start: string | null | undefined, end: string | null | undefined) {
+  if (!start || !end) return null;
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return null;
+  const days = Math.round((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000));
+  return days >= 0 ? days : null;
 }
 
 function leadMixLabel(row: { LeadCategory?: string | null; LeadType?: string | null }) {
@@ -155,6 +172,8 @@ export async function GET(request: NextRequest) {
           newProspectsPeriod: 0,
           ptoEnrolleesPeriod: 0,
           closedFranchiseesPeriod: 0,
+          avgProspectToClosedDays: null,
+          avgClosedToFirstPurchaseDays: null,
           movedPeriod: 0,
           stalledProspects: 0,
           stageCounts: [],
@@ -246,7 +265,7 @@ export async function GET(request: NextRequest) {
           supabase
             .from("journey_pipeline_state")
             .select(
-              "id, current_stage_id, entered_pipeline_at, entered_current_stage_at, updated_at, assigned_user_id, is_active, closed_at"
+              "id, current_stage_id, entered_pipeline_at, entered_current_stage_at, updated_at, assigned_user_id, is_active, closed_at, TerritorySlug"
             )
             .in("current_stage_id", salesStageIds)
             .range(from, to)
@@ -312,11 +331,45 @@ export async function GET(request: NextRequest) {
     count: [...reachedStageSortByJourney.values()].filter((sortOrder) => sortOrder >= Number(stage.sort_order ?? 0))
       .length,
   }));
-  const closedFranchiseesPeriod = salesRows.filter((row) => {
+  const closedRowsPeriod = salesRows.filter((row) => {
     if (!closedStageIds.includes(row.current_stage_id)) return false;
     const closedAt = row.closed_at ?? row.entered_current_stage_at ?? row.updated_at;
     return closedAt ? new Date(closedAt) >= periodStart : false;
-  }).length;
+  });
+  const closedFranchiseesPeriod = closedRowsPeriod.length;
+  const avgProspectToClosedDays = average(
+    closedRowsPeriod
+      .map((row) =>
+        daysBetween(row.entered_pipeline_at, row.closed_at ?? row.entered_current_stage_at ?? row.updated_at)
+      )
+      .filter((days): days is number => days != null)
+  );
+  const closedTerritorySlugs = [
+    ...new Set(closedRowsPeriod.map((row) => row.TerritorySlug).filter(Boolean) as string[]),
+  ];
+  const firstPurchaseBySlug = new Map<string, string | null>();
+  if (closedTerritorySlugs.length > 0) {
+    const { data: closedTerritories } = await supabase
+      .from("territories")
+      .select("TerritorySlug, FirstPurchaseDate")
+      .in("TerritorySlug", closedTerritorySlugs);
+    for (const territory of (closedTerritories ?? []) as Array<{
+      TerritorySlug: string;
+      FirstPurchaseDate: string | null;
+    }>) {
+      firstPurchaseBySlug.set(territory.TerritorySlug, territory.FirstPurchaseDate);
+    }
+  }
+  const avgClosedToFirstPurchaseDays = average(
+    closedRowsPeriod
+      .map((row) =>
+        daysBetween(
+          row.closed_at ?? row.entered_current_stage_at ?? row.updated_at,
+          firstPurchaseBySlug.get(row.TerritorySlug)
+        )
+      )
+      .filter((days): days is number => days != null)
+  );
   const moved14d = salesRows.filter(
     (row) => new Date(row.entered_current_stage_at ?? row.updated_at) >= periodStart
   ).length;
@@ -654,6 +707,8 @@ export async function GET(request: NextRequest) {
         newProspectsPeriod,
         ptoEnrolleesPeriod,
         closedFranchiseesPeriod,
+        avgProspectToClosedDays,
+        avgClosedToFirstPurchaseDays,
         movedPeriod: moved14d,
         stalledProspects: stalledRows.length,
         stageCounts,
