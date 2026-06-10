@@ -712,14 +712,9 @@ function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: 
               {p.currentPhase}
             </span>
           )}
-          {p.leadCategory && (
-            <span className="px-1.5 py-0.5 rounded bg-bg-tertiary text-[10px] text-text-tertiary shrink-0">
-              {p.leadCategory}
-            </span>
-          )}
           {p.leadType && (
             <span className="px-1.5 py-0.5 rounded bg-nah-blue/10 text-[10px] text-nah-blue shrink-0">
-              {p.leadType}
+              Lead: {p.leadType}
             </span>
           )}
         </div>

@@ -340,7 +340,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
   }
-  const funnel = computeFunnel(currentHistory, funnelFilter);
+  let funnel = computeFunnel(currentHistory, funnelFilter);
   const prevFunnel = computeFunnel(prevHistory, prevEnteredStage1);
 
   // Median comparison across active territories for the same period/category.
@@ -490,6 +490,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (filteredPropertyIds && !filteredPropertyIds.has(inv.PropertyId)) return false;
     return isInRange(inv.Inv_PurchaseDate, periodStart, periodEndExclusive);
   });
+  funnel = funnel.map((row) => (row.stage === "6 Purchase" ? { ...row, count: purchasedInPeriod.length } : row));
   const leadToPurchaseDays: number[] = [];
   for (const inv of purchasedInPeriod) {
     const prop = propMap.get(inv.PropertyId);
@@ -550,6 +551,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         days: dBtwn(inv.Inv_ListDate, inv.Inv_SellDate),
       },
     ];
+    for (let i = 1; i < stages.length; i++) {
+      if (stages[i].date || stages[i].days != null || !stages[i - 1].date) continue;
+      stages[i].days = dBtwn(stages[i - 1].date, now.toISOString());
+      break;
+    }
     const currentStage = [...stages].reverse().find((stage) => stage.date)?.label ?? inv.Inv_Status ?? null;
 
     return { stages, currentPhase: currentStage, totalDays, purchaseDate: inv.Inv_PurchaseDate };
