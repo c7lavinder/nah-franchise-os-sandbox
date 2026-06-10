@@ -130,6 +130,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { TerritorySlug } = await params;
   const period = request.nextUrl.searchParams.get("period") ?? "t3";
   const leadCategoryFilter = request.nextUrl.searchParams.get("leadCategory") ?? null;
+  const leadTypeFilter = request.nextUrl.searchParams.get("leadType") ?? null;
   const supabase = createServerClient();
 
   const now = new Date();
@@ -204,12 +205,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     );
   }
 
-  // Lead category filter — build a set of matching property IDs
-  let filteredPropertyIds: Set<number> | undefined;
+  // Lead filters — category drives the lead-type breakdown, category + type drive funnel/KPIs/lists.
+  let categoryFilteredPropertyIds: Set<number> | undefined;
   if (leadCategoryFilter) {
+    categoryFilteredPropertyIds = new Set<number>();
+    for (const p of properties) {
+      if ((p.LeadCategory || "Unknown") === leadCategoryFilter) categoryFilteredPropertyIds.add(p.PropertyId);
+    }
+  }
+
+  let filteredPropertyIds: Set<number> | undefined;
+  if (leadCategoryFilter || leadTypeFilter) {
     filteredPropertyIds = new Set<number>();
     for (const p of properties) {
-      if ((p.LeadCategory || "Unknown") === leadCategoryFilter) filteredPropertyIds.add(p.PropertyId);
+      if (leadCategoryFilter && (p.LeadCategory || "Unknown") !== leadCategoryFilter) continue;
+      if (leadTypeFilter && (p.LeadType || "Unknown") !== leadTypeFilter) continue;
+      filteredPropertyIds.add(p.PropertyId);
     }
   }
 
@@ -350,16 +361,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   let activeTerritoryComparisonCount = 0;
 
   if (activeTerritorySlugs.length > 0) {
-    let comparisonProperties: Pick<PropRow, "PropertyId" | "TerritorySlug" | "LeadCategory">[] = [];
+    let comparisonProperties: Pick<PropRow, "PropertyId" | "TerritorySlug" | "LeadCategory" | "LeadType">[] = [];
     for (let i = 0; i < activeTerritorySlugs.length; i += 500) {
       const { data: page } = await supabase
         .from("ms_properties")
-        .select("PropertyId, TerritorySlug, LeadCategory")
+        .select("PropertyId, TerritorySlug, LeadCategory, LeadType")
         .in("TerritorySlug", activeTerritorySlugs.slice(i, i + 500))
         .eq("Archived", false);
       if (page)
         comparisonProperties = comparisonProperties.concat(
-          page as Pick<PropRow, "PropertyId" | "TerritorySlug" | "LeadCategory">[]
+          page as Pick<PropRow, "PropertyId" | "TerritorySlug" | "LeadCategory" | "LeadType">[]
         );
     }
 
@@ -385,6 +396,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const territory = prop?.TerritorySlug;
       if (!territory) continue;
       if (leadCategoryFilter && (prop?.LeadCategory || "Unknown") !== leadCategoryFilter) continue;
+      if (leadTypeFilter && (prop?.LeadType || "Unknown") !== leadTypeFilter) continue;
 
       const rows = historiesByTerritory.get(territory) ?? [];
       rows.push(h);
@@ -498,7 +510,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const leadTypes: Record<string, number> = {};
   const leadCategoryPropertyIds = new Set<number>();
   for (const h of currentHistory) {
-    if (filteredPropertyIds && !filteredPropertyIds.has(h.PropertyId)) continue;
+    if (categoryFilteredPropertyIds && !categoryFilteredPropertyIds.has(h.PropertyId)) continue;
     if (stageKey(h.NewStatus) === "1" && !leadCategoryPropertyIds.has(h.PropertyId)) {
       leadCategoryPropertyIds.add(h.PropertyId);
       const prop = propMap.get(h.PropertyId);
@@ -608,6 +620,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         leadTypes: leadListTypes,
       },
       leadCategoryFilter,
+      leadTypeFilter,
       period,
     },
     { headers: NO_STORE_HEADERS }

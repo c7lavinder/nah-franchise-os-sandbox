@@ -78,6 +78,7 @@ interface PerformanceData {
   leadTypes: Record<string, number>;
   leadListBuilding?: LeadListBuilding;
   leadCategoryFilter: string | null;
+  leadTypeFilter: string | null;
   period: string;
 }
 
@@ -145,13 +146,15 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("ytd");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedLeadType, setSelectedLeadType] = useState<string | null>(null);
 
   const fetchData = useCallback(
-    async (p: Period, cat: string | null) => {
+    async (p: Period, cat: string | null, type: string | null) => {
       setLoading(true);
       try {
         let url = `/api/territories/${TerritorySlug}/performance?period=${p}`;
         if (cat) url += `&leadCategory=${encodeURIComponent(cat)}`;
+        if (type) url += `&leadType=${encodeURIComponent(type)}`;
         const res = await apiFetch(url);
         if (res.ok) setData(await res.json());
       } catch {
@@ -163,8 +166,8 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
   );
 
   useEffect(() => {
-    void fetchData(period, selectedCategory);
-  }, [period, selectedCategory, fetchData]);
+    void fetchData(period, selectedCategory, selectedLeadType);
+  }, [period, selectedCategory, selectedLeadType, fetchData]);
 
   if (loading && !data)
     return (
@@ -206,10 +209,17 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
         {loading && <Loader2 size={14} className="animate-spin text-text-tertiary" />}
         {selectedCategory && (
           <button
-            onClick={() => setSelectedCategory(null)}
+            onClick={() => {
+              if (selectedLeadType) {
+                setSelectedLeadType(null);
+                return;
+              }
+              setSelectedCategory(null);
+            }}
             className="flex items-center gap-1 px-2 py-1 rounded-full bg-nah-blue/10 text-nah-blue text-caption font-medium"
           >
-            {selectedCategory} <X size={12} />
+            {selectedCategory}
+            {selectedLeadType ? ` / ${selectedLeadType}` : ""} <X size={12} />
           </button>
         )}
       </div>
@@ -263,7 +273,10 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
               .map(([cat, count]) => (
                 <button
                   key={cat}
-                  onClick={() => setSelectedCategory(cat)}
+                  onClick={() => {
+                    setSelectedCategory(cat);
+                    setSelectedLeadType(null);
+                  }}
                   className="flex items-center gap-1.5 bg-bg-secondary hover:bg-bg-hover rounded-full px-3 py-1 transition-colors cursor-pointer border border-transparent hover:border-nah-blue/30"
                 >
                   <span className="text-body-sm font-medium text-text-primary">{count}</span>
@@ -283,13 +296,18 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
             {Object.entries(leadTypes)
               .sort(([, a], [, b]) => b - a)
               .map(([type, count]) => (
-                <div
+                <button
                   key={type}
-                  className="flex items-center gap-1.5 rounded-full border border-border-default bg-bg-secondary px-3 py-1"
+                  onClick={() => setSelectedLeadType(type === selectedLeadType ? null : type)}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1 transition-colors cursor-pointer ${
+                    selectedLeadType === type
+                      ? "border-nah-blue bg-nah-blue/10"
+                      : "border-border-default bg-bg-secondary hover:border-nah-blue/30 hover:bg-bg-hover"
+                  }`}
                 >
                   <span className="text-body-sm font-medium text-text-primary">{count}</span>
                   <span className="text-caption text-text-tertiary">{type}</span>
-                </div>
+                </button>
               ))}
           </div>
         </div>
@@ -299,7 +317,7 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
         <PropertyFunnelStory
           funnel={funnel}
           periodLabel={PERIOD_LABELS[period]}
-          categoryLabel={selectedCategory}
+          categoryLabel={selectedLeadType ?? selectedCategory}
           comparisonLabel={PREV_LABELS[period]}
         />
         <PipelineComparisonTable
