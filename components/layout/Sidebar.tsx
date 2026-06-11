@@ -253,17 +253,6 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
                 <span className="text-sm font-medium">Knowledge Base</span>
               </Link>
               <Link
-                href="/site-guide"
-                onClick={() => {
-                  setProfileOpen(false);
-                  onNavClick?.();
-                }}
-                className="flex items-center gap-3 px-4 py-3 text-text-secondary hover:bg-[rgba(0,161,225,0.05)] hover:text-nah-blue transition-colors"
-              >
-                <BookOpen size={16} />
-                <span className="text-sm font-medium">Site Guide</span>
-              </Link>
-              <Link
                 href="/settings"
                 onClick={() => {
                   setProfileOpen(false);
