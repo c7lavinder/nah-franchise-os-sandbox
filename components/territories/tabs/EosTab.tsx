@@ -158,7 +158,7 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
       </div>
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosMonthlySpend budgets={data.budgets} />
+        <TerritoryEosMonthlySpend />
       </div>
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
