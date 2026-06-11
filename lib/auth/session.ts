@@ -35,58 +35,68 @@ interface MasterSuiteClaims {
 export async function getAuthUser(token: string | null): Promise<AuthUser | null> {
   if (!token) return null;
 
-  const secret = process.env.MASTERSUITE_API_JWT_SECRET;
-  if (!secret) {
-    console.error("MASTERSUITE_API_JWT_SECRET is not set");
-    return null;
-  }
+  const appUserFromEmail = async (email: string): Promise<AuthUser | null> => {
+    if (!email) return null;
 
-  // Verify the JWT signature (HS512)
-  let claims: MasterSuiteClaims;
-  try {
-    // MasterSuite uses a custom Expiration field, not the standard `exp` claim,
-    // so we disable built-in expiration check and handle it ourselves.
-    claims = jwt.verify(token, secret, {
-      algorithms: ["HS512"],
-      ignoreExpiration: true,
-    }) as MasterSuiteClaims;
-  } catch {
-    return null;
-  }
+    const supabase = createServerClient();
+    const { data: appUser, error: userError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", email)
+      .eq("is_active", true)
+      .single();
 
-  // Check custom expiration field
-  if (claims.Expiration) {
-    const expiresAt = new Date(claims.Expiration).getTime();
-    if (Date.now() > expiresAt) {
+    if (userError || !appUser) {
       return null;
+    }
+
+    const user = appUser as User;
+
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.full_name,
+      role: user.role,
+      ghlUserId: user.ghl_user_id,
+    };
+  };
+
+  const secret = process.env.MASTERSUITE_API_JWT_SECRET;
+  if (secret) {
+    // Verify the JWT signature (HS512)
+    let claims: MasterSuiteClaims | null = null;
+    try {
+      // MasterSuite uses a custom Expiration field, not the standard `exp` claim,
+      // so we disable built-in expiration check and handle it ourselves.
+      claims = jwt.verify(token, secret, {
+        algorithms: ["HS512"],
+        ignoreExpiration: true,
+      }) as MasterSuiteClaims;
+    } catch {
+      claims = null;
+    }
+
+    if (claims) {
+      // Check custom expiration field
+      if (claims.Expiration) {
+        const expiresAt = new Date(claims.Expiration).getTime();
+        if (Date.now() > expiresAt) {
+          return null;
+        }
+      }
+
+      const masterSuiteUser = await appUserFromEmail(claims.Username);
+      if (masterSuiteUser) return masterSuiteUser;
     }
   }
 
-  const email = claims.Username;
-  if (!email) return null;
-
-  // Look up the app user record by email
+  // Supabase Auth fallback for app-local passwords and self-hosted deployments
+  // that do not have the MasterSuite JWT secret configured.
   const supabase = createServerClient();
-  const { data: appUser, error: userError } = await supabase
-    .from("users")
-    .select("*")
-    .eq("email", email)
-    .eq("is_active", true)
-    .single();
+  const { data: supabaseUser, error: supabaseError } = await supabase.auth.getUser(token);
+  if (supabaseError || !supabaseUser.user?.email) return null;
 
-  if (userError || !appUser) {
-    return null;
-  }
-
-  const user = appUser as User;
-
-  return {
-    id: user.id,
-    email: user.email,
-    fullName: user.full_name,
-    role: user.role,
-    ghlUserId: user.ghl_user_id,
-  };
+  return appUserFromEmail(supabaseUser.user.email);
 }
 
 /**

@@ -26,56 +26,79 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
-    // Authenticate with MasterSuite API
+    const requestedEmail = body.email.trim().toLowerCase();
+    let authenticatedEmail = requestedEmail;
+    let token: string | null = null;
+
+    // Authenticate with MasterSuite API first. If the MasterSuite service is
+    // unavailable or the credentials are not present there, fall back to
+    // Supabase Auth so temporary app-only passwords still work.
     const apiUrl = process.env.MASTERSUITE_API_URL;
-    if (!apiUrl) {
-      return NextResponse.json({ error: "Authentication service is not configured" }, { status: 500 });
+    if (apiUrl) {
+      // Be tolerant of private-network service names. Some self-hosted
+      // deployments provide `mastersuite-api` or `://mastersuite-api`; normalize
+      // both to http:// so login does not crash on URL construction.
+      const normalizedApiUrl = apiUrl.startsWith("://")
+        ? `http${apiUrl}`
+        : /^https?:\/\//i.test(apiUrl)
+          ? apiUrl
+          : `http://${apiUrl}`;
+
+      try {
+        const loginUrl = new URL("/auth/login", normalizedApiUrl).toString();
+        const authResponse = await fetch(loginUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: body.email,
+            password: body.password,
+          }),
+        });
+
+        if (authResponse.ok) {
+          const authData = await authResponse.json();
+          token = authData.jwt ?? null;
+        }
+      } catch (err) {
+        console.error("MasterSuite login failed, trying Supabase fallback:", err);
+      }
     }
 
-    // Be tolerant of private-network service names. Some self-hosted
-    // deployments provide `mastersuite-api` or `://mastersuite-api`; normalize
-    // both to http:// so login does not crash on URL construction.
-    const normalizedApiUrl = apiUrl.startsWith("://")
-      ? `http${apiUrl}`
-      : /^https?:\/\//i.test(apiUrl)
-        ? apiUrl
-        : `http://${apiUrl}`;
-
-    let loginUrl: string;
-    try {
-      loginUrl = new URL("/auth/login", normalizedApiUrl).toString();
-    } catch {
-      console.error("Invalid MASTERSUITE_API_URL", { apiUrl });
-      return NextResponse.json({ error: "Authentication service URL is invalid" }, { status: 500 });
-    }
-    const authResponse = await fetch(loginUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: body.email,
-        password: body.password,
-      }),
-    });
-
-    if (!authResponse.ok) {
-      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
-    }
-
-    const authData = await authResponse.json();
-    const token = authData.jwt;
-
+    const authSupabase = createServerClient();
     if (!token) {
-      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+      const { data: supabaseAuth, error: supabaseAuthError } = await authSupabase.auth.signInWithPassword({
+        email: requestedEmail,
+        password: body.password,
+      });
+
+      token = supabaseAuth.session?.access_token ?? null;
+      if (supabaseAuthError || !token) {
+        return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+      }
+      authenticatedEmail = supabaseAuth.user?.email?.trim().toLowerCase() ?? requestedEmail;
     }
 
-    // Look up the app user record
+    // Look up the app user record with a fresh service-role client. The auth
+    // client above may carry the newly signed-in user's session after
+    // signInWithPassword, which would make this query subject to RLS.
     const supabase = createServerClient();
-    const { data: appUser, error: userError } = await supabase
+    let { data: appUser, error: userError } = await supabase
       .from("users")
       .select("*")
-      .eq("email", body.email)
+      .eq("email", authenticatedEmail)
       .eq("is_active", true)
-      .single();
+      .maybeSingle();
+
+    if (!appUser && authenticatedEmail !== requestedEmail) {
+      const retry = await supabase
+        .from("users")
+        .select("*")
+        .eq("email", requestedEmail)
+        .eq("is_active", true)
+        .maybeSingle();
+      appUser = retry.data;
+      userError = retry.error;
+    }
 
     if (userError || !appUser) {
       return NextResponse.json(

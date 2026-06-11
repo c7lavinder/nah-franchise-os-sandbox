@@ -29,6 +29,9 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getAccessTokenFromCookies } from "@/lib/auth/cookies";
 
 const mockSupabase = {
+  auth: {
+    getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: { message: "invalid token" } }),
+  },
   from: vi.fn(() => ({
     select: vi.fn(() => ({
       eq: vi.fn(() => ({
@@ -54,6 +57,7 @@ function makeClaims(overrides: Partial<{ Username: string; Name: string; Expirat
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null }, error: { message: "invalid token" } });
   (createServerClient as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase);
   (getAccessTokenFromCookies as ReturnType<typeof vi.fn>).mockReturnValue(null);
   vi.stubEnv("MASTERSUITE_API_JWT_SECRET", "test-secret");
@@ -123,6 +127,45 @@ describe("getAuthUser", () => {
       fullName: "Chad Arnold",
       role: "operator",
       ghlUserId: "ghl-abc",
+    });
+  });
+
+  it("returns AuthUser from Supabase access token when MasterSuite JWT verification fails", async () => {
+    (jwt.verify as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error("invalid signature");
+    });
+    mockSupabase.auth.getUser.mockResolvedValue({
+      data: { user: { email: "matt@newagainhouses.com" } },
+      error: null,
+    });
+    const singleMock = vi.fn().mockResolvedValue({
+      data: {
+        id: "admin-456",
+        email: "matt@newagainhouses.com",
+        full_name: "Matt Lavinder",
+        role: "admin",
+        ghl_user_id: null,
+      },
+      error: null,
+    });
+    mockSupabase.from.mockReturnValue({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: singleMock,
+          })),
+        })),
+      })),
+    });
+
+    const result = await getAuthUser("supabase-token");
+
+    expect(result).toEqual({
+      id: "admin-456",
+      email: "matt@newagainhouses.com",
+      fullName: "Matt Lavinder",
+      role: "admin",
+      ghlUserId: null,
     });
   });
 });
