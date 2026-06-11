@@ -6,63 +6,168 @@ import { createServerClient } from "@/lib/supabase/server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+const CANONICAL_SCORECARD_KEYS = [
+  "t3_leads_entered",
+  "t3_s1_to_s4_pct",
+  "t3_purchased",
+  "t3_avg_inventory",
+  "t12_median_cycle_days",
+  "t3_gross_profit",
+  "t3_compliance_score",
+] as const;
+
+const CANONICAL_SCORECARD_KEY_SET = new Set<string>(CANONICAL_SCORECARD_KEYS);
+
+type PropertyRow = {
+  PropertyId: number;
+  Inserted: string | null;
+};
+
+type InventoryRow = {
+  PropertyId: number;
+  Inv_PurchaseDate: string;
+  Inv_SellDate: string | null;
+};
+
+type StatusHistoryRow = {
+  PropertyId: number;
+  NewStatus: string | null;
+  Inserted: string;
+};
+
+type CalculationRow = {
+  PropertyId: number;
+  Calculated_Inv_Profit: number | null;
+};
+
+function stageKey(status: string | null): string | null {
+  if (!status) return null;
+  const trimmed = status.trim();
+  if (trimmed === "1" || trimmed.startsWith("1 ")) return "1";
+  if (trimmed === "2" || trimmed.startsWith("2 ")) return "2";
+  if (trimmed === "3" || trimmed.startsWith("3 ")) return "3";
+  if (trimmed === "4" || trimmed.startsWith("4 ")) return "4";
+  if (trimmed === "5" || trimmed.startsWith("5 ")) return "5 Contract";
+  if (trimmed === "6" || trimmed.startsWith("6 ")) return "6 Purchase";
+  return null;
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[mid];
+  return Number(((sorted[mid - 1] + sorted[mid]) / 2).toFixed(1));
+}
+
+function formatMoney(value: number): string {
+  return `$${Math.round(value).toLocaleString()}`;
+}
+
+function formatPercent(value: number): string {
+  return `${value.toFixed(1).replace(/\.0$/, "")}%`;
+}
+
 async function computeScorecardActuals(
   supabase: SupabaseClient,
   TerritorySlug: string
 ): Promise<Record<string, string>> {
   const actuals: Record<string, string> = {};
   const now = new Date();
-  const t3Start = new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString();
+  const todayEndExclusive = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const t3Start = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+  const t12Start = new Date(now.getFullYear(), now.getMonth() - 12, now.getDate());
+  const t3StartISO = t3Start.toISOString();
+  const t12StartISO = t12Start.toISOString();
+  const endISO = todayEndExclusive.toISOString();
 
-  // Fetch all properties for this territory
   const { data: props } = await supabase
     .from("ms_properties")
-    .select("PropertyId, Status, Inserted")
-    .eq("TerritorySlug", TerritorySlug);
+    .select("PropertyId, Inserted")
+    .eq("TerritorySlug", TerritorySlug)
+    .eq("Archived", false);
 
   if (!props || props.length === 0) return actuals;
 
-  // T3 Leads Entered — properties inserted in last 3 months
-  const leadsT3 = props.filter((p) => p.Inserted && p.Inserted >= t3Start).length;
-  actuals["t3_leads_entered"] = String(leadsT3);
+  const propertyRows = props as PropertyRow[];
+  const propertyIds = propertyRows.map((p) => p.PropertyId);
 
-  // Active funnel counts
-  const activeStatuses = ["1", "2", "3", "4", "5 Contract", "6 Purchase"];
-  const stage1Plus = props.filter((p) => activeStatuses.includes(p.Status)).length;
-  const stage4Plus = props.filter((p) => ["4", "5 Contract", "6 Purchase"].includes(p.Status)).length;
-
-  // T3 S1 to S4 %
-  if (stage1Plus > 0) {
-    actuals["t3_s1_to_s4_pct"] = ((stage4Plus / stage1Plus) * 100).toFixed(1);
+  let t3History: StatusHistoryRow[] = [];
+  for (let i = 0; i < propertyIds.length; i += 500) {
+    const { data: page } = await supabase
+      .from("ms_property_status_history")
+      .select("PropertyId, NewStatus, Inserted")
+      .in("PropertyId", propertyIds.slice(i, i + 500))
+      .gte("Inserted", t3StartISO)
+      .lt("Inserted", endISO);
+    if (page) t3History = t3History.concat(page as StatusHistoryRow[]);
   }
 
-  // T3 Purchased — status "6 Purchase"
-  const purchasedIds = props.filter((p) => p.Status === "6 Purchase").map((p) => p.PropertyId);
-  actuals["t3_purchased"] = String(purchasedIds.length);
+  const enteredStage1 = new Set<number>();
+  const reachedStage4 = new Set<number>();
+  for (const row of t3History) {
+    const stage = stageKey(row.NewStatus);
+    if (stage === "1") enteredStage1.add(row.PropertyId);
+    if (stage === "4" || stage === "5 Contract" || stage === "6 Purchase") reachedStage4.add(row.PropertyId);
+  }
 
-  // T3 AVG Inventory — active purchased (no sell date)
-  if (purchasedIds.length > 0) {
-    const { data: invRows } = await supabase
+  const stage1ToStage4 = [...enteredStage1].filter((id) => reachedStage4.has(id)).length;
+  actuals["t3_leads_entered"] = String(enteredStage1.size);
+  actuals["t3_s1_to_s4_pct"] =
+    enteredStage1.size > 0 ? formatPercent((stage1ToStage4 / enteredStage1.size) * 100) : "0%";
+
+  let inventoryRows: InventoryRow[] = [];
+  for (let i = 0; i < propertyIds.length; i += 500) {
+    const { data: page } = await supabase
       .from("ms_property_inventory")
-      .select("PropertyId, Inv_SellDate")
-      .in("PropertyId", purchasedIds.slice(0, 500));
+      .select("PropertyId, Inv_PurchaseDate, Inv_SellDate")
+      .in("PropertyId", propertyIds.slice(i, i + 500))
+      .not("Inv_PurchaseDate", "is", null);
+    if (page) inventoryRows = inventoryRows.concat(page as InventoryRow[]);
+  }
 
-    const activeInv = (invRows ?? []).filter((r) => !r.Inv_SellDate).length;
-    actuals["t3_avg_inventory"] = String(activeInv);
+  const t3PurchasedRows = inventoryRows.filter((row) => {
+    const purchaseDate = new Date(row.Inv_PurchaseDate);
+    return purchaseDate >= t3Start && purchaseDate < todayEndExclusive;
+  });
+  const t3SoldRows = inventoryRows.filter((row) => {
+    if (!row.Inv_SellDate) return false;
+    const sellDate = new Date(row.Inv_SellDate);
+    return sellDate >= t3Start && sellDate < todayEndExclusive;
+  });
+  const t3SoldIds = t3SoldRows.map((row) => row.PropertyId);
+  actuals["t3_purchased"] = String(t3PurchasedRows.length);
+  actuals["t3_avg_inventory"] = String(inventoryRows.filter((row) => !row.Inv_SellDate).length);
 
-    // Cycle days from sold properties
-    const soldRows = (invRows ?? []).filter((r) => r.Inv_SellDate);
-    actuals["t3_purchased"] = String(purchasedIds.length);
+  const t12CycleDays = inventoryRows
+    .filter(
+      (row) =>
+        row.Inv_SellDate && new Date(row.Inv_SellDate) >= t12Start && new Date(row.Inv_SellDate) < todayEndExclusive
+    )
+    .map((row) =>
+      Math.round(
+        (new Date(row.Inv_SellDate!).getTime() - new Date(row.Inv_PurchaseDate).getTime()) / (1000 * 60 * 60 * 24)
+      )
+    )
+    .filter((days) => days > 0);
+  const t12MedianCycleDays = median(t12CycleDays);
+  actuals["t12_median_cycle_days"] = t12MedianCycleDays == null ? "—" : String(t12MedianCycleDays);
 
-    // T3 Gross Profit — from calculations
-    const { data: calcs } = await supabase
-      .from("ms_property_calculations")
-      .select("Calculated_Inv_Profit")
-      .in("PropertyId", purchasedIds.slice(0, 500))
-      .not("Calculated_Inv_Profit", "is", null);
+  if (t3SoldIds.length > 0) {
+    let calcRows: CalculationRow[] = [];
+    for (let i = 0; i < t3SoldIds.length; i += 500) {
+      const { data: page } = await supabase
+        .from("ms_property_calculations")
+        .select("PropertyId, Calculated_Inv_Profit")
+        .in("PropertyId", t3SoldIds.slice(i, i + 500))
+        .not("Calculated_Inv_Profit", "is", null);
+      if (page) calcRows = calcRows.concat(page as CalculationRow[]);
+    }
 
-    const totalProfit = (calcs ?? []).reduce((sum, c) => sum + Number(c.Calculated_Inv_Profit ?? 0), 0);
-    actuals["t3_gross_profit"] = `$${Math.round(totalProfit).toLocaleString()}`;
+    const totalProfit = calcRows.reduce((sum, row) => sum + Number(row.Calculated_Inv_Profit ?? 0), 0);
+    actuals["t3_gross_profit"] = formatMoney(totalProfit);
+  } else {
+    actuals["t3_gross_profit"] = "$0";
   }
 
   // Compliance score from territory
@@ -103,10 +208,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // Compute scorecard actuals from ms_properties
   const scorecardActuals = await computeScorecardActuals(supabase, TerritorySlug);
+  const canonicalScorecard = (scorecard.data ?? []).filter((row) => CANONICAL_SCORECARD_KEY_SET.has(row.metric_key));
 
   return NextResponse.json({
     goals: goals.data ?? [],
-    scorecard: scorecard.data ?? [],
+    scorecard: canonicalScorecard,
     scorecardActuals,
     budgets: budgets.data ?? [],
     leadChannels: leadChannels.data ?? [],
