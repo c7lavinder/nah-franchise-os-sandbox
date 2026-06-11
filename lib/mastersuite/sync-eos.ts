@@ -260,7 +260,7 @@ export async function syncHabits(): Promise<{ synced: number; errors: string[] }
 // Eos_MarketingChannels → eos_territory_lead_channels (is_active)
 
 const CHANNEL_MAP: Record<string, string> = {
-  ProspectNow: "Digital Prospect Now",
+  ProspectNow: "Prospect Now",
   Vacants: "Vacants",
   HighEquity: "High Equity",
   AbsenteeOwners: "Absentee Owners",
@@ -276,8 +276,8 @@ const CHANNEL_MAP: Record<string, string> = {
   Foreclosures: "Foreclosures",
   BrokeredAuctions: "Brokered Auctions",
   Wholesalers: "Wholesalers",
-  Agents: "Agents Industry Network",
-  IndustryNetwork: "Agents Industry Network", // MS splits this; we merge
+  Agents: "Agents",
+  IndustryNetwork: "Industry Network",
   Homelight: "Homelight",
   AssetManagers: "Asset Managers",
   FacebookAds: "Facebook Ads",
@@ -293,6 +293,15 @@ const CHANNEL_MAP: Record<string, string> = {
   GoogleBusinessProfile: "Google Business Profile",
   OtherSocialMedia: "Other Social Media",
 };
+
+const LEGACY_LEAD_CHANNEL_NAMES = [
+  "Agents Industry Network",
+  "Bulk Lists",
+  "Lead Mining",
+  "Listed Auctions",
+  "Referral Partners",
+  "Digital Prospect Now",
+];
 
 export async function syncLeadChannels(): Promise<{ synced: number; errors: string[] }> {
   const errors: string[] = [];
@@ -316,6 +325,12 @@ export async function syncLeadChannels(): Promise<{ synced: number; errors: stri
       records.push({ TerritorySlug: slug, channel_name: channelName, is_active: isActive, updated_at: now });
     }
   }
+
+  const { error: cleanupError } = await supabase()
+    .from("eos_territory_lead_channels")
+    .delete()
+    .in("channel_name", LEGACY_LEAD_CHANNEL_NAMES);
+  if (cleanupError) errors.push(`lead_channels cleanup: ${cleanupError.message}`);
 
   // Batch upsert
   let synced = 0;
