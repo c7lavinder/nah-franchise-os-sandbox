@@ -15,6 +15,40 @@ const VISIBLE_SCORECARD_KEYS = [
   "t3_gross_profit",
   "t3_compliance_score",
 ] as const;
+const VISIBLE_LEAD_CHANNELS: { name: string; aliases?: string[] }[] = [
+  { name: "Prospect Now", aliases: ["Digital Prospect Now"] },
+  { name: "Vacants" },
+  { name: "High Equity" },
+  { name: "Absentee Owners" },
+  { name: "Probates" },
+  { name: "Evictions" },
+  { name: "City Citations" },
+  { name: "Distressed Rentals" },
+  { name: "Divorces" },
+  { name: "Social Platforms" },
+  { name: "Birddogs" },
+  { name: "Agent Listed" },
+  { name: "FSBO" },
+  { name: "Foreclosures" },
+  { name: "Brokered Auctions" },
+  { name: "Wholesalers" },
+  { name: "Agents", aliases: ["Agents Industry Network"] },
+  { name: "Industry Network", aliases: ["Agents Industry Network"] },
+  { name: "Homelight" },
+  { name: "Asset Managers" },
+  { name: "Facebook Ads" },
+  { name: "Google Ads" },
+  { name: "Google Retargeting" },
+  { name: "Organic Search" },
+  { name: "Google Map Pack" },
+  { name: "Google Business" },
+  { name: "Facebook" },
+  { name: "Instagram" },
+  { name: "TikTok" },
+  { name: "YouTube" },
+  { name: "Google Business Profile" },
+  { name: "Other Social Media" },
+] as const;
 
 function formatScorecardValue(metricKey: string, value: string | null) {
   if (!value) return value;
@@ -65,6 +99,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const formattedScorecardActuals = Object.fromEntries(
     Object.entries(scorecardActuals).map(([metricKey, value]) => [metricKey, formatScorecardValue(metricKey, value)])
   );
+  const leadChannelsByName = new Map((leadChannels.data ?? []).map((channel) => [channel.channel_name, channel]));
+  const visibleLeadChannels = VISIBLE_LEAD_CHANNELS.map((channel, index) => {
+    const names = [channel.name, ...(channel.aliases ?? [])];
+    const source = names.map((name) => leadChannelsByName.get(name)).find(Boolean);
+    const isActive = names.some((name) => leadChannelsByName.get(name)?.is_active);
+
+    return {
+      ...(source ?? {
+        id: `${TerritorySlug}-${channel.name}`,
+        TerritorySlug,
+        updated_at: null,
+      }),
+      channel_name: channel.name,
+      is_active: isActive,
+      sort_order: index + 1,
+    };
+  });
   const scorecardGoalByKey = new Map(visibleScorecard.map((metric) => [metric.metric_key, metric.goal_value]));
   const goalsByType = new Map((goals.data ?? []).map((goal) => [goal.goal_type, goal]));
   const goalsWithDerivedValues = GOAL_TYPES.map((goalType) => {
@@ -110,7 +161,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     scorecard: visibleScorecard,
     scorecardActuals: formattedScorecardActuals,
     budgets: budgets.data ?? [],
-    leadChannels: leadChannels.data ?? [],
+    leadChannels: visibleLeadChannels,
     habits: habits.data ?? [],
     rocks: rocks.data ?? [],
     issues: issues.data ?? [],
