@@ -70,13 +70,9 @@ const NAV_ITEMS: NavItem[] = [
     icon: BarChart3,
     roles: ["leadership", "admin", "operator"],
   },
-  {
-    label: "Marketing",
-    href: "/marketing",
-    icon: Megaphone,
-    roles: ["leadership", "admin", "operator", "marketing"],
-  },
 ];
+
+const MARKETING_MENU_ROLES: UserRole[] = ["leadership", "admin", "operator", "marketing"];
 
 interface SidebarProps {
   userRole: UserRole;
@@ -210,6 +206,19 @@ export default function Sidebar({ userRole, onNavClick }: SidebarProps) {
                 boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
               }}
             >
+              {MARKETING_MENU_ROLES.includes(userRole) && (
+                <Link
+                  href="/marketing"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    onNavClick?.();
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 text-text-secondary hover:bg-[rgba(0,161,225,0.05)] hover:text-nah-blue transition-colors"
+                >
+                  <Megaphone size={16} />
+                  <span className="text-sm font-medium">Marketing</span>
+                </Link>
+              )}
               <Link
                 href="/agents"
                 onClick={() => {
