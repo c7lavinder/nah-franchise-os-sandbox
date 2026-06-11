@@ -211,6 +211,76 @@ export async function syncGoals(): Promise<{ synced: number; errors: string[] }>
   return { synced, errors };
 }
 
+// Eos_GoalCheckpoints → eos_territory_goals
+// MS stores the three high-level territory goals separately from scorecard KPI targets.
+
+function cleanGoalValue(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const stringValue = String(value).trim();
+  return stringValue.length > 0 ? stringValue : null;
+}
+
+export async function syncGoalCheckpoints(): Promise<{ synced: number; errors: string[] }> {
+  const errors: string[] = [];
+  const rows = await queryMS<Record<string, unknown>>("SELECT * FROM Eos_GoalCheckpoints");
+  const currentYear = new Date().getFullYear();
+  const kpiRows = await queryMS<Record<string, unknown>>(
+    "SELECT TerritorySlug, GrossProfit FROM TerritoryScorecardKPIs WHERE Type = 'Year' AND Scope = ?",
+    [currentYear]
+  );
+  const grossProfitActualBySlug = new Map(
+    kpiRows.map((row) => [String(row.TerritorySlug).toUpperCase(), cleanGoalValue(row.GrossProfit)])
+  );
+  const now = new Date().toISOString();
+
+  const records = rows.flatMap((row) => {
+    const slug = row.TerritorySlug as string;
+    const grossProfitActual = grossProfitActualBySlug.get(slug.toUpperCase()) ?? null;
+
+    return [
+      {
+        TerritorySlug: slug,
+        goal_type: "houses_purchased",
+        actual: cleanGoalValue(row.EosGoalCheckpoint_RentalActual),
+        current_year_goal: cleanGoalValue(row.EosGoalCheckpoint_RentalCurrentYear),
+        year_5_goal: cleanGoalValue(row.EosGoalCheckpoint_RentalYear5),
+        year_25_goal: cleanGoalValue(row.EosGoalCheckpoint_RentalYear25),
+        updated_at: now,
+      },
+      {
+        TerritorySlug: slug,
+        goal_type: "gross_profit",
+        actual: grossProfitActual,
+        current_year_goal: cleanGoalValue(row.EosGoalCheckpoint_GrossProfitCurrentYear),
+        year_5_goal: cleanGoalValue(row.EosGoalCheckpoint_GrossProfitYear5),
+        year_25_goal: cleanGoalValue(row.EosGoalCheckpoint_GrossProfitYear25),
+        updated_at: now,
+      },
+      {
+        TerritorySlug: slug,
+        goal_type: "quality_of_life",
+        actual: cleanGoalValue(row.EosGoalCheckpoint_QualityOfLifeActual),
+        current_year_goal: cleanGoalValue(row.EosGoalCheckpoint_QualityOfLifeCurrentYear),
+        year_5_goal: cleanGoalValue(row.EosGoalCheckpoint_QualityOfLifeYear5),
+        year_25_goal: cleanGoalValue(row.EosGoalCheckpoint_QualityOfLifeYear25),
+        updated_at: now,
+      },
+    ];
+  });
+
+  let synced = 0;
+  for (let i = 0; i < records.length; i += BATCH_SIZE) {
+    const batch = records.slice(i, i + BATCH_SIZE);
+    const { error } = await supabase()
+      .from("eos_territory_goals")
+      .upsert(batch, { onConflict: "TerritorySlug,goal_type", ignoreDuplicates: false });
+    if (error) errors.push(`goal_checkpoints batch ${i}: ${error.message}`);
+    else synced += batch.length;
+  }
+
+  return { synced, errors };
+}
+
 // Eos_Habits → eos_territory_habits (grade)
 
 const HABIT_MAP: Record<string, { key: string; label: string; sort: number }> = {
@@ -630,6 +700,7 @@ export async function syncAllEos(): Promise<{
 
   // Territory EOS (wide → EAV)
   results.goals = await syncGoals();
+  results.goalCheckpoints = await syncGoalCheckpoints();
   results.habits = await syncHabits();
   results.leadChannels = await syncLeadChannels();
 
