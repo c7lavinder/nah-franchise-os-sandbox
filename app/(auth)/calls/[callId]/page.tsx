@@ -620,11 +620,11 @@ export default function CallDetailPage() {
               return (
                 <>
                   <div className="w-px h-8 bg-border-default" />
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium mb-1">
                       Also present ({items.length})
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-start gap-1.5 flex-wrap">
                       {visible.map((p) => (
                         <UnknownParticipantPill
                           key={p.email || p.name}
@@ -910,7 +910,7 @@ function UnknownParticipantPill({
   }
 
   return (
-    <div className="w-full mt-1 bg-bg-secondary border border-border-default rounded-lg p-3" style={{ minHeight: 140 }}>
+    <div className="w-[520px] max-w-[calc(100vw-3rem)] h-[232px] bg-bg-secondary border border-border-default rounded-lg p-3 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div>
@@ -1017,7 +1017,7 @@ function UnknownParticipantPill({
       )}
 
       {mode === "search" && (
-        <div className="space-y-1">
+        <div className="space-y-1 h-[172px]">
           <div className="relative">
             <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary" />
             <input
@@ -1039,7 +1039,7 @@ function UnknownParticipantPill({
               <X size={12} />
             </button>
           </div>
-          <div className="bg-bg-primary border border-border-default rounded-md shadow-sm max-h-48 min-h-[40px] overflow-y-auto">
+          <div className="bg-bg-primary border border-border-default rounded-md shadow-sm h-[128px] overflow-y-auto">
             {query.length < 2 ? (
               <div className="px-3 py-2 text-caption text-text-tertiary">Type to search...</div>
             ) : results.length > 0 ? (
@@ -1080,14 +1080,14 @@ function UnknownParticipantPill({
       )}
 
       {mode === "journey" && (
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 h-[172px] overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">Select Journey</span>
             <button onClick={() => setMode("actions")} className="text-caption text-nah-blue hover:underline">
               Back
             </button>
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1 h-[142px] overflow-y-auto pr-1">
             {uniqueJourneys.map((j) => (
               <button
                 key={j.journey_id}
