@@ -5,11 +5,14 @@ interface Props {
 }
 
 export default function TerritoryEosMonthlySpend({ budgets }: Props) {
-  const total = budgets.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
-
   return (
     <div>
-      <h3 className="text-body-sm font-semibold text-text-primary mb-3">Marketing Budget</h3>
+      <h3 className="text-body-sm font-semibold text-text-primary mb-3">Monthly Spend</h3>
+      <div className="rounded-lg bg-bg-secondary px-3 py-2 mb-3">
+        <div className="text-caption text-text-tertiary">Actual spend</div>
+        <div className="text-body-sm font-semibold text-text-primary">Not connected</div>
+      </div>
+      <h4 className="text-caption font-medium text-text-tertiary mb-1">Budget Reference</h4>
       <div className="space-y-1">
         {budgets.map((b) => (
           <div key={b.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5">
@@ -20,14 +23,8 @@ export default function TerritoryEosMonthlySpend({ budgets }: Props) {
           </div>
         ))}
       </div>
-      <div className="mt-3 pt-2 border-t border-border-primary flex items-center justify-between">
-        <span className="text-body-sm font-medium text-text-secondary">Budget Total</span>
-        <span className="text-body-sm font-semibold text-text-primary">
-          ${total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
-      </div>
       <p className="mt-2 text-caption text-text-tertiary">
-        Actual monthly spend is not shown until spend data is connected.
+        Budget values are reference targets only and are not counted as spend.
       </p>
     </div>
   );

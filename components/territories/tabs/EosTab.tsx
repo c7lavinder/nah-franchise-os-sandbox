@@ -57,15 +57,6 @@ const HABIT_LABELS: Record<string, string> = {
   QuarterlyIndexUpdate: "Quarterly Index Update",
 };
 
-const GRADES = ["A", "B", "C", "D", "F"] as const;
-const GRADE_COLORS: Record<(typeof GRADES)[number], string> = {
-  A: "bg-green-500 text-white",
-  B: "bg-green-300 text-green-900",
-  C: "bg-yellow-400 text-yellow-900",
-  D: "bg-orange-400 text-white",
-  F: "bg-red-500 text-white",
-};
-
 export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName }: Props) {
   const [data, setData] = useState<EosData | null>(null);
   const [constructionEos, setConstructionEos] = useState<ConstructionEos | null>(null);
@@ -123,6 +114,27 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
     return <div className="text-center py-12 text-text-tertiary text-body-sm">Failed to load EOS data.</div>;
   }
 
+  const hasConstructionEos = Boolean(
+    constructionEos &&
+    (constructionEos.rocks.length > 0 ||
+      constructionEos.todos.length > 0 ||
+      constructionEos.issues.length > 0 ||
+      constructionEos.habits)
+  );
+  const constructionHabits: EosTerritoryHabit[] = constructionEos?.habits
+    ? Object.entries(HABIT_LABELS).map(([key, label], index) => ({
+        id: `construction-${key}`,
+        TerritorySlug,
+        habit_key: key,
+        habit_label: label,
+        grade: constructionEos.habits?.[key]?.trim()
+          ? (constructionEos.habits[key] as EosTerritoryHabit["grade"])
+          : null,
+        sort_order: index + 1,
+        updated_at: "",
+      }))
+    : [];
+
   return (
     <div className="space-y-4">
       {showBanner && (
@@ -153,45 +165,15 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
         <TerritoryEosLeadChannels channels={data.leadChannels} />
       </div>
 
-      {/* Construction EOS */}
-      {constructionEos &&
-        (constructionEos.rocks.length > 0 ||
-          constructionEos.todos.length > 0 ||
-          constructionEos.issues.length > 0 ||
-          constructionEos.habits) && (
+      <div className={`grid grid-cols-1 ${hasConstructionEos ? "lg:grid-cols-2" : ""} gap-4 items-start`}>
+        {hasConstructionEos && constructionEos && (
           <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
             <div className="flex items-center gap-2 mb-4">
               <Hammer size={16} className="text-text-tertiary" />
               <h3 className="text-body-sm font-semibold text-text-primary">Construction EOS</h3>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {constructionEos.habits && (
-                <div className="lg:col-span-2">
-                  <h4 className="text-caption font-medium text-text-tertiary mb-2">Habits</h4>
-                  <div className="space-y-2">
-                    {Object.entries(HABIT_LABELS).map(([key, label]) => {
-                      const grade = constructionEos.habits?.[key] ?? null;
-                      return (
-                        <div key={key} className="flex items-center justify-between gap-4">
-                          <span className="text-body-sm text-text-primary flex-1">{label}</span>
-                          <div className="flex gap-1">
-                            {GRADES.map((g) => (
-                              <span
-                                key={g}
-                                className={`w-8 h-8 rounded-md text-xs font-bold flex items-center justify-center ${
-                                  grade === g ? GRADE_COLORS[g] : "bg-bg-secondary text-text-tertiary"
-                                }`}
-                              >
-                                {g}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+            <div className="space-y-4">
+              {constructionHabits.length > 0 && <TerritoryEosHabits habits={constructionHabits} />}
               {constructionEos.rocks.length > 0 && (
                 <div>
                   <h4 className="text-caption font-medium text-text-tertiary mb-2">Rocks</h4>
@@ -265,8 +247,9 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
           </div>
         )}
 
-      <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosHabits habits={data.habits} />
+        <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
+          <TerritoryEosHabits habits={data.habits} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">

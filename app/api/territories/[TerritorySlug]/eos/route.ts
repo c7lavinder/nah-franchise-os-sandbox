@@ -5,6 +5,8 @@ import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { computeTerritoryScorecardActuals } from "@/lib/territories/scorecard-actuals";
 
+const GOAL_TYPES = ["houses_purchased", "gross_profit", "quality_of_life"] as const;
+
 /** GET — returns all territory EOS sections */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ TerritorySlug: string }> }) {
   const { TerritorySlug } = await params;
@@ -29,9 +31,48 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // Compute scorecard actuals from ms_properties
   const scorecardActuals = await computeTerritoryScorecardActuals(supabase, TerritorySlug);
+  const scorecardGoalByKey = new Map((scorecard.data ?? []).map((metric) => [metric.metric_key, metric.goal_value]));
+  const goalsByType = new Map((goals.data ?? []).map((goal) => [goal.goal_type, goal]));
+  const goalsWithDerivedValues = GOAL_TYPES.map((goalType) => {
+    const existing = goalsByType.get(goalType);
+    if (goalType === "houses_purchased") {
+      return {
+        id: existing?.id ?? goalType,
+        TerritorySlug,
+        goal_type: goalType,
+        actual: existing?.actual ?? scorecardActuals.t3_purchased ?? null,
+        current_year_goal: existing?.current_year_goal ?? scorecardGoalByKey.get("t3_purchased") ?? null,
+        year_5_goal: existing?.year_5_goal ?? null,
+        year_25_goal: existing?.year_25_goal ?? null,
+        updated_at: existing?.updated_at ?? null,
+      };
+    }
+    if (goalType === "gross_profit") {
+      return {
+        id: existing?.id ?? goalType,
+        TerritorySlug,
+        goal_type: goalType,
+        actual: existing?.actual ?? scorecardActuals.t3_gross_profit ?? null,
+        current_year_goal: existing?.current_year_goal ?? scorecardGoalByKey.get("t3_gross_profit") ?? null,
+        year_5_goal: existing?.year_5_goal ?? null,
+        year_25_goal: existing?.year_25_goal ?? null,
+        updated_at: existing?.updated_at ?? null,
+      };
+    }
+    return {
+      id: existing?.id ?? goalType,
+      TerritorySlug,
+      goal_type: goalType,
+      actual: existing?.actual ?? null,
+      current_year_goal: existing?.current_year_goal ?? null,
+      year_5_goal: existing?.year_5_goal ?? null,
+      year_25_goal: existing?.year_25_goal ?? null,
+      updated_at: existing?.updated_at ?? null,
+    };
+  });
 
   return NextResponse.json({
-    goals: goals.data ?? [],
+    goals: goalsWithDerivedValues,
     scorecard: scorecard.data ?? [],
     scorecardActuals,
     budgets: budgets.data ?? [],
