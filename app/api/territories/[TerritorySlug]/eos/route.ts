@@ -68,6 +68,21 @@ function formatPercent(value: number): string {
   return `${value.toFixed(1).replace(/\.0$/, "")}%`;
 }
 
+function formatCompliancePercent(value: number): string {
+  const percent = value <= 1 ? value * 100 : value;
+  return formatPercent(percent);
+}
+
+function formatScorecardGoal(metricKey: string, goalValue: string | null): string | null {
+  if (goalValue == null) return goalValue;
+  const numeric = Number(goalValue);
+  if (!Number.isFinite(numeric)) return goalValue;
+  if (metricKey === "t3_compliance_score" || metricKey === "t3_s1_to_s4_pct") {
+    return formatCompliancePercent(numeric);
+  }
+  return goalValue;
+}
+
 async function fetchPaged<T>(queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null }>) {
   const rows: T[] = [];
   let offset = 0;
@@ -212,7 +227,7 @@ async function computeScorecardActuals(
     .single();
 
   if (territory?.ComplianceScore != null) {
-    actuals["t3_compliance_score"] = String(territory.ComplianceScore);
+    actuals["t3_compliance_score"] = formatCompliancePercent(Number(territory.ComplianceScore));
   }
 
   return actuals;
@@ -242,7 +257,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // Compute scorecard actuals from ms_properties
   const scorecardActuals = await computeScorecardActuals(supabase, TerritorySlug);
-  const canonicalScorecard = (scorecard.data ?? []).filter((row) => CANONICAL_SCORECARD_KEY_SET.has(row.metric_key));
+  const canonicalScorecard = (scorecard.data ?? [])
+    .filter((row) => CANONICAL_SCORECARD_KEY_SET.has(row.metric_key))
+    .map((row) => ({
+      ...row,
+      goal_value: formatScorecardGoal(row.metric_key, row.goal_value),
+    }));
 
   return NextResponse.json({
     goals: goals.data ?? [],
