@@ -250,6 +250,9 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
         )}
 
         <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
+          <div className="mb-4">
+            <h3 className="text-body-sm font-semibold text-text-primary">Business EOS</h3>
+          </div>
           <TerritoryEosHabits habits={data.habits} />
         </div>
       </div>
