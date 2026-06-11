@@ -133,8 +133,55 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // most advanced pipeline row (highest sort_order) so "Running" shows
   // instead of "Onboarded" when the journey has progressed past onboarding.
   type CjRow = { journey_id: string; journey_pipeline_state_id: string; is_primary: boolean };
+  let normalizedCjRows = (cjRows ?? []) as CjRow[];
+
+  if (cjJourneyIds.length > 1) {
+    const { data: participantRows } = await supabase
+      .from("call_participants")
+      .select("contact_id")
+      .eq("call_id", callId)
+      .not("contact_id", "is", null);
+    const participantContactIds = Array.from(new Set((participantRows ?? []).map((row) => row.contact_id as string)));
+
+    if (participantContactIds.length > 1) {
+      const { data: memberRows } = await supabase
+        .from("journey_contacts")
+        .select("journey_id, contact_id")
+        .in("journey_id", cjJourneyIds)
+        .is("left_at", null)
+        .in("role", ["primary", "co_primary"]);
+
+      const memberIdsByJourney = new Map<string, Set<string>>();
+      for (const row of memberRows ?? []) {
+        if (!row.contact_id) continue;
+        const memberIds = memberIdsByJourney.get(row.journey_id) ?? new Set<string>();
+        memberIds.add(row.contact_id);
+        memberIdsByJourney.set(row.journey_id, memberIds);
+      }
+
+      const groupJourneyIds = new Set(
+        cjJourneyIds.filter((journeyId) => {
+          const memberIds = memberIdsByJourney.get(journeyId);
+          return Boolean(memberIds && participantContactIds.every((contactId) => memberIds.has(contactId)));
+        })
+      );
+
+      if (groupJourneyIds.size > 0) {
+        normalizedCjRows = normalizedCjRows.filter((row) => {
+          if (groupJourneyIds.has(row.journey_id)) return true;
+          const memberIds = memberIdsByJourney.get(row.journey_id);
+          if (!memberIds) return true;
+          const isParticipantOnlyJourney = [...memberIds].every((contactId) =>
+            participantContactIds.includes(contactId)
+          );
+          return !isParticipantOnlyJourney;
+        });
+      }
+    }
+  }
+
   const callJourneysByJourney = new Map<string, CjRow>();
-  for (const r of (cjRows ?? []) as CjRow[]) {
+  for (const r of normalizedCjRows) {
     const existing = callJourneysByJourney.get(r.journey_id);
     if (!existing) {
       callJourneysByJourney.set(r.journey_id, r);

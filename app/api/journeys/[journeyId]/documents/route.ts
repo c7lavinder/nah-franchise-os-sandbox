@@ -182,7 +182,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           {
             contact_id: resolvedContactId,
             field_name: fieldName,
-            field_value: JSON.stringify(value),
+            field_value: value,
             last_updated_by: "ai",
             last_updated_at: new Date().toISOString(),
           },

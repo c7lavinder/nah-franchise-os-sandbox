@@ -21,6 +21,12 @@ interface ExtractionField {
   label: string;
 }
 
+interface DocumentContactOption {
+  id: string;
+  name: string;
+  role: string;
+}
+
 const DOC_TYPES = [
   { value: "pfs", label: "Personal Financial Statement (PFS)" },
   { value: "zorakle", label: "Zorakle Personality Profile" },
@@ -42,14 +48,16 @@ function formatDate(iso: string): string {
 interface Props {
   journeyId: string;
   contactId: string;
+  contactOptions?: DocumentContactOption[];
 }
 
-export default function JourneyDocumentsTab({ journeyId, contactId }: Props) {
+export default function JourneyDocumentsTab({ journeyId, contactId, contactOptions = [] }: Props) {
   const [documents, setDocuments] = useState<JourneyDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [selectedType, setSelectedType] = useState("pfs");
+  const [selectedContactId, setSelectedContactId] = useState(contactId);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   // Extraction state — after upload, show suggested fields
@@ -77,13 +85,17 @@ export default function JourneyDocumentsTab({ journeyId, contactId }: Props) {
     void fetchDocuments();
   }, [fetchDocuments]);
 
+  useEffect(() => {
+    setSelectedContactId(contactId);
+  }, [contactId]);
+
   async function handleUpload(file: File) {
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("doc_type", selectedType);
-      formData.append("contact_id", contactId);
+      formData.append("contact_id", selectedContactId);
 
       const res = await apiFetch(`/api/journeys/${journeyId}/documents`, {
         method: "POST",
@@ -185,6 +197,20 @@ export default function JourneyDocumentsTab({ journeyId, contactId }: Props) {
               </option>
             ))}
           </select>
+          {contactOptions.length > 1 && (
+            <select
+              value={selectedContactId}
+              onChange={(e) => setSelectedContactId(e.target.value)}
+              className="bg-bg-primary border border-border-default rounded-md px-3 py-1.5 text-body-sm text-text-primary"
+              title="Attach this document to"
+            >
+              {contactOptions.map((contact) => (
+                <option key={contact.id} value={contact.id}>
+                  {contact.name} — {contact.role.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div

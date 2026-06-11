@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/auth/api-fetch";
 import SearchableDropdown, { type DropdownOption } from "@/components/ui/SearchableDropdown";
+import { isSchedulableGhlContactId } from "@/lib/ghl/contact-id";
 import type { DraftedAppointmentPayload } from "@/types/scout";
 
 interface AppointmentActionFormProps {
@@ -77,9 +78,10 @@ export default function AppointmentActionForm({
     if (!res.ok) return [];
     const data = await res.json();
     // GHL bookings require the GHL contact ID, not our internal Supabase UUID.
-    // Skip contacts without a GHL link (rare — would mean an unsynced row).
+    // Skip contacts without a real GHL link. MasterSuite placeholders like
+    // franchise_req_90498 are not valid calendar-booking contact IDs.
     return (data.contacts as { id: string; ghl_contact_id: string | null; name: string }[])
-      .filter((c) => !!c.ghl_contact_id)
+      .filter((c) => isSchedulableGhlContactId(c.ghl_contact_id))
       .map((c) => ({ id: c.ghl_contact_id as string, label: c.name }));
   }, []);
 

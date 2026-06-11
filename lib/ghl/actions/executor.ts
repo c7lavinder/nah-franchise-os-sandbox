@@ -14,6 +14,7 @@ import {
 } from "@/lib/ghl/action-safety";
 import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
 import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
+import { isSchedulableGhlContactId } from "@/lib/ghl/contact-id";
 import type { GHLActionCode } from "@/lib/ghl/permissions";
 
 export interface ActionResult {
@@ -182,9 +183,13 @@ export async function executeGHLAction(
 
       case "A1": {
         // Schedule Appointment
+        const targetContactId = String(params.contactId ?? contactId);
+        if (!isSchedulableGhlContactId(targetContactId)) {
+          throw new Error("This contact is not linked to a real GHL contact yet, so it cannot be scheduled.");
+        }
         const result = await ghl.createAppointment({
           calendarId: String(params.calendarId),
-          contactId: String(params.contactId ?? contactId),
+          contactId: targetContactId,
           startTime: String(params.startTime),
           endTime: String(params.endTime),
           title: String(params.title ?? "NAH Call"),
@@ -213,12 +218,16 @@ export async function executeGHLAction(
 
       case "A4": {
         // Reschedule Appointment — cancel old, create new
+        const targetContactId = String(params.contactId ?? contactId);
+        if (!isSchedulableGhlContactId(targetContactId)) {
+          throw new Error("This contact is not linked to a real GHL contact yet, so it cannot be scheduled.");
+        }
         await ghl.updateAppointment(String(params.appointmentId), {
           appointmentStatus: "cancelled",
         });
         const result = await ghl.createAppointment({
           calendarId: String(params.calendarId),
-          contactId: String(params.contactId ?? contactId),
+          contactId: targetContactId,
           startTime: String(params.newStartTime),
           endTime: String(params.newEndTime),
           title: String(params.title ?? "NAH Call (Rescheduled)"),
@@ -230,7 +239,9 @@ export async function executeGHLAction(
       case "A5": {
         // Send Appointment Reminder
         const targetContactId = String(params.contactId ?? contactId);
-        const reminderMessage = String(params.reminderMessage ?? "Reminder: You have an upcoming call with New Again Houses.");
+        const reminderMessage = String(
+          params.reminderMessage ?? "Reminder: You have an upcoming call with New Again Houses."
+        );
         const result = signalHouseEnabled()
           ? await sendContactSmsViaSignalHouse(targetContactId, reminderMessage)
           : await ghl.sendMessage({

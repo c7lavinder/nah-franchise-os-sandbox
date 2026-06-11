@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createAppointment } from "@/lib/ghl/client";
+import { isSchedulableGhlContactId } from "@/lib/ghl/contact-id";
 import { createServerClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
@@ -17,6 +18,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { contactId } = await params;
   const body = await request.json();
+
+  if (!isSchedulableGhlContactId(contactId)) {
+    return NextResponse.json(
+      { error: "This contact is not linked to a real GHL contact yet, so it cannot be scheduled." },
+      { status: 400 }
+    );
+  }
 
   if (!body.calendarId || !body.title || !body.startTime || !body.endTime) {
     return NextResponse.json({ error: "calendarId, title, startTime, and endTime are required" }, { status: 400 });

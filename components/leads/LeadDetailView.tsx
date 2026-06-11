@@ -1023,7 +1023,15 @@ export default function LeadDetailView({
                       })}
                   </div>
                 ) : activeTab === "documents" && journeyId ? (
-                  <JourneyDocumentsTab journeyId={journeyId} contactId={effectivePrimaryLocalId} />
+                  <JourneyDocumentsTab
+                    journeyId={journeyId}
+                    contactId={profileContactId}
+                    contactOptions={activeMembers.map((m) => ({
+                      id: m.contact_id,
+                      name: capitalizeName(`${m.first_name ?? ""} ${m.last_name ?? ""}`.trim()) || "Member",
+                      role: m.role,
+                    }))}
+                  />
                 ) : activeTab === "territories" ? (
                   <TerritoryDataTab ghlContactId={contact?.id ?? null} />
                 ) : activeTab === "eos" ? (

@@ -615,7 +615,8 @@ export default function PipelinePage() {
     contactsByStage.set(c.stageId, arr);
   }
 
-  // Sort within each stage
+  // Sort within each stage: newest work first, so the daily queue does not get
+  // buried under stale red cards.
   for (const [key, arr] of contactsByStage) {
     contactsByStage.set(key, arr.sort(compareNewestFirst));
   }

@@ -20,6 +20,7 @@ import {
   type SendRuntimeChecks,
 } from "@/lib/ghl/action-safety";
 import { createServerClient } from "@/lib/supabase/server";
+import { isSchedulableGhlContactId } from "@/lib/ghl/contact-id";
 import { getAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
 import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
 import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
@@ -455,6 +456,9 @@ export async function POST(request: NextRequest) {
         case "appointment": {
           const apptPayload = action.payload as DraftedAppointmentPayload;
           if (!apptPayload.calendarId) throw new Error("calendarId required");
+          if (!isSchedulableGhlContactId(action.contactId)) {
+            throw new Error("This contact is not linked to a real GHL contact yet, so it cannot be scheduled.");
+          }
           try {
             const result = await ghl.createAppointment({
               calendarId: apptPayload.calendarId,
