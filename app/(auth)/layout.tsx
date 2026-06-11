@@ -16,6 +16,7 @@ function getPageTitle(pathname: string): string {
     "/pipeline-examples": "Pipeline Examples",
     "/dashboard": "Dashboard",
     "/knowledge": "Knowledge Base",
+    "/site-guide": "Site Guide",
     "/settings": "Settings",
     "/audit": "Audit",
     "/agents": "Agents",

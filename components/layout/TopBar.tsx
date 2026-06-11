@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, LogOut, User, Menu, Bell, AlertTriangle, CheckCircle2, X } from "lucide-react";
+import { BookOpen, ChevronDown, LogOut, User, Menu, Bell, AlertTriangle, CheckCircle2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 interface Alert {
@@ -231,6 +231,16 @@ export default function TopBar({ pageTitle, userName, onMenuToggle }: TopBarProp
               >
                 <User size={16} />
                 Settings
+              </button>
+              <button
+                onClick={() => {
+                  setDropdownOpen(false);
+                  router.push("/site-guide");
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-body text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
+              >
+                <BookOpen size={16} />
+                Site Guide
               </button>
               <div className="border-t border-border-default my-1" />
               <button
