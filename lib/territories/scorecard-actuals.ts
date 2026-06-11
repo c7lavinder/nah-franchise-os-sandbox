@@ -84,6 +84,23 @@ function periodWindow(months: number, now = new Date()) {
   return { start, endExclusive };
 }
 
+function averageDailyInventory(inventory: InvRow[], start: Date, endExclusive: Date) {
+  let total = 0;
+  let days = 0;
+  for (let day = new Date(start); day < endExclusive; day.setDate(day.getDate() + 1)) {
+    const dayStart = new Date(day);
+    const dayEnd = new Date(day);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    total += inventory.filter((row) => {
+      const purchaseDate = new Date(row.Inv_PurchaseDate);
+      const sellDate = row.Inv_SellDate ? new Date(row.Inv_SellDate) : null;
+      return purchaseDate < dayEnd && (!sellDate || sellDate >= dayStart);
+    }).length;
+    days += 1;
+  }
+  return days > 0 ? Math.round(total / days) : 0;
+}
+
 export async function computeTerritoryScorecardActuals(
   supabase: SupabaseClient,
   TerritorySlug: string
@@ -147,8 +164,7 @@ export async function computeTerritoryScorecardActuals(
   });
   actuals.t3_purchased = String(purchasedT3.length);
 
-  const activeInventory = inventory.filter((row) => !row.Inv_SellDate);
-  actuals.t3_avg_inventory = String(activeInventory.length);
+  actuals.t3_avg_inventory = String(averageDailyInventory(inventory, t3.start, t3.endExclusive));
 
   const soldT3 = inventory.filter((row) => {
     if (!row.Inv_SellDate) return false;
@@ -194,7 +210,12 @@ export async function computeTerritoryScorecardActuals(
     .select("ComplianceScore")
     .eq("TerritorySlug", TerritorySlug)
     .maybeSingle();
-  if (territory?.ComplianceScore != null) actuals.t3_compliance_score = String(territory.ComplianceScore);
+  if (territory?.ComplianceScore != null) {
+    const complianceScore = Number(territory.ComplianceScore);
+    if (Number.isFinite(complianceScore)) {
+      actuals.t3_compliance_score = `${Math.round(complianceScore <= 1 ? complianceScore * 100 : complianceScore)}%`;
+    }
+  }
 
   return actuals;
 }

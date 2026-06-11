@@ -100,16 +100,16 @@ export default function TerritoryEosLeadChannels({ channels }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <h3 className="mb-8 text-[36px] font-semibold leading-none text-[#303238]">Lead Generation Channels</h3>
+    <div>
+      <h3 className="mb-8 text-[32px] font-semibold leading-none text-[#303238]">Lead Generation Channels</h3>
       <div
-        className="inline-grid min-w-max grid-rows-[32px_30px_245px] gap-x-2"
-        style={{ gridTemplateColumns: `repeat(${CHANNEL_COLUMN_COUNT}, 40px)` }}
+        className="grid w-full grid-rows-[28px_28px_215px] gap-x-1"
+        style={{ gridTemplateColumns: `repeat(${CHANNEL_COLUMN_COUNT}, minmax(0, 1fr))` }}
       >
         {CHANNEL_GROUPS.map((group) => (
           <div
             key={`header-${group.label}`}
-            className="flex items-end justify-center border-b-2 border-[#303238] px-1 pb-1 text-[15px] font-semibold leading-none text-[#303238]"
+            className="flex items-end justify-center border-b-2 border-[#303238] px-0.5 pb-1 text-center text-[12px] font-semibold leading-none text-[#303238]"
             style={{ gridColumn: `span ${group.columns.length}` }}
           >
             {group.label}
@@ -140,10 +140,10 @@ export default function TerritoryEosLeadChannels({ channels }: Props) {
             return (
               <div
                 key={`label-${group.label}-${column.label}`}
-                className={`flex h-[245px] w-10 items-center justify-center ${tone.bar}`}
+                className={`flex h-[215px] min-w-0 items-center justify-center ${tone.bar}`}
               >
                 <span
-                  className={`whitespace-nowrap text-[15px] font-semibold leading-none ${tone.text}`}
+                  className={`whitespace-nowrap text-[12px] font-semibold leading-none ${tone.text}`}
                   style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
                 >
                   {column.label}

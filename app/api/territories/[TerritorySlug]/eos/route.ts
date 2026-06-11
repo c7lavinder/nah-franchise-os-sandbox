@@ -6,6 +6,30 @@ import { createServerClient } from "@/lib/supabase/server";
 import { computeTerritoryScorecardActuals } from "@/lib/territories/scorecard-actuals";
 
 const GOAL_TYPES = ["houses_purchased", "gross_profit", "quality_of_life"] as const;
+const VISIBLE_SCORECARD_KEYS = [
+  "t3_leads_entered",
+  "t3_s1_to_s4_pct",
+  "t3_purchased",
+  "t3_avg_inventory",
+  "t12_median_cycle_days",
+  "t3_gross_profit",
+  "t3_compliance_score",
+] as const;
+
+function formatScorecardValue(metricKey: string, value: string | null) {
+  if (!value) return value;
+  if (metricKey === "t3_gross_profit") {
+    const numeric = Number(String(value).replace(/[$,]/g, ""));
+    return Number.isFinite(numeric) ? `$${Math.round(numeric).toLocaleString("en-US")}` : value;
+  }
+  if (metricKey === "t3_s1_to_s4_pct" || metricKey === "t3_compliance_score") {
+    const numeric = Number(String(value).replace("%", ""));
+    if (!Number.isFinite(numeric)) return value;
+    const percent = numeric <= 1 ? numeric * 100 : numeric;
+    return `${Math.round(percent)}%`;
+  }
+  return value;
+}
 
 /** GET — returns all territory EOS sections */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ TerritorySlug: string }> }) {
@@ -31,7 +55,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // Compute scorecard actuals from ms_properties
   const scorecardActuals = await computeTerritoryScorecardActuals(supabase, TerritorySlug);
-  const scorecardGoalByKey = new Map((scorecard.data ?? []).map((metric) => [metric.metric_key, metric.goal_value]));
+  const visibleScorecard = (scorecard.data ?? [])
+    .filter((metric) => VISIBLE_SCORECARD_KEYS.includes(metric.metric_key as (typeof VISIBLE_SCORECARD_KEYS)[number]))
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((metric) => ({
+      ...metric,
+      goal_value: formatScorecardValue(metric.metric_key, metric.goal_value),
+    }));
+  const formattedScorecardActuals = Object.fromEntries(
+    Object.entries(scorecardActuals).map(([metricKey, value]) => [metricKey, formatScorecardValue(metricKey, value)])
+  );
+  const scorecardGoalByKey = new Map(visibleScorecard.map((metric) => [metric.metric_key, metric.goal_value]));
   const goalsByType = new Map((goals.data ?? []).map((goal) => [goal.goal_type, goal]));
   const goalsWithDerivedValues = GOAL_TYPES.map((goalType) => {
     const existing = goalsByType.get(goalType);
@@ -73,8 +107,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   return NextResponse.json({
     goals: goalsWithDerivedValues,
-    scorecard: scorecard.data ?? [],
-    scorecardActuals,
+    scorecard: visibleScorecard,
+    scorecardActuals: formattedScorecardActuals,
     budgets: budgets.data ?? [],
     leadChannels: leadChannels.data ?? [],
     habits: habits.data ?? [],
