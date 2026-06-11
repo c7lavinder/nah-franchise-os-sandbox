@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Loader2, X, Hammer } from "lucide-react";
 import TerritoryEosGoals from "@/components/territories/eos/TerritoryEosGoals";
 import TerritoryEosScorecard from "@/components/territories/eos/TerritoryEosScorecard";
+import TerritoryEosMonthlySpend from "@/components/territories/eos/TerritoryEosMonthlySpend";
 import TerritoryEosLeadChannels from "@/components/territories/eos/TerritoryEosLeadChannels";
 import TerritoryEosHabits from "@/components/territories/eos/TerritoryEosHabits";
 import TerritoryEosRocks from "@/components/territories/eos/TerritoryEosRocks";
@@ -155,6 +156,12 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
         <TerritoryEosScorecard scorecard={data.scorecard} actuals={data.scorecardActuals} />
       </div>
+
+      {data.budgets.length > 0 && (
+        <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
+          <TerritoryEosMonthlySpend budgets={data.budgets} />
+        </div>
+      )}
 
       <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
         <TerritoryEosLeadChannels channels={data.leadChannels} />

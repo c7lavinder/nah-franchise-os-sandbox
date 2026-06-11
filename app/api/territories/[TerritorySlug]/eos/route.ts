@@ -49,6 +49,14 @@ const VISIBLE_LEAD_CHANNELS: { name: string; aliases?: string[] }[] = [
   { name: "Google Business Profile" },
   { name: "Other Social Media" },
 ] as const;
+const MONTHLY_SPEND_ORDER = [
+  "Digital Storefront",
+  "Lead Manager",
+  "Direct Mail",
+  "Acquisitions Manager",
+  "Launch Control",
+  "Deal Machine",
+];
 
 function formatScorecardValue(metricKey: string, value: string | null) {
   if (!value) return value;
@@ -63,6 +71,15 @@ function formatScorecardValue(metricKey: string, value: string | null) {
     return `${Math.round(percent)}%`;
   }
   return value;
+}
+
+function isMonthlySpendRow(description: string) {
+  return !/\b(budget|target)\b/i.test(description);
+}
+
+function monthlySpendSortIndex(description: string) {
+  const index = MONTHLY_SPEND_ORDER.findIndex((item) => item.toLowerCase() === description.toLowerCase());
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
 }
 
 /** GET — returns all territory EOS sections */
@@ -116,6 +133,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       sort_order: index + 1,
     };
   });
+  const visibleBudgets = (budgets.data ?? [])
+    .filter((budget) => isMonthlySpendRow(budget.description))
+    .sort((a, b) => {
+      const orderDiff = monthlySpendSortIndex(a.description) - monthlySpendSortIndex(b.description);
+      if (orderDiff !== 0) return orderDiff;
+      return (a.ms_id ?? 0) - (b.ms_id ?? 0);
+    });
   const scorecardGoalByKey = new Map(visibleScorecard.map((metric) => [metric.metric_key, metric.goal_value]));
   const goalsByType = new Map((goals.data ?? []).map((goal) => [goal.goal_type, goal]));
   const goalsWithDerivedValues = GOAL_TYPES.map((goalType) => {
@@ -160,7 +184,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     goals: goalsWithDerivedValues,
     scorecard: visibleScorecard,
     scorecardActuals: formattedScorecardActuals,
-    budgets: budgets.data ?? [],
+    budgets: visibleBudgets,
     leadChannels: visibleLeadChannels,
     habits: habits.data ?? [],
     rocks: rocks.data ?? [],
