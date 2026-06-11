@@ -157,12 +157,12 @@ export async function GET(request: NextRequest) {
 
   // Build email→name map from contacts table for external participant name resolution
   // Paginate to get all contacts (2000+)
-  let allContacts: { email: string; first_name: string | null; last_name: string | null }[] = [];
+  let allContacts: { id: string; email: string | null; first_name: string | null; last_name: string | null }[] = [];
   let cOffset = 0;
   while (true) {
     const { data: page } = await supabase
       .from("contacts")
-      .select("email, first_name, last_name")
+      .select("id, email, first_name, last_name")
       .not("email", "is", null)
       .range(cOffset, cOffset + 999);
     if (!page || page.length === 0) break;
@@ -171,11 +171,28 @@ export async function GET(request: NextRequest) {
     cOffset += 1000;
   }
   const contactEmailToName = new Map<string, string>();
+  const contactIdToName = new Map<string, string>();
   for (const c of allContacts ?? []) {
+    const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
+    if (name) contactIdToName.set(c.id, name);
     if (c.email) {
-      const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
       if (name) contactEmailToName.set(c.email.toLowerCase(), name);
     }
+  }
+  let emailOffset = 0;
+  while (true) {
+    const { data: page } = await supabase
+      .from("contact_emails")
+      .select("contact_id, email")
+      .not("email", "is", null)
+      .range(emailOffset, emailOffset + 999);
+    if (!page || page.length === 0) break;
+    for (const row of page) {
+      const name = contactIdToName.get(row.contact_id);
+      if (name && row.email) contactEmailToName.set(row.email.toLowerCase(), name);
+    }
+    if (page.length < 1000) break;
+    emailOffset += 1000;
   }
 
   // Build per-call participant lists from call_participants (primary source of truth)
@@ -224,8 +241,10 @@ export async function GET(request: NextRequest) {
             color: user?.color ?? null,
           });
         } else {
+          const mappedContactName = p.contact_id ? (contactMap.get(p.contact_id) ?? null) : null;
           const name =
-            p.display_name && !p.display_name.includes("@")
+            mappedContactName ??
+            (p.display_name && !p.display_name.includes("@")
               ? p.display_name
               : ((lc ? (contactEmailToName.get(lc) ?? null) : null) ??
                 (lc
@@ -233,7 +252,7 @@ export async function GET(request: NextRequest) {
                       .split("@")[0]
                       .replace(/[._-]/g, " ")
                       .replace(/\b\w/g, (ch: string) => ch.toUpperCase())
-                  : "Unknown"));
+                  : "Unknown")));
           if (p.contact_id) {
             if (seenContactIds.has(p.contact_id)) continue;
             seenContactIds.add(p.contact_id);
