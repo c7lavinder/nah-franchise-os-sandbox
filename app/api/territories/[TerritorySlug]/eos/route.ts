@@ -68,6 +68,37 @@ function formatPercent(value: number): string {
   return `${value.toFixed(1).replace(/\.0$/, "")}%`;
 }
 
+async function fetchPaged<T>(queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null }>) {
+  const rows: T[] = [];
+  let offset = 0;
+  while (true) {
+    const { data } = await queryFactory(offset, offset + 999);
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < 1000) break;
+    offset += 1000;
+  }
+  return rows;
+}
+
+function averageDailyInventory(rows: InventoryRow[], start: Date, endExclusive: Date): number | null {
+  let total = 0;
+  let days = 0;
+
+  for (const day = new Date(start); day < endExclusive; day.setDate(day.getDate() + 1)) {
+    const count = rows.filter((row) => {
+      const purchaseDate = new Date(row.Inv_PurchaseDate);
+      const sellDate = row.Inv_SellDate ? new Date(row.Inv_SellDate) : null;
+      return purchaseDate <= day && (!sellDate || sellDate > day);
+    }).length;
+
+    total += count;
+    days += 1;
+  }
+
+  return days > 0 ? total / days : null;
+}
+
 async function computeScorecardActuals(
   supabase: SupabaseClient,
   TerritorySlug: string
@@ -81,15 +112,17 @@ async function computeScorecardActuals(
   const t12StartISO = t12Start.toISOString();
   const endISO = todayEndExclusive.toISOString();
 
-  const { data: props } = await supabase
-    .from("ms_properties")
-    .select("PropertyId, Inserted")
-    .eq("TerritorySlug", TerritorySlug)
-    .eq("Archived", false);
+  const propertyRows = await fetchPaged<PropertyRow>((from, to) =>
+    supabase
+      .from("ms_properties")
+      .select("PropertyId, Inserted")
+      .eq("TerritorySlug", TerritorySlug)
+      .eq("Archived", false)
+      .order("PropertyId")
+      .range(from, to)
+  );
 
-  if (!props || props.length === 0) return actuals;
-
-  const propertyRows = props as PropertyRow[];
+  if (propertyRows.length === 0) return actuals;
   const propertyIds = propertyRows.map((p) => p.PropertyId);
 
   let t3History: StatusHistoryRow[] = [];
@@ -137,7 +170,8 @@ async function computeScorecardActuals(
   });
   const t3SoldIds = t3SoldRows.map((row) => row.PropertyId);
   actuals["t3_purchased"] = String(t3PurchasedRows.length);
-  actuals["t3_avg_inventory"] = String(inventoryRows.filter((row) => !row.Inv_SellDate).length);
+  const t3AverageInventory = averageDailyInventory(inventoryRows, t3Start, todayEndExclusive);
+  actuals["t3_avg_inventory"] = t3AverageInventory == null ? "—" : String(Math.round(t3AverageInventory));
 
   const t12CycleDays = inventoryRows
     .filter(
