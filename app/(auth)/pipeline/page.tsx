@@ -146,6 +146,23 @@ function compareNewestFirst(a: PipelineContact, b: PipelineContact): number {
   return a.daysSinceSubTask - b.daysSinceSubTask;
 }
 
+function isOutreachTask(subTask: SubTaskAPI): boolean {
+  const slug = subTask.slug.toLowerCase();
+  const name = subTask.name.toLowerCase();
+  return slug.includes("outreach") || name.includes("outreach");
+}
+
+function getPipelineGridTemplate(pipeline: PipelineAPI): string {
+  return pipeline.stages
+    .map((stage) => {
+      if (pipeline.slug === "sales" && stage.slug === "engagement") {
+        return "minmax(0, 1.35fr)";
+      }
+      return "minmax(0, 1fr)";
+    })
+    .join(" ");
+}
+
 // ---------------------------------------------------------------------------
 // Prospect Card (draggable)
 // ---------------------------------------------------------------------------
@@ -239,7 +256,8 @@ function DragOverlayProspect({ contact }: { contact: PipelineContact }) {
 function SubTaskPanel({ subTask, contacts }: { subTask: SubTaskAPI; contacts: PipelineContact[] }) {
   const { setNodeRef, isOver } = useDroppable({ id: `subtask:${subTask.id}` });
   const [showAll, setShowAll] = useState(false);
-  const MAX_INITIAL = 8;
+  const isFeatured = isOutreachTask(subTask) && contacts.length >= 12;
+  const MAX_INITIAL = isFeatured ? 14 : 8;
   const visible = showAll ? contacts : contacts.slice(0, MAX_INITIAL);
   const hasMore = contacts.length > MAX_INITIAL;
 
@@ -248,14 +266,37 @@ function SubTaskPanel({ subTask, contacts }: { subTask: SubTaskAPI; contacts: Pi
       ref={setNodeRef}
       className={`
         rounded-lg border overflow-hidden transition-all duration-200
-        ${isOver ? "border-nah-orange bg-nah-orange/5" : "border-border-default bg-bg-secondary/50"}
+        ${
+          isOver
+            ? "border-nah-orange bg-nah-orange/5"
+            : isFeatured
+              ? "border-nah-orange/40 bg-bg-secondary shadow-sm ring-1 ring-nah-orange/10"
+              : "border-border-default bg-bg-secondary/50"
+        }
       `}
     >
-      <div className="px-2.5 py-1.5 bg-bg-secondary/80 border-b border-border-default flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-text-secondary truncate">{subTask.name}</span>
-        <span className="text-[10px] text-text-tertiary font-medium ml-1">{contacts.length}</span>
+      <div
+        className={`px-2.5 py-1.5 border-b border-border-default flex items-center justify-between ${
+          isFeatured ? "bg-nah-orange/10" : "bg-bg-secondary/80"
+        }`}
+      >
+        <div className="min-w-0">
+          <span className="text-[11px] font-semibold text-text-secondary truncate">{subTask.name}</span>
+          {isFeatured && (
+            <p className="text-[9px] font-semibold uppercase tracking-wide text-nah-orange">Focus queue</p>
+          )}
+        </div>
+        <span
+          className={`text-[10px] font-medium ml-1 ${
+            isFeatured
+              ? "h-5 min-w-[24px] px-1.5 rounded-full bg-nah-orange text-white flex items-center justify-center"
+              : "text-text-tertiary"
+          }`}
+        >
+          {contacts.length}
+        </span>
       </div>
-      <div className="p-1.5 space-y-1 min-h-[32px]">
+      <div className={`p-1.5 space-y-1 min-h-[32px] ${isFeatured ? "max-h-[58vh] overflow-y-auto" : ""}`}>
         {visible.length === 0 && <p className="text-[10px] text-text-tertiary text-center py-2 italic">—</p>}
         {visible.map((c) => (
           <ProspectCard key={c.stateId} contact={c} />
@@ -760,7 +801,7 @@ export default function PipelinePage() {
                   <div
                     className="grid gap-2"
                     style={{
-                      gridTemplateColumns: `repeat(${pipeline.stages.length}, minmax(0, 1fr))`,
+                      gridTemplateColumns: getPipelineGridTemplate(pipeline),
                     }}
                   >
                     {pipeline.stages.map((stage) => (
