@@ -78,6 +78,7 @@ interface PipelineContact {
   urgency: "fresh" | "at_risk" | "losing" | "won";
   urgencyScore: number;
   enteredStageAt: string | null;
+  sortActivityAt?: string | null;
   currentSubTaskId: string | null;
   nextAppointment?: { title: string; startTime: string } | null;
 }
@@ -131,6 +132,19 @@ const STAGE_HEADER_COLORS: Record<string, string> = {
   followup: "from-[#d4b855] to-[#b8c84e]",
   reengaged: "from-[#6dba5e] to-[#4aad6b]",
 };
+
+function getSortTime(value: string | null | undefined): number {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function compareNewestFirst(a: PipelineContact, b: PipelineContact): number {
+  const bTime = getSortTime(b.sortActivityAt ?? b.enteredStageAt);
+  const aTime = getSortTime(a.sortActivityAt ?? a.enteredStageAt);
+  if (bTime !== aTime) return bTime - aTime;
+  return a.daysSinceSubTask - b.daysSinceSubTask;
+}
 
 // ---------------------------------------------------------------------------
 // Prospect Card (draggable)
@@ -562,10 +576,7 @@ export default function PipelinePage() {
 
   // Sort within each stage
   for (const [key, arr] of contactsByStage) {
-    contactsByStage.set(
-      key,
-      arr.sort((a, b) => b.urgencyScore - a.urgencyScore || b.daysSinceSubTask - a.daysSinceSubTask)
-    );
+    contactsByStage.set(key, arr.sort(compareNewestFirst));
   }
 
   const ordered = PIPELINE_ORDER.map((slug) => pipelines.find((p) => p.slug === slug)).filter(
