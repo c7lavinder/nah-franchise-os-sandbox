@@ -12,8 +12,25 @@ const GOAL_LABELS: Record<string, string> = {
 
 const COL_HEADERS = ["Actual", "Current Year", "Year 5", "Year 25"];
 const COL_KEYS: (keyof EosTerritoryGoal)[] = ["actual", "current_year_goal", "year_5_goal", "year_25_goal"];
+const GOAL_TYPES = ["houses_purchased", "gross_profit", "quality_of_life"] as const;
 
 export default function TerritoryEosGoals({ goals }: Props) {
+  const goalsByType = new Map(goals.map((goal) => [goal.goal_type, goal]));
+  const visibleGoals = GOAL_TYPES.map(
+    (goalType) =>
+      goalsByType.get(goalType) ??
+      ({
+        id: goalType,
+        TerritorySlug: "",
+        goal_type: goalType,
+        actual: null,
+        current_year_goal: null,
+        year_5_goal: null,
+        year_25_goal: null,
+        updated_at: "",
+      } satisfies EosTerritoryGoal)
+  );
+
   return (
     <div>
       <h3 className="text-body-sm font-semibold text-text-primary mb-3">Goals</h3>
@@ -30,7 +47,7 @@ export default function TerritoryEosGoals({ goals }: Props) {
             </tr>
           </thead>
           <tbody>
-            {goals.map((g) => (
+            {visibleGoals.map((g) => (
               <tr key={g.goal_type} className="border-b border-border-primary/50">
                 <td className="py-2 pr-3 font-medium text-text-primary">{GOAL_LABELS[g.goal_type] ?? g.goal_type}</td>
                 {COL_KEYS.map((col) => (

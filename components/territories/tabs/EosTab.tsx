@@ -57,14 +57,14 @@ const HABIT_LABELS: Record<string, string> = {
   QuarterlyIndexUpdate: "Quarterly Index Update",
 };
 
-function gradeColor(g: string | null): string {
-  if (!g) return "text-text-tertiary";
-  if (g === "A") return "text-green-600";
-  if (g === "B") return "text-blue-600";
-  if (g === "C") return "text-yellow-600";
-  if (g === "D") return "text-orange-600";
-  return "text-red-600";
-}
+const GRADES = ["A", "B", "C", "D", "F"] as const;
+const GRADE_COLORS: Record<(typeof GRADES)[number], string> = {
+  A: "bg-green-500 text-white",
+  B: "bg-green-300 text-green-900",
+  C: "bg-yellow-400 text-yellow-900",
+  D: "bg-orange-400 text-white",
+  F: "bg-red-500 text-white",
+};
 
 export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName }: Props) {
   const [data, setData] = useState<EosData | null>(null);
@@ -153,24 +153,6 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
         <TerritoryEosLeadChannels channels={data.leadChannels} />
       </div>
 
-      <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosHabits habits={data.habits} />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-        <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-          <TerritoryEosRocks rocks={data.rocks} />
-        </div>
-
-        <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-          <TerritoryEosIssues issues={data.issues} />
-        </div>
-
-        <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-          <TerritoryEosTodos todos={data.todos} />
-        </div>
-      </div>
-
       {/* Construction EOS */}
       {constructionEos &&
         (constructionEos.rocks.length > 0 ||
@@ -182,17 +164,28 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
               <Hammer size={16} className="text-text-tertiary" />
               <h3 className="text-body-sm font-semibold text-text-primary">Construction EOS</h3>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {constructionEos.habits && (
-                <div>
+                <div className="lg:col-span-2">
                   <h4 className="text-caption font-medium text-text-tertiary mb-2">Habits</h4>
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     {Object.entries(HABIT_LABELS).map(([key, label]) => {
                       const grade = constructionEos.habits?.[key] ?? null;
                       return (
-                        <div key={key} className="flex items-center justify-between text-body-sm">
-                          <span className="text-text-secondary">{label}</span>
-                          <span className={`font-bold ${gradeColor(grade)}`}>{grade || "—"}</span>
+                        <div key={key} className="flex items-center justify-between gap-4">
+                          <span className="text-body-sm text-text-primary flex-1">{label}</span>
+                          <div className="flex gap-1">
+                            {GRADES.map((g) => (
+                              <span
+                                key={g}
+                                className={`w-8 h-8 rounded-md text-xs font-bold flex items-center justify-center ${
+                                  grade === g ? GRADE_COLORS[g] : "bg-bg-secondary text-text-tertiary"
+                                }`}
+                              >
+                                {g}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       );
                     })}
@@ -271,6 +264,24 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
             </div>
           </div>
         )}
+
+      <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
+        <TerritoryEosHabits habits={data.habits} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+        <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
+          <TerritoryEosRocks rocks={data.rocks} />
+        </div>
+
+        <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
+          <TerritoryEosIssues issues={data.issues} />
+        </div>
+
+        <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
+          <TerritoryEosTodos todos={data.todos} />
+        </div>
+      </div>
 
       {msSyncedAt && (
         <p className="text-caption text-text-tertiary text-right">

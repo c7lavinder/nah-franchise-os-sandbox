@@ -9,7 +9,7 @@ export default function TerritoryEosMonthlySpend({ budgets }: Props) {
 
   return (
     <div>
-      <h3 className="text-body-sm font-semibold text-text-primary mb-3">Monthly Spend</h3>
+      <h3 className="text-body-sm font-semibold text-text-primary mb-3">Marketing Budget</h3>
       <div className="space-y-1">
         {budgets.map((b) => (
           <div key={b.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5">
@@ -21,11 +21,14 @@ export default function TerritoryEosMonthlySpend({ budgets }: Props) {
         ))}
       </div>
       <div className="mt-3 pt-2 border-t border-border-primary flex items-center justify-between">
-        <span className="text-body-sm font-medium text-text-secondary">Total</span>
+        <span className="text-body-sm font-medium text-text-secondary">Budget Total</span>
         <span className="text-body-sm font-semibold text-text-primary">
           ${total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       </div>
+      <p className="mt-2 text-caption text-text-tertiary">
+        Actual monthly spend is not shown until spend data is connected.
+      </p>
     </div>
   );
 }
