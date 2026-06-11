@@ -165,9 +165,6 @@ export async function syncBudgets(): Promise<{ synced: number; errors: string[] 
 
 const GOAL_TO_SCORECARD: Record<string, { key: string; label: string; sort: number }> = {
   EosGoals_T3LeadsEntered: { key: "t3_leads_entered", label: "T3 Leads Entered", sort: 1 },
-  EosGoals_T3IncomingLeadForms: { key: "t3_incoming_lead_forms", label: "T3 Incoming Lead Forms", sort: 8 },
-  EosGoals_T3OutboundQty: { key: "t3_outbound_qty", label: "T3 Outbound Qty", sort: 9 },
-  EosGoals_PercentUniqueContent: { key: "percent_unique_content", label: "% Unique Content", sort: 10 },
   EosGoals_T3S1toS4Percent: { key: "t3_s1_to_s4_pct", label: "T3 S1 to S4 %", sort: 2 },
   EosGoals_T3Purchased: { key: "t3_purchased", label: "T3 Purchased", sort: 3 },
   EosGoals_T12AvgCycleDays: { key: "t12_median_cycle_days", label: "T12 Median Cycle Days", sort: 5 },
