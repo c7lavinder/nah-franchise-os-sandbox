@@ -11,7 +11,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Workflow as WorkflowIcon, RefreshCw, Plus, AlertTriangle, Users, Zap } from "lucide-react";
+import { Workflow as WorkflowIcon, RefreshCw, Plus, AlertTriangle, Users, Zap, Folder, FolderOpen } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import type { Workflow } from "@/lib/workflows/types";
 import WorkflowCard from "@/components/workflows/WorkflowCard";
@@ -21,6 +21,31 @@ import ApprovalQueue from "@/components/workflows/ApprovalQueue";
 import PendingConfirmations from "@/components/workflows/PendingConfirmations";
 
 type StatusFilter = "all" | "live" | "draft" | "paused" | "archived";
+type WorkflowFolderId =
+  | "all-sales"
+  | "lead-capture"
+  | "qualification"
+  | "appointments"
+  | "nurture"
+  | "docs-compliance"
+  | "ops-cleanup"
+  | "proof-tests";
+
+type WorkflowFolder = {
+  id: WorkflowFolderId;
+  label: string;
+  description: string;
+};
+
+const WORKFLOW_FOLDERS: WorkflowFolder[] = [
+  { id: "lead-capture", label: "Lead Capture", description: "Website forms, new leads, inbound requests" },
+  { id: "qualification", label: "Qualification", description: "Hot/warm lead qualification and sales readiness" },
+  { id: "appointments", label: "Appointments", description: "Booked calls, reminders, no-show recovery" },
+  { id: "nurture", label: "Follow-up / Nurture", description: "Sales follow-up, reactivation, drip sequences" },
+  { id: "docs-compliance", label: "Docs / Compliance", description: "NDA, FDD, funds, agreement steps" },
+  { id: "ops-cleanup", label: "Sales Ops Cleanup", description: "Tasks, data cleanup, internal handoffs" },
+  { id: "proof-tests", label: "Proof / Tests", description: "Archived proofs, safe tests, QA workflows" },
+];
 
 interface PendingApproval {
   id: string;
@@ -42,6 +67,7 @@ export default function WorkflowsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [folderFilter, setFolderFilter] = useState<WorkflowFolderId>("all-sales");
   const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
 
   const fetchWorkflows = useCallback(async () => {
@@ -79,7 +105,33 @@ export default function WorkflowsPage() {
     (w) => (w.health_score === "D" || w.health_score === "F") && w.status === "live"
   );
 
-  const filteredWorkflows = statusFilter === "all" ? workflows : workflows.filter((w) => w.status === statusFilter);
+  const folderCounts = WORKFLOW_FOLDERS.reduce<Record<WorkflowFolderId, number>>(
+    (counts, folder) => {
+      counts[folder.id] = workflows.filter((workflow) => categorizeWorkflow(workflow) === folder.id).length;
+      return counts;
+    },
+    {
+      "all-sales": workflows.length,
+      "lead-capture": 0,
+      qualification: 0,
+      appointments: 0,
+      nurture: 0,
+      "docs-compliance": 0,
+      "ops-cleanup": 0,
+      "proof-tests": 0,
+    }
+  );
+
+  const statusFilteredWorkflows =
+    statusFilter === "all" ? workflows : workflows.filter((w) => w.status === statusFilter);
+  const filteredWorkflows =
+    folderFilter === "all-sales"
+      ? statusFilteredWorkflows
+      : statusFilteredWorkflows.filter((workflow) => categorizeWorkflow(workflow) === folderFilter);
+  const groupedWorkflows = WORKFLOW_FOLDERS.map((folder) => ({
+    ...folder,
+    workflows: filteredWorkflows.filter((workflow) => categorizeWorkflow(workflow) === folder.id),
+  })).filter((group) => group.workflows.length > 0);
 
   async function handleAction(workflowId: string, action: "pause" | "resume" | "clone" | "archive") {
     if (!user) return;
@@ -243,7 +295,47 @@ export default function WorkflowsPage() {
       {/* Content: list + detail split */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-5 gap-0 border border-border-default rounded-lg overflow-hidden min-h-0">
         {/* Workflow list — 2/5 */}
-        <div className="lg:col-span-2 overflow-y-auto p-3 border-r border-border-default bg-bg-secondary/50 space-y-2">
+        <div className="lg:col-span-2 overflow-y-auto p-3 border-r border-border-default bg-bg-secondary/50">
+          <div className="mb-3 rounded-lg border border-border-default bg-bg-primary p-2">
+            <button
+              onClick={() => setFolderFilter("all-sales")}
+              className={`mb-1 flex w-full items-center justify-between rounded-md px-2 py-2 text-left transition-colors ${
+                folderFilter === "all-sales"
+                  ? "bg-[rgba(0,161,225,0.08)] text-text-primary"
+                  : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+              }`}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                {folderFilter === "all-sales" ? (
+                  <FolderOpen size={16} className="flex-shrink-0 text-nah-blue" />
+                ) : (
+                  <Folder size={16} className="flex-shrink-0 text-text-tertiary" />
+                )}
+                <span className="truncate text-body-sm font-semibold">Sales</span>
+              </span>
+              <span className="ml-2 rounded-sm bg-bg-tertiary px-1.5 py-0.5 text-caption text-text-tertiary">
+                {folderCounts["all-sales"]}
+              </span>
+            </button>
+            <div className="space-y-1 border-l border-border-default pl-3">
+              {WORKFLOW_FOLDERS.map((folder) => (
+                <button
+                  key={folder.id}
+                  onClick={() => setFolderFilter(folder.id)}
+                  title={folder.description}
+                  className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left transition-colors ${
+                    folderFilter === folder.id
+                      ? "bg-[rgba(0,161,225,0.08)] text-text-primary"
+                      : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                  }`}
+                >
+                  <span className="min-w-0 truncate text-caption font-medium">{folder.label}</span>
+                  <span className="ml-2 text-caption text-text-tertiary">{folderCounts[folder.id]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {loading ? (
             <div className="space-y-2">
               {[1, 2, 3, 4].map((i) => (
@@ -260,16 +352,43 @@ export default function WorkflowsPage() {
                   : "Create your first workflow to get started."}
               </p>
             </div>
+          ) : folderFilter === "all-sales" ? (
+            <div className="space-y-4">
+              {groupedWorkflows.map((group) => (
+                <section key={group.id} className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="min-w-0">
+                      <p className="truncate text-label-caps text-text-tertiary">{group.label}</p>
+                      <p className="truncate text-caption text-text-tertiary">{group.description}</p>
+                    </div>
+                    <span className="ml-2 rounded-sm bg-bg-tertiary px-1.5 py-0.5 text-caption text-text-tertiary">
+                      {group.workflows.length}
+                    </span>
+                  </div>
+                  {group.workflows.map((workflow) => (
+                    <WorkflowCard
+                      key={workflow.id}
+                      workflow={workflow}
+                      isSelected={selectedWorkflow?.id === workflow.id}
+                      onSelect={setSelectedWorkflow}
+                      onAction={handleAction}
+                    />
+                  ))}
+                </section>
+              ))}
+            </div>
           ) : (
-            filteredWorkflows.map((workflow) => (
-              <WorkflowCard
-                key={workflow.id}
-                workflow={workflow}
-                isSelected={selectedWorkflow?.id === workflow.id}
-                onSelect={setSelectedWorkflow}
-                onAction={handleAction}
-              />
-            ))
+            <div className="space-y-2">
+              {filteredWorkflows.map((workflow) => (
+                <WorkflowCard
+                  key={workflow.id}
+                  workflow={workflow}
+                  isSelected={selectedWorkflow?.id === workflow.id}
+                  onSelect={setSelectedWorkflow}
+                  onAction={handleAction}
+                />
+              ))}
+            </div>
           )}
         </div>
 
@@ -312,6 +431,28 @@ export default function WorkflowsPage() {
       </div>
     </div>
   );
+}
+
+function categorizeWorkflow(workflow: Workflow): Exclude<WorkflowFolderId, "all-sales"> {
+  const haystack = [
+    workflow.name,
+    workflow.description ?? "",
+    workflow.workflow_type,
+    workflow.trigger_type,
+    String((workflow.trigger_config as { description?: unknown })?.description ?? ""),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  if (/\b(proof|test|qa|x[h]?aka|sandbox)\b/.test(haystack)) return "proof-tests";
+  if (/\b(appointment|calendar|booked|booking|call|no[-\s]?show|reminder)\b/.test(haystack)) return "appointments";
+  if (/\b(nda|fdd|funds|agreement|contract|compliance|disclosure|docs?|document)\b/.test(haystack)) {
+    return "docs-compliance";
+  }
+  if (/\b(clean|cleanup|task|owner|handoff|data|internal|notify|admin|ops)\b/.test(haystack)) return "ops-cleanup";
+  if (/\b(qualif|hot|warm|score|ready|discovery|vet|candidate)\b/.test(haystack)) return "qualification";
+  if (/\b(nurture|follow[-\s]?up|reactivat|drip|long[-\s]?term|cold|stale)\b/.test(haystack)) return "nurture";
+  return "lead-capture";
 }
 
 /** Small stat pill for the header stats bar */
