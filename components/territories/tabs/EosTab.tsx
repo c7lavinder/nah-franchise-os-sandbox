@@ -13,6 +13,7 @@ import TerritoryEosIssues from "@/components/territories/eos/TerritoryEosIssues"
 import TerritoryEosTodos from "@/components/territories/eos/TerritoryEosTodos";
 
 import type {
+  EosHabitGrade,
   EosTerritoryGoal,
   EosTerritoryScorecard,
   EosTerritoryBudget,
@@ -57,13 +58,29 @@ const HABIT_LABELS: Record<string, string> = {
   QuarterlyIndexUpdate: "Quarterly Index Update",
 };
 
-function gradeColor(g: string | null): string {
-  if (!g) return "text-text-tertiary";
-  if (g === "A") return "text-green-600";
-  if (g === "B") return "text-blue-600";
-  if (g === "C") return "text-yellow-600";
-  if (g === "D") return "text-orange-600";
-  return "text-red-600";
+const CONSTRUCTION_HABITS = Object.entries(HABIT_LABELS).map(([key, label], index) => ({
+  key,
+  label,
+  sortOrder: index + 1,
+}));
+
+function asHabitGrade(value: string | null | undefined): EosHabitGrade | null {
+  return value === "A" || value === "B" || value === "C" || value === "D" || value === "F" ? value : null;
+}
+
+function constructionHabitsToRows(
+  TerritorySlug: string,
+  habits: ConstructionEos["habits"] | null | undefined
+): EosTerritoryHabit[] {
+  return CONSTRUCTION_HABITS.map((habit) => ({
+    id: `construction-${TerritorySlug}-${habit.key}`,
+    TerritorySlug,
+    habit_key: habit.key,
+    habit_label: habit.label,
+    grade: asHabitGrade(habits?.[habit.key]),
+    sort_order: habit.sortOrder,
+    updated_at: "",
+  }));
 }
 
 export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName }: Props) {
@@ -122,6 +139,8 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
   if (!data) {
     return <div className="text-center py-12 text-text-tertiary text-body-sm">Failed to load EOS data.</div>;
   }
+
+  const constructionHabits = constructionHabitsToRows(TerritorySlug, constructionEos?.habits);
 
   return (
     <div className="space-y-4">
@@ -185,18 +204,7 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {constructionEos.habits && (
                 <div>
-                  <h4 className="text-caption font-medium text-text-tertiary mb-2">Habits</h4>
-                  <div className="space-y-1">
-                    {Object.entries(HABIT_LABELS).map(([key, label]) => {
-                      const grade = constructionEos.habits?.[key] ?? null;
-                      return (
-                        <div key={key} className="flex items-center justify-between text-body-sm">
-                          <span className="text-text-secondary">{label}</span>
-                          <span className={`font-bold ${gradeColor(grade)}`}>{grade || "—"}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <TerritoryEosHabits habits={constructionHabits} />
                 </div>
               )}
               {constructionEos.rocks.length > 0 && (

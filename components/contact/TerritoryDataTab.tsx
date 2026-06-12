@@ -8,21 +8,8 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import {
-  Loader2,
-  MapPin,
-  ChevronDown,
-  ChevronRight,
-  Activity,
-  Award,
-  Briefcase,
-  Wrench,
-  Heart,
-  Scale,
-  HandshakeIcon,
-  Home,
-  Users,
-} from "lucide-react";
+import { Loader2, MapPin, ChevronDown, ChevronRight, Activity, Award } from "lucide-react";
+import EcosystemPanel from "@/components/territory/EcosystemPanel";
 
 interface TerritoryListItem {
   TerritorySlug: string;
@@ -32,8 +19,10 @@ interface TerritoryListItem {
 
 interface OwnerOut {
   ownerName: string | null;
+  contactId: string | null;
   ghlContactId: string | null;
   role?: string;
+  start_date?: string | null;
 }
 
 interface PerformanceKPIs {
@@ -63,27 +52,9 @@ interface TerritoryFull {
   }>;
 }
 
-interface Stakeholder {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  company: string | null;
-  role: string;
-}
-
 interface Props {
   ghlContactId: string | null;
 }
-
-const ROLE_STYLES: Record<string, { label: string; icon: typeof Briefcase; color: string }> = {
-  agent: { label: "Agent", icon: Briefcase, color: "bg-blue-100 text-blue-700 border-blue-200" },
-  contractor: { label: "Contractor", icon: Wrench, color: "bg-amber-100 text-amber-700 border-amber-200" },
-  family: { label: "Family", icon: Heart, color: "bg-pink-100 text-pink-700 border-pink-200" },
-  lawyer: { label: "Lawyer", icon: Scale, color: "bg-purple-100 text-purple-700 border-purple-200" },
-  partner: { label: "Partner", icon: HandshakeIcon, color: "bg-green-100 text-green-700 border-green-200" },
-  lender: { label: "Lender", icon: Home, color: "bg-teal-100 text-teal-700 border-teal-200" },
-  other: { label: "Other", icon: Users, color: "bg-gray-100 text-gray-600 border-gray-200" },
-};
 
 export default function TerritoryDataTab({ ghlContactId }: Props) {
   const [territories, setTerritories] = useState<TerritoryListItem[]>([]);
@@ -91,7 +62,6 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [fullData, setFullData] = useState<TerritoryFull | null>(null);
   const [perfKpis, setPerfKpis] = useState<PerformanceKPIs | null>(null);
-  const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   useEffect(() => {
@@ -123,17 +93,11 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
     setLoadingDetail(true);
     setFullData(null);
     setPerfKpis(null);
-    setStakeholders([]);
-    const [tRes, sRes, pRes] = await Promise.all([
+    const [tRes, pRes] = await Promise.all([
       apiFetch(`/api/territories/${slug}`).catch(() => null),
-      apiFetch(`/api/territories/${slug}/stakeholders`).catch(() => null),
       apiFetch(`/api/territories/${slug}/performance?period=ytd`).catch(() => null),
     ]);
     if (tRes?.ok) setFullData(await tRes.json());
-    if (sRes?.ok) {
-      const d = await sRes.json();
-      setStakeholders(d.stakeholders ?? []);
-    }
     if (pRes?.ok) {
       const d = await pRes.json();
       if (d?.kpis) setPerfKpis(d.kpis);
@@ -188,7 +152,7 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
                     <Loader2 size={18} className="animate-spin text-text-tertiary" />
                   </div>
                 ) : fullData ? (
-                  <ExpandedTerritory data={fullData} stakeholders={stakeholders} kpis={perfKpis} />
+                  <ExpandedTerritory data={fullData} kpis={perfKpis} />
                 ) : (
                   <p className="text-caption text-text-tertiary">Failed to load territory data.</p>
                 )}
@@ -202,15 +166,7 @@ export default function TerritoryDataTab({ ghlContactId }: Props) {
 }
 
 /** Full expanded view: Operations + Grades + Ecosystem (read-only) */
-function ExpandedTerritory({
-  data,
-  stakeholders,
-  kpis,
-}: {
-  data: TerritoryFull;
-  stakeholders: Stakeholder[];
-  kpis: PerformanceKPIs | null;
-}) {
+function ExpandedTerritory({ data, kpis }: { data: TerritoryFull; kpis: PerformanceKPIs | null }) {
   const grades = data.grades;
 
   // Group grades by year
@@ -218,14 +174,6 @@ function ExpandedTerritory({
   for (const g of grades) {
     if (!gradesByYear[g.year]) gradesByYear[g.year] = [];
     gradesByYear[g.year].push(g);
-  }
-
-  // Group stakeholders by role
-  const grouped = new Map<string, Stakeholder[]>();
-  for (const s of stakeholders) {
-    const arr = grouped.get(s.role) ?? [];
-    arr.push(s);
-    grouped.set(s.role, arr);
   }
 
   return (
@@ -293,108 +241,11 @@ function ExpandedTerritory({
         )}
       </div>
 
-      {/* Ecosystem — read-only */}
-      {(stakeholders.length > 0 || (data.currentOwners?.length ?? 0) > 0 || data.currentOwner?.ownerName) &&
-        (() => {
-          const ownerList: OwnerOut[] =
-            data.currentOwners && data.currentOwners.length > 0
-              ? data.currentOwners
-              : data.currentOwner
-                ? [data.currentOwner]
-                : [];
-          return (
-            <div className="bg-bg-primary border border-border-default rounded-lg p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Users size={18} className="text-scout-purple" />
-                <h3 className="text-body-sm font-semibold">Ecosystem</h3>
-              </div>
-              <div className="flex flex-col items-center">
-                {/* Owner center node(s) — side-by-side for co-owners */}
-                {ownerList.length > 0 && (
-                  <div className="flex flex-wrap justify-center gap-4 mb-4">
-                    {ownerList.map((o, i) => {
-                      const name = o.ownerName ?? "—";
-                      const initials = name
-                        .split(" ")
-                        .map((w) => w[0])
-                        .join("")
-                        .slice(0, 2)
-                        .toUpperCase();
-                      const isCoPrimary = o.role === "co_primary";
-                      return (
-                        <div key={`${o.ghlContactId ?? i}-${o.role ?? "owner"}`} className="flex flex-col items-center">
-                          <div className="w-16 h-16 rounded-full bg-nah-orange/10 border-2 border-nah-orange flex items-center justify-center">
-                            <span className="text-lg font-bold text-nah-orange">{initials}</span>
-                          </div>
-                          <p className="text-body-sm font-semibold text-text-primary mt-1.5">{name}</p>
-                          <span className="text-[10px] font-medium text-nah-orange tracking-wider">
-                            {isCoPrimary ? "CO-OWNER" : "OWNER"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Stakeholders by role */}
-                {stakeholders.length > 0 && (
-                  <>
-                    {ownerList.length > 0 && <div className="w-0.5 h-4 bg-border-default -mt-1 mb-2" />}
-                    <div className="flex flex-wrap justify-center gap-3">
-                      {Object.entries(ROLE_STYLES).map(([roleKey, roleDef]) => {
-                        const members = grouped.get(roleKey);
-                        if (!members || members.length === 0) return null;
-                        const Icon = roleDef.icon;
-                        return (
-                          <div key={roleKey} className="flex flex-col items-center">
-                            <div
-                              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border mb-2 ${roleDef.color}`}
-                            >
-                              <Icon size={10} />
-                              {roleDef.label}
-                            </div>
-                            <div className="flex flex-wrap justify-center gap-2">
-                              {members.map((s) => {
-                                const name = [s.first_name, s.last_name].filter(Boolean).join(" ") || "—";
-                                const initials = name
-                                  .split(" ")
-                                  .map((w) => w[0])
-                                  .join("")
-                                  .slice(0, 2)
-                                  .toUpperCase();
-                                return (
-                                  <div key={s.id} className="flex flex-col items-center">
-                                    <div
-                                      className={`w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-bold border ${roleDef.color}`}
-                                    >
-                                      {initials}
-                                    </div>
-                                    <p className="text-[10px] text-text-primary font-medium mt-1 max-w-[70px] truncate text-center">
-                                      {name}
-                                    </p>
-                                    {s.company && (
-                                      <p className="text-[9px] text-text-tertiary max-w-[70px] truncate text-center">
-                                        {s.company}
-                                      </p>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-
-                {stakeholders.length === 0 && ownerList.length === 0 && (
-                  <p className="text-caption text-text-tertiary">No ecosystem data.</p>
-                )}
-              </div>
-            </div>
-          );
-        })()}
+      <EcosystemPanel
+        TerritorySlug={data.territory.TerritorySlug}
+        owner={data.currentOwner}
+        owners={data.currentOwners ?? null}
+      />
     </>
   );
 }
