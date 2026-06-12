@@ -2,6 +2,7 @@ import type { EosTerritoryHabit, EosHabitGrade } from "@/types/database";
 
 interface Props {
   habits: EosTerritoryHabit[];
+  title?: string;
 }
 
 const GRADES: EosHabitGrade[] = ["A", "B", "C", "D", "F"];
@@ -14,10 +15,10 @@ const GRADE_COLORS: Record<EosHabitGrade, string> = {
   F: "bg-red-500 text-white",
 };
 
-export default function TerritoryEosHabits({ habits }: Props) {
+export default function TerritoryEosHabits({ habits, title = "Habits" }: Props) {
   return (
     <div>
-      <h3 className="text-body-sm font-semibold text-text-primary mb-3">Habits</h3>
+      <h4 className="text-caption font-medium text-text-tertiary mb-3">{title}</h4>
       <div className="space-y-2">
         {habits.map((h) => (
           <div key={h.id} className="flex items-center justify-between gap-4">

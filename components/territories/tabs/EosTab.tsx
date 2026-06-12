@@ -172,8 +172,21 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
         <TerritoryEosLeadChannels channels={data.leadChannels} />
       </div>
 
-      <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
-        <TerritoryEosHabits habits={data.habits} />
+      <div className={`grid grid-cols-1 gap-4 ${constructionEos?.habits ? "lg:grid-cols-2" : ""}`}>
+        <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
+          <h3 className="text-body-sm font-semibold text-text-primary mb-4">Business Habits</h3>
+          <TerritoryEosHabits habits={data.habits} />
+        </div>
+
+        {constructionEos?.habits && (
+          <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
+            <div className="flex items-center gap-2 mb-4">
+              <Hammer size={16} className="text-text-tertiary" />
+              <h3 className="text-body-sm font-semibold text-text-primary">Construction EOS</h3>
+            </div>
+            <TerritoryEosHabits habits={constructionHabits} />
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
@@ -192,21 +205,13 @@ export default function TerritoryEosTab({ TerritorySlug, carriedFromContactName 
 
       {/* Construction EOS */}
       {constructionEos &&
-        (constructionEos.rocks.length > 0 ||
-          constructionEos.todos.length > 0 ||
-          constructionEos.issues.length > 0 ||
-          constructionEos.habits) && (
+        (constructionEos.rocks.length > 0 || constructionEos.todos.length > 0 || constructionEos.issues.length > 0) && (
           <div className="rounded-xl border border-border-primary bg-bg-primary p-4 shadow-card">
             <div className="flex items-center gap-2 mb-4">
               <Hammer size={16} className="text-text-tertiary" />
               <h3 className="text-body-sm font-semibold text-text-primary">Construction EOS</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {constructionEos.habits && (
-                <div>
-                  <TerritoryEosHabits habits={constructionHabits} />
-                </div>
-              )}
               {constructionEos.rocks.length > 0 && (
                 <div>
                   <h4 className="text-caption font-medium text-text-tertiary mb-2">Rocks</h4>
