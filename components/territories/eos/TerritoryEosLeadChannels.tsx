@@ -5,46 +5,44 @@ interface Props {
 }
 
 const CHANNEL_HEADERS = [
-  {
-    label: "Bulk Lists",
-    color: "bg-blue-500",
-    channels: [
-      "High Equity",
-      "Absentee Owners",
-      "Probates",
-      "Evictions",
-      "City Citations",
-      "Distressed Rentals",
-      "Divorces",
-    ],
-  },
-  { label: "Lead Mining", color: "bg-emerald-500", channels: ["Prospect Now", "Vacants"] },
-  { label: "Listed", color: "bg-amber-500", channels: ["Agent Listed", "FSBO", "Foreclosures"] },
-  { label: "Auctions", color: "bg-rose-500", channels: ["Brokered Auctions"] },
-  {
-    label: "Referral Partners",
-    color: "bg-violet-500",
-    channels: ["Wholesalers", "Agents", "Industry Network", "Homelight", "Asset Managers", "Birddogs"],
-  },
-  {
-    label: "Digital",
-    color: "bg-cyan-500",
-    channels: [
-      "Facebook Ads",
-      "Google Ads",
-      "Google Retargeting",
-      "Organic Search",
-      "Google Map Pack",
-      "Google Business",
-      "Facebook",
-      "Instagram",
-      "TikTok",
-      "YouTube",
-      "Google Business Profile",
-      "Other Social Media",
-      "Social Platforms",
-    ],
-  },
+  "Bulk Lists",
+  "Lead Mining",
+  "Listed Auctions",
+  "Referral Partners",
+  "Digital Prospect Now",
+  "Vacants",
+];
+
+const CHANNEL_CHECKBOXES = [
+  "High Equity",
+  "Absentee Owners",
+  "Probates",
+  "Evictions",
+  "City Citations",
+  "Distressed Rentals",
+  "Divorces",
+  "Social Platforms",
+  "Birddogs",
+  "Agent Listed",
+  "FSBO",
+  "Foreclosures",
+  "Brokered Auctions",
+  "Wholesalers",
+  "Agents Industry Network",
+  "Homelight",
+  "Asset Managers",
+  "Facebook Ads",
+  "Google Ads",
+  "Google Retargeting",
+  "Organic Search",
+  "Google Map Pack",
+  "Google Business",
+  "Facebook",
+  "Instagram",
+  "TikTok",
+  "YouTube",
+  "Google Business Profile",
+  "Other Social Media",
 ];
 
 export default function TerritoryEosLeadChannels({ channels }: Props) {
@@ -71,19 +69,19 @@ export default function TerritoryEosLeadChannels({ channels }: Props) {
 
   return (
     <div>
-      <h3 className="text-body-sm font-semibold text-text-primary mb-3">Lead Generation Channels</h3>
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-2">
-        {CHANNEL_HEADERS.map((group) => (
-          <div key={group.label} className="min-w-0 grid grid-cols-[6px_1fr] gap-2">
-            <div className={`${group.color} rounded-full`} />
-            <div className="min-w-0">
-              <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-1">
-                {group.label}
-              </div>
-              <div className="space-y-0.5">{group.channels.map((name) => renderCell(name))}</div>
-            </div>
+      <h3 className="text-body-sm font-semibold text-text-primary mb-3">Lead Channels</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "4px" }}>
+        {/* Header row */}
+        {CHANNEL_HEADERS.map((label) => (
+          <div key={label} className="text-center py-px my-3">
+            <span className="block border-b border-current w-[calc(100%-15px)] mx-auto opacity-60 text-[11px] text-text-secondary pb-0.5">
+              {label}
+            </span>
           </div>
         ))}
+
+        {/* Checkbox cells */}
+        {CHANNEL_CHECKBOXES.map((name) => renderCell(name))}
       </div>
     </div>
   );

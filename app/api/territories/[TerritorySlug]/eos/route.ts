@@ -5,87 +5,6 @@ import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { EosTerritoryLeadChannel } from "@/types/database";
-
-const APPROVED_SCORECARD_KEYS = [
-  "t3_leads_entered",
-  "t3_s1_to_s4_pct",
-  "t3_purchased",
-  "t3_avg_inventory",
-  "t12_median_cycle_days",
-  "t3_gross_profit",
-  "t3_compliance_score",
-];
-
-const SCORECARD_PERCENT_KEYS = new Set(["t3_s1_to_s4_pct", "t3_compliance_score"]);
-const SCORECARD_CURRENCY_KEYS = new Set(["t3_gross_profit"]);
-
-const LEAD_CHANNEL_ORDER = [
-  "High Equity",
-  "Absentee Owners",
-  "Probates",
-  "Evictions",
-  "City Citations",
-  "Distressed Rentals",
-  "Divorces",
-  "Prospect Now",
-  "Vacants",
-  "Agent Listed",
-  "FSBO",
-  "Foreclosures",
-  "Brokered Auctions",
-  "Wholesalers",
-  "Agents",
-  "Industry Network",
-  "Homelight",
-  "Asset Managers",
-  "Birddogs",
-  "Facebook Ads",
-  "Google Ads",
-  "Google Retargeting",
-  "Organic Search",
-  "Google Map Pack",
-  "Google Business",
-  "Facebook",
-  "Instagram",
-  "TikTok",
-  "YouTube",
-  "Google Business Profile",
-  "Other Social Media",
-  "Social Platforms",
-];
-
-function normalizeLeadChannelName(name: string): string {
-  if (name === "Digital Prospect Now") return "Prospect Now";
-  return name;
-}
-
-function scorecardSort(key: string): number {
-  const index = APPROVED_SCORECARD_KEYS.indexOf(key);
-  return index === -1 ? 999 : index + 1;
-}
-
-function leadChannelSort(name: string): number {
-  const index = LEAD_CHANNEL_ORDER.indexOf(name);
-  return index === -1 ? 999 : index + 1;
-}
-
-function formatScorecardValue(metricKey: string, value: string | null): string | null {
-  if (value == null || value === "") return value;
-  const numeric = Number(value);
-
-  if (SCORECARD_CURRENCY_KEYS.has(metricKey) && Number.isFinite(numeric)) {
-    return `$${numeric.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-  }
-
-  if (SCORECARD_PERCENT_KEYS.has(metricKey)) {
-    if (!Number.isFinite(numeric)) return value.endsWith("%") ? value : `${value}%`;
-    const pct = metricKey === "t3_compliance_score" && numeric <= 1 ? numeric * 100 : numeric;
-    return `${pct.toLocaleString("en-US", { maximumFractionDigits: 1 })}%`;
-  }
-
-  return value;
-}
 
 async function computeScorecardActuals(
   supabase: SupabaseClient,
@@ -114,7 +33,7 @@ async function computeScorecardActuals(
 
   // T3 S1 to S4 %
   if (stage1Plus > 0) {
-    actuals["t3_s1_to_s4_pct"] = `${((stage4Plus / stage1Plus) * 100).toFixed(1)}%`;
+    actuals["t3_s1_to_s4_pct"] = ((stage4Plus / stage1Plus) * 100).toFixed(1);
   }
 
   // T3 Purchased — status "6 Purchase"
@@ -154,8 +73,7 @@ async function computeScorecardActuals(
     .single();
 
   if (territory?.ComplianceScore != null) {
-    actuals["t3_compliance_score"] =
-      formatScorecardValue("t3_compliance_score", String(territory.ComplianceScore)) ?? "";
+    actuals["t3_compliance_score"] = String(territory.ComplianceScore);
   }
 
   return actuals;
@@ -186,41 +104,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // Compute scorecard actuals from ms_properties
   const scorecardActuals = await computeScorecardActuals(supabase, TerritorySlug);
 
-  const approvedScorecard = (scorecard.data ?? [])
-    .filter((row) => APPROVED_SCORECARD_KEYS.includes(row.metric_key))
-    .map((row) => ({
-      ...row,
-      goal_value: formatScorecardValue(row.metric_key, row.goal_value),
-      sort_order: scorecardSort(row.metric_key),
-    }))
-    .sort((a, b) => a.sort_order - b.sort_order);
-
-  const filteredBudgets = (budgets.data ?? []).filter((row) => {
-    const description = row.description.toLowerCase();
-    return !description.includes("budget") && !description.includes("target");
-  });
-
-  const channelMap = new Map<string, EosTerritoryLeadChannel>();
-  for (const row of leadChannels.data ?? []) {
-    const channelName = normalizeLeadChannelName(row.channel_name);
-    if (!LEAD_CHANNEL_ORDER.includes(channelName)) continue;
-    const existing = channelMap.get(channelName);
-    channelMap.set(channelName, {
-      ...row,
-      channel_name: channelName,
-      is_active: Boolean(existing?.is_active || row.is_active),
-      sort_order: leadChannelSort(channelName),
-    });
-  }
-
-  const normalizedLeadChannels = LEAD_CHANNEL_ORDER.map((channelName) => channelMap.get(channelName)).filter(Boolean);
-
   return NextResponse.json({
     goals: goals.data ?? [],
-    scorecard: approvedScorecard,
+    scorecard: scorecard.data ?? [],
     scorecardActuals,
-    budgets: filteredBudgets,
-    leadChannels: normalizedLeadChannels,
+    budgets: budgets.data ?? [],
+    leadChannels: leadChannels.data ?? [],
     habits: habits.data ?? [],
     rocks: rocks.data ?? [],
     issues: issues.data ?? [],
