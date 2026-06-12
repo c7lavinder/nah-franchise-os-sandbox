@@ -39,6 +39,7 @@ interface MembershipRow {
   journey_id: string;
   role: string;
   joined_at: string;
+  owner_since?: string | null;
   journeys: JourneyRow | JourneyRow[] | null;
 }
 interface CallRow {
@@ -57,13 +58,32 @@ interface PipelineStateRow {
   current_stage_id: string;
   entered_current_stage_at: string;
   is_active: boolean;
-  pipelines: { slug: string; name: string } | null;
+  pipelines: { slug: string; name: string; sort_order: number | null } | null;
   pipeline_stages: { name: string } | null;
 }
 
 const FRANCHISE_ROLES = new Set(["primary", "co_primary", "business_partner"]);
 const FRANCHISEE_PIPELINES = new Set(["runway", "onboarding"]);
 const PROSPECT_PIPELINES = new Set(["sales", "followup"]);
+const CONTACT_HEADER_PIPELINE_PRIORITY: Record<string, number> = {
+  runway: 50,
+  onboarding: 40,
+  sales: 30,
+  followup: 20,
+  territories: 10,
+};
+
+function pickCurrentContactState(states: PipelineStateRow[]): PipelineStateRow | undefined {
+  return [...states].sort((a, b) => {
+    const aSlug = a.pipelines?.slug ?? "";
+    const bSlug = b.pipelines?.slug ?? "";
+    const priorityDiff =
+      (CONTACT_HEADER_PIPELINE_PRIORITY[bSlug] ?? b.pipelines?.sort_order ?? 0) -
+      (CONTACT_HEADER_PIPELINE_PRIORITY[aSlug] ?? a.pipelines?.sort_order ?? 0);
+    if (priorityDiff !== 0) return priorityDiff;
+    return new Date(b.entered_current_stage_at).getTime() - new Date(a.entered_current_stage_at).getTime();
+  })[0];
+}
 
 export default async function ContactPage({
   params,
@@ -141,7 +161,7 @@ export default async function ContactPage({
   const { data: jpsRaw } = await supabase
     .from("journey_pipeline_state")
     .select(
-      "journey_id, pipeline_id, TerritorySlug, current_stage_id, entered_current_stage_at, is_active, pipelines(slug, name), pipeline_stages(name)"
+      "journey_id, pipeline_id, TerritorySlug, current_stage_id, entered_current_stage_at, is_active, pipelines(slug, name, sort_order), pipeline_stages(name)"
     )
     .in("journey_id", allJourneyIds)
     .eq("is_active", true);
@@ -253,7 +273,13 @@ export default async function ContactPage({
 
   const displayName =
     capitalizeName(`${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim()) || contact.email || "Unknown";
-  const primaryState = statesRaw[0];
+  const primaryState = pickCurrentContactState(statesRaw);
+  const membershipsWithOwnerDates = await hydrateMembershipOwnerDates({
+    memberships,
+    jpsByJourney,
+    contactId,
+    ghlContactId: contact.ghl_contact_id,
+  });
 
   return (
     <RichContactPage
@@ -273,13 +299,68 @@ export default async function ContactPage({
         slug: activeJourney.slug,
         status: activeJourney.status,
       }}
-      memberships={memberships}
+      memberships={membershipsWithOwnerDates}
       territoryInventory={territoryInventory}
       grades={grades}
       currentStage={primaryState?.pipeline_stages?.name ?? null}
       currentPipelineSlug={primaryState?.pipelines?.slug ?? null}
     />
   );
+}
+
+async function hydrateMembershipOwnerDates({
+  memberships,
+  jpsByJourney,
+  contactId,
+  ghlContactId,
+}: {
+  memberships: MembershipRow[];
+  jpsByJourney: Map<string, PipelineStateRow[]>;
+  contactId: string;
+  ghlContactId: string | null;
+}): Promise<MembershipRow[]> {
+  const slugsByJourney = new Map<string, Set<string>>();
+  const allSlugs = new Set<string>();
+
+  for (const m of memberships) {
+    if (!FRANCHISE_ROLES.has(m.role)) continue;
+    const states = jpsByJourney.get(m.journey_id) ?? [];
+    const slugs = new Set(
+      states
+        .filter((s) => s.TerritorySlug && FRANCHISEE_PIPELINES.has(s.pipelines?.slug ?? ""))
+        .map((s) => s.TerritorySlug as string)
+    );
+    if (slugs.size === 0) continue;
+    slugsByJourney.set(m.journey_id, slugs);
+    for (const slug of slugs) allSlugs.add(slug);
+  }
+
+  if (allSlugs.size === 0) return memberships;
+
+  const supabase = createServerClient();
+  const { data: ownerRows } = await supabase
+    .from("territory_owners")
+    .select("TerritorySlug, contact_id, ghl_contact_id, start_date")
+    .in("TerritorySlug", [...allSlugs])
+    .is("end_date", null);
+
+  const relevantOwners = (ownerRows ?? []).filter((row) => {
+    const contactMatches = row.contact_id && row.contact_id === contactId;
+    const ghlMatches = row.ghl_contact_id && ghlContactId && row.ghl_contact_id === ghlContactId;
+    return (contactMatches || ghlMatches) && row.start_date;
+  });
+
+  if (relevantOwners.length === 0) return memberships;
+
+  return memberships.map((m) => {
+    const slugs = slugsByJourney.get(m.journey_id);
+    if (!slugs) return m;
+    const dates = relevantOwners
+      .filter((row) => slugs.has(row.TerritorySlug))
+      .map((row) => row.start_date as string)
+      .sort();
+    return dates[0] ? { ...m, owner_since: dates[0] } : m;
+  });
 }
 
 interface TerritoryInventoryRow {

@@ -34,6 +34,7 @@ interface Membership {
   journey_id: string;
   role: string;
   joined_at: string;
+  owner_since?: string | null;
   journeys: JourneyLite | JourneyLite[] | null;
 }
 interface GradeRow {
@@ -368,7 +369,10 @@ function ContactsNetworkPanel({ memberships }: { memberships: Membership[] }) {
                 <div className="flex items-center gap-2 text-caption text-text-tertiary">
                   <span className="uppercase tracking-wider">{m.role.replace(/_/g, " ")}</span>
                   <span>•</span>
-                  <span>Joined {new Date(m.joined_at).toLocaleDateString()}</span>
+                  <span>
+                    {m.owner_since ? "Owner since" : "Joined"}{" "}
+                    {new Date(m.owner_since ?? m.joined_at).toLocaleDateString()}
+                  </span>
                 </div>
               </Link>
             );
