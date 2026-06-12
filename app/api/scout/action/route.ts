@@ -228,7 +228,10 @@ export async function POST(request: NextRequest) {
             if (!fromNumber) {
               throw new Error("Your user does not have a SignalHouse sending number assigned in Settings.");
             }
-            result = await sendContactSmsViaSignalHouse(action.contactId, payload.content, { fromNumber });
+            result = await sendContactSmsViaSignalHouse(action.contactId, payload.content, {
+              from: fromNumber,
+              ownerUserId: user.id,
+            });
           } else {
             result = await ghl.sendMessage({
               type: "SMS",
