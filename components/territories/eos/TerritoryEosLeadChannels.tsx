@@ -88,6 +88,7 @@ function displayName(name: string): string {
 
 export default function TerritoryEosLeadChannels({ channels }: Props) {
   const channelMap = new Map(channels.map((ch) => [ch.channel_name, ch]));
+  const channelNames = CHANNEL_GROUPS.flatMap((group) => group.channels);
 
   function isActive(name: string): boolean {
     return Boolean(channelMap.get(name)?.is_active);
@@ -96,42 +97,41 @@ export default function TerritoryEosLeadChannels({ channels }: Props) {
   return (
     <div>
       <h3 className="mb-3 text-body-sm font-semibold text-text-primary">Lead Generation Channels</h3>
-      <div className="overflow-x-auto pb-2">
-        <div className="flex min-w-max gap-4 pr-2">
-          {CHANNEL_GROUPS.map((group) => (
-            <section key={group.label} className="min-w-max">
-              <div className="mb-3 border-b border-text-primary/80 px-2 pb-1 text-center text-[12px] font-semibold text-text-primary">
-                {group.label}
-              </div>
-              <div
-                className="grid gap-2"
-                style={{ gridTemplateColumns: `repeat(${group.channels.length}, minmax(34px, 42px))` }}
-              >
-                {group.channels.map((name) => (
-                  <div key={`${name}-check`} className="flex h-6 items-center justify-center">
-                    <input
-                      type="checkbox"
-                      checked={isActive(name)}
-                      readOnly
-                      aria-label={name}
-                      className="h-4 w-4 rounded border-border-primary accent-blue-600"
-                    />
-                  </div>
-                ))}
-                {group.channels.map((name) => (
-                  <div
-                    key={name}
-                    className={`flex h-[210px] items-center justify-center px-1 text-center text-[12px] font-semibold leading-tight text-[#333] ${
-                      CHANNEL_COLORS[name] ?? DEFAULT_CHANNEL_COLOR
-                    }`}
-                  >
-                    <span style={VERTICAL_LABEL_STYLE}>{displayName(name)}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+      <div
+        className="grid w-full gap-x-1.5 gap-y-2"
+        style={{ gridTemplateColumns: `repeat(${channelNames.length}, minmax(0, 1fr))` }}
+      >
+        {CHANNEL_GROUPS.map((group) => (
+          <div
+            key={group.label}
+            className="min-w-0 border-b border-text-primary/80 px-1 pb-1 text-center text-[12px] font-semibold text-text-primary"
+            style={{ gridColumn: `span ${group.channels.length}` }}
+          >
+            {group.label}
+          </div>
+        ))}
+        {channelNames.map((name) => (
+          <div key={`${name}-check`} className="flex h-6 min-w-0 items-center justify-center">
+            <input
+              type="checkbox"
+              checked={isActive(name)}
+              readOnly
+              aria-label={name}
+              className="h-4 w-4 rounded border-border-primary accent-blue-600"
+            />
+          </div>
+        ))}
+        {channelNames.map((name) => (
+          <div
+            key={name}
+            className={`flex h-[210px] min-w-0 items-center justify-center px-0.5 text-center font-semibold leading-tight text-[#333] ${
+              CHANNEL_COLORS[name] ?? DEFAULT_CHANNEL_COLOR
+            }`}
+            style={{ fontSize: "clamp(9px, 0.65vw, 12px)" }}
+          >
+            <span style={VERTICAL_LABEL_STYLE}>{displayName(name)}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
