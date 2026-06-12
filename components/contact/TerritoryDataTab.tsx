@@ -11,7 +11,7 @@ import Link from "next/link";
 import { Loader2, MapPin, ChevronDown, ChevronRight, Activity, Hammer } from "lucide-react";
 import EcosystemPanel from "@/components/territory/EcosystemPanel";
 import TerritoryEosHabits from "@/components/territories/eos/TerritoryEosHabits";
-import type { EosTerritoryHabit } from "@/types/database";
+import type { EosHabitGrade, EosTerritoryHabit } from "@/types/database";
 
 interface TerritoryListItem {
   TerritorySlug: string;
@@ -66,21 +66,31 @@ interface Props {
   ghlContactId: string | null;
 }
 
-const CONSTRUCTION_HABIT_LABELS: Record<string, string> = {
-  WeeklyBudgetMeeting: "Weekly Budget Meeting",
-  AltaWeeklyVideoUpdates: "Alta Weekly Video Updates",
-  Phase1Walkthroughs: "Phase 1 Walkthroughs",
-  PropertyAutopsies: "Property Autopsies",
-  QuarterlyIndexUpdate: "Quarterly Index Update",
-};
+const CONSTRUCTION_HABITS: Array<{ key: string; label: string }> = [
+  { key: "WeeklyBudgetMeeting", label: "Weekly Budget Meeting" },
+  { key: "AltaWeeklyVideoUpdates", label: "Alta Weekly Video Updates" },
+  { key: "Phase1Walkthroughs", label: "Phase 1 Walkthroughs" },
+  { key: "PropertyAutopsies", label: "Property Autopsies" },
+  { key: "QuarterlyIndexUpdate", label: "Quarterly Index Update" },
+];
 
-function gradeColor(grade: string | null): string {
-  if (!grade) return "text-text-tertiary";
-  if (grade === "A") return "text-green-600";
-  if (grade === "B") return "text-blue-600";
-  if (grade === "C") return "text-yellow-600";
-  if (grade === "D") return "text-orange-600";
-  return "text-red-600";
+function asHabitGrade(value: string | null | undefined): EosHabitGrade | null {
+  return value === "A" || value === "B" || value === "C" || value === "D" || value === "F" ? value : null;
+}
+
+function constructionHabitsToRows(
+  TerritorySlug: string,
+  habits: ConstructionEosData["habits"] | null | undefined
+): EosTerritoryHabit[] {
+  return CONSTRUCTION_HABITS.map((habit, index) => ({
+    id: `construction-${TerritorySlug}-${habit.key}`,
+    TerritorySlug,
+    habit_key: habit.key,
+    habit_label: habit.label,
+    grade: asHabitGrade(habits?.[habit.key]),
+    sort_order: index + 1,
+    updated_at: "",
+  }));
 }
 
 export default function TerritoryDataTab({ ghlContactId }: Props) {
@@ -217,6 +227,8 @@ function ExpandedTerritory({
   eosData: TerritoryEosData | null;
   constructionEosData: ConstructionEosData | null;
 }) {
+  const constructionHabits = constructionHabitsToRows(data.territory.TerritorySlug, constructionEosData?.habits);
+
   return (
     <>
       {/* Operations — YTD (from performance API, same source as territory page) */}
@@ -244,18 +256,7 @@ function ExpandedTerritory({
             <Hammer size={16} className="text-text-tertiary" />
             <h3 className="text-body-sm font-semibold text-text-primary">Construction EOS</h3>
           </div>
-          <h4 className="text-caption font-medium text-text-tertiary mb-2">Habits</h4>
-          <div className="space-y-1">
-            {Object.entries(CONSTRUCTION_HABIT_LABELS).map(([key, label]) => {
-              const grade = constructionEosData?.habits?.[key] ?? null;
-              return (
-                <div key={key} className="flex items-center justify-between text-body-sm">
-                  <span className="text-text-secondary">{label}</span>
-                  <span className={`font-bold ${gradeColor(grade)}`}>{grade || "—"}</span>
-                </div>
-              );
-            })}
-          </div>
+          <TerritoryEosHabits habits={constructionHabits} />
         </div>
       </div>
 
