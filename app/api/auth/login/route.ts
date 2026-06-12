@@ -3,8 +3,8 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/auth/login
  *
- * Authenticates a user via the MasterSuite API.
- * Sets an httpOnly cookie with the MasterSuite JWT.
+ * Authenticates a user via MasterSuite first, then Supabase Auth fallback.
+ * Sets an httpOnly cookie with the accepted access token.
  * Returns the FranDev user profile from the local users table.
  */
 
@@ -26,46 +26,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
-    // Authenticate with MasterSuite API
+    let token: string | null = null;
+
+    // Authenticate with MasterSuite API first when configured.
     const apiUrl = process.env.MASTERSUITE_API_URL;
-    if (!apiUrl) {
-      return NextResponse.json({ error: "Authentication service is not configured" }, { status: 500 });
+    if (apiUrl) {
+      // Be tolerant of private-network service names. Some self-hosted
+      // deployments provide `mastersuite-api` or `://mastersuite-api`; normalize
+      // both to http:// so login does not crash on URL construction.
+      const normalizedApiUrl = apiUrl.startsWith("://")
+        ? `http${apiUrl}`
+        : /^https?:\/\//i.test(apiUrl)
+          ? apiUrl
+          : `http://${apiUrl}`;
+
+      try {
+        const loginUrl = new URL("/auth/login", normalizedApiUrl).toString();
+        const authResponse = await fetch(loginUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: body.email,
+            password: body.password,
+          }),
+        });
+
+        if (authResponse.ok) {
+          const authData = await authResponse.json();
+          token = authData.jwt ?? null;
+        }
+      } catch (err) {
+        console.error("MasterSuite login attempt failed; trying Supabase Auth fallback", err);
+      }
     }
-
-    // Be tolerant of private-network service names. Some self-hosted
-    // deployments provide `mastersuite-api` or `://mastersuite-api`; normalize
-    // both to http:// so login does not crash on URL construction.
-    const normalizedApiUrl = apiUrl.startsWith("://")
-      ? `http${apiUrl}`
-      : /^https?:\/\//i.test(apiUrl)
-        ? apiUrl
-        : `http://${apiUrl}`;
-
-    let loginUrl: string;
-    try {
-      loginUrl = new URL("/auth/login", normalizedApiUrl).toString();
-    } catch {
-      console.error("Invalid MASTERSUITE_API_URL", { apiUrl });
-      return NextResponse.json({ error: "Authentication service URL is invalid" }, { status: 500 });
-    }
-    const authResponse = await fetch(loginUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: body.email,
-        password: body.password,
-      }),
-    });
-
-    if (!authResponse.ok) {
-      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
-    }
-
-    const authData = await authResponse.json();
-    const token = authData.jwt;
 
     if (!token) {
-      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+      const supabaseForAuth = createServerClient();
+      const { data: supabaseAuth, error: supabaseAuthError } = await supabaseForAuth.auth.signInWithPassword({
+        email: body.email,
+        password: body.password,
+      });
+
+      if (supabaseAuthError || !supabaseAuth.session?.access_token) {
+        return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+      }
+
+      token = supabaseAuth.session.access_token;
     }
 
     // Look up the app user record

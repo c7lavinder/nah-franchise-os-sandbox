@@ -1,7 +1,7 @@
 /**
  * Auth boundary tests — verifies requireAuth rejects unauthenticated
  * requests and accepts authenticated ones.
- * Auth is now via MasterSuite JWT (HS512) verified with jsonwebtoken.
+ * Auth accepts MasterSuite JWTs first, with Supabase Auth access token fallback.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -13,7 +13,7 @@ vi.mock("jsonwebtoken", () => ({
   },
 }));
 
-// Mock Supabase (still used for users table lookup)
+// Mock Supabase (used for users table lookup and Supabase Auth fallback)
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(),
 }));
@@ -29,6 +29,9 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getAccessTokenFromCookies } from "@/lib/auth/cookies";
 
 const mockSupabase = {
+  auth: {
+    getUser: vi.fn(),
+  },
   from: vi.fn(() => ({
     select: vi.fn(() => ({
       eq: vi.fn(() => ({
@@ -57,6 +60,7 @@ beforeEach(() => {
   (createServerClient as ReturnType<typeof vi.fn>).mockReturnValue(mockSupabase);
   (getAccessTokenFromCookies as ReturnType<typeof vi.fn>).mockReturnValue(null);
   vi.stubEnv("MASTERSUITE_API_JWT_SECRET", "test-secret");
+  mockSupabase.auth.getUser.mockResolvedValue({ data: { user: null }, error: { message: "invalid token" } });
 });
 
 describe("getAuthUser", () => {
@@ -123,6 +127,43 @@ describe("getAuthUser", () => {
       fullName: "Chad Arnold",
       role: "operator",
       ghlUserId: "ghl-abc",
+    });
+  });
+
+  it("returns AuthUser when authenticated with a Supabase access token", async () => {
+    (jwt.verify as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error("not a MasterSuite token");
+    });
+    mockSupabase.auth.getUser.mockResolvedValue({
+      data: { user: { email: "matt@newagainhouses.com" } },
+      error: null,
+    });
+    const singleMock = vi.fn().mockResolvedValue({
+      data: {
+        id: "admin-456",
+        email: "matt@newagainhouses.com",
+        full_name: "Matt Lavinder",
+        role: "admin",
+        ghl_user_id: "ghl-xyz",
+      },
+      error: null,
+    });
+    mockSupabase.from.mockReturnValue({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: singleMock,
+          })),
+        })),
+      })),
+    });
+    const result = await getAuthUser("supabase-access-token");
+    expect(result).toEqual({
+      id: "admin-456",
+      email: "matt@newagainhouses.com",
+      fullName: "Matt Lavinder",
+      role: "admin",
+      ghlUserId: "ghl-xyz",
     });
   });
 });
