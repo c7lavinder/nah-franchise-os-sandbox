@@ -1,34 +1,46 @@
+import type { CSSProperties } from "react";
 import type { EosTerritoryLeadChannel } from "@/types/database";
 
 interface Props {
   channels: EosTerritoryLeadChannel[];
 }
 
-const CHANNEL_HEADERS = [
+type ChannelGroup = {
+  label: string;
+  channels: string[];
+};
+
+const CHANNEL_GROUPS: ChannelGroup[] = [
   {
     label: "Bulk Lists",
-    color: "bg-blue-500",
+    channels: ["Prospect Now", "Vacants", "High Equity", "Absentee Owners"],
+  },
+  {
+    label: "Lead Mining",
     channels: [
-      "High Equity",
-      "Absentee Owners",
       "Probates",
       "Evictions",
       "City Citations",
       "Distressed Rentals",
       "Divorces",
+      "Social Platforms",
+      "Birddogs",
     ],
   },
-  { label: "Lead Mining", color: "bg-emerald-500", channels: ["Prospect Now", "Vacants"] },
-  { label: "Listed", color: "bg-amber-500", channels: ["Agent Listed", "FSBO", "Foreclosures"] },
-  { label: "Auctions", color: "bg-rose-500", channels: ["Brokered Auctions"] },
+  {
+    label: "Listed",
+    channels: ["Agent Listed", "FSBO"],
+  },
+  {
+    label: "Auctions",
+    channels: ["Foreclosures", "Brokered Auctions"],
+  },
   {
     label: "Referral Partners",
-    color: "bg-violet-500",
-    channels: ["Wholesalers", "Agents", "Industry Network", "Homelight", "Asset Managers", "Birddogs"],
+    channels: ["Wholesalers", "Agents", "Industry Network", "Homelight", "Asset Managers"],
   },
   {
     label: "Digital",
-    color: "bg-cyan-500",
     channels: [
       "Facebook Ads",
       "Google Ads",
@@ -42,48 +54,84 @@ const CHANNEL_HEADERS = [
       "YouTube",
       "Google Business Profile",
       "Other Social Media",
-      "Social Platforms",
     ],
   },
 ];
 
+const CHANNEL_COLORS: Record<string, string> = {
+  "Facebook Ads": "bg-[#7b2845] text-white",
+  "Google Ads": "bg-[#7b2845] text-white",
+  "Google Retargeting": "bg-[#7b2845] text-white",
+  Wholesalers: "bg-[#f3e1a1]",
+  Agents: "bg-[#f3e1a1]",
+  "Industry Network": "bg-[#f3e1a1]",
+  Homelight: "bg-[#f3e1a1]",
+  "Asset Managers": "bg-[#f3e1a1]",
+  Facebook: "bg-[#f3e1a1]",
+  Instagram: "bg-[#f3e1a1]",
+  TikTok: "bg-[#f3e1a1]",
+  YouTube: "bg-[#f3e1a1]",
+  "Google Business Profile": "bg-[#f3e1a1]",
+  "Other Social Media": "bg-[#f3e1a1]",
+};
+
+const DEFAULT_CHANNEL_COLOR = "bg-[#e5d4dc]";
+const VERTICAL_LABEL_STYLE: CSSProperties = {
+  writingMode: "vertical-rl",
+  transform: "rotate(180deg)",
+};
+
+function displayName(name: string): string {
+  if (name === "TikTok") return "Tik Tok";
+  return name;
+}
+
 export default function TerritoryEosLeadChannels({ channels }: Props) {
   const channelMap = new Map(channels.map((ch) => [ch.channel_name, ch]));
 
-  function renderCell(name: string) {
-    const ch = channelMap.get(name);
-    if (!ch) return <div key={name} />;
-    return (
-      <div key={ch.id} className="flex items-center gap-1.5 px-1 py-1 rounded">
-        <span
-          className={`shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center text-[10px] ${
-            ch.is_active ? "bg-nah-blue border-nah-blue text-white" : "border-border-primary"
-          }`}
-        >
-          {ch.is_active ? "\u2713" : ""}
-        </span>
-        <span className={`text-[11px] leading-tight ${ch.is_active ? "text-text-primary" : "text-text-tertiary"}`}>
-          {ch.channel_name}
-        </span>
-      </div>
-    );
+  function isActive(name: string): boolean {
+    return Boolean(channelMap.get(name)?.is_active);
   }
 
   return (
     <div>
-      <h3 className="text-body-sm font-semibold text-text-primary mb-3">Lead Generation Channels</h3>
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-2">
-        {CHANNEL_HEADERS.map((group) => (
-          <div key={group.label} className="min-w-0 grid grid-cols-[6px_1fr] gap-2">
-            <div className={`${group.color} rounded-full`} />
-            <div className="min-w-0">
-              <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-1">
+      <h3 className="mb-3 text-body-sm font-semibold text-text-primary">Lead Generation Channels</h3>
+      <div className="overflow-x-auto pb-2">
+        <div className="flex min-w-max gap-4 pr-2">
+          {CHANNEL_GROUPS.map((group) => (
+            <section key={group.label} className="min-w-max">
+              <div className="mb-3 border-b border-text-primary/80 px-2 pb-1 text-center text-[12px] font-semibold text-text-primary">
                 {group.label}
               </div>
-              <div className="space-y-0.5">{group.channels.map((name) => renderCell(name))}</div>
-            </div>
-          </div>
-        ))}
+              <div
+                className="grid gap-2"
+                style={{ gridTemplateColumns: `repeat(${group.channels.length}, minmax(34px, 42px))` }}
+              >
+                {group.channels.map((name) => (
+                  <div key={`${name}-check`} className="flex h-6 items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={isActive(name)}
+                      readOnly
+                      aria-label={name}
+                      className="h-4 w-4 rounded border-border-primary accent-blue-600"
+                    />
+                  </div>
+                ))}
+                {group.channels.map((name) => (
+                  <div
+                    key={name}
+                    className={`flex h-[210px] items-center justify-center px-1 text-center text-[12px] font-semibold leading-tight text-[#333] ${
+                      CHANNEL_COLORS[name] ?? DEFAULT_CHANNEL_COLOR
+                    }`}
+                  >
+                    <span style={VERTICAL_LABEL_STYLE}>{displayName(name)}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
       </div>
     </div>
   );

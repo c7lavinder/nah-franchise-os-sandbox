@@ -42,6 +42,8 @@ const SCORECARD_PERCENT_KEYS = new Set(["t3_s1_to_s4_pct", "t3_compliance_score"
 const SCORECARD_CURRENCY_KEYS = new Set(["t3_gross_profit"]);
 
 const LEAD_CHANNEL_ORDER = [
+  "Prospect Now",
+  "Vacants",
   "High Equity",
   "Absentee Owners",
   "Probates",
@@ -49,8 +51,8 @@ const LEAD_CHANNEL_ORDER = [
   "City Citations",
   "Distressed Rentals",
   "Divorces",
-  "Prospect Now",
-  "Vacants",
+  "Social Platforms",
+  "Birddogs",
   "Agent Listed",
   "FSBO",
   "Foreclosures",
@@ -60,7 +62,6 @@ const LEAD_CHANNEL_ORDER = [
   "Industry Network",
   "Homelight",
   "Asset Managers",
-  "Birddogs",
   "Facebook Ads",
   "Google Ads",
   "Google Retargeting",
@@ -73,7 +74,6 @@ const LEAD_CHANNEL_ORDER = [
   "YouTube",
   "Google Business Profile",
   "Other Social Media",
-  "Social Platforms",
 ];
 
 function normalizeLeadChannelName(name: string): string {
