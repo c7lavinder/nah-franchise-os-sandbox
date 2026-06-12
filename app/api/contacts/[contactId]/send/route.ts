@@ -50,8 +50,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           );
         }
         msg = await sendContactSmsViaSignalHouse(contactId, body.message.trim(), {
-          from: fromNumber,
-          ownerUserId: user.id,
+          fromNumber,
         });
       } else {
         msg = await sendMessage({
