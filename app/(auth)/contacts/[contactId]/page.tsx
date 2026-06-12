@@ -61,6 +61,29 @@ interface PipelineStateRow {
   pipelines: { slug: string; name: string; sort_order: number | null } | null;
   pipeline_stages: { name: string } | null;
 }
+type MsPropertyRow = {
+  PropertyId: number;
+  Status: string | null;
+  Inserted: string | null;
+};
+type MsInventoryRow = {
+  PropertyId: number;
+  Inv_PurchaseDate: string | null;
+  Inv_SellDate: string | null;
+};
+type MsStatusHistoryRow = {
+  PropertyId: number;
+  NewStatus: string | null;
+  Inserted: string;
+};
+type MsCalcRow = {
+  PropertyId: number;
+  Calculated_Inv_Profit: number | null;
+};
+type TerritoryInventoryKpis = Pick<
+  TerritoryInventoryRow,
+  "purchased_ytd" | "sold_ytd" | "active_deals" | "conv_rate" | "avg_profit"
+>;
 
 const FRANCHISE_ROLES = new Set(["primary", "co_primary", "business_partner"]);
 const FRANCHISEE_PIPELINES = new Set(["runway", "onboarding"]);
@@ -83,6 +106,131 @@ function pickCurrentContactState(states: PipelineStateRow[]): PipelineStateRow |
     if (priorityDiff !== 0) return priorityDiff;
     return new Date(b.entered_current_stage_at).getTime() - new Date(a.entered_current_stage_at).getTime();
   })[0];
+}
+
+async function fetchPagedRows<T>(queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null }>) {
+  const rows: T[] = [];
+  let offset = 0;
+  while (true) {
+    const { data } = await queryFactory(offset, offset + 999);
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < 1000) break;
+    offset += 1000;
+  }
+  return rows;
+}
+
+function statusStageKey(status: string | null): string | null {
+  if (!status) return null;
+  const trimmed = status.trim();
+  if (trimmed === "1" || trimmed.startsWith("1 ")) return "1";
+  if (trimmed === "2" || trimmed.startsWith("2 ")) return "2";
+  if (trimmed === "3" || trimmed.startsWith("3 ")) return "3";
+  if (trimmed === "4" || trimmed.startsWith("4 ")) return "4";
+  if (trimmed === "5" || trimmed.startsWith("5 ")) return "5 Contract";
+  if (trimmed === "6" || trimmed.startsWith("6 ")) return "6 Purchase";
+  return null;
+}
+
+function isInDateRange(value: string | null, start: Date, endExclusive: Date): boolean {
+  if (!value) return false;
+  const date = new Date(value);
+  return date >= start && date < endExclusive;
+}
+
+async function getTerritoryInventoryKpis(
+  supabase: ReturnType<typeof createServerClient>,
+  TerritorySlug: string
+): Promise<TerritoryInventoryKpis> {
+  const now = new Date();
+  const periodStart = new Date(now.getFullYear(), 0, 1);
+  const periodEndExclusive = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const periodStartISO = periodStart.toISOString();
+  const periodEndExclusiveISO = periodEndExclusive.toISOString();
+
+  const properties = await fetchPagedRows<MsPropertyRow>((from, to) =>
+    supabase
+      .from("ms_properties")
+      .select("PropertyId, Status, Inserted")
+      .eq("TerritorySlug", TerritorySlug)
+      .eq("Archived", false)
+      .order("PropertyId")
+      .range(from, to)
+  );
+  const propertyIds = properties.map((p) => p.PropertyId);
+  if (propertyIds.length === 0) {
+    return { purchased_ytd: 0, sold_ytd: 0, active_deals: 0, conv_rate: null, avg_profit: null };
+  }
+
+  let inventory: MsInventoryRow[] = [];
+  let statusHistory: MsStatusHistoryRow[] = [];
+
+  for (let i = 0; i < propertyIds.length; i += 500) {
+    const idChunk = propertyIds.slice(i, i + 500);
+    const [{ data: invRows }, historyRows] = await Promise.all([
+      supabase
+        .from("ms_property_inventory")
+        .select("PropertyId, Inv_PurchaseDate, Inv_SellDate")
+        .in("PropertyId", idChunk)
+        .not("Inv_PurchaseDate", "is", null),
+      fetchPagedRows<MsStatusHistoryRow>((from, to) =>
+        supabase
+          .from("ms_property_status_history")
+          .select("PropertyId, NewStatus, Inserted")
+          .in("PropertyId", idChunk)
+          .gte("Inserted", periodStartISO)
+          .lt("Inserted", periodEndExclusiveISO)
+          .order("Inserted")
+          .range(from, to)
+      ),
+    ]);
+    inventory = inventory.concat((invRows ?? []) as MsInventoryRow[]);
+    statusHistory = statusHistory.concat(historyRows);
+  }
+
+  const purchasedInPeriod = inventory.filter((inv) =>
+    isInDateRange(inv.Inv_PurchaseDate, periodStart, periodEndExclusive)
+  );
+  const soldInPeriod = inventory.filter((inv) => isInDateRange(inv.Inv_SellDate, periodStart, periodEndExclusive));
+  const activeInventory = inventory.filter((inv) => inv.Inv_PurchaseDate && !inv.Inv_SellDate);
+
+  const enteredStage1 = new Set<number>();
+  const highestStageByProperty = new Map<number, number>();
+  for (const row of statusHistory) {
+    const key = statusStageKey(row.NewStatus);
+    if (!key) continue;
+    if (key === "1") enteredStage1.add(row.PropertyId);
+    const rank = key === "1" ? 1 : key === "2" ? 2 : key === "3" ? 3 : key === "4" ? 4 : key === "5 Contract" ? 5 : 6;
+    highestStageByProperty.set(row.PropertyId, Math.max(highestStageByProperty.get(row.PropertyId) ?? 0, rank));
+  }
+  const stage4Plus = [...enteredStage1].filter((id) => (highestStageByProperty.get(id) ?? 0) >= 4).length;
+  const convRate = enteredStage1.size > 0 ? Number(((stage4Plus / enteredStage1.size) * 100).toFixed(1)) : null;
+
+  const soldIds = soldInPeriod.map((row) => row.PropertyId);
+  let calcs: MsCalcRow[] = [];
+  for (let i = 0; i < soldIds.length; i += 500) {
+    const { data } = await supabase
+      .from("ms_property_calculations")
+      .select("PropertyId, Calculated_Inv_Profit")
+      .in("PropertyId", soldIds.slice(i, i + 500));
+    calcs = calcs.concat((data ?? []) as MsCalcRow[]);
+  }
+  const profitValues = calcs
+    .map((calc) => calc.Calculated_Inv_Profit)
+    .filter((profit): profit is number => profit !== null);
+  const avgProfit =
+    profitValues.length > 0
+      ? Math.round(profitValues.reduce((sum, profit) => sum + Number(profit), 0) / profitValues.length)
+      : null;
+
+  return {
+    purchased_ytd: purchasedInPeriod.length,
+    sold_ytd: soldInPeriod.length,
+    active_deals: activeInventory.length,
+    conv_rate: convRate,
+    avg_profit: avgProfit,
+  };
 }
 
 export default async function ContactPage({
@@ -232,26 +380,10 @@ export default async function ContactPage({
       ]);
       const tRows = (tRes.data ?? []) as { TerritorySlug: string; Nickname: string }[];
 
-      // Fetch performance KPIs from raw property data for each territory
+      // Fetch profile-card KPIs directly from raw MasterSuite rows. The page is
+      // already server-rendered, so this avoids brittle self-HTTP auth/base-url calls.
       const perfResults = await Promise.all(
-        slugs.map(async (slug) => {
-          try {
-            const base =
-              process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL
-                ? `https://${process.env.VERCEL_URL}`
-                : "http://localhost:3000";
-            const res = await fetch(`${base}/frandev/api/territories/${slug}/performance?period=ytd`, {
-              headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}` },
-            });
-            if (res.ok) {
-              const d = await res.json();
-              return { slug, kpis: d.kpis ?? null };
-            }
-          } catch {
-            /* skip */
-          }
-          return { slug, kpis: null };
-        })
+        slugs.map(async (slug) => ({ slug, kpis: await getTerritoryInventoryKpis(supabase, slug) }))
       );
       const kpiBySlug = new Map(perfResults.map((r) => [r.slug, r.kpis]));
 
@@ -260,11 +392,11 @@ export default async function ContactPage({
         return {
           TerritorySlug: t.TerritorySlug,
           Nickname: t.Nickname,
-          purchased_ytd: k?.purchasedInPeriod ?? 0,
-          sold_ytd: k?.soldInPeriod ?? 0,
-          active_deals: k?.activeInventory ?? 0,
-          conv_rate: k?.conversionRate ?? null,
-          avg_profit: k?.avgProfit ?? null,
+          purchased_ytd: k?.purchased_ytd ?? 0,
+          sold_ytd: k?.sold_ytd ?? 0,
+          active_deals: k?.active_deals ?? 0,
+          conv_rate: k?.conv_rate ?? null,
+          avg_profit: k?.avg_profit ?? null,
         };
       });
       grades = (gRes.data ?? []) as typeof grades;
