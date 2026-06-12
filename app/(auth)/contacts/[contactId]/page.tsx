@@ -60,10 +60,151 @@ interface PipelineStateRow {
   pipelines: { slug: string; name: string } | null;
   pipeline_stages: { name: string } | null;
 }
+interface ContactTerritoryKpis {
+  purchased_ytd: number;
+  sold_ytd: number;
+  active_deals: number;
+  conv_rate: number | null;
+  avg_profit: number | null;
+}
+interface ContactPropRow {
+  PropertyId: number;
+}
+interface ContactInvRow {
+  PropertyId: number;
+  Inv_PurchaseDate: string;
+  Inv_SellDate: string | null;
+}
+interface ContactHistRow {
+  PropertyId: number;
+  NewStatus: string | null;
+  Inserted: string;
+}
+interface ContactCalcRow {
+  PropertyId: number;
+  Calculated_Inv_Profit: number | null;
+}
 
 const FRANCHISE_ROLES = new Set(["primary", "co_primary", "business_partner"]);
 const FRANCHISEE_PIPELINES = new Set(["runway", "onboarding"]);
 const PROSPECT_PIPELINES = new Set(["sales", "followup"]);
+
+function contactStageKey(status: string | null): string | null {
+  if (!status) return null;
+  const trimmed = status.trim();
+  if (trimmed === "1" || trimmed.startsWith("1 ")) return "1";
+  if (trimmed === "2" || trimmed.startsWith("2 ")) return "2";
+  if (trimmed === "3" || trimmed.startsWith("3 ")) return "3";
+  if (trimmed === "4" || trimmed.startsWith("4 ")) return "4";
+  if (trimmed === "5" || trimmed.startsWith("5 ")) return "5 Contract";
+  if (trimmed === "6" || trimmed.startsWith("6 ")) return "6 Purchase";
+  return null;
+}
+
+function isInRange(value: string | null, start: Date, endExclusive: Date): boolean {
+  if (!value) return false;
+  const date = new Date(value);
+  return date >= start && date < endExclusive;
+}
+
+function minDateString(values: Array<string | null | undefined>): string | null {
+  const valid = values.filter((value): value is string => !!value).sort((a, b) => Date.parse(a) - Date.parse(b));
+  return valid[0] ?? null;
+}
+
+async function fetchContactTerritoryKpis(
+  supabase: ReturnType<typeof createServerClient>,
+  TerritorySlug: string
+): Promise<ContactTerritoryKpis> {
+  const now = new Date();
+  const ytdStart = new Date(now.getFullYear(), 0, 1);
+  const todayEndExclusive = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+  let properties: ContactPropRow[] = [];
+  let offset = 0;
+  while (true) {
+    const { data: page } = await supabase
+      .from("ms_properties")
+      .select("PropertyId")
+      .eq("TerritorySlug", TerritorySlug)
+      .eq("Archived", false)
+      .order("PropertyId")
+      .range(offset, offset + 999);
+    if (!page || page.length === 0) break;
+    properties = properties.concat(page as ContactPropRow[]);
+    if (page.length < 1000) break;
+    offset += 1000;
+  }
+
+  const propertyIds = properties.map((p) => p.PropertyId);
+  if (propertyIds.length === 0) {
+    return { purchased_ytd: 0, sold_ytd: 0, active_deals: 0, conv_rate: null, avg_profit: null };
+  }
+
+  let inventory: ContactInvRow[] = [];
+  for (let i = 0; i < propertyIds.length; i += 500) {
+    const { data: page } = await supabase
+      .from("ms_property_inventory")
+      .select("PropertyId, Inv_PurchaseDate, Inv_SellDate")
+      .in("PropertyId", propertyIds.slice(i, i + 500))
+      .not("Inv_PurchaseDate", "is", null);
+    if (page) inventory = inventory.concat(page as ContactInvRow[]);
+  }
+
+  const purchasedYtd = inventory.filter((inv) => isInRange(inv.Inv_PurchaseDate, ytdStart, todayEndExclusive));
+  const soldYtd = inventory.filter((inv) => isInRange(inv.Inv_SellDate, ytdStart, todayEndExclusive));
+  const activeDeals = inventory.filter((inv) => !inv.Inv_SellDate).length;
+
+  let history: ContactHistRow[] = [];
+  for (let i = 0; i < propertyIds.length; i += 500) {
+    const { data: page } = await supabase
+      .from("ms_property_status_history")
+      .select("PropertyId, NewStatus, Inserted")
+      .in("PropertyId", propertyIds.slice(i, i + 500))
+      .gte("Inserted", ytdStart.toISOString())
+      .lt("Inserted", todayEndExclusive.toISOString());
+    if (page) history = history.concat(page as ContactHistRow[]);
+  }
+
+  const enteredStage1 = new Set<number>();
+  const highestStageRank = new Map<number, number>();
+  const stageRank: Record<string, number> = { "1": 0, "2": 1, "3": 2, "4": 3, "5 Contract": 4, "6 Purchase": 5 };
+  for (const h of history) {
+    const key = contactStageKey(h.NewStatus);
+    if (!key) continue;
+    if (key === "1") enteredStage1.add(h.PropertyId);
+    const rank = stageRank[key];
+    if (rank !== undefined) {
+      highestStageRank.set(h.PropertyId, Math.max(highestStageRank.get(h.PropertyId) ?? -1, rank));
+    }
+  }
+  const stage4PlusCount = [...enteredStage1].filter((id) => (highestStageRank.get(id) ?? -1) >= 3).length;
+  const convRate = enteredStage1.size > 0 ? Number(((stage4PlusCount / enteredStage1.size) * 100).toFixed(1)) : null;
+
+  const soldIds = soldYtd.map((inv) => inv.PropertyId);
+  let calcs: ContactCalcRow[] = [];
+  for (let i = 0; i < soldIds.length; i += 500) {
+    const { data: page } = await supabase
+      .from("ms_property_calculations")
+      .select("PropertyId, Calculated_Inv_Profit")
+      .in("PropertyId", soldIds.slice(i, i + 500));
+    if (page) calcs = calcs.concat(page as ContactCalcRow[]);
+  }
+  const profits = calcs
+    .map((calc) => calc.Calculated_Inv_Profit)
+    .filter((profit): profit is number => profit != null)
+    .map(Number);
+  const avgProfit =
+    profits.length > 0 ? Math.round(profits.reduce((sum, profit) => sum + profit, 0) / profits.length) : null;
+
+  return {
+    purchased_ytd: purchasedYtd.length,
+    sold_ytd: soldYtd.length,
+    active_deals: activeDeals,
+    conv_rate: convRate,
+    avg_profit: avgProfit,
+  };
+}
 
 export default async function ContactPage({
   params,
@@ -189,6 +330,7 @@ export default async function ContactPage({
   // against territory_owners — journey pipeline is the source of truth.
   let grades: { year: number; quarter: number; self_grade: number | null; john_grade: number | null }[] = [];
   let territoryInventory: TerritoryInventoryRow[] = [];
+  let richMemberships = memberships;
   if (role === "franchisee") {
     const slugSet = new Set<string>();
     for (const c of classed) {
@@ -201,7 +343,7 @@ export default async function ContactPage({
     }
     const slugs = [...slugSet];
     if (slugs.length > 0) {
-      const [tRes, gRes] = await Promise.all([
+      const [tRes, gRes, ownerRes] = await Promise.all([
         supabase.from("territories").select("TerritorySlug, Nickname").in("TerritorySlug", slugs),
         supabase
           .from("territory_owner_grades")
@@ -209,29 +351,33 @@ export default async function ContactPage({
           .in("TerritorySlug", slugs)
           .order("year", { ascending: false })
           .order("quarter", { ascending: false }),
+        supabase
+          .from("territory_owners")
+          .select("TerritorySlug, start_date, territories(FranchiseAgreementDate)")
+          .eq("ghl_contact_id", contact.ghl_contact_id)
+          .in("TerritorySlug", slugs)
+          .is("end_date", null),
       ]);
       const tRows = (tRes.data ?? []) as { TerritorySlug: string; Nickname: string }[];
-
-      // Fetch performance KPIs from raw property data for each territory
-      const perfResults = await Promise.all(
-        slugs.map(async (slug) => {
-          try {
-            const base =
-              process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL
-                ? `https://${process.env.VERCEL_URL}`
-                : "http://localhost:3000";
-            const res = await fetch(`${base}/frandev/api/territories/${slug}/performance?period=ytd`, {
-              headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}` },
-            });
-            if (res.ok) {
-              const d = await res.json();
-              return { slug, kpis: d.kpis ?? null };
-            }
-          } catch {
-            /* skip */
-          }
-          return { slug, kpis: null };
+      const ownerRows = (ownerRes.data ?? []) as Array<{
+        TerritorySlug: string;
+        start_date: string | null;
+        territories: { FranchiseAgreementDate: string | null } | { FranchiseAgreementDate: string | null }[] | null;
+      }>;
+      const ownerJoinedAt = minDateString(
+        ownerRows.flatMap((row) => {
+          const territory = Array.isArray(row.territories) ? row.territories[0] : row.territories;
+          return [row.start_date, territory?.FranchiseAgreementDate];
         })
+      );
+      if (ownerJoinedAt) {
+        richMemberships = memberships.map((membership) =>
+          FRANCHISE_ROLES.has(membership.role) ? { ...membership, joined_at: ownerJoinedAt } : membership
+        );
+      }
+
+      const perfResults = await Promise.all(
+        slugs.map(async (slug) => ({ slug, kpis: await fetchContactTerritoryKpis(supabase, slug) }))
       );
       const kpiBySlug = new Map(perfResults.map((r) => [r.slug, r.kpis]));
 
@@ -240,11 +386,11 @@ export default async function ContactPage({
         return {
           TerritorySlug: t.TerritorySlug,
           Nickname: t.Nickname,
-          purchased_ytd: k?.purchasedInPeriod ?? 0,
-          sold_ytd: k?.soldInPeriod ?? 0,
-          active_deals: k?.activeInventory ?? 0,
-          conv_rate: k?.conversionRate ?? null,
-          avg_profit: k?.avgProfit ?? null,
+          purchased_ytd: k?.purchased_ytd ?? 0,
+          sold_ytd: k?.sold_ytd ?? 0,
+          active_deals: k?.active_deals ?? 0,
+          conv_rate: k?.conv_rate ?? null,
+          avg_profit: k?.avg_profit ?? null,
         };
       });
       grades = (gRes.data ?? []) as typeof grades;
@@ -273,7 +419,7 @@ export default async function ContactPage({
         slug: activeJourney.slug,
         status: activeJourney.status,
       }}
-      memberships={memberships}
+      memberships={richMemberships}
       territoryInventory={territoryInventory}
       grades={grades}
       currentStage={primaryState?.pipeline_stages?.name ?? null}
