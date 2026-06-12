@@ -3236,9 +3236,12 @@ export type Database = {
       flagged_responses: {
         Row: {
           ai_response: string
+          concern_type: string | null
+          correction_note: string | null
           created_at: string
           id: string
           page_url: string | null
+          selected_text: string | null
           session_id: string | null
           user_id: string
           user_message: string
@@ -3246,9 +3249,12 @@ export type Database = {
         }
         Insert: {
           ai_response: string
+          concern_type?: string | null
+          correction_note?: string | null
           created_at?: string
           id?: string
           page_url?: string | null
+          selected_text?: string | null
           session_id?: string | null
           user_id: string
           user_message: string
@@ -3256,9 +3262,12 @@ export type Database = {
         }
         Update: {
           ai_response?: string
+          concern_type?: string | null
+          correction_note?: string | null
           created_at?: string
           id?: string
           page_url?: string | null
+          selected_text?: string | null
           session_id?: string | null
           user_id?: string
           user_message?: string
@@ -9435,9 +9444,11 @@ export type Database = {
           ghl_contact_id: string | null
           id: string
           message_type: string
+          owner_user_id: string | null
           provider: string
           provider_message_id: string
           raw_payload: Json
+          read_at: string | null
           received_at: string | null
           segment_count: number | null
           sent_at: string | null
@@ -9457,9 +9468,11 @@ export type Database = {
           ghl_contact_id?: string | null
           id?: string
           message_type?: string
+          owner_user_id?: string | null
           provider?: string
           provider_message_id: string
           raw_payload?: Json
+          read_at?: string | null
           received_at?: string | null
           segment_count?: number | null
           sent_at?: string | null
@@ -9479,9 +9492,11 @@ export type Database = {
           ghl_contact_id?: string | null
           id?: string
           message_type?: string
+          owner_user_id?: string | null
           provider?: string
           provider_message_id?: string
           raw_payload?: Json
+          read_at?: string | null
           received_at?: string | null
           segment_count?: number | null
           sent_at?: string | null
@@ -9495,6 +9510,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_messages_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -10593,6 +10615,7 @@ export type Database = {
       }
       users: {
         Row: {
+          assigned_signalhouse_number: string | null
           created_at: string | null
           email: string
           assigned_signalhouse_number: string | null
@@ -10605,9 +10628,11 @@ export type Database = {
           last_login_at: string | null
           ms_user_id: number | null
           role: string
+          signalhouse_phone_number: string | null
           updated_at: string | null
         }
         Insert: {
+          assigned_signalhouse_number?: string | null
           created_at?: string | null
           email: string
           assigned_signalhouse_number?: string | null
@@ -10620,9 +10645,11 @@ export type Database = {
           last_login_at?: string | null
           ms_user_id?: number | null
           role: string
+          signalhouse_phone_number?: string | null
           updated_at?: string | null
         }
         Update: {
+          assigned_signalhouse_number?: string | null
           created_at?: string | null
           email?: string
           assigned_signalhouse_number?: string | null
@@ -10635,6 +10662,7 @@ export type Database = {
           last_login_at?: string | null
           ms_user_id?: number | null
           role?: string
+          signalhouse_phone_number?: string | null
           updated_at?: string | null
         }
         Relationships: []

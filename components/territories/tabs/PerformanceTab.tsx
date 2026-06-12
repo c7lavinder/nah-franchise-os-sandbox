@@ -40,6 +40,7 @@ interface PropertyRow {
   stages: Stage[];
   purchaseDate: string;
   totalDays: number;
+  currentStageDays: number;
   profit?: number | null;
   arv?: number | null;
   projectedProfit?: number | null;
@@ -692,6 +693,7 @@ function NoSoldFallback({
 
 function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: boolean }) {
   const stages = p.stages;
+  const currentStageLabel = p.currentPhase ?? "stage";
   // Current = last stage with a date
   let currentIdx = 0;
   for (let i = stages.length - 1; i >= 0; i--) {
@@ -720,9 +722,12 @@ function PropertyCard({ property: p, isSold }: { property: PropertyRow; isSold: 
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <span
-            className={`text-caption font-medium ${p.totalDays > 180 ? "text-danger" : p.totalDays > 90 ? "text-warning" : "text-text-tertiary"}`}
+            className={`text-caption font-medium ${
+              p.currentStageDays > 90 ? "text-danger" : p.currentStageDays > 45 ? "text-warning" : "text-text-tertiary"
+            }`}
+            title={`${p.totalDays}d total from purchase`}
           >
-            {p.totalDays}d {isSold ? "cycle" : "held"}
+            {p.currentStageDays}d in {currentStageLabel}
           </span>
           {p.arv != null && <span className="text-caption text-text-tertiary">ARV {fmt$(p.arv)}</span>}
           {isSold && p.profit != null ? (

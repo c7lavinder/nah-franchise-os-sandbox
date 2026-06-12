@@ -36,8 +36,9 @@ interface StepResult {
   detail?: string;
 }
 
-export async function POST(request: NextRequest, { params }: { params: { contactId: string } }) {
-  const dupRaw = params.contactId;
+export async function POST(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
+  const { contactId } = await params;
+  const dupRaw = contactId;
   const body = (await request.json()) as MergeBody;
   if (!body.keepContactId) {
     return NextResponse.json({ error: "keepContactId is required" }, { status: 400 });

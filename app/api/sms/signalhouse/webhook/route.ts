@@ -3,13 +3,11 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyWebhookSecret } from "@/lib/auth/webhook-verify";
 import { createServerClient } from "@/lib/supabase/server";
-import { normalizeAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
+import { findSignalHouseOwner } from "@/lib/sms/number-ownership";
 import { phoneLookupKey } from "@/lib/sms/phone";
 
 type SignalHouseWebhookPayload = {
   messageId?: string;
-  identifier?: string;
-  event?: string;
   _id?: string;
   status?: string;
   timestamp?: string;
@@ -21,82 +19,12 @@ type SignalHouseWebhookPayload = {
   messageBody?: string;
   segmentCount?: number;
   carrier?: string;
-  metaData?: {
-    Message?: Record<string, unknown>;
-    [key: string]: unknown;
-  };
   statusHistory?: unknown;
   [key: string]: unknown;
 };
 
-function stringValue(...values: unknown[]) {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return undefined;
-}
-
-function nestedMessage(payload: SignalHouseWebhookPayload) {
-  return payload.metaData?.Message ?? {};
-}
-
-function normalizeDirection(payload: SignalHouseWebhookPayload) {
-  const direction = stringValue(payload.direction, nestedMessage(payload).direction);
-  if (direction?.toLowerCase() === "inbound") return "inbound";
-  if (direction?.toLowerCase() === "outbound") return "outbound";
-  return payload.event === "MESSAGE_RECEIVED" ? "inbound" : "outbound";
-}
-
-function providerMessageId(payload: SignalHouseWebhookPayload) {
-  const message = nestedMessage(payload);
-  return stringValue(payload._id, payload.messageId, payload.identifier, message._id, message.messageId, message.identifier);
-}
-
-function messageStatus(payload: SignalHouseWebhookPayload) {
-  return stringValue(payload.status, nestedMessage(payload).status) ?? (payload.event === "MESSAGE_RECEIVED" ? "RECEIVED" : null);
-}
-
-function messageType(payload: SignalHouseWebhookPayload) {
-  return stringValue(payload.messageType, nestedMessage(payload).messageType) ?? "SMS";
-}
-
-function senderNumber(payload: SignalHouseWebhookPayload) {
-  const message = nestedMessage(payload);
-  return stringValue(
-    payload.senderPhoneNumber,
-    message.senderPhoneNumber,
-    message.fromNumber,
-    message.from,
-    message.sourcePhoneNumber
-  );
-}
-
-function recipientNumber(payload: SignalHouseWebhookPayload) {
-  const message = nestedMessage(payload);
-  return stringValue(
-    payload.recipientPhoneNumber,
-    message.recipientPhoneNumber,
-    message.toNumber,
-    message.to,
-    message.destinationPhoneNumber
-  );
-}
-
-function ownedNumber(payload: SignalHouseWebhookPayload) {
-  return stringValue(payload.phoneNumber, nestedMessage(payload).phoneNumber);
-}
-
-function messageBody(payload: SignalHouseWebhookPayload) {
-  const message = nestedMessage(payload);
-  return stringValue(payload.messageBody, message.messageBody, message.body, message.text, message.content) ?? null;
-}
-
-function inboundFromNumber(payload: SignalHouseWebhookPayload) {
-  return senderNumber(payload) ?? recipientNumber(payload);
-}
-
-function outboundToNumber(payload: SignalHouseWebhookPayload) {
-  return recipientNumber(payload);
+function normalizeDirection(value: string | undefined) {
+  return value?.toLowerCase() === "inbound" ? "inbound" : "outbound";
 }
 
 function verifySignalHouseWebhookSecret(request: NextRequest) {
@@ -112,8 +40,8 @@ function verifySignalHouseWebhookSecret(request: NextRequest) {
 
 async function findContactId(payload: SignalHouseWebhookPayload) {
   const supabase = createServerClient();
-  const direction = normalizeDirection(payload);
-  const remoteNumber = direction === "inbound" ? inboundFromNumber(payload) : outboundToNumber(payload);
+  const direction = normalizeDirection(payload.direction);
+  const remoteNumber = direction === "inbound" ? payload.senderPhoneNumber : payload.recipientPhoneNumber;
   const key = phoneLookupKey(remoteNumber);
   if (!key) return null;
 
@@ -132,45 +60,44 @@ export async function POST(request: NextRequest) {
 
   const payload = (await request.json()) as SignalHouseWebhookPayload;
   const supabase = createServerClient();
-  const messageId = providerMessageId(payload);
+  const providerMessageId = payload._id ?? payload.messageId;
 
-  if (!messageId) {
+  if (!providerMessageId) {
     await supabase.from("integration_logs").insert({
       integration_name: "signalhouse",
       event_type: "webhook_missing_message_id",
       status: "failed",
-      error_message: "SignalHouse webhook did not include _id, messageId, or identifier",
+      error_message: "SignalHouse webhook did not include _id or messageId",
       payload_summary: JSON.stringify(payload).slice(0, 500),
     });
     return NextResponse.json({ error: "Missing message id" }, { status: 400 });
   }
 
   const contact = await findContactId(payload);
-  const direction = normalizeDirection(payload);
-  const fromNumber =
-    direction === "inbound" ? inboundFromNumber(payload) : senderNumber(payload) ?? ownedNumber(payload);
-  const toNumber = direction === "inbound" ? ownedNumber(payload) ?? recipientNumber(payload) : outboundToNumber(payload);
-  const status = messageStatus(payload);
-  const timestamp = payload.timestamp ?? new Date().toISOString();
+  const direction = normalizeDirection(payload.direction);
+  const localNumber =
+    direction === "inbound" ? payload.recipientPhoneNumber : (payload.senderPhoneNumber ?? payload.phoneNumber);
+  const ownerUserId = await findSignalHouseOwner(localNumber);
 
   await supabase.from("sms_messages").upsert(
     {
       provider: "signalhouse",
-      provider_message_id: messageId,
+      provider_message_id: providerMessageId,
       contact_id: contact?.id ?? null,
       ghl_contact_id: contact?.ghl_contact_id ?? null,
+      owner_user_id: ownerUserId,
       direction,
-      message_type: messageType(payload),
-      from_number: normalizeAssignedSignalHouseNumber(fromNumber),
-      to_number: normalizeAssignedSignalHouseNumber(toNumber),
-      body: messageBody(payload),
-      status,
-      segment_count: payload.segmentCount ?? (Number(nestedMessage(payload).segmentCount) || null),
-      carrier: payload.carrier ?? stringValue(nestedMessage(payload).carrier) ?? null,
+      message_type: payload.messageType ?? "SMS",
+      from_number: payload.senderPhoneNumber ?? payload.phoneNumber ?? null,
+      to_number: payload.recipientPhoneNumber ?? null,
+      body: payload.messageBody ?? null,
+      status: payload.status ?? null,
+      segment_count: payload.segmentCount ?? null,
+      carrier: payload.carrier ?? null,
       raw_payload: payload,
-      received_at: direction === "inbound" ? timestamp : null,
-      delivered_at: status === "DELIVERED" ? timestamp : null,
-      failed_at: status === "FAILED" ? timestamp : null,
+      received_at: direction === "inbound" ? (payload.timestamp ?? new Date().toISOString()) : null,
+      delivered_at: payload.status === "DELIVERED" ? (payload.timestamp ?? new Date().toISOString()) : null,
+      failed_at: payload.status === "FAILED" ? (payload.timestamp ?? new Date().toISOString()) : null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "provider,provider_message_id" }
@@ -180,7 +107,7 @@ export async function POST(request: NextRequest) {
     integration_name: "signalhouse",
     event_type: direction === "inbound" ? "message_received" : "message_status",
     status: "success",
-    payload_summary: `SignalHouse ${direction} ${status ?? "event"} ${messageId} contact:${contact?.id ?? "unmatched"}`,
+    payload_summary: `SignalHouse ${direction} ${payload.status ?? "event"} ${providerMessageId} contact:${contact?.id ?? "unmatched"} owner:${ownerUserId ?? "unassigned"}`,
     related_contact_id: contact?.id ?? null,
   });
 

@@ -194,7 +194,11 @@ export interface GHLConversation {
   fullName?: string;
   email?: string;
   phone?: string;
-  lastMessageType?: number;
+  lastMessageType?: number | string;
+  lastMessageBody?: string;
+  lastMessageDirection?: string;
+  assignedNumber?: string | null;
+  status?: string | null;
   tags?: string[];
 }
 
@@ -231,6 +235,7 @@ export interface GHLMessage {
   threadId?: string;
   conversationId?: string;
   source?: string;
+  senderName?: string | null;
 }
 
 /** GHL Send SMS payload */

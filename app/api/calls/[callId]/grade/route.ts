@@ -119,8 +119,9 @@ RESPONSE FORMAT — Return ONLY valid JSON:
 Only suggest actions and profile updates that make sense based on the call. Don't force anything.
 If the transcript is short or unclear, grade conservatively and note that limited information was available.`;
 
-export async function POST(request: NextRequest, { params }: { params: { callId: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ callId: string }> }) {
   try {
+    const { callId } = await params;
     const body = (await request.json()) as GradeRequest;
 
     if (!body.transcript?.trim()) {
@@ -165,7 +166,7 @@ export async function POST(request: NextRequest, { params }: { params: { callId:
     }
 
     const grade = JSON.parse(jsonMatch[0]) as GradeResult;
-    return NextResponse.json({ grade, callId: params.callId });
+    return NextResponse.json({ grade, callId });
   } catch (err) {
     console.error("Call grading failed:", err);
     return NextResponse.json({ error: "Failed to grade call" }, { status: 500 });

@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { scoutLinkComponents } from "@/components/scout/ScoutBubble";
+import ScoutConcernFlagger from "@/components/scout/ScoutConcernFlagger";
 import { DraftedActionCard } from "@/components/scout";
 import { parsePageContext } from "@/lib/scout/page-context";
 import type { DraftedAction } from "@/types/scout";
@@ -210,6 +211,33 @@ export default function ScoutFAB() {
     );
   }
 
+  async function handleFlagConcern(
+    messageIndex: number,
+    feedback: { selectedText: string; concernType: string; correctionNote: string }
+  ) {
+    const assistantMessage = messages[messageIndex];
+    const previousUserMessage = [...messages]
+      .slice(0, messageIndex)
+      .reverse()
+      .find((msg) => msg.role === "user");
+
+    if (!assistantMessage?.content || !previousUserMessage?.content) return;
+
+    await apiFetch("/api/flagged-responses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId,
+        userMessage: previousUserMessage.content,
+        aiResponse: assistantMessage.content,
+        pageUrl: pathname,
+        selectedText: feedback.selectedText,
+        concernType: feedback.concernType,
+        correctionNote: feedback.correctionNote,
+      }),
+    });
+  }
+
   // Don't render on the dedicated Scout page
   if (isScoutPage) return null;
 
@@ -334,7 +362,7 @@ export default function ScoutFAB() {
               </div>
             )}
 
-            {messages.map((msg) => (
+            {messages.map((msg, index) => (
               <div key={msg.id}>
                 <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
@@ -352,6 +380,12 @@ export default function ScoutFAB() {
                         {msg.content}
                       </ReactMarkdown>
                     </div>
+                    {msg.role === "assistant" && (
+                      <ScoutConcernFlagger
+                        onFlagConcern={(feedback) => handleFlagConcern(index, feedback)}
+                        className="mt-1"
+                      />
+                    )}
                   </div>
                 </div>
                 {msg.draftedActions && msg.draftedActions.length > 0 && (

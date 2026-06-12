@@ -4,6 +4,7 @@
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { MessageSquare, ExternalLink } from "lucide-react";
+import ScoutConcernFlagger from "@/components/scout/ScoutConcernFlagger";
 
 /** Shared link renderer — opens in new tab with a styled pill for internal links */
 export const scoutLinkComponents: Components = {
@@ -30,10 +31,11 @@ export const scoutLinkComponents: Components = {
 interface ScoutBubbleProps {
   content: string;
   timestamp: string;
+  onFlagConcern?: (feedback: { selectedText: string; concernType: string; correctionNote: string }) => Promise<void>;
 }
 
 /** Scout's chat message bubble — left-aligned with purple tint and avatar */
-export default function ScoutBubble({ content, timestamp }: ScoutBubbleProps) {
+export default function ScoutBubble({ content, timestamp, onFlagConcern }: ScoutBubbleProps) {
   return (
     <div className="flex gap-3 max-w-[85%]">
       {/* Scout avatar */}
@@ -53,6 +55,8 @@ export default function ScoutBubble({ content, timestamp }: ScoutBubbleProps) {
             </ReactMarkdown>
           </div>
         </div>
+
+        {onFlagConcern && <ScoutConcernFlagger onFlagConcern={onFlagConcern} className="mt-1" />}
 
         {/* Timestamp */}
         <span className="text-caption text-text-tertiary mt-1 block">

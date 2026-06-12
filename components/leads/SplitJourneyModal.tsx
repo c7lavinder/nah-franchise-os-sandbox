@@ -14,7 +14,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
  * come later — the backend already supports N > 2.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
@@ -83,7 +83,7 @@ export default function SplitJourneyModal({
   const membersB = useMemo(() => members.filter((m) => memberSide[m.contact_id] === "B"), [members, memberSide]);
 
   // Auto-preselect the primary when a side ends up with exactly one member.
-  useMemo(() => {
+  useEffect(() => {
     if (!primaryA && membersA.length >= 1) setPrimaryA(membersA[0].contact_id);
     if (!primaryB && membersB.length >= 1) setPrimaryB(membersB[0].contact_id);
   }, [membersA, membersB, primaryA, primaryB]);

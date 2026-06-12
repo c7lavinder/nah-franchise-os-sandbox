@@ -8,7 +8,6 @@ export function getServiceSupabase(): SupabaseClient {
 
   client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!, {
     auth: { persistSession: false },
-    // eslint-disable-next-line
     realtime: { transport: WebSocket as any },
   });
 

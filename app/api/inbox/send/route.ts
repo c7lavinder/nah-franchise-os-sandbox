@@ -13,7 +13,7 @@ import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
 import { customerFacingSendsDisabledReason, customerFacingSendsEnabled } from "@/lib/ghl/action-safety";
 import { createServerClient } from "@/lib/supabase/server";
-import { getAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
+import { getAssignedSignalHouseNumber } from "@/lib/sms/number-ownership";
 import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
 import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
 import type { GHLSendMessagePayload } from "@/types/ghl";
@@ -135,11 +135,14 @@ export async function POST(request: NextRequest) {
       const fromNumber = await getAssignedSignalHouseNumber(user.id);
       if (!fromNumber) {
         return NextResponse.json(
-          { error: "Your user does not have a SignalHouse sending number assigned in Settings.", success: false },
+          { error: "Your user does not have a SignalHouse number assigned in Settings > Users.", success: false },
           { status: 409 }
         );
       }
-      message = await sendContactSmsViaSignalHouse(body.contactId, body.message!.trim(), { fromNumber });
+      message = await sendContactSmsViaSignalHouse(body.contactId, body.message!.trim(), {
+        from: fromNumber,
+        ownerUserId: user.id,
+      });
     } else {
       message = await ghl.sendMessage(payload);
     }

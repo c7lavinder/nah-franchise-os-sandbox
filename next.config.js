@@ -6,10 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  experimental: {
-    instrumentationHook: true,
-    serverComponentsExternalPackages: ["mysql2", "ws", "pdf-parse"],
-  },
+  serverExternalPackages: ["mysql2", "ws", "pdf-parse"],
 };
 
 module.exports = nextConfig;

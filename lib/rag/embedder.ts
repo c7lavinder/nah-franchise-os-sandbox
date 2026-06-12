@@ -11,24 +11,50 @@
  * Stores embeddings in Supabase pgvector `embeddings` table.
  */
 
-import { VoyageAIClient } from "voyageai";
 import { createServerClient } from "@/lib/supabase/server";
 
 // ---------------------------------------------------------------------------
-// Voyage AI client (lazy init)
+// Voyage AI HTTP client
 // ---------------------------------------------------------------------------
 
-let voyageClient: VoyageAIClient | null = null;
+interface VoyageEmbeddingResponse {
+  data?: Array<{ embedding?: number[] }>;
+}
 
-function getVoyage(): VoyageAIClient {
-  if (!voyageClient) {
-    const apiKey = process.env.VOYAGE_API_KEY;
-    if (!apiKey) {
-      throw new Error("Missing VOYAGE_API_KEY environment variable");
-    }
-    voyageClient = new VoyageAIClient({ apiKey });
+async function embedWithVoyage(input: string[]): Promise<number[][]> {
+  const apiKey = process.env.VOYAGE_API_KEY;
+  if (!apiKey) {
+    throw new Error("Missing VOYAGE_API_KEY environment variable");
   }
-  return voyageClient;
+
+  const response = await fetch("https://api.voyageai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      input,
+      model: VOYAGE_MODEL,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Voyage AI embedding failed (${response.status}): ${text || response.statusText}`);
+  }
+
+  const body = (await response.json()) as VoyageEmbeddingResponse;
+  if (!body.data?.length) {
+    throw new Error("Voyage AI returned no embedding data");
+  }
+
+  return body.data.map((item) => {
+    if (!item.embedding) {
+      throw new Error("Voyage AI returned null embedding");
+    }
+    return item.embedding;
+  });
 }
 
 const VOYAGE_MODEL = "voyage-3-large";
@@ -38,22 +64,13 @@ const VOYAGE_MODEL = "voyage-3-large";
 // ---------------------------------------------------------------------------
 
 export async function getEmbedding(text: string): Promise<number[]> {
-  const voyage = getVoyage();
   const trimmed = text.trim();
   if (!trimmed) {
     throw new Error("Cannot embed empty text");
   }
 
-  const response = await voyage.embed({
-    input: [trimmed],
-    model: VOYAGE_MODEL,
-  });
-
-  if (!response.data || response.data.length === 0 || !response.data[0].embedding) {
-    throw new Error("Voyage AI returned no embedding");
-  }
-
-  return response.data[0].embedding;
+  const [embedding] = await embedWithVoyage([trimmed]);
+  return embedding;
 }
 
 /**
@@ -63,7 +80,6 @@ export async function getEmbedding(text: string): Promise<number[]> {
 export async function getEmbeddingBatch(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
 
-  const voyage = getVoyage();
   const trimmed = texts.map((t) => t.trim()).filter((t) => t.length > 0);
   if (trimmed.length === 0) return [];
 
@@ -72,21 +88,7 @@ export async function getEmbeddingBatch(texts: string[]): Promise<number[][]> {
 
   for (let i = 0; i < trimmed.length; i += BATCH_SIZE) {
     const batch = trimmed.slice(i, i + BATCH_SIZE);
-    const response = await voyage.embed({
-      input: batch,
-      model: VOYAGE_MODEL,
-    });
-
-    if (!response.data) {
-      throw new Error("Voyage AI returned no data for batch");
-    }
-
-    for (const item of response.data) {
-      if (!item.embedding) {
-        throw new Error("Voyage AI returned null embedding in batch");
-      }
-      allEmbeddings.push(item.embedding);
-    }
+    allEmbeddings.push(...(await embedWithVoyage(batch)));
   }
 
   return allEmbeddings;

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   if (user instanceof Response) return user;
 
   const body = await request.json();
-  const { sessionId, userMessage, aiResponse, pageUrl } = body;
+  const { sessionId, userMessage, aiResponse, pageUrl, selectedText, concernType, correctionNote } = body;
 
   if (!userMessage || !aiResponse) {
     return NextResponse.json({ error: "userMessage and aiResponse are required" }, { status: 400 });
@@ -30,6 +30,9 @@ export async function POST(request: NextRequest) {
       user_message: userMessage,
       ai_response: aiResponse,
       page_url: pageUrl || null,
+      selected_text: selectedText || null,
+      concern_type: concernType || null,
+      correction_note: correctionNote || null,
     })
     .select("id")
     .single();

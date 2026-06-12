@@ -21,10 +21,8 @@ interface ActionToExecute {
   label: string;
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { callId: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ callId: string }> }) {
+  const { callId } = await params;
   const user = await requireAuth(request);
   if (user instanceof Response) return user;
 
@@ -98,17 +96,23 @@ export async function POST(
         // Log each action
         try {
           await supabase.from("scout_action_logs").insert({
-            action_type: action.type === "sms" || action.type === "email" ? "message" : action.type === "stage_move" ? "stage_move" : action.type === "task" ? "task" : "note",
+            action_type:
+              action.type === "sms" || action.type === "email"
+                ? "message"
+                : action.type === "stage_move"
+                  ? "stage_move"
+                  : action.type === "task"
+                    ? "task"
+                    : "note",
             action_status: "executed",
             ghl_contact_id: action.contactId,
-            draft_content: { source: "call_grading", callId: params.callId, ...action },
+            draft_content: { source: "call_grading", callId, ...action },
             final_content: { content: action.content },
             executed_at: new Date().toISOString(),
           });
         } catch {
           // Don't fail if logging fails
         }
-
       } catch (err) {
         results.push({
           action: action.label,

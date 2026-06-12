@@ -8,26 +8,20 @@
  * contact-scoped queries.
  */
 
-import { VoyageAIClient } from "voyageai";
 import { createServerClient } from "@/lib/supabase/server";
 import { searchEmbeddings, type SearchResult } from "./embedder";
 import { getContactProfileFields, type ProfileFieldValue } from "@/lib/profile/profile-fields";
 
 // ---------------------------------------------------------------------------
-// Voyage reranker (lazy init)
+// Voyage reranker
 // ---------------------------------------------------------------------------
 
-let voyageClient: VoyageAIClient | null = null;
-
-function getVoyage(): VoyageAIClient {
-  if (!voyageClient) {
-    const apiKey = process.env.VOYAGE_API_KEY;
-    if (!apiKey) {
-      throw new Error("Missing VOYAGE_API_KEY environment variable");
-    }
-    voyageClient = new VoyageAIClient({ apiKey });
-  }
-  return voyageClient;
+interface VoyageRerankResponse {
+  data?: Array<{
+    index?: number;
+    relevance_score?: number;
+    relevanceScore?: number;
+  }>;
 }
 
 /**
@@ -37,23 +31,42 @@ function getVoyage(): VoyageAIClient {
 async function voyageRerank(query: string, results: SearchResult[], topK: number): Promise<SearchResult[]> {
   if (results.length === 0) return [];
 
-  const voyage = getVoyage();
+  const apiKey = process.env.VOYAGE_API_KEY;
+  if (!apiKey) {
+    throw new Error("Missing VOYAGE_API_KEY environment variable");
+  }
+
   const documents = results.map((r) => r.content);
 
-  const response = await voyage.rerank({
-    query,
-    documents,
-    model: "rerank-2",
-    topK: Math.min(topK, results.length),
+  const response = await fetch("https://api.voyageai.com/v1/rerank", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query,
+      documents,
+      model: "rerank-2",
+      top_k: Math.min(topK, results.length),
+    }),
   });
 
-  if (!response.data) return results.slice(0, topK);
+  if (!response.ok) {
+    console.error(
+      `Voyage rerank failed (${response.status}): ${await response.text().catch(() => response.statusText)}`
+    );
+    return results.slice(0, topK);
+  }
 
-  return response.data
+  const body = (await response.json()) as VoyageRerankResponse;
+  if (!body.data) return results.slice(0, topK);
+
+  return body.data
     .filter((item) => item.index != null)
     .map((item) => ({
       ...results[item.index!],
-      similarity: item.relevanceScore ?? results[item.index!].similarity,
+      similarity: item.relevance_score ?? item.relevanceScore ?? results[item.index!].similarity,
     }));
 }
 

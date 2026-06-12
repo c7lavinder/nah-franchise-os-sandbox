@@ -98,8 +98,20 @@ interface FlaggedResponse {
   user_message: string;
   ai_response: string;
   page_url: string | null;
+  selected_text: string | null;
+  concern_type: string | null;
+  correction_note: string | null;
   created_at: string;
 }
+
+const CONCERN_TYPE_LABELS: Record<string, string> = {
+  factually_wrong: "Factually wrong",
+  outdated_info: "Outdated info",
+  bad_recommendation: "Bad recommendation",
+  missing_context: "Missing context",
+  tone_wording: "Tone / wording issue",
+  other: "Other",
+};
 
 interface AiApiActivity {
   id: string;
@@ -471,7 +483,7 @@ export default function AuditPage() {
             }`}
           >
             <Flag className="w-4 h-4" />
-            Flagged Responses
+            Scout Feedback
             {flagged.length > 0 && (
               <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">{flagged.length}</span>
             )}
@@ -838,7 +850,7 @@ export default function AuditPage() {
         <>
           <div>
             <p className="text-sm text-gray-500">
-              Scout responses flagged by your team. Review for quality and accuracy.
+              Highlight-level Scout concerns flagged by your team. Review what was wrong and where it came from.
             </p>
           </div>
 
@@ -851,14 +863,14 @@ export default function AuditPage() {
               Refresh
             </button>
             <span className="text-sm text-gray-400 ml-auto">
-              {flagged.length} flagged response{flagged.length !== 1 ? "s" : ""}
+              {flagged.length} feedback item{flagged.length !== 1 ? "s" : ""}
             </span>
           </div>
 
           {flaggedLoading ? (
             <div className="text-center py-12 text-gray-400">Loading...</div>
           ) : flagged.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">No flagged responses yet.</div>
+            <div className="text-center py-12 text-gray-400">No Scout feedback yet.</div>
           ) : (
             <div className="space-y-2">
               {flagged.map((f) => {
@@ -876,6 +888,11 @@ export default function AuditPage() {
                         <p className="text-sm text-gray-900 line-clamp-1">&ldquo;{f.user_message}&rdquo;</p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <span className="text-[11px] text-gray-400">Flagged by {f.user_name}</span>
+                          {f.concern_type && (
+                            <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-medium">
+                              {CONCERN_TYPE_LABELS[f.concern_type] ?? f.concern_type}
+                            </span>
+                          )}
                           <span className="text-[11px] text-gray-400">
                             {time.toLocaleDateString()}{" "}
                             {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -896,6 +913,31 @@ export default function AuditPage() {
 
                     {isExpanded && (
                       <div className="px-4 pb-4 border-t border-gray-100 space-y-3 mt-0">
+                        {(f.selected_text || f.correction_note) && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                            {f.selected_text && (
+                              <div>
+                                <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">
+                                  Highlighted concern
+                                </div>
+                                <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-2">
+                                  <p className="text-sm text-red-900 whitespace-pre-wrap">{f.selected_text}</p>
+                                </div>
+                              </div>
+                            )}
+                            {f.correction_note && (
+                              <div>
+                                <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">
+                                  What was wrong
+                                </div>
+                                <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+                                  <p className="text-sm text-amber-900 whitespace-pre-wrap">{f.correction_note}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         <div className="mt-3">
                           <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-1">
                             User asked

@@ -8,6 +8,7 @@ import { parsePageContext } from "@/lib/scout/page-context";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { scoutLinkComponents } from "@/components/scout/ScoutBubble";
+import ScoutConcernFlagger from "@/components/scout/ScoutConcernFlagger";
 import type Anthropic from "@anthropic-ai/sdk";
 
 const PLACEHOLDERS: Record<string, string> = {
@@ -116,6 +117,28 @@ export default function QuickAsk({ context }: QuickAskProps) {
       }
     },
     [exchanges, pathname, flaggedIndices]
+  );
+
+  const handleFlagConcern = useCallback(
+    async (index: number, feedback: { selectedText: string; concernType: string; correctionNote: string }) => {
+      const exchange = exchanges[index];
+      if (!exchange) return;
+
+      await apiFetch("/api/flagged-responses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: sessionIdRef.current,
+          userMessage: exchange.userMessage,
+          aiResponse: exchange.aiResponse,
+          pageUrl: pathname,
+          selectedText: feedback.selectedText,
+          concernType: feedback.concernType,
+          correctionNote: feedback.correctionNote,
+        }),
+      });
+    },
+    [exchanges, pathname]
   );
 
   async function handleSend() {
@@ -238,6 +261,7 @@ export default function QuickAsk({ context }: QuickAskProps) {
                       {ex.aiResponse}
                     </ReactMarkdown>
                   </div>
+                  <ScoutConcernFlagger onFlagConcern={(feedback) => handleFlagConcern(i, feedback)} className="mt-1" />
                   {/* Flag / Unflag toggle button */}
                   <button
                     onClick={() => handleFlag(i)}

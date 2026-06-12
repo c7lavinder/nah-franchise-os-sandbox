@@ -130,7 +130,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { TerritorySlug } = await params;
   const period = request.nextUrl.searchParams.get("period") ?? "t3";
   const leadCategoryFilter = request.nextUrl.searchParams.get("leadCategory") ?? null;
-  const leadTypeFilter = request.nextUrl.searchParams.get("leadType") ?? null;
   const supabase = createServerClient();
 
   const now = new Date();
@@ -169,7 +168,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   while (true) {
     const { data: page } = await supabase
       .from("ms_properties")
-      .select("PropertyId, Status, Inserted, Address1, LeadCategory, LeadType")
+      .select("PropertyId, Status, Inserted, Address1, LeadCategory")
       .eq("TerritorySlug", TerritorySlug)
       .eq("Archived", false)
       .order("PropertyId")
@@ -192,7 +191,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         soldProperties: [],
         inventoryProperties: [],
         leadCategories: {},
-        leadTypes: {},
         leadListBuilding: {
           total: 0,
           benchmark: buildLeadListBenchmark(period, now),
@@ -205,22 +203,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     );
   }
 
-  // Lead filters — category drives the lead-type breakdown, category + type drive funnel/KPIs/lists.
-  let categoryFilteredPropertyIds: Set<number> | undefined;
-  if (leadCategoryFilter) {
-    categoryFilteredPropertyIds = new Set<number>();
-    for (const p of properties) {
-      if ((p.LeadCategory || "Unknown") === leadCategoryFilter) categoryFilteredPropertyIds.add(p.PropertyId);
-    }
-  }
-
+  // Lead category filter — build a set of matching property IDs
   let filteredPropertyIds: Set<number> | undefined;
-  if (leadCategoryFilter || leadTypeFilter) {
+  if (leadCategoryFilter) {
     filteredPropertyIds = new Set<number>();
     for (const p of properties) {
-      if (leadCategoryFilter && (p.LeadCategory || "Unknown") !== leadCategoryFilter) continue;
-      if (leadTypeFilter && (p.LeadType || "Unknown") !== leadTypeFilter) continue;
-      filteredPropertyIds.add(p.PropertyId);
+      if ((p.LeadCategory || "Unknown") === leadCategoryFilter) filteredPropertyIds.add(p.PropertyId);
     }
   }
 
@@ -340,7 +328,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
   }
-  let funnel = computeFunnel(currentHistory, funnelFilter);
+  const funnel = computeFunnel(currentHistory, funnelFilter);
   const prevFunnel = computeFunnel(prevHistory, prevEnteredStage1);
 
   // Median comparison across active territories for the same period/category.
@@ -361,16 +349,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   let activeTerritoryComparisonCount = 0;
 
   if (activeTerritorySlugs.length > 0) {
-    let comparisonProperties: Pick<PropRow, "PropertyId" | "TerritorySlug" | "LeadCategory" | "LeadType">[] = [];
+    let comparisonProperties: Pick<PropRow, "PropertyId" | "TerritorySlug" | "LeadCategory">[] = [];
     for (let i = 0; i < activeTerritorySlugs.length; i += 500) {
       const { data: page } = await supabase
         .from("ms_properties")
-        .select("PropertyId, TerritorySlug, LeadCategory, LeadType")
+        .select("PropertyId, TerritorySlug, LeadCategory")
         .in("TerritorySlug", activeTerritorySlugs.slice(i, i + 500))
         .eq("Archived", false);
       if (page)
         comparisonProperties = comparisonProperties.concat(
-          page as Pick<PropRow, "PropertyId" | "TerritorySlug" | "LeadCategory" | "LeadType">[]
+          page as Pick<PropRow, "PropertyId" | "TerritorySlug" | "LeadCategory">[]
         );
     }
 
@@ -396,7 +384,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const territory = prop?.TerritorySlug;
       if (!territory) continue;
       if (leadCategoryFilter && (prop?.LeadCategory || "Unknown") !== leadCategoryFilter) continue;
-      if (leadTypeFilter && (prop?.LeadType || "Unknown") !== leadTypeFilter) continue;
 
       const rows = historiesByTerritory.get(territory) ?? [];
       rows.push(h);
@@ -490,7 +477,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (filteredPropertyIds && !filteredPropertyIds.has(inv.PropertyId)) return false;
     return isInRange(inv.Inv_PurchaseDate, periodStart, periodEndExclusive);
   });
-  funnel = funnel.map((row) => (row.stage === "6 Purchase" ? { ...row, count: purchasedInPeriod.length } : row));
   const leadToPurchaseDays: number[] = [];
   for (const inv of purchasedInPeriod) {
     const prop = propMap.get(inv.PropertyId);
@@ -508,17 +494,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // 10. Lead category breakdown
   const leadCategories: Record<string, number> = {};
-  const leadTypes: Record<string, number> = {};
   const leadCategoryPropertyIds = new Set<number>();
   for (const h of currentHistory) {
-    if (categoryFilteredPropertyIds && !categoryFilteredPropertyIds.has(h.PropertyId)) continue;
+    if (filteredPropertyIds && !filteredPropertyIds.has(h.PropertyId)) continue;
     if (stageKey(h.NewStatus) === "1" && !leadCategoryPropertyIds.has(h.PropertyId)) {
       leadCategoryPropertyIds.add(h.PropertyId);
       const prop = propMap.get(h.PropertyId);
       const cat = prop?.LeadCategory || "Unknown";
-      const type = prop?.LeadType || "Unknown";
       leadCategories[cat] = (leadCategories[cat] || 0) + 1;
-      leadTypes[type] = (leadTypes[type] || 0) + 1;
     }
   }
 
@@ -551,14 +534,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         days: dBtwn(inv.Inv_ListDate, inv.Inv_SellDate),
       },
     ];
-    for (let i = 1; i < stages.length; i++) {
-      if (stages[i].date || stages[i].days != null || !stages[i - 1].date) continue;
-      stages[i].days = dBtwn(stages[i - 1].date, now.toISOString());
-      break;
-    }
-    const currentStage = [...stages].reverse().find((stage) => stage.date)?.label ?? inv.Inv_Status ?? null;
+    const currentStageEntry = [...stages].reverse().find((stage) => stage.date);
+    const currentStage = currentStageEntry?.label ?? inv.Inv_Status ?? null;
+    const currentStageDays = currentStageEntry?.date
+      ? Math.max(0, Math.round((now.getTime() - new Date(currentStageEntry.date).getTime()) / (1000 * 60 * 60 * 24)))
+      : totalDays;
 
-    return { stages, currentPhase: currentStage, totalDays, purchaseDate: inv.Inv_PurchaseDate };
+    return { stages, currentPhase: currentStage, currentStageDays, totalDays, purchaseDate: inv.Inv_PurchaseDate };
   }
 
   // 11. Sold property list
@@ -573,7 +555,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       profit: calc?.Calculated_Inv_Profit != null ? Math.round(Number(calc.Calculated_Inv_Profit)) : null,
       arv: calc?.Calculated_Arv != null ? Math.round(Number(calc.Calculated_Arv)) : null,
       leadCategory: prop?.LeadCategory ?? null,
-      leadType: prop?.LeadType ?? null,
     };
   });
 
@@ -589,7 +570,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       arv: calc?.Calculated_Arv != null ? Math.round(Number(calc.Calculated_Arv)) : null,
       projectedProfit: calc?.Calculated_Inv_Profit != null ? Math.round(Number(calc.Calculated_Inv_Profit)) : null,
       leadCategory: prop?.LeadCategory ?? null,
-      leadType: prop?.LeadType ?? null,
     };
   });
 
@@ -618,7 +598,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       soldProperties,
       inventoryProperties,
       leadCategories,
-      leadTypes,
       leadListBuilding: {
         total: leadListTypeByPropertyId.size,
         benchmark: leadListBenchmark,
@@ -626,7 +605,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         leadTypes: leadListTypes,
       },
       leadCategoryFilter,
-      leadTypeFilter,
       period,
     },
     { headers: NO_STORE_HEADERS }

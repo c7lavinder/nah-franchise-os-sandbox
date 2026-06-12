@@ -5,7 +5,8 @@ import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { createAiApiTokenSecret, hashAiApiToken, tokenPrefix } from "@/lib/ai-api-tokens";
 
-export async function POST(request: NextRequest, { params }: { params: { userId: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
+  const { userId } = await params;
   const admin = await requireAuth(request);
   if (admin instanceof Response) return admin;
   if (admin.role !== "admin") {
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest, { params }: { params: { userId:
   const { data: targetUser, error: userError } = await supabase
     .from("users")
     .select("id, email, full_name")
-    .eq("id", params.userId)
+    .eq("id", userId)
     .maybeSingle();
 
   if (userError) return NextResponse.json({ error: userError.message }, { status: 500 });
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest, { params }: { params: { userId:
   const { error: revokeError } = await supabase
     .from("ai_api_tokens")
     .update({ revoked_at: new Date().toISOString() })
-    .eq("user_id", params.userId)
+    .eq("user_id", userId)
     .is("revoked_at", null);
 
   if (revokeError) return NextResponse.json({ error: revokeError.message }, { status: 500 });
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest, { params }: { params: { userId:
   const { data: token, error: insertError } = await supabase
     .from("ai_api_tokens")
     .insert({
-      user_id: params.userId,
+      user_id: userId,
       created_by_user_id: admin.id,
       token_hash: hashAiApiToken(secret),
       token_prefix: prefix,
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest, { params }: { params: { userId:
 
   await supabase.from("ai_api_activity").insert({
     token_id: token.id,
-    user_id: params.userId,
+    user_id: userId,
     token_prefix: prefix,
     endpoint: "/api/settings/users/[userId]/ai-token",
     resource: "token.generated",
@@ -61,7 +62,8 @@ export async function POST(request: NextRequest, { params }: { params: { userId:
   return NextResponse.json({ token, secret });
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { userId: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
+  const { userId } = await params;
   const admin = await requireAuth(request);
   if (admin instanceof Response) return admin;
   if (admin.role !== "admin") {
@@ -72,7 +74,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { userI
   const { data: activeTokens, error: findError } = await supabase
     .from("ai_api_tokens")
     .select("id, token_prefix")
-    .eq("user_id", params.userId)
+    .eq("user_id", userId)
     .is("revoked_at", null);
 
   if (findError) return NextResponse.json({ error: findError.message }, { status: 500 });
@@ -80,7 +82,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { userI
   const { error } = await supabase
     .from("ai_api_tokens")
     .update({ revoked_at: new Date().toISOString() })
-    .eq("user_id", params.userId)
+    .eq("user_id", userId)
     .is("revoked_at", null);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -89,7 +91,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { userI
     await supabase.from("ai_api_activity").insert(
       activeTokens.map((token) => ({
         token_id: token.id,
-        user_id: params.userId,
+        user_id: userId,
         token_prefix: token.token_prefix,
         endpoint: "/api/settings/users/[userId]/ai-token",
         resource: "token.revoked",

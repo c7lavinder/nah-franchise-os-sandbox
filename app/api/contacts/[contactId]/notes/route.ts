@@ -10,12 +10,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
 
-export async function POST(request: NextRequest, { params }: { params: { contactId: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const user = await requireAuth(request);
   if (user instanceof Response) return user;
 
   try {
-    const { contactId } = params;
+    const { contactId } = await params;
     const body = await request.json();
 
     if (!body.body?.trim()) {

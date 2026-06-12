@@ -8,14 +8,13 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";
+import * as ghl from "@/lib/ghl";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { callId: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ callId: string }> }) {
   try {
-    const [conversationId, messageId] = params.callId.split("_");
+    const { callId } = await params;
+    const [conversationId, messageId] = callId.split("_");
     if (!conversationId || !messageId) {
       return NextResponse.json({ error: "Invalid call ID" }, { status: 400 });
     }

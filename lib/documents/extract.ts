@@ -36,35 +36,28 @@ export async function extractText(buffer: Buffer, ext: string): Promise<string |
 }
 
 async function extractPdf(buffer: Buffer): Promise<string | null> {
-  // eslint-disable-next-line
   const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
   const result = await pdfParse(buffer);
   return result.text?.slice(0, 50000) || null;
 }
 
 async function extractXlsx(buffer: Buffer): Promise<string | null> {
-  const XLSX = await import("xlsx");
-  const workbook = XLSX.read(buffer, { type: "buffer" });
+  const { default: readXlsxFile } = await import("read-excel-file/node");
+  const sheets = await readXlsxFile(buffer);
 
   const lines: string[] = [];
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    if (!sheet) continue;
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { header: 1 });
-    for (const row of rows) {
-      const values = Object.values(row)
-        .map((v) => String(v ?? ""))
-        .filter(Boolean);
+  for (const sheet of sheets) {
+    if (sheet.sheet) lines.push(`[${sheet.sheet}]`);
+    for (const row of sheet.data) {
+      const values = row.map((v) => String(v ?? "").trim()).filter(Boolean);
       if (values.length > 0) lines.push(values.join(" | "));
     }
   }
+
   return lines.join("\n").slice(0, 50000) || null;
 }
 
 async function extractDocx(buffer: Buffer): Promise<string | null> {
-  // Basic DOCX extraction using xlsx's zip reader to pull document.xml text
-  const XLSX = await import("xlsx");
-  const zip = XLSX.read(buffer, { type: "buffer", bookSheets: true });
   // DOCX files are zip archives — try to read word/document.xml
   // Fallback: just return null if we can't parse
   try {
