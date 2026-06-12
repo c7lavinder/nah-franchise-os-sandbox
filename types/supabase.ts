@@ -3241,8 +3241,11 @@ export type Database = {
           created_at: string
           id: string
           page_url: string | null
+          resolved_at: string | null
+          reviewed_at: string | null
           selected_text: string | null
           session_id: string | null
+          status: string
           user_id: string
           user_message: string
           user_name: string
@@ -3254,8 +3257,11 @@ export type Database = {
           created_at?: string
           id?: string
           page_url?: string | null
+          resolved_at?: string | null
+          reviewed_at?: string | null
           selected_text?: string | null
           session_id?: string | null
+          status?: string
           user_id: string
           user_message: string
           user_name: string
@@ -3267,8 +3273,11 @@ export type Database = {
           created_at?: string
           id?: string
           page_url?: string | null
+          resolved_at?: string | null
+          reviewed_at?: string | null
           selected_text?: string | null
           session_id?: string | null
+          status?: string
           user_id?: string
           user_message?: string
           user_name?: string
@@ -10618,7 +10627,6 @@ export type Database = {
           assigned_signalhouse_number: string | null
           created_at: string | null
           email: string
-          assigned_signalhouse_number: string | null
           full_name: string
           ghl_user_id: string | null
           id: string
@@ -10635,7 +10643,6 @@ export type Database = {
           assigned_signalhouse_number?: string | null
           created_at?: string | null
           email: string
-          assigned_signalhouse_number?: string | null
           full_name: string
           ghl_user_id?: string | null
           id?: string
@@ -10652,7 +10659,6 @@ export type Database = {
           assigned_signalhouse_number?: string | null
           created_at?: string | null
           email?: string
-          assigned_signalhouse_number?: string | null
           full_name?: string
           ghl_user_id?: string | null
           id?: string

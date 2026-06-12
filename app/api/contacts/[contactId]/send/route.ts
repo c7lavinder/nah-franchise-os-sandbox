@@ -13,10 +13,7 @@ import { getAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
 import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
 import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const user = await requireAuth(request);
   if (user instanceof Response) return user;
 
@@ -52,7 +49,10 @@ export async function POST(
             { status: 409 }
           );
         }
-        msg = await sendContactSmsViaSignalHouse(contactId, body.message.trim(), { fromNumber });
+        msg = await sendContactSmsViaSignalHouse(contactId, body.message.trim(), {
+          from: fromNumber,
+          ownerUserId: user.id,
+        });
       } else {
         msg = await sendMessage({
           type: "SMS",

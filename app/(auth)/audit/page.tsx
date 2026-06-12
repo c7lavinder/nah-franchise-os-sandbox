@@ -101,6 +101,9 @@ interface FlaggedResponse {
   selected_text: string | null;
   concern_type: string | null;
   correction_note: string | null;
+  status: BugStatus;
+  reviewed_at: string | null;
+  resolved_at: string | null;
   created_at: string;
 }
 
@@ -280,6 +283,7 @@ export default function AuditPage() {
   const [flagged, setFlagged] = useState<FlaggedResponse[]>([]);
   const [flaggedLoading, setFlaggedLoading] = useState(false);
   const [expandedFlag, setExpandedFlag] = useState<string | null>(null);
+  const [flagStatusFilter, setFlagStatusFilter] = useState<BugStatus | "all">("all");
 
   // Journey briefs state
   const [briefs, setBriefs] = useState<JourneyBriefEntry[]>([]);
@@ -395,6 +399,37 @@ export default function AuditPage() {
   useEffect(() => {
     if (activeTab === "flagged") fetchFlagged();
   }, [activeTab, fetchFlagged]);
+
+  const updateFlagStatus = async (flagId: string, newStatus: BugStatus) => {
+    await apiFetch(`/api/flagged-responses/${flagId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    const now = new Date().toISOString();
+    setFlagged((prev) =>
+      prev.map((f) =>
+        f.id === flagId
+          ? {
+              ...f,
+              status: newStatus,
+              reviewed_at: newStatus === "needs_review" ? null : now,
+              resolved_at: newStatus === "fixed" || newStatus === "skipped" ? now : null,
+            }
+          : f
+      )
+    );
+  };
+
+  const flagStatusCounts = flagged.reduce(
+    (acc, f) => {
+      acc[f.status] = (acc[f.status] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  const filteredFlagged = flagged.filter((f) => flagStatusFilter === "all" || f.status === flagStatusFilter);
 
   // Journey briefs
   const fetchBriefs = useCallback(async () => {
@@ -850,32 +885,80 @@ export default function AuditPage() {
         <>
           <div>
             <p className="text-sm text-gray-500">
-              Highlight-level Scout concerns flagged by your team. Review what was wrong and where it came from.
+              Highlight-level Scout concerns flagged by your team. Review, work, and close each item.
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {(Object.entries(STATUS_CONFIG) as [BugStatus, (typeof STATUS_CONFIG)[BugStatus]][]).map(([key, cfg]) => {
+              const Icon = cfg.icon;
+              const count = flagStatusCounts[key] || 0;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setFlagStatusFilter(flagStatusFilter === key ? "all" : key)}
+                  className={`rounded-lg border px-4 py-3 text-left transition-all ${
+                    flagStatusFilter === key
+                      ? `${cfg.bg} ring-2 ring-red-300 ring-offset-1`
+                      : "bg-white border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon size={14} className={cfg.color} />
+                    <span className="text-xs font-medium text-gray-600">{cfg.label}</span>
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900">{count}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+              {(
+                [
+                  ["all", "All", flagged.length],
+                  ["needs_review", "Needs Review", flagStatusCounts["needs_review"] || 0],
+                  ["working_on_it", "Working On It", flagStatusCounts["working_on_it"] || 0],
+                  ["fixed", "Fixed", flagStatusCounts["fixed"] || 0],
+                  ["skipped", "Skipped", flagStatusCounts["skipped"] || 0],
+                ] as [BugStatus | "all", string, number][]
+              ).map(([key, label, count]) => (
+                <button
+                  key={key}
+                  onClick={() => setFlagStatusFilter(key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    flagStatusFilter === key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {label}
+                  {count > 0 && <span className="ml-1 text-[10px] opacity-60">{count}</span>}
+                </button>
+              ))}
+            </div>
             <button
               onClick={fetchFlagged}
-              className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+              className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 ml-auto"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               Refresh
             </button>
             <span className="text-sm text-gray-400 ml-auto">
-              {flagged.length} feedback item{flagged.length !== 1 ? "s" : ""}
+              {filteredFlagged.length} shown / {flagged.length} feedback item{flagged.length !== 1 ? "s" : ""}
             </span>
           </div>
 
           {flaggedLoading ? (
             <div className="text-center py-12 text-gray-400">Loading...</div>
-          ) : flagged.length === 0 ? (
+          ) : filteredFlagged.length === 0 ? (
             <div className="text-center py-12 text-gray-400">No Scout feedback yet.</div>
           ) : (
             <div className="space-y-2">
-              {flagged.map((f) => {
+              {filteredFlagged.map((f) => {
                 const isExpanded = expandedFlag === f.id;
                 const time = new Date(f.created_at);
+                const statusCfg = STATUS_CONFIG[f.status];
+                const StatusIcon = statusCfg.icon;
 
                 return (
                   <div key={f.id} className="border rounded-lg bg-white border-gray-200">
@@ -883,10 +966,15 @@ export default function AuditPage() {
                       onClick={() => setExpandedFlag(isExpanded ? null : f.id)}
                       className="w-full px-4 py-3 flex items-start gap-3 text-left hover:bg-gray-50 transition-colors"
                     >
-                      <Flag size={14} className="text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" />
+                      <StatusIcon size={16} className={`${statusCfg.color} mt-0.5 flex-shrink-0`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-gray-900 line-clamp-1">&ldquo;{f.user_message}&rdquo;</p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${statusCfg.bg} ${statusCfg.color}`}
+                          >
+                            {statusCfg.label}
+                          </span>
                           <span className="text-[11px] text-gray-400">Flagged by {f.user_name}</span>
                           {f.concern_type && (
                             <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-medium">
@@ -964,6 +1052,33 @@ export default function AuditPage() {
                             <p className="text-xs text-gray-600 font-mono">{f.page_url}</p>
                           </div>
                         )}
+
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-gray-400 font-medium mb-2">
+                            Update Status
+                          </div>
+                          <div className="flex gap-2 flex-wrap">
+                            {(Object.entries(STATUS_CONFIG) as [BugStatus, (typeof STATUS_CONFIG)[BugStatus]][]).map(
+                              ([key, cfg]) => {
+                                const Icon = cfg.icon;
+                                return (
+                                  <button
+                                    key={key}
+                                    onClick={() => updateFlagStatus(f.id, key)}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                                      f.status === key
+                                        ? `${cfg.bg} ${cfg.color}`
+                                        : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
+                                    }`}
+                                  >
+                                    <Icon size={12} />
+                                    {cfg.label}
+                                  </button>
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
