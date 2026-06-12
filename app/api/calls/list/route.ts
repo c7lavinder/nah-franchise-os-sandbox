@@ -155,15 +155,16 @@ export async function GET(request: NextRequest) {
     if (u.email) teamEmailSet.add(u.email.toLowerCase());
   }
 
-  // Build email→name map from contacts table for external participant name resolution
+  // Build contact lookup maps for external participant name resolution.
+  // A mapped participant's contact_id is the source of truth; display_name can
+  // be a short Read.ai handle like "dsanders" or "mlangley".
   // Paginate to get all contacts (2000+)
-  let allContacts: { email: string; first_name: string | null; last_name: string | null }[] = [];
+  let allContacts: { id: string; email: string | null; first_name: string | null; last_name: string | null }[] = [];
   let cOffset = 0;
   while (true) {
     const { data: page } = await supabase
       .from("contacts")
-      .select("email, first_name, last_name")
-      .not("email", "is", null)
+      .select("id, email, first_name, last_name")
       .range(cOffset, cOffset + 999);
     if (!page || page.length === 0) break;
     allContacts = allContacts.concat(page);
@@ -171,9 +172,11 @@ export async function GET(request: NextRequest) {
     cOffset += 1000;
   }
   const contactEmailToName = new Map<string, string>();
+  const contactIdToName = new Map<string, string>();
   for (const c of allContacts ?? []) {
+    const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
+    if (name) contactIdToName.set(c.id, name);
     if (c.email) {
-      const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
       if (name) contactEmailToName.set(c.email.toLowerCase(), name);
     }
   }
@@ -224,7 +227,7 @@ export async function GET(request: NextRequest) {
             color: user?.color ?? null,
           });
         } else {
-          const name =
+          const fallbackName =
             p.display_name && !p.display_name.includes("@")
               ? p.display_name
               : ((lc ? (contactEmailToName.get(lc) ?? null) : null) ??
@@ -237,8 +240,10 @@ export async function GET(request: NextRequest) {
           if (p.contact_id) {
             if (seenContactIds.has(p.contact_id)) continue;
             seenContactIds.add(p.contact_id);
+            const name = contactIdToName.get(p.contact_id) ?? fallbackName;
             externalContacts.push(name);
           } else {
+            const name = fallbackName;
             if (lc && seenExternalEmails.has(lc)) continue;
             if (lc) seenExternalEmails.add(lc);
             // Skip if this person's name already appeared as a mapped contact
