@@ -29,6 +29,8 @@ interface TriggerConfig {
   // Legacy: old hardcoded trigger_type is still stored as trigger_type column
 }
 
+export type WorkflowTriggerCondition = NonNullable<TriggerConfig["conditions"]>[number];
+
 /** Result from attempting to match workflows */
 export interface TriggerMatchResult {
   matched: number;
@@ -70,7 +72,7 @@ export async function matchWorkflowTriggers(
 
     // Check flexible trigger_config first
     if (triggerConfig.event) {
-      matches = doesEventMatch(eventType, triggerConfig.event, triggerConfig.conditions ?? [], eventPayload);
+      matches = doesWorkflowEventMatch(eventType, triggerConfig.event, triggerConfig.conditions ?? [], eventPayload);
     }
 
     // Fallback: check legacy trigger_type column for backwards compat
@@ -129,10 +131,10 @@ const EVENT_ALIASES: Record<string, string[]> = {
 /**
  * Check if an incoming event matches a flexible trigger rule.
  */
-function doesEventMatch(
+export function doesWorkflowEventMatch(
   incomingEvent: string,
   triggerEvent: string,
-  conditions: Array<{ field: string; operator: string; value: string | string[] | number }>,
+  conditions: WorkflowTriggerCondition[],
   payload: Record<string, unknown>
 ): boolean {
   // Normalize both for comparison
