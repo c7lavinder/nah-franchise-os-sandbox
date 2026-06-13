@@ -12,6 +12,7 @@ import { Save, Trash2, Sparkles, X } from "lucide-react";
 import type { WorkflowStep, WorkflowStepType } from "@/lib/workflows/types";
 import { getStepDelayHours } from "@/lib/workflows/step-timing";
 import SearchableDropdown, { type DropdownOption } from "@/components/ui/SearchableDropdown";
+import WorkflowFieldPicker from "@/components/workflows/WorkflowFieldPicker";
 
 const STEP_TYPES: { value: WorkflowStepType; label: string }[] = [
   { value: "sms", label: "SMS" },
@@ -185,6 +186,12 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
     setRewriting(false);
   }
 
+  function insertToken(value: string, token: string) {
+    if (!value) return token;
+    const needsLeadingSpace = !/\s$/.test(value);
+    return `${value}${needsLeadingSpace ? " " : ""}${token}`;
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -242,6 +249,7 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
               placeholder={stepType === "chad_call_task" ? "Task description..." : "Email subject..."}
               className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary placeholder:text-text-tertiary focus:border-nah-blue focus:outline-none transition-colors"
             />
+            <WorkflowFieldPicker onInsert={(token) => setSubject((current) => insertToken(current, token))} />
           </div>
         )}
 
@@ -332,6 +340,7 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
               rows={isSms ? 3 : 8}
               className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary placeholder:text-text-tertiary focus:border-nah-blue focus:outline-none transition-colors resize-none"
             />
+            <WorkflowFieldPicker onInsert={(token) => setContent((current) => insertToken(current, token))} />
 
             {/* Scout assist buttons */}
             <div className="flex items-center gap-2 mt-2">

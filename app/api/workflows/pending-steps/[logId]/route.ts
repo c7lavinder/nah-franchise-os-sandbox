@@ -16,6 +16,7 @@ import { executeGHLAction } from "@/lib/ghl/actions/executor";
 import type { GHLActionCode } from "@/lib/ghl/permissions";
 import { prepareEmailForTracking } from "@/lib/workflows/tracking";
 import { advanceDay } from "@/lib/workflows/enrollment";
+import { personalizeWorkflowText } from "@/lib/workflows/personalization";
 
 /** Maps step types to GHL action codes (same as scheduler) */
 const STEP_ACTION_MAP: Record<string, GHLActionCode> = {
@@ -103,14 +104,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       );
     }
 
-    // Personalize content
-    const name = enrollment.contact_name ?? "there";
-    const firstName = name.split(" ")[0];
-    const content = (step.content ?? "")
-      .replace(/\[Name\]/g, name)
-      .replace(/\[FirstName\]/g, firstName)
-      .replace(/\[name\]/g, name)
-      .replace(/\[firstName\]/g, firstName);
+    const content = await personalizeWorkflowText({
+      text: step.content,
+      contactName: enrollment.contact_name,
+      ghlContactId: enrollment.ghl_contact_id,
+    });
 
     // Build action params
     const condConfig = step.condition_config ?? {};
@@ -134,7 +132,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       actionParams = {
         contactId: enrollment.ghl_contact_id,
         html: trackedHtml,
-        subject: step.subject ? step.subject.replace(/\[Name\]/g, name).replace(/\[FirstName\]/g, firstName) : "",
+        subject: await personalizeWorkflowText({
+          text: step.subject,
+          contactName: enrollment.contact_name,
+          ghlContactId: enrollment.ghl_contact_id,
+        }),
         emailFrom:
           (condConfig as Record<string, unknown>).emailFrom ??
           process.env.GHL_DEFAULT_EMAIL_FROM ??

@@ -26,6 +26,7 @@ import { advanceDay, exitEnrollment } from "@/lib/workflows/enrollment";
 import { prepareEmailForTracking } from "@/lib/workflows/tracking";
 import { isStepDueForEnrollment } from "@/lib/workflows/step-timing";
 import { executeGHLAction } from "@/lib/ghl/actions/executor";
+import { personalizeWorkflowText } from "@/lib/workflows/personalization";
 import type { GHLActionCode } from "@/lib/ghl/permissions";
 import type { WorkflowStep, WorkflowStepType, WorkflowStepLogInsert } from "@/lib/workflows/types";
 
@@ -83,12 +84,16 @@ const STEP_ACTION_MAP: Partial<Record<WorkflowStepType, GHLActionCode>> = {
  * Build params for executeGHLAction() from a workflow step + enrollment context.
  * Each action code expects specific param shapes — this maps step fields to them.
  */
-function buildActionParams(
+async function buildActionParams(
   step: WorkflowStep,
   enrollment: { ghl_contact_id: string; contact_name: string | null }
-): Record<string, unknown> {
+): Promise<Record<string, unknown>> {
   const contactId = enrollment.ghl_contact_id;
-  const content = step.content ? personalizeContent(step.content, enrollment.contact_name) : "";
+  const content = await personalizeWorkflowText({
+    text: step.content,
+    contactName: enrollment.contact_name,
+    ghlContactId: enrollment.ghl_contact_id,
+  });
   const actionConfig = (step.condition_config ?? {}) as Record<string, unknown>;
 
   switch (step.step_type) {
@@ -101,7 +106,11 @@ function buildActionParams(
       return {
         contactId,
         html: trackedHtml,
-        subject: step.subject ? personalizeContent(step.subject, enrollment.contact_name) : "",
+        subject: await personalizeWorkflowText({
+          text: step.subject,
+          contactName: enrollment.contact_name,
+          ghlContactId: enrollment.ghl_contact_id,
+        }),
         emailFrom: actionConfig.emailFrom ?? process.env.GHL_DEFAULT_EMAIL_FROM ?? "franchise@newagainhouses.com",
       };
     }
@@ -112,7 +121,12 @@ function buildActionParams(
       return {
         contactId,
         title: content || `Call ${enrollment.contact_name ?? "prospect"}`,
-        body: step.subject ?? "Workflow-generated call task",
+        body:
+          (await personalizeWorkflowText({
+            text: step.subject,
+            contactName: enrollment.contact_name,
+            ghlContactId: enrollment.ghl_contact_id,
+          })) || "Workflow-generated call task",
         dueDate: dueDate.toISOString(),
         assignedTo: actionConfig.assignedTo ?? undefined,
       };
@@ -351,7 +365,7 @@ async function executeStep(
 
     if (actionCode) {
       // Route through the shared GHL Action Executor — same engine as Next Steps
-      const params = buildActionParams(step, enrollment);
+      const params = await buildActionParams(step, enrollment);
       const result = await executeGHLAction(actionCode, params, "system", enrollment.ghl_contact_id);
       if (!result.success) {
         throw new Error(result.error ?? `Action ${actionCode} failed`);
@@ -506,21 +520,6 @@ async function evaluateGoalConditions(
   }
 }
 
-/** Replace [Name] placeholders with actual contact name */
-function personalizeContent(content: string, contactName: string | null): string {
-  const name = contactName ?? "there";
-  const firstName = name.split(" ")[0];
-  return content
-    .replace(/\[Name\]/g, name)
-    .replace(/\[FirstName\]/g, firstName)
-    .replace(/\[name\]/g, name)
-    .replace(/\[firstName\]/g, firstName)
-    .replace(/\{\{\s*journey\.name\s*\}\}/g, name)
-    .replace(/\{\{\s*contact\.name\s*\}\}/g, name)
-    .replace(/\{\{\s*contact\.first_name\s*\}\}/g, firstName)
-    .replace(/\{\{\s*client\.firstName\s*\}\}/g, firstName);
-}
-
 /** Create a step log entry in workflow_step_logs */
 async function createStepLog(
   enrollment: { id: string; ghl_contact_id: string },
@@ -533,13 +532,23 @@ async function createStepLog(
   }
 ): Promise<void> {
   const supabase = createServerClient();
+  const { data: enrollmentRow } = await supabase
+    .from("workflow_enrollments")
+    .select("contact_name")
+    .eq("id", enrollment.id)
+    .single();
+  const contentSent = await personalizeWorkflowText({
+    text: step.content,
+    contactName: enrollmentRow?.contact_name ?? null,
+    ghlContactId: enrollment.ghl_contact_id,
+  });
 
   const log: WorkflowStepLogInsert = {
     enrollment_id: enrollment.id,
     step_id: step.id,
     ghl_contact_id: enrollment.ghl_contact_id,
     step_type: step.step_type,
-    content_sent: step.content ?? null,
+    content_sent: contentSent || null,
     ghl_message_id: status.ghlMessageId ?? null,
     executed_at: status.executed ? new Date().toISOString() : null,
     confirmed_by: null,
