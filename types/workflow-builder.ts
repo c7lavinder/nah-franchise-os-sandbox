@@ -75,8 +75,10 @@ export interface WorkflowStepDraft {
   content: string | null;
   /** Email subject line */
   subject: string | null;
-  /** When to send (e.g. "09:00") */
+  /** Legacy fixed clock send time */
   sendTime: string | null;
+  /** Relative delay from lead/workflow enrollment time */
+  delayHours: number | null;
   /** Who this message/task sends from (person name, e.g. "Chad") */
   senderName: string | null;
   /** Sender email address for email steps */

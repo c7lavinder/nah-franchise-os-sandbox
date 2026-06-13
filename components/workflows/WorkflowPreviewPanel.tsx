@@ -197,7 +197,9 @@ export default function WorkflowPreviewPanel({
                       {/* Type, time, execution mode */}
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-body-sm font-medium text-text-primary">{label}</span>
-                        {step.sendTime && <span className="text-caption text-text-tertiary">@ {step.sendTime}</span>}
+                        <span className="text-caption text-text-tertiary">
+                          @ {step.delayHours === 0 ? "immediate" : `${step.delayHours ?? 0}h after lead`}
+                        </span>
                         {needsApproval ? (
                           <span className="text-[10px] text-warning bg-warning/10 border border-warning/20 px-1.5 py-0.5 rounded-sm flex items-center gap-1 ml-auto">
                             <Shield size={9} /> Needs your approval

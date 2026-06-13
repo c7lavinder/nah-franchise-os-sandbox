@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import ReenrollContactModal from "./ReenrollContactModal";
 import type { Workflow, WorkflowEnrollment, WorkflowStep, WorkflowStepType } from "@/lib/workflows/types";
+import { formatStepDelay } from "@/lib/workflows/step-timing";
 
 /** Trigger type → human-readable label */
 const TRIGGER_LABELS: Record<string, string> = {
@@ -646,11 +647,9 @@ function BlueprintStepCard({ step }: { step: WorkflowStep }) {
         <span className="text-badge font-semibold" style={{ color: config.color }}>
           {config.label}
         </span>
-        {step.send_time && (
-          <span className="text-caption text-text-tertiary flex items-center gap-0.5">
-            <Clock size={10} /> {step.send_time}
-          </span>
-        )}
+        <span className="text-caption text-text-tertiary flex items-center gap-0.5">
+          <Clock size={10} /> {formatStepDelay(step)}
+        </span>
         {needsApproval ? (
           <span className="text-[10px] text-warning bg-warning/10 border border-warning/20 px-1.5 py-0.5 rounded-sm ml-auto flex items-center gap-1">
             <Shield size={9} /> Needs your approval

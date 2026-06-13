@@ -98,6 +98,10 @@ export async function GET(request: NextRequest) {
           content: log.content_sent,
           subject: step.subject,
           sendTime: step.send_time,
+          delayHours:
+            typeof (step.condition_config as Record<string, unknown>)?.delayHours === "number"
+              ? ((step.condition_config as Record<string, unknown>).delayHours as number)
+              : null,
           senderName: (step.condition_config as Record<string, unknown>)?.senderName ?? null,
           senderEmail: (step.condition_config as Record<string, unknown>)?.senderEmail ?? null,
           fromNumber: (step.condition_config as Record<string, unknown>)?.fromNumber ?? null,

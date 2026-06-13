@@ -24,6 +24,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import * as ghl from "@/lib/ghl";
 import { advanceDay, exitEnrollment } from "@/lib/workflows/enrollment";
 import { prepareEmailForTracking } from "@/lib/workflows/tracking";
+import { isStepDueForEnrollment } from "@/lib/workflows/step-timing";
 import { executeGHLAction } from "@/lib/ghl/actions/executor";
 import type { GHLActionCode } from "@/lib/ghl/permissions";
 import type { WorkflowStep, WorkflowStepType, WorkflowStepLogInsert } from "@/lib/workflows/types";
@@ -213,6 +214,7 @@ async function processEnrollment(
     ghl_contact_id: string;
     contact_name: string | null;
     current_day: number;
+    enrolled_at: string | null;
   },
   result: SchedulerRunResult
 ): Promise<void> {
@@ -295,6 +297,11 @@ async function processEnrollment(
     // Skip already executed steps
     if (executedStepIds.has(step.id)) {
       result.stepsSkipped++;
+      continue;
+    }
+
+    if (!isStepDueForEnrollment(step, enrollment)) {
+      allDayStepsDone = false;
       continue;
     }
 

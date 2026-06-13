@@ -25,6 +25,7 @@ import {
   Workflow as WorkflowIcon,
 } from "lucide-react";
 import type { WorkflowStep, WorkflowStepType } from "@/lib/workflows/types";
+import { formatStepDelay } from "@/lib/workflows/step-timing";
 
 /** Icon and label for each step type */
 const STEP_TYPE_CONFIG: Record<
@@ -108,7 +109,7 @@ export default function StepCard({ step, isSelected, onSelect }: StepCardProps) 
           <span className="text-badge font-semibold" style={{ color: config.color }}>
             {config.label}
           </span>
-          {step.send_time && <span className="text-caption text-text-tertiary">@ {step.send_time}</span>}
+          <span className="text-caption text-text-tertiary">@ {formatStepDelay(step)}</span>
           {step.requires_confirmation && (
             <span className="text-[10px] text-warning bg-warning/10 px-1.5 py-0.5 rounded-sm">Confirm</span>
           )}

@@ -23,6 +23,7 @@ interface PendingStep {
   content: string | null;
   subject: string | null;
   sendTime: string | null;
+  delayHours: number | null;
   senderName: string | null;
   senderEmail: string | null;
   fromNumber: string | null;
@@ -120,7 +121,9 @@ export default function PendingConfirmations() {
                 </span>
                 <Send size={10} className="text-text-tertiary" />
                 <span className="text-text-secondary">{step.contactName ?? step.ghlContactId}</span>
-                {step.sendTime && <span className="text-text-tertiary ml-1">@ {step.sendTime}</span>}
+                <span className="text-text-tertiary ml-1">
+                  @ {step.delayHours === 0 ? "immediate" : `${step.delayHours ?? 0}h after lead`}
+                </span>
               </div>
 
               {/* Subject (email only) */}

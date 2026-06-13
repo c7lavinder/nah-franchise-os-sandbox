@@ -107,10 +107,10 @@ CONTENT GUIDELINES:
 - Reference New Again Houses naturally
 
 EVERY STEP MUST INCLUDE ALL DETAILS:
-- SMS: Full message text, senderName (who it sends from), fromNumber (sending phone number), sendTime
-- Email: Subject line, full body content, senderName, senderEmail, sendTime
+- SMS: Full message text, senderName (who it sends from), fromNumber (sending phone number), delayHours
+- Email: Subject line, full body content, senderName, senderEmail, delayHours
 - Call Task: Task title (content), task description (subject), assignedTo (who does the call), dueTime (when it's due)
-- All steps: sendTime is REQUIRED — specify exact time like "09:00" or "14:00"
+- All steps: delayHours is REQUIRED — specify the number of hours after the lead enters the workflow
 - senderName: The team member name this comes from (e.g. "Chad", "Ryland", "Matt")
 - senderEmail: For emails, the sender address (e.g. "chad@newagainhouses.com")
 - fromNumber: For SMS/reminders, the SignalHouse sending phone number (e.g. "18654215344")
@@ -253,7 +253,11 @@ const BUILDER_TOOLS: Anthropic.Messages.Tool[] = [
               },
               sendTime: {
                 type: ["string", "null"],
-                description: "Time to send/execute (e.g. '09:00', '14:00'). REQUIRED for all steps.",
+                description: "Legacy fixed clock time. Prefer null and use delayHours instead.",
+              },
+              delayHours: {
+                type: ["number", "null"],
+                description: "Number of hours after the lead enters the workflow before this step is due.",
               },
               senderName: {
                 type: ["string", "null"],
@@ -283,7 +287,7 @@ const BUILDER_TOOLS: Anthropic.Messages.Tool[] = [
               "stepNumber",
               "stepType",
               "content",
-              "sendTime",
+              "delayHours",
               "senderName",
               "requiresConfirmation",
             ],
@@ -350,6 +354,7 @@ async function executeBuilderTool(
           content: s.content != null ? String(s.content) : null,
           subject: s.subject != null ? String(s.subject) : null,
           sendTime: s.sendTime != null ? String(s.sendTime) : null,
+          delayHours: s.delayHours != null ? Number(s.delayHours) : null,
           senderName: s.senderName != null ? String(s.senderName) : null,
           senderEmail: s.senderEmail != null ? String(s.senderEmail) : null,
           fromNumber: s.fromNumber != null ? String(s.fromNumber) : null,

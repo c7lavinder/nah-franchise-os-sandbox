@@ -10,6 +10,7 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 import { useState } from "react";
 import { Save, Trash2, Sparkles, X } from "lucide-react";
 import type { WorkflowStep, WorkflowStepType } from "@/lib/workflows/types";
+import { getStepDelayHours } from "@/lib/workflows/step-timing";
 
 const STEP_TYPES: { value: WorkflowStepType; label: string }[] = [
   { value: "sms", label: "SMS" },
@@ -43,7 +44,7 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
   const [stepType, setStepType] = useState<WorkflowStepType>(step.step_type);
   const [content, setContent] = useState(step.content ?? "");
   const [subject, setSubject] = useState(step.subject ?? "");
-  const [sendTime, setSendTime] = useState(step.send_time ?? "");
+  const [delayHours, setDelayHours] = useState(getStepDelayHours(step));
   const [senderName, setSenderName] = useState(String(config.senderName ?? ""));
   const [fromNumber, setFromNumber] = useState(String(config.fromNumber ?? ""));
   const [senderEmail, setSenderEmail] = useState(String(config.senderEmail ?? ""));
@@ -80,11 +81,12 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
           step_type: stepType,
           content: content || null,
           subject: subject || null,
-          send_time: sendTime || null,
+          send_time: null,
           requires_confirmation: requiresConfirmation,
           day_number: dayNumber,
           condition_config: {
             ...config,
+            delayHours,
             ...(senderName ? { senderName } : {}),
             fromNumber: fromNumber || null,
             ...(senderEmail ? { senderEmail } : {}),
@@ -311,13 +313,15 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
           </div>
         )}
 
-        {/* Send time */}
+        {/* Relative delay */}
         <div>
-          <label className="text-caption text-text-secondary mb-1 block">Send Time (optional)</label>
+          <label className="text-caption text-text-secondary mb-1 block">Hours After Lead Comes In</label>
           <input
-            type="time"
-            value={sendTime}
-            onChange={(e) => setSendTime(e.target.value)}
+            type="number"
+            min={0}
+            step={1}
+            value={delayHours}
+            onChange={(e) => setDelayHours(Math.max(0, Number(e.target.value) || 0))}
             className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary focus:border-nah-blue focus:outline-none transition-colors"
           />
         </div>
