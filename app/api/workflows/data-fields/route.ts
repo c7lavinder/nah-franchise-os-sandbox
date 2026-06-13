@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { createServerClient } from "@/lib/supabase/server";
+import { CATEGORY_META, PROFILE_FIELDS } from "@/lib/profile/field-registry";
 
 const STANDARD_FIELDS = [
   { token: "{{journey.name}}", label: "Journey Name", group: "Journey", type: "text" },
@@ -18,32 +18,18 @@ const STANDARD_FIELDS = [
   { token: "{{contact.email}}", label: "Contact Email", group: "Contact", type: "text" },
   { token: "{{contact.phone}}", label: "Contact Phone", group: "Contact", type: "text" },
   { token: "{{contact.source}}", label: "Contact Source", group: "Contact", type: "text" },
-  { token: "{{contact.tags}}", label: "Contact Tags", group: "Contact", type: "text" },
 ];
 
 export async function GET(request: NextRequest) {
   const user = await requireAuth(request);
   if (user instanceof Response) return user;
 
-  const supabase = createServerClient();
-  const { data, error } = await supabase
-    .from("ghl_custom_fields")
-    .select("field_name, field_type, entity_type")
-    .eq("entity_type", "contact")
-    .order("field_name", { ascending: true });
+  const profileFields = PROFILE_FIELDS.filter((field) => field.name.trim().length > 0).map((field) => ({
+    token: `{{profile.${field.name}}}`,
+    label: field.label,
+    group: CATEGORY_META[field.category]?.label ?? "Profile",
+    type: field.dataType,
+  }));
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  const customFields = (data ?? [])
-    .filter((field) => typeof field.field_name === "string" && field.field_name.trim().length > 0)
-    .map((field) => ({
-      token: `{{custom.${field.field_name}}}`,
-      label: field.field_name,
-      group: "Custom Fields",
-      type: field.field_type ?? "text",
-    }));
-
-  return NextResponse.json({ fields: [...STANDARD_FIELDS, ...customFields] });
+  return NextResponse.json({ fields: [...STANDARD_FIELDS, ...profileFields] });
 }

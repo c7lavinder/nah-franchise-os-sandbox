@@ -1,6 +1,5 @@
-import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
-import type { GHLContact } from "@/types/ghl";
+import { PROFILE_FIELDS } from "@/lib/profile/field-registry";
 
 interface PersonalizeWorkflowTextInput {
   text: string | null | undefined;
@@ -8,7 +7,7 @@ interface PersonalizeWorkflowTextInput {
   ghlContactId?: string | null;
 }
 
-const FIELD_TOKEN_RE = /\{\{\s*(journey\.name|contact\.[a-zA-Z_]+|custom\.[^}]+?)\s*\}\}/g;
+const FIELD_TOKEN_RE = /\{\{\s*(journey\.name|contact\.[a-zA-Z_]+|profile\.[^}]+?|custom\.[^}]+?)\s*\}\}/g;
 
 export async function personalizeWorkflowText({
   text,
@@ -30,52 +29,75 @@ export async function personalizeWorkflowText({
   if (!FIELD_TOKEN_RE.test(output)) return output;
   FIELD_TOKEN_RE.lastIndex = 0;
 
-  const contact = ghlContactId ? await loadContact(ghlContactId) : null;
-  const customFieldMap = /\{\{\s*custom\./.test(output) ? await loadCustomFieldMap() : new Map<string, string>();
+  const data = ghlContactId ? await loadWorkflowContactData(ghlContactId) : null;
 
   return output.replace(FIELD_TOKEN_RE, (_match, rawKey: string) => {
     const key = rawKey.trim();
 
     if (key === "journey.name" || key === "contact.name") return name;
-    if (key === "contact.first_name") return contact?.firstName ?? firstName;
-    if (key === "contact.last_name") return contact?.lastName ?? "";
-    if (key === "contact.email") return contact?.email ?? "";
-    if (key === "contact.phone") return contact?.phone ?? "";
-    if (key === "contact.source") return contact?.source ?? "";
-    if (key === "contact.tags") return (contact?.tags ?? []).join(", ");
+    if (key === "contact.first_name") return stringifyFieldValue(data?.contact.first_name ?? firstName);
+    if (key === "contact.last_name") return stringifyFieldValue(data?.contact.last_name);
+    if (key === "contact.email") return stringifyFieldValue(data?.contact.email);
+    if (key === "contact.phone") return stringifyFieldValue(data?.contact.phone);
+    if (key === "contact.source") return stringifyFieldValue(data?.contact.opportunity_source ?? data?.contact.source);
 
-    if (key.startsWith("custom.")) {
-      const fieldName = key.slice("custom.".length).trim().toLowerCase();
-      const fieldId = customFieldMap.get(fieldName);
-      if (!fieldId) return "";
-      const customField = contact?.customFields?.find((field) => field.id === fieldId);
-      return String(customField?.value ?? "");
+    if (key.startsWith("profile.") || key.startsWith("custom.")) {
+      const rawFieldName = key.includes(".") ? key.slice(key.indexOf(".") + 1).trim() : "";
+      const fieldName = resolveProfileFieldName(rawFieldName);
+      if (!fieldName) return "";
+      return stringifyFieldValue(data?.profileFields[fieldName] ?? data?.contact[fieldName] ?? "");
     }
 
     return "";
   });
 }
 
-async function loadContact(ghlContactId: string): Promise<GHLContact | null> {
+type ContactData = Record<string, string | number | boolean | null | undefined>;
+
+async function loadWorkflowContactData(
+  ghlContactId: string
+): Promise<{ contact: ContactData; profileFields: Record<string, unknown> } | null> {
+  const supabase = createServerClient();
+
+  const { data: contact } = await supabase.from("contacts").select("*").eq("ghl_contact_id", ghlContactId).single();
+
+  if (!contact) return null;
+
+  const { data: rows } = await supabase
+    .from("contact_profile_fields")
+    .select("field_name, field_value")
+    .eq("contact_id", contact.id);
+
+  const profileFields: Record<string, unknown> = {};
+  for (const row of rows ?? []) {
+    profileFields[row.field_name] = parseFieldValue(row.field_value);
+  }
+
+  return { contact, profileFields };
+}
+
+function parseFieldValue(value: unknown): unknown {
+  if (typeof value !== "string") return value;
   try {
-    return await ghl.getContact(ghlContactId);
+    return JSON.parse(value);
   } catch {
-    return null;
+    return value;
   }
 }
 
-async function loadCustomFieldMap(): Promise<Map<string, string>> {
-  const supabase = createServerClient();
-  const { data } = await supabase
-    .from("ghl_custom_fields")
-    .select("field_name, ghl_field_id")
-    .eq("entity_type", "contact");
+function stringifyFieldValue(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return JSON.stringify(value);
+}
 
-  const map = new Map<string, string>();
-  for (const row of data ?? []) {
-    if (row.field_name && row.ghl_field_id) {
-      map.set(String(row.field_name).toLowerCase(), String(row.ghl_field_id));
+function resolveProfileFieldName(rawFieldName: string): string | null {
+  const normalized = rawFieldName.toLowerCase();
+  for (const field of PROFILE_FIELDS) {
+    if (field.name.toLowerCase() === normalized || field.label.toLowerCase() === normalized) {
+      return field.name;
     }
   }
-  return map;
+  return null;
 }
