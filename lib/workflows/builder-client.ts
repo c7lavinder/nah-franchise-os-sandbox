@@ -107,12 +107,13 @@ CONTENT GUIDELINES:
 - Reference New Again Houses naturally
 
 EVERY STEP MUST INCLUDE ALL DETAILS:
-- SMS: Full message text, senderName (who it sends from), sendTime
+- SMS: Full message text, senderName (who it sends from), fromNumber (sending phone number), sendTime
 - Email: Subject line, full body content, senderName, senderEmail, sendTime
 - Call Task: Task title (content), task description (subject), assignedTo (who does the call), dueTime (when it's due)
 - All steps: sendTime is REQUIRED — specify exact time like "09:00" or "14:00"
 - senderName: The team member name this comes from (e.g. "Chad", "Ryland", "Matt")
 - senderEmail: For emails, the sender address (e.g. "chad@newagainhouses.com")
+- fromNumber: For SMS/reminders, the SignalHouse sending phone number (e.g. "18654215344")
 - assignedTo: For tasks, who is responsible (e.g. "Chad")
 - dueTime: For tasks, when it's due (e.g. "same day 5:00 PM")
 
@@ -262,6 +263,10 @@ const BUILDER_TOOLS: Anthropic.Messages.Tool[] = [
                 type: ["string", "null"],
                 description: "Sender email address for email steps (e.g. 'chad@newagainhouses.com')",
               },
+              fromNumber: {
+                type: ["string", "null"],
+                description: "Sender phone number for SMS/reminder steps (e.g. '18654215344')",
+              },
               assignedTo: {
                 type: ["string", "null"],
                 description: "Who the task is assigned to (for call tasks, e.g. 'Chad')",
@@ -347,6 +352,7 @@ async function executeBuilderTool(
           sendTime: s.sendTime != null ? String(s.sendTime) : null,
           senderName: s.senderName != null ? String(s.senderName) : null,
           senderEmail: s.senderEmail != null ? String(s.senderEmail) : null,
+          fromNumber: s.fromNumber != null ? String(s.fromNumber) : null,
           assignedTo: s.assignedTo != null ? String(s.assignedTo) : null,
           dueTime: s.dueTime != null ? String(s.dueTime) : null,
           requiresConfirmation: Boolean(s.requiresConfirmation),

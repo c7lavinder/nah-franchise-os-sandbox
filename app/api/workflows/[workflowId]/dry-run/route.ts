@@ -99,7 +99,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           let from: string | null = null;
           let to: string | null = null;
           if (step.step_type === "sms") {
-            from = (condConfig.senderName as string) ?? "NAH";
+            const senderName = (condConfig.senderName as string) ?? "NAH";
+            const fromNumber = condConfig.fromNumber as string | undefined;
+            from = fromNumber ? `${senderName} (${fromNumber})` : senderName;
             to = contactName;
           } else if (step.step_type === "email") {
             const senderEmail = condConfig.senderEmail as string | undefined;

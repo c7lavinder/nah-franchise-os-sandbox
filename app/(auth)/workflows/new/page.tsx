@@ -96,7 +96,7 @@ export default function WorkflowBuilderPage() {
           primaryMetric: workflow.primary_metric_name ?? "Goal achievement",
           steps: steps.map((step, index) => {
             const conditionConfig = step.condition_config ?? {};
-            const { senderName, senderEmail, assignedTo, dueTime, ...actionParams } = conditionConfig;
+            const { senderName, senderEmail, fromNumber, assignedTo, dueTime, ...actionParams } = conditionConfig;
             return {
               id: step.id,
               dayNumber: step.day_number,
@@ -107,6 +107,7 @@ export default function WorkflowBuilderPage() {
               sendTime: step.send_time,
               senderName: typeof senderName === "string" ? senderName : null,
               senderEmail: typeof senderEmail === "string" ? senderEmail : null,
+              fromNumber: typeof fromNumber === "string" ? fromNumber : null,
               assignedTo: typeof assignedTo === "string" ? assignedTo : null,
               dueTime: typeof dueTime === "string" ? dueTime : null,
               requiresConfirmation: step.requires_confirmation,
@@ -297,6 +298,7 @@ export default function WorkflowBuilderPage() {
               ...(step.actionParams ?? {}),
               ...(step.senderName ? { senderName: step.senderName } : {}),
               ...(step.senderEmail ? { senderEmail: step.senderEmail } : {}),
+              ...(step.fromNumber ? { fromNumber: step.fromNumber } : {}),
               ...(step.assignedTo ? { assignedTo: step.assignedTo } : {}),
               ...(step.dueTime ? { dueTime: step.dueTime } : {}),
             },

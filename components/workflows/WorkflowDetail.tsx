@@ -591,13 +591,17 @@ const AUTO_EXECUTE_TYPES: WorkflowStepType[] = [
 function getStepRouting(step: WorkflowStep): { from: string | null; to: string } {
   const config = (step.condition_config ?? {}) as Record<string, unknown>;
   const senderName = config.senderName as string | undefined;
+  const fromNumber = config.fromNumber as string | undefined;
   const senderEmail = config.senderEmail as string | undefined;
   const assignedTo = config.assignedTo as string | undefined;
   const assignedToName = config.assignedToName as string | undefined;
 
   switch (step.step_type) {
     case "sms":
-      return { from: senderName ?? "NAH", to: "[Contact Phone]" };
+      return {
+        from: fromNumber ? `${senderName ?? "NAH"} (${fromNumber})` : (senderName ?? "NAH"),
+        to: "[Contact Phone]",
+      };
     case "email":
       return {
         from: senderEmail ? `${senderName ?? "NAH"} (${senderEmail})` : (senderName ?? "NAH"),

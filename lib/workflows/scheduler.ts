@@ -92,7 +92,7 @@ function buildActionParams(
 
   switch (step.step_type) {
     case "sms":
-      return { contactId, message: content };
+      return { contactId, message: content, fromNumber: actionConfig.fromNumber ?? undefined };
 
     case "email": {
       const logId = `pending_${step.id}_${Date.now()}`;
@@ -131,6 +131,7 @@ function buildActionParams(
       return {
         contactId,
         reminderMessage: content || "Reminder: You have an upcoming call with New Again Houses.",
+        fromNumber: actionConfig.fromNumber ?? undefined,
       };
 
     case "internal_note":

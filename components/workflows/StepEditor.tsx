@@ -45,6 +45,7 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
   const [subject, setSubject] = useState(step.subject ?? "");
   const [sendTime, setSendTime] = useState(step.send_time ?? "");
   const [senderName, setSenderName] = useState(String(config.senderName ?? ""));
+  const [fromNumber, setFromNumber] = useState(String(config.fromNumber ?? ""));
   const [senderEmail, setSenderEmail] = useState(String(config.senderEmail ?? ""));
   const [assignedTo, setAssignedTo] = useState(String(config.assignedTo ?? ""));
   const [dueTime, setDueTime] = useState(String(config.dueTime ?? ""));
@@ -85,6 +86,7 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
           condition_config: {
             ...config,
             ...(senderName ? { senderName } : {}),
+            fromNumber: fromNumber || null,
             ...(senderEmail ? { senderEmail } : {}),
             ...(assignedTo ? { assignedTo } : {}),
             ...(dueTime ? { dueTime } : {}),
@@ -215,6 +217,18 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
                   value={senderName}
                   onChange={(e) => setSenderName(e.target.value)}
                   placeholder="e.g. Chad"
+                  className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary placeholder:text-text-tertiary focus:border-nah-blue focus:outline-none transition-colors"
+                />
+              </div>
+            )}
+            {isSms && (
+              <div>
+                <label className="text-caption text-text-secondary mb-1 block">From (Phone)</label>
+                <input
+                  type="text"
+                  value={fromNumber}
+                  onChange={(e) => setFromNumber(e.target.value)}
+                  placeholder="e.g. 18654215344"
                   className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary placeholder:text-text-tertiary focus:border-nah-blue focus:outline-none transition-colors"
                 />
               </div>

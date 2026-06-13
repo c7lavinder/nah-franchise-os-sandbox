@@ -172,7 +172,9 @@ export default function WorkflowPreviewPanel({
                 let fromLabel: string | null = null;
                 let toLabel: string | null = null;
                 if (step.stepType === "sms") {
-                  fromLabel = step.senderName ?? "NAH";
+                  fromLabel = step.fromNumber
+                    ? `${step.senderName ?? "NAH"} (${step.fromNumber})`
+                    : (step.senderName ?? "NAH");
                   toLabel = "[Contact Phone]";
                 } else if (step.stepType === "email") {
                   fromLabel = step.senderEmail

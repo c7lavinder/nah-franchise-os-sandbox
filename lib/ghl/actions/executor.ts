@@ -50,7 +50,9 @@ export async function executeGHLAction(
         // Send SMS
         const targetContactId = String(params.contactId ?? contactId);
         const result = signalHouseEnabled()
-          ? await sendContactSmsViaSignalHouse(targetContactId, String(params.message))
+          ? await sendContactSmsViaSignalHouse(targetContactId, String(params.message), {
+              fromNumber: String(params.fromNumber ?? ""),
+            })
           : await ghl.sendMessage({
               type: "SMS",
               contactId: targetContactId,
@@ -75,7 +77,9 @@ export async function executeGHLAction(
         // Send Template SMS
         const targetContactId = String(params.contactId ?? contactId);
         const result = signalHouseEnabled()
-          ? await sendContactSmsViaSignalHouse(targetContactId, String(params.templateContent))
+          ? await sendContactSmsViaSignalHouse(targetContactId, String(params.templateContent), {
+              fromNumber: String(params.fromNumber ?? ""),
+            })
           : await ghl.sendMessage({
               type: "SMS",
               contactId: targetContactId,
@@ -243,7 +247,9 @@ export async function executeGHLAction(
           params.reminderMessage ?? "Reminder: You have an upcoming call with New Again Houses."
         );
         const result = signalHouseEnabled()
-          ? await sendContactSmsViaSignalHouse(targetContactId, reminderMessage)
+          ? await sendContactSmsViaSignalHouse(targetContactId, reminderMessage, {
+              fromNumber: String(params.fromNumber ?? ""),
+            })
           : await ghl.sendMessage({
               type: "SMS",
               contactId: targetContactId,

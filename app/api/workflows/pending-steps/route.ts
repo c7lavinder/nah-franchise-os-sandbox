@@ -100,6 +100,7 @@ export async function GET(request: NextRequest) {
           sendTime: step.send_time,
           senderName: (step.condition_config as Record<string, unknown>)?.senderName ?? null,
           senderEmail: (step.condition_config as Record<string, unknown>)?.senderEmail ?? null,
+          fromNumber: (step.condition_config as Record<string, unknown>)?.fromNumber ?? null,
           queuedAt: log.created_at,
         };
       });

@@ -120,11 +120,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       actionParams = {
         contactId: enrollment.ghl_contact_id,
         message: content,
+        fromNumber: (condConfig as Record<string, unknown>).fromNumber ?? undefined,
       };
     } else if (step.step_type === "send_reminder") {
       actionParams = {
         contactId: enrollment.ghl_contact_id,
         reminderMessage: content || "Reminder: You have an upcoming call with New Again Houses.",
+        fromNumber: (condConfig as Record<string, unknown>).fromNumber ?? undefined,
       };
     } else {
       // email

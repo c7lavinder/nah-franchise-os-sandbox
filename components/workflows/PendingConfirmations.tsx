@@ -25,6 +25,7 @@ interface PendingStep {
   sendTime: string | null;
   senderName: string | null;
   senderEmail: string | null;
+  fromNumber: string | null;
   queuedAt: string;
 }
 
@@ -111,7 +112,11 @@ export default function PendingConfirmations() {
               {/* FROM → TO */}
               <div className="flex items-center gap-1.5 mb-1.5 text-caption">
                 <span className="font-medium text-text-primary">
-                  {step.senderEmail ? `${step.senderName ?? "NAH"} (${step.senderEmail})` : (step.senderName ?? "NAH")}
+                  {step.senderEmail
+                    ? `${step.senderName ?? "NAH"} (${step.senderEmail})`
+                    : step.fromNumber
+                      ? `${step.senderName ?? "NAH"} (${step.fromNumber})`
+                      : (step.senderName ?? "NAH")}
                 </span>
                 <Send size={10} className="text-text-tertiary" />
                 <span className="text-text-secondary">{step.contactName ?? step.ghlContactId}</span>

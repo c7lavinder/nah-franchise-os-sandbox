@@ -81,6 +81,8 @@ export interface WorkflowStepDraft {
   senderName: string | null;
   /** Sender email address for email steps */
   senderEmail: string | null;
+  /** Sender phone number for SMS/reminder steps */
+  fromNumber: string | null;
   /** Who the task is assigned to (for call tasks) */
   assignedTo: string | null;
   /** Due date/time for tasks (e.g. "same day 5pm", "next business day 9am") */
