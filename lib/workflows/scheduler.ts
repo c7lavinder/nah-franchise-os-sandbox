@@ -514,7 +514,11 @@ function personalizeContent(content: string, contactName: string | null): string
     .replace(/\[Name\]/g, name)
     .replace(/\[FirstName\]/g, firstName)
     .replace(/\[name\]/g, name)
-    .replace(/\[firstName\]/g, firstName);
+    .replace(/\[firstName\]/g, firstName)
+    .replace(/\{\{\s*journey\.name\s*\}\}/g, name)
+    .replace(/\{\{\s*contact\.name\s*\}\}/g, name)
+    .replace(/\{\{\s*contact\.first_name\s*\}\}/g, firstName)
+    .replace(/\{\{\s*client\.firstName\s*\}\}/g, firstName);
 }
 
 /** Create a step log entry in workflow_step_logs */

@@ -7,10 +7,11 @@ import { apiFetch } from "@/lib/auth/api-fetch";
  * Includes Scout assist buttons (Write, Improve, Shorten).
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Save, Trash2, Sparkles, X } from "lucide-react";
 import type { WorkflowStep, WorkflowStepType } from "@/lib/workflows/types";
 import { getStepDelayHours } from "@/lib/workflows/step-timing";
+import SearchableDropdown, { type DropdownOption } from "@/components/ui/SearchableDropdown";
 
 const STEP_TYPES: { value: WorkflowStepType; label: string }[] = [
   { value: "sms", label: "SMS" },
@@ -49,6 +50,9 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
   const [fromNumber, setFromNumber] = useState(String(config.fromNumber ?? ""));
   const [senderEmail, setSenderEmail] = useState(String(config.senderEmail ?? ""));
   const [assignedTo, setAssignedTo] = useState(String(config.assignedTo ?? ""));
+  const [assignedToName, setAssignedToName] = useState(String(config.assignedToName ?? ""));
+  const [assignedUserId, setAssignedUserId] = useState(String(config.assignedUserId ?? ""));
+  const [teamMembers, setTeamMembers] = useState<DropdownOption[]>([]);
   const [dueTime, setDueTime] = useState(String(config.dueTime ?? ""));
   const [requiresConfirmation, setRequiresConfirmation] = useState(step.requires_confirmation);
   const [dayNumber, setDayNumber] = useState(step.day_number);
@@ -71,6 +75,37 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
   const charCount = content.length;
   const isSms = stepType === "sms";
 
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch("/api/team/members")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Failed to load team members"))))
+      .then((data) => {
+        if (cancelled) return;
+
+        const members = ((data.members ?? []) as { id: string; fullName: string; ghlUserId: string }[]).map(
+          (member) => ({
+            id: member.ghlUserId,
+            label: member.fullName,
+            sublabel: member.id,
+          })
+        );
+
+        setTeamMembers(members);
+        const selected = members.find((member) => member.id === assignedTo);
+        if (selected && !assignedToName) {
+          setAssignedToName(selected.label);
+          setAssignedUserId(selected.sublabel ?? "");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTeamMembers([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assignedTo, assignedToName]);
+
   async function handleSave() {
     setSaving(true);
     try {
@@ -91,6 +126,8 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
             fromNumber: fromNumber || null,
             ...(senderEmail ? { senderEmail } : {}),
             ...(assignedTo ? { assignedTo } : {}),
+            ...(assignedToName ? { assignedToName } : {}),
+            ...(assignedUserId ? { assignedUserId } : {}),
             ...(dueTime ? { dueTime } : {}),
           },
         }),
@@ -248,16 +285,19 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
               </div>
             )}
             {hasAssignedField && (
-              <div>
-                <label className="text-caption text-text-secondary mb-1 block">Assigned To</label>
-                <input
-                  type="text"
-                  value={assignedTo}
-                  onChange={(e) => setAssignedTo(e.target.value)}
-                  placeholder="e.g. Chad"
-                  className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary placeholder:text-text-tertiary focus:border-nah-blue focus:outline-none transition-colors"
-                />
-              </div>
+              <SearchableDropdown
+                value={assignedTo || null}
+                valueLabel={assignedToName || undefined}
+                onChange={(option) => {
+                  setAssignedTo(option?.id ?? "");
+                  setAssignedToName(option?.label ?? "");
+                  setAssignedUserId(option?.sublabel ?? "");
+                }}
+                options={teamMembers}
+                placeholder="Select team member..."
+                label="Assigned To"
+                clearable={false}
+              />
             )}
             {hasDueTimeField && (
               <div>

@@ -85,10 +85,15 @@ export async function matchWorkflowTriggers(
     result.matched++;
 
     try {
+      const contactName =
+        typeof eventPayload.contactName === "string" && eventPayload.contactName.trim()
+          ? eventPayload.contactName.trim()
+          : await resolveContactName(supabase, contactId);
       const enrollResult = await enrollContact({
         workflowId: wf.id,
         workflowVersionId: wf.current_version_id,
         ghlContactId: contactId,
+        contactName: contactName ?? undefined,
       });
       if (enrollResult.success) {
         result.enrolled++;
@@ -101,6 +106,20 @@ export async function matchWorkflowTriggers(
   }
 
   return result;
+}
+
+async function resolveContactName(
+  supabase: ReturnType<typeof createServerClient>,
+  ghlContactId: string
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("contacts")
+    .select("first_name, last_name")
+    .eq("ghl_contact_id", ghlContactId)
+    .maybeSingle();
+
+  const name = [data?.first_name, data?.last_name].filter(Boolean).join(" ").trim();
+  return name || null;
 }
 
 /**
