@@ -60,6 +60,24 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
   const [saving, setSaving] = useState(false);
   const [rewriting, setRewriting] = useState(false);
 
+  useEffect(() => {
+    const nextConfig = (step.condition_config ?? {}) as Record<string, unknown>;
+
+    setStepType(step.step_type);
+    setContent(step.content ?? "");
+    setSubject(step.subject ?? "");
+    setDelayHours(getStepDelayHours(step));
+    setSenderName(String(nextConfig.senderName ?? ""));
+    setFromNumber(String(nextConfig.fromNumber ?? ""));
+    setSenderEmail(String(nextConfig.senderEmail ?? ""));
+    setAssignedTo(String(nextConfig.assignedTo ?? ""));
+    setAssignedToName(String(nextConfig.assignedToName ?? ""));
+    setAssignedUserId(String(nextConfig.assignedUserId ?? ""));
+    setDueTime(String(nextConfig.dueTime ?? ""));
+    setRequiresConfirmation(step.requires_confirmation);
+    setDayNumber(step.day_number);
+  }, [step]);
+
   const hasContentField = [
     "sms",
     "email",

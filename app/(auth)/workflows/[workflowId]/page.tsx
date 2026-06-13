@@ -210,6 +210,7 @@ export default function WorkflowBuilderPage() {
         <div className="lg:col-span-2 bg-bg-primary border-l border-border-default flex flex-col min-h-0">
           {selectedStep ? (
             <StepEditor
+              key={selectedStep.id}
               step={selectedStep}
               workflowId={workflowId}
               onSave={handleStepSaved}
