@@ -84,7 +84,7 @@ const STEP_ACTION_MAP: Partial<Record<WorkflowStepType, GHLActionCode>> = {
  * Build params for executeGHLAction() from a workflow step + enrollment context.
  * Each action code expects specific param shapes — this maps step fields to them.
  */
-async function buildActionParams(
+export async function buildActionParams(
   step: WorkflowStep,
   enrollment: { ghl_contact_id: string; contact_name: string | null }
 ): Promise<Record<string, unknown>> {

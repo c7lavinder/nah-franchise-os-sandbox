@@ -26,10 +26,18 @@ export async function personalizeWorkflowText({
     .replace(/\[firstName\]/g, firstName)
     .replace(/\{\{\s*client\.firstName\s*\}\}/g, firstName);
 
-  if (!FIELD_TOKEN_RE.test(output)) return output;
+  const tokenKeys = Array.from(output.matchAll(FIELD_TOKEN_RE), (match) => String(match[1]).trim());
+  if (tokenKeys.length === 0) return output;
   FIELD_TOKEN_RE.lastIndex = 0;
 
-  const data = ghlContactId ? await loadWorkflowContactData(ghlContactId) : null;
+  const needsStoredContactData = tokenKeys.some(
+    (key) =>
+      key.startsWith("profile.") ||
+      key.startsWith("custom.") ||
+      ["contact.last_name", "contact.email", "contact.phone", "contact.source"].includes(key)
+  );
+
+  const data = needsStoredContactData && ghlContactId ? await loadWorkflowContactData(ghlContactId) : null;
 
   return output.replace(FIELD_TOKEN_RE, (_match, rawKey: string) => {
     const key = rawKey.trim();

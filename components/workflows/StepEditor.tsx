@@ -59,6 +59,7 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
   const [dayNumber, setDayNumber] = useState(step.day_number);
   const [saving, setSaving] = useState(false);
   const [rewriting, setRewriting] = useState(false);
+  const isTask = stepType === "chad_call_task";
 
   useEffect(() => {
     const nextConfig = (step.condition_config ?? {}) as Record<string, unknown>;
@@ -78,14 +79,8 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
     setDayNumber(step.day_number);
   }, [step]);
 
-  const hasContentField = [
-    "sms",
-    "email",
-    "chad_call_task",
-    "internal_note",
-    "send_reminder",
-    "trigger_workflow",
-  ].includes(stepType);
+  const hasContentField = ["sms", "email", "internal_note", "send_reminder", "trigger_workflow"].includes(stepType);
+  const hasTaskTitleField = isTask;
   const hasSubjectField = stepType === "email" || stepType === "chad_call_task";
   const hasSenderField = ["sms", "email", "send_reminder"].includes(stepType);
   const hasSenderEmailField = stepType === "email";
@@ -254,17 +249,32 @@ export default function StepEditor({ step, workflowId, onSave, onDelete, onClose
           </div>
         </div>
 
+        {/* Task title */}
+        {hasTaskTitleField && (
+          <div>
+            <label className="text-caption text-text-secondary mb-1 block">Task Title</label>
+            <input
+              type="text"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="e.g. Get {{journey.name}} on Intro Call"
+              className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary placeholder:text-text-tertiary focus:border-nah-blue focus:outline-none transition-colors"
+            />
+            <WorkflowFieldPicker onInsert={(token) => setContent((current) => insertToken(current, token))} />
+          </div>
+        )}
+
         {/* Subject (email + task) */}
         {hasSubjectField && (
           <div>
             <label className="text-caption text-text-secondary mb-1 block">
-              {stepType === "chad_call_task" ? "Task Description" : "Subject Line"}
+              {isTask ? "Task Description" : "Subject Line"}
             </label>
             <input
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder={stepType === "chad_call_task" ? "Task description..." : "Email subject..."}
+              placeholder={isTask ? "Task description..." : "Email subject..."}
               className="w-full px-3 py-2 rounded-md bg-bg-secondary border border-border-default text-body text-text-primary placeholder:text-text-tertiary focus:border-nah-blue focus:outline-none transition-colors"
             />
             <WorkflowFieldPicker onInsert={(token) => setSubject((current) => insertToken(current, token))} />
