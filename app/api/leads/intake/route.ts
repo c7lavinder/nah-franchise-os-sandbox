@@ -165,6 +165,12 @@ export async function POST(request: NextRequest) {
     // 6. Place in Sales pipeline → Engagement stage
     const { data: salesPipeline } = await supabase.from("pipelines").select("id").eq("slug", "sales").single();
 
+    const { data: chadOwner } = await supabase
+      .from("users")
+      .select("id")
+      .eq("email", "chad@newagainhouses.com")
+      .maybeSingle();
+
     if (salesPipeline) {
       const journeyId = await ensureJourneyForContact(supabase, contact.id);
       if (journeyId) {
@@ -200,6 +206,7 @@ export async function POST(request: NextRequest) {
               pipeline_id: salesPipeline.id,
               current_stage_id: engagementStage.id,
               current_sub_task_id: outreachSubTask?.id ?? null,
+              assigned_user_id: chadOwner?.id ?? null,
               is_active: true,
             });
           }

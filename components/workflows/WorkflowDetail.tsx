@@ -593,6 +593,7 @@ function getStepRouting(step: WorkflowStep): { from: string | null; to: string }
   const senderName = config.senderName as string | undefined;
   const senderEmail = config.senderEmail as string | undefined;
   const assignedTo = config.assignedTo as string | undefined;
+  const assignedToName = config.assignedToName as string | undefined;
 
   switch (step.step_type) {
     case "sms":
@@ -603,7 +604,7 @@ function getStepRouting(step: WorkflowStep): { from: string | null; to: string }
         to: "[Contact Email]",
       };
     case "chad_call_task":
-      return { from: null, to: `Assigned to ${assignedTo ?? "Chad"}` };
+      return { from: null, to: `Assigned to ${assignedToName ?? assignedTo ?? "Chad"}` };
     case "team_notify":
       return { from: "System", to: "Team" };
     case "appointment":

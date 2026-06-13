@@ -108,7 +108,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               : ((condConfig.senderName as string) ?? "NAH");
             to = `${contactName}'s email`;
           } else if (step.step_type === "chad_call_task") {
-            to = `Assigned to ${(condConfig.assignedTo as string) ?? "Chad"}`;
+            to = `Assigned to ${(condConfig.assignedToName as string) ?? (condConfig.assignedTo as string) ?? "Chad"}`;
           }
 
           return {
