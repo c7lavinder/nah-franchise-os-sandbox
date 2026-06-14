@@ -61,6 +61,7 @@ interface LatestStage4OfferRow {
   hasMastermind: boolean;
   propertyPageUrl: string | null;
   leadCategory?: string | null;
+  leadType?: string | null;
 }
 
 interface KPIs {
@@ -391,26 +392,25 @@ function LatestStage4OffersPanel({
         {visibleOffers.map((offer) => (
           <div
             key={`${offer.propertyId}-${offer.stage4Date}`}
-            className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_120px_170px_36px] lg:items-center"
+            className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
           >
             <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-2">
-                <p className="truncate text-body-sm font-semibold text-text-primary">{offer.address}</p>
-                {offer.leadCategory && (
-                  <span className="shrink-0 rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-tertiary">
-                    {offer.leadCategory}
-                  </span>
-                )}
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <p className="min-w-0 truncate text-body-sm font-semibold text-text-primary">{offer.address}</p>
+                <span className="shrink-0 rounded bg-nah-orange/10 px-1.5 py-0.5 text-[10px] font-medium text-nah-orange">
+                  {offer.currentStage ?? "Current unknown"}
+                </span>
               </div>
-              <p className="mt-1 text-[11px] text-text-tertiary">Stage 4 on {fmtDate(offer.stage4Date)}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <InfoChip label="Lead category" value={offer.leadCategory ?? null} />
+                <InfoChip label="Lead type" value={offer.leadType ?? null} />
+                <span className="rounded bg-bg-secondary px-1.5 py-0.5 text-[10px] text-text-tertiary">
+                  Stage 4 {fmtDate(offer.stage4Date)}
+                </span>
+              </div>
             </div>
 
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase text-text-tertiary">Current</p>
-              <p className="truncate text-caption font-semibold text-text-primary">{offer.currentStage ?? "Unknown"}</p>
-            </div>
-
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-start gap-1.5 sm:justify-end">
               <LinkStatus href={offer.picturesUrl} active={offer.hasPictures} icon={Image} label="Pictures" />
               <LinkStatus
                 href={offer.mastermindUrl}
@@ -418,9 +418,6 @@ function LatestStage4OffersPanel({
                 icon={CheckCircle2}
                 label="Mastermind"
               />
-            </div>
-
-            <div className="flex justify-end">
               {offer.propertyPageUrl ? (
                 <a
                   href={offer.propertyPageUrl}
@@ -428,12 +425,12 @@ function LatestStage4OffersPanel({
                   rel="noreferrer"
                   aria-label={`Open ${offer.address} in MasterSuite`}
                   title="Open in MasterSuite"
-                  className="flex h-8 w-8 items-center justify-center rounded-md border border-border-default text-text-tertiary transition-colors hover:border-nah-blue/40 hover:text-nah-blue"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border-default text-text-tertiary transition-colors hover:border-nah-blue/40 hover:text-nah-blue"
                 >
                   <ExternalLink size={15} />
                 </a>
               ) : (
-                <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border-default text-text-tertiary/50">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border-default text-text-tertiary/50">
                   <ExternalLink size={15} />
                 </span>
               )}
@@ -454,6 +451,14 @@ function LatestStage4OffersPanel({
         </div>
       )}
     </div>
+  );
+}
+
+function InfoChip({ label, value }: { label: string; value: string | null }) {
+  return (
+    <span className="rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-tertiary">
+      {label}: <span className="font-medium text-text-secondary">{value || "Unknown"}</span>
+    </span>
   );
 }
 

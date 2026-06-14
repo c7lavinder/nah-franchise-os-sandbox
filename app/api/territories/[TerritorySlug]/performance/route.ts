@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
+import { queryMS } from "@/lib/mastersuite/client";
 import { createServerClient } from "@/lib/supabase/server";
 
 type PropRow = {
@@ -10,6 +11,10 @@ type PropRow = {
   Status: string;
   Inserted: string | null;
   Address1: string | null;
+  City?: string | null;
+  State?: string | null;
+  AddressSlugVerbose?: string | null;
+  AddressSlugShort?: string | null;
   LeadCategory: string | null;
   LeadType?: string | null;
   PropertyUrl?: string | null;
@@ -145,6 +150,24 @@ function buildLeadListBenchmark(period: string, now: Date): number | null {
   return MONTHLY_LEAD_LIST_BENCHMARK * multiplier;
 }
 
+function formatAddress(prop: Pick<PropRow, "Address1" | "City" | "State"> | undefined): string {
+  if (!prop) return "Unknown";
+  return [prop.Address1, prop.City, prop.State].filter(Boolean).join(", ") || "Unknown";
+}
+
+function slugifyAddress(prop: PropRow): string {
+  return formatAddress(prop)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function masterSuitePropertyUrl(prop: PropRow): string {
+  return `https://mastersuiteapp.com/v2/property/analysis/${prop.PropertyId}/${
+    prop.AddressSlugVerbose || prop.AddressSlugShort || slugifyAddress(prop)
+  }`;
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ TerritorySlug: string }> }) {
   const user = await requireAuth(request);
   if (user instanceof Response) return user;
@@ -190,7 +213,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   while (true) {
     const { data: page } = await supabase
       .from("ms_properties")
-      .select("PropertyId, Status, Inserted, Address1, LeadCategory, PropertyUrl")
+      .select(
+        "PropertyId, Status, Inserted, Address1, City, State, AddressSlugVerbose, AddressSlugShort, LeadCategory, LeadType, PropertyUrl"
+      )
       .eq("TerritorySlug", TerritorySlug)
       .eq("Archived", false)
       .order("PropertyId")
@@ -337,21 +362,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
-  // 5. Funnels — scoped to Stage 1 entrants so counts match KPI cards
-  const funnelFilter = new Set<number>();
-  for (const id of enteredStage1) {
-    if (!filteredPropertyIds || filteredPropertyIds.has(id)) funnelFilter.add(id);
-  }
-  const prevEnteredStage1 = new Set<number>();
-  for (const h of prevHistory) {
-    if (stageKey(h.NewStatus) === "1") {
-      if (!filteredPropertyIds || filteredPropertyIds.has(h.PropertyId)) {
-        prevEnteredStage1.add(h.PropertyId);
-      }
-    }
-  }
-  const funnel = computeFunnel(currentHistory, funnelFilter);
-  const prevFunnel = computeFunnel(prevHistory, prevEnteredStage1);
+  // 5. Funnels — stage movement during the selected window. This keeps Stage 4
+  // aligned with the "latest Stage 4 offers" panel instead of hiding older
+  // leads that reached Stage 4 during the period.
+  const funnel = computeFunnel(currentHistory, filteredPropertyIds);
+  const prevFunnel = computeFunnel(prevHistory, filteredPropertyIds);
 
   // Median comparison across active territories for the same period/category.
   const { data: activeTerritories } = await supabase
@@ -612,13 +627,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const latestStage4IdSet = new Set(latestStage4Ids);
   const latestStage4LinksByProperty = new Map<number, PropertyLinkRow[]>();
   const latestStage4MediaUrlByProperty = new Map<number, string>();
+  let shouldFetchLivePropertyLinks = false;
 
   for (let i = 0; i < latestStage4Ids.length; i += 500) {
     const ids = latestStage4Ids.slice(i, i + 500);
-    const { data: links } = await supabase
+    const { data: links, error: linksError } = await supabase
       .from("ms_property_links")
       .select("PropertyId, LinkName, Url")
       .in("PropertyId", ids);
+    if (linksError) {
+      shouldFetchLivePropertyLinks = true;
+    }
     for (const link of (links ?? []) as PropertyLinkRow[]) {
       const rows = latestStage4LinksByProperty.get(link.PropertyId) ?? [];
       rows.push(link);
@@ -637,6 +656,34 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if (url) latestStage4MediaUrlByProperty.set(media.PropertyId, url);
     }
   }
+  const idsMissingCriticalLinks = latestStage4Ids.filter((id) => {
+    const links = latestStage4LinksByProperty.get(id) ?? [];
+    const names = new Set(links.filter((link) => link.Url).map((link) => link.LinkName));
+    return !names.has("MediaFolder") || !names.has("MastermindLink");
+  });
+  const livePropertyLinkIds = shouldFetchLivePropertyLinks ? latestStage4Ids : idsMissingCriticalLinks;
+  if (livePropertyLinkIds.length > 0) {
+    try {
+      for (let i = 0; i < livePropertyLinkIds.length; i += 500) {
+        const ids = livePropertyLinkIds.slice(i, i + 500);
+        const placeholders = ids.map(() => "?").join(",");
+        const liveLinks = await queryMS<PropertyLinkRow>(
+          `SELECT PropertyId, LinkName, Url
+           FROM PropertyLinks
+           WHERE PropertyId IN (${placeholders})
+             AND LinkName IN ('MastermindLink', 'MediaFolder', 'PropertyReviewAdminLink')`,
+          ids
+        );
+        for (const link of liveLinks) {
+          const rows = latestStage4LinksByProperty.get(link.PropertyId) ?? [];
+          rows.push(link);
+          latestStage4LinksByProperty.set(link.PropertyId, rows);
+        }
+      }
+    } catch {
+      /* Links are optional; leave missing if both mirror and live DB are unavailable. */
+    }
+  }
 
   const latestStage4Offers = latestStage4Entries.map((entry) => {
     const prop = propMap.get(entry.PropertyId);
@@ -648,15 +695,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return {
       propertyId: entry.PropertyId,
-      address: prop?.Address1 ?? "Unknown",
+      address: formatAddress(prop),
       stage4Date: entry.Inserted,
       currentStage: stageLabel(prop?.Status ?? null),
       picturesUrl,
       hasPictures: Boolean(picturesUrl),
       mastermindUrl,
       hasMastermind: Boolean(mastermindUrl),
-      propertyPageUrl,
+      propertyPageUrl: prop ? masterSuitePropertyUrl(prop) : propertyPageUrl,
       leadCategory: prop?.LeadCategory ?? null,
+      leadType: prop?.LeadType ?? null,
     };
   });
 
