@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeBatchLeadsPayload } from "@/app/api/webhooks/batchleads/route";
+import { normalizeBatchLeadsPayload } from "@/lib/webhooks/batchleads";
 
 describe("BatchLeads webhook normalizer", () => {
   it("normalizes common BatchLeads-style fields into lead intake shape", () => {

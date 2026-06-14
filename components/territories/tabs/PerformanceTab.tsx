@@ -4,10 +4,14 @@ import { useState, useEffect, useCallback } from "react";
 import {
   AlertTriangle,
   ArrowDown,
+  CheckCircle2,
+  Circle,
   Clock,
   DollarSign,
+  ExternalLink,
   Gauge,
   Home,
+  Image,
   Loader2,
   Package,
   PieChart,
@@ -46,6 +50,19 @@ interface PropertyRow {
   leadCategory?: string | null;
 }
 
+interface LatestStage4OfferRow {
+  propertyId: number;
+  address: string;
+  stage4Date: string;
+  currentStage: string | null;
+  picturesUrl: string | null;
+  hasPictures: boolean;
+  mastermindUrl: string | null;
+  hasMastermind: boolean;
+  propertyPageUrl: string | null;
+  leadCategory?: string | null;
+}
+
 interface KPIs {
   leadsEntered: number;
   leadProgression: number | null;
@@ -73,6 +90,7 @@ interface PerformanceData {
   activeTerritoryComparisonCount?: number;
   soldProperties: PropertyRow[];
   inventoryProperties: PropertyRow[];
+  latestStage4Offers?: LatestStage4OfferRow[];
   leadCategories: Record<string, number>;
   leadListBuilding?: LeadListBuilding;
   leadCategoryFilter: string | null;
@@ -143,6 +161,7 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("ytd");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [visibleStage4Offers, setVisibleStage4Offers] = useState(10);
 
   const fetchData = useCallback(
     async (p: Period, cat: string | null) => {
@@ -164,6 +183,10 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
     void fetchData(period, selectedCategory);
   }, [period, selectedCategory, fetchData]);
 
+  useEffect(() => {
+    setVisibleStage4Offers(10);
+  }, [period, selectedCategory, TerritorySlug]);
+
   if (loading && !data)
     return (
       <div className="flex justify-center py-12">
@@ -179,6 +202,7 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
     activeTerritoryComparisonCount = 0,
     soldProperties,
     inventoryProperties,
+    latestStage4Offers = [],
     leadCategories,
     leadListBuilding,
   } = data;
@@ -285,6 +309,15 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
         />
       </div>
 
+      {latestStage4Offers.length > 0 && (
+        <LatestStage4OffersPanel
+          offers={latestStage4Offers}
+          periodLabel={PERIOD_LABELS[period]}
+          visibleCount={visibleStage4Offers}
+          onShowMore={() => setVisibleStage4Offers((count) => Math.min(count + 10, latestStage4Offers.length))}
+        />
+      )}
+
       {/* Active Inventory List */}
       {inventoryProperties.length > 0 && (
         <div className="bg-bg-primary border border-border-default rounded-lg overflow-hidden">
@@ -324,6 +357,144 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
         )}
       </div>
     </div>
+  );
+}
+
+function LatestStage4OffersPanel({
+  offers,
+  periodLabel,
+  visibleCount,
+  onShowMore,
+}: {
+  offers: LatestStage4OfferRow[];
+  periodLabel: string;
+  visibleCount: number;
+  onShowMore: () => void;
+}) {
+  const visibleOffers = offers.slice(0, visibleCount);
+  const remaining = Math.max(offers.length - visibleOffers.length, 0);
+  const nextCount = Math.min(10, remaining);
+
+  return (
+    <div className="bg-bg-primary border border-border-default rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-border-default px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Target size={14} className="text-nah-orange" />
+          <h3 className="truncate text-body-sm font-semibold text-text-primary">
+            Latest Stage 4 Offers ({offers.length})
+          </h3>
+        </div>
+        <span className="shrink-0 text-caption text-text-tertiary">{periodLabel}</span>
+      </div>
+
+      <div className="divide-y divide-border-default/50">
+        {visibleOffers.map((offer) => (
+          <div
+            key={`${offer.propertyId}-${offer.stage4Date}`}
+            className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_120px_170px_36px] lg:items-center"
+          >
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="truncate text-body-sm font-semibold text-text-primary">{offer.address}</p>
+                {offer.leadCategory && (
+                  <span className="shrink-0 rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-tertiary">
+                    {offer.leadCategory}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-[11px] text-text-tertiary">Stage 4 on {fmtDate(offer.stage4Date)}</p>
+            </div>
+
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase text-text-tertiary">Current</p>
+              <p className="truncate text-caption font-semibold text-text-primary">{offer.currentStage ?? "Unknown"}</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <LinkStatus href={offer.picturesUrl} active={offer.hasPictures} icon={Image} label="Pictures" />
+              <LinkStatus
+                href={offer.mastermindUrl}
+                active={offer.hasMastermind}
+                icon={CheckCircle2}
+                label="Mastermind"
+              />
+            </div>
+
+            <div className="flex justify-end">
+              {offer.propertyPageUrl ? (
+                <a
+                  href={offer.propertyPageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Open ${offer.address} in MasterSuite`}
+                  title="Open in MasterSuite"
+                  className="flex h-8 w-8 items-center justify-center rounded-md border border-border-default text-text-tertiary transition-colors hover:border-nah-blue/40 hover:text-nah-blue"
+                >
+                  <ExternalLink size={15} />
+                </a>
+              ) : (
+                <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border-default text-text-tertiary/50">
+                  <ExternalLink size={15} />
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {remaining > 0 && (
+        <div className="border-t border-border-default bg-bg-secondary px-4 py-3">
+          <button
+            type="button"
+            onClick={onShowMore}
+            className="text-caption font-semibold text-nah-blue transition-colors hover:text-nah-orange"
+          >
+            Show {nextCount} more
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LinkStatus({
+  href,
+  active,
+  icon: Icon,
+  label,
+}: {
+  href: string | null;
+  active: boolean;
+  icon: React.ElementType;
+  label: string;
+}) {
+  const content = (
+    <>
+      {active ? (
+        <CheckCircle2 size={14} className="text-success" />
+      ) : (
+        <Circle size={14} className="text-text-tertiary/60" />
+      )}
+      <Icon size={13} className={active ? "text-text-secondary" : "text-text-tertiary/60"} />
+      <span className={active ? "text-text-secondary" : "text-text-tertiary"}>{label}</span>
+    </>
+  );
+
+  const className =
+    "flex h-7 items-center gap-1.5 rounded-md border border-border-default bg-bg-secondary px-2 text-[11px] font-medium transition-colors";
+
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer" title={label} className={`${className} hover:border-nah-blue/40`}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <span title={`${label} missing`} className={className}>
+      {content}
+    </span>
   );
 }
 

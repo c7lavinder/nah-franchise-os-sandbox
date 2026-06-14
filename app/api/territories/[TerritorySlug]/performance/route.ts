@@ -12,6 +12,7 @@ type PropRow = {
   Address1: string | null;
   LeadCategory: string | null;
   LeadType?: string | null;
+  PropertyUrl?: string | null;
 };
 type InvRow = {
   PropertyId: number;
@@ -26,8 +27,23 @@ type HistRow = { PropertyId: number; NewStatus: string | null; Inserted: string 
 type CalcRow = { PropertyId: number; Calculated_Inv_Profit: number | null; Calculated_Arv: number | null };
 type LeadListPropertyRow = { PropertyId: number; LeadType: string | null; Inserted: string };
 type Stage0OriginRow = { PropertyId: number; original_stage0_inserted_at: string };
+type PropertyLinkRow = { PropertyId: number; LinkName: string; Url: string | null };
+type PropertyMediaRow = {
+  PropertyId: number;
+  Url: string | null;
+  ThumbnailUrl: string | null;
+  YoutubeUrl: string | null;
+};
 
 const STAGE_ORDER = ["1", "2", "3", "4", "5 Contract", "6 Purchase"];
+const STAGE_LABELS: Record<string, string> = {
+  "1": "Stage 1",
+  "2": "Stage 2",
+  "3": "Stage 3",
+  "4": "Stage 4",
+  "5 Contract": "Stage 5 Contract",
+  "6 Purchase": "Stage 6 Purchase",
+};
 const MONTHLY_STAGE_BENCHMARKS: Partial<Record<string, number>> = {
   "1": 30,
   "4": 10,
@@ -49,6 +65,12 @@ function stageKey(status: string | null): string | null {
   if (trimmed === "5" || trimmed.startsWith("5 ")) return "5 Contract";
   if (trimmed === "6" || trimmed.startsWith("6 ")) return "6 Purchase";
   return null;
+}
+
+function stageLabel(status: string | null): string | null {
+  const key = stageKey(status);
+  if (!key) return status || null;
+  return STAGE_LABELS[key] ?? key;
 }
 
 async function fetchPaged<T>(queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null }>) {
@@ -168,7 +190,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   while (true) {
     const { data: page } = await supabase
       .from("ms_properties")
-      .select("PropertyId, Status, Inserted, Address1, LeadCategory")
+      .select("PropertyId, Status, Inserted, Address1, LeadCategory, PropertyUrl")
       .eq("TerritorySlug", TerritorySlug)
       .eq("Archived", false)
       .order("PropertyId")
@@ -573,6 +595,71 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const s4PlusCount = funnel.find((f) => f.stage === "4")?.count ?? 0;
   const conversionRate = enteredStage1.size > 0 ? Number(((s4PlusCount / enteredStage1.size) * 100).toFixed(1)) : null;
 
+  const latestStage4ByProperty = new Map<number, HistRow>();
+  for (const h of currentHistory) {
+    if (filteredPropertyIds && !filteredPropertyIds.has(h.PropertyId)) continue;
+    if (stageKey(h.NewStatus) !== "4") continue;
+    const existing = latestStage4ByProperty.get(h.PropertyId);
+    if (!existing || new Date(h.Inserted).getTime() > new Date(existing.Inserted).getTime()) {
+      latestStage4ByProperty.set(h.PropertyId, h);
+    }
+  }
+
+  const latestStage4Entries = [...latestStage4ByProperty.values()].sort(
+    (a, b) => new Date(b.Inserted).getTime() - new Date(a.Inserted).getTime()
+  );
+  const latestStage4Ids = latestStage4Entries.map((row) => row.PropertyId);
+  const latestStage4IdSet = new Set(latestStage4Ids);
+  const latestStage4LinksByProperty = new Map<number, PropertyLinkRow[]>();
+  const latestStage4MediaUrlByProperty = new Map<number, string>();
+
+  for (let i = 0; i < latestStage4Ids.length; i += 500) {
+    const ids = latestStage4Ids.slice(i, i + 500);
+    const { data: links } = await supabase
+      .from("ms_property_links")
+      .select("PropertyId, LinkName, Url")
+      .in("PropertyId", ids);
+    for (const link of (links ?? []) as PropertyLinkRow[]) {
+      const rows = latestStage4LinksByProperty.get(link.PropertyId) ?? [];
+      rows.push(link);
+      latestStage4LinksByProperty.set(link.PropertyId, rows);
+    }
+
+    const { data: mediaRows } = await supabase
+      .from("ms_property_media")
+      .select("PropertyId, Url, ThumbnailUrl, YoutubeUrl")
+      .in("PropertyId", ids)
+      .eq("Error", false)
+      .limit(1000);
+    for (const media of (mediaRows ?? []) as PropertyMediaRow[]) {
+      if (!latestStage4IdSet.has(media.PropertyId) || latestStage4MediaUrlByProperty.has(media.PropertyId)) continue;
+      const url = media.Url || media.ThumbnailUrl || media.YoutubeUrl;
+      if (url) latestStage4MediaUrlByProperty.set(media.PropertyId, url);
+    }
+  }
+
+  const latestStage4Offers = latestStage4Entries.map((entry) => {
+    const prop = propMap.get(entry.PropertyId);
+    const links = latestStage4LinksByProperty.get(entry.PropertyId) ?? [];
+    const linkMap = new Map(links.map((link) => [link.LinkName, link.Url]));
+    const picturesUrl = linkMap.get("MediaFolder") || latestStage4MediaUrlByProperty.get(entry.PropertyId) || null;
+    const mastermindUrl = linkMap.get("MastermindLink") || null;
+    const propertyPageUrl = linkMap.get("PropertyReviewAdminLink") || prop?.PropertyUrl || null;
+
+    return {
+      propertyId: entry.PropertyId,
+      address: prop?.Address1 ?? "Unknown",
+      stage4Date: entry.Inserted,
+      currentStage: stageLabel(prop?.Status ?? null),
+      picturesUrl,
+      hasPictures: Boolean(picturesUrl),
+      mastermindUrl,
+      hasMastermind: Boolean(mastermindUrl),
+      propertyPageUrl,
+      leadCategory: prop?.LeadCategory ?? null,
+    };
+  });
+
   return NextResponse.json(
     {
       kpis: {
@@ -593,6 +680,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       activeTerritoryComparisonCount,
       soldProperties,
       inventoryProperties,
+      latestStage4Offers,
       leadCategories,
       leadListBuilding: {
         total: leadListTypeByPropertyId.size,

@@ -190,9 +190,7 @@ async function upsertStage0OriginsForPropertyIds(propertyIds: number[]): Promise
 
       if (records.length === 0) continue;
 
-      const { error } = await supabase
-        .from("ms_property_stage0_origins")
-        .upsert(records, { onConflict: "PropertyId" });
+      const { error } = await supabase.from("ms_property_stage0_origins").upsert(records, { onConflict: "PropertyId" });
 
       if (error) {
         errors.push(`ms_property_stage0_origins batch ${i}: ${error.message}`);
@@ -242,13 +240,22 @@ export async function syncProperties(since?: string): Promise<{
     calculations: number;
     inventory: number;
     statusHistory: number;
+    links: number;
     royalty: number;
     stage0Origins: number;
   };
   errors: string[];
 }> {
   const errors: string[] = [];
-  const counts = { properties: 0, calculations: 0, inventory: 0, statusHistory: 0, royalty: 0, stage0Origins: 0 };
+  const counts = {
+    properties: 0,
+    calculations: 0,
+    inventory: 0,
+    statusHistory: 0,
+    links: 0,
+    royalty: 0,
+    stage0Origins: 0,
+  };
 
   // Build WHERE clause — exclude Lead List, optionally filter by LastModified
   let whereClause = "WHERE ps.Archived = 0 AND ps.Status != '0 Lead List'";
@@ -653,7 +660,40 @@ export async function syncProperties(since?: string): Promise<{
       }
     }
 
-    // 5. Sync ms_property_royalty
+    // 5. Sync property links used by coaching dashboard checks
+    for (let i = 0; i < propertyIds.length; i += BATCH_SIZE) {
+      const batchIds = propertyIds.slice(i, i + BATCH_SIZE);
+      const placeholders = batchIds.map(() => "?").join(",");
+
+      const linkRows = await queryMS(
+        `SELECT PropertyId, LinkName, Url
+         FROM PropertyLinks
+         WHERE PropertyId IN (${placeholders})
+           AND LinkName IN ('MastermindLink', 'MediaFolder', 'PropertyReviewAdminLink')`,
+        batchIds as number[]
+      );
+
+      const linkRecords = linkRows.map((row: Record<string, unknown>) => ({
+        PropertyId: row.PropertyId,
+        LinkName: row.LinkName,
+        Url: row.Url,
+        ms_synced_at: new Date().toISOString(),
+      }));
+
+      if (linkRecords.length > 0) {
+        const { error } = await supabase
+          .from("ms_property_links")
+          .upsert(linkRecords, { onConflict: "PropertyId,LinkName" });
+
+        if (error) {
+          errors.push(`ms_property_links batch ${i}: ${error.message}`);
+        } else {
+          counts.links += linkRecords.length;
+        }
+      }
+    }
+
+    // 6. Sync ms_property_royalty
     for (let i = 0; i < propertyIds.length; i += BATCH_SIZE) {
       const batchIds = propertyIds.slice(i, i + BATCH_SIZE);
       const placeholders = batchIds.map(() => "?").join(",");
@@ -689,7 +729,7 @@ export async function syncProperties(since?: string): Promise<{
     }
   }
 
-  // 6. Backfill royalty for purchased properties missing from ms_property_royalty.
+  // 7. Backfill royalty for purchased properties missing from ms_property_royalty.
   //    The incremental sync only covers recently modified properties, so older
   //    purchased properties may never have had royalty synced.
   try {
@@ -755,7 +795,7 @@ export async function syncProperties(since?: string): Promise<{
   }
 
   // Mark journey briefs stale for territories that had property data synced
-  if (counts.properties > 0 || counts.inventory > 0 || counts.royalty > 0) {
+  if (counts.properties > 0 || counts.inventory > 0 || counts.royalty > 0 || counts.links > 0) {
     const slugs = [
       ...new Set(properties.map((r: Record<string, unknown>) => r.TerritorySlug as string).filter(Boolean)),
     ];
