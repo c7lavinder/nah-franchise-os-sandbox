@@ -4,14 +4,11 @@ import { useState, useEffect, useCallback } from "react";
 import {
   AlertTriangle,
   ArrowDown,
-  CheckCircle2,
-  Circle,
   Clock,
   DollarSign,
   ExternalLink,
   Gauge,
   Home,
-  Image,
   Loader2,
   Package,
   PieChart,
@@ -402,8 +399,8 @@ function LatestStage4OffersPanel({
                 </span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                <InfoChip label="Lead category" value={offer.leadCategory ?? null} />
-                <InfoChip label="Lead type" value={offer.leadType ?? null} />
+                {offer.leadCategory && <InfoChip value={offer.leadCategory} />}
+                {offer.leadType && <InfoChip value={offer.leadType} />}
                 <span className="rounded bg-bg-secondary px-1.5 py-0.5 text-[10px] text-text-tertiary">
                   Stage 4 {fmtDate(offer.stage4Date)}
                 </span>
@@ -411,13 +408,8 @@ function LatestStage4OffersPanel({
             </div>
 
             <div className="flex items-center justify-start gap-1.5 sm:justify-end">
-              <LinkStatus href={offer.picturesUrl} active={offer.hasPictures} icon={Image} label="Pictures" />
-              <LinkStatus
-                href={offer.mastermindUrl}
-                active={offer.hasMastermind}
-                icon={CheckCircle2}
-                label="Mastermind"
-              />
+              <LinkStatus href={offer.picturesUrl} active={offer.hasPictures} label="Pictures" />
+              <LinkStatus href={offer.mastermindUrl} active={offer.hasMastermind} label="Mastermind" />
               {offer.propertyPageUrl ? (
                 <a
                   href={offer.propertyPageUrl}
@@ -454,51 +446,30 @@ function LatestStage4OffersPanel({
   );
 }
 
-function InfoChip({ label, value }: { label: string; value: string | null }) {
+function InfoChip({ value }: { value: string }) {
   return (
-    <span className="rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-tertiary">
-      {label}: <span className="font-medium text-text-secondary">{value || "Unknown"}</span>
+    <span className="rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">
+      {value}
     </span>
   );
 }
 
-function LinkStatus({
-  href,
-  active,
-  icon: Icon,
-  label,
-}: {
-  href: string | null;
-  active: boolean;
-  icon: React.ElementType;
-  label: string;
-}) {
-  const content = (
-    <>
-      {active ? (
-        <CheckCircle2 size={14} className="text-success" />
-      ) : (
-        <Circle size={14} className="text-text-tertiary/60" />
-      )}
-      <Icon size={13} className={active ? "text-text-secondary" : "text-text-tertiary/60"} />
-      <span className={active ? "text-text-secondary" : "text-text-tertiary"}>{label}</span>
-    </>
-  );
-
-  const className =
-    "flex h-7 items-center gap-1.5 rounded-md border border-border-default bg-bg-secondary px-2 text-[11px] font-medium transition-colors";
+function LinkStatus({ href, active, label }: { href: string | null; active: boolean; label: string }) {
+  const className = active
+    ? "flex h-7 min-w-[116px] items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 px-2 text-[11px] font-semibold text-emerald-700 transition-colors"
+    : "flex h-7 min-w-[116px] items-center justify-center rounded-md border border-border-default bg-bg-secondary px-2 text-[11px] font-medium text-text-tertiary transition-colors";
 
   if (href) {
     return (
-      <a href={href} target="_blank" rel="noreferrer" title={label} className={`${className} hover:border-nah-blue/40`}>
-        {content}
+      <a href={href} target="_blank" rel="noreferrer" title={label} className={`${className} hover:border-emerald-300`}>
+        {label}
       </a>
     );
   }
 
   return (
     <span title={`${label} missing`} className={className}>
-      {content}
+      {label}
     </span>
   );
 }

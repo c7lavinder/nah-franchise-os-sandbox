@@ -78,6 +78,29 @@ function stageLabel(status: string | null): string | null {
   return STAGE_LABELS[key] ?? key;
 }
 
+function cleanUrl(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed || null;
+}
+
+function formatAddress(prop: Pick<PropRow, "Address1" | "City" | "State"> | undefined): string {
+  if (!prop) return "Unknown";
+  return [prop.Address1, prop.City, prop.State].filter(Boolean).join(", ") || "Unknown";
+}
+
+function slugifyAddress(prop: PropRow): string {
+  return formatAddress(prop)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function masterSuitePropertyUrl(prop: PropRow): string {
+  return `https://mastersuiteapp.com/v2/property/analysis/${prop.PropertyId}/${
+    prop.AddressSlugVerbose || prop.AddressSlugShort || slugifyAddress(prop)
+  }`;
+}
+
 async function fetchPaged<T>(queryFactory: (from: number, to: number) => PromiseLike<{ data: T[] | null }>) {
   const rows: T[] = [];
   let offset = 0;
@@ -148,24 +171,6 @@ function buildLeadListBenchmark(period: string, now: Date): number | null {
   const multiplier = benchmarkMultiplier(period, now);
   if (multiplier == null) return null;
   return MONTHLY_LEAD_LIST_BENCHMARK * multiplier;
-}
-
-function formatAddress(prop: Pick<PropRow, "Address1" | "City" | "State"> | undefined): string {
-  if (!prop) return "Unknown";
-  return [prop.Address1, prop.City, prop.State].filter(Boolean).join(", ") || "Unknown";
-}
-
-function slugifyAddress(prop: PropRow): string {
-  return formatAddress(prop)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function masterSuitePropertyUrl(prop: PropRow): string {
-  return `https://mastersuiteapp.com/v2/property/analysis/${prop.PropertyId}/${
-    prop.AddressSlugVerbose || prop.AddressSlugShort || slugifyAddress(prop)
-  }`;
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ TerritorySlug: string }> }) {
@@ -685,6 +690,34 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
+  const idsMissingMirroredLinks = latestStage4Ids.filter((id) => {
+    const links = latestStage4LinksByProperty.get(id) ?? [];
+    const names = new Set(links.filter((link) => cleanUrl(link.Url)).map((link) => link.LinkName));
+    return !names.has("MediaFolder") || !names.has("MastermindLink");
+  });
+
+  for (let i = 0; i < idsMissingMirroredLinks.length; i += 100) {
+    const ids = idsMissingMirroredLinks.slice(i, i + 100);
+    const placeholders = ids.map(() => "?").join(",");
+    try {
+      const liveLinks = await queryMS<PropertyLinkRow>(
+        `SELECT PropertyId, LinkName, Url
+         FROM PropertyLinks
+         WHERE PropertyId IN (${placeholders})
+           AND LinkName IN ('MastermindLink', 'MediaFolder', 'PropertyReviewAdminLink')`,
+        ids
+      );
+
+      for (const link of liveLinks) {
+        const rows = latestStage4LinksByProperty.get(link.PropertyId) ?? [];
+        rows.push(link);
+        latestStage4LinksByProperty.set(link.PropertyId, rows);
+      }
+    } catch {
+      // If MasterSuite is unreachable from the runtime, the mirrored table still supplies links after sync.
+    }
+  }
+
   const latestStage4Offers = latestStage4Entries.map((entry) => {
     const prop = propMap.get(entry.PropertyId);
     const links = latestStage4LinksByProperty.get(entry.PropertyId) ?? [];
@@ -692,17 +725,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const picturesUrl = linkMap.get("MediaFolder") || latestStage4MediaUrlByProperty.get(entry.PropertyId) || null;
     const mastermindUrl = linkMap.get("MastermindLink") || null;
     const propertyPageUrl = linkMap.get("PropertyReviewAdminLink") || prop?.PropertyUrl || null;
+    const cleanPicturesUrl = cleanUrl(picturesUrl);
+    const cleanMastermindUrl = cleanUrl(mastermindUrl);
 
     return {
       propertyId: entry.PropertyId,
       address: formatAddress(prop),
       stage4Date: entry.Inserted,
       currentStage: stageLabel(prop?.Status ?? null),
-      picturesUrl,
-      hasPictures: Boolean(picturesUrl),
-      mastermindUrl,
-      hasMastermind: Boolean(mastermindUrl),
-      propertyPageUrl: prop ? masterSuitePropertyUrl(prop) : propertyPageUrl,
+      picturesUrl: cleanPicturesUrl,
+      hasPictures: Boolean(cleanPicturesUrl),
+      mastermindUrl: cleanMastermindUrl,
+      hasMastermind: Boolean(cleanMastermindUrl),
+      propertyPageUrl: prop ? masterSuitePropertyUrl(prop) : cleanUrl(propertyPageUrl),
       leadCategory: prop?.LeadCategory ?? null,
       leadType: prop?.LeadType ?? null,
     };
