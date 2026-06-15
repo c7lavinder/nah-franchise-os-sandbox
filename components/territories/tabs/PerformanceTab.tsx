@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import {
   AlertTriangle,
   ArrowDown,
+  Bot,
+  CheckCircle2,
   Clock,
   DollarSign,
   Gauge,
@@ -140,7 +142,9 @@ function fmtDate(d: string): string {
 
 export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: string }) {
   const [data, setData] = useState<PerformanceData | null>(null);
+  const [storyData, setStoryData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [storyLoading, setStoryLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("ytd");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -164,6 +168,23 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
     void fetchData(period, selectedCategory);
   }, [period, selectedCategory, fetchData]);
 
+  useEffect(() => {
+    let active = true;
+    setStoryLoading(true);
+    apiFetch(`/api/territories/${TerritorySlug}/performance?period=ytd`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        if (active) setStoryData(payload);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setStoryLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [TerritorySlug]);
+
   if (loading && !data)
     return (
       <div className="flex justify-center py-12">
@@ -185,6 +206,8 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
 
   return (
     <div className="space-y-6">
+      <StorytellingAgentPanel data={storyData} loading={storyLoading} />
+
       {/* Period Toggle */}
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1 bg-bg-secondary border border-border-default rounded-lg p-1">
@@ -424,6 +447,402 @@ function LeadListBuildingPanel({
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+type StoryTone = "healthy" | "direct" | "warning" | "critical";
+
+interface StorytellingRead {
+  tone: StoryTone;
+  label: string;
+  headline: string;
+  narrative: string;
+  coachFocus: string[];
+  probes: string[];
+  guardrails: string[];
+  metricLine: string;
+}
+
+function stageCount(funnel: FunnelStage[], stage: string) {
+  return funnel.find((row) => row.stage === stage)?.count ?? 0;
+}
+
+function benchmarkFor(data: PerformanceData, stage: string) {
+  return data.comparisonRows?.find((row) => row.stage === stage)?.benchmark ?? null;
+}
+
+function ratio(count: number, benchmark: number | null) {
+  if (!benchmark || benchmark <= 0) return null;
+  return count / benchmark;
+}
+
+function conversionPct(numerator: number, denominator: number) {
+  if (denominator <= 0) return null;
+  return Math.round((numerator / denominator) * 100);
+}
+
+function buildStorytellingRead(data: PerformanceData): StorytellingRead {
+  const stage1 = stageCount(data.funnel, "1");
+  const stage3 = stageCount(data.funnel, "3");
+  const stage4 = stageCount(data.funnel, "4");
+  const stage5 = stageCount(data.funnel, "5 Contract");
+  const stage6 = stageCount(data.funnel, "6 Purchase");
+  const stage1Target = benchmarkFor(data, "1");
+  const stage4Target = benchmarkFor(data, "4");
+  const stage5Target = benchmarkFor(data, "5 Contract");
+  const stage6Target = benchmarkFor(data, "6 Purchase");
+  const stage1Ratio = ratio(stage1, stage1Target);
+  const stage4Ratio = ratio(stage4, stage4Target);
+  const stage5Ratio = ratio(stage5, stage5Target);
+  const stage6Ratio = ratio(stage6, stage6Target);
+  const s1ToS4 = conversionPct(stage4, stage1);
+  const s3ToS4 = conversionPct(stage4, stage3);
+  const s4ToS5 = conversionPct(stage5, stage4);
+  const s5ToS6 = conversionPct(stage6, stage5);
+  const sourceTotal = Object.values(data.leadCategories).reduce((sum, count) => sum + count, 0);
+  const sourceMismatch = sourceTotal > 0 && stage1 > 0 && Math.abs(sourceTotal - stage1) >= Math.max(5, stage1 * 0.2);
+  const avgProfit = data.kpis?.avgProfit ?? null;
+  const lowProfit = avgProfit != null && avgProfit > 0 && avgProfit < 20000;
+  const activeInventory = data.kpis?.activeInventory ?? 0;
+  const hittingDeals =
+    (stage5Target != null && stage5 >= stage5Target) || (stage6Target != null && stage6 >= stage6Target) || stage6 > 0;
+  const stage1Light = stage1Ratio != null ? stage1Ratio < 0.85 : stage1 < 70;
+  const stage1VeryLow = stage1Ratio != null ? stage1Ratio < 0.35 : stage1 < 20;
+  const stage1Healthy = stage1Ratio != null ? stage1Ratio >= 0.95 : stage1 >= 90;
+  const stage4Healthy = stage4Ratio != null ? stage4Ratio >= 0.85 : stage4 >= 10;
+  const contractsHealthy = stage5Ratio != null ? stage5Ratio >= 0.85 : stage5 > 0;
+  const purchasesHealthy = stage6Ratio != null ? stage6Ratio >= 0.85 : stage6 > 0;
+
+  const metricLine = `YTD: Stage 1 ${stage1Target ? `${stage1}/${stage1Target}` : stage1}, Stage 4 ${
+    stage4Target ? `${stage4}/${stage4Target}` : stage4
+  }, contracts ${stage5Target ? `${stage5}/${stage5Target}` : stage5}, purchases ${
+    stage6Target ? `${stage6}/${stage6Target}` : stage6
+  }.`;
+
+  if (stage1 === 0 && stage4 === 0 && stage5 === 0 && stage6 === 0) {
+    return {
+      tone: "critical",
+      label: "No Funnel To Coach",
+      headline: "There is no acquisition process showing in the system.",
+      narrative:
+        "This is the hard-stop case. The conversation should not drift into lead quality, sales skill, pricing, or inventory strategy until houses are being put into the system.",
+      coachFocus: [
+        "Get Stage 1 leads entered immediately.",
+        "Have the honest commitment conversation if they are not going to work the business.",
+      ],
+      probes: [
+        "What exact lead generation activity happened this week?",
+        "Who owns getting the next leads into MasterSuite?",
+      ],
+      guardrails: ["Be blunt. Do not soften zero activity into 'not enough movement yet.'"],
+      metricLine,
+    };
+  }
+
+  if (stage1VeryLow && hittingDeals) {
+    return {
+      tone: "warning",
+      label: "Buying, But Not Scalable",
+      headline: "The output is real, but the operating system is probably invisible.",
+      narrative:
+        "Low Stage 1 with real contracts or purchases can be a high-quality niche, but it can also mean they are not entering leads. Treat the buying as good news while challenging whether this is coachable, repeatable, and scalable.",
+      coachFocus: [
+        "Ask what their goals are.",
+        "Find out what is keeping them from following the system.",
+        "Document what source, niche, or behavior is producing deals if it is legitimate.",
+      ],
+      probes: [
+        "Are all leads being entered into MasterSuite?",
+        "Is this dependent on the owner personally working relationships?",
+        "Can someone else copy the process?",
+      ],
+      guardrails: [
+        "Do not blindly celebrate purchases if the funnel is hidden.",
+        "Do not call it a simple lead quantity bottleneck until data discipline is checked.",
+      ],
+      metricLine,
+    };
+  }
+
+  if (stage1Light && hittingDeals && (contractsHealthy || purchasesHealthy)) {
+    return {
+      tone: lowProfit ? "warning" : "healthy",
+      label: lowProfit ? "High Conversion, Check Margin" : "High Conversion, Underfed",
+      headline: lowProfit
+        ? "They are buying well, but make sure acceptance rate is not being purchased with margin."
+        : "The sales process is working. Feed it more leads.",
+      narrative:
+        "This is not a broken funnel. They are converting the leads they have into contracts or purchases, so the growth lever is more Stage 1 activity. The coach should build confidence that more lead gen should produce ROI.",
+      coachFocus: [
+        "Double down on lead generation activity.",
+        "Protect the current process because it is producing deals.",
+        "Ask what their goals are before prescribing how hard to scale.",
+      ],
+      probes: [
+        "Which sources and habits are producing the strongest opportunities?",
+        "How much more Stage 1 volume can they add without breaking follow-up?",
+        "How do sold-house profits look, especially under $20k average gross?",
+      ],
+      guardrails: [
+        "Do not encourage fewer purchases just to protect conversion optics.",
+        "If margin is thin, probe whether offers are too rich and whether more profit per accepted deal is possible.",
+      ],
+      metricLine,
+    };
+  }
+
+  if (stage1 > 0 && stage4 === 0) {
+    return {
+      tone: "critical",
+      label: "Leads Not Becoming Offers",
+      headline: "Lead quality alone should not explain zero Stage 4.",
+      narrative:
+        "This is an operator/process problem until proven otherwise. The conversation should stay on lead creation and lead work: follow-up, walks, getting sellers a number, and whether offers are actually being made.",
+      coachFocus: [
+        "Increase Stage 1 lead flow.",
+        "Audit what is happening to every lead before it dies.",
+        "Force clarity on why no offers are being created.",
+      ],
+      probes: [
+        "Are they working the leads or writing them off too early?",
+        "Did they walk anything?",
+        "Did they make any offers that were not advanced to Stage 4?",
+      ],
+      guardrails: sourceMismatch
+        ? ["Flag the data mismatch: lead source pills do not reconcile to Stage 1, so the panel should be checked."]
+        : ["Do not let the conversation hide behind 'bad lead quality' without evidence."],
+      metricLine,
+    };
+  }
+
+  if (stage1Healthy && stage4Ratio != null && stage4Ratio < 0.55 && contractsHealthy) {
+    return {
+      tone: "warning",
+      label: "Qualification To Offer Gap",
+      headline: "Strong contracts can still hide a Stage 3 to Stage 4 problem.",
+      narrative:
+        "For cold calling or cold texting markets, a big Stage 1 drop-off can be normal. The better question is why qualified or interested sellers are not becoming real offers often enough.",
+      coachFocus: [
+        "Audit Stage 3 discipline and offer follow-through.",
+        "Look at source quality instead of simply asking for more leads.",
+        "Keep credit for contracts already being won.",
+      ],
+      probes: [
+        "Are they skipping Stage 4 when sellers reject the number?",
+        "Are Stage 3 leads being advanced too generously?",
+        "Should they shift toward better lead-quality sources?",
+      ],
+      guardrails: [
+        "Do not diagnose this as pure lead quantity when Stage 1 is already heavy and contracts are strong.",
+      ],
+      metricLine: `${metricLine} Stage 3 to Stage 4 conversion is ${s3ToS4 ?? 0}%.`,
+    };
+  }
+
+  if (stage4Healthy && stage5 === 0) {
+    return {
+      tone: "warning",
+      label: "Offer To Contract Gap",
+      headline: "They are getting to offer conversations but not getting contracts.",
+      narrative:
+        "This is where the coach should inspect sales skill, offer structure, ARV, construction budget, competition, and seller motivation instead of defaulting to more lead volume.",
+      coachFocus: [
+        "Tighten the offer-to-contract process.",
+        "Review deal quality and pricing assumptions.",
+        "Listen for whether sellers are getting clear, confident offers.",
+      ],
+      probes: [
+        "Are offers too low, too slow, or poorly explained?",
+        "Are ARV and repair budgets killing credibility?",
+        "Is competition beating them on speed or certainty?",
+      ],
+      guardrails: ["Do not make lead gen the headline if Stage 4 volume is already healthy."],
+      metricLine: `${metricLine} Stage 4 to contract conversion is ${s4ToS5 ?? 0}%.`,
+    };
+  }
+
+  if (stage5 > 0 && (s5ToS6 ?? 100) < 60) {
+    return {
+      tone: "warning",
+      label: "Contract To Purchase Watch",
+      headline: "Contracts are not becoming purchases fast enough.",
+      narrative:
+        "This may be a real closing issue or simply newer contracts that have not had time to close. The agent should ask before assuming the funnel is broken.",
+      coachFocus: [
+        "Identify why contracts are not closing.",
+        "Keep future inventory lined up while current deals are worked.",
+        "Separate normal timing from avoidable fallout.",
+      ],
+      probes: [
+        "Title issues?",
+        "Seller going quiet?",
+        "Financing, inspection, or deal-quality friction?",
+        "Are these just new contracts?",
+      ],
+      guardrails: ["Do not tell them to slow lead gen because inventory exists."],
+      metricLine: `${metricLine} Contract to purchase conversion is ${s5ToS6 ?? 0}%.`,
+    };
+  }
+
+  if (stage1Light && (stage4Healthy || hittingDeals)) {
+    return {
+      tone: "direct",
+      label: "Healthy But Underfed",
+      headline: "The process appears to work, but the machine is capped by lead volume.",
+      narrative:
+        "This is the positive but direct conversation: ratios are healthy and houses are being bought, but to reach the level expected, Stage 1 activity needs to materially increase.",
+      coachFocus: [
+        "Push Stage 1 toward benchmark.",
+        "Make the lead gen ask concrete, not a tiny tweak.",
+        "Keep reinforcing future inventory creation.",
+      ],
+      probes: [
+        "What activity would double the current lead pace?",
+        "Which working lead source deserves more fuel?",
+        "What might cause them to slow down when inventory increases?",
+      ],
+      guardrails: ["Do not treat this like a broken funnel.", "Be direct that the next level requires more leads."],
+      metricLine,
+    };
+  }
+
+  if (stage1Healthy && stage4Healthy && contractsHealthy && purchasesHealthy) {
+    return {
+      tone: "healthy",
+      label: "Empower And Learn",
+      headline: "This is working. Help them do even more and learn what to copy.",
+      narrative:
+        "They are feeding the top, creating real opportunities, getting contracts, and buying houses. The coaching move is not to rebuild the funnel. It is to preserve what works, ask what their goals are, and identify what the rest of the system can learn.",
+      coachFocus: [
+        "Praise the pipeline.",
+        "Ask what would empower them to do more.",
+        "Identify the lead sources, habits, and behaviors worth copying.",
+      ],
+      probes: [
+        "What are they doing consistently that other territories are not?",
+        "What support would help them scale without breaking the current system?",
+        "Where is the light tightening point?",
+      ],
+      guardrails: ["Do not over-coach a healthy system.", "Do not break what is already producing results."],
+      metricLine,
+    };
+  }
+
+  if (activeInventory > 0 && stage1Light) {
+    return {
+      tone: "direct",
+      label: "Inventory Distraction Risk",
+      headline: "They cannot let current inventory stop future inventory creation.",
+      narrative:
+        "The funnel is not dead, but the coach should keep hammering the importance of lining up the next houses while current inventory is being managed.",
+      coachFocus: [
+        "Keep Stage 1 moving while inventory is active.",
+        "Set a clear weekly lead creation expectation.",
+        "Acknowledge the work in inventory without letting it become the excuse.",
+      ],
+      probes: [
+        "Who is protecting lead gen time while houses are in inventory?",
+        "What activity continues every week no matter what is in construction?",
+      ],
+      guardrails: ["Do not let inventory become permission to take the foot off gas."],
+      metricLine,
+    };
+  }
+
+  return {
+    tone: "direct",
+    label: "Coach The Constraint",
+    headline: "Read the whole funnel before naming the bottleneck.",
+    narrative:
+      "The agent should start with the story, not the loudest number. Decide whether this is an underfed good operator, a hidden-data business, an offer gap, a closing gap, or a true commitment problem.",
+    coachFocus: [
+      "Anchor on the highest-leverage constraint.",
+      "Compare lead volume, offer creation, contracts, purchases, inventory, and profit quality together.",
+      "Turn the read into one coaching conversation.",
+    ],
+    probes: [
+      "Are the numbers complete?",
+      "What stage is truly limiting purchases?",
+      "What is the owner's goal for the next level?",
+    ],
+    guardrails: [`Stage 1 to Stage 4 conversion is ${s1ToS4 ?? 0}%; do not diagnose from Stage 1 alone.`],
+    metricLine,
+  };
+}
+
+function toneClasses(tone: StoryTone) {
+  if (tone === "healthy") return "border-success/30 bg-success/5 text-success";
+  if (tone === "critical") return "border-danger/30 bg-danger/5 text-danger";
+  if (tone === "warning") return "border-warning/30 bg-warning/5 text-warning";
+  return "border-nah-blue/30 bg-nah-blue/5 text-nah-blue";
+}
+
+function StorytellingAgentPanel({ data, loading }: { data: PerformanceData | null; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-border-default bg-bg-primary p-5">
+        <div className="flex items-center gap-3 text-text-tertiary">
+          <Loader2 size={16} className="animate-spin" />
+          <span className="text-body-sm">Loading fixed YTD storytelling read...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data || !data.kpis) return null;
+
+  const read = buildStorytellingRead(data);
+  const toneClass = toneClasses(read.tone);
+
+  return (
+    <div className="rounded-lg border border-border-default bg-bg-primary p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-nah-blue/10 text-nah-blue">
+              <Bot size={18} />
+            </div>
+            <div>
+              <h3 className="text-body-sm font-semibold text-text-primary">Storytelling Agent</h3>
+              <p className="text-caption text-text-tertiary">
+                Fixed YTD read. Timeline switches below do not change this.
+              </p>
+            </div>
+            <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${toneClass}`}>
+              {read.label}
+            </span>
+          </div>
+
+          <h2 className="mt-4 text-xl font-bold leading-tight text-text-primary">{read.headline}</h2>
+          <p className="mt-2 max-w-4xl text-body-sm leading-relaxed text-text-secondary">{read.narrative}</p>
+          <p className="mt-3 text-caption font-medium text-text-tertiary">{read.metricLine}</p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 lg:grid-cols-3">
+        <StoryList title="Coach Focus" icon={Target} items={read.coachFocus} />
+        <StoryList title="Questions To Ask" icon={Gauge} items={read.probes} />
+        <StoryList title="Guardrails" icon={CheckCircle2} items={read.guardrails} />
+      </div>
+    </div>
+  );
+}
+
+function StoryList({ title, icon: Icon, items }: { title: string; icon: React.ElementType; items: string[] }) {
+  return (
+    <div className="rounded-lg border border-border-default bg-bg-secondary p-3">
+      <div className="mb-2 flex items-center gap-2 text-caption font-semibold text-text-primary">
+        <Icon size={14} />
+        {title}
+      </div>
+      <div className="space-y-2">
+        {items.slice(0, 3).map((item) => (
+          <p key={item} className="text-caption leading-relaxed text-text-secondary">
+            {item}
+          </p>
+        ))}
       </div>
     </div>
   );
