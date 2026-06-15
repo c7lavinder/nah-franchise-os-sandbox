@@ -523,6 +523,8 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
   const metricLine = `YTD so far: ${stage1} leads, ${stage4} offers, ${stage5} contracts, ${stage6} purchases.${
     goalParts.length ? ` Goal: ${goalParts.join(", ")}.` : ""
   }`;
+  const simpleYtd = `YTD: ${stage1} leads, ${stage4} offers, ${stage5} contracts, ${stage6} purchases.`;
+  const targetYtd = goalParts.length ? `The goal is ${goalParts.join(", ")}.` : "";
 
   if (stage1 === 0 && stage4 === 0 && stage5 === 0 && stage6 === 0) {
     return {
@@ -531,9 +533,17 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
       headline: "Nothing is really moving yet.",
       narrative:
         "Do not make this complicated. If there are no leads, offers, contracts, or purchases in the system, the first problem is activity.",
-      coachFocus: ["Get new leads into the system now.", "Find out if they are actually working the business."],
-      probes: ["What lead gen happened this week?", "Who is responsible for getting the next leads in?"],
-      guardrails: ["Do not talk about lead quality or sales skill before there is activity."],
+      coachFocus: [
+        "There is no acquisition funnel to diagnose yet. No leads, no offers, no contracts, and no purchases are showing.",
+        "This is not a conversion problem yet. The business has to create real seller activity before anything else matters.",
+      ],
+      probes: [
+        "Put the whole call on lead-generation activity for this week.",
+        "Set one clear owner, one lead source, and one number of new leads that must be created before the next check-in.",
+      ],
+      guardrails: [
+        "Do not spend the call debating lead quality, offer strategy, or closing skill before there is actual activity in the system.",
+      ],
       metricLine,
     };
   }
@@ -546,18 +556,17 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
       narrative:
         "This could be good, or it could be messy data. They may have a strong source, or they may just not be entering leads. Give credit for the deals, then find out what is really happening.",
       coachFocus: [
-        "Ask where the deals are coming from.",
-        "Check if all leads are being entered.",
-        "Figure out if this can be repeated by someone else.",
+        `${simpleYtd} They are still getting deals, so something is working, but the front of the funnel is not telling the full story.`,
+        "This is either a strong hidden lead source or messy data entry. The read is not 'they need more leads' until the source of those purchases is clear.",
       ],
       probes: [
-        "Are all leads being entered into MasterSuite?",
-        "Is this mostly the owner working personal relationships?",
-        "If this is working, what exactly should we copy?",
+        "Trace the last purchases back to the exact source.",
+        "Clean up whether all leads are being entered, then decide if this is a repeatable channel or just owner hustle.",
+        "If the source is real, turn it into a simple repeatable play for the next month.",
       ],
       guardrails: [
-        "Do not call this a lead problem until the data is clean.",
-        "Do not ignore the purchases either. Something is working.",
+        "Do not call this broken just because Stage 1 looks light.",
+        "Do not ignore the purchases either. A deal source exists, and the agent should force clarity on where it came from.",
       ],
       metricLine,
     };
@@ -573,18 +582,27 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
       narrative:
         "Do not treat this like a broken funnel. If a small amount of leads is turning into contracts or purchases, the simple answer is more lead flow.",
       coachFocus: [
-        "Get more Stage 1 leads coming in.",
-        "Keep the current process because it is producing deals.",
-        "Ask how hard they actually want to scale.",
+        lowProfit
+          ? `${simpleYtd} They can turn limited lead flow into deals, but profit is the part to pressure now.`
+          : `${simpleYtd} This is a good operator being underfed. The leads they do have are producing real movement.`,
+        lowProfit
+          ? "Do not celebrate volume until the deal quality is checked."
+          : "The bottleneck is not sales skill. It is not enough at-bats at the top of the funnel.",
       ],
       probes: [
-        "What lead source is working best?",
-        "How many more leads can they handle each week?",
-        "Are the bought houses profitable enough?",
+        lowProfit
+          ? "Review the last purchases for ARV, rehab, risk, and expected profit."
+          : "Increase Stage 1 lead flow without changing the working parts of the process.",
+        "Protect the lead source that is already creating deals.",
+        lowProfit
+          ? "Tighten offer discipline before pushing more buying volume."
+          : "Set a specific weekly lead target and hold it there.",
       ],
       guardrails: [
-        "Do not slow down a working process.",
-        "If profit is low, check offer discipline before telling them to buy more.",
+        "Do not over-coach a funnel that is already converting.",
+        lowProfit
+          ? "Do not tell them to buy more until the profit story supports it."
+          : "Do not let the conversation drift into vague strategy. More quality lead flow is the move.",
       ],
       metricLine,
     };
@@ -598,18 +616,17 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
       narrative:
         "Do not let this turn into a vague lead-quality excuse. The coach needs to find out if leads are being worked, walked, followed up with, and given real numbers.",
       coachFocus: [
-        "Look at what happens after a lead comes in.",
-        "Find out why offers are not being made.",
-        "Keep lead flow moving while the process gets fixed.",
+        `${simpleYtd} Leads exist, but they are not becoming offers. That means the business is stopping before sellers get a real number.`,
+        "This is not a purchase problem yet. The current breakdown is between lead intake and offer activity.",
       ],
       probes: [
-        "Are they working the leads or giving up too fast?",
-        "Did they walk anything?",
-        "Were offers made but not moved to Stage 4?",
+        "Pull recent leads and see exactly where they died.",
+        "Force the next step: work the leads, walk the ones worth walking, and make real offers instead of staying in review mode.",
+        "Keep lead flow moving, but make the main coaching push offer creation.",
       ],
       guardrails: sourceMismatch
-        ? ["The lead source numbers do not match Stage 1. Check the data before coaching too hard."]
-        : ["Do not accept 'bad leads' as the answer without proof."],
+        ? ["The lead source numbers do not match Stage 1. Clean up the data before making a hard call."]
+        : ["Do not accept 'bad leads' as the answer unless the lead review proves it."],
       metricLine,
     };
   }
@@ -622,16 +639,15 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
       narrative:
         "A big Stage 1 drop-off can be normal in cold call or cold text markets. The real question is whether interested sellers are getting pushed to a clear offer.",
       coachFocus: [
-        "Check what happens with interested sellers.",
-        "Review whether they are actually making offers.",
-        "Give credit for the contracts they are winning.",
+        `${simpleYtd} Lead flow is not the main issue. The weak spot is getting enough of those leads to real offers.`,
+        `Stage 3 to Stage 4 is ${s3ToS4 ?? 0}%, so the agent should look at the handoff from interested seller to written offer.`,
       ],
       probes: [
-        "Are rejected offers being skipped instead of entered?",
-        "Are weak leads being marked too far along?",
-        "Would better sources help more than more volume?",
+        "Review the interested sellers and decide which ones should already have offers.",
+        "Fix the offer habit: faster numbers, cleaner seller conversation, and no skipping rejected offers in the system.",
+        "Give credit for the contracts, but push the operator to create more offer volume from the leads they already have.",
       ],
-      guardrails: ["Do not make this only about more leads when Stage 1 is already strong."],
+      guardrails: ["Do not make this a simple more-leads conversation when Stage 1 is already strong."],
       metricLine: `${metricLine} Stage 3 to Stage 4 conversion is ${s3ToS4 ?? 0}%.`,
     };
   }
@@ -644,14 +660,13 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
       narrative:
         "This is probably not a lead-count problem. Look at the offer, the seller conversation, pricing, repair budget, speed, and competition.",
       coachFocus: [
-        "Improve the offer-to-contract conversation.",
-        "Check ARV, repairs, and offer price.",
-        "Make sure sellers are getting a clear offer fast.",
+        `${simpleYtd} Offers are happening, but sellers are not signing. The bottleneck has moved from lead flow to winning the deal.`,
+        `Stage 4 to contract is ${s4ToS5 ?? 0}%, so the agent should pressure offer quality, seller follow-up, speed, and certainty.`,
       ],
       probes: [
-        "Are offers too low, too slow, or poorly explained?",
-        "Are ARV or repair numbers wrong?",
-        "Is someone else beating them on speed or certainty?",
+        "Review the last offers and sort them into price problem, repair/ARV problem, speed problem, or seller-conversation problem.",
+        "Make the operator tighten follow-up after the offer instead of just sending numbers and waiting.",
+        "Set the next call around signed contracts, not more top-of-funnel activity.",
       ],
       guardrails: ["Do not make lead gen the headline if Stage 4 volume is already healthy."],
       metricLine: `${metricLine} Stage 4 to contract conversion is ${s4ToS5 ?? 0}%.`,
@@ -666,17 +681,17 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
       narrative:
         "This might be a real closing problem, or the contracts may just be new. Ask what is happening before calling the funnel broken.",
       coachFocus: [
-        "Find out why contracts are not closing.",
-        "Separate normal timing from real fallout.",
-        "Keep new leads coming while current deals close.",
+        `${simpleYtd} They can get sellers under contract, but too many contracts are not turning into purchases yet.`,
+        `Contract to purchase is ${s5ToS6 ?? 0}%. The current read is closing risk, not lead generation.`,
       ],
       probes: [
-        "Title issues?",
-        "Seller going quiet?",
-        "Financing, inspection, or deal-quality friction?",
-        "Are these just new contracts?",
+        "Separate normal timing from real fallout.",
+        "Name the reason each contract has not closed: title, seller, financing, inspection, deal quality, or simply too new.",
+        "Keep the top of funnel alive while the current contracts are pushed to purchase.",
       ],
-      guardrails: ["Do not tell them to slow lead gen because inventory exists."],
+      guardrails: [
+        "Do not let contract count create false comfort. A contract only matters if it can become a purchase.",
+      ],
       metricLine: `${metricLine} Contract to purchase conversion is ${s5ToS6 ?? 0}%.`,
     };
   }
@@ -689,16 +704,16 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
       narrative:
         "This is a positive coaching conversation, but still direct. They are getting movement from the leads they have. To grow, they need more Stage 1 activity.",
       coachFocus: [
-        "Set a clear lead target.",
-        "Make the lead gen ask specific.",
-        "Keep building the next batch of inventory.",
+        `${simpleYtd} This is not a broken operator. The process is creating movement, but the top of the funnel is too light for the next level.`,
+        targetYtd ||
+          "The read is simple: they need more qualified Stage 1 activity feeding a process that already has signs of working.",
       ],
       probes: [
-        "What would double the current lead pace?",
-        "Which lead source deserves more focus?",
-        "What could make them slow down?",
+        "Set the lead target and the lead source for the next week.",
+        "Keep the current acquisitions process intact while increasing Stage 1 volume.",
+        "Make the ask specific: what activity doubles the current lead pace?",
       ],
-      guardrails: ["Do not treat this like a broken funnel.", "Be direct that the next level requires more leads."],
+      guardrails: ["Do not treat this like a broken funnel. Be direct that the next level requires more leads."],
       metricLine,
     };
   }
@@ -711,14 +726,13 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
       narrative:
         "They are getting leads, making offers, getting contracts, and buying houses. Do not over-coach it. Find out what is working and what would help them scale.",
       coachFocus: [
-        "Give credit for what is working.",
-        "Ask what would help them do more.",
-        "Write down what other territories should copy.",
+        `${simpleYtd} This is a working acquisitions machine right now.`,
+        "They are getting leads, making offers, getting contracts, and buying houses. The agent should protect the pattern and scale it.",
       ],
       probes: [
-        "What are they doing consistently?",
-        "What support would help them scale?",
-        "What is the one small thing still holding them back?",
+        "Name what is working so it can be repeated.",
+        "Ask what capacity, money, people, or lead source would let them do more of it.",
+        "Capture the play so other territories can copy the useful parts.",
       ],
       guardrails: ["Do not over-coach a healthy system.", "Do not break what is already producing results."],
       metricLine,
@@ -733,13 +747,13 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
       narrative:
         "They may be busy with current houses, but they still need the next houses lined up. Do not let active inventory turn into a reason to stop prospecting.",
       coachFocus: [
-        "Keep Stage 1 moving.",
-        "Set a weekly lead expectation.",
-        "Acknowledge the inventory work, then bring the focus back to future deals.",
+        `${simpleYtd} They have inventory work happening, but the next batch of leads is too light.`,
+        "The risk is that current houses become the excuse for an empty future pipeline.",
       ],
       probes: [
-        "Who owns lead gen while houses are in inventory?",
-        "What prospecting happens every week no matter what?",
+        "Keep Stage 1 moving while inventory is being handled.",
+        "Set who owns lead gen every week, even when houses are active.",
+        "Bring the conversation back to future purchases, not just current project work.",
       ],
       guardrails: ["Do not let inventory become permission to take the foot off gas."],
       metricLine,
@@ -750,18 +764,17 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
     tone: "direct",
     label: "Needs Coach Review",
     headline: "The next step needs a coach review.",
-    narrative: "Use the three panels to decide the call focus.",
+    narrative: "The funnel is mixed, but the call still needs one clear next move.",
     coachFocus: [
-      "Find the one stage most blocking purchases.",
-      "Check whether the data is complete.",
-      "Pick one clear coaching focus for the next call.",
+      `${simpleYtd} The funnel is mixed, so the agent should not pretend there is one obvious answer from the totals alone.`,
+      `Stage 1 to Stage 4 is ${s1ToS4 ?? 0}%. Use that with contracts, purchases, inventory, and profit to name the actual constraint.`,
     ],
     probes: [
-      "Are the numbers complete?",
-      "Which stage is stopping the next purchase?",
-      "What is the owner's goal for the next level?",
+      "Pick the stage that is most directly stopping the next purchase.",
+      "Clean up any missing data first, then make one clear call focus.",
+      "Tie the next action to the owner’s next purchase goal, not a generic funnel lecture.",
     ],
-    guardrails: [`Stage 1 to Stage 4 is ${s1ToS4 ?? 0}%. Do not judge this from lead count alone.`],
+    guardrails: ["Do not leave the call vague. Force one clear next move before the conversation ends."],
     metricLine,
   };
 }
@@ -812,8 +825,8 @@ function BottleneckAgentPanel({ data, loading }: { data: PerformanceData | null;
       </div>
 
       <div className="mt-5 space-y-3">
-        <BottleneckList title="What To Coach" icon={Target} items={read.coachFocus} />
-        <BottleneckList title="Questions To Ask" icon={Gauge} items={read.probes} />
+        <BottleneckList title="Current Read" icon={Target} items={read.coachFocus} />
+        <BottleneckList title="What To Do Next" icon={Gauge} items={read.probes} />
         <BottleneckList title="Do Not Miss" icon={CheckCircle2} items={read.guardrails} />
       </div>
     </div>
