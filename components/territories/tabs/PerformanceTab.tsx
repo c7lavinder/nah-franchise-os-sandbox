@@ -297,8 +297,6 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
           periodLabel={PERIOD_LABELS[period]}
           categoryLabel={selectedCategory}
           comparisonLabel={PREV_LABELS[period]}
-          bottleneckData={bottleneckData}
-          bottleneckLoading={bottleneckLoading}
         />
         <PipelineComparisonTable
           funnel={funnel}
@@ -306,6 +304,8 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
           activeTerritoryComparisonCount={activeTerritoryComparisonCount}
         />
       </div>
+
+      <BottleneckAgentPanel data={bottleneckData} loading={bottleneckLoading} />
 
       {/* Active Inventory List */}
       {inventoryProperties.length > 0 && (
@@ -749,9 +749,8 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
   return {
     tone: "direct",
     label: "Needs Coach Review",
-    headline: "The next step is not obvious yet.",
-    narrative:
-      "The numbers do not point to one clean bottleneck. Have the coach look at leads, offers, contracts, purchases, inventory, and profit together before making the call.",
+    headline: "The next step needs a coach review.",
+    narrative: "Use the three panels to decide the call focus.",
     coachFocus: [
       "Find the one stage most blocking purchases.",
       "Check whether the data is complete.",
@@ -809,10 +808,6 @@ function BottleneckAgentPanel({ data, loading }: { data: PerformanceData | null;
               {read.label}
             </span>
           </div>
-
-          <h2 className="mt-4 text-xl font-bold leading-tight text-text-primary">{read.headline}</h2>
-          <p className="mt-2 max-w-4xl text-body-sm leading-relaxed text-text-secondary">{read.narrative}</p>
-          <p className="mt-3 text-caption font-medium text-text-tertiary">{read.metricLine}</p>
         </div>
       </div>
 
@@ -848,15 +843,11 @@ function PropertyFunnelBottleneck({
   periodLabel,
   categoryLabel,
   comparisonLabel,
-  bottleneckData,
-  bottleneckLoading,
 }: {
   funnel: FunnelStage[];
   periodLabel: string;
   categoryLabel: string | null;
   comparisonLabel: string;
-  bottleneckData: PerformanceData | null;
-  bottleneckLoading: boolean;
 }) {
   const stage1Count = funnel[0]?.count ?? 0;
 
@@ -905,8 +896,6 @@ function PropertyFunnelBottleneck({
           );
         })}
       </div>
-
-      <BottleneckAgentPanel data={bottleneckData} loading={bottleneckLoading} />
     </div>
   );
 }
