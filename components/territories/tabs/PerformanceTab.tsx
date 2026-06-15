@@ -566,7 +566,7 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
       ],
       guardrails: [
         "Do not call this broken just because Stage 1 looks light.",
-        "Do not ignore the purchases either. A deal source exists, and the agent should force clarity on where it came from.",
+        "Do not ignore the purchases either. A deal source exists, and the call needs clarity on where it came from.",
       ],
       metricLine,
     };
@@ -631,6 +631,31 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
     };
   }
 
+  if (stage1Healthy && stage4Ratio != null && stage4Ratio < 0.7 && !(stage4Ratio < 0.55 && contractsHealthy)) {
+    return {
+      tone: contractsHealthy || purchasesHealthy ? "warning" : "critical",
+      label: "Offer Volume Gap",
+      headline: "Lead flow is there. Not enough of it is becoming offers.",
+      narrative:
+        "This is the coach-call read: the owner has enough lead activity to work with, but too few sellers are getting to a real offer conversation.",
+      coachFocus: [
+        `${simpleYtd} Lead flow is not the excuse on this call. The issue is that only ${stage4} offers have come from ${stage1} leads.`,
+        stage5 > 0 || stage6 > 0
+          ? `The offers that do happen are creating some results: ${stage5} contracts and ${stage6} purchases. That points the call toward why more leads are not reaching Stage 4.`
+          : "The pipeline is dying before the owner gets sellers a real number. That is the problem to solve first.",
+      ],
+      probes: [
+        "Walk the owner through the recent leads and find where they are stopping: contact, qualification, walkthrough, pricing, or follow-up.",
+        "Push for more real Stage 4 offers from the leads already coming in before making this a generic lead-gen conversation.",
+        "Leave the Google Meet with one concrete offer-volume action for this week.",
+      ],
+      guardrails: [
+        "Do not let the call stay vague. The coaching pressure is simple: more qualified sellers need to get a real offer.",
+      ],
+      metricLine: `${metricLine} Stage 1 to Stage 4 conversion is ${s1ToS4 ?? 0}%.`,
+    };
+  }
+
   if (stage1Healthy && stage4Ratio != null && stage4Ratio < 0.55 && contractsHealthy) {
     return {
       tone: "warning",
@@ -640,7 +665,7 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
         "A big Stage 1 drop-off can be normal in cold call or cold text markets. The real question is whether interested sellers are getting pushed to a clear offer.",
       coachFocus: [
         `${simpleYtd} Lead flow is not the main issue. The weak spot is getting enough of those leads to real offers.`,
-        `Stage 3 to Stage 4 is ${s3ToS4 ?? 0}%, so the agent should look at the handoff from interested seller to written offer.`,
+        `Stage 3 to Stage 4 is ${s3ToS4 ?? 0}%, so the call needs to focus on the handoff from interested seller to written offer.`,
       ],
       probes: [
         "Review the interested sellers and decide which ones should already have offers.",
@@ -661,7 +686,7 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
         "This is probably not a lead-count problem. Look at the offer, the seller conversation, pricing, repair budget, speed, and competition.",
       coachFocus: [
         `${simpleYtd} Offers are happening, but sellers are not signing. The bottleneck has moved from lead flow to winning the deal.`,
-        `Stage 4 to contract is ${s4ToS5 ?? 0}%, so the agent should pressure offer quality, seller follow-up, speed, and certainty.`,
+        `Stage 4 to contract is ${s4ToS5 ?? 0}%, so pressure offer quality, seller follow-up, speed, and certainty.`,
       ],
       probes: [
         "Review the last offers and sort them into price problem, repair/ARV problem, speed problem, or seller-conversation problem.",
@@ -727,7 +752,7 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
         "They are getting leads, making offers, getting contracts, and buying houses. Do not over-coach it. Find out what is working and what would help them scale.",
       coachFocus: [
         `${simpleYtd} This is a working acquisitions machine right now.`,
-        "They are getting leads, making offers, getting contracts, and buying houses. The agent should protect the pattern and scale it.",
+        "They are getting leads, making offers, getting contracts, and buying houses. Protect the pattern and help them scale it.",
       ],
       probes: [
         "Name what is working so it can be repeated.",
@@ -762,17 +787,17 @@ function buildBottleneckRead(data: PerformanceData): BottleneckRead {
 
   return {
     tone: "direct",
-    label: "Needs Coach Review",
-    headline: "The next step needs a coach review.",
-    narrative: "The funnel is mixed, but the call still needs one clear next move.",
+    label: "Coach Call Needed",
+    headline: "The funnel is mixed. Make one call and leave with one move.",
+    narrative: "This is not a clean single-stage miss, so the coach needs to turn the call into a clear next action.",
     coachFocus: [
-      `${simpleYtd} The funnel is mixed, so the agent should not pretend there is one obvious answer from the totals alone.`,
-      `Stage 1 to Stage 4 is ${s1ToS4 ?? 0}%. Use that with contracts, purchases, inventory, and profit to name the actual constraint.`,
+      `${simpleYtd} This is a mixed funnel, but the meeting still needs a clear read before it ends.`,
+      `Stage 1 to Stage 4 is ${s1ToS4 ?? 0}%. Compare that against contracts, purchases, inventory, and profit, then name the constraint out loud with the owner.`,
     ],
     probes: [
-      "Pick the stage that is most directly stopping the next purchase.",
-      "Clean up any missing data first, then make one clear call focus.",
-      "Tie the next action to the owner’s next purchase goal, not a generic funnel lecture.",
+      "Use the call to decide which part is blocking the next purchase: lead flow, offer creation, seller close, or contract-to-close.",
+      "Clean up missing data only if it changes the coaching call. Otherwise move to the operating decision.",
+      "Tie the next action to the owner’s next purchase goal.",
     ],
     guardrails: ["Do not leave the call vague. Force one clear next move before the conversation ends."],
     metricLine,
@@ -814,7 +839,7 @@ function BottleneckAgentPanel({ data, loading }: { data: PerformanceData | null;
             <div>
               <h3 className="text-body-sm font-semibold text-text-primary">Bottleneck Agent</h3>
               <p className="text-caption text-text-tertiary">
-                Fixed YTD read. Timeline switches below do not change this.
+                Coach-call read for this franchisee&apos;s acquisition funnel.
               </p>
             </div>
             <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${toneClass}`}>
@@ -826,7 +851,7 @@ function BottleneckAgentPanel({ data, loading }: { data: PerformanceData | null;
 
       <div className="mt-5 space-y-3">
         <BottleneckList title="Current Read" icon={Target} items={read.coachFocus} />
-        <BottleneckList title="What To Do Next" icon={Gauge} items={read.probes} />
+        <BottleneckList title="What To Press" icon={Gauge} items={read.probes} />
         <BottleneckList title="Do Not Miss" icon={CheckCircle2} items={read.guardrails} />
       </div>
     </div>
