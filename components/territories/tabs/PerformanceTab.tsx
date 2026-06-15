@@ -453,7 +453,7 @@ function LeadListBuildingPanel({
 
 type StoryTone = "healthy" | "direct" | "warning" | "critical";
 
-interface StorytellingRead {
+interface BottleneckRead {
   tone: StoryTone;
   label: string;
   headline: string;
@@ -482,7 +482,7 @@ function conversionPct(numerator: number, denominator: number) {
   return Math.round((numerator / denominator) * 100);
 }
 
-function buildStorytellingRead(data: PerformanceData): StorytellingRead {
+function buildBottleneckRead(data: PerformanceData): BottleneckRead {
   const stage1 = stageCount(data.funnel, "1");
   const stage3 = stageCount(data.funnel, "3");
   const stage4 = stageCount(data.funnel, "4");
@@ -778,13 +778,13 @@ function toneClasses(tone: StoryTone) {
   return "border-nah-blue/30 bg-nah-blue/5 text-nah-blue";
 }
 
-function StorytellingAgentPanel({ data, loading }: { data: PerformanceData | null; loading: boolean }) {
+function BottleneckAgentPanel({ data, loading }: { data: PerformanceData | null; loading: boolean }) {
   if (loading) {
     return (
       <div className="rounded-lg border border-border-default bg-bg-primary p-5">
         <div className="flex items-center gap-3 text-text-tertiary">
           <Loader2 size={16} className="animate-spin" />
-          <span className="text-body-sm">Loading fixed YTD storytelling read...</span>
+          <span className="text-body-sm">Loading fixed YTD bottleneck read...</span>
         </div>
       </div>
     );
@@ -792,7 +792,7 @@ function StorytellingAgentPanel({ data, loading }: { data: PerformanceData | nul
 
   if (!data || !data.kpis) return null;
 
-  const read = buildStorytellingRead(data);
+  const read = buildBottleneckRead(data);
   const toneClass = toneClasses(read.tone);
 
   return (
@@ -804,7 +804,7 @@ function StorytellingAgentPanel({ data, loading }: { data: PerformanceData | nul
               <Bot size={18} />
             </div>
             <div>
-              <h3 className="text-body-sm font-semibold text-text-primary">Storytelling Agent</h3>
+              <h3 className="text-body-sm font-semibold text-text-primary">Bottleneck Agent</h3>
               <p className="text-caption text-text-tertiary">
                 Fixed YTD read. Timeline switches below do not change this.
               </p>
@@ -910,7 +910,7 @@ function PropertyFunnelStory({
         })}
       </div>
 
-      <StorytellingAgentPanel data={storyData} loading={storyLoading} />
+      <BottleneckAgentPanel data={storyData} loading={storyLoading} />
     </div>
   );
 }
