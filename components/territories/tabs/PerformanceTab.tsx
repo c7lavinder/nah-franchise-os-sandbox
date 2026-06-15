@@ -3,7 +3,6 @@ import { apiFetch } from "@/lib/auth/api-fetch";
 import { useState, useEffect, useCallback } from "react";
 import {
   AlertTriangle,
-  ArrowDown,
   Bot,
   CheckCircle2,
   Clock,
@@ -206,8 +205,6 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
 
   return (
     <div className="space-y-6">
-      <StorytellingAgentPanel data={storyData} loading={storyLoading} />
-
       {/* Period Toggle */}
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1 bg-bg-secondary border border-border-default rounded-lg p-1">
@@ -300,6 +297,8 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
           periodLabel={PERIOD_LABELS[period]}
           categoryLabel={selectedCategory}
           comparisonLabel={PREV_LABELS[period]}
+          storyData={storyData}
+          storyLoading={storyLoading}
         />
         <PipelineComparisonTable
           funnel={funnel}
@@ -853,29 +852,17 @@ function PropertyFunnelStory({
   periodLabel,
   categoryLabel,
   comparisonLabel,
+  storyData,
+  storyLoading,
 }: {
   funnel: FunnelStage[];
   periodLabel: string;
   categoryLabel: string | null;
   comparisonLabel: string;
+  storyData: PerformanceData | null;
+  storyLoading: boolean;
 }) {
   const stage1Count = funnel[0]?.count ?? 0;
-  const transitions = funnel.slice(1).map((stage, index) => {
-    const previous = funnel[index];
-    const previousCount = previous?.count ?? 0;
-    const lostCount = Math.max(previousCount - stage.count, 0);
-    const stepPct = pctOf(stage.count, previousCount);
-    return {
-      from: STAGE_LABELS[previous?.stage ?? ""] ?? previous?.stage ?? "Prior stage",
-      to: STAGE_LABELS[stage.stage] ?? stage.stage,
-      lostCount,
-      stepPct,
-    };
-  });
-  const bottlenecks = transitions
-    .filter((transition) => transition.lostCount > 0)
-    .sort((a, b) => b.lostCount - a.lostCount)
-    .slice(0, 3);
 
   return (
     <div className="bg-bg-primary border border-border-default rounded-lg p-5">
@@ -923,45 +910,7 @@ function PropertyFunnelStory({
         })}
       </div>
 
-      <div className="mt-5 rounded-lg border border-border-default bg-bg-secondary p-4">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
-            <Gauge size={17} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-caption text-text-tertiary">Bottleneck board</p>
-            <p className="mt-1 text-body-sm font-semibold text-text-primary">
-              Biggest pressure point:{" "}
-              {bottlenecks[0] ? `${bottlenecks[0].from} to ${bottlenecks[0].to}` : "not enough movement yet"}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-3 grid gap-2 md:grid-cols-3">
-          {bottlenecks.length > 0 ? (
-            bottlenecks.map((item) => (
-              <div key={`${item.from}-${item.to}`} className="rounded-md bg-white/70 px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <ArrowDown size={14} className={item.lostCount > 0 ? "text-danger" : "text-text-tertiary"} />
-                  <p className="min-w-0 truncate text-caption font-semibold text-text-primary">
-                    {item.from} to {item.to}
-                  </p>
-                </div>
-                <p className="mt-1 text-[11px] text-text-tertiary">
-                  {item.lostCount.toLocaleString()} did not advance - {item.stepPct}% conversion
-                </p>
-              </div>
-            ))
-          ) : (
-            <div className="rounded-md bg-white/70 px-3 py-2 md:col-span-3">
-              <p className="text-caption font-semibold text-text-primary">No drop-off to call out yet</p>
-              <p className="mt-1 text-[11px] text-text-tertiary">
-                As volume moves through the stages, this will highlight where attention is needed.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
+      <StorytellingAgentPanel data={storyData} loading={storyLoading} />
     </div>
   );
 }
