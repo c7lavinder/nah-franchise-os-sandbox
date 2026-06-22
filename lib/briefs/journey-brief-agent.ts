@@ -76,6 +76,10 @@ Good: "Send the FDD to Lisa today — she's been in Compliance 5 days with no do
 Bad: "Complete Sam call, PFS review, and background check" (too many items, too passive)
 Bad: "Schedule introductory call" (too vague, no name)
 
+IMPORTANT: "journey.tenure" is how long they've been in this journey / running their
+territory — use it for tenure statements. The "Xd in current stage" inside the "stage"
+field is ONLY time in the current stage; never describe it as how long they've been running.
+
 IMPORTANT: The "stage" field tells you exactly where they are in the sales process.
 Later stages (Compliance, Awarding, Closed) mean this person has been thoroughly vetted
 and is close to or already a franchisee. Do NOT treat missing call data as "we haven't
@@ -247,12 +251,26 @@ export async function generateJourneyBrief(journeyId: string): Promise<JourneyBr
   const primaryMember = members.find((m) => m.role === "primary") ?? members[0];
   const contactFirstName = primaryMember?.name.split(" ")[0] ?? "this candidate";
 
+  // Tenure since their real start date. Pass an explicit, unambiguous string so the
+  // model describes how long they've been in the journey/running the territory from
+  // this — NOT from the stage's "days in current stage" (a franchisee since 2019 was
+  // being described as "running for 73 days" because it grabbed days-in-stage).
+  const startDate = new Date(actualStartDate);
+  const daysSinceStart = Math.floor((Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const tenure =
+    daysSinceStart >= 365
+      ? `${(daysSinceStart / 365).toFixed(1)} years (since ${startDate.toLocaleDateString()})`
+      : `${daysSinceStart} days (since ${startDate.toLocaleDateString()})`;
+
   const context: Record<string, unknown> = {
-    journey: { name: journey.name, started: new Date(actualStartDate).toLocaleDateString() },
+    journey: { name: journey.name, tenure },
     contactFirstName,
     members: members.map((m) => `${m.name} (${m.role}${m.city ? `, ${m.city} ${m.state}` : ""})`),
     stage: activePipelines[0]
-      ? `${activePipelines[0].stage}${activePipelines[0].territory ? ` / ${activePipelines[0].territory}` : ""} — ${activePipelines[0].daysInStage}d`
+      ? `${activePipelines[0].stage}${activePipelines[0].territory ? ` / ${activePipelines[0].territory}` : ""}` +
+        // Days-in-stage is an urgency signal for pre-award candidates, but noise for an
+        // established franchisee (and was being misread as "running for N days") — omit it.
+        (daysSinceStart < 365 ? ` (${activePipelines[0].daysInStage}d in current stage)` : "")
       : null,
     stageContext: stageContextText,
     pipeline: activePipelines[0]?.pipeline ?? null,
