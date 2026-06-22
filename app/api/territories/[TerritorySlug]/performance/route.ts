@@ -114,7 +114,7 @@ async function fetchPaged<T>(queryFactory: (from: number, to: number) => Promise
   return rows;
 }
 
-function computeFunnel(history: HistRow[], propertyFilter?: Set<number>) {
+function computeFunnel(history: HistRow[], propertyFilter?: Set<number>, purchasedIds?: Set<number>) {
   const stageRank: Record<string, number> = {};
   STAGE_ORDER.forEach((s, i) => {
     stageRank[s] = i;
@@ -129,6 +129,20 @@ function computeFunnel(history: HistRow[], propertyFilter?: Set<number>) {
     if (rank !== undefined) {
       const cur = highest.get(h.PropertyId) ?? -1;
       if (rank > cur) highest.set(h.PropertyId, rank);
+    }
+  }
+
+  // Force properties that actually closed in the window (Inv_PurchaseDate) to the
+  // Stage 6 Purchase rank. The status-history "moved to Stage 6" event can land
+  // outside the window — or never be logged — so the funnel otherwise undercounts
+  // real purchases. Forcing to the max rank also counts them in every lower stage,
+  // keeping the funnel monotonic.
+  if (purchasedIds) {
+    const purchaseRank = stageRank["6 Purchase"];
+    for (const id of purchasedIds) {
+      if (propertyFilter && !propertyFilter.has(id)) continue;
+      const cur = highest.get(id) ?? -1;
+      if (purchaseRank > cur) highest.set(id, purchaseRank);
     }
   }
 
@@ -370,8 +384,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // 5. Funnels — stage movement during the selected window. This keeps Stage 4
   // aligned with the "latest Stage 4 offers" panel instead of hiding older
   // leads that reached Stage 4 during the period.
-  const funnel = computeFunnel(currentHistory, filteredPropertyIds);
-  const prevFunnel = computeFunnel(prevHistory, filteredPropertyIds);
+  // Properties that closed (Inv_PurchaseDate) in the window are folded into the
+  // funnel's Stage 6 Purchase so it reflects real closings, not just in-window
+  // status-history transitions.
+  const purchasedIdsCurrent = new Set<number>();
+  const purchasedIdsPrev = new Set<number>();
+  for (const inv of inventory) {
+    if (isInRange(inv.Inv_PurchaseDate, periodStart, periodEndExclusive)) purchasedIdsCurrent.add(inv.PropertyId);
+    if (isInRange(inv.Inv_PurchaseDate, prevPeriodStart, prevPeriodEndExclusive)) purchasedIdsPrev.add(inv.PropertyId);
+  }
+  const funnel = computeFunnel(currentHistory, filteredPropertyIds, purchasedIdsCurrent);
+  const prevFunnel = computeFunnel(prevHistory, filteredPropertyIds, purchasedIdsPrev);
 
   // Median comparison across active territories for the same period/category.
   const { data: activeTerritories } = await supabase
@@ -418,6 +441,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if (page) comparisonHistory = comparisonHistory.concat(page as HistRow[]);
     }
 
+    // Closings per comparison territory (Inv_PurchaseDate in window) so the Stage 6
+    // median matches the closing-based funnel above, not in-window status transitions.
+    const purchasedIdsByTerritory = new Map<string, Set<number>>();
+    for (let i = 0; i < comparisonPropertyIds.length; i += 500) {
+      const { data: page } = await supabase
+        .from("ms_property_inventory")
+        .select("PropertyId, Inv_PurchaseDate")
+        .in("PropertyId", comparisonPropertyIds.slice(i, i + 500))
+        .gte("Inv_PurchaseDate", periodStart.toISOString())
+        .lt("Inv_PurchaseDate", periodEndExclusiveISO);
+      for (const row of (page ?? []) as Pick<InvRow, "PropertyId" | "Inv_PurchaseDate">[]) {
+        const prop = comparisonPropMap.get(row.PropertyId);
+        const territory = prop?.TerritorySlug;
+        if (!territory) continue;
+        if (leadCategoryFilter && (prop?.LeadCategory || "Unknown") !== leadCategoryFilter) continue;
+        const set = purchasedIdsByTerritory.get(territory) ?? new Set<number>();
+        set.add(row.PropertyId);
+        purchasedIdsByTerritory.set(territory, set);
+      }
+    }
+
     const historiesByTerritory = new Map<string, HistRow[]>();
     const enteredStage1ByTerritory = new Map<string, Set<number>>();
 
@@ -444,7 +488,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     for (const slug of activeTerritorySlugs) {
       const history = historiesByTerritory.get(slug) ?? [];
       const entrants = enteredStage1ByTerritory.get(slug) ?? new Set<number>();
-      const territoryFunnel = computeFunnel(history, entrants);
+      const purchased = purchasedIdsByTerritory.get(slug) ?? new Set<number>();
+      const territoryFunnel = computeFunnel(history, entrants, purchased);
       for (const row of territoryFunnel) {
         const counts = stageCountsByStage.get(row.stage) ?? [];
         counts.push(row.count);

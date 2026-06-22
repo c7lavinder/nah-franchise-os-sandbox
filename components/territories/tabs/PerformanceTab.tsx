@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Gauge,
   Home,
+  Key,
   Loader2,
   Package,
   PieChart,
@@ -67,6 +68,7 @@ interface KPIs {
   avgLeadToPurchase: number | null;
   avgCycleDays: number | null;
   activeInventory: number;
+  purchasedInPeriod: number;
   soldInPeriod: number;
   avgProfit: number | null;
   totalProfit: number | null;
@@ -233,19 +235,10 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
         )}
       </div>
 
-      {/* KPI Cards — 4 columns x 2 rows, paired as columns (top/bottom) */}
-      <div className="grid grid-cols-4 gap-3">
-        {/* Row 1: Leads Entered | Lead→Purchase | Active Inventory | Avg Profit */}
+      {/* KPI Cards — 3 columns x 3 rows, grouped by row: lead funnel | throughput | money */}
+      <div className="grid grid-cols-3 gap-3">
+        {/* Row 1: Lead funnel */}
         <KPICard icon={TrendingUp} label="Leads Entered" value={String(kpis.leadsEntered)} sub="hit Stage 1" />
-        <KPICard
-          icon={Clock}
-          label="Lead → Purchase"
-          value={kpis.avgLeadToPurchase != null ? `${kpis.avgLeadToPurchase}d` : "—"}
-          sub="avg days"
-        />
-        <KPICard icon={Home} label="Active Inventory" value={String(kpis.activeInventory)} sub="in hand" />
-        <NoSoldFallback icon={DollarSign} label="Avg Profit" value={kpis.avgProfit} sub="per flip" isMoney />
-        {/* Row 2: Lead Progression | Cycle Time | Sold | Total Profit */}
         <KPICard
           icon={Target}
           label="Lead Progression"
@@ -254,11 +247,22 @@ export default function PerformanceTab({ TerritorySlug }: { TerritorySlug: strin
         />
         <KPICard
           icon={Clock}
+          label="Lead → Purchase"
+          value={kpis.avgLeadToPurchase != null ? `${kpis.avgLeadToPurchase}d` : "—"}
+          sub="avg days"
+        />
+        {/* Row 2: Throughput */}
+        <KPICard icon={Home} label="Active Inventory" value={String(kpis.activeInventory)} sub="in hand" />
+        <KPICard icon={Key} label="Purchased" value={String(kpis.purchasedInPeriod)} sub={PERIOD_LABELS[period]} />
+        <NoSoldFallback icon={Package} label="Sold" value={kpis.soldInPeriod} sub={PERIOD_LABELS[period]} />
+        {/* Row 3: Timing + money */}
+        <KPICard
+          icon={Clock}
           label="Cycle Time"
           value={kpis.avgCycleDays != null ? `${kpis.avgCycleDays}d` : "—"}
           sub="purchase → sold"
         />
-        <NoSoldFallback icon={Package} label="Sold" value={kpis.soldInPeriod} sub={PERIOD_LABELS[period]} />
+        <NoSoldFallback icon={DollarSign} label="Avg Profit" value={kpis.avgProfit} sub="per flip" isMoney />
         <NoSoldFallback
           icon={DollarSign}
           label="Total Profit"
@@ -448,9 +452,7 @@ function LatestStage4OffersPanel({
 
 function InfoChip({ value }: { value: string }) {
   return (
-    <span className="rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">
-      {value}
-    </span>
+    <span className="rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">{value}</span>
   );
 }
 
