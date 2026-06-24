@@ -9,9 +9,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { customerFacingSendsDisabledReason, customerFacingSendsEnabled } from "@/lib/ghl/action-safety";
 import { sendMessage } from "@/lib/ghl/client";
-import { getAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
-import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
-import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
+import { getActiveSmsProvider, getAssignedSmsNumber } from "@/lib/sms/number-assignment";
+import { sendContactSmsViaActiveProvider } from "@/lib/sms/contact-sms";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const user = await requireAuth(request);
@@ -40,25 +39,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (!body.message?.trim()) {
         return NextResponse.json({ error: "message is required" }, { status: 400 });
       }
-      let msg;
-      if (signalHouseEnabled()) {
-        const fromNumber = await getAssignedSignalHouseNumber(user.id);
+      // In-app SMS providers (Vonage/SignalHouse) send from the user's assigned
+      // number; GHL fallback does not need one.
+      const inAppProvider = getActiveSmsProvider() !== "ghl";
+      let fromNumber: string | null = null;
+      if (inAppProvider) {
+        fromNumber = await getAssignedSmsNumber(user.id);
         if (!fromNumber) {
           return NextResponse.json(
-            { error: "Your user does not have a SignalHouse sending number assigned in Settings.", success: false },
+            { error: "Your user does not have an SMS sending number assigned in Settings.", success: false },
             { status: 409 }
           );
         }
-        msg = await sendContactSmsViaSignalHouse(contactId, body.message.trim(), {
-          fromNumber,
-        });
-      } else {
-        msg = await sendMessage({
-          type: "SMS",
-          contactId,
-          message: body.message.trim(),
-        });
       }
+      const msg = await sendContactSmsViaActiveProvider(contactId, body.message.trim(), { fromNumber });
       return NextResponse.json({ success: true, messageId: msg.id });
     }
 

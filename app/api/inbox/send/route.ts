@@ -13,14 +13,11 @@ import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
 import { customerFacingSendsDisabledReason, customerFacingSendsEnabled } from "@/lib/ghl/action-safety";
 import { createServerClient } from "@/lib/supabase/server";
-import {
-  getAssignedSignalHouseNumber,
-  getConfiguredSignalHouseNumbers,
-  normalizeAssignedSignalHouseNumber,
-} from "@/lib/sms/number-assignment";
-import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
+import { getAssignedSmsNumber, getConfiguredSmsNumbers, normalizeSmsNumber } from "@/lib/sms/number-assignment";
+import { sendContactSmsViaSignalHouse, sendContactSmsViaVonage } from "@/lib/sms/contact-sms";
 import { sendSignalHouseSms, signalHouseEnabled, type SignalHouseMessage } from "@/lib/sms/signalhouse-client";
-import type { GHLSendMessagePayload } from "@/types/ghl";
+import { sendVonageSms, vonageEnabled } from "@/lib/vonage/client";
+import type { GHLMessage, GHLSendMessagePayload } from "@/types/ghl";
 
 interface SendRequest {
   type: "SMS" | "Email";
@@ -49,8 +46,8 @@ async function logDirectSignalHouseMessage(
       ghl_contact_id: null,
       direction: "outbound",
       message_type: message.messageType ?? "SMS",
-      from_number: normalizeAssignedSignalHouseNumber(message.senderPhoneNumber ?? message.phoneNumber ?? fromNumber),
-      to_number: normalizeAssignedSignalHouseNumber(message.recipientPhoneNumber ?? toNumber),
+      from_number: normalizeSmsNumber(message.senderPhoneNumber ?? message.phoneNumber ?? fromNumber),
+      to_number: normalizeSmsNumber(message.recipientPhoneNumber ?? toNumber),
       body,
       status: message.status ?? "ENQUEUED",
       segment_count: message.segmentCount ?? null,
@@ -60,6 +57,42 @@ async function logDirectSignalHouseMessage(
     },
     { onConflict: "provider,provider_message_id" }
   );
+}
+
+/** Send an SMS to a raw number (no contact) via Vonage and log it. */
+async function sendDirectVonageSms(toNumber: string, body: string, fromNumber: string): Promise<GHLMessage> {
+  const result = await sendVonageSms({ to: toNumber, body, from: fromNumber });
+  const supabase = createServerClient();
+  await supabase.from("sms_messages").upsert(
+    {
+      provider: "vonage",
+      provider_message_id: result.messageUuid,
+      contact_id: null,
+      ghl_contact_id: null,
+      direction: "outbound",
+      message_type: "SMS",
+      from_number: normalizeSmsNumber(result.from),
+      to_number: normalizeSmsNumber(result.to),
+      body,
+      status: result.status,
+      raw_payload: result.raw as Record<string, unknown>,
+      sent_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "provider,provider_message_id" }
+  );
+  return {
+    id: result.messageUuid,
+    contactId: toNumber,
+    type: "SMS",
+    direction: "outbound",
+    body,
+    dateAdded: new Date().toISOString(),
+    status: result.status,
+    from: normalizeSmsNumber(result.from) ?? undefined,
+    to: normalizeSmsNumber(result.to) ?? undefined,
+    source: "vonage",
+  };
 }
 
 /** Update engagement tracking fields after sending a message */
@@ -171,54 +204,58 @@ export async function POST(request: NextRequest) {
     }
 
     let message;
-    if (body.type === "SMS" && signalHouseEnabled()) {
-      const requestedFromNumber = normalizeAssignedSignalHouseNumber(body.fromNumber);
-      const configuredNumbers = getConfiguredSignalHouseNumbers();
-      const assignedNumber = await getAssignedSignalHouseNumber(user.id);
+    if (body.type === "SMS" && (vonageEnabled() || signalHouseEnabled())) {
+      const providerLabel = vonageEnabled() ? "Vonage" : "SignalHouse";
+      const requestedFromNumber = normalizeSmsNumber(body.fromNumber);
+      const configuredNumbers = getConfiguredSmsNumbers();
+      const assignedNumber = await getAssignedSmsNumber(user.id);
       const fromNumber = requestedFromNumber ?? assignedNumber;
       if (!fromNumber) {
         return NextResponse.json(
-          { error: "Choose a SignalHouse sending number before replying.", success: false },
+          { error: `Choose a ${providerLabel} sending number before replying.`, success: false },
           { status: 409 }
         );
       }
       if (configuredNumbers.length > 0 && !configuredNumbers.includes(fromNumber)) {
         return NextResponse.json(
-          { error: "That sending number is not configured for SignalHouse.", success: false },
+          { error: `That sending number is not configured for ${providerLabel}.`, success: false },
           { status: 403 }
         );
       }
+      const text = body.message!.trim();
       if (body.contactId) {
-        message = await sendContactSmsViaSignalHouse(body.contactId, body.message!.trim(), { fromNumber });
+        message = vonageEnabled()
+          ? await sendContactSmsViaVonage(body.contactId, text, { fromNumber })
+          : await sendContactSmsViaSignalHouse(body.contactId, text, { fromNumber });
       } else {
-        const toNumber = normalizeAssignedSignalHouseNumber(body.toNumber);
+        const toNumber = normalizeSmsNumber(body.toNumber);
         if (!toNumber) {
           return NextResponse.json(
             { error: "A valid recipient phone number is required.", success: false },
             { status: 400 }
           );
         }
-        const signalHouseMessage = await sendSignalHouseSms({
-          to: toNumber,
-          body: body.message!.trim(),
-          from: fromNumber,
-        });
-        await logDirectSignalHouseMessage(signalHouseMessage, body.message!.trim(), toNumber, fromNumber);
-        message = {
-          id: signalHouseMessage._id,
-          contactId: toNumber,
-          type: "SMS",
-          direction: "outbound",
-          body: body.message!.trim(),
-          dateAdded: signalHouseMessage.createdAt ?? new Date().toISOString(),
-          status: signalHouseMessage.status,
-          from:
-            normalizeAssignedSignalHouseNumber(
-              signalHouseMessage.senderPhoneNumber ?? signalHouseMessage.phoneNumber ?? fromNumber
-            ) ?? undefined,
-          to: normalizeAssignedSignalHouseNumber(signalHouseMessage.recipientPhoneNumber ?? toNumber) ?? undefined,
-          source: "signalhouse",
-        };
+        if (vonageEnabled()) {
+          message = await sendDirectVonageSms(toNumber, text, fromNumber);
+        } else {
+          const signalHouseMessage = await sendSignalHouseSms({ to: toNumber, body: text, from: fromNumber });
+          await logDirectSignalHouseMessage(signalHouseMessage, text, toNumber, fromNumber);
+          message = {
+            id: signalHouseMessage._id,
+            contactId: toNumber,
+            type: "SMS",
+            direction: "outbound",
+            body: text,
+            dateAdded: signalHouseMessage.createdAt ?? new Date().toISOString(),
+            status: signalHouseMessage.status,
+            from:
+              normalizeSmsNumber(
+                signalHouseMessage.senderPhoneNumber ?? signalHouseMessage.phoneNumber ?? fromNumber
+              ) ?? undefined,
+            to: normalizeSmsNumber(signalHouseMessage.recipientPhoneNumber ?? toNumber) ?? undefined,
+            source: "signalhouse",
+          };
+        }
       }
     } else {
       message = await ghl.sendMessage(payload);

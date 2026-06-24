@@ -12,8 +12,7 @@ import {
   customerFacingSendsEnabled,
   isCustomerFacingGHLActionCode,
 } from "@/lib/ghl/action-safety";
-import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
-import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
+import { sendContactSmsViaActiveProvider } from "@/lib/sms/contact-sms";
 import { isSchedulableGhlContactId } from "@/lib/ghl/contact-id";
 import type { GHLActionCode } from "@/lib/ghl/permissions";
 
@@ -49,15 +48,9 @@ export async function executeGHLAction(
       case "C1": {
         // Send SMS
         const targetContactId = String(params.contactId ?? contactId);
-        const result = signalHouseEnabled()
-          ? await sendContactSmsViaSignalHouse(targetContactId, String(params.message), {
-              fromNumber: String(params.fromNumber ?? ""),
-            })
-          : await ghl.sendMessage({
-              type: "SMS",
-              contactId: targetContactId,
-              message: String(params.message),
-            });
+        const result = await sendContactSmsViaActiveProvider(targetContactId, String(params.message), {
+          fromNumber: String(params.fromNumber ?? ""),
+        });
         return { success: true, actionCode, data: result };
       }
 
@@ -76,15 +69,9 @@ export async function executeGHLAction(
       case "C3": {
         // Send Template SMS
         const targetContactId = String(params.contactId ?? contactId);
-        const result = signalHouseEnabled()
-          ? await sendContactSmsViaSignalHouse(targetContactId, String(params.templateContent), {
-              fromNumber: String(params.fromNumber ?? ""),
-            })
-          : await ghl.sendMessage({
-              type: "SMS",
-              contactId: targetContactId,
-              message: String(params.templateContent),
-            });
+        const result = await sendContactSmsViaActiveProvider(targetContactId, String(params.templateContent), {
+          fromNumber: String(params.fromNumber ?? ""),
+        });
         return { success: true, actionCode, data: result };
       }
 
@@ -246,15 +233,9 @@ export async function executeGHLAction(
         const reminderMessage = String(
           params.reminderMessage ?? "Reminder: You have an upcoming call with New Again Houses."
         );
-        const result = signalHouseEnabled()
-          ? await sendContactSmsViaSignalHouse(targetContactId, reminderMessage, {
-              fromNumber: String(params.fromNumber ?? ""),
-            })
-          : await ghl.sendMessage({
-              type: "SMS",
-              contactId: targetContactId,
-              message: reminderMessage,
-            });
+        const result = await sendContactSmsViaActiveProvider(targetContactId, reminderMessage, {
+          fromNumber: String(params.fromNumber ?? ""),
+        });
         return { success: true, actionCode, data: result };
       }
 

@@ -2,7 +2,9 @@ import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 import { normalizeAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
 import { phoneLookupKey } from "@/lib/sms/phone";
-import { sendSignalHouseSms, type SignalHouseMessage } from "@/lib/sms/signalhouse-client";
+import { sendSignalHouseSms, signalHouseEnabled, type SignalHouseMessage } from "@/lib/sms/signalhouse-client";
+import { sendVonageSms, vonageEnabled, type VonageSendResult } from "@/lib/vonage/client";
+import { sendMessage as ghlSendMessage } from "@/lib/ghl/client";
 import type { GHLMessage } from "@/types/ghl";
 
 type ContactRow = {
@@ -31,7 +33,12 @@ interface SendContactSmsOptions {
   fromNumber?: string | null;
 }
 
-async function logSignalHouseMessage(contact: ContactRow, message: SignalHouseMessage, body: string, fromNumber?: string | null) {
+async function logSignalHouseMessage(
+  contact: ContactRow,
+  message: SignalHouseMessage,
+  body: string,
+  fromNumber?: string | null
+) {
   const supabase = createServerClient();
   await supabase.from("sms_messages").upsert(
     {
@@ -52,6 +59,72 @@ async function logSignalHouseMessage(contact: ContactRow, message: SignalHouseMe
     },
     { onConflict: "provider,provider_message_id" }
   );
+}
+
+/**
+ * Send an SMS to a contact through whichever provider is active.
+ * Vonage → SignalHouse → GHL fallback. Use this everywhere instead of branching
+ * on signalHouseEnabled() at each call site, so adding/swapping providers is
+ * a one-place change.
+ */
+export async function sendContactSmsViaActiveProvider(
+  contactId: string,
+  body: string,
+  options: SendContactSmsOptions = {}
+): Promise<GHLMessage> {
+  if (vonageEnabled()) return sendContactSmsViaVonage(contactId, body, options);
+  if (signalHouseEnabled()) return sendContactSmsViaSignalHouse(contactId, body, options);
+  return ghlSendMessage({ type: "SMS", contactId, message: body });
+}
+
+async function logVonageMessage(contact: ContactRow, message: VonageSendResult, body: string) {
+  const supabase = createServerClient();
+  await supabase.from("sms_messages").upsert(
+    {
+      provider: "vonage",
+      provider_message_id: message.messageUuid,
+      contact_id: contact.id,
+      ghl_contact_id: contact.ghl_contact_id,
+      direction: "outbound",
+      message_type: "SMS",
+      from_number: normalizeAssignedSignalHouseNumber(message.from),
+      to_number: normalizeAssignedSignalHouseNumber(message.to),
+      body,
+      status: message.status,
+      raw_payload: message.raw as Record<string, unknown>,
+      sent_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "provider,provider_message_id" }
+  );
+}
+
+export async function sendContactSmsViaVonage(
+  contactId: string,
+  body: string,
+  options: SendContactSmsOptions = {}
+): Promise<GHLMessage> {
+  const contact = await findContactForSms(contactId);
+  if (!contact?.phone) {
+    throw new Error("Contact does not have a phone number for Vonage SMS.");
+  }
+
+  const from = normalizeAssignedSignalHouseNumber(options.fromNumber);
+  const message = await sendVonageSms({ to: contact.phone, body, from: from ?? undefined });
+  await logVonageMessage(contact, message, body);
+
+  return {
+    id: message.messageUuid,
+    contactId,
+    type: "SMS",
+    direction: "outbound",
+    body,
+    dateAdded: new Date().toISOString(),
+    status: message.status,
+    from: normalizeAssignedSignalHouseNumber(message.from) ?? undefined,
+    to: normalizeAssignedSignalHouseNumber(message.to) ?? phoneLookupKey(contact.phone),
+    source: "vonage",
+  };
 }
 
 export async function sendContactSmsViaSignalHouse(

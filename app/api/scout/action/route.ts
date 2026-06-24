@@ -21,9 +21,8 @@ import {
 } from "@/lib/ghl/action-safety";
 import { createServerClient } from "@/lib/supabase/server";
 import { isSchedulableGhlContactId } from "@/lib/ghl/contact-id";
-import { getAssignedSignalHouseNumber } from "@/lib/sms/number-assignment";
-import { sendContactSmsViaSignalHouse } from "@/lib/sms/contact-sms";
-import { signalHouseEnabled } from "@/lib/sms/signalhouse-client";
+import { getActiveSmsProvider, getAssignedSmsNumber } from "@/lib/sms/number-assignment";
+import { sendContactSmsViaActiveProvider } from "@/lib/sms/contact-sms";
 import { enrollContact, pauseEnrollment, resumeEnrollment, exitEnrollment } from "@/lib/workflows/enrollment";
 import type {
   DraftedAction,
@@ -223,20 +222,17 @@ export async function POST(request: NextRequest) {
               subject: payload.subject ?? "NAH Franchise",
               emailFrom: senderEmail,
             });
-          } else if (signalHouseEnabled()) {
-            const fromNumber = await getAssignedSignalHouseNumber(user.id);
-            if (!fromNumber) {
-              throw new Error("Your user does not have a SignalHouse sending number assigned in Settings.");
-            }
-            result = await sendContactSmsViaSignalHouse(action.contactId, payload.content, {
-              fromNumber,
-            });
           } else {
-            result = await ghl.sendMessage({
-              type: "SMS",
-              contactId: action.contactId,
-              message: payload.content,
-            });
+            // In-app SMS providers (Vonage/SignalHouse) send from the user's
+            // assigned number; GHL fallback does not need one.
+            let fromNumber: string | null = null;
+            if (getActiveSmsProvider() !== "ghl") {
+              fromNumber = await getAssignedSmsNumber(user.id);
+              if (!fromNumber) {
+                throw new Error("Your user does not have an SMS sending number assigned in Settings.");
+              }
+            }
+            result = await sendContactSmsViaActiveProvider(action.contactId, payload.content, { fromNumber });
           }
           ghlResponse = result as unknown as Record<string, unknown>;
           break;

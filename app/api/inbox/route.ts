@@ -3,7 +3,12 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
-import { getAssignedSignalHouseNumber, getConfiguredSignalHouseNumbers } from "@/lib/sms/number-assignment";
+import {
+  getActiveSmsProvider,
+  getAssignedSmsNumber,
+  getConfiguredSmsNumbers,
+  getInboxProviders,
+} from "@/lib/sms/number-assignment";
 import { phoneLookupKey } from "@/lib/sms/phone";
 import type { GHLConversation } from "@/types/ghl";
 
@@ -80,14 +85,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limit = Math.min(parseInt(searchParams.get("limit") ?? "50", 10), 100);
     const unreadOnly = searchParams.get("unread") === "true";
-    const assignedNumber = await getAssignedSignalHouseNumber(user.id);
+    const assignedNumber = await getAssignedSmsNumber(user.id);
     const admin = isAdminRole(user.role);
 
     if (!admin && !assignedNumber) {
       return NextResponse.json({
         conversations: [],
         setupRequired: true,
-        error: "Your user does not have a SignalHouse number assigned.",
+        error: "Your user does not have an SMS sending number assigned.",
       });
     }
 
@@ -96,7 +101,7 @@ export async function GET(request: NextRequest) {
       .select(
         "id, contact_id, direction, message_type, from_number, to_number, body, status, created_at, sent_at, received_at, contacts(id, first_name, last_name, email, phone)"
       )
-      .eq("provider", "signalhouse")
+      .in("provider", getInboxProviders())
       .order("created_at", { ascending: false })
       .limit(500);
 
@@ -140,7 +145,7 @@ export async function GET(request: NextRequest) {
         return {
           id,
           contactId: latest.contact_id ?? id,
-          locationId: "signalhouse",
+          locationId: getActiveSmsProvider(),
           lastMessageDate: latest.received_at ?? latest.sent_at ?? latest.created_at,
           type: "TYPE_SMS",
           unreadCount: group.unreadCount,
@@ -155,7 +160,7 @@ export async function GET(request: NextRequest) {
       .filter((conv) => !unreadOnly || (conv.unreadCount ?? 0) > 0)
       .slice(0, limit);
 
-    const availableNumbers = getConfiguredSignalHouseNumbers();
+    const availableNumbers = getConfiguredSmsNumbers();
 
     return NextResponse.json({
       conversations,

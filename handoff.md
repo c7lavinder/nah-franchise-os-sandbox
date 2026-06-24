@@ -1,72 +1,72 @@
-# Session Handoff — 2026-06-22 — Session 62
+# Session Handoff — 2026-06-25 — Session 63
 
 ## Status
 
-Phase: Bug triage from in-app bug_reports / Health: Green / Duration: full session
+Phase: Vonage SMS integration (built, parked) → next: WORKFLOW FIRING / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-- Caught local `main` up to `origin/main` — it was 160 commits behind all the Codex work (clean fast-forward); stashed 2 stale leftover transcript files (`stash@{0}`)
-- Worked the in-app `bug_reports` Supabase table (no file tracker) — 8 bugs fixed, marked `fixed` in the tracker
-- **#5/#6/#9 (territory purchase counts):** `app/api/territories/[TerritorySlug]/performance/route.ts` — `computeFunnel` now folds properties with an `Inv_PurchaseDate` in the window into Stage 6 (current funnel, prev funnel, cross-territory median) so real closings aren't undercounted; `components/territories/tabs/PerformanceTab.tsx` — added a "Purchased" KPI card, reflowed KPIs into a balanced 3×3 grid
-- **#7/#11 (duplicate franchisee contacts):** wrote `scripts/merge-franchisee-dupes.ts` (dry-run default, auto-detects groups, reuses proven FK-move logic) and ran it live — merged 19 duplicate contacts from the May lead import into their franchisee records; backfilled 5 derived profile fields for Spencer Lambert + Brad Nicholson afterward
-- **Jennifer Halstead:** merged her standalone journey into Justin's MIAMIV journey as `co_primary` (co-owner), kept her contact, repointed her 6 extractions (one-off data fix, no code)
-- **#1 (Scout journey links 404):** `components/scout/ScoutBubble.tsx` — internal markdown links now use `next/link` so the `/frandev` basePath is applied
-- **#10 (journey brief tenure):** `lib/briefs/journey-brief-agent.ts` — passes an explicit `tenure` string from real ownership start date, labels days-in-stage clearly, and omits it for established franchisees; regenerated + verified Brian Boll's brief
-- **#2 (add-note fails for prospects):** `app/api/contacts/[contactId]/notes/route.ts` — resolves contact by GHL id or UUID; when the GHL id is a placeholder (`pto_*`), upserts the prospect into GHL first, persists the real id, then adds the note
+- **Vonage SMS integration — code complete, behind `SMS_PROVIDER` flag (currently still SignalHouse, so nothing live changed).** Replaces SignalHouse when flipped; SignalHouse left fully intact as instant fallback.
+  - `lib/vonage/client.ts` — boundary client: `sendVonageSms()` (Messages API, RS256 JWT), `verifyVonageWebhook()` (HS256 signature secret), `vonageEnabled()`, `generateVonageJwt()`
+  - `app/api/webhooks/vonage/inbound/route.ts` — inbound SMS → matches contact by phone → writes to `sms_messages` (so replies show in inbox)
+  - `app/api/webhooks/vonage/status/route.ts` — delivery receipts → updates message status
+  - `lib/sms/contact-sms.ts` — added `sendContactSmsViaVonage()` + **unified `sendContactSmsViaActiveProvider()`** (Vonage→SignalHouse→GHL)
+  - `lib/sms/number-assignment.ts` — provider-aware helpers (`getActiveSmsProvider`, `getAssignedSmsNumber`, `getConfiguredSmsNumbers`, `getInboxProviders`) + Vonage number functions
+  - Refactored ALL outbound SMS paths onto the unified helper: workflow scheduler (C1/C3/A5), inbox send, Scout action (`app/api/scout/action/route.ts`), contact quick-send (`app/api/contacts/[id]/send/route.ts`)
+  - `lib/env.ts` — registered 6 `VONAGE_*` env keys
+  - `supabase/migrations/20260624120000_vonage_sms.sql` — adds `users.assigned_vonage_number` (NOT yet run)
+  - `docs/vonage-integration-plan.md` — full living tracker (Phase 0 provisioning, Phase 1 SMS done, Phase 2 calls deprioritized)
 
 ## What Is Confirmed Working
 
-- Territory purchase counts verified against live data (NASHSW = 4 in 90d, MIAMIV = 11 in 12mo); typecheck + lint clean; 222 tests pass
-- Merge script dry-run reviewed before live run; post-merge verified — all 19 orphans gone (3186→3167 contacts), keepers healthy (Spencer 126 extractions, Brad 136), no data loss
-- Jennifer verified as `co_primary` on Justin's MIAMIV journey, standalone journey deleted, contact kept
-- Brian Boll brief regenerated and reads "running ... for 6.6 years since November 2019" (was "62 days")
-- All 4 fix commits pushed to `main`; pre-commit hook ran prettier + 222 tests green each time
+- `npx tsc --noEmit` clean, `npx next lint` clean on all changed files, full `npx next build` passed
+- Refactor is behavior-preserving for SignalHouse: with `SMS_PROVIDER=signalhouse`, every path resolves to the exact same SignalHouse calls as before
+- NOTE: the Vonage path itself is NOT live-tested — no credentials yet
 
 ## What Is Broken or Incomplete
 
-- #2 add-note fix is deployed but NOT live-tested against GHL (avoided creating an external contact manually) — needs a real in-app test on Jo Vitale — Medium
-- #8 `/journeys/john-meyer` — prospect call didn't link a journey because the contact was created post-call; flow fix not yet done — Medium
-- Harmless `embeddings_contact_id_fkey` error seen during journey-brief regeneration — unrelated to reported bugs, not investigated — Low
+- **Vonage not live** — needs Chad's Vonage Application credentials (App ID, private key, API key+secret, signature secret) + migration run + `SMS_PROVIDER=vonage`. Parked per Corey: "might just keep SignalHouse for now." — Medium
+- **Workflow firing status UNKNOWN — top priority next session.** Corey: workflows need to fire, ESPECIALLY the new-lead workflow. Not investigated or tested this session. — **High**
+- Vonage number-vs-VBC question still open (can Chad's existing number do API SMS, or need a dedicated number) — Low (only matters if/when Vonage goes live)
 
 ## Decisions Made
 
-- Catch up local main to origin (160 commits) and drop the stale transcript edits — Corey approved
-- Bulk-clean the 19 duplicate contacts after reviewing the dry-run plan — Corey approved
-- Merge Jennifer's journey into Justin's as co-owner (spouse + co-owner) — Corey approved
-- #2: create prospects in GHL on note-add (NAH OS → GHL pattern) — Corey approved
-- #14 (missing confirm button) skipped this round — Corey approved
+- Keep SignalHouse as the active SMS provider for now; Vonage stays built-but-off — Corey approved
+- Calls deprioritized; future calling likely via VBC Integration Platform (keep Chad on the phone app, sync activity in) rather than a browser softphone — Corey
+- Use one unified provider-aware send helper so no SMS path drifts — Claude (no objection)
 
 ## Files Created
 
-- `scripts/merge-franchisee-dupes.ts` — reusable dry-run/live merge tool for franchisee duplicate contacts
+- lib/vonage/client.ts
+- app/api/webhooks/vonage/inbound/route.ts
+- app/api/webhooks/vonage/status/route.ts
+- supabase/migrations/20260624120000_vonage_sms.sql
+- docs/vonage-integration-plan.md
 
 ## Files Modified
 
-- `app/api/territories/[TerritorySlug]/performance/route.ts` — closings-based Stage 6 funnel
-- `components/territories/tabs/PerformanceTab.tsx` — "Purchased" KPI card + 3×3 grid
-- `components/scout/ScoutBubble.tsx` — next/link for internal links (basePath)
-- `lib/briefs/journey-brief-agent.ts` — explicit tenure, labeled days-in-stage
-- `app/api/contacts/[contactId]/notes/route.ts` — create-in-GHL-then-note for placeholder ids
+- lib/env.ts
+- lib/sms/contact-sms.ts
+- lib/sms/number-assignment.ts
+- lib/ghl/actions/executor.ts
+- app/api/inbox/route.ts
+- app/api/inbox/send/route.ts
+- app/api/scout/action/route.ts
+- app/api/contacts/[contactId]/send/route.ts
 
 ## Files Deleted
 
-- None
+- none
 
 ## Open Issues Carried Forward
 
-- #2 add-note: verify live by adding a note to Jo Vitale in the app — Medium
-- #8 `/journeys/john-meyer`: auto-create + link a journey for prospect calls — Medium
-- #14 `/pipeline`: missing green confirm button — needs lead/state to reproduce — Medium
-- #13 Scout: capture leads from Franchise Business Review — feature, not a bug — Medium
-- #12: route Chad's prospect texts through a 423/Vonage number — Low
-- #4 `/calls`: call AI should distinguish action-items vs. general discussion — Low
-- #3 `/journeys/christine-west`: Chad's question about engagement tasks — needs an answer, not code — Low
-- Root `handoff.md` and `docs/handoff.md` were both stale before this session (Codex did not maintain them) — Low
+- **Workflows must fire — especially new-lead — and be tested end-to-end. Corey's directive: "do not let me go until we have tested it."** — High
+- Vonage go-live blocked on credentials (parked) — Medium
+- (from S62) #2 add-note not live-tested on Jo Vitale; #8 john-meyer journey link flow fix — Medium
 
 ## Exact Next Step
 
-Add a note to Jo Vitale in the app to confirm the #2 fix creates her in GHL and saves the note, then start #8 — make prospect calls auto-create and link a journey when the contact didn't exist at call time.
+Investigate the new-lead workflow firing path end-to-end (trigger → enrollment → first step send), then create a real test lead and CONFIRM the workflow enrolls and its first action actually fires — do not close the session until that test passes.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -74,6 +74,6 @@ Add a note to Jo Vitale in the app to confirm the #2 fix creates her in GHL and 
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Add a note to Jo Vitale in the app to confirm the #2 fix creates her in GHL and saves the note, then start #8 — make prospect calls auto-create and link a journey when the contact didn't exist at call time.
+Then: Investigate and TEST the new-lead workflow firing end-to-end — create a test lead, confirm it enrolls and the first step actually fires. Do not let me stop until that test passes.
 
 ---
