@@ -105,6 +105,10 @@
     {
       "path": "/frandev/api/cron/coaching-brief",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/frandev/api/cron/push-frandev",
+      "schedule": "30 11 * * *"
     }
   ]
 }
