@@ -78,6 +78,7 @@ async function main() {
   console.log(`Tables with rows:    ${summary.pushedTables}`);
   console.log(`Source rows read:    ${summary.totalSourceRows}`);
   console.log(`Rows ${dryRun ? "would push" : "pushed"}:     ${summary.totalPushedRows}`);
+  console.log(`Rows skipped (bad):  ${summary.totalSkippedRows}`);
   console.log(`Tables with errors:  ${summary.tablesWithErrors}`);
 
   const errored = summary.results.filter((r: { error?: string }) => r.error);

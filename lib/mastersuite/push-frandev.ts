@@ -1,4 +1,4 @@
-import type { Pool, RowDataPacket } from "mysql2/promise";
+import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import { getServiceSupabase } from "./supabase";
 
 /**
@@ -66,20 +66,41 @@ export function resolveSupabaseTable(frandevTable: string, supabaseTables: Set<s
 
 type Primitive = string | number | null;
 
+/** Character cap for varchar(N)/char(N) columns; null for unbounded types. */
+function charLimit(destType: string): number | null {
+  const m = destType.match(/^(?:var)?char\((\d+)\)/i);
+  return m ? parseInt(m[1], 10) : null;
+}
+
 function coerceValue(value: unknown, destType: string): Primitive {
   if (value === null || value === undefined) return null;
   if (typeof value === "boolean") return value ? 1 : 0;
   if (typeof value === "number") return value;
-  if (typeof value === "object") return JSON.stringify(value); // jsonb arrays/objects
+  if (typeof value === "object") {
+    // jsonb arrays/objects -> JSON text, truncated if the dest column is narrow.
+    const json = JSON.stringify(value);
+    const lim = charLimit(destType);
+    return lim && json.length > lim ? json.slice(0, lim) : json;
+  }
   if (typeof value === "string") {
-    // Convert ISO timestamps to MySQL DATETIME/DATE format.
-    if (/^datetime|^timestamp/i.test(destType) && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
-      return value.replace("T", " ").replace(/\.\d+/, "").replace("Z", "").trim();
+    const lim = charLimit(destType);
+    const str = lim && value.length > lim ? value.slice(0, lim) : value;
+    // datetime/timestamp columns: normalize any ISO-ish value to
+    // 'YYYY-MM-DD HH:MM:SS', dropping fractional seconds AND timezone offsets
+    // (Supabase returns timestamptz like '2022-09-26 06:22:18+00:00').
+    if (/^(datetime|timestamp)/i.test(destType)) {
+      const dt = str.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/);
+      if (dt) return `${dt[1]} ${dt[2]}`;
+      const dateOnly = str.match(/^(\d{4}-\d{2}-\d{2})$/);
+      if (dateOnly) return `${dateOnly[1]} 00:00:00`;
+      return str;
     }
-    if (/^date/i.test(destType) && /^\d{4}-\d{2}-\d{2}/.test(value)) {
-      return value.slice(0, 10);
+    // date columns: keep only the calendar date.
+    if (/^date$/i.test(destType)) {
+      const d = str.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (d) return d[1];
     }
-    return value;
+    return str;
   }
   return String(value);
 }
@@ -92,6 +113,7 @@ interface DestColumn {
   name: string; // PascalCase frandev column
   type: string; // MySQL column type, lowercased
   isPrimary: boolean;
+  required: boolean; // NOT NULL with no default and not auto-generated
 }
 
 async function getFrandevTables(schemaPool: Pool): Promise<string[]> {
@@ -101,11 +123,17 @@ async function getFrandevTables(schemaPool: Pool): Promise<string[]> {
 
 async function getDestColumns(schemaPool: Pool, table: string): Promise<DestColumn[]> {
   const [rows] = await schemaPool.query<RowDataPacket[]>(`SHOW COLUMNS FROM \`${table}\``);
-  return rows.map((r) => ({
-    name: r.Field as string,
-    type: String(r.Type).toLowerCase(),
-    isPrimary: r.Key === "PRI",
-  }));
+  return rows.map((r) => {
+    const extra = String(r.Extra ?? "").toLowerCase();
+    const generated = extra.includes("auto_increment") || extra.includes("default_generated");
+    return {
+      name: r.Field as string,
+      type: String(r.Type).toLowerCase(),
+      isPrimary: r.Key === "PRI",
+      // A column we MUST supply: NOT NULL, no default, not auto-generated.
+      required: r.Null === "NO" && r.Default === null && !generated,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -134,6 +162,7 @@ export interface TablePushResult {
   supabaseTable: string | null;
   sourceRows: number;
   pushedRows: number;
+  skippedRows: number; // rows that failed individually and were skipped
   mappedColumns: number;
   unmappedDestColumns: string[]; // frandev cols with no Supabase source
   droppedSourceColumns: string[]; // Supabase cols with no frandev dest
@@ -147,6 +176,7 @@ export interface PushSummary {
   pushedTables: number;
   totalSourceRows: number;
   totalPushedRows: number;
+  totalSkippedRows: number;
   tablesWithErrors: number;
   results: TablePushResult[];
 }
@@ -195,12 +225,57 @@ function buildColumnMap(
   return { mapped, unmappedDest };
 }
 
-async function pushTable(frandevTable: string, supabaseTable: string, opts: PushOptions): Promise<TablePushResult> {
+// Keep bulk INSERT packets well under MySQL's max_allowed_packet so a few fat
+// JSON/transcript rows can't blow the connection.
+const MAX_BATCH_BYTES = 512_000;
+const MAX_BATCH_ROWS = 500;
+// Floor for split-retry: a failing chunk this size or smaller is skipped
+// wholesale rather than probed row-by-row. Bounds round-trips to a remote DB so
+// a fully-failing large table can't turn into thousands of one-row inserts.
+const MIN_SPLIT_ROWS = 25;
+
+/** Rough serialized size of one value row, for byte-budgeting. */
+function rowBytes(values: Primitive[]): number {
+  let n = 0;
+  for (const v of values) n += typeof v === "string" ? v.length : 8;
+  return n;
+}
+
+/**
+ * Insert a batch, halving and retrying on error so one bad row can't sink a
+ * whole batch — but only down to MIN_SPLIT_ROWS, below which a failing chunk is
+ * skipped wholesale (counted, never thrown). Returns inserted/skipped counts.
+ */
+async function insertBatch(
+  conn: PoolConnection,
+  sql: string,
+  values: Primitive[][]
+): Promise<{ inserted: number; skipped: number }> {
+  if (values.length === 0) return { inserted: 0, skipped: 0 };
+  try {
+    await conn.query(sql, [values]);
+    return { inserted: values.length, skipped: 0 };
+  } catch {
+    if (values.length <= MIN_SPLIT_ROWS) return { inserted: 0, skipped: values.length };
+    const mid = Math.floor(values.length / 2);
+    const a = await insertBatch(conn, sql, values.slice(0, mid));
+    const b = await insertBatch(conn, sql, values.slice(mid));
+    return { inserted: a.inserted + b.inserted, skipped: a.skipped + b.skipped };
+  }
+}
+
+async function pushTable(
+  frandevTable: string,
+  supabaseTable: string,
+  opts: PushOptions,
+  writeConn: PoolConnection | null
+): Promise<TablePushResult> {
   const result: TablePushResult = {
     frandevTable,
     supabaseTable,
     sourceRows: 0,
     pushedRows: 0,
+    skippedRows: 0,
     mappedColumns: 0,
     unmappedDestColumns: [],
     droppedSourceColumns: [],
@@ -225,6 +300,17 @@ async function pushTable(frandevTable: string, supabaseTable: string, opts: Push
     return result;
   }
 
+  // Pre-skip tables we can't possibly satisfy: a NOT NULL, no-default frandev
+  // column with no FranDev source would fail on every row. Report it instead of
+  // probing thousands of rows to discover the same thing. (Fix is frandev-side:
+  // make the column nullable, or give it a default.)
+  const mappedNames = new Set(mapped.map((m) => m.dest.name));
+  const missingRequired = destColumns.filter((c) => c.required && !mappedNames.has(c.name)).map((c) => c.name);
+  if (missingRequired.length > 0) {
+    result.skipped = `missing_required:${missingRequired.join(",")}`;
+    return result;
+  }
+
   const destNames = mapped.map((m) => `\`${m.dest.name}\``);
   const nonPkCols = mapped.filter((m) => !m.dest.isPrimary);
   const updateClause = (nonPkCols.length > 0 ? nonPkCols : mapped)
@@ -233,16 +319,33 @@ async function pushTable(frandevTable: string, supabaseTable: string, opts: Push
   const sql =
     `INSERT INTO \`${frandevTable}\` (${destNames.join(", ")}) VALUES ? ` + `ON DUPLICATE KEY UPDATE ${updateClause}`;
 
-  const batchSize = opts.batchSize ?? 500;
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const batch = rows.slice(i, i + batchSize);
-    const values = batch.map((row) => mapped.map((m) => coerceValue(row[m.sourceKey], m.dest.type)));
+  // Build byte-budgeted batches so large rows don't exceed max_allowed_packet.
+  let batch: Primitive[][] = [];
+  let batchBytes = 0;
+  const flush = async () => {
+    if (batch.length === 0) return;
     if (!opts.dryRun) {
-      if (!opts.writePool) throw new Error("writePool required for a non-dry-run push");
-      await opts.writePool.query(sql, [values]);
+      if (!writeConn) throw new Error("writeConn required for a non-dry-run push");
+      const { inserted, skipped } = await insertBatch(writeConn, sql, batch);
+      result.pushedRows += inserted;
+      result.skippedRows += skipped;
+    } else {
+      result.pushedRows += batch.length;
     }
-    result.pushedRows += batch.length;
+    batch = [];
+    batchBytes = 0;
+  };
+
+  for (const row of rows) {
+    const values = mapped.map((m) => coerceValue(row[m.sourceKey], m.dest.type));
+    const bytes = rowBytes(values);
+    if (batch.length >= MAX_BATCH_ROWS || (batch.length > 0 && batchBytes + bytes > MAX_BATCH_BYTES)) {
+      await flush();
+    }
+    batch.push(values);
+    batchBytes += bytes;
   }
+  await flush();
   return result;
 }
 
@@ -263,6 +366,7 @@ export async function pushFrandev(opts: PushOptions): Promise<PushSummary> {
         supabaseTable: null,
         sourceRows: 0,
         pushedRows: 0,
+        skippedRows: 0,
         mappedColumns: 0,
         unmappedDestColumns: [],
         droppedSourceColumns: [],
@@ -276,28 +380,50 @@ export async function pushFrandev(opts: PushOptions): Promise<PushSummary> {
     plan.push({ frandev: fd, supabase: sb });
   }
 
-  log(`${opts.dryRun ? "[dry-run] " : ""}pushing ${plan.length} table(s)`);
-  for (const { frandev, supabase } of plan) {
-    try {
-      const r = await pushTable(frandev, supabase, opts);
-      results.push(r);
-      log(
-        `  ${frandev} <- ${supabase}: ${r.pushedRows}/${r.sourceRows} rows, ` +
-          `${r.mappedColumns} cols${r.skipped ? ` (skipped: ${r.skipped})` : ""}`
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      results.push({
-        frandevTable: frandev,
-        supabaseTable: supabase,
-        sourceRows: 0,
-        pushedRows: 0,
-        mappedColumns: 0,
-        unmappedDestColumns: [],
-        droppedSourceColumns: [],
-        error: message,
-      });
-      log(`  ${frandev} <- ${supabase}: ERROR ${message}`);
+  // One dedicated connection for the whole load, with referential-integrity
+  // checks off. The frandev_ tables have FK and circular dependencies that make
+  // alphabetical insertion order impossible; the data itself is internally
+  // consistent (it came from Postgres), so we just lift ordering constraints.
+  let writeConn: PoolConnection | null = null;
+  if (!opts.dryRun) {
+    if (!opts.writePool) throw new Error("writePool required for a non-dry-run push");
+    writeConn = await opts.writePool.getConnection();
+    await writeConn.query("SET FOREIGN_KEY_CHECKS = 0");
+    await writeConn.query("SET UNIQUE_CHECKS = 0");
+  }
+
+  try {
+    log(`${opts.dryRun ? "[dry-run] " : ""}pushing ${plan.length} table(s)`);
+    for (const { frandev, supabase } of plan) {
+      try {
+        const r = await pushTable(frandev, supabase, opts, writeConn);
+        results.push(r);
+        const skip = r.skippedRows > 0 ? `, ${r.skippedRows} skipped` : "";
+        log(
+          `  ${frandev} <- ${supabase}: ${r.pushedRows}/${r.sourceRows} rows${skip}, ` +
+            `${r.mappedColumns} cols${r.skipped ? ` (skipped: ${r.skipped})` : ""}`
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        results.push({
+          frandevTable: frandev,
+          supabaseTable: supabase,
+          sourceRows: 0,
+          pushedRows: 0,
+          skippedRows: 0,
+          mappedColumns: 0,
+          unmappedDestColumns: [],
+          droppedSourceColumns: [],
+          error: message,
+        });
+        log(`  ${frandev} <- ${supabase}: ERROR ${message}`);
+      }
+    }
+  } finally {
+    if (writeConn) {
+      await writeConn.query("SET FOREIGN_KEY_CHECKS = 1");
+      await writeConn.query("SET UNIQUE_CHECKS = 1");
+      writeConn.release();
     }
   }
 
@@ -307,6 +433,7 @@ export async function pushFrandev(opts: PushOptions): Promise<PushSummary> {
     pushedTables: results.filter((r) => r.pushedRows > 0).length,
     totalSourceRows: results.reduce((a, r) => a + r.sourceRows, 0),
     totalPushedRows: results.reduce((a, r) => a + r.pushedRows, 0),
+    totalSkippedRows: results.reduce((a, r) => a + r.skippedRows, 0),
     tablesWithErrors: results.filter((r) => r.error).length,
     results,
   };

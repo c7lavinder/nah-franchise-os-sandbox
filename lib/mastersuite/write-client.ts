@@ -1,5 +1,4 @@
 import mysql from "mysql2/promise";
-import { optionalEnv, requireEnv } from "@/lib/env";
 
 /**
  * Write connection to the MasterSuite DEVELOPMENT MariaDB.
@@ -10,40 +9,77 @@ import { optionalEnv, requireEnv } from "@/lib/env";
  * Supabase data into the `frandev_*` tables on the MasterSuite dev box so the
  * pages being rebuilt there have real data each working day.
  *
- * Credentials are distinct env vars (`MASTERSUITE_DEV_DB_*`) and must point at
- * the DEV database with a user that has INSERT/UPDATE on `frandev_*` tables.
- * The production credentials (`MASTERSUITE_DB_*`) are SELECT-only by design and
- * are never used to write.
+ * Credential resolution (first match wins):
+ *   1. `MASTERSUITE_DEV_DB_*`  — explicit override (set these on Vercel/CI).
+ *   2. `NAH_DB_*`              — the MasterSuite app's own dev DB env vars,
+ *                                already present in the operator's shell
+ *                                profile, so the local script "just works".
+ *
+ * Hard safety: we refuse to connect to a host that looks like production, so a
+ * mis-set `NAH_DB_SERVER` can never turn this outbound sync into a prod write.
  */
+
+interface DevDbConfig {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  database: string;
+}
 
 let writePool: mysql.Pool | null = null;
 
-/** True when all dev write credentials are present. Lets callers no-op cleanly. */
+function resolveDevConfig(): DevDbConfig | null {
+  const host = process.env.MASTERSUITE_DEV_DB_HOST || process.env.NAH_DB_SERVER;
+  const user = process.env.MASTERSUITE_DEV_DB_USER || process.env.NAH_DB_USER;
+  const password = process.env.MASTERSUITE_DEV_DB_PASSWORD || process.env.NAH_DB_PASSWORD;
+  if (!host || !user || !password) return null;
+  return {
+    host,
+    port: parseInt(process.env.MASTERSUITE_DEV_DB_PORT || process.env.NAH_DB_PORT || "3306", 10),
+    user,
+    password,
+    database: process.env.MASTERSUITE_DEV_DB_NAME || process.env.NAH_DB_DATABASE || "mastersuite",
+  };
+}
+
+/** Guard: never let the outbound push write to the production database. */
+function assertNotProduction(host: string): void {
+  const prodHost = process.env.MASTERSUITE_DB_HOST; // read-only prod endpoint
+  if (/prod/i.test(host) || (prodHost && host === prodHost)) {
+    throw new Error(
+      `Refusing to run the FranDev push against "${host}" — it looks like PRODUCTION. ` +
+        `This sync writes to the dev database only.`
+    );
+  }
+}
+
+/** True when dev write credentials are resolvable. Lets callers no-op cleanly. */
 export function isWriteConfigured(): boolean {
-  return Boolean(
-    process.env.MASTERSUITE_DEV_DB_HOST &&
-    process.env.MASTERSUITE_DEV_DB_USER &&
-    process.env.MASTERSUITE_DEV_DB_PASSWORD
-  );
+  return resolveDevConfig() !== null;
 }
 
 export function getMasterSuiteWritePool(): mysql.Pool {
   if (writePool) return writePool;
 
+  const cfg = resolveDevConfig();
+  if (!cfg) {
+    throw new Error("MasterSuite dev write credentials not set. Provide MASTERSUITE_DEV_DB_* or NAH_DB_* env vars.");
+  }
+  assertNotProduction(cfg.host);
+
   writePool = mysql.createPool({
-    host: requireEnv("MASTERSUITE_DEV_DB_HOST"),
-    port: parseInt(optionalEnv("MASTERSUITE_DEV_DB_PORT", "3306"), 10),
-    user: requireEnv("MASTERSUITE_DEV_DB_USER"),
-    password: requireEnv("MASTERSUITE_DEV_DB_PASSWORD"),
-    database: optionalEnv("MASTERSUITE_DEV_DB_NAME", "mastersuite"),
+    host: cfg.host,
+    port: cfg.port,
+    user: cfg.user,
+    password: cfg.password,
+    database: cfg.database,
     connectionLimit: 3,
     connectTimeout: 10000,
     waitForConnections: true,
     enableKeepAlive: true,
     idleTimeout: 30000,
     maxIdle: 1,
-    // Allow multi-row bulk inserts via `query` with nested arrays.
-    namedPlaceholders: false,
   });
 
   return writePool;
