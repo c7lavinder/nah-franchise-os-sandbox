@@ -98,8 +98,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // 3. Move call_journeys references
   await supabase.from("call_journeys").update({ journey_id: targetId }).eq("journey_id", sourceId);
 
-  // 4. Close the source journey
-  await supabase.from("journeys").update({ status: "merged", updated_at: new Date().toISOString() }).eq("id", sourceId);
+  // 4. Close the source journey. NOTE: journeys.status only allows
+  //    'active' | 'archived' | 'closed' (see journeys_schema migration) —
+  //    'merged' violates the CHECK constraint and threw on every merge.
+  await supabase
+    .from("journeys")
+    .update({ status: "archived", updated_at: new Date().toISOString() })
+    .eq("id", sourceId);
 
   // 5. Rebuild target journey name from all active primaries/co_primaries
   const { data: allPrimaries } = await supabase
