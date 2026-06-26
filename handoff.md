@@ -1,72 +1,69 @@
-# Session Handoff — 2026-06-25 — Session 63
+# Session Handoff — 2026-06-26 — Session 65
 
 ## Status
 
-Phase: Vonage SMS integration (built, parked) → next: WORKFLOW FIRING / Health: Green / Duration: full session
+Phase: FranDev → MasterSuite outbound data sync (built, live, automated) / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-- **Vonage SMS integration — code complete, behind `SMS_PROVIDER` flag (currently still SignalHouse, so nothing live changed).** Replaces SignalHouse when flipped; SignalHouse left fully intact as instant fallback.
-  - `lib/vonage/client.ts` — boundary client: `sendVonageSms()` (Messages API, RS256 JWT), `verifyVonageWebhook()` (HS256 signature secret), `vonageEnabled()`, `generateVonageJwt()`
-  - `app/api/webhooks/vonage/inbound/route.ts` — inbound SMS → matches contact by phone → writes to `sms_messages` (so replies show in inbox)
-  - `app/api/webhooks/vonage/status/route.ts` — delivery receipts → updates message status
-  - `lib/sms/contact-sms.ts` — added `sendContactSmsViaVonage()` + **unified `sendContactSmsViaActiveProvider()`** (Vonage→SignalHouse→GHL)
-  - `lib/sms/number-assignment.ts` — provider-aware helpers (`getActiveSmsProvider`, `getAssignedSmsNumber`, `getConfiguredSmsNumbers`, `getInboxProviders`) + Vonage number functions
-  - Refactored ALL outbound SMS paths onto the unified helper: workflow scheduler (C1/C3/A5), inbox send, Scout action (`app/api/scout/action/route.ts`), contact quick-send (`app/api/contacts/[id]/send/route.ts`)
-  - `lib/env.ts` — registered 6 `VONAGE_*` env keys
-  - `supabase/migrations/20260624120000_vonage_sms.sql` — adds `users.assigned_vonage_number` (NOT yet run)
-  - `docs/vonage-integration-plan.md` — full living tracker (Phase 0 provisioning, Phase 1 SMS done, Phase 2 calls deprioritized)
+- **Outbound FranDev → MasterSuite dev sync** — the first and only WRITE path (every other `lib/mastersuite/sync-*` is inbound/read-only). Schema-driven: resolves all 114 `frandev_*` tables, maps snake_case→PascalCase columns over the intersection at runtime, upserts by `Id`.
+  - `lib/mastersuite/write-client.ts` — separate dev-DB pool; resolves `MASTERSUITE_DEV_DB_*` OR falls back to the MasterSuite app's own `NAH_DB_*` env; hard guard refuses any host matching `/prod/i` (dev-only).
+  - `lib/mastersuite/push-frandev.ts` — the engine (FK-checks-off single connection for circular deps, 512KB byte-budgeted batches, split-retry floored at 25 rows, timestamptz→datetime normalization, varchar/char truncation, pre-skip of unsatisfiable required columns).
+  - `scripts/push-frandev-to-mastersuite.ts` — runner (`--dry-run` / `--tables=` / `--limit=`).
+  - `app/api/cron/push-frandev/route.ts` + `vercel.json` cron `30 11 * * *` (6:30am Central CDT).
+  - `lib/env.ts` — registered `MASTERSUITE_DEV_DB_*` keys; `.env.local` — commented dev placeholders.
+- **Added 5 `MASTERSUITE_DEV_DB_*` env vars to Vercel production** (= the `NAH_DB_*` values) and redeployed.
+- **PR for Ben (MasterSuite repo): NewAgainHouses/mastersuite#62** — migration `database/migrations/2026-06-26 - FranDev sync fixes.sql` to unblock the 4 tables that can't load.
 
 ## What Is Confirmed Working
 
-- `npx tsc --noEmit` clean, `npx next lint` clean on all changed files, full `npx next build` passed
-- Refactor is behavior-preserving for SignalHouse: with `SMS_PROVIDER=signalhouse`, every path resolves to the exact same SignalHouse calls as before
-- NOTE: the Vonage path itself is NOT live-tested — no credentials yet
+- **Full live load into MasterSuite dev: 73,725 rows across 86 tables, 0 errors** (verified row counts on `db-development.mastersuiteapp.com`).
+- **Nightly Vercel cron proven** — manually triggered `/frandev/api/cron/push-frandev` on prod; ran server-side in 62s, success, logged in `cron_job_log` (job_name `push-frandev`). Confirms Vercel IS whitelisted on the dev DB.
+- Dev write creds are the app's own `NAH_DB_*` (user `mastersuite`, GRANT ALL on `mastersuite`) — already in the shell profile. NOT blocked on Ben for data.
+- `npx tsc --noEmit` clean; ESLint clean; 222 tests pass (pre-commit).
 
 ## What Is Broken or Incomplete
 
-- **Vonage not live** — needs Chad's Vonage Application credentials (App ID, private key, API key+secret, signature secret) + migration run + `SMS_PROVIDER=vonage`. Parked per Corey: "might just keep SignalHouse for now." — Medium
-- **Workflow firing status UNKNOWN — top priority next session.** Corey: workflows need to fire, ESPECIALLY the new-lead workflow. Not investigated or tested this session. — **High**
-- Vonage number-vs-VBC question still open (can Chad's existing number do API SMS, or need a dedicated number) — Low (only matters if/when Vonage goes live)
+- 4 `frandev_` tables don't load yet (candidate_intelligence 1987, candidate_score_history 1854, objection_registry 104, app_setting 27) — fixed by PR #62; pending Ben merge + run on prod — Medium
+- ~579 `contact_profile_field` rows skipped by the 25-row split-retry floor (a few bad rows take their chunk) — Low
+- Nightly cron timing drifts in winter: `30 11` UTC = 6:30am CDT now, becomes 5:30am CST after Nov DST change — bump to `30 12` then — Low
 
 ## Decisions Made
 
-- Keep SignalHouse as the active SMS provider for now; Vonage stays built-but-off — Corey approved
-- Calls deprioritized; future calling likely via VBC Integration Platform (keep Chad on the phone app, sync activity in) rather than a browser softphone — Corey
-- Use one unified provider-aware send helper so no SMS path drifts — Claude (no objection)
+- Write to MasterSuite **dev** (not prod), running after the nightly prod→dev refresh; re-pushes fresh daily — Corey
+- Scope = **everything** (all FranDev tables) — Corey
+- Nightly automation via **Vercel cron** (over local launchd) — Corey
+- Candidate tables: add conventional `ContactId` FK + relax `GhlContactId` to NULL (vs. the original GHL-pin design) — proposed to Ben in PR #62
 
 ## Files Created
 
-- lib/vonage/client.ts
-- app/api/webhooks/vonage/inbound/route.ts
-- app/api/webhooks/vonage/status/route.ts
-- supabase/migrations/20260624120000_vonage_sms.sql
-- docs/vonage-integration-plan.md
+- `lib/mastersuite/write-client.ts`
+- `lib/mastersuite/push-frandev.ts`
+- `scripts/push-frandev-to-mastersuite.ts`
+- `app/api/cron/push-frandev/route.ts`
+- (MasterSuite repo) `database/migrations/2026-06-26 - FranDev sync fixes.sql`
 
 ## Files Modified
 
-- lib/env.ts
-- lib/sms/contact-sms.ts
-- lib/sms/number-assignment.ts
-- lib/ghl/actions/executor.ts
-- app/api/inbox/route.ts
-- app/api/inbox/send/route.ts
-- app/api/scout/action/route.ts
-- app/api/contacts/[contactId]/send/route.ts
+- `lib/env.ts` (added `MASTERSUITE_DEV_DB_*` keys)
+- `vercel.json` (added `push-frandev` cron)
+- `docs/mastersuite-sync-boundaries.md` (registered the outbound sync)
+- `.env.local` (local, gitignored — commented dev-DB placeholders)
+- Vercel production env (added 5 `MASTERSUITE_DEV_DB_*` vars) + redeployed
 
 ## Files Deleted
 
-- none
+- None (temp scripts/logs were scratch, removed after use)
 
 ## Open Issues Carried Forward
 
-- **Workflows must fire — especially new-lead — and be tested end-to-end. Corey's directive: "do not let me go until we have tested it."** — High
-- Vonage go-live blocked on credentials (parked) — Medium
-- (from S62) #2 add-note not live-tested on Jo Vitale; #8 john-meyer journey link flow fix — Medium
+- Ben to merge **PR #62** and run the migration on MasterSuite production → the 4 remaining tables then load automatically — Medium
+- November DST: bump cron `30 11` → `30 12` to keep 6:30am Central — Low
+- Optional: draft a Slack/email note to Ben with the PR link — Low
 
 ## Exact Next Step
 
-Investigate the new-lead workflow firing path end-to-end (trigger → enrollment → first step send), then create a real test lead and CONFIRM the workflow enrolls and its first action actually fires — do not close the session until that test passes.
+When Ben merges PR #62 and runs the migration on production, run `npx tsx scripts/push-frandev-to-mastersuite.ts --tables=candidate_intelligence,candidate_score_history,objection_registry,app_settings` (or wait for the 6:30am cron) and confirm those 4 tables load with `ContactId` populated.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -74,6 +71,6 @@ Investigate the new-lead workflow firing path end-to-end (trigger → enrollment
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Investigate and TEST the new-lead workflow firing end-to-end — create a test lead, confirm it enrolls and the first step actually fires. Do not let me stop until that test passes.
+Then: When Ben merges PR #62 and runs the migration on production, run the FranDev push scoped to candidate_intelligence,candidate_score_history,objection_registry,app_settings (or wait for the 6:30am cron) and confirm those 4 tables load with ContactId populated.
 
 ---
