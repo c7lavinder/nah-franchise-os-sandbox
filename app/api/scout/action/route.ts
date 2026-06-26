@@ -453,7 +453,7 @@ export async function POST(request: NextRequest) {
         }
         case "appointment": {
           const apptPayload = action.payload as DraftedAppointmentPayload;
-          if (!apptPayload.calendarId) throw new Error("calendarId required");
+          if (!apptPayload.calendarId) throw new Error("Pick a calendar before scheduling this appointment.");
           if (!isSchedulableGhlContactId(action.contactId)) {
             throw new Error("This contact is not linked to a real GHL contact yet, so it cannot be scheduled.");
           }

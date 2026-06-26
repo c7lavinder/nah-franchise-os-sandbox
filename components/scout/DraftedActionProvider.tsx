@@ -39,16 +39,19 @@ export function buildDraftedAction(
 export default function DraftedActionProvider({ children }: { children: React.ReactNode }) {
   const [activeAction, setActiveAction] = useState<DraftedAction | null>(null);
   const [executing, setExecuting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [successCallback, setSuccessCallback] = useState<(() => void) | null>(null);
   useScrollLock(!!activeAction);
 
   const showDraftCard = useCallback((action: DraftedAction, onSuccess?: () => void) => {
     setActiveAction(action);
+    setError(null);
     setSuccessCallback(() => onSuccess ?? null);
   }, []);
 
   async function handleConfirm(action: DraftedAction) {
     setExecuting(true);
+    setError(null);
     try {
       const res = await apiFetch("/api/scout/action", {
         method: "POST",
@@ -68,14 +71,18 @@ export default function DraftedActionProvider({ children }: { children: React.Re
       // Auto-dismiss after a brief delay
       setTimeout(() => setActiveAction(null), 1200);
     } catch (err) {
+      // Surface the failure in the card instead of swallowing it — a silent
+      // console.error is why "it doesn't save" looked like nothing happened.
       console.error("Action failed:", err);
-      // Keep the card open so user can retry
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      // Keep the card open so the user can see the reason and retry.
     } finally {
       setExecuting(false);
     }
   }
 
   function handleCancel() {
+    setError(null);
     setActiveAction((prev) => (prev ? { ...prev, status: "cancelled" as const } : null));
     setTimeout(() => setActiveAction(null), 400);
   }
@@ -94,6 +101,7 @@ export default function DraftedActionProvider({ children }: { children: React.Re
               onConfirm={handleConfirm}
               onCancel={handleCancel}
               isExecuting={executing}
+              error={error}
             />
           </div>
         </div>

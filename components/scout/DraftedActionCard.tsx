@@ -44,6 +44,8 @@ interface DraftedActionCardProps {
   onConfirm: (action: DraftedAction) => void;
   onCancel: (actionId: string) => void;
   isExecuting: boolean;
+  /** Error message from the last failed confirm attempt, shown in the card. */
+  error?: string | null;
 }
 
 function ActionIcon({ action }: { action: DraftedAction }) {
@@ -135,7 +137,7 @@ function FallbackDisplay({ action }: { action: DraftedAction }) {
   return <div className="text-body-sm text-text-secondary whitespace-pre-wrap">{content}</div>;
 }
 
-export default function DraftedActionCard({ action, onConfirm, onCancel, isExecuting }: DraftedActionCardProps) {
+export default function DraftedActionCard({ action, onConfirm, onCancel, isExecuting, error }: DraftedActionCardProps) {
   const [editedPayload, setEditedPayload] = useState(action.payload);
   const [editedContactId, setEditedContactId] = useState(action.contactId);
   const [editedContactName, setEditedContactName] = useState(action.contactName);
@@ -263,6 +265,13 @@ export default function DraftedActionCard({ action, onConfirm, onCancel, isExecu
       </div>
 
       <div className="mb-3">{renderForm()}</div>
+
+      {error && !isResolved && (
+        <div className="mb-3 flex items-start gap-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2">
+          <X size={14} className="text-danger mt-0.5 flex-shrink-0" />
+          <p className="text-body-sm text-danger">{error}</p>
+        </div>
+      )}
 
       {!isResolved && (
         <div className="flex items-center gap-2 pt-2 border-t border-border-glass">
