@@ -5,7 +5,7 @@ Source: code (lib/scout/tools.ts)
 
 # Scout Tools — Catalog
 
-Scout has 37 tools defined in `lib/scout/tools.ts`, executed in `lib/scout/tool-executor.ts`.
+Scout has 38 tools defined in `lib/scout/tools.ts`, executed in `lib/scout/tool-executor.ts`.
 
 ---
 
@@ -33,6 +33,7 @@ Scout has 37 tools defined in `lib/scout/tools.ts`, executed in `lib/scout/tool-
 - `territory_performance` — territory KPIs from operational data.
 - `network_benchmarks` — network averages, high performers, rankings, and totals.
 - `compare_territories` — side-by-side comparison for 2-5 territories.
+- `coaching_performance` — coaching-call performance by coach: coached-call count, avg coaching score (0-100), score range, recent calls. Optional `coach` filter; only calls with a coaching evaluation are counted.
 - `describe_data` — database table/column inventory and row counts.
 - `get_compliance` — FDD, agreement, training, registration, background check, and insurance status.
 

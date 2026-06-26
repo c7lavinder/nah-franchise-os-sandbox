@@ -42,6 +42,7 @@ export type ScoutToolName =
   | "territory_performance"
   | "network_benchmarks"
   | "compare_territories"
+  | "coaching_performance"
   | "describe_data";
 
 /** Chat message role */

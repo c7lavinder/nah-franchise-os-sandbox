@@ -124,6 +124,8 @@ export async function executeTool(
       return executeNetworkBenchmarks(input);
     case "compare_territories":
       return executeCompareTerritories(input);
+    case "coaching_performance":
+      return executeCoachingPerformance(input);
     case "describe_data":
       return executeDescribeData(input);
     case "get_compliance":
@@ -2386,6 +2388,111 @@ function loadSchemaReference(): { tables: { name: string; columns: string }[]; r
     return _schemaCache;
   } catch {
     return { tables: [], raw: "Schema reference file not found." };
+  }
+}
+
+async function executeCoachingPerformance(input: Record<string, unknown>): Promise<ToolExecutionResult> {
+  try {
+    const coachParam = (input.coach as string | undefined)?.trim();
+    const period = (input.period as string) ?? "t12";
+    const { periodStart, periodEndExclusive } = computePeriodRange(period);
+    const supabase = createServerClient();
+
+    // Only calls that actually received a coaching evaluation (coaching_data
+    // present). Group/EOS/intro calls without coaching feedback are excluded —
+    // they otherwise show up as score 0 and skew the averages.
+    let calls: {
+      coach_user_id: string | null;
+      hosted_by_user_id: string | null;
+      coaching_score: number | null;
+      started_at: string | null;
+      title: string | null;
+    }[] = [];
+    let offset = 0;
+    while (true) {
+      const { data: page } = await supabase
+        .from("calls")
+        .select("coach_user_id, hosted_by_user_id, coaching_score, started_at, title")
+        .not("coaching_data", "is", null)
+        .is("deleted_at", null)
+        .gte("started_at", periodStart.toISOString())
+        .lt("started_at", periodEndExclusive.toISOString())
+        .order("started_at", { ascending: false })
+        .range(offset, offset + 999);
+      if (!page || page.length === 0) break;
+      calls = calls.concat(page as typeof calls);
+      if (page.length < 1000) break;
+      offset += 1000;
+    }
+
+    if (calls.length === 0) {
+      return { data: JSON.stringify({ period, message: "No coached calls found in this period.", coaches: [] }) };
+    }
+
+    // Coach = coach_user_id, falling back to hosted_by_user_id (coach_user_id is
+    // often null; the host of a coaching call is the coach).
+    const byCoach = new Map<string, { scores: number[]; count: number; recent: string[] }>();
+    for (const c of calls) {
+      const coachId = c.coach_user_id ?? c.hosted_by_user_id;
+      if (!coachId) continue;
+      const entry = byCoach.get(coachId) ?? { scores: [], count: 0, recent: [] };
+      entry.count++;
+      if (c.coaching_score != null) entry.scores.push(Number(c.coaching_score));
+      if (entry.recent.length < 3 && c.title) entry.recent.push(c.title);
+      byCoach.set(coachId, entry);
+    }
+
+    // Resolve coach names.
+    const coachIds = [...byCoach.keys()];
+    const { data: users } = await supabase.from("users").select("id, full_name, email").in("id", coachIds);
+    const userMap = new Map(
+      (users ?? []).map((u: { id: string; full_name: string | null; email: string }) => [
+        u.id,
+        { name: u.full_name ?? u.email, email: u.email },
+      ])
+    );
+
+    let coaches = coachIds.map((id) => {
+      const e = byCoach.get(id)!;
+      const avg = e.scores.length > 0 ? Math.round(e.scores.reduce((a, b) => a + b, 0) / e.scores.length) : null;
+      const u = userMap.get(id);
+      return {
+        coach: u?.name ?? "Unknown",
+        email: u?.email ?? null,
+        coachedCalls: e.count,
+        avgCoachingScore: avg,
+        lowScore: e.scores.length > 0 ? Math.min(...e.scores) : null,
+        highScore: e.scores.length > 0 ? Math.max(...e.scores) : null,
+        recentCalls: e.recent,
+      };
+    });
+
+    // Optional filter to a single coach by name or email.
+    if (coachParam) {
+      const needle = coachParam.toLowerCase();
+      coaches = coaches.filter(
+        (c) => c.coach.toLowerCase().includes(needle) || (c.email ?? "").toLowerCase().includes(needle)
+      );
+      if (coaches.length === 0) {
+        return {
+          data: JSON.stringify({ period, message: `No coached calls found for "${coachParam}".`, coaches: [] }),
+        };
+      }
+    }
+
+    coaches.sort((a, b) => (b.avgCoachingScore ?? -1) - (a.avgCoachingScore ?? -1));
+
+    return {
+      data: JSON.stringify({
+        period,
+        totalCoachedCalls: calls.length,
+        coachCount: coaches.length,
+        coaches,
+        note: "coaching score is 0–100; only calls with a coaching evaluation are counted.",
+      }),
+    };
+  } catch (err) {
+    return { data: `Error: ${err instanceof Error ? err.message : "Unknown error"}` };
   }
 }
 

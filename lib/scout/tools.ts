@@ -775,6 +775,31 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
   },
 
   {
+    name: "coaching_performance",
+    description:
+      "Assess how coaches are performing on coaching calls. Returns, per coach: number of coached calls, average " +
+      "coaching score (0-100), score range, and recent call titles. Only calls that received a coaching evaluation are " +
+      "counted (group/EOS/intro calls without coaching feedback are excluded). Use when asked 'how are our coaches " +
+      "doing?', 'who's coaching the most?', 'which coach has the highest scores?', or to assess a specific coach. " +
+      "Pass a coach name or email to focus on one coach.",
+    input_schema: {
+      type: "object",
+      properties: {
+        coach: {
+          type: "string",
+          description: "Optional. Coach name or email to filter to one coach. Omit to see all coaches.",
+        },
+        period: {
+          type: "string",
+          description: "Time period: t3 (3 months), t12 (12 months, default), ytd, all",
+          enum: ["t3", "t12", "ytd", "all"],
+        },
+      },
+      required: [],
+    },
+  },
+
+  {
     name: "describe_data",
     description:
       "List all 156 database tables with their columns and row counts. Use this BEFORE claiming you don't have " +
