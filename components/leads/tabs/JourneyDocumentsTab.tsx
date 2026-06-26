@@ -30,6 +30,7 @@ interface DocumentContactOption {
 const DOC_TYPES = [
   { value: "pfs", label: "Personal Financial Statement (PFS)" },
   { value: "zorakle", label: "Zorakle Personality Profile" },
+  { value: "nda", label: "NDA" },
   { value: "franchise_agreement", label: "Franchise Agreement" },
   { value: "other", label: "Other Document" },
 ];

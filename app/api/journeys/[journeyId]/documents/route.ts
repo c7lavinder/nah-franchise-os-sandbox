@@ -18,6 +18,7 @@ const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
 const DOC_TYPE_LABELS: Record<string, string> = {
   pfs: "Personal Financial Statement",
   zorakle: "Zorakle Personality Profile",
+  nda: "NDA",
   franchise_agreement: "Franchise Agreement",
   other: "Document",
 };
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
   if (file.size > MAX_SIZE) return NextResponse.json({ error: "File too large (20 MB max)" }, { status: 400 });
 
-  const validTypes = ["pfs", "zorakle", "franchise_agreement", "other"];
+  const validTypes = ["pfs", "zorakle", "nda", "franchise_agreement", "other"];
   const safeType = validTypes.includes(docType) ? docType : "other";
 
   const supabase = createServerClient();
