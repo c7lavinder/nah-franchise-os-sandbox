@@ -2454,32 +2454,50 @@ async function executeTerritoryPerformance(input: Record<string, unknown>): Prom
     const resolvedTerritory = await resolveTerritorySlug(requestedSlug, supabase);
     const slug = resolvedTerritory?.TerritorySlug ?? requestedSlug;
 
-    // 1. Inventory rows with purchase dates for this territory
+    // 1. Property IDs for this territory. NOTE: ms_property_inventory has no
+    //    TerritorySlug column — it must be joined to ms_properties by PropertyId.
+    //    (The old code filtered inventory by a non-existent TerritorySlug column,
+    //    which silently errored and returned ZERO inventory for every territory.)
+    let propIds: number[] = [];
+    let propOffset = 0;
+    while (true) {
+      const { data: page } = await supabase
+        .from("ms_properties")
+        .select("PropertyId")
+        .eq("TerritorySlug", slug)
+        .eq("Archived", false)
+        .order("PropertyId")
+        .range(propOffset, propOffset + 999);
+      if (!page || page.length === 0) break;
+      propIds = propIds.concat((page as { PropertyId: number }[]).map((p) => p.PropertyId));
+      if (page.length < 1000) break;
+      propOffset += 1000;
+    }
+
+    // 1b. Inventory rows (purchased properties only) for those property IDs.
     let inventory: {
       PropertyId: number;
       Inv_PurchaseDate: string;
       Inv_SellDate: string | null;
       Inv_Status: string | null;
     }[] = [];
-    let offset = 0;
-    while (true) {
+    for (let i = 0; i < propIds.length; i += 500) {
       const { data: page } = await supabase
         .from("ms_property_inventory")
         .select("PropertyId, Inv_PurchaseDate, Inv_SellDate, Inv_Status")
-        .eq("TerritorySlug", slug)
-        .not("Inv_PurchaseDate", "is", null)
-        .order("PropertyId")
-        .range(offset, offset + 999);
-      if (!page || page.length === 0) break;
-      inventory = inventory.concat(page as typeof inventory);
-      if (page.length < 1000) break;
-      offset += 1000;
+        .in("PropertyId", propIds.slice(i, i + 500))
+        .not("Inv_PurchaseDate", "is", null);
+      if (page) inventory = inventory.concat(page as typeof inventory);
     }
 
     // 2. Filter to period + previous period for trend
     const purchasedInPeriod = inventory.filter((i) => isInPeriod(i.Inv_PurchaseDate, periodStart, periodEndExclusive));
     const soldInPeriod = inventory.filter((i) => isInPeriod(i.Inv_SellDate, periodStart, periodEndExclusive));
-    const activeInventory = inventory.filter((i) => !i.Inv_SellDate);
+    // Active inventory = purchased and still owned (no sell date and not marked
+    // Sold). `inventory` is already restricted to purchased rows, so this is the
+    // count of currently-held properties regardless of when they were bought —
+    // distinct from purchases within the selected period.
+    const activeInventory = inventory.filter((i) => !i.Inv_SellDate && i.Inv_Status !== "Sold");
     const prevPurchased = inventory.filter((i) => {
       const d = new Date(i.Inv_PurchaseDate);
       return d >= prevPeriodStart && d < prevPeriodEndExclusive;
@@ -2527,14 +2545,7 @@ async function executeTerritoryPerformance(input: Record<string, unknown>): Prom
       stageRank[s] = i;
     });
 
-    // Get property IDs for this territory
-    const { data: propRows } = await supabase
-      .from("ms_properties")
-      .select("PropertyId")
-      .eq("TerritorySlug", slug)
-      .eq("Archived", false)
-      .limit(10000);
-    const propIds = (propRows ?? []).map((p: { PropertyId: number }) => p.PropertyId);
+    // Property IDs already fetched above (step 1) — reused here for the funnel.
 
     let funnel: { stage: string; count: number }[] = [];
     if (propIds.length > 0) {
@@ -2744,6 +2755,7 @@ async function executeNetworkBenchmarks(input: Record<string, unknown>): Promise
       PropertyId: number;
       Inv_PurchaseDate: string;
       Inv_SellDate: string | null;
+      Inv_Status: string | null;
     }[] = [];
     for (let i = 0; i < slugs.length; i += 20) {
       const batchSlugs = slugs.slice(i, i + 20);
@@ -2751,7 +2763,7 @@ async function executeNetworkBenchmarks(input: Record<string, unknown>): Promise
       while (true) {
         const { data: page } = await supabase
           .from("ms_properties")
-          .select("TerritorySlug, PropertyId, ms_property_inventory!inner(Inv_PurchaseDate, Inv_SellDate)")
+          .select("TerritorySlug, PropertyId, ms_property_inventory!inner(Inv_PurchaseDate, Inv_SellDate, Inv_Status)")
           .in("TerritorySlug", batchSlugs)
           .not("ms_property_inventory.Inv_PurchaseDate", "is", null)
           .order("PropertyId")
@@ -2767,6 +2779,7 @@ async function executeNetworkBenchmarks(input: Record<string, unknown>): Promise
               PropertyId: row.PropertyId,
               Inv_PurchaseDate: inv.Inv_PurchaseDate,
               Inv_SellDate: inv.Inv_SellDate,
+              Inv_Status: inv.Inv_Status,
             });
           }
         }
@@ -2802,7 +2815,7 @@ async function executeNetworkBenchmarks(input: Record<string, unknown>): Promise
       const inv = byTerritory.get(slug) ?? [];
       const purchased = inv.filter((i) => isInPeriod(i.Inv_PurchaseDate, periodStart, periodEndExclusive)).length;
       const sold = inv.filter((i) => isInPeriod(i.Inv_SellDate, periodStart, periodEndExclusive)).length;
-      const active = inv.filter((i) => !i.Inv_SellDate).length;
+      const active = inv.filter((i) => !i.Inv_SellDate && i.Inv_Status !== "Sold").length;
       const t12p = inv.filter((i) => new Date(i.Inv_PurchaseDate) >= t12Start).length;
 
       territoryMetrics.push({
@@ -2937,7 +2950,28 @@ async function executeCompareTerritories(input: Record<string, unknown>): Promis
       (territories ?? []).map((t: Record<string, unknown>) => [t.TerritorySlug as string, t])
     );
 
-    // 2. Inventory for all territories at once
+    // 2. Inventory for all territories. ms_property_inventory has no TerritorySlug
+    //    column, so map PropertyId -> TerritorySlug via ms_properties, then pull
+    //    inventory by PropertyId and re-attach the slug.
+    const slugByPropertyId = new Map<number, string>();
+    for (const slug of slugs) {
+      let pOffset = 0;
+      while (true) {
+        const { data: page } = await supabase
+          .from("ms_properties")
+          .select("PropertyId")
+          .eq("TerritorySlug", slug)
+          .eq("Archived", false)
+          .order("PropertyId")
+          .range(pOffset, pOffset + 999);
+        if (!page || page.length === 0) break;
+        for (const p of page as { PropertyId: number }[]) slugByPropertyId.set(p.PropertyId, slug);
+        if (page.length < 1000) break;
+        pOffset += 1000;
+      }
+    }
+    const allPropIds = [...slugByPropertyId.keys()];
+
     let allInventory: {
       TerritorySlug: string;
       PropertyId: number;
@@ -2945,19 +2979,16 @@ async function executeCompareTerritories(input: Record<string, unknown>): Promis
       Inv_SellDate: string | null;
       Inv_Status: string | null;
     }[] = [];
-    let offset = 0;
-    while (true) {
+    for (let i = 0; i < allPropIds.length; i += 500) {
       const { data: page } = await supabase
         .from("ms_property_inventory")
-        .select("TerritorySlug, PropertyId, Inv_PurchaseDate, Inv_SellDate, Inv_Status")
-        .in("TerritorySlug", slugs)
-        .not("Inv_PurchaseDate", "is", null)
-        .order("PropertyId")
-        .range(offset, offset + 999);
-      if (!page || page.length === 0) break;
-      allInventory = allInventory.concat(page as typeof allInventory);
-      if (page.length < 1000) break;
-      offset += 1000;
+        .select("PropertyId, Inv_PurchaseDate, Inv_SellDate, Inv_Status")
+        .in("PropertyId", allPropIds.slice(i, i + 500))
+        .not("Inv_PurchaseDate", "is", null);
+      for (const row of (page ?? []) as Omit<(typeof allInventory)[number], "TerritorySlug">[]) {
+        const tSlug = slugByPropertyId.get(row.PropertyId);
+        if (tSlug) allInventory.push({ ...row, TerritorySlug: tSlug });
+      }
     }
 
     // 3. Profit for sold properties in period
@@ -3056,7 +3087,7 @@ async function executeCompareTerritories(input: Record<string, unknown>): Promis
       const inv = allInventory.filter((i) => i.TerritorySlug === slug);
       const purchased = inv.filter((i) => isInPeriod(i.Inv_PurchaseDate, periodStart, periodEndExclusive)).length;
       const sold = inv.filter((i) => isInPeriod(i.Inv_SellDate, periodStart, periodEndExclusive)).length;
-      const active = inv.filter((i) => !i.Inv_SellDate).length;
+      const active = inv.filter((i) => !i.Inv_SellDate && i.Inv_Status !== "Sold").length;
       const t12p = inv.filter((i) => new Date(i.Inv_PurchaseDate) >= t12Start).length;
       const profit = profitByTerritory.get(slug);
 
