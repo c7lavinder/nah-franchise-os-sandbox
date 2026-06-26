@@ -47,9 +47,18 @@ Everything above is **inbound** (MasterSuite → Supabase, read-only). The FranD
 - Validate with `npx tsx scripts/push-frandev-to-mastersuite.ts --dry-run` — this needs no dev write
   creds (reads `frandev_` schema from the read-only prod DB, which mirrors dev) and writes nothing.
 
-**Blocked on (Ben):** a **dev DB host + a user with INSERT/UPDATE on `frandev_*`**, plus IP
-whitelisting for whatever runs the push (Vercel for the cron, or the operator's machine for the
-script). Until those env vars are set, the cron no-ops with `skipped: dev_db_not_configured`.
+**Credentials:** resolves `MASTERSUITE_DEV_DB_*`, else falls back to the MasterSuite app's own
+`NAH_DB_*` env (`db-development.mastersuiteapp.com`, user `mastersuite`, GRANT ALL on `mastersuite`)
+already present in the operator's shell profile. A hard guard refuses any host matching `/prod/i`.
+
+**Status:** working. First full load (2026-06-06) = **73,960 rows across 87 tables, 0 errors**, run
+locally via the script. The dev DB whitelists the operator's machine; whether it whitelists Vercel
+egress (for the cron) is unconfirmed — GitHub Actions IPs are blocked.
+
+**Remaining frandev-side fixes (for Ben):** `frandev_candidate_intelligence`,
+`frandev_candidate_score_history`, `frandev_objection_registry` have `GhlContactId NOT NULL` but
+FranDev supplies no such value — make nullable to load them. `frandev_app_setting.SettingValue` has
+a CHECK constraint that rejects plain-string values.
 
 ## Current cleanup seams
 
