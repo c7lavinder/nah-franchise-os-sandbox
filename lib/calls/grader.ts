@@ -160,6 +160,7 @@ INSTRUCTIONS:
 - List 2-3 strengths and 2-3 improvements — each ONE short sentence (max 12 words).
 - Suggest one specific next action in one sentence.
 - Do NOT invent content not in the transcript.
+- Distinguish substance from filler: a real action item or commitment is specific, owned, and time-bound. Casual or tangential talk that fills spare time at the end of a call (e.g. a brief aside on an unrelated process) is neither an action item nor a deficiency — do not list it as a strength or an improvement.
 - Be critical but fair. Be concise — every word must earn its place.
 ${slug === "coaching_call" ? "- For coaching calls, do not default to pipeline criticism. If transcript evidence shows pipeline/deal count is already healthy, score that as context and make the next action about the true bottleneck discussed (cash flow, equity utilization, hiring, operations, marketing, or execution).\n- When a prior commitment was completed but the call identifies a next layer of improvement, describe it as a completed commitment plus refinement, not as a miss." : ""}
 
