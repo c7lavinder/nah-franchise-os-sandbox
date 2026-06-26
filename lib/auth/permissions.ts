@@ -48,18 +48,18 @@ export type PermissionAction =
 /** The permissions matrix: action → which roles are allowed */
 const PERMISSIONS: Record<PermissionAction, readonly UserRole[]> = {
   // ── Calls ──────────────────────────────────────────────
-  "calls:read": ["admin", "operator", "leadership", "specialist", "rep", "marketing"],
+  "calls:read": ["admin", "operator", "leadership", "specialist", "rep", "marketing", "member"],
   "calls:delete": ["admin", "operator"],
   "calls:override": ["admin", "operator"],
 
   // ── Contacts ───────────────────────────────────────────
-  "contacts:read": ["admin", "operator", "leadership", "specialist", "rep", "marketing"],
-  "contacts:write": ["admin", "operator", "rep"],
-  "contacts:messages": ["admin", "operator", "leadership", "specialist", "rep"],
+  "contacts:read": ["admin", "operator", "leadership", "specialist", "rep", "marketing", "member"],
+  "contacts:write": ["admin", "operator", "rep", "member"],
+  "contacts:messages": ["admin", "operator", "leadership", "specialist", "rep", "member"],
 
   // ── Pipeline ───────────────────────────────────────────
-  "pipeline:read": ["admin", "operator", "leadership", "rep", "marketing"],
-  "pipeline:write": ["admin", "operator", "rep"],
+  "pipeline:read": ["admin", "operator", "leadership", "rep", "marketing", "member"],
+  "pipeline:write": ["admin", "operator", "rep", "member"],
 
   // ── Workflows ──────────────────────────────────────────
   "workflows:read": ["admin", "operator", "leadership"],
@@ -67,14 +67,14 @@ const PERMISSIONS: Record<PermissionAction, readonly UserRole[]> = {
   "workflows:approve": ["admin"],
 
   // ── Scout ──────────────────────────────────────────────
-  "scout:use": ["admin", "operator", "leadership", "specialist", "rep", "marketing"],
+  "scout:use": ["admin", "operator", "leadership", "specialist", "rep", "marketing", "member"],
 
   // ── Daily HQ ───────────────────────────────────────────
-  "daily-hq:read": ["admin", "operator", "leadership", "specialist", "rep", "marketing"],
+  "daily-hq:read": ["admin", "operator", "leadership", "specialist", "rep", "marketing", "member"],
 
   // ── Notifications ──────────────────────────────────────
-  "notifications:read": ["admin", "operator", "leadership", "specialist", "rep", "marketing"],
-  "notifications:write": ["admin", "operator", "leadership", "specialist", "rep", "marketing"],
+  "notifications:read": ["admin", "operator", "leadership", "specialist", "rep", "marketing", "member"],
+  "notifications:write": ["admin", "operator", "leadership", "specialist", "rep", "marketing", "member"],
 
   // ── Settings (admin only) ──────────────────────────────
   "settings:read": ["admin"],
@@ -149,7 +149,15 @@ export function getPermissionsMatrix(): PermissionEntry[] {
 }
 
 /** All roles in display order */
-export const ALL_ROLES: readonly UserRole[] = ["admin", "operator", "leadership", "specialist", "rep", "marketing"];
+export const ALL_ROLES: readonly UserRole[] = [
+  "admin",
+  "operator",
+  "leadership",
+  "specialist",
+  "rep",
+  "marketing",
+  "member",
+];
 
 /** Human-readable role labels */
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -159,4 +167,5 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   specialist: "Specialist",
   rep: "Rep",
   marketing: "Marketing",
+  member: "Member",
 };

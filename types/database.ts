@@ -33,7 +33,7 @@ import type {
 } from "@/lib/intelligence/types";
 
 /** User roles in the system */
-export type UserRole = "rep" | "marketing" | "leadership" | "admin" | "operator" | "specialist";
+export type UserRole = "rep" | "marketing" | "leadership" | "admin" | "operator" | "specialist" | "member";
 
 /** Users table — app accounts, roles, GHL user mapping */
 export interface User {
