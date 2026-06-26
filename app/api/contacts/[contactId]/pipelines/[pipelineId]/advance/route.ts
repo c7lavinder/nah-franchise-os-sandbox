@@ -28,6 +28,48 @@ import { matchWorkflowTriggers } from "@/lib/workflows/trigger-matcher";
 import { checkExitConditions } from "@/lib/workflows/enrollment";
 import { isSubStageMoveLog } from "@/lib/contacts/stage-visual-state";
 
+/**
+ * Mark the sub-tasks of the stage being left as complete. When a prospect is
+ * advanced to the next stage, any of the leaving stage's sub-tasks that aren't
+ * already done get an auto-completion log (source 'api'), so they stop showing
+ * "Not started". Already-complete tasks are left alone — no duplicate logs.
+ */
+async function autoCompleteStageSubTasks(
+  supabase: ReturnType<typeof createServerClient>,
+  journeyPipelineStateId: string,
+  stageId: string,
+  loggerUserId: string,
+  timestamp: string
+): Promise<void> {
+  const { data: subTasks } = await supabase.from("pipeline_sub_tasks").select("id, state_type").eq("stage_id", stageId);
+
+  for (const task of subTasks ?? []) {
+    const { data: logs } = await supabase
+      .from("contact_sub_task_logs")
+      .select("state_advance, metadata")
+      .eq("journey_pipeline_state_id", journeyPipelineStateId)
+      .eq("sub_task_id", task.id)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    const latest = logs?.find((log) => !isSubStageMoveLog(log));
+    const alreadyComplete = task.state_type === "single" ? !!latest : latest?.state_advance === "second";
+    if (alreadyComplete) continue;
+
+    await supabase.from("contact_sub_task_logs").insert({
+      journey_pipeline_state_id: journeyPipelineStateId,
+      sub_task_id: task.id,
+      logger_user_id: loggerUserId,
+      source: "api",
+      state_advance: task.state_type === "two_state" ? "second" : null,
+      content_type: "note",
+      content_text: "Auto-completed when advanced to the next stage.",
+      created_at: timestamp,
+    });
+  }
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ contactId: string; pipelineId: string }> }
@@ -89,6 +131,9 @@ export async function POST(
         .eq("stage_id", nextStage.id)
         .order("sort_order")
         .limit(1);
+
+      // Auto-complete the leaving stage's sub-tasks before moving on.
+      await autoCompleteStageSubTasks(supabase, jps.id, jps.current_stage_id, user.id, now);
 
       await supabase
         .from("journey_pipeline_state")
@@ -203,6 +248,10 @@ export async function POST(
       .eq("stage_id", nextStage.id)
       .order("sort_order")
       .limit(1);
+
+    // Auto-complete the leaving stage's sub-tasks (logs live on the canonical
+    // row, which is what the completion check above reads) before moving on.
+    await autoCompleteStageSubTasks(supabase, canonical.id, canonical.current_stage_id, user.id, now);
 
     // Move every active jps row to the next stage; one history row per jps row.
     const jpsIds = jpsRows.map((r) => r.id);
