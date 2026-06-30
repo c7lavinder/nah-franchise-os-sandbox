@@ -164,10 +164,10 @@ export default function DailyHQPage() {
         )}
       </div>
 
-      {/* Workspace: list · thread · rail (responsive flex-wrap) */}
+      {/* Messaging center: list · thread (full width) */}
       <div className="flex flex-wrap items-start gap-[18px]">
         {/* Conversation list */}
-        <div className="hub-panel flex flex-col flex-[0_0_300px] h-[730px] max-md:flex-[1_1_100%]">
+        <div className="hub-panel flex flex-col flex-[0_0_300px] h-[600px] max-md:flex-[1_1_100%]">
           <InboxFilters
             filter={inboxFilter}
             onFilterChange={setInboxFilter}
@@ -187,7 +187,7 @@ export default function DailyHQPage() {
         </div>
 
         {/* Thread */}
-        <div className="hub-panel flex flex-col flex-[1_1_460px] min-w-[360px] h-[730px] max-md:flex-[1_1_100%]">
+        <div className="hub-panel flex flex-col flex-[1_1_460px] min-w-[360px] h-[600px] max-md:flex-[1_1_100%]">
           {selectedConv ? (
             <ConversationThread
               conversation={selectedConv}
@@ -204,14 +204,14 @@ export default function DailyHQPage() {
             </div>
           )}
         </div>
+      </div>
 
-        {/* Work rail */}
-        <div className="flex flex-[1_1_280px] min-w-[280px] flex-wrap content-start gap-3.5">
-          {sidebarError && <p className="basis-full text-xs text-[#EB5757]">{sidebarError}</p>}
-          <WorkQueuePanel items={workQueue} />
-          <TodayCalendar appointments={appointments} />
-          <TaskPanel tasks={tasks} onTaskUpdated={fetchSidebar} />
-        </div>
+      {/* Work rail — a row of three cards underneath the messaging center */}
+      <div className="mt-[18px] flex flex-wrap items-start gap-3.5">
+        {sidebarError && <p className="basis-full text-xs text-[#EB5757]">{sidebarError}</p>}
+        <WorkQueuePanel items={workQueue} />
+        <TodayCalendar appointments={appointments} />
+        <TaskPanel tasks={tasks} onTaskUpdated={fetchSidebar} />
       </div>
     </div>
   );
