@@ -1,7 +1,8 @@
 "use client";
 
-import { MessageSquare, Mail, Phone, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import type { GHLConversation } from "@/types/ghl";
+import { avatarColor, initials } from "./avatar";
 
 interface ConversationListProps {
   conversations: GHLConversation[];
@@ -11,15 +12,9 @@ interface ConversationListProps {
   hasMore: boolean;
 }
 
-function channelIcon(type: string) {
-  if (type.includes("PHONE") || type.includes("SMS")) return <MessageSquare size={14} className="text-[#2e7d32]" />;
-  if (type.includes("EMAIL")) return <Mail size={14} className="text-[#6a1b9a]" />;
-  if (type.includes("CALL")) return <Phone size={14} className="text-[#1565c0]" />;
-  return <MessageSquare size={14} className="text-[#64748b]" />;
-}
-
 function formatTime(timestamp: string | number): string {
   const date = typeof timestamp === "number" ? new Date(timestamp) : new Date(timestamp);
+  if (isNaN(date.getTime())) return "";
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -41,50 +36,46 @@ export default function ConversationList({
 }: ConversationListProps) {
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto">
-        {conversations.length === 0 && (
-          <p className="text-caption text-text-tertiary text-center py-8">No conversations</p>
-        )}
+      <div className="flex-1 overflow-y-auto px-2 py-1.5">
+        {conversations.length === 0 && <p className="text-center text-[13px] text-[#9aa3b0] py-8">No conversations</p>}
         {conversations.map((conv) => {
           const isSelected = conv.id === selectedId;
           const name = conv.contactName || conv.fullName || "Unknown";
-          const hasUnread = (conv.unreadCount ?? 0) > 0;
+          const unread = conv.unreadCount ?? 0;
+          const hasUnread = unread > 0;
+          const color = avatarColor(conv.contactId || conv.id);
 
           return (
             <button
               key={conv.id}
               onClick={() => onSelect(conv)}
-              className={`
-                w-full text-left px-3 py-2.5 border-b border-border-default transition-colors
-                ${isSelected ? "bg-bg-tertiary" : "hover:bg-bg-hover"}
-              `}
+              className={`w-full text-left flex items-center gap-[11px] px-[11px] py-2.5 rounded-[13px] mb-0.5 transition-colors ${
+                isSelected ? "bg-[#eaf4fd]" : "hover:bg-[#f3f7fb]"
+              }`}
             >
-              <div className="flex items-start gap-2">
-                {/* Channel icon */}
-                <div className="mt-0.5 flex-shrink-0">{channelIcon(conv.type)}</div>
+              {/* Avatar */}
+              <span
+                className="flex-shrink-0 w-[42px] h-[42px] rounded-full flex items-center justify-center text-white text-sm font-semibold"
+                style={{ backgroundColor: color }}
+              >
+                {initials(name)}
+              </span>
 
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`text-body-sm truncate ${hasUnread ? "font-semibold text-text-primary" : "text-text-primary"}`}>
-                      {name}
+              {/* Body */}
+              <span className="flex-1 min-w-0 block">
+                <span className="flex items-center justify-between gap-2">
+                  <span className="truncate text-[14.5px] font-semibold text-[#1c2430]">{name}</span>
+                  <span className="flex-shrink-0 text-xs text-[#9aa3b0]">{formatTime(conv.lastMessageDate)}</span>
+                </span>
+                <span className="flex items-center gap-2 mt-0.5">
+                  <span className="truncate text-[13px] text-[#8a94a3]">{conv.phone || conv.email || ""}</span>
+                  {hasUnread && (
+                    <span className="ml-auto flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-[9px] bg-[#0E96D8] text-white text-[11px] font-bold flex items-center justify-center">
+                      {unread}
                     </span>
-                    <span className="text-caption text-text-tertiary flex-shrink-0">
-                      {formatTime(conv.lastMessageDate)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {conv.phone && (
-                      <span className="text-caption text-text-tertiary truncate">{conv.phone}</span>
-                    )}
-                    {hasUnread && (
-                      <span className="ml-auto w-5 h-5 rounded-full bg-nah-orange text-white text-caption font-bold flex items-center justify-center flex-shrink-0">
-                        {conv.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
+                  )}
+                </span>
+              </span>
             </button>
           );
         })}
@@ -93,7 +84,7 @@ export default function ConversationList({
       {hasMore && onLoadMore && (
         <button
           onClick={onLoadMore}
-          className="py-2 text-caption text-text-tertiary hover:text-text-primary flex items-center justify-center gap-1 border-t border-border-default"
+          className="py-2 text-xs text-[#9aa3b0] hover:text-[#1c2430] flex items-center justify-center gap-1 border-t border-[#eef1f5]"
         >
           <ChevronDown size={12} /> Load more
         </button>

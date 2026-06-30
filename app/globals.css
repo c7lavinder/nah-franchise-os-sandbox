@@ -161,6 +161,30 @@
     color: #00a1e1;
   }
 
+  /* ─── MESSAGING HUB PANELS ─── */
+  /* List + thread surfaces (radius 18) and rail cards (radius 16). */
+  .hub-panel {
+    background: #fff;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(16, 40, 70, 0.06), 0 12px 28px -16px rgba(16, 40, 70, 0.2);
+  }
+  .hub-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(16, 40, 70, 0.06), 0 12px 28px -16px rgba(16, 40, 70, 0.2);
+  }
+  /* Detail-panel entrance for expandable calendar / task rows. */
+  @keyframes hub-detail-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .hub-detail {
+    background: #f7f9fc;
+    border-radius: 11px;
+    animation: hub-detail-in 0.18s ease;
+  }
+
   /* ─── BADGES ─── */
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-pill whitespace-nowrap;

@@ -141,10 +141,14 @@ export default function DailyHQPage() {
     : conversations;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-48px)]">
-      {/* Scorecards */}
-      <div className="py-2 flex-shrink-0 space-y-3">
-        {unreadCount > 0 && <span className="badge badge-hot">{unreadCount} unread</span>}
+    <div className="pb-6">
+      {/* Header: unread pill + KPI row + needs-review banner */}
+      <div className="py-2 space-y-3">
+        {unreadCount > 0 && (
+          <span className="inline-flex items-center rounded-full bg-[#F5A623] px-3.5 py-1.5 text-[13px] font-bold text-white shadow-[0_3px_8px_rgba(245,166,35,0.32)]">
+            {unreadCount} unread
+          </span>
+        )}
         <ScoreCardRow page="daily-hq" />
         {needsReviewCount > 0 && (
           <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
@@ -160,67 +164,54 @@ export default function DailyHQPage() {
         )}
       </div>
 
-      {/* Main content: Inbox (60%) + Right Panel (40%) */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-5 gap-4 min-h-0">
-        {/* INBOX — 3/5 width */}
-        <div className="lg:col-span-3 card-glass !p-0 flex min-h-0 overflow-hidden">
-          {/* Conversation list */}
-          <div
-            className="w-[280px] flex-shrink-0 flex flex-col min-h-0"
-            style={{ borderRight: "1px solid rgba(0,0,0,0.06)" }}
-          >
-            <InboxFilters
-              filter={inboxFilter}
-              onFilterChange={setInboxFilter}
-              onRefresh={fetchInbox}
-              loading={inboxLoading}
-              unreadCount={unreadCount}
-              searchQuery={inboxSearch}
-              onSearchChange={setInboxSearch}
-            />
-            {inboxError && (
-              <p className="px-3 py-2 text-caption text-danger border-b border-border-default">{inboxError}</p>
-            )}
-            <ConversationList
-              conversations={filteredConversations}
-              selectedId={selectedConv?.id ?? null}
-              onSelect={(conv) => setSelectedConv(conv)}
-              hasMore={conversations.length >= 50}
-            />
-          </div>
-
-          {/* Thread */}
-          <div className="flex-1 flex flex-col min-h-0">
-            {selectedConv ? (
-              <ConversationThread
-                conversation={selectedConv}
-                availableNumbers={availableNumbers}
-                onMessageSent={fetchInbox}
-              />
-            ) : (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="empty-state">
-                  <Bot size={48} className="empty-state-icon" />
-                  <p className="empty-state-title">No conversation selected</p>
-                  <p className="empty-state-text">Choose a conversation from the list</p>
-                </div>
-              </div>
-            )}
-          </div>
+      {/* Workspace: list · thread · rail (responsive flex-wrap) */}
+      <div className="flex flex-wrap items-start gap-[18px]">
+        {/* Conversation list */}
+        <div className="hub-panel flex flex-col flex-[0_0_300px] h-[730px] max-md:flex-[1_1_100%]">
+          <InboxFilters
+            filter={inboxFilter}
+            onFilterChange={setInboxFilter}
+            onRefresh={fetchInbox}
+            loading={inboxLoading}
+            unreadCount={unreadCount}
+            searchQuery={inboxSearch}
+            onSearchChange={setInboxSearch}
+          />
+          {inboxError && <p className="px-3.5 py-2 text-xs text-[#EB5757]">{inboxError}</p>}
+          <ConversationList
+            conversations={filteredConversations}
+            selectedId={selectedConv?.id ?? null}
+            onSelect={(conv) => setSelectedConv(conv)}
+            hasMore={conversations.length >= 50}
+          />
         </div>
 
-        {/* RIGHT PANEL — Priority Leads + Calendar + Tasks */}
-        <div className="lg:col-span-2 flex flex-col gap-4 min-h-0 overflow-y-auto">
-          {sidebarError && <p className="text-caption text-danger">{sidebarError}</p>}
+        {/* Thread */}
+        <div className="hub-panel flex flex-col flex-[1_1_460px] min-w-[360px] h-[730px] max-md:flex-[1_1_100%]">
+          {selectedConv ? (
+            <ConversationThread
+              conversation={selectedConv}
+              availableNumbers={availableNumbers}
+              onMessageSent={fetchInbox}
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="empty-state">
+                <Bot size={48} className="empty-state-icon" />
+                <p className="empty-state-title">No conversation selected</p>
+                <p className="empty-state-text">Choose a conversation from the list</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Work rail */}
+        <div className="flex flex-[1_1_280px] min-w-[280px] flex-wrap content-start gap-3.5">
+          {sidebarError && <p className="basis-full text-xs text-[#EB5757]">{sidebarError}</p>}
           <WorkQueuePanel items={workQueue} />
           <TodayCalendar appointments={appointments} />
           <TaskPanel tasks={tasks} onTaskUpdated={fetchSidebar} />
         </div>
-      </div>
-
-      {/* Removed bottom tasks — moved to right panel */}
-      <div className="mt-4 flex-shrink-0 lg:hidden">
-        <TaskPanel tasks={tasks} onTaskUpdated={fetchSidebar} />
       </div>
     </div>
   );

@@ -2,9 +2,10 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2, MessageSquare } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { GHLConversation, GHLMessage } from "@/types/ghl";
 import ReplyInput from "./ReplyInput";
+import { avatarColor, initials } from "./avatar";
 
 interface ConversationThreadProps {
   conversation: GHLConversation;
@@ -20,13 +21,24 @@ function isRealMessage(msg: GHLMessage): boolean {
   return typeof t === "string";
 }
 
-function formatMessageTime(dateAdded: string): string {
+/** Centered day-separator label, e.g. "Today" / "Thursday 9:41 AM". */
+function daySeparatorLabel(dateAdded: string): string {
   const d = new Date(dateAdded);
-  return (
-    d.toLocaleDateString([], { month: "short", day: "numeric" }) +
-    " " +
-    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  );
+  if (isNaN(d.getTime())) return "";
+  const now = new Date();
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / (1000 * 60 * 60 * 24));
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (diffDays === 0) return `Today ${time}`;
+  if (diffDays === 1) return `Yesterday ${time}`;
+  if (diffDays < 7) return `${d.toLocaleDateString([], { weekday: "long" })} ${time}`;
+  return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
+}
+
+function dayKey(dateAdded: string): string {
+  const d = new Date(dateAdded);
+  if (isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
 function isUuid(value: string) {
@@ -77,55 +89,67 @@ export default function ConversationThread({ conversation, availableNumbers, onM
   const fromNumbers = uniqueNumbers([assignedNumber, ...availableNumbers]);
   const canReply = Boolean(conversation.phone);
   const localContactId = isUuid(conversation.contactId) ? conversation.contactId : null;
+  const color = avatarColor(conversation.contactId || conversation.id);
+  const lastOutboundId = [...realMessages].reverse().find((m) => m.direction === "outbound")?.id;
 
   return (
     <div className="flex flex-col h-full">
       {/* Thread header */}
-      <div className="px-4 py-3 border-b border-border-default flex-shrink-0">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="text-body-sm font-semibold text-text-primary truncate">{contactName}</h3>
-            {conversation.phone && <span className="text-caption text-text-tertiary">{conversation.phone}</span>}
-            {conversation.email && !conversation.phone && (
-              <span className="text-caption text-text-tertiary">{conversation.email}</span>
-            )}
-          </div>
-          <div className="flex items-center gap-1 text-caption text-text-tertiary shrink-0">
-            <MessageSquare size={12} />
-            <span>{assignedNumber ?? "SignalHouse"}</span>
-          </div>
+      <div className="flex items-center gap-3 px-[18px] py-3.5 border-b border-[#eef1f5] flex-shrink-0">
+        <span
+          className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-white text-[13px] font-semibold"
+          style={{ backgroundColor: color }}
+        >
+          {initials(contactName)}
+        </span>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-[#1c2430] whitespace-nowrap truncate">{contactName}</h3>
+          {(conversation.phone || conversation.email) && (
+            <p className="text-xs text-[#8a94a3] mt-px truncate">{conversation.phone || conversation.email}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-[#9aa3b0] flex-shrink-0">
+          <span className="w-[7px] h-[7px] rounded-full bg-[#1FB6A8]" />
+          <span>SMS · {assignedNumber ? "Signal House" : "Signal House"}</span>
         </div>
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-3.5 bg-white flex flex-col">
         {loading && (
           <div className="flex items-center justify-center py-8">
-            <Loader2 size={20} className="animate-spin text-text-tertiary" />
+            <Loader2 size={20} className="animate-spin text-[#9aa3b0]" />
           </div>
         )}
 
         {!loading && realMessages.length === 0 && (
-          <p className="text-caption text-text-tertiary text-center py-8">No messages yet — send the first one below</p>
+          <p className="text-center text-[13px] text-[#9aa3b0] py-8">No messages yet — send the first one below</p>
         )}
 
-        {realMessages.map((msg) => {
+        {realMessages.map((msg, idx) => {
           const isOutbound = msg.direction === "outbound";
+          const prev = realMessages[idx - 1];
+          const showSeparator = !prev || dayKey(prev.dateAdded) !== dayKey(msg.dateAdded);
 
           return (
-            <div key={msg.id} className={`flex ${isOutbound ? "justify-end" : "justify-start"}`}>
+            <div key={msg.id} className="flex flex-col">
+              {showSeparator && (
+                <div className="self-center text-[11px] font-semibold text-[#9aa3b0] mt-3.5 mb-2">
+                  {daySeparatorLabel(msg.dateAdded)}
+                </div>
+              )}
               <div
-                className={`max-w-[80%] px-3 py-2 rounded-lg ${
+                className={`max-w-[70%] px-3 py-[7px] text-[13px] leading-[1.4] my-0.5 rounded-[18px] whitespace-pre-wrap break-words ${
                   isOutbound
-                    ? "bg-nah-orange/10 border border-nah-orange/20"
-                    : "bg-bg-tertiary border border-border-default"
+                    ? "self-end text-white rounded-br-[6px] bg-gradient-to-b from-[#1aa3e6] to-[#0E96D8]"
+                    : "self-start text-[#1c1c1e] rounded-bl-[6px] bg-[#E9E9EB]"
                 }`}
               >
-                <p className="text-body-sm text-text-primary whitespace-pre-wrap break-words">{msg.body}</p>
-                <p className={`text-caption mt-1 ${isOutbound ? "text-nah-orange/60" : "text-text-tertiary"}`}>
-                  {formatMessageTime(msg.dateAdded)}
-                </p>
+                {msg.body}
               </div>
+              {isOutbound && msg.id === lastOutboundId && (
+                <span className="self-end text-[11px] text-[#9aa3b0] mt-[3px]">Delivered</span>
+              )}
             </div>
           );
         })}
