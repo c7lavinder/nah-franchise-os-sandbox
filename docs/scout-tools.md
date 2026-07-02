@@ -1,5 +1,5 @@
 ---
-Last verified: 2026-05-29
+Last verified: 2026-07-02
 Source: code (lib/scout/tools.ts)
 ---
 
@@ -12,8 +12,8 @@ Scout has 38 tools defined in `lib/scout/tools.ts`, executed in `lib/scout/tool-
 ## Read tools (no side effects)
 
 - `get_entity` — full entity record for contact, territory, journey, or opportunity.
-- `query` — filtered rows for supported collections.
-- `aggregate` — counts, sums, averages, min/max, and group-bys.
+- `query` — filtered rows for supported collections. Acquisitions entities: `inventory` (post-purchase values; `Inv_*MostMature` columns are the current best ARV/budget/price), `properties` (raw per-stage evaluations), `calculations` (most-mature `Calculated_Arv` / `Calculated_ConstructionBudget` / `Calculated_MaxOffer` plus `Calculated_StageMaturity`), `royalty`.
+- `aggregate` — counts, sums, averages, min/max, and group-bys. ARV/budget aggregations use `calculations` fields or inventory `Inv_*MostMature` fields — Stage1 fields are the least mature estimates.
 - `search_contacts` — fuzzy contact lookup by name, email, or phone.
 - `get_pipeline` — pipeline structure and open opportunities.
 - `get_next_action` — recommendation engine for one contact.
