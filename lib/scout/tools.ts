@@ -44,7 +44,9 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
     description:
       "Filter a collection of records and return matching rows. Use this for 'show me X where Y' questions. " +
       "Supported entities: contacts, journeys, pipeline_entries, territories, opportunities, call_logs, alerts, objections, workflow_enrollments, " +
-      "inventory (ms_property_inventory — purchase/sell dates, status), properties (ms_properties — leads, addresses, categories), " +
+      "inventory (ms_property_inventory — purchase/sell dates, status, and post-purchase values where Inv_*MostMature columns are the current best ARV/construction budget/price), " +
+      "properties (ms_properties — leads, addresses, categories, raw per-stage evaluations), " +
+      "calculations (ms_property_calculations — the AUTHORITATIVE most-mature values per property: Calculated_Arv, Calculated_ConstructionBudget, Calculated_MaxOffer, Calculated_StageMaturity; use this for any 'what is the ARV/budget/max offer' question), " +
       "royalty (ms_property_royalty — paid/due acquisition, disposition, and delayed royalty calculations by PropertyId). " +
       "filters is a JSON array of {field, op, value} objects. Ops: eq, ne, gt, gte, lt, lte, in, ilike, is_null, not_null. " +
       "Each entity exposes its own filterable field set — if you use a wrong field, the error tells you what's allowed. " +
@@ -67,6 +69,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
             "workflow_enrollments",
             "inventory",
             "properties",
+            "calculations",
             "royalty",
           ],
         },
@@ -95,7 +98,9 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
       "objection frequency by type — all flow through here. Period filter: pass {field, from, to} to bound by a date column. " +
       "For form submission / new lead counts, use contacts filtered by ghl_date_added (the original GHL creation date). " +
       "For pipeline entry counts (leads that reached a specific stage), use pipeline_entries filtered by entered_pipeline_at. " +
-      "These are different: form submissions >> pipeline entries (many leads never make it to a first call).",
+      "These are different: form submissions >> pipeline entries (many leads never make it to a first call). " +
+      "For ARV / construction budget / max offer averages and sums, aggregate the calculations entity (Calculated_Arv, Calculated_ConstructionBudget, Calculated_MaxOffer) " +
+      "or, for purchased properties, inventory's Inv_*MostMature columns — never Stage1 fields, which are the least mature estimates.",
     input_schema: {
       type: "object",
       properties: {
@@ -113,6 +118,7 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
             "workflow_enrollments",
             "inventory",
             "properties",
+            "calculations",
             "royalty",
           ],
         },
