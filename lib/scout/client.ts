@@ -265,7 +265,7 @@ KEY TOOLS:
 - query(entity="properties"): Ad-hoc queries on property leads (filter by LeadCategory, LeadType, TerritorySlug)
 - query(entity="calculations"): Per-property most-mature financials — Calculated_Arv, Calculated_ConstructionBudget, Calculated_MaxOffer, Calculated_StageMaturity (filter by PropertyId)
 - get_entity(type="territory"): Includes performanceSummary with T12 purchases, sales, and high performer status
-- describe_data: List available data tables and their key columns — use when unsure what data you have access to
+- describe_data: List available data tables and their key columns — use when unsure what data you have access to. For the property tables it returns per-field meanings with use_when / do_not_use_for / prefer_instead guidance — check it before answering questions that hinge on which of several similar fields is correct
 - get_contact_calls: Get a contact's last 10 calls with grades, summaries, and pending action items
 - get_contact_insights: Team-level analytics by lens (recent_calls, momentum, at_risk, stalling, most_engaged, top_performers)
 

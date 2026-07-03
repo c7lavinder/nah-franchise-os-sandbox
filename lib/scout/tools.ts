@@ -811,7 +811,10 @@ export const SCOUT_TOOLS: ScoutToolDefinition[] = [
       "List all 156 database tables with their columns and row counts. Use this BEFORE claiming you don't have " +
       "access to certain data — check first. Covers: contacts, territories, calls, pipeline stages, EOS, " +
       "MasterSuite properties, intelligence scores, Trainual, compliance, workflows, and more. " +
-      "Pass a table name for detailed column info, or omit to see the full schema overview.",
+      "Pass a table name for detailed column info, or omit to see the full schema overview. " +
+      "For the acquisitions property tables (ms_properties, ms_property_calculations, ms_property_inventory) the detail view " +
+      "includes per-field MEANINGS with use_when / do_not_use_for / prefer_instead guidance — check it whenever you are " +
+      "unsure which of several similar fields (e.g. multiple ARV columns) answers the question.",
     input_schema: {
       type: "object",
       properties: {
