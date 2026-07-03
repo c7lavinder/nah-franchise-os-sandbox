@@ -11,6 +11,10 @@ const REQUIRED_CASES: ScoutSmokeEvalId[] = [
   "territory_performance",
   "franchisee_prospect_ambiguity",
   "prompt_injection_notes",
+  "property_arv_maturity",
+  "construction_budget_maturity",
+  "purchased_property_profit",
+  "field_meaning_lookup",
 ];
 
 describe("Scout smoke eval scaffold", () => {

@@ -34,6 +34,7 @@ import {
   resolveUserByName,
 } from "./contact-utils";
 import { parseJsonField } from "./input-parser";
+import { getTableDictionary, dictionaryTableNames, formatDictionaryForTool } from "./data-dictionary";
 
 /** The result of executing a tool — either data or a drafted action */
 export interface ToolExecutionResult {
@@ -2531,6 +2532,21 @@ async function executeDescribeData(input: Record<string, unknown>): Promise<Tool
       // Use cached count from file
     }
 
+    // Merge in field-level semantics when a data dictionary exists for this table
+    const dict = getTableDictionary(table);
+    if (dict) {
+      const { description, fieldMeanings } = formatDictionaryForTool(dict);
+      return {
+        data: JSON.stringify({
+          table,
+          rowCount,
+          description,
+          fieldMeanings,
+          note: "fieldMeanings is authoritative — when a field says prefer_instead or do_not_use_for, follow it.",
+        }),
+      };
+    }
+
     return {
       data: JSON.stringify({
         table,
@@ -2541,9 +2557,15 @@ async function executeDescribeData(input: Record<string, unknown>): Promise<Tool
   }
 
   // Overview mode — return the full condensed schema (all 156 tables)
+  const withDictionaries = dictionaryTableNames();
   return {
     data: JSON.stringify({
       totalTables: schema.tables.length,
+      tablesWithFieldDictionaries: withDictionaries,
+      note:
+        withDictionaries.length > 0
+          ? "Tables listed in tablesWithFieldDictionaries have per-field meaning/usage guidance — call describe_data with that table name before answering questions about unfamiliar fields."
+          : undefined,
       schema: schema.raw,
     }),
   };
