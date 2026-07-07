@@ -1,69 +1,80 @@
-# Session Handoff — 2026-06-26 — Session 65
+# Session Handoff — 2026-07-08 — Session 66
 
 ## Status
 
-Phase: FranDev → MasterSuite outbound data sync (built, live, automated) / Health: Green / Duration: full session
+Phase: FranDev native rebuild INSIDE MasterSuite — Phase 2 read-only screens complete, PR open / Health: Green / Duration: full session
+
+**Important:** this session's work lives in the **MasterSuite repo**, not this sandbox. Worktree: `/Users/coreylavinder/Mastersuite/mastersuite-frandev-wt`, branch `frandev-module`, **PR #103** → https://github.com/NewAgainHouses/mastersuite/pull/103. Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28657` in `apps/analysis-api/MasterSuite/` (creds: `eval "$(grep '^export NAH_DB' ~/.zshrc)"` first — launchSettings.json has an empty password that overrides the shell, hence `--no-launch-profile`).
 
 ## What Was Built This Session
 
-- **Outbound FranDev → MasterSuite dev sync** — the first and only WRITE path (every other `lib/mastersuite/sync-*` is inbound/read-only). Schema-driven: resolves all 114 `frandev_*` tables, maps snake_case→PascalCase columns over the intersection at runtime, upserts by `Id`.
-  - `lib/mastersuite/write-client.ts` — separate dev-DB pool; resolves `MASTERSUITE_DEV_DB_*` OR falls back to the MasterSuite app's own `NAH_DB_*` env; hard guard refuses any host matching `/prod/i` (dev-only).
-  - `lib/mastersuite/push-frandev.ts` — the engine (FK-checks-off single connection for circular deps, 512KB byte-budgeted batches, split-retry floored at 25 rows, timestamptz→datetime normalization, varchar/char truncation, pre-skip of unsatisfiable required columns).
-  - `scripts/push-frandev-to-mastersuite.ts` — runner (`--dry-run` / `--tables=` / `--limit=`).
-  - `app/api/cron/push-frandev/route.ts` + `vercel.json` cron `30 11 * * *` (6:30am Central CDT).
-  - `lib/env.ts` — registered `MASTERSUITE_DEV_DB_*` keys; `.env.local` — commented dev placeholders.
-- **Added 5 `MASTERSUITE_DEV_DB_*` env vars to Vercel production** (= the `NAH_DB_*` values) and redeployed.
-- **PR for Ben (MasterSuite repo): NewAgainHouses/mastersuite#62** — migration `database/migrations/2026-06-26 - FranDev sync fixes.sql` to unblock the 4 tables that can't load.
+- **`MasterSuite.Modules.Frandev` project** — replaced the HelloWorld stub; mirrors Gunner's current module shape (partial `FrandevService` split by domain, `IFrandevService`, POCOs in `Entities/Frandev/`, Razor Pages inheriting shared `FrandevPageModel` auth base). Registered in DI + solution + ServiceEngine refs.
+- **8 read-only screens**, all verified against live dev-DB data (fed by the nightly sync):
+  1. `/frandev` — dashboard (contact/journey/call counts, journeys by stage)
+  2. `/frandev/pipeline` — Path to Ownership (stage bar per pipeline w/ counts + click-filter, urgency pills Fresh/At Risk/Losing/Won computed in SQL, search/sort/paging, expandable quick panel via JSON handler)
+  3. `/frandev/journey/{slug|uuid}` — journey detail (pipeline position tracks, AI journey brief w/ next actions, graded calls, tasks, stage history, EAV candidate profile w/ source badges, documents, members sidebar; tabs Overview/Profile/Documents)
+  4. `/frandev/calls` — category panel board (slug→title-keyword categorization, week/month/all filter, bad-call + needs-review flags)
+  5. `/frandev/call/{id}` — call detail (summary bullets + full-text toggle, rubric grade w/ per-criterion bars + rationale, speaker-turn transcript parser, action items, participants, journey links)
+  6. `/frandev/workflows` + `/frandev/workflow/{id}` — catalog w/ status tabs + health grades; day-by-day execution blueprint w/ DRC badges (needs-approval vs auto-fires)
+  7. **Revenue card** on journey Overview — FIRST live-native read: queries `PropertyInventory`/`PropertySummaries`/`PropertyRoyalty` in place (no ms\_ synced copies); pace badge ($460k/10yr), Fee/Paid/Due pills, $500k goal bar w/ network-median marker
+- **Launch plumbing**: `MasterSuitePermissions.Frandev` + `/frandev` middleware gate in `Program.cs` (mirrors Gunner gate; local dev skips) + idempotent migration `2026-07-08 - FranDev permission + nav item.sql` (UserPermissionNames row + top-level nav `/v2/frandev` seeded `Enabled=0`) — **already applied to the dev DB**.
+- **PR #103 opened** with full screen table + Ben's to-do list.
 
 ## What Is Confirmed Working
 
-- **Full live load into MasterSuite dev: 73,725 rows across 86 tables, 0 errors** (verified row counts on `db-development.mastersuiteapp.com`).
-- **Nightly Vercel cron proven** — manually triggered `/frandev/api/cron/push-frandev` on prod; ran server-side in 62s, success, logged in `cron_job_log` (job_name `push-frandev`). Confirms Vercel IS whitelisted on the dev DB.
-- Dev write creds are the app's own `NAH_DB_*` (user `mastersuite`, GRANT ALL on `mastersuite`) — already in the shell profile. NOT blocked on Ben for data.
-- `npx tsc --noEmit` clean; ESLint clean; 222 tests pass (pre-commit).
+- All 8 screens return HTTP 200 with real data: 3,175 contacts / 3,136 active journeys on dashboard; 5 pipelines w/ correct stage counts; joanne-mccann journey (20 graded calls A–D, 27 profile fields, brief w/ actions); calls board 200 calls across 6 panels; call detail w/ grade B + 6 criteria + 106 transcript turns; 20 workflows, New Lead 30-Day = 18 steps/11 days; Revenue card $15,694 paid / Ahead of pace / median $27,500.
+- Build clean (`0 Error(s)`), 5 commits pushed to `frandev-module`.
+- Dev-DB migration applied + verified (permission row + disabled nav row).
 
 ## What Is Broken or Incomplete
 
-- 4 `frandev_` tables don't load yet (candidate_intelligence 1987, candidate_score_history 1854, objection_registry 104, app_setting 27) — fixed by PR #62; pending Ben merge + run on prod — Medium
-- ~579 `contact_profile_field` rows skipped by the 25-row split-retry floor (a few bad rows take their chunk) — Low
-- Nightly cron timing drifts in winter: `30 11` UTC = 6:30am CDT now, becomes 5:30am CST after Nov DST change — bump to `30 12` then — Low
+- FranDev migrations NOT run on **production** MariaDB (Ben's step; dev has them) — High (blocks any prod deploy)
+- `contacts.franchise_fee` has NO MySQL home (not in frandev_contact, not in MS tables — deliberate dedup left it orphaned); Revenue pill shows "—" — Medium (Ben decides ownership)
+- Nav item seeded disabled + no per-user permission grants yet (by design until launch) — Low
+- All write actions (stage advance/revert/drop, call upload, workflow editing, GHL pushes, Scout) not built — by design; **writes require the source-of-truth conversation with Ben first** (nightly sync would overwrite MySQL edits today)
+- Messaging Hub skipped: only 9 SMS rows synced (messages still live in GHL) — Low
+- Sandbox repo untracked leftovers (docs/core-workflows.md, docs/workflows-catalog.md, docs/design_handoff_messaging_hub/, modified .claude/settings.json) still need cleanup — Low
 
 ## Decisions Made
 
-- Write to MasterSuite **dev** (not prod), running after the nightly prod→dev refresh; re-pushes fresh daily — Corey
-- Scope = **everything** (all FranDev tables) — Corey
-- Nightly automation via **Vercel cron** (over local launchd) — Corey
-- Candidate tables: add conventional `ContactId` FK + relax `GhlContactId` to NULL (vs. the original GHL-pin design) — proposed to Ben in PR #62
+- FranDev = its own module (`MasterSuite.Modules.Frandev`) at route `/frandev` — Corey
+- Build as `MasterSuite.Modules.*` project, NOT by growing the old ServiceEngine stub (Gunner outgrew that pattern) — Corey approved via "keep going"
+- Read-only Phase 2 slices before any writes — implicit in phased plan Corey approved
+- Scout will extend Chiron (MasterSuite's existing Claude integration) instead of greenfield — reaffirmed
+- uuid PKs typed as `Guid` in entities (MySqlConnector returns CHAR(36) as Guid); browser ids validated with `Guid.TryParse` before SQL interpolation — Claude, pattern-level
 
 ## Files Created
 
-- `lib/mastersuite/write-client.ts`
-- `lib/mastersuite/push-frandev.ts`
-- `scripts/push-frandev-to-mastersuite.ts`
-- `app/api/cron/push-frandev/route.ts`
-- (MasterSuite repo) `database/migrations/2026-06-26 - FranDev sync fixes.sql`
+(all in MasterSuite repo, `apps/analysis-api/` unless noted)
+
+- `MasterSuite.Modules.Frandev/` — `MasterSuite.Modules.Frandev.csproj`, `FrandevService.cs`, `IFrandevService.cs`, `FrandevService.{Dashboard,Pipeline,Journey,Calls,Workflows,Revenue}.cs`
+- `Entities/Frandev/` — `FrandevDashboardSummary.cs`, `FrandevStageCount.cs`, `FrandevStageBarItem.cs`, `FrandevLeadRow.cs`, `FrandevQuickPanel.cs`, `FrandevJourneyDetail.cs`, `FrandevCallDetail.cs`, `FrandevWorkflow.cs`, `FrandevRevenueInfo.cs`
+- `MasterSuite/Pages/Frandev/` — `FrandevPageModel.cs`, `Pipeline.cshtml(.cs)`, `Journey.cshtml(.cs)`, `Calls.cshtml(.cs)`, `Call.cshtml(.cs)`, `Workflows.cshtml(.cs)`, `Workflow.cshtml(.cs)`
+- `database/migrations/2026-07-08 - FranDev permission + nav item.sql`
 
 ## Files Modified
 
-- `lib/env.ts` (added `MASTERSUITE_DEV_DB_*` keys)
-- `vercel.json` (added `push-frandev` cron)
-- `docs/mastersuite-sync-boundaries.md` (registered the outbound sync)
-- `.env.local` (local, gitignored — commented dev-DB placeholders)
-- Vercel production env (added 5 `MASTERSUITE_DEV_DB_*` vars) + redeployed
+- `MasterSuite/Pages/Frandev/FrandevIndex.cshtml(.cs)` — stub → dashboard
+- `MasterSuite.sln`, `ServiceEngine/ServiceEngine.csproj`, `ServiceEngine/CrossProjectConfigurationHelpers/DependencyInjectionConfig.cs`
+- `MasterSuite/Program.cs` — /frandev permission gate
+- `Entities/Constants/MasterSuitePermissions.cs` — Frandev const
 
 ## Files Deleted
 
-- None (temp scripts/logs were scratch, removed after use)
+- `ServiceEngine/Services/FrandevService.cs` (HelloWorld stub)
+- `DataAccess/DataAccess.Frandev.cs` (empty stub)
 
 ## Open Issues Carried Forward
 
-- Ben to merge **PR #62** and run the migration on MasterSuite production → the 4 remaining tables then load automatically — Medium
-- November DST: bump cron `30 11` → `30 12` to keep 6:30am Central — Low
-- Optional: draft a Slack/email note to Ben with the PR link — Low
+- Ben: run 9 FranDev migrations + the new permission/nav migration on production MariaDB — High
+- Ben: decide franchise-fee ownership (no MySQL home) + LegalEntity / frandev_franchise_owner items flagged in migrations — Medium
+- Source-of-truth flip plan (per-domain) needed before any write features — High (gates Phase 3)
+- Scout-on-Chiron design (incl. RAG without pgvector) — Medium
+- Sandbox repo untracked docs cleanup — Low
 
 ## Exact Next Step
 
-When Ben merges PR #62 and runs the migration on production, run `npx tsx scripts/push-frandev-to-mastersuite.ts --tables=candidate_intelligence,candidate_score_history,objection_registry,app_settings` (or wait for the 6:30am cron) and confirm those 4 tables load with `ContactId` populated.
+Check PR #103 for Ben's feedback; if none yet, build the FranDev home page into a proper landing screen with navigation tiles (worktree `/Users/coreylavinder/Mastersuite/mastersuite-frandev-wt`, branch `frandev-module`).
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -71,6 +82,6 @@ When Ben merges PR #62 and runs the migration on production, run `npx tsx script
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: When Ben merges PR #62 and runs the migration on production, run the FranDev push scoped to candidate_intelligence,candidate_score_history,objection_registry,app_settings (or wait for the 6:30am cron) and confirm those 4 tables load with ContactId populated.
+Then: Check PR #103 for Ben's feedback; if none yet, build the FranDev home page into a proper landing screen with navigation tiles (worktree /Users/coreylavinder/Mastersuite/mastersuite-frandev-wt, branch frandev-module).
 
 ---
