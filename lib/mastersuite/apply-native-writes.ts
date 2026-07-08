@@ -68,6 +68,12 @@ interface ScoutMemoryMergePayload {
   requested_by: string;
 }
 
+interface MarkSmsReadPayload {
+  user_id: string;
+  conversation_key: string;
+  read_at: string; // "YYYY-MM-DD HH:MM:SS" UTC
+}
+
 export interface ApplyResult {
   pending: number;
   applied: number;
@@ -102,6 +108,8 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applyCreateTask(pool, JSON.parse(row.PayloadJson) as CreateTaskPayload);
       } else if (row.WriteType === "scout_memory_merge") {
         await applyScoutMemoryMerge(JSON.parse(row.PayloadJson) as ScoutMemoryMergePayload);
+      } else if (row.WriteType === "mark_sms_read") {
+        await applyMarkSmsRead(JSON.parse(row.PayloadJson) as MarkSmsReadPayload);
       } else {
         throw new Error(`Unknown WriteType '${row.WriteType}'`);
       }
@@ -460,6 +468,36 @@ async function applyScoutMemoryMerge(payload: ScoutMemoryMergePayload): Promise<
     { onConflict: "user_id" }
   );
   if (error) throw new Error(`scout_user_memory upsert failed: ${error.message}`);
+}
+
+/**
+ * Read-mark replay: land the native "opened this thread" mark in Supabase so
+ * the app's inbox stops showing the conversation as unread. Newest read_at
+ * wins — if the user also opened the thread in this app after the native
+ * open, the later mark is kept.
+ */
+async function applyMarkSmsRead(payload: MarkSmsReadPayload): Promise<void> {
+  if (!payload.user_id || !payload.conversation_key || !payload.read_at)
+    throw new Error("mark_sms_read payload missing user_id/conversation_key/read_at");
+  const supabase = getServiceSupabase();
+  const readAtIso = new Date(payload.read_at.replace(" ", "T") + "Z").toISOString();
+  const { data: existing } = await supabase
+    .from("sms_conversation_reads")
+    .select("read_at")
+    .eq("user_id", payload.user_id)
+    .eq("conversation_key", payload.conversation_key)
+    .maybeSingle();
+  const current = (existing as { read_at?: string } | null)?.read_at;
+  if (current && new Date(current).getTime() >= new Date(readAtIso).getTime()) return; // app-side mark is newer
+  const { error } = await supabase.from("sms_conversation_reads").upsert(
+    {
+      user_id: payload.user_id,
+      conversation_key: payload.conversation_key,
+      read_at: readAtIso,
+    },
+    { onConflict: "user_id,conversation_key" }
+  );
+  if (error) throw new Error(`sms_conversation_reads upsert failed: ${error.message}`);
 }
 
 function attributed(text: string | null, username: string): string {
