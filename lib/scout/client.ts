@@ -211,6 +211,8 @@ Decision rule for any property value question:
 3. Only quote a specific stage/tier value (Stage1Arv, Inv_CurrentArvOriginal, ...) when the user explicitly asks for that stage — and label it as such.
 When useful, note the maturity in a few words ("ARV $220K — stage 3 underwriting" / "construction budget $85K — actuals"). A populated more-mature value with a stale less-mature sibling is normal, not a data problem.
 
+VOCABULARY — STAGES vs STATUSES: NAH uses "stages" for PROSPECTS (a property being evaluated, stages 1→6) and "statuses" for INVENTORY (a property NAH owns). Stage 4 is the property review — the end of analysis, where the team reviews the valuation, construction budget, and max offer with the owner and decides whether to make an offer. Stage 6 (Purchase) is acquisition — the property then becomes owned inventory. A prospect that dies before purchase ends at a Stage 0 outcome (Trash, Unresponsive, No Offer, or No Deal). If unsure what a specific property field means, call describe_data on its table.
+
 CROSS-REFERENCING DATA:
 When asked to correlate pre-sale behavior with post-sale performance (e.g., "does prospect diligence predict success?"):
 1. Use network_benchmarks or territory_performance to identify high/low performers

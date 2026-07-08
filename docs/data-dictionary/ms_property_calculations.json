@@ -3,7 +3,7 @@
   "scout_entity": "calculations",
   "description": "Per-property computed roll-ups from the MasterSuite calculation engine. Calculated_Arv, Calculated_ConstructionBudget, and Calculated_MaxOffer are the authoritative most-mature underwriting values for each property, blending automated Stage 1 estimates, analyst Stage 2 review, and manual Stage 3 overrides.",
   "source_system": "MasterSuite PropertyCalculations (calc engine output)",
-  "last_verified": "2026-07-02",
+  "last_verified": "2026-07-08",
   "columns": {
     "PropertyId": {
       "meaning": "Unique ID of the property this row belongs to; one row of calculations per property.",
@@ -41,7 +41,7 @@
     "Calculated_Arv": {
       "meaning": "The property's after-repair value from the most mature stage available: a Stage 3 manual ARV wins, then Stage 2 analyst ARV, then the automated Stage 1 estimate.",
       "units": "USD",
-      "use_when": "Any question about a property's ARV \u2014 this is the authoritative single number.",
+      "use_when": "Any question about a property's ARV — this is the authoritative single number.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "Formulas/Arv.cs",
@@ -64,7 +64,7 @@
       "meaning": "The percentage of ARV the business is willing to have into the deal (offer plus construction), expressed as a decimal like 0.75; taken from the most mature source: Stage 3 manual entry, a max-offer override, market-adjusted Stage 3, then Stage 2, then Stage 1.",
       "units": "ratio",
       "use_when": "Explaining how a max offer was derived (MaxOffer = ARV x RiskFactor - ConstructionBudget).",
-      "do_not_use_for": "A 0-100 risk 'score' \u2014 it is a fraction of ARV, not a danger rating.",
+      "do_not_use_for": "A 0-100 risk 'score' — it is a fraction of ARV, not a danger rating.",
       "prefer_instead": null,
       "source_ref": "Formulas/RiskFactor.cs",
       "confidence": "high",
@@ -118,7 +118,7 @@
     "Calculated_ConstructionBudget": {
       "meaning": "The estimated rehab budget from the most mature source: a Stage 3 manually entered budget wins; otherwise rehab level (1-5) x adjusted square feet x the per-square-foot budget rate.",
       "units": "USD",
-      "use_when": "Any question about a property's construction/rehab budget \u2014 this is the authoritative single number.",
+      "use_when": "Any question about a property's construction/rehab budget — this is the authoritative single number.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "Formulas/ConstructionBudget.cs",
@@ -173,7 +173,7 @@
     "Calculated_MaxOffer": {
       "meaning": "The maximum offer for the property: (ARV x risk factor) - construction budget, unless a Stage 3 manual max offer overrides it.",
       "units": "USD",
-      "use_when": "Any question about what to offer on a property \u2014 this is the authoritative number.",
+      "use_when": "Any question about what to offer on a property — this is the authoritative number.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "Formulas/MaxOffer.cs",
@@ -204,15 +204,15 @@
       "question": null
     },
     "Calculated_MaxOffer_Auction_Price_Ratio": {
-      "meaning": "Appears intended as the max offer compared to the auction minimum price, but no code in the current calculation engine writes it; it is likely always zero or stale.",
+      "meaning": "For auction properties, the ratio of the max offer to the price — used to prioritize which auctions are worth the most attention (those most likely to be purchasable). Currently used for auction properties.",
       "units": "ratio",
-      "use_when": null,
-      "do_not_use_for": "Any live analysis until confirmed it is still populated.",
+      "use_when": "Prioritizing auction properties by how likely they are to be a viable purchase.",
+      "do_not_use_for": null,
       "prefer_instead": "Calculated_MaxOffer_Price_Ratio",
       "source_ref": null,
-      "confidence": "low",
-      "status": "draft",
-      "question": "I think Calculated_MaxOffer_Auction_Price_Ratio was the max offer divided by the auction minimum price and is no longer being calculated \u2014 right, or is it still in use somewhere?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "Calculated_NahProfit": {
       "meaning": "Projected flip profit if bought at max offer and sold the NAH way (no listing agent): ARV minus construction budget, max offer, quiet costs, and finance cost, with the agent commission added back.",
@@ -226,7 +226,7 @@
       "question": null
     },
     "Calculated_NahConstructionProfitRatio": {
-      "meaning": "Construction budget divided by NAH profit \u2014 how many dollars of rehab work are needed per dollar of profit (lower is better).",
+      "meaning": "Construction budget divided by NAH profit — how many dollars of rehab work are needed per dollar of profit (lower is better).",
       "units": "ratio",
       "use_when": "Screening for deals where heavy construction risk isn't justified by the profit.",
       "do_not_use_for": null,
@@ -248,7 +248,7 @@
       "question": null
     },
     "ConstructionCostPerSquareFoot": {
-      "meaning": "Construction budget divided by adjusted square footage \u2014 planned rehab spend per square foot.",
+      "meaning": "Construction budget divided by adjusted square footage — planned rehab spend per square foot.",
       "units": "USD",
       "use_when": "Comparing rehab intensity across properties.",
       "do_not_use_for": null,
@@ -259,7 +259,7 @@
       "question": null
     },
     "Calculated_ArvPerAdjustedSqFt": {
-      "meaning": "ARV divided by adjusted square footage \u2014 the after-repair value per square foot.",
+      "meaning": "ARV divided by adjusted square footage — the after-repair value per square foot.",
       "units": "USD",
       "use_when": "Comparing ARV pricing across properties or against comps.",
       "do_not_use_for": null,
@@ -303,18 +303,18 @@
       "question": null
     },
     "Calculated_MlsProfit": {
-      "meaning": "Projected flip profit if the property were bought at max offer, rehabbed, and resold through the MLS: ARV minus construction budget, max offer, quiet costs (including agent commission), total cost of money, and finance cost.",
+      "meaning": "An MLS-scenario profit figure whose exact formula is unclear; not used for profit reporting.",
       "units": "USD",
       "use_when": "Quoting expected profit on an MLS resale scenario; it is the profit figure used for return on investment.",
-      "do_not_use_for": "Actual profit on owned inventory (use Calculated_Inv_Profit).",
-      "prefer_instead": null,
+      "do_not_use_for": "Reporting deal profit — use the most-mature inventory profit instead.",
+      "prefer_instead": "ms_property_calculations.Calculated_Inv_Profit (most-mature realized profit)",
       "source_ref": "Formulas/MlsProfit.cs",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think Calculated_MlsProfit means the projected profit if we resold through the MLS with agent commissions and loan repayment (principal plus interest) taken out, which is why it runs well below NahProfit \u2014 right, or what is it?"
+      "status": "confirmed",
+      "question": null
     },
     "Calculated_MlsConstructionProfitRatio": {
-      "meaning": "Construction budget divided by MLS profit \u2014 rehab dollars needed per dollar of MLS-scenario profit (lower is better).",
+      "meaning": "Construction budget divided by MLS profit — rehab dollars needed per dollar of MLS-scenario profit (lower is better).",
       "units": "ratio",
       "use_when": "Screening MLS-resale deals for construction-heavy, low-profit risk.",
       "do_not_use_for": null,
@@ -336,15 +336,15 @@
       "question": null
     },
     "Calculated_IntangibleScore": {
-      "meaning": "The sum of the plus/minus adjustment points entered for the property's intangible factors (everything except the comp-risk intangible); empty if no intangibles were scored.",
+      "meaning": "Score for a property's intangible factors, which also includes the comp risk score.",
       "units": "score",
       "use_when": "Explaining why the risk factor was nudged up or down by property quirks.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "Formulas/IntangibleScore.cs",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think Calculated_IntangibleScore means the total of the plus/minus points a rep enters for property quirks like a busy road or odd layout, which then adjusts the risk factor \u2014 right, or what is it?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "Calculated_ArvRiskFactor": {
       "meaning": "The ARV-size component of the risk factor: a base percentage that steps up with a larger ARV, capped at a configured maximum.",
@@ -413,7 +413,7 @@
       "question": null
     },
     "Calculated_AdjustedRiskFactor": {
-      "meaning": "The sum of the ARV, location, intangible, and comp risk components, capped at the configured maximum \u2014 the same construction as the Stage 2 risk factor.",
+      "meaning": "The sum of the ARV, location, intangible, and comp risk components, capped at the configured maximum — the same construction as the Stage 2 risk factor.",
       "units": "ratio",
       "use_when": "Auditing the combined pre-override risk factor.",
       "do_not_use_for": "The final risk factor used in offers.",
@@ -426,7 +426,7 @@
     "Calculated_AdjustedSqFt": {
       "meaning": "The property's effective square footage for valuation: full credit for main living area, partial configured credit for finished basement/attic space and unfinished space.",
       "units": "count",
-      "use_when": "Any per-square-foot calculation or size comparison \u2014 this is the size number the whole engine uses.",
+      "use_when": "Any per-square-foot calculation or size comparison — this is the size number the whole engine uses.",
       "do_not_use_for": "The raw tax-record square footage.",
       "prefer_instead": null,
       "source_ref": "Formulas/AdjustedSqFt.cs",
@@ -490,7 +490,7 @@
       "question": null
     },
     "Calculated_TotalQuietCosts": {
-      "meaning": "The sum of buying, closing, MLS listing, and holding costs \u2014 the 'quiet' costs beyond purchase and construction.",
+      "meaning": "The sum of buying, closing, MLS listing, and holding costs — the 'quiet' costs beyond purchase and construction.",
       "units": "USD",
       "use_when": "Any question about total transaction/overhead costs in a deal analysis.",
       "do_not_use_for": null,
@@ -504,7 +504,7 @@
       "meaning": "Total expected loan repayment: the amount financed (principal) plus the finance cost (interest, points, and fees).",
       "units": "USD",
       "use_when": "Showing the total borrowed-money obligation for the deal.",
-      "do_not_use_for": "Just the borrowing cost \u2014 this includes principal; use Calculated_FinanceCost for cost alone.",
+      "do_not_use_for": "Just the borrowing cost — this includes principal; use Calculated_FinanceCost for cost alone.",
       "prefer_instead": null,
       "source_ref": "Formulas/TotalCostOfMoney.cs",
       "confidence": "high",
@@ -525,7 +525,7 @@
     "Calculated_StageMaturity": {
       "meaning": "How far the property's analysis has progressed: 3 if any Stage 3 (manual/contract-level) data exists, 2 if any Stage 2 (analyst) data exists, otherwise 1 (automated only).",
       "units": "score",
-      "use_when": "Telling how trustworthy the calculated values are \u2014 higher stage means more human review.",
+      "use_when": "Telling how trustworthy the calculated values are — higher stage means more human review.",
       "do_not_use_for": "Pipeline status (use ms_properties.Status).",
       "prefer_instead": null,
       "source_ref": "Formulas/StageMaturity.cs",
@@ -559,7 +559,7 @@
       "meaning": "Estimated remaining mortgage payoff for the current owner, amortized from known or estimated loan details (Stage 3 mortgage entries first, else public-records data).",
       "units": "USD",
       "use_when": "Gauging seller equity or the floor price at a foreclosure auction.",
-      "do_not_use_for": "An exact payoff figure \u2014 it is an estimate from incomplete loan data.",
+      "do_not_use_for": "An exact payoff figure — it is an estimate from incomplete loan data.",
       "prefer_instead": null,
       "source_ref": "Formulas/EstimatedPayoff2.cs",
       "confidence": "high",
@@ -578,7 +578,7 @@
       "question": null
     },
     "Calculated_ReturnOnInvestment": {
-      "meaning": "MLS-scenario profit divided by cash required \u2014 return per dollar of cash invested, as a decimal (0.5 = 50%).",
+      "meaning": "MLS-scenario profit divided by cash required — return per dollar of cash invested, as a decimal (0.5 = 50%).",
       "units": "ratio",
       "use_when": "Comparing deals by cash-on-cash return.",
       "do_not_use_for": null,
@@ -600,7 +600,7 @@
       "question": null
     },
     "Calculated_SellerName": {
-      "meaning": "The seller contact's full name \u2014 the trustee's name for trustee-type sellers, otherwise the owner's name.",
+      "meaning": "The seller contact's full name — the trustee's name for trustee-type sellers, otherwise the owner's name.",
       "units": "text",
       "use_when": "Addressing seller outreach.",
       "do_not_use_for": null,
@@ -614,7 +614,7 @@
       "meaning": "First word of the seller contact's name, split out for mail-merge personalization.",
       "units": "text",
       "use_when": "Personalizing outreach ('Hi John').",
-      "do_not_use_for": "Reliable identity \u2014 company or estate names split badly.",
+      "do_not_use_for": "Reliable identity — company or estate names split badly.",
       "prefer_instead": null,
       "source_ref": "Formulas/SellerMailingAddress.cs",
       "confidence": "high",
@@ -625,7 +625,7 @@
       "meaning": "Everything after the first word of the seller contact's name, split out for mail-merge personalization.",
       "units": "text",
       "use_when": "Personalizing outreach.",
-      "do_not_use_for": "Reliable identity \u2014 company or estate names split badly.",
+      "do_not_use_for": "Reliable identity — company or estate names split badly.",
       "prefer_instead": null,
       "source_ref": "Formulas/SellerMailingAddress.cs",
       "confidence": "high",
@@ -688,10 +688,10 @@
       "question": null
     },
     "Calculated_SellerAddressDistance": {
-      "meaning": "Intended to be the distance between the seller's mailing address and the property, but the calculation was never implemented \u2014 the engine always writes it as empty.",
+      "meaning": "Intended to be the distance between the seller's mailing address and the property, but the calculation was never implemented — the engine always writes it as empty.",
       "units": "null",
       "use_when": null,
-      "do_not_use_for": "Anything \u2014 it is always empty.",
+      "do_not_use_for": "Anything — it is always empty.",
       "prefer_instead": "Calculated_AbsenteeSeller",
       "source_ref": "Formulas/SellerMailingAddressDistance.cs",
       "confidence": "high",
@@ -699,7 +699,7 @@
       "question": null
     },
     "Calculated_AbsenteeSeller": {
-      "meaning": "True when the seller's mailing address differs from the property address (or the seller is a trustee) \u2014 the owner doesn't live there.",
+      "meaning": "True when the seller's mailing address differs from the property address (or the seller is a trustee) — the owner doesn't live there.",
       "units": "boolean",
       "use_when": "Targeting absentee-owner marketing; it also feeds the lead score.",
       "do_not_use_for": null,
@@ -710,7 +710,7 @@
       "question": null
     },
     "Calculated_SellerPhone": {
-      "meaning": "The seller contact's phone number \u2014 the trustee's phone for trustee-type sellers, otherwise the owner's phone.",
+      "meaning": "The seller contact's phone number — the trustee's phone for trustee-type sellers, otherwise the owner's phone.",
       "units": "text",
       "use_when": "Call/SMS outreach to the seller.",
       "do_not_use_for": null,
@@ -721,7 +721,7 @@
       "question": null
     },
     "Calculated_SellerEmail": {
-      "meaning": "The seller contact's email \u2014 the trustee's email for trustee-type sellers, otherwise the owner's email.",
+      "meaning": "The seller contact's email — the trustee's email for trustee-type sellers, otherwise the owner's email.",
       "units": "text",
       "use_when": "Email outreach to the seller.",
       "do_not_use_for": null,
@@ -761,8 +761,8 @@
       "prefer_instead": null,
       "source_ref": "Formulas/TotalCbGrade.cs",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think Calculated_TotalCbGrade means the exterior drive-by construction grade \u2014 the 2.5 base plus bumps for siding, windows, roof, and other visible condition issues \u2014 used to size the rehab budget before anyone walks the inside \u2014 right, or what is it?"
+      "status": "confirmed",
+      "question": null
     },
     "Calculated_Stage1ArvSqFt": {
       "meaning": "The price per square foot used for the Stage 1 automated ARV: a manual per-square-foot entry if provided, otherwise the zip code's average adjusted upward by 12.5% and by the location grade.",
@@ -787,26 +787,26 @@
       "question": null
     },
     "Calculated_LowEndTotalPrice": {
-      "meaning": "The property's value at the low end of the recorded price-per-square-foot range: adjusted square feet times the low-end per-square-foot figure on the property record.",
+      "meaning": "A Stage 2 valuation anchor: the manually-entered low-end dollars-per-square-foot multiplied by adjusted square feet, giving the low end of the ARV range. Paired with the high-end anchor to frame the valuation (the goal is to keep the low–high range narrow).",
       "units": "USD",
       "use_when": "Showing the low end of the estimated value range.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "Formulas/Arv.cs",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think Calculated_LowEndTotalPrice means the property's total value at the low end of the price-per-square-foot range someone records on the property (low-end $/sqft times square footage) \u2014 right, and who sets that low-end number?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "Calculated_HighEndTotalPrice": {
-      "meaning": "The property's value at the high end of the recorded price-per-square-foot range: adjusted square feet times the high-end per-square-foot figure on the property record.",
+      "meaning": "A Stage 2 valuation anchor: the manually-entered high-end dollars-per-square-foot multiplied by adjusted square feet, giving the high end of the ARV range — the highest ARV expected at Stage 2 (can evolve as more information comes in). Paired with the low-end anchor. The new calculation engine will automate the low/high fields.",
       "units": "USD",
       "use_when": "Showing the high end of the estimated value range.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "Formulas/Arv.cs",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think Calculated_HighEndTotalPrice is the same idea as the low-end number but using the high-end $/sqft \u2014 the top of the value range \u2014 right, or what is it?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "Calculated_Stage2Arv": {
       "meaning": "The Stage 2 (analyst comp-based) ARV in dollars: the analyst's per-square-foot value times adjusted square feet; zero if no Stage 2 review was done.",
@@ -864,15 +864,15 @@
       "question": null
     },
     "Calculated_EffectiveAge": {
-      "meaning": "Years since the property's 'effective year' \u2014 a condition-adjusted year (for example after a major renovation) recorded in the Stage 1 data; empty if unknown.",
+      "meaning": "Effective age/year — an assessor's adjustment to a home's year built that reflects major remodels (e.g. a house built in 1900 with an extensive 1960 remodel may have an effective year of 1960).",
       "units": "count",
       "use_when": "Describing how old the property effectively is given renovations.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "Formulas/EffectiveAge.cs",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think Calculated_EffectiveAge means years since the assessor's 'effective year built' \u2014 the age the house acts like after renovations, not its actual build year \u2014 right, or what is it?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "Calculated_ArvCeilingSqFt": {
       "meaning": "The market's ARV ceiling (a manually set maximum resale value for the area) expressed per square foot of this property; empty if no ceiling is set.",
@@ -930,7 +930,7 @@
       "question": null
     },
     "LeadScore_ConditionScore_Points": {
-      "meaning": "Lead score points (max 19) from the AI photo-condition rating \u2014 rougher-looking properties score higher because they fit the flip model.",
+      "meaning": "Lead score points (max 19) from the AI photo-condition rating — rougher-looking properties score higher because they fit the flip model.",
       "units": "score",
       "use_when": "Explaining a lead score breakdown.",
       "do_not_use_for": null,
@@ -1051,7 +1051,7 @@
       "question": null
     },
     "FollowUpScore_LeadCategory_Points": {
-      "meaning": "Follow-up score points (max 33.33) from the lead's source category \u2014 direct seller and lead mining score highest, auctions lowest.",
+      "meaning": "Follow-up score points (max 33.33) from the lead's source category — direct seller and lead mining score highest, auctions lowest.",
       "units": "score",
       "use_when": "Explaining a follow-up score breakdown.",
       "do_not_use_for": null,
@@ -1062,7 +1062,7 @@
       "question": null
     },
     "FollowUpScore_Status_Points": {
-      "meaning": "Follow-up score points (max 33.33) from pipeline status \u2014 active statuses (1-4) score full points, dead or completed statuses score low or zero.",
+      "meaning": "Follow-up score points (max 33.33) from pipeline status — active statuses (1-4) score full points, dead or completed statuses score low or zero.",
       "units": "score",
       "use_when": "Explaining a follow-up score breakdown.",
       "do_not_use_for": null,
@@ -1073,7 +1073,7 @@
       "question": null
     },
     "FollowUpScore_MarketingWeek_Points": {
-      "meaning": "Follow-up score points (max 33.33) for lead freshness \u2014 full points for brand-new leads, tapering to zero by 100 weeks in the system.",
+      "meaning": "Follow-up score points (max 33.33) for lead freshness — full points for brand-new leads, tapering to zero by 100 weeks in the system.",
       "units": "score",
       "use_when": "Explaining a follow-up score breakdown.",
       "do_not_use_for": null,
@@ -1106,15 +1106,15 @@
       "question": null
     },
     "Calculated_Inv_YearsOwned": {
-      "meaning": "Legacy column for years the inventory was owned; it was dropped from the MasterSuite source database in 2020 and no current code writes it, so it is likely always empty in the sync.",
+      "meaning": "Believed to be the number of years NAH has owned the property, converted from months owned. A minor calculation that can generally be ignored (the underlying MasterSuite source was dropped years ago, so it may be null).",
       "units": "count",
       "use_when": null,
-      "do_not_use_for": "Any analysis \u2014 treat as dead.",
+      "do_not_use_for": "Relying on it — likely null/dormant.",
       "prefer_instead": "Calculated_Inv_MonthsOwned",
       "source_ref": null,
       "confidence": "low",
-      "status": "draft",
-      "question": "I think Calculated_Inv_YearsOwned is a dead leftover column that stopped being filled in 2020 and we can ignore or drop it \u2014 right, or is something still using it?"
+      "status": "confirmed",
+      "question": null
     },
     "Calculated_Inv_DaysOnMarket": {
       "meaning": "Days the property has been listed for sale: list date to sell date, or to today if still listed.",
@@ -1128,7 +1128,7 @@
       "question": null
     },
     "Calculated_Inv_ProjectProfit": {
-      "meaning": "Projected or actual whole-project profit on owned inventory: ARV minus construction budget, cost of property, buying/selling costs, concessions, refi costs, interest, phase-5 costs, holding costs, and maintenance \u2014 each taken from the most mature figure available.",
+      "meaning": "Projected or actual whole-project profit on owned inventory: ARV minus construction budget, cost of property, buying/selling costs, concessions, refi costs, interest, phase-5 costs, holding costs, and maintenance — each taken from the most mature figure available.",
       "units": "USD",
       "use_when": "Reporting the full project P&L on inventory.",
       "do_not_use_for": "Prospect-stage deal analysis (use Calculated_NahProfit / Calculated_MlsProfit).",
@@ -1141,7 +1141,7 @@
     "Calculated_Inv_Profit": {
       "meaning": "The inventory profit headline number: the assignment fee for wholesale deals, otherwise the full project profit.",
       "units": "USD",
-      "use_when": "Any question about profit on an owned or sold property \u2014 this is the authoritative inventory profit.",
+      "use_when": "Any question about profit on an owned or sold property — this is the authoritative inventory profit.",
       "do_not_use_for": "Prospect-stage projections (use Calculated_NahProfit / Calculated_MlsProfit).",
       "prefer_instead": null,
       "source_ref": "Inventory/Profit.cs",
@@ -1153,7 +1153,7 @@
       "meaning": "Expected cash back at sale: ARV minus selling costs, concessions, and total notes payable (loan payoffs).",
       "units": "USD",
       "use_when": "Estimating the check at closing on an inventory sale.",
-      "do_not_use_for": "Profit \u2014 proceeds ignore what was invested.",
+      "do_not_use_for": "Profit — proceeds ignore what was invested.",
       "prefer_instead": null,
       "source_ref": "Inventory/Proceeds.cs",
       "confidence": "high",
@@ -1186,7 +1186,7 @@
       "meaning": "Total cash put into the project: cost of property plus buying costs, construction budget, refi costs, phase-5 costs, and maintenance (loans not netted out).",
       "units": "USD",
       "use_when": "Reporting total investment in an inventory property.",
-      "do_not_use_for": "Out-of-pocket cash after financing \u2014 loan amounts are not subtracted.",
+      "do_not_use_for": "Out-of-pocket cash after financing — loan amounts are not subtracted.",
       "prefer_instead": null,
       "source_ref": "Inventory/CashInvested.cs",
       "confidence": "high",
@@ -1194,7 +1194,7 @@
       "question": null
     },
     "Calculated_Inv_RiskFactor": {
-      "meaning": "For owned inventory, all-in cost (property plus construction) as a share of ARV \u2014 the realized equivalent of the underwriting risk factor.",
+      "meaning": "For owned inventory, all-in cost (property plus construction) as a share of ARV — the realized equivalent of the underwriting risk factor.",
       "units": "ratio",
       "use_when": "Checking whether an owned deal stayed inside the buying discipline.",
       "do_not_use_for": "Prospect underwriting (use Calculated_RiskFactor).",
@@ -1205,7 +1205,7 @@
       "question": null
     },
     "Calculated_Inv_ConstructionProfitRatio": {
-      "meaning": "For owned inventory, construction budget divided by profit \u2014 rehab dollars per dollar of profit (lower is better).",
+      "meaning": "For owned inventory, construction budget divided by profit — rehab dollars per dollar of profit (lower is better).",
       "units": "ratio",
       "use_when": "Evaluating whether construction effort paid off on inventory.",
       "do_not_use_for": null,
@@ -1216,15 +1216,15 @@
       "question": null
     },
     "Calculated_Inv_CBGrade": {
-      "meaning": "For owned inventory, the construction budget divided by the standard per-grade budget rate \u2014 the rehab level (1-5 scale) implied by actual spend. Note: unlike the prospect-side grade, this is not divided by square footage.",
+      "meaning": "The most mature construction-budget grade — derived from the most-mature construction budget and the territory's S1 CB factor. Higher = more extensive renovation.",
       "units": "grade",
       "use_when": "Comparing realized rehab intensity across inventory.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "Inventory/ConstructionBudgetGrade.cs",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think Calculated_Inv_CBGrade is meant to be the 1-5 rehab grade implied by the actual construction spend on inventory, though the code doesn't divide by square footage like the prospect version does \u2014 is that intentional, or what should it mean?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "Calculated_Inv_Item19Year": {
       "meaning": "The calendar year this deal counts toward franchise performance reporting: the year sold, or for rentals the year construction completed.",
@@ -1234,8 +1234,8 @@
       "prefer_instead": null,
       "source_ref": "Inventory/Item19Year.cs",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think Calculated_Inv_Item19Year means the year a deal gets counted in the FDD Item 19 earnings disclosure \u2014 sell year, or completion year for rentals \u2014 right, or what is it?"
+      "status": "confirmed",
+      "question": null
     },
     "Calculated_Inv_Royalty": {
       "meaning": "The royalty owed to NAH corporate on this deal, computed by the territory's royalty version (percent of ARV with a cap in older versions; newer versioned calculators otherwise), capped at $999,999; Tri-Cities is exempt.",
@@ -1249,7 +1249,7 @@
       "question": null
     },
     "HasInventory": {
-      "meaning": "True if the property was ever acquired \u2014 status is Purchased, or its inventory record shows Sold.",
+      "meaning": "True if the property was ever acquired — status is Purchased, or its inventory record shows Sold.",
       "units": "boolean",
       "use_when": "Filtering to properties that became deals.",
       "do_not_use_for": "Currently held properties (use HasActiveInventory).",
@@ -1359,15 +1359,15 @@
       "question": null
     },
     "CycleTimeS1ToFinalOutcome": {
-      "meaning": "Days from a lead first reaching status 1 to reaching its outcome status (status 4 or any '0' dead status), based on status history.",
+      "meaning": "For a prospect, the number of days from Stage 1 (lead) to its final outcome — either a purchase (Stage 6, when it becomes inventory) or a Stage 0 dead end (Trash, Unresponsive, No Deal after an offer, or No Offer). Measures the full prospect life cycle start to finish. (NAH uses 'stages' for prospects and 'statuses' for inventory.)",
       "units": "days",
       "use_when": "Measuring how long leads take to resolve in the pipeline.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "Inventory/CycleTimes.cs (S1toFinalOutcome)",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think CycleTimeS1ToFinalOutcome measures days from a lead first hitting status 1 until it hits status 4 or any 0 status \u2014 what do statuses 1 and 4 mean in plain terms, something like first contact to offer made?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "ProjectedRoyaltyDate": {
       "meaning": "The date the royalty on this deal is expected to come due: for acquisition-based royalty plans the purchase (or contracted purchase) date, otherwise the sell or contracted-sell date, with rolling estimates when dates are missing.",
@@ -1381,7 +1381,7 @@
       "question": null
     },
     "Calculated_LastSoldDate": {
-      "meaning": "The date the property last sold according to public-records (Stage 1) data \u2014 i.e., when the current owner bought it.",
+      "meaning": "The date the property last sold according to public-records (Stage 1) data — i.e., when the current owner bought it.",
       "units": "date",
       "use_when": "Gauging how long the current owner has held the property.",
       "do_not_use_for": "NAH's own sale date on inventory (use ms_property_inventory.Inv_SellDate).",
