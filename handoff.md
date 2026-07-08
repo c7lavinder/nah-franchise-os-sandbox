@@ -1,6 +1,19 @@
-# Session Handoff — 2026-07-08 — Session 69
+# Session Handoff — 2026-07-09 — Session 70
 
 ## Status
+
+Phase: FranDev native rebuild INSIDE MasterSuite — WHOLE SITE BUILT + **FIDELITY PASS DONE (all 7 new screens verified side-by-side in Chrome vs the app)** / Health: Green / Duration: short session
+
+## Session 70 — Fidelity pass results
+
+- **Verified matching (no fixes needed):** Day Hub (KPI numbers identical 25 / 62-250 / 7-100; documented divergences: alerts panel instead of GHL calendar, mirror tasks vs GHL tasks), Activity (near-identical), Knowledge (identical counts; mirror `UpdatedAt` gets refreshed by the nightly upsert so native freshness reads newer — known artifact), Onboarding (identical, both empty), Site Guide (verbatim).
+- **L10 fixed → PR #107 (branch `frandev-fidelity`, MERGEABLE):** 3 headline metrics moved to the app's exact definitions and now match to the digit (T3: 42 closed / 59d avg / 21 PTO). Closed = jps in terminal stage with COALESCE(ClosedAt, EnteredCurrentStageAt, UpdatedAt) in window (stage history misses bulk-migrated journeys); PTO = sales 'pto' sub-task completions. Coaching numbers (Stage1 2,232 vs 1,499; Purchased 54 vs 67) intentionally differ: native reads LIVE property tables, the app reads capped/snapshot mirrors — native is more correct.
+- **Found + fixed an APP bug (this repo `722a241`):** /api/marketing fetched `journey_pipeline_state` unpaged — Supabase's silent 1000-row cap truncated every pipeline-derived number (nurture 562 shown vs 1,925 true; active pipeline 165 vs ~519). Native disagreed → investigation proved both DBs identical → app was wrong. Paged now; journey_contacts chunk shrunk to 300.
+- **Live prod issue spotted on the app (unfixed):** banner "MasterSuite sync failing: prospects — Table 'mastersuite.NewAgainHouses_FormSubmissions' doesn't exist" — the outbound prospects push is failing; likely the dev DB refresh dropped that source table or the name changed. INVESTIGATE NEXT.
+
+# Session Handoff — 2026-07-08 — Session 69 (below)
+
+## Status (session 69)
 
 Phase: FranDev native rebuild INSIDE MasterSuite — **WHOLE SITE BUILT: 18 screens** (11 core + Day Hub, Activity, L10, Marketing, Knowledge, Onboarding, Site Guide), full native write parity with journaled replay / Health: Green / Duration: full session
 
@@ -96,7 +109,7 @@ Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28
 
 ## Exact Next Step
 
-Run the Chrome side-by-side fidelity pass: each of the 7 new native screens (/frandev/dayhub, activity, l10, marketing, knowledge, onboarding, guide) compared against its app counterpart, fixing what looks or behaves wrong — that's the one honest gap in "whole site built."
+Investigate the live "MasterSuite sync failing: prospects — Table 'mastersuite.NewAgainHouses_FormSubmissions' doesn't exist" banner on the deployed app (outbound prospects push broken); then chase Ben on PR #107 + the launch runbook (demo call, prod migrations, sync swap, nav/perms).
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -104,6 +117,6 @@ Run the Chrome side-by-side fidelity pass: each of the 7 new native screens (/fr
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
-Then: run the Chrome side-by-side fidelity pass on the 7 new native screens vs the app, fixing gaps; launch steps with Ben run in parallel (demo call, prod migrations, sync swap).
+Then: fix the failing prospects push (NewAgainHouses_FormSubmissions missing on dev DB); PR #107 + launch steps with Ben in parallel.
 
 ---
