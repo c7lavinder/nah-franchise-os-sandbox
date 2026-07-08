@@ -29,6 +29,8 @@ Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28
 
 ## What Is Confirmed Working
 
+- **Whole-site sweep (slice 18):** all 13 FranDev routes + landing (14 tiles) return 200 with zero error blocks against dev data; combined build of all 7 agent-written screens compiled with 0 errors first try. L10 verified: first load ~31s (live aggregation), cached load 1.4s, quartile columns populated. Knowledge shows real doc counts; Day Hub renders queue/tasks/alerts rows.
+- **Dev launch flip (2026-07-09):** nav row 76 (`/frandev`) Enabled=1 SortOrder=91 (right after Gunner) + Frandev permission (id 15) granted to Corey (UserId 36) and Ben (UserId 3) on the DEV DB — verified by re-query. Visibility still depends on the dev site running a post-merge build.
 - **Close (win) full loop on dev (Ben Harrison test journey):** 4 native advances → native Close → MySQL sales state at `closed` still active + onboarding state spawned at `setup` with first sub-task → journal rows 6–10 replayed app-side 5/5 → Supabase jps moved to terminal, history row + spawned onboarding state landed with the SAME minted uuids, 15 sub-task auto-complete logs written → second replay clean no-op (0 pending) → test rows then surgically reset on BOTH sides (state back to engagement, spawned/history/log rows deleted). NOT exercised live: multi-territory fan-out + EOS carry-forward (test contact owns no territories — NULL-territory fallback path verified instead; code mirrors `advance/route.ts:336-406` verbatim).
 - All 11 FranDev pages + all 15 Gunner pages sweep-verified under the shared layout (200, wrapper present, no error blocks); DayHub, Calls, Contacts, Calendar, Scout, Pipeline, Messages eyeballed in Chrome against dev data. Both worktrees `dotnet build` 0 errors.
 - **Scout dock + ctx end-to-end:** live turn with `ctx=journey:joanne-mccann` resolved "this candidate" unprompted AND answered from the injected knowledge-base fee-objection playbook.
@@ -38,6 +40,11 @@ Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28
 
 ## What Is Broken or Incomplete
 
+- **The 7 new screens are verified by HTTP sweep only — NOT visually compared side-by-side with the app** (Corey asked about fidelity; a Chrome side-by-side pass is the honest gap) — Medium
+- L10 first (uncached) load ~30s — PropertyStatusHistory (903k rows) has no Inserted index; index is Ben's table/call, cache is the stopgap — Medium
+- Duplicate disabled nav row 77 (`/v2/frandev`) on dev — stale seed, harmless, delete when Ben's around — Low
+- Skipped deliberately (app-admin surfaces): settings, agents, audit, pipeline-examples — the app remains the admin console — By design
+- Marketing "converted franchisee" = current territory owner (mirror lacks `is_converted_franchisee`) — divergence from the app's definition — Low
 - Close (win) multi-territory fan-out + EOS carry-forward not exercised live (no test contact with territory owners on dev); verify on the first real multi-territory win or seed a test owner row — Low
 - ~~gunner.css unscoped primitives flagged in PR #105~~ — moot: #105 closed; Gunner layout is Ben's `_GunnerLayout` now, his domain — Closed
 - Native Scout turns update memory but the conflict window (user chats in the app between native turn and ≤15-min replay) is last-write-wins on content — by design — Low
@@ -47,6 +54,11 @@ Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28
 
 ## Decisions Made
 
+- Skip settings/agents/audit/pipeline-examples natively — admin surfaces stay in the app; MasterSuite has its own admin — Claude (autonomous, overridable)
+- Contract-first parallel build: pre-write interface signatures + entity shells + NotImplemented stubs, then one agent per screen owning only its 4 files — Claude (worked: 0 conflicts, 0 first-build errors)
+- L10 gets a 10-min per-period in-process cache instead of touching Ben's PropertyStatusHistory (index suggested to him on the PR) — Claude (autonomous)
+- Program.cs stays module-free — Frandev permission gate lives in FrandevPageModel — Ben (review note, implemented)
+- Dev-environment launch flip done by us (nav row 76 + perms for Corey/Ben); PROD flip is Ben's after prod migrations — Corey asked "can you add it?"
 - Win = state MOVE into the terminal stage (states stay active, journey status untouched) — NOT drop semantics; matches the app's advance route exactly — implicit in app parity
 - Spawn target read data-driven from `frandev_pipeline_stage.AutoSpawnPipelineId` rather than hardcoded pipeline uuids (drop's Followup constants stay as-is) — Claude (autonomous)
 - Scout gains NO close tool — Close (Win) is human-only on the pipeline screen; Scout prompt v3.3.1 just points at it — scope discipline
@@ -60,12 +72,13 @@ Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28
 
 ## Files Created
 
-- None this session
+- MasterSuite (merged via #103): `MasterSuite.Modules.Frandev/README.md`; entities `Entities/Frandev/{FrandevActivity,FrandevDayHub,FrandevKnowledge,FrandevL10,FrandevMarketing,FrandevOnboarding}.cs`; service partials `FrandevService.{Activity,DayHub,Knowledge,L10,Marketing,Onboarding}.cs`; pages `Pages/Frandev/{Activity,DayHub,Knowledge,L10,Marketing,Onboarding,SiteGuide}.cshtml(.cs)`
 
 ## Files Modified
 
-- MasterSuite (#103): `FrandevService.Writes.cs` (+`CloseJourney`, +`CloseSpawnRow`, advance guard message), `Entities/Frandev/FrandevWrites.cs` (+`FrandevCloseOutcome`), `IFrandevService.cs`, `Pages/Frandev/Pipeline.cshtml(.cs)` (Close button + `case "close"`), `FrandevScoutWritePack.cs` (description), `ScoutPrompt.cs` (v3.3.1)
-- This repo: `lib/mastersuite/apply-native-writes.ts` (+`applyCloseJourney`, `close_journey` dispatch, `carryForwardContactEos` import), `handoff.md`
+- MasterSuite (merged via #103): `FrandevService.Writes.cs` (+`CloseJourney`), `Entities/Frandev/FrandevWrites.cs` (+`FrandevCloseOutcome`), `IFrandevService.cs` (close + 7 build-out signatures), `Pages/Frandev/Pipeline.cshtml(.cs)` (Close button, terminal-row action polish), `FrandevPageModel.cs` (permission gate moved in), `Program.cs` (reverted to main), `FrandevScoutWritePack.cs`, `ScoutPrompt.cs` (v3.3.1), `FrandevIndex.cshtml` (7 new tiles), `MasterSuite.sln` (merge resolution)
+- This repo: `lib/mastersuite/apply-native-writes.ts` (+`applyCloseJourney`), `handoff.md`
+- Dev DB (not code): nav row 76 enabled, UserPermissions rows (36,'15',1) and (3,'15',1)
 
 ## Files Deleted
 
@@ -73,18 +86,17 @@ Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28
 
 ## Open Issues Carried Forward
 
-- **PR #103 awaiting Ben's review/merge (CLEAN, 0 Gunner files)**; launch also needs prod migrations (runner now exists!) + sync pointed at prod + nav flip + per-user Frandev perms. Note: main's #104 took migration ordinal `2026-07-08-002_Gunner…` alongside our `2026-07-08-002_Scout…` — harmless (runner keys on full filename, README forbids renaming applied scripts) but mention to Ben if he asks — Medium
+- **PROD launch pending (Ben):** run DatabaseMigrationRunner on prod → we swap the app's sync (Vercel NAH*DB*\*) to prod → ApiKey_Anthropic on host → prod nav flip + per-user perms. **Corey to schedule Ben's demo call** (permission gate + nav) — Medium
+- Prod→dev DB refresh still wipes frandev*/chiron* tables UNTIL prod migrations run (recovery: re-run migrations + push-cron reseed) — Medium
 - Rule going forward (Corey, 2026-07-08): **FranDev work never rides a PR that touches Gunner files** — keep branches/PRs fully separate — Standing
-- Prod→dev DB refresh wipes frandev*/chiron* tables until #103 merges and prod migrations run (recovery: re-run migrations + push-cron reseed) — Medium
+- Migration ordinal `2026-07-08-002` exists twice (Gunner + Scout files) — harmless, runner keys on full filename — Low
 - GHL sync on the app's own board moves still not implemented (pre-existing) — Low
 - 3 contacts with multiple active journeys need manual dedup (pre-existing) — Low
 - Ben Testing's GHL pushes fail (synthetic contact id) — expected — Low
 
 ## Exact Next Step
 
-**#103 MERGED — launch sequence is live.** Remaining, per the module README runbook: (1) Ben runs DatabaseMigrationRunner on prod (creates frandev*/chiron* tables — also ends the prod→dev refresh wipes), (2) WE point the app's push sync + apply-writes cron at prod (Vercel NAH*DB*\* env swap) once Ben confirms tables exist, (3) Ben sets ApiKey_Anthropic on the MasterSuite host, (4) nav flip Enabled=1 + per-user Frandev perms in Admin. **Corey schedules Ben's demo call** (permission gate + nav) — natural place to agree the flip. Skipped deliberately (app-admin surfaces): settings, agents, audit, pipeline-examples. Post-launch build candidates: (a) L10 PropertyStatusHistory Inserted index (Ben's OK needed, first load 30s→seconds), (b) Messages send phase, (c) multi-territory close fan-out live test, (d) FRANDEV\_\*.md fold-in brief.
-
-Native write parity is COMPLETE — the FranDev module inside MasterSuite now does everything the app's pipeline does (advance/revert/drop/close-win/tasks/memory/sms-read), all journaled and replayed. **#103 is the ONLY open PR** (#104 + #105 merged by Ben). Remaining to launch (all waiting on Ben): PR #103 review/merge → prod migrations via the runner → sync pointed at prod → nav flip + per-user Frandev perms. Best next build candidates while waiting: (a) native send phase for the Messages composer (needs prod-only provider config decision), (b) exercise multi-territory close fan-out + EOS carry-forward with a seeded test owner, or (c) start the FRANDEV\_\*.md brief+audit package for Ben's fold-in deliverable.
+Run the Chrome side-by-side fidelity pass: each of the 7 new native screens (/frandev/dayhub, activity, l10, marketing, knowledge, onboarding, guide) compared against its app counterpart, fixing what looks or behaves wrong — that's the one honest gap in "whole site built."
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -92,6 +104,6 @@ Native write parity is COMPLETE — the FranDev module inside MasterSuite now do
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
-Native write parity is done; PRs #103/#105 await Ben. Pick the next build with me.
+Then: run the Chrome side-by-side fidelity pass on the 7 new native screens vs the app, fixing gaps; launch steps with Ben run in parallel (demo call, prod migrations, sync swap).
 
 ---
