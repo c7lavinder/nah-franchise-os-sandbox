@@ -18,6 +18,7 @@ import type { Pool, RowDataPacket } from "mysql2/promise";
 import { getServiceSupabase } from "./supabase";
 import { getMasterSuiteWritePool, isWriteConfigured } from "./write-client";
 import { syncStageToGHL } from "@/lib/ghl/stage-sync";
+import { carryForwardContactEos } from "@/lib/eos/carry-forward";
 import { markJourneyBriefStale } from "@/lib/briefs/mark-journey-brief-stale";
 import { isSubStageMoveLog } from "@/lib/contacts/stage-visual-state";
 import * as ghl from "@/lib/ghl";
@@ -50,6 +51,21 @@ interface DropPayload {
   closed: Array<{ state_id: string; stage_id: string; history_id: string }>;
   new_state_id: string | null;
   moved_by: string;
+}
+
+interface CloseJourneyPayload {
+  journey_id: string;
+  pipeline_id: string;
+  pipeline_slug: string;
+  to_stage_id: string;
+  to_stage_slug: string;
+  contact_id: string;
+  ghl_contact_id: string | null;
+  reason: string | null;
+  moved_by: string;
+  closed: Array<{ state_id: string; from_stage_id: string; history_id: string }>;
+  spawn: { pipeline_id: string; pipeline_slug: string; stage_id: string; stage_slug: string } | null;
+  spawned: Array<{ state_id: string; territory_slug: string | null }>;
 }
 
 interface CreateTaskPayload {
@@ -104,6 +120,8 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applyRevertStage(JSON.parse(row.PayloadJson) as AdvancePayload);
       } else if (row.WriteType === "drop_journey") {
         await applyDropJourney(JSON.parse(row.PayloadJson) as DropPayload);
+      } else if (row.WriteType === "close_journey") {
+        await applyCloseJourney(JSON.parse(row.PayloadJson) as CloseJourneyPayload);
       } else if (row.WriteType === "create_task") {
         await applyCreateTask(pool, JSON.parse(row.PayloadJson) as CreateTaskPayload);
       } else if (row.WriteType === "scout_memory_merge") {
@@ -352,6 +370,131 @@ async function applyDropJourney(payload: DropPayload): Promise<void> {
     }
   }
 
+  try {
+    await markJourneyBriefStale(payload.journey_id);
+  } catch {
+    /* cosmetic */
+  }
+}
+
+/**
+ * Close (win) replay — the advance route's terminal branch, mirrored by id.
+ * Each recorded state gets full advance semantics (sub-task auto-complete,
+ * optimistic stage guard, history row with MasterSuite's minted id), then the
+ * spawned follow-on states land with their minted ids, EOS carries forward per
+ * territory, and the GHL stage field syncs. Every step is idempotent so a
+ * partially failed row can be safely re-run.
+ */
+async function applyCloseJourney(payload: CloseJourneyPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const now = new Date().toISOString();
+
+  for (const moved of payload.closed) {
+    const { data: jps, error: jpsError } = await supabase
+      .from("journey_pipeline_state")
+      .select("id, current_stage_id, is_active")
+      .eq("id", moved.state_id)
+      .maybeSingle();
+    if (jpsError) throw new Error(`jps read failed: ${jpsError.message}`);
+    if (!jps) throw new Error(`journey_pipeline_state ${moved.state_id} not found in Supabase`);
+    if (jps.current_stage_id !== payload.to_stage_id) {
+      if (jps.current_stage_id !== moved.from_stage_id)
+        throw new Error(
+          `conflict: state ${moved.state_id} is at ${jps.current_stage_id}, expected ${moved.from_stage_id} — moved in the app since`
+        );
+
+      await autoCompleteStageSubTasks(supabase, moved.state_id, moved.from_stage_id, now, payload.moved_by);
+
+      const { error: updError } = await supabase
+        .from("journey_pipeline_state")
+        .update({
+          current_stage_id: payload.to_stage_id,
+          entered_current_stage_at: now,
+          current_sub_task_id: null, // terminal stages have no sub-tasks
+          current_sub_task_started_at: now,
+          updated_at: now,
+        })
+        .eq("id", moved.state_id)
+        .eq("current_stage_id", moved.from_stage_id); // optimistic guard
+      if (updError) throw new Error(`jps update failed: ${updError.message}`);
+    }
+
+    const { error: histError } = await supabase.from("pipeline_stage_history").insert({
+      id: moved.history_id,
+      journey_pipeline_state_id: moved.state_id,
+      from_stage_id: moved.from_stage_id,
+      to_stage_id: payload.to_stage_id,
+      moved_by_user_id: null,
+      reason: attributed(payload.reason ?? "Closed (won)", payload.moved_by),
+      was_skip: false,
+      was_revert: false,
+      was_auto: false,
+      created_at: now,
+    });
+    if (histError && !histError.message.includes("duplicate")) {
+      throw new Error(`history insert failed: ${histError.message}`);
+    }
+  }
+
+  // Spawned follow-on states (sales → Onboarding fan-out) with MasterSuite's
+  // minted ids — the push then upserts onto the native rows.
+  if (payload.spawn && payload.spawned.length > 0) {
+    const { data: firstSubTask } = await supabase
+      .from("pipeline_sub_tasks")
+      .select("id")
+      .eq("stage_id", payload.spawn.stage_id)
+      .order("sort_order")
+      .limit(1)
+      .maybeSingle();
+
+    for (const sp of payload.spawned) {
+      const { data: existing } = await supabase
+        .from("journey_pipeline_state")
+        .select("id")
+        .eq("id", sp.state_id)
+        .maybeSingle();
+      if (existing) continue;
+      const { error: spawnError } = await supabase.from("journey_pipeline_state").insert({
+        id: sp.state_id,
+        journey_id: payload.journey_id,
+        pipeline_id: payload.spawn.pipeline_id,
+        TerritorySlug: sp.territory_slug,
+        current_stage_id: payload.spawn.stage_id,
+        current_sub_task_id: firstSubTask?.id ?? null,
+        current_sub_task_started_at: now,
+        entered_pipeline_at: now,
+        entered_current_stage_at: now,
+        is_active: true,
+      });
+      if (spawnError && !spawnError.message.includes("duplicate")) {
+        throw new Error(`${payload.spawn.pipeline_slug} spawn failed: ${spawnError.message}`);
+      }
+    }
+
+    // EOS carry-forward per territory — same rule as the advance route's
+    // fan-out; idempotent internally (already_carried short-circuits).
+    if (payload.spawn.pipeline_slug === "onboarding" || payload.spawn.pipeline_slug === "runway") {
+      for (const sp of payload.spawned) {
+        if (!sp.territory_slug) continue;
+        try {
+          await carryForwardContactEos(payload.contact_id, sp.territory_slug);
+        } catch (err) {
+          console.error(
+            "[apply-native-writes] EOS carry-forward failed:",
+            sp.territory_slug,
+            err instanceof Error ? err.message : err
+          );
+        }
+      }
+    }
+  }
+
+  // Side effects — best-effort, never fail the replay over them.
+  try {
+    await syncStageToGHL(payload.contact_id, payload.pipeline_slug, payload.to_stage_slug);
+  } catch (err) {
+    console.error("[apply-native-writes] GHL stage sync failed:", err instanceof Error ? err.message : err);
+  }
   try {
     await markJourneyBriefStale(payload.journey_id);
   } catch {
