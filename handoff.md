@@ -1,87 +1,71 @@
-# Session Handoff — 2026-07-08 — Session 66
+# Session Handoff — 2026-07-08 — Session 67
 
 ## Status
 
-Phase: FranDev native rebuild INSIDE MasterSuite — Phase 2 read-only screens complete, PR open / Health: Green / Duration: full session
+Phase: FranDev native rebuild INSIDE MasterSuite — read screens done, Scout live, WRITE PHASE COMPLETE / Health: Green / Duration: full session
 
-**Important:** this session's work lives in the **MasterSuite repo**, not this sandbox. Worktree: `/Users/coreylavinder/Mastersuite/mastersuite-frandev-wt`, branch `frandev-module`, **PR #103** → https://github.com/NewAgainHouses/mastersuite/pull/103. Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28657` in `apps/analysis-api/MasterSuite/` (creds: `eval "$(grep '^export NAH_DB' ~/.zshrc)"` first — launchSettings.json has an empty password that overrides the shell, hence `--no-launch-profile`).
+**Important:** most of this session's work lives in the **MasterSuite repo**. Worktree: `/Users/coreylavinder/Mastersuite/mastersuite-frandev-wt`, branch `frandev-module`, **PR #103** → https://github.com/NewAgainHouses/mastersuite/pull/103 (now ~12 commits: 10 read screens + Scout + write phase; still unreviewed by Ben — he merged Gunner PRs #98–102 instead). Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28657` in `apps/analysis-api/MasterSuite/` after `eval "$(grep '^export NAH_DB' ~/.zshrc)"` and `export ApiKey_Anthropic=<ANTHROPIC_API_KEY from this repo's .env.local>`. Kill stale servers first (`pkill -f "dotnet run"`) — a stale server holds the port and your curls silently hit the OLD binary.
 
 ## What Was Built This Session
 
-- **`MasterSuite.Modules.Frandev` project** — replaced the HelloWorld stub; mirrors Gunner's current module shape (partial `FrandevService` split by domain, `IFrandevService`, POCOs in `Entities/Frandev/`, Razor Pages inheriting shared `FrandevPageModel` auth base). Registered in DI + solution + ServiceEngine refs.
-- **8 read-only screens**, all verified against live dev-DB data (fed by the nightly sync):
-  1. `/frandev` — dashboard (contact/journey/call counts, journeys by stage)
-  2. `/frandev/pipeline` — Path to Ownership (stage bar per pipeline w/ counts + click-filter, urgency pills Fresh/At Risk/Losing/Won computed in SQL, search/sort/paging, expandable quick panel via JSON handler)
-  3. `/frandev/journey/{slug|uuid}` — journey detail (pipeline position tracks, AI journey brief w/ next actions, graded calls, tasks, stage history, EAV candidate profile w/ source badges, documents, members sidebar; tabs Overview/Profile/Documents)
-  4. `/frandev/calls` — category panel board (slug→title-keyword categorization, week/month/all filter, bad-call + needs-review flags)
-  5. `/frandev/call/{id}` — call detail (summary bullets + full-text toggle, rubric grade w/ per-criterion bars + rationale, speaker-turn transcript parser, action items, participants, journey links)
-  6. `/frandev/workflows` + `/frandev/workflow/{id}` — catalog w/ status tabs + health grades; day-by-day execution blueprint w/ DRC badges (needs-approval vs auto-fires)
-  7. **Revenue card** on journey Overview — FIRST live-native read: queries `PropertyInventory`/`PropertySummaries`/`PropertyRoyalty` in place (no ms\_ synced copies); pace badge ($460k/10yr), Fee/Paid/Due pills, $500k goal bar w/ network-median marker
-- **Launch plumbing**: `MasterSuitePermissions.Frandev` + `/frandev` middleware gate in `Program.cs` (mirrors Gunner gate; local dev skips) + idempotent migration `2026-07-08 - FranDev permission + nav item.sql` (UserPermissionNames row + top-level nav `/v2/frandev` seeded `Enabled=0`) — **already applied to the dev DB**.
-- **PR #103 opened** with full screen table + Ben's to-do list.
+- **Slice 6 — Territories:** `/frandev/territories` index (status tabs, search, T12 high-performer badges) + `/frandev/territory/{slug}` detail with Ecosystem / Performance (period toggle, 9 KPIs, funnel w/ benchmarks, Stage-4 offers linking native property pages) / EOS (goals, scorecard w/ live-computed actuals, spend, channels, habits, rocks/issues/todos, native Construction EOS) / Data tabs. Files: `Pages/Frandev/Territories.cshtml(.cs)`, `Territory.cshtml(.cs)`, `FrandevService.Territories.cs`, `FrandevService.TerritoryEos.cs`, `Entities/Frandev/FrandevTerritory.cs`.
+- **Slice 7 — Scout live at `/frandev/scout`:** new `MasterSuite.Modules.Scout` project (ScoutAgent/ScoutPrompt/ScoutConfig, Haiku default, agent id `scout-chat`) on Chiron's shared plumbing; `FrandevScoutPack` = 6 read tools (search_candidates, get_journey_summary, get_journey_calls, get_franchise_pipeline_snapshot, list_territories, get_territory_kpis) gated by the Frandev permission; chat page cloned from Chiron's panel; Scout tile on landing; `chiron_conversation.AgentId` migration.
+- **Slice 8 — Gated writes + DRC approval cards:** `FrandevScoutWritePack` (advance_journey_stage, create_candidate_task; Write tier, mandatory verify-after-write, grounded from→to card summaries); Scout panel Decide handler + card UI; **write-back architecture**: every native write journals to `frandev_native_write` (new migration), and this repo replays the journal into Supabase + GHL (`lib/mastersuite/apply-native-writes.ts`, cron `apply-mastersuite-writes` every 15 min + at the start of the nightly push) using the SAME row uuids so the nightly upsert converges instead of duplicating.
+- **Slice 9 — Write phase complete:** revert_journey_stage + drop_journey (§1.13 contact-wide drop to Follow-up/Nurture w/ spawned state, fixed seed ids) Scout tools; **Advance/Revert/Drop buttons on the pipeline screen quick panel** (`OnPostAction` — click = approval); replay for both new types; **sync-health surfacing** (landing-page error banner + `write_sync` in Scout's snapshot tool).
 
 ## What Is Confirmed Working
 
-- All 8 screens return HTTP 200 with real data: 3,175 contacts / 3,136 active journeys on dashboard; 5 pipelines w/ correct stage counts; joanne-mccann journey (20 graded calls A–D, 27 profile fields, brief w/ actions); calls board 200 calls across 6 panels; call detail w/ grade B + 6 criteria + 106 transcript turns; 20 workflows, New Lead 30-Day = 18 steps/11 days; Revenue card $15,694 paid / Ahead of pace / median $27,500.
-- Build clean (`0 Error(s)`), 5 commits pushed to `frandev-module`.
-- Dev-DB migration applied + verified (permission row + disabled nav row).
+- All four Territory tabs render live dev data; CHLTNE YTD leads-entered (62) cross-checked by hand against SQL; funnel monotonic; scorecard actuals compute live.
+- Scout end-to-end with real Claude calls (Haiku, metered in chiron_ai_call): pipeline snapshot answer, 3-tool candidate deep-dive on joanne-mccann.
+- Full DRC write loop on the ben-harrison "Ben Testing" journey: Scout queued cards → Approve → native write + verify-after-write → journal → replay applied into Supabase with mirrored row ids → second replay run a clean no-op. Advance, revert (via pipeline button handler), drop-to-nurture (via Scout card — Scout disambiguated two similar journeys and asked first), create-task all verified. Test journey restored to pre-test state in both systems afterward.
+- Replay failure surfacing: the deployed cron hit `revert_stage` before the app code shipped → journal row failed loudly with the honest error, recovered after deploy + requeue.
 
 ## What Is Broken or Incomplete
 
-- FranDev migrations NOT run on **production** MariaDB (Ben's step; dev has them) — High (blocks any prod deploy)
-- `contacts.franchise_fee` has NO MySQL home (not in frandev_contact, not in MS tables — deliberate dedup left it orphaned); Revenue pill shows "—" — Medium (Ben decides ownership)
-- Nav item seeded disabled + no per-user permission grants yet (by design until launch) — Low
-- All write actions (stage advance/revert/drop, call upload, workflow editing, GHL pushes, Scout) not built — by design; **writes require the source-of-truth conversation with Ben first** (nightly sync would overwrite MySQL edits today)
-- Messaging Hub skipped: only 9 SMS rows synced (messages still live in GHL) — Low
-- Sandbox repo untracked leftovers (docs/core-workflows.md, docs/workflows-catalog.md, docs/design_handoff_messaging_hub/, modified .claude/settings.json) still need cleanup — Low
+- Ben Testing's GHL pushes fail (synthetic contact id) — expected, not a bug — Low
+- Scout dock/page-context not on other FranDev pages yet (Scout is its own page only) — Low
+- Terminal-stage close (win) + workflow edits still app-only — Low (by design this phase)
+- `contacts.franchise_fee` has no MySQL home (open Ben item) — Low
+- `docs/handoff.md` in this repo is stale (session ~65); this root `handoff.md` is canonical — Low
 
 ## Decisions Made
 
-- FranDev = its own module (`MasterSuite.Modules.Frandev`) at route `/frandev` — Corey
-- Build as `MasterSuite.Modules.*` project, NOT by growing the old ServiceEngine stub (Gunner outgrew that pattern) — Corey approved via "keep going"
-- Read-only Phase 2 slices before any writes — implicit in phased plan Corey approved
-- Scout will extend Chiron (MasterSuite's existing Claude integration) instead of greenfield — reaffirmed
-- uuid PKs typed as `Guid` in entities (MySqlConnector returns CHAR(36) as Guid); browser ids validated with `Guid.TryParse` before SQL interpolation — Claude, pattern-level
+- Write-back pattern until the source-of-truth flip: native write + `frandev_native_write` journal + app-side replay BEFORE the blind nightly upsert; MasterSuite mints row uuids so replay/push converge — Corey (standing "keep going" directive)
+- Scout = separate agent on shared Chiron plumbing (own prompt/config/agent id; shared registry/store/pricing); conversations agent-scoped via `AgentId` column — Corey
+- Scout exposes FranDev writes only (Gunner write tools stay with Chiron); terminal stages refused in v1 — Corey (implicit in scope)
+- Pipeline-screen buttons skip approval cards — the human click IS the approval — Corey (implicit)
 
 ## Files Created
 
-(all in MasterSuite repo, `apps/analysis-api/` unless noted)
-
-- `MasterSuite.Modules.Frandev/` — `MasterSuite.Modules.Frandev.csproj`, `FrandevService.cs`, `IFrandevService.cs`, `FrandevService.{Dashboard,Pipeline,Journey,Calls,Workflows,Revenue}.cs`
-- `Entities/Frandev/` — `FrandevDashboardSummary.cs`, `FrandevStageCount.cs`, `FrandevStageBarItem.cs`, `FrandevLeadRow.cs`, `FrandevQuickPanel.cs`, `FrandevJourneyDetail.cs`, `FrandevCallDetail.cs`, `FrandevWorkflow.cs`, `FrandevRevenueInfo.cs`
-- `MasterSuite/Pages/Frandev/` — `FrandevPageModel.cs`, `Pipeline.cshtml(.cs)`, `Journey.cshtml(.cs)`, `Calls.cshtml(.cs)`, `Call.cshtml(.cs)`, `Workflows.cshtml(.cs)`, `Workflow.cshtml(.cs)`
-- `database/migrations/2026-07-08 - FranDev permission + nav item.sql`
+- MasterSuite repo: `MasterSuite.Modules.Scout/` (csproj, ScoutAgent, ScoutConfig, ScoutPrompt), `MasterSuite.Modules.Frandev/{FrandevScoutPack,FrandevScoutWritePack,FrandevService.Scout,FrandevService.Territories,FrandevService.TerritoryEos,FrandevService.Writes}.cs`, `Entities/Frandev/{FrandevTerritory,FrandevScoutCandidateRow,FrandevWrites}.cs`, `Pages/Frandev/{Territories,Territory,Scout}.cshtml(.cs)`, migrations `2026-07-08 - Scout agent-scoped conversations.sql` + `2026-07-08 - FranDev native write journal.sql`
+- This repo: `lib/mastersuite/apply-native-writes.ts`, `app/api/cron/apply-mastersuite-writes/route.ts`
 
 ## Files Modified
 
-- `MasterSuite/Pages/Frandev/FrandevIndex.cshtml(.cs)` — stub → dashboard
-- `MasterSuite.sln`, `ServiceEngine/ServiceEngine.csproj`, `ServiceEngine/CrossProjectConfigurationHelpers/DependencyInjectionConfig.cs`
-- `MasterSuite/Program.cs` — /frandev permission gate
-- `Entities/Constants/MasterSuitePermissions.cs` — Frandev const
+- MasterSuite repo: `ChironStore.cs` (agent-scoped conversations, defaulted params), `IFrandevService.cs`, `FrandevIndex.cshtml(.cs)` (Territories + Scout tiles, sync-health banner), `Pipeline.cshtml(.cs)` (action buttons + OnPostAction), `DependencyInjectionConfig.cs`, `ServiceEngine.csproj`, `MasterSuite.Modules.Frandev.csproj`, `MasterSuite.sln`
+- This repo: `app/api/cron/push-frandev/route.ts` (replay-before-push), `vercel.json` (15-min cron)
 
 ## Files Deleted
 
-- `ServiceEngine/Services/FrandevService.cs` (HelloWorld stub)
-- `DataAccess/DataAccess.Frandev.cs` (empty stub)
+- None
 
 ## Open Issues Carried Forward
 
-- Ben: run 9 FranDev migrations + the new permission/nav migration on production MariaDB — High
-- Ben: decide franchise-fee ownership (no MySQL home) + LegalEntity / frandev_franchise_owner items flagged in migrations — Medium
-- Source-of-truth flip plan (per-domain) needed before any write features — High (gates Phase 3)
-- Scout-on-Chiron design (incl. RAG without pgvector) — Medium
-- Sandbox repo untracked docs cleanup — Low
+- **Prod→dev DB refresh wipes frandev*/chiron* tables** (happened mid-session; ~25-min restore window, then recovery = re-run checked-in migrations incl. the AgentId column + push-cron reseed, 84k rows in ~3 min). Recurs until PR #103 merges and prod migrations run — tell Ben — Medium
+- PR #103 awaiting Ben's review/merge; launch also needs prod migrations + sync pointed at prod + nav flip + per-user Frandev perms — Medium
+- GHL sync on the app's own board moves still not implemented (pre-existing) — Low
+- 3 contacts with multiple active journeys need manual dedup (pre-existing) — Low
 
 ## Exact Next Step
 
-Check PR #103 for Ben's feedback; if none yet, build the FranDev home page into a proper landing screen with navigation tiles (worktree `/Users/coreylavinder/Mastersuite/mastersuite-frandev-wt`, branch `frandev-module`).
+Put the Scout dock button on every FranDev page with page context wired in (`?ctx=journey:slug` / `territory:SLUG`) so "this candidate" works from any screen — then Scout memory/knowledge injection (frandev_scout_user_memory + frandev_knowledge_document).
 
 ## Copy This To Start Next Session In Claude.ai
 
 ---
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
-GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Check PR #103 for Ben's feedback; if none yet, build the FranDev home page into a proper landing screen with navigation tiles (worktree /Users/coreylavinder/Mastersuite/mastersuite-frandev-wt, branch frandev-module).
+GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
+Then: Put the Scout dock button on every FranDev page with page context wired in so "this candidate" works from any screen, then Scout memory/knowledge injection.
 
 ---
