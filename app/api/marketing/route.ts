@@ -105,9 +105,11 @@ function canonicalChannelName(value: string) {
     if (channel.matchers.some((matcher) => normalized.includes(matcher))) return channel.name;
   }
   if (normalized.includes("referral") || normalized.includes("referred")) return "Referral";
-  if (normalized.includes("organic") || normalized.includes("seo") || normalized.includes("website")) return "Organic SEO";
+  if (normalized.includes("organic") || normalized.includes("seo") || normalized.includes("website"))
+    return "Organic SEO";
   if (normalized.includes("event") || normalized.includes("webinar")) return "Events / Webinars";
-  if (normalized.includes("broker") || normalized.includes("realtor") || normalized.includes("agent")) return "Broker / Realtor";
+  if (normalized.includes("broker") || normalized.includes("realtor") || normalized.includes("agent"))
+    return "Broker / Realtor";
   if (normalized.includes("partner")) return "Local Partnerships";
   return value.trim() || "Unknown";
 }
@@ -178,19 +180,33 @@ async function fetchContactsByIds(contactIds: string[]): Promise<ContactRow[]> {
 
 async function fetchPipelineSignals() {
   const supabase = createServerClient();
-  const [{ data: states, error: statesError }, { data: pipelines, error: pipelinesError }, { data: stages, error: stagesError }] =
-    await Promise.all([
-      supabase
-        .from("journey_pipeline_state")
-        .select("journey_id, pipeline_id, current_stage_id, entered_current_stage_at")
-        .eq("is_active", true),
-      supabase.from("pipelines").select("id, name, slug"),
-      supabase.from("pipeline_stages").select("id, name"),
-    ]);
+  const [{ data: pipelines, error: pipelinesError }, { data: stages, error: stagesError }] = await Promise.all([
+    supabase.from("pipelines").select("id, name, slug"),
+    supabase.from("pipeline_stages").select("id, name"),
+  ]);
 
-  if (statesError) throw statesError;
   if (pipelinesError) throw pipelinesError;
   if (stagesError) throw stagesError;
+
+  // Paged — there are 3k+ active states and an unpaged select silently caps at
+  // 1000, which under-reported every pipeline-derived number on this page
+  // (found 2026-07-09 when the MasterSuite-native port disagreed).
+  const states: {
+    journey_id: string;
+    pipeline_id: string;
+    current_stage_id: string;
+    entered_current_stage_at: string;
+  }[] = [];
+  for (let fromRow = 0; ; fromRow += 1000) {
+    const { data, error: statesError } = await supabase
+      .from("journey_pipeline_state")
+      .select("journey_id, pipeline_id, current_stage_id, entered_current_stage_at")
+      .eq("is_active", true)
+      .range(fromRow, fromRow + 999);
+    if (statesError) throw statesError;
+    states.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
 
   const journeyIds = Array.from(new Set((states ?? []).map((state) => state.journey_id).filter(Boolean)));
   if (journeyIds.length === 0) return [];
@@ -198,7 +214,9 @@ async function fetchPipelineSignals() {
   const pipelineById = new Map((pipelines ?? []).map((pipeline) => [pipeline.id, pipeline]));
   const stageById = new Map((stages ?? []).map((stage) => [stage.id, stage]));
   const contactIdsByJourney = new Map<string, Set<string>>();
-  const chunkSize = 500;
+  // 300 journeys/chunk keeps the journey_contacts response safely under the
+  // same 1000-row cap even when journeys carry several members.
+  const chunkSize = 300;
 
   for (let index = 0; index < journeyIds.length; index += chunkSize) {
     const chunk = journeyIds.slice(index, index + chunkSize);
@@ -294,11 +312,15 @@ function buildSuggestedTests(
   }
 
   for (const channel of activeChannels.filter((item) => item.periodLeads === 0).slice(0, 3)) {
-    suggestions.push(`Audit ${channel.name}: active in ${channel.activeTerritories} territor${channel.activeTerritories === 1 ? "y" : "ies"} but no period leads are attributed.`);
+    suggestions.push(
+      `Audit ${channel.name}: active in ${channel.activeTerritories} territor${channel.activeTerritories === 1 ? "y" : "ies"} but no period leads are attributed.`
+    );
   }
 
   for (const source of sourceRows.filter((row) => row.leads > 0 && row.activeTerritories === 0).slice(0, 3)) {
-    suggestions.push(`Review ${source.name}: leads exist in CRM attribution, but no active EOS territory channel is mapped.`);
+    suggestions.push(
+      `Review ${source.name}: leads exist in CRM attribution, but no active EOS territory channel is mapped.`
+    );
   }
 
   return Array.from(new Set(suggestions)).slice(0, 6);
@@ -382,9 +404,8 @@ export async function GET(request: NextRequest) {
       totals: {
         leads: contacts.length,
         convertedFranchisees: contacts.filter((contact) => contact.is_converted_franchisee).length,
-        activePipeline: new Set(
-          contacts.flatMap((contact) => [...(activeJourneyIdsByContact.get(contact.id) ?? [])])
-        ).size,
+        activePipeline: new Set(contacts.flatMap((contact) => [...(activeJourneyIdsByContact.get(contact.id) ?? [])]))
+          .size,
       },
       channelCards,
       sourceRows,
