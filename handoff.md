@@ -4,12 +4,67 @@
 
 Phase: FranDev native rebuild INSIDE MasterSuite — WHOLE SITE BUILT + **FIDELITY PASS DONE (all 7 new screens verified side-by-side in Chrome vs the app)** / Health: Green / Duration: short session
 
-## Session 70 — Fidelity pass results
+## What Was Built This Session
 
-- **Verified matching (no fixes needed):** Day Hub (KPI numbers identical 25 / 62-250 / 7-100; documented divergences: alerts panel instead of GHL calendar, mirror tasks vs GHL tasks), Activity (near-identical), Knowledge (identical counts; mirror `UpdatedAt` gets refreshed by the nightly upsert so native freshness reads newer — known artifact), Onboarding (identical, both empty), Site Guide (verbatim).
-- **L10 fixed → PR #107 (branch `frandev-fidelity`, MERGEABLE):** 3 headline metrics moved to the app's exact definitions and now match to the digit (T3: 42 closed / 59d avg / 21 PTO). Closed = jps in terminal stage with COALESCE(ClosedAt, EnteredCurrentStageAt, UpdatedAt) in window (stage history misses bulk-migrated journeys); PTO = sales 'pto' sub-task completions. Coaching numbers (Stage1 2,232 vs 1,499; Purchased 54 vs 67) intentionally differ: native reads LIVE property tables, the app reads capped/snapshot mirrors — native is more correct.
-- **Found + fixed an APP bug (this repo `722a241`):** /api/marketing fetched `journey_pipeline_state` unpaged — Supabase's silent 1000-row cap truncated every pipeline-derived number (nurture 562 shown vs 1,925 true; active pipeline 165 vs ~519). Native disagreed → investigation proved both DBs identical → app was wrong. Paged now; journey_contacts chunk shrunk to 300.
-- **Live prod issue spotted on the app (unfixed):** banner "MasterSuite sync failing: prospects — Table 'mastersuite.NewAgainHouses_FormSubmissions' doesn't exist" — the outbound prospects push is failing; likely the dev DB refresh dropped that source table or the name changed. INVESTIGATE NEXT.
+- **Chrome side-by-side fidelity pass, all 7 new screens vs the deployed app** (native local server + Corey's authenticated session on the Vercel app): Day Hub, Activity, L10, Marketing, Knowledge, Onboarding, Site Guide.
+- **L10 metric parity → MasterSuite PR #107** (branch `frandev-fidelity`, one file `FrandevService.L10.cs`): Closed Franchisees = jps rows in the terminal stage with `COALESCE(ClosedAt, EnteredCurrentStageAt, UpdatedAt)` in window (stage history misses bulk-migrated journeys — history said 5, truth 42); avg prospect→closed uses the same coalesced anchor; New Path to Ownership = sales `pto` sub-task completions (`frandev_contact_sub_task_log`).
+- **APP bug found + fixed (this repo `722a241`, `app/api/marketing/route.ts`):** `fetchPipelineSignals` pulled `journey_pipeline_state` unpaged — Supabase's silent 1000-row cap truncated every pipeline-derived number on /marketing (nurture 562 shown vs 1,925 true; active pipeline 165 vs ~519; 3,267 active states total). Paged now; `journey_contacts` chunk shrunk to 300. Discovered because the native port (full mirror reads) disagreed and BOTH DBs proved identical.
+
+## What Is Confirmed Working
+
+- **Exact L10 parity after fix:** T3 = 42 closed / 59d avg / 21 PTO on native, matching the app to the digit (verified by rendering both).
+- **Five screens verified matching with no changes:** Day Hub (KPI numbers identical 25 / 62-250 / 7-100), Activity (near-identical incl. badges/colors/dates), Knowledge (identical pillar + health counts), Onboarding (identical columns, both empty), Site Guide (verbatim content).
+- This repo after the marketing fix: `npx tsc --noEmit` + `npx next build` + 222 vitest clean, pushed.
+
+## What Is Broken or Incomplete
+
+- **Live app banner: "MasterSuite sync failing: prospects — Table 'mastersuite.NewAgainHouses_FormSubmissions' doesn't exist"** — the outbound prospects push is failing in prod; likely the dev DB refresh dropped the source table or it was renamed — High
+- Knowledge freshness drift: the nightly blind upsert refreshes mirror `UpdatedAt`, so native shows "1d ago" where the app shows "1mo ago" (fix = push should carry the source updated_at) — Low
+- L10 coaching numbers intentionally differ from the app (native reads LIVE property tables; the app reads capped/snapshot ms\_ mirrors — and likely has more 1000-row caps like the marketing one) — By design / audit candidate
+- L10 first uncached load ~30s (PropertyStatusHistory has no Inserted index — Ben's call), 10-min cache covers repeats — Medium
+
+## Decisions Made
+
+- Where native and app disagreed, DATA decided: both DBs compared row-for-row before touching code (native won on marketing; app's definition won on L10 close counting) — Claude (autonomous)
+- App's marketing pagination bug fixed immediately on main (solo-operator rule) rather than queued — Claude
+- Knowledge freshness drift + coaching-number divergence documented, not chased — Claude
+
+## Files Created
+
+- MasterSuite: branch `frandev-fidelity` → PR #107 (no new files)
+
+## Files Modified
+
+- This repo: `app/api/marketing/route.ts` (paged signals fetch), `handoff.md`
+- MasterSuite (PR #107): `MasterSuite.Modules.Frandev/FrandevService.L10.cs`
+
+## Files Deleted
+
+- None
+
+## Open Issues Carried Forward
+
+- **Prospects push failing live** (NewAgainHouses_FormSubmissions missing on dev DB) — High
+- **PR #107 awaiting Ben** (one-file L10 parity) — Low
+- **PROD launch pending (Ben):** prod migrations → we swap sync to prod → ApiKey_Anthropic → prod nav flip + perms; **Corey to schedule Ben's demo call**; dev-side nav/perms already flipped (row 76, perms id 15 for Corey+Ben) — Medium
+- Multi-territory close fan-out + EOS carry-forward still not exercised live — Low
+- L10 PropertyStatusHistory Inserted index (Ben's OK) — Medium
+- Duplicate disabled nav row 77 (`/v2/frandev`) on dev — Low
+- Audit the app for more unpaged-query 1000-row caps (marketing had one; L10's app route pages, others may not) — Medium
+
+## Exact Next Step
+
+Fix the failing prospects push: find why `mastersuite.NewAgainHouses_FormSubmissions` is missing on the dev DB (refresh drop vs rename), restore or re-point the sync source, and clear the app banner.
+
+## Copy This To Start Next Session In Claude.ai
+
+---
+
+Read this file then tell me: current status, last session summary, open issues, what we build today.
+GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
+Then: fix the failing prospects push (NewAgainHouses_FormSubmissions missing on dev DB); PR #107 + launch steps with Ben in parallel.
+
+---
 
 # Session Handoff — 2026-07-08 — Session 69 (below)
 
@@ -106,17 +161,3 @@ Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28
 - GHL sync on the app's own board moves still not implemented (pre-existing) — Low
 - 3 contacts with multiple active journeys need manual dedup (pre-existing) — Low
 - Ben Testing's GHL pushes fail (synthetic contact id) — expected — Low
-
-## Exact Next Step
-
-Investigate the live "MasterSuite sync failing: prospects — Table 'mastersuite.NewAgainHouses_FormSubmissions' doesn't exist" banner on the deployed app (outbound prospects push broken); then chase Ben on PR #107 + the launch runbook (demo call, prod migrations, sync swap, nav/perms).
-
-## Copy This To Start Next Session In Claude.ai
-
----
-
-Read this file then tell me: current status, last session summary, open issues, what we build today.
-GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
-Then: fix the failing prospects push (NewAgainHouses_FormSubmissions missing on dev DB); PR #107 + launch steps with Ben in parallel.
-
----
