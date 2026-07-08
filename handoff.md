@@ -6,8 +6,8 @@ Phase: FranDev native rebuild INSIDE MasterSuite — ALL 11 SCREENS BUILT, full 
 
 **Important:** work lives in the **MasterSuite repo**, two branches:
 
-- **PR #103** (FranDev module, ~19 commits) → https://github.com/NewAgainHouses/mastersuite/pull/103 — worktree `/Users/coreylavinder/Mastersuite/mastersuite-frandev-wt`, branch `frandev-module`. Latest main is merged in (Ben's DatabaseMigrationRunner included).
-- **PR #105** (Gunner shared-layout, NEW) → https://github.com/NewAgainHouses/mastersuite/pull/105 — worktree `/Users/coreylavinder/Mastersuite/mastersuite-gunner-layout-wt`, branch `gunner-shared-layout` (off latest main).
+- **PR #103** (FranDev module) → https://github.com/NewAgainHouses/mastersuite/pull/103 — worktree `/Users/coreylavinder/Mastersuite/mastersuite-frandev-wt`, branch `frandev-module`. **MERGEABLE/CLEAN** — latest main re-merged after Ben's #104 (sln conflict resolved: kept Frandev+Scout entries + main's "Tools" folder, dropped our orphaned "Database" folder). **Verified 0 Gunner files in the PR diff — no entanglement (Corey's rule).** Shared-file footprint is only: MasterSuite.sln, Program.cs (/frandev gate), DI config, DatabaseTables.cs, ChironStore (AgentId).
+- **PR #105 CLOSED as superseded (2026-07-08).** Ben shipped his own `Pages/Gunner/_GunnerLayout.cshtml` on main (`ecfdeb22` — dedupes the page shells, KEEPS the `_GunnerHeader` iframe + module-wide gunner.css, comment says consolidate with Shared/\_Layout only AFTER his module-tier migration #80/#85). Our branch `gunner-shared-layout` (worktree `mastersuite-gunner-layout-wt`) is preserved with the `.gn-page` scoping + V1-collision guards for that future consolidation; closing comment on #105 offers a rebase when Ben's ready.
 
 Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28657` in `apps/analysis-api/MasterSuite/` after `eval "$(grep '^export NAH_DB' ~/.zshrc)"` and `export ApiKey_Anthropic=<ANTHROPIC_API_KEY from this repo's .env.local>`; optional `export Frandev_DevLocalUser=admin@newagainhouses.com` to exercise identity-dependent paths (memory, unread badges). Kill stale servers first (`pkill -f "dotnet run"`). Locally pages render WITHOUT the header/sidebar chrome (no MasterSuite session → layout BlankPage mode); deployed users get the full wrapper.
 
@@ -36,7 +36,7 @@ Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28
 ## What Is Broken or Incomplete
 
 - Close (win) multi-territory fan-out + EOS carry-forward not exercised live (no test contact with territory owners on dev); verify on the first real multi-territory win or seed a test owner row — Low
-- gunner.css unscoped primitives (`.btn`, `.card`, `.pill`, `.b-*`) now coexist with V1 chrome on Gunner pages; could restyle chrome elements sharing those names — flagged in PR #105 for Ben's decision — Medium
+- ~~gunner.css unscoped primitives flagged in PR #105~~ — moot: #105 closed; Gunner layout is Ben's `_GunnerLayout` now, his domain — Closed
 - Native Scout turns update memory but the conflict window (user chats in the app between native turn and ≤15-min replay) is last-write-wins on content — by design — Low
 - Messaging composer disabled (sends app-side until the send phase; provider config is prod-only) — by design — Low
 - Knowledge docs truncated at 12k chars with honest marker; no native RAG/search tool — Low
@@ -70,7 +70,8 @@ Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28
 
 ## Open Issues Carried Forward
 
-- **PR #103 + PR #105 awaiting Ben's review/merge**; launch also needs prod migrations (runner now exists!) + sync pointed at prod + nav flip + per-user Frandev perms — Medium
+- **PR #103 awaiting Ben's review/merge (CLEAN, 0 Gunner files)**; launch also needs prod migrations (runner now exists!) + sync pointed at prod + nav flip + per-user Frandev perms. Note: main's #104 took migration ordinal `2026-07-08-002_Gunner…` alongside our `2026-07-08-002_Scout…` — harmless (runner keys on full filename, README forbids renaming applied scripts) but mention to Ben if he asks — Medium
+- Rule going forward (Corey, 2026-07-08): **FranDev work never rides a PR that touches Gunner files** — keep branches/PRs fully separate — Standing
 - Prod→dev DB refresh wipes frandev*/chiron* tables until #103 merges and prod migrations run (recovery: re-run migrations + push-cron reseed) — Medium
 - GHL sync on the app's own board moves still not implemented (pre-existing) — Low
 - 3 contacts with multiple active journeys need manual dedup (pre-existing) — Low
@@ -78,7 +79,7 @@ Local run: `dotnet run --no-build --no-launch-profile --urls http://localhost:28
 
 ## Exact Next Step
 
-Native write parity is COMPLETE — the FranDev module inside MasterSuite now does everything the app's pipeline does (advance/revert/drop/close-win/tasks/memory/sms-read), all journaled and replayed. Remaining to launch (all waiting on Ben): PR #103 + #105 review/merge → prod migrations via the runner → sync pointed at prod → nav flip + per-user Frandev perms. Best next build candidates while waiting: (a) native send phase for the Messages composer (needs prod-only provider config decision), (b) exercise multi-territory close fan-out + EOS carry-forward with a seeded test owner, or (c) start the FRANDEV\_\*.md brief+audit package for Ben's fold-in deliverable.
+Native write parity is COMPLETE — the FranDev module inside MasterSuite now does everything the app's pipeline does (advance/revert/drop/close-win/tasks/memory/sms-read), all journaled and replayed. Remaining to launch (all waiting on Ben): PR #103 review/merge (#105 closed as superseded by Ben's `_GunnerLayout`) → prod migrations via the runner → sync pointed at prod → nav flip + per-user Frandev perms. Best next build candidates while waiting: (a) native send phase for the Messages composer (needs prod-only provider config decision), (b) exercise multi-territory close fan-out + EOS carry-forward with a seeded test owner, or (c) start the FRANDEV\_\*.md brief+audit package for Ben's fold-in deliverable.
 
 ## Copy This To Start Next Session In Claude.ai
 
