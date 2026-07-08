@@ -4,6 +4,7 @@ export const maxDuration = 300;
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { pushFrandev } from "@/lib/mastersuite/push-frandev";
+import { applyNativeWrites } from "@/lib/mastersuite/apply-native-writes";
 import { getMasterSuiteWritePool, isWriteConfigured, checkMSWriteConnection } from "@/lib/mastersuite/write-client";
 
 /**
@@ -46,6 +47,13 @@ export async function GET(request: NextRequest) {
     .single();
 
   try {
+    // Replay MasterSuite-native writes FIRST — the push below is a blind
+    // upsert-by-PK from Supabase, so an unapplied journal row would be clobbered.
+    const replay = await applyNativeWrites();
+    if (replay.failed > 0) {
+      console.error("[push-frandev] native-write replay failures:", replay.errors.join(" | "));
+    }
+
     const pool = getMasterSuiteWritePool();
     const summary = await pushFrandev({ schemaPool: pool, writePool: pool });
     const status = summary.tablesWithErrors === 0 ? "success" : "failed";

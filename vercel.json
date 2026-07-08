@@ -109,6 +109,10 @@
     {
       "path": "/frandev/api/cron/push-frandev",
       "schedule": "30 11 * * *"
+    },
+    {
+      "path": "/frandev/api/cron/apply-mastersuite-writes",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
