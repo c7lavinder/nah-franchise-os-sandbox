@@ -42,6 +42,16 @@ interface AdvancePayload {
   moved_by: string;
 }
 
+interface DropPayload {
+  journey_id: string;
+  pipeline_id: string;
+  destination: "followup" | "nurture";
+  reason: string | null;
+  closed: Array<{ state_id: string; stage_id: string; history_id: string }>;
+  new_state_id: string | null;
+  moved_by: string;
+}
+
 interface CreateTaskPayload {
   task_id: string;
   contact_id: string;
@@ -78,6 +88,10 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
     try {
       if (row.WriteType === "advance_stage") {
         await applyAdvanceStage(JSON.parse(row.PayloadJson) as AdvancePayload);
+      } else if (row.WriteType === "revert_stage") {
+        await applyRevertStage(JSON.parse(row.PayloadJson) as AdvancePayload);
+      } else if (row.WriteType === "drop_journey") {
+        await applyDropJourney(JSON.parse(row.PayloadJson) as DropPayload);
       } else if (row.WriteType === "create_task") {
         await applyCreateTask(pool, JSON.parse(row.PayloadJson) as CreateTaskPayload);
       } else {
@@ -177,6 +191,155 @@ async function applyAdvanceStage(payload: AdvancePayload): Promise<void> {
     await markJourneyBriefStale(payload.journey_id);
   } catch {
     /* brief refresh is cosmetic */
+  }
+}
+
+/**
+ * Revert replay: same shape as advance minus the sub-task auto-complete (the
+ * app's revert doesn't complete anything), with was_revert on the history row.
+ */
+async function applyRevertStage(payload: AdvancePayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const now = new Date().toISOString();
+
+  const { data: jps, error: jpsError } = await supabase
+    .from("journey_pipeline_state")
+    .select("id, current_stage_id, is_active")
+    .eq("id", payload.state_id)
+    .maybeSingle();
+  if (jpsError) throw new Error(`jps read failed: ${jpsError.message}`);
+  if (!jps) throw new Error(`journey_pipeline_state ${payload.state_id} not found in Supabase`);
+  if (jps.current_stage_id === payload.to_stage_id) return; // already there — idempotent
+  if (jps.current_stage_id !== payload.from_stage_id)
+    throw new Error(
+      `conflict: state is at ${jps.current_stage_id}, expected ${payload.from_stage_id} — moved in the app since`
+    );
+
+  const { data: firstSubTask } = await supabase
+    .from("pipeline_sub_tasks")
+    .select("id")
+    .eq("stage_id", payload.to_stage_id)
+    .order("sort_order")
+    .limit(1)
+    .maybeSingle();
+
+  const { error: updError } = await supabase
+    .from("journey_pipeline_state")
+    .update({
+      current_stage_id: payload.to_stage_id,
+      entered_current_stage_at: now,
+      current_sub_task_id: firstSubTask?.id ?? null,
+      current_sub_task_started_at: now,
+      updated_at: now,
+    })
+    .eq("id", payload.state_id)
+    .eq("current_stage_id", payload.from_stage_id);
+  if (updError) throw new Error(`jps update failed: ${updError.message}`);
+
+  const { error: histError } = await supabase.from("pipeline_stage_history").insert({
+    id: payload.history_id,
+    journey_pipeline_state_id: payload.state_id,
+    from_stage_id: payload.from_stage_id,
+    to_stage_id: payload.to_stage_id,
+    moved_by_user_id: null,
+    reason: attributed(payload.reason, payload.moved_by),
+    was_skip: false,
+    was_revert: true,
+    was_auto: false,
+    created_at: now,
+  });
+  if (histError && !histError.message.includes("duplicate")) {
+    throw new Error(`history insert failed: ${histError.message}`);
+  }
+
+  try {
+    await syncStageToGHL(payload.contact_id, payload.pipeline_slug, payload.to_stage_slug);
+  } catch (err) {
+    console.error("[apply-native-writes] GHL stage sync failed:", err instanceof Error ? err.message : err);
+  }
+  try {
+    await markJourneyBriefStale(payload.journey_id);
+  } catch {
+    /* cosmetic */
+  }
+}
+
+// Fixed seed ids, same constants as the app's drop route.
+const FOLLOWUP_PIPELINE_ID = "a0000000-0000-0000-0000-000000000002";
+const FOLLOWUP_STAGE_ID = "c0000000-0000-0000-0000-000000000001";
+const NURTURE_STAGE_ID = "c0000000-0000-0000-0000-000000000002";
+
+/**
+ * Drop replay (§1.13 contact-wide drop): close the recorded states, mirror the
+ * history rows by id, and spawn the Follow-up state with the id MasterSuite
+ * minted. Each step is idempotent so a partial failure can be safely re-run.
+ */
+async function applyDropJourney(payload: DropPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const now = new Date().toISOString();
+  const closedReason = payload.destination === "followup" ? "dropped_to_followup" : "dropped_to_nurture";
+
+  for (const closed of payload.closed) {
+    const { data: jps, error: readError } = await supabase
+      .from("journey_pipeline_state")
+      .select("id, is_active")
+      .eq("id", closed.state_id)
+      .maybeSingle();
+    if (readError) throw new Error(`jps read failed: ${readError.message}`);
+    if (!jps) throw new Error(`journey_pipeline_state ${closed.state_id} not found in Supabase`);
+
+    if (jps.is_active) {
+      const { error: closeError } = await supabase
+        .from("journey_pipeline_state")
+        .update({ is_active: false, closed_reason: closedReason, closed_at: now, updated_at: now })
+        .eq("id", closed.state_id);
+      if (closeError) throw new Error(`jps close failed: ${closeError.message}`);
+    }
+
+    const { error: histError } = await supabase.from("pipeline_stage_history").insert({
+      id: closed.history_id,
+      journey_pipeline_state_id: closed.state_id,
+      from_stage_id: closed.stage_id,
+      to_stage_id: closed.stage_id,
+      moved_by_user_id: null,
+      reason: attributed(payload.reason ?? `Dropped to ${payload.destination}`, payload.moved_by),
+      was_skip: false,
+      was_revert: false,
+      was_auto: false,
+      created_at: now,
+    });
+    if (histError && !histError.message.includes("duplicate")) {
+      throw new Error(`history insert failed: ${histError.message}`);
+    }
+  }
+
+  if (payload.new_state_id) {
+    const { data: existing } = await supabase
+      .from("journey_pipeline_state")
+      .select("id")
+      .eq("id", payload.new_state_id)
+      .maybeSingle();
+    if (!existing) {
+      const { error: spawnError } = await supabase.from("journey_pipeline_state").insert({
+        id: payload.new_state_id,
+        journey_id: payload.journey_id,
+        pipeline_id: FOLLOWUP_PIPELINE_ID,
+        TerritorySlug: null,
+        current_stage_id: payload.destination === "followup" ? FOLLOWUP_STAGE_ID : NURTURE_STAGE_ID,
+        current_sub_task_id: null,
+        current_sub_task_started_at: null,
+        entered_pipeline_at: now,
+        entered_current_stage_at: now,
+        is_active: true,
+      });
+      if (spawnError) throw new Error(`follow-up spawn failed: ${spawnError.message}`);
+    }
+  }
+
+  try {
+    await markJourneyBriefStale(payload.journey_id);
+  } catch {
+    /* cosmetic */
   }
 }
 
