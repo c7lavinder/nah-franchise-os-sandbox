@@ -62,6 +62,12 @@ interface CreateTaskPayload {
   requested_by: string;
 }
 
+interface ScoutMemoryMergePayload {
+  user_id: string;
+  content: string;
+  requested_by: string;
+}
+
 export interface ApplyResult {
   pending: number;
   applied: number;
@@ -94,6 +100,8 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applyDropJourney(JSON.parse(row.PayloadJson) as DropPayload);
       } else if (row.WriteType === "create_task") {
         await applyCreateTask(pool, JSON.parse(row.PayloadJson) as CreateTaskPayload);
+      } else if (row.WriteType === "scout_memory_merge") {
+        await applyScoutMemoryMerge(JSON.parse(row.PayloadJson) as ScoutMemoryMergePayload);
       } else {
         throw new Error(`Unknown WriteType '${row.WriteType}'`);
       }
@@ -425,6 +433,33 @@ async function applyCreateTask(pool: Pool, payload: CreateTaskPayload): Promise<
   } catch (err) {
     console.error("[apply-native-writes] GHL task push failed:", err instanceof Error ? err.message : err);
   }
+}
+
+/**
+ * Memory replay: land the natively merged blob in Supabase (master) so the
+ * nightly push re-mirrors the same content instead of clobbering the native
+ * merge. Last-write-wins on content by design — if the user also chatted in
+ * this app between the native turn and this replay (≤15 min window), the
+ * native blob overwrites that merge; both blobs contain the same durable-fact
+ * distillation, so the loss is a nuance, not a record.
+ */
+async function applyScoutMemoryMerge(payload: ScoutMemoryMergePayload): Promise<void> {
+  if (!payload.user_id || !payload.content) throw new Error("scout_memory_merge payload missing user_id/content");
+  const supabase = getServiceSupabase();
+  const { data: existing } = await supabase
+    .from("scout_user_memory")
+    .select("turn_count")
+    .eq("user_id", payload.user_id)
+    .maybeSingle();
+  const { error } = await supabase.from("scout_user_memory").upsert(
+    {
+      user_id: payload.user_id,
+      content: payload.content.slice(0, 4000),
+      turn_count: ((existing as { turn_count?: number } | null)?.turn_count ?? 0) + 1,
+    },
+    { onConflict: "user_id" }
+  );
+  if (error) throw new Error(`scout_user_memory upsert failed: ${error.message}`);
 }
 
 function attributed(text: string | null, username: string): string {
