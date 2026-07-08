@@ -3,7 +3,7 @@
   "scout_entity": "properties",
   "description": "The property lead/deal record synced from MasterSuite PropertySummaries: one row per property lead, from raw marketing lead through purchase. Stage1/Stage2/Stage3 fields are successive underwriting evaluations of the same property — a higher stage supersedes a lower one — so 'the' ARV/budget/offer answers live in ms_property_calculations (Calculated_Arv, Calculated_ConstructionBudget, Calculated_MaxOffer, Calculated_StageMaturity).",
   "source_system": "MasterSuite PropertySummaries",
-  "last_verified": "2026-07-02",
+  "last_verified": "2026-07-08",
   "columns": {
     "PropertyId": {
       "meaning": "Unique MasterSuite identifier for the property lead; primary key and the join key to every other ms_property_* table.",
@@ -68,8 +68,8 @@
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Property/PropertySummary.cs",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think BatchId just tags which bulk list-import run created the lead, and isn't used for anything downstream — right, or does it drive something?"
+      "status": "confirmed",
+      "question": null
     },
     "Inserted": {
       "meaning": "When the property record was first created in MasterSuite.",
@@ -116,15 +116,15 @@
       "question": null
     },
     "PropertyReviewedDate": {
-      "meaning": "When the lead was marked as reviewed (surfaced in the corporate 'Properties Reviewed' and Global Inbox reports).",
+      "meaning": "Date the Stage 4 property review happened — the end of the analysis process, when the New Again team reviews the completed valuation, construction budget, and max offer with the franchise owner. The outcome is either a max offer to take to the seller or a decision not to make an offer.",
       "units": "date",
       "use_when": "Measuring review throughput / whether a lead has been looked at.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/MasterSuite/Pages/CorporateReports/PropertiesReviewed/PropertiesReviewedReportIndex.cshtml.cs",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think PropertyReviewedDate is when someone first worked the lead in the inbox/Gunner review flow (a human looked at it, whatever the outcome) — right, or does 'reviewed' mean something more specific?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "PropertyReviewedBy": {
       "meaning": "Username of the person who reviewed the lead.",
@@ -303,15 +303,15 @@
       "question": null
     },
     "AutoTerritorySlug": {
-      "meaning": "Territory the system auto-assigned from the property's location, as opposed to the confirmed TerritorySlug.",
+      "meaning": "The system's automatic best-guess of the nearest territory for a property that falls outside any established territory boundary. Not authoritative for identifying a property's territory.",
       "units": "text",
       "use_when": "Auditing territory assignment mismatches.",
-      "do_not_use_for": "Territory rollups — use TerritorySlug.",
-      "prefer_instead": "TerritorySlug",
+      "do_not_use_for": "Identifying which territory a property belongs to — always use TerritorySlug.",
+      "prefer_instead": "TerritorySlug (the single source of truth for a property's territory)",
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Property/PropertySummary.cs",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think AutoTerritorySlug is the territory the system guessed from the address/geocode, kept separate so a human-confirmed TerritorySlug can override it — right, or what drives it?"
+      "status": "confirmed",
+      "question": null
     },
     "ZillowPropertyId": {
       "meaning": "Zillow's identifier (ZPID) for the property, for linking to Zillow data.",
@@ -354,8 +354,8 @@
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Property/PropertySummary.cs",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think OwnerLeadSource records how the seller found us (e.g. mailer, website, referral) for direct-seller leads, separate from the LeadType/LeadCategory taxonomy — right, or what goes in it?"
+      "status": "confirmed",
+      "question": null
     },
     "Vacant": {
       "meaning": "Occupancy check from the risks review: Unchecked, Occupied, Vacant, or Unsure.",
@@ -413,15 +413,15 @@
       "question": null
     },
     "LeadClassification": {
-      "meaning": "Legacy extra lead classification; the code comment ties it to a 2018 Sullivan County tax-sale import.",
+      "meaning": "Legacy field originally created to distinguish tax-sale leads. Not used in several years; only relevant if NAH resumes tax sales.",
       "units": "text",
       "use_when": null,
-      "do_not_use_for": "Current lead segmentation — use LeadCategory/LeadType.",
+      "do_not_use_for": "Current lead segmentation — effectively dormant.",
       "prefer_instead": "LeadCategory",
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Property/PropertySummary.cs",
       "confidence": "low",
-      "status": "draft",
-      "question": "I think LeadClassification is a dead field left over from the 2018 Sullivan County tax-sale import and nothing uses it now — right, or does it still mean something?"
+      "status": "confirmed",
+      "question": null
     },
     "LeadSubType2": {
       "meaning": "Secondary lead sub-type refinement below LeadType (exact vocabulary lives in the data, not code).",
@@ -431,19 +431,19 @@
       "prefer_instead": "LeadType",
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Property/PropertySummary.cs",
       "confidence": "low",
-      "status": "draft",
-      "question": "I think LeadSubType2 is a second, finer sub-label under LeadType that only some lead sources use — right, or what distinguishes it from LeadType?"
+      "status": "confirmed",
+      "question": null
     },
     "ComparableSubjectCondition": {
-      "meaning": "Condition rating assigned to this (subject) property for comp analysis, from the scale NEW / REMODELED / UPDATED / FUNCTIONAL / ASIS.",
+      "meaning": "The target after-repair condition of the subject property, used to select comparables that are in that same (post-renovation) condition.",
       "units": "text",
       "use_when": "Explaining how comps were filtered/adjusted for condition.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Constants/PropertyComparableConditions.cs",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think ComparableSubjectCondition is the condition grade (NEW/REMODELED/UPDATED/FUNCTIONAL/ASIS) someone assigned to the subject house so the comp tool compares like-for-like — right, or what is it?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "AuctionAdPrice": {
       "meaning": "Price advertised in the auction listing/ad for auction leads.",
@@ -512,15 +512,15 @@
       "question": null
     },
     "AuctionDriveBy": {
-      "meaning": "Link (URL) to drive-by photos/notes for the auction property; rendered as an external link in the auction panel and reports.",
+      "meaning": "Status indicating someone physically drove by an auction property beforehand to confirm it exists and check its condition — due diligence for tax/foreclosure auctions, where a listed house could have been demolished or missing.",
       "units": "text",
       "use_when": "Pulling up drive-by evidence for an auction lead.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/MasterSuite/Pages/Property/Analysis/_Auction.cshtml",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think AuctionDriveBy holds a link to the drive-by photos/notes someone captured before the auction — right, or is it a status like done/not-done?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "AuctionTitle": {
       "meaning": "Title-search status/notes for the auction property.",
@@ -530,8 +530,8 @@
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Property/PropertySummary.cs",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think AuctionTitle tracks whether a title search was run and what it found for the auction property — right, or does it mean the auction listing's title text?"
+      "status": "confirmed",
+      "question": null
     },
     "AuctionStatus": {
       "meaning": "Current status of the auction itself (e.g. scheduled, postponed, cancelled, sold).",
@@ -541,8 +541,8 @@
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Property/PropertySummary.cs",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think AuctionStatus tracks the auction event lifecycle (scheduled / postponed / cancelled / sold) separately from our deal Status — right, and what values do you use?"
+      "status": "confirmed",
+      "question": null
     },
     "Auctioneer": {
       "meaning": "Name of the auction company or auctioneer running the sale.",
@@ -556,15 +556,15 @@
       "question": null
     },
     "TaxOverallGrade": {
-      "meaning": "Overall grade entered for tax-sale leads, used as a filter on the corporate Tax report.",
+      "meaning": "Overall grade for a tax-auction property, believed to be on a 1–5 scale. Not used recently since NAH no longer runs tax auctions at scale.",
       "units": "grade",
       "use_when": "Prioritizing tax-sale leads.",
-      "do_not_use_for": null,
+      "do_not_use_for": "Current analysis — dormant since tax auctions wound down.",
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/MasterSuite/Pages/Reports/Tax/Index.cshtml",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think TaxOverallGrade is a quick letter/number grade someone assigns to a tax-sale lead to rank how attractive it is — right, and what scale do you grade on?"
+      "status": "confirmed",
+      "question": null
     },
     "FloodRisk": {
       "meaning": "Flood-zone check from the risks review: Minimum, High, or Questionable (checked against the FEMA/flood website linked in the UI).",
@@ -585,8 +585,8 @@
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/legacy/ui-main/src/application/views/property/analysis/old/risks.php",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think MethCheck is a pass/fail lookup against the state meth-lab contamination registry — right, or is it a different kind of check?"
+      "status": "confirmed",
+      "question": null
     },
     "UsdaQualified": {
       "meaning": "Whether the property's location qualifies for USDA rural-development financing: Qualified or Not Qualified (matters for the resale buyer pool).",
@@ -607,19 +607,19 @@
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/MasterSuite/Pages/Property/Analysis/_Risks.cshtml",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think GoogleSearch means someone googled the address/owner and marked Passed if nothing alarming came up (crime scene, fire, news stories) — right, or what fails a property?"
+      "status": "confirmed",
+      "question": null
     },
     "AedQualified": {
-      "meaning": "A qualification flag entered on the tax data-entry screen; what 'AED' stands for is not documented in code.",
+      "meaning": "Flag for an AED program that was popular during the tax-sale era.",
       "units": "text",
       "use_when": null,
-      "do_not_use_for": null,
+      "do_not_use_for": "Current analysis — tied to the dormant tax-sale program.",
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/MasterSuite/Pages/Property/DataEntry/_DataEntryTax.cshtml",
-      "confidence": "low",
-      "status": "draft",
-      "question": "AedQualified sits on the tax data-entry screen — I think it marks whether the property qualifies for some tax-sale program or exemption, but what does AED stand for and what does qualifying mean?"
+      "confidence": "medium",
+      "status": "confirmed",
+      "question": null
     },
     "Stage1Arv": {
       "meaning": "Stage 1 (first-pass, automated) after-repair value in dollars; the engine computes it as adjusted square footage times a zip-code-based price per sq ft (or the Stage1ManualArv per-sq-ft override) and writes it back here.",
@@ -691,34 +691,34 @@
       "meaning": "Legacy per-property cost-of-money (financing cost) percentage captured at Stage 1; not referenced by the current calculation engine.",
       "units": "percent",
       "use_when": null,
-      "do_not_use_for": "Current underwriting answers — the engine uses territory/report variables instead.",
+      "do_not_use_for": "Dead/legacy field — not actively used; do not use it in answers.",
       "prefer_instead": "ms_property_calculations Calculated_* fields",
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Property/PropertySummary.cs",
       "confidence": "low",
-      "status": "draft",
-      "question": "I think Stage1CostOfMoneyPercent was an old per-property override of the financing-cost assumption that the engine no longer reads — right, or is it still meaningful somewhere?"
+      "status": "confirmed",
+      "question": null
     },
     "Stage1MaxRiskFactorPercent": {
       "meaning": "Legacy per-property cap on the risk factor captured at Stage 1; not referenced by the current calculation engine.",
       "units": "percent",
       "use_when": null,
-      "do_not_use_for": "Current risk-factor answers.",
+      "do_not_use_for": "Dead/legacy field — not actively used; do not use it in answers.",
       "prefer_instead": "ms_property_calculations.Calculated_RiskFactor",
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Property/PropertySummary.cs",
       "confidence": "low",
-      "status": "draft",
-      "question": "I think Stage1MaxRiskFactorPercent was an old per-property ceiling on the risk factor that's no longer used — right, or does it still cap anything?"
+      "status": "confirmed",
+      "question": null
     },
     "Stage1MlsSellPercent": {
-      "meaning": "Legacy per-property assumption for the percent of list price achieved on MLS resale, captured at Stage 1; not referenced by the current calculation engine.",
+      "meaning": "Believed to be the commission percentage paid on the disposition (sale) side. Rarely populated/used and not relevant to answers.",
       "units": "percent",
       "use_when": null,
-      "do_not_use_for": "Current resale assumptions.",
+      "do_not_use_for": "Answers — rarely used.",
       "prefer_instead": "ms_property_calculations Calculated_* fields",
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Property/PropertySummary.cs",
       "confidence": "low",
-      "status": "draft",
-      "question": "I think Stage1MlsSellPercent was an old per-property assumption for what percent of list price we'd net on MLS resale, now unused — right, or what did it feed?"
+      "status": "confirmed",
+      "question": null
     },
     "LowEndPriceSquareFoot": {
       "meaning": "Stage 2 comp-based low end of the market in dollars per square foot; the engine multiplies it by adjusted sq ft to show the low-end total price.",
@@ -743,15 +743,15 @@
       "question": null
     },
     "ArvCeiling": {
-      "meaning": "Underwriter-entered dollar ceiling on resale value for this property/area, set during Stage 2 ARV analysis; completing it (with the price-per-sq-ft brackets and Stage 2 ARV) advances the lead toward status 3.",
+      "meaning": "The upper limit on a property's ARV, set by its most limiting constraint — most often the top of the neighborhood, but it can be any constraint (e.g. only 2 bedrooms, or fronting a busy street). The ceiling is whatever the lowest such constraint dictates.",
       "units": "USD",
       "use_when": "Explaining the top of the realistic resale range the underwriter set.",
       "do_not_use_for": "Presenting as the expected ARV — it is a cap, not the estimate.",
       "prefer_instead": "ms_property_calculations.Calculated_Arv",
       "source_ref": "/home/user/mastersuite/apps/analysis-api/MasterSuite/Pages/Property/Analysis/_Arv_Stage2Container.cshtml",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think ArvCeiling is the 'top of the neighborhood' — the highest resale price this street/area supports regardless of how nice we make the house — right, or what rule do you use to set it?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "OfferRange": {
       "meaning": "Free-text offer range recorded on the price panel of the analysis screen (added 2020); e.g. the bracket quoted or planned for the seller.",
@@ -761,8 +761,8 @@
       "prefer_instead": "ms_property_calculations.Calculated_MaxOffer",
       "source_ref": "/home/user/mastersuite/apps/legacy/ui-main/src/application/views/property/analysis/price/index.php",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think OfferRange is the low-to-high offer bracket the rep planned to quote the seller (e.g. '80k-95k'), typed free-form — right, or does it capture something else?"
+      "status": "confirmed",
+      "question": null
     },
     "Stage2Arv": {
       "meaning": "Stage 2 (comp-based, human) ARV entered in dollars per square foot — not a total; the engine multiplies it by adjusted sq ft to get the Stage 2 ARV total, which supersedes Stage 1.",
@@ -820,15 +820,15 @@
       "question": null
     },
     "Stage3ConstructionProfitRatio": {
-      "meaning": "Stage 3 override of the construction-profit ratio; when set (> 0) it replaces the territory default for both the NAH and MLS profit-ratio calculations.",
+      "meaning": "Construction Profit Ratio (CPR) — a calculation, not a manual entry: for every dollar of construction spend, how much profit the deal produces. Lower is better; NAH targets a CPR of 2 or below (higher-CPR deals happen but mean working harder for the profit). A key measure in both deal analysis and territory health.",
       "units": "ratio",
       "use_when": "Explaining a deal-specific profit assumption.",
       "do_not_use_for": null,
       "prefer_instead": "ms_property_calculations Calculated_* profit fields",
       "source_ref": "/home/user/mastersuite/apps/analysis-api/MasterSuite.Modules.Property/CalculationEngine/Formulas/ConstructionProfitRatio.cs",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think Stage3ConstructionProfitRatio is a deal-level override of the target profit-per-construction-dollar ratio, replacing the territory default when a deal warrants it — right, and when would someone change it?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "Stage3MaxOffer": {
       "meaning": "Stage 3 manual override of the maximum offer in dollars; when set it replaces the engine's (ARV x risk factor) - construction budget formula, and the engine back-solves the implied risk factor from it.",
@@ -904,19 +904,19 @@
       "prefer_instead": "ms_property_calculations.Calculated_StageMaturity",
       "source_ref": "/home/user/mastersuite/apps/analysis-api/MasterSuite.Modules.Property/CalculationEngine/Formulas/StageMaturity.cs",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think Stage3CostOfMoneyPercent is a deal-specific borrowing-cost assumption that's recorded but no longer feeds the numbers — right, or should it be driving the cost-of-money calc?"
+      "status": "confirmed",
+      "question": null
     },
     "Stage3MaxRiskFactorPercent": {
       "meaning": "Legacy Stage 3 cap on the risk factor; present in the database but not in the current entity or calculation engine.",
       "units": "percent",
       "use_when": null,
-      "do_not_use_for": "Current risk answers.",
+      "do_not_use_for": "Dead/legacy field — not actively used; do not use it in answers.",
       "prefer_instead": "ms_property_calculations.Calculated_RiskFactor",
       "source_ref": "/home/user/nah-franchise-os-sandbox/docs/mastersuite-data-audit.md",
       "confidence": "low",
-      "status": "draft",
-      "question": "I think Stage3MaxRiskFactorPercent is a dead column from the old risk model with no current use — right, or does anything still read it?"
+      "status": "confirmed",
+      "question": null
     },
     "Stage3Notes": {
       "meaning": "Free-text notes from the Stage 3 evaluation; entering any counts the deal as Stage 3 mature.",
@@ -1084,15 +1084,15 @@
       "question": null
     },
     "SellDate": {
-      "meaning": "Date the property last sold (prior sale on record); the payoff estimator uses it to ignore mortgages that predate the last sale.",
+      "meaning": "Purpose unclear and not actively used; appears in several tables but can be ignored.",
       "units": "date",
       "use_when": "Ownership-history context and payoff estimation.",
-      "do_not_use_for": "The date NAH sold the property after rehab — that lives in the inventory table (Inv_SellDate).",
+      "do_not_use_for": "Anything — dormant/unclear field.",
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/MasterSuite.Modules.Property/CalculationEngine/Formulas/EstimatedPayoff2.cs",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think SellDate on the lead record is the date of the property's most recent prior sale (from public records), not anything about our exit — right, or what date is it?"
+      "confidence": "low",
+      "status": "confirmed",
+      "question": null
     },
     "DirectMailInitiatedDate": {
       "meaning": "Date direct-mail marketing was first initiated to this property/owner.",
@@ -1102,8 +1102,8 @@
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Property/PropertySummary.cs",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think DirectMailInitiatedDate is stamped when the property first enters a direct-mail campaign, and later mailings don't update it — right, or does it track something else?"
+      "status": "confirmed",
+      "question": null
     },
     "Status": {
       "meaning": "Where the lead sits in the acquisition funnel: '0 Lead List' (raw, not synced here), dead ends '0 No Offer'/'0 No Deal'/'0 Trash'/'0 Sell Later'/'0 Unresponsive', active underwriting '1' (new lead) through '2' (qualified), '3' (appointment set), '4' (made offer), then '5 Contract' and '6 Purchase' (acquired). Stages 1-4 advance automatically as evaluation fields get filled in.",
@@ -1124,8 +1124,8 @@
       "prefer_instead": "Status",
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Property/PropertySummary.cs",
       "confidence": "low",
-      "status": "draft",
-      "question": "I think EvaluationStatus is a dead legacy field that Status replaced — right, or does it still track something distinct from the funnel Status?"
+      "status": "confirmed",
+      "question": null
     },
     "BaseGrade": {
       "meaning": "Base component (default 2.5) of the exterior construction-budget grade; Base + Premium + Siding + Windows + Roof + Exterior sum to the total CB grade, which acts as the rehab level when no Stage 2 rehab grade exists.",
@@ -1135,19 +1135,19 @@
       "prefer_instead": "ms_property_calculations.Calculated_TotalCbGrade / Calculated_ConstructionBudget",
       "source_ref": "/home/user/mastersuite/apps/analysis-api/MasterSuite.Modules.Property.Tests/CalculationEngine/Formulas/TotalCbGradeTests.cs",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think BaseGrade is the starting rehab-grade points (default 2.5) every house gets before adding points for siding/windows/roof issues — right, or what does the base represent?"
+      "status": "confirmed",
+      "question": null
     },
     "Premium": {
-      "meaning": "'Premium' component of the exterior construction-budget grade — extra grade points added on top of the base.",
+      "meaning": "A construction-budget flag for properties whose characteristics push the budget significantly higher — typically foreclosures, tax sales, or long-vacant properties that carry unforeseen costs (projected because they've sat vacant). Not a marker of an upscale/high-end property.",
       "units": "grade",
       "use_when": "Explaining the exterior grade build-up.",
       "do_not_use_for": "Anything about pricing premium — it is a rehab-grade component.",
       "prefer_instead": "ms_property_calculations.Calculated_TotalCbGrade",
       "source_ref": "/home/user/mastersuite/apps/analysis-api/MasterSuite/Pages/Property/Analysis/_ConstructionBudgetStage2.cshtml",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think Premium adds rehab-grade points for premium/upscale finishes the rehab will need to match the neighborhood — right, or what does it capture?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "Siding": {
       "meaning": "Siding-condition component of the exterior construction-budget grade (points added for siding work needed).",
@@ -1274,12 +1274,12 @@
       "meaning": "Suppression flag: exclude this owner from direct-mail marketing lists.",
       "units": "boolean",
       "use_when": "Any marketing-outreach decision — always honor it.",
-      "do_not_use_for": null,
+      "do_not_use_for": "Do not treat as clearable — these suppression flags are permanent; there is no policy to clear them.",
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/ServiceEngine/Reporting/Marketing/DeploymentCenterListGenerator.cs",
       "confidence": "high",
-      "status": "draft",
-      "question": "I think the DoNotSend flags are set manually when someone opts out or complains, and once set they're permanent (never auto-cleared) — right, or is there a policy for when they get set/cleared?"
+      "status": "confirmed",
+      "question": null
     },
     "TrusteeDoNotSend": {
       "meaning": "Suppression flag: exclude the trustee contact from direct-mail marketing lists.",
@@ -1304,15 +1304,15 @@
       "question": null
     },
     "HouseCanaryValue": {
-      "meaning": "Property value estimate from the HouseCanary AVM, entered on the property-details data-entry screen.",
+      "meaning": "The ARV that HouseCanary software projects for the property — one of NAH's more accurate ARV signals. Produced via a HouseCanary process run outside MasterSuite, based on the subject's target (post-renovation) condition, so it pulls remodeled comps and reads as a strong ARV signal.",
       "units": "USD",
       "use_when": "Cross-checking our ARV against a third-party automated valuation.",
       "do_not_use_for": "Presenting as ARV — AVMs estimate current as-is value, not after-repair value.",
       "prefer_instead": "ms_property_calculations.Calculated_Arv for the underwritten value",
       "source_ref": "/home/user/mastersuite/apps/analysis-api/MasterSuite/Pages/Property/DataEntry/_DataEntryPropertyDetails.cshtml",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think HouseCanaryValue is the HouseCanary automated current-value estimate, typed in manually as a sanity check against our ARV — right, and is it as-is value or their ARV product?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "utmMedium": {
       "meaning": "Marketing attribution: the UTM medium (channel type, e.g. cpc, email) from the web form/campaign that generated the lead.",
@@ -1377,8 +1377,8 @@
       "prefer_instead": null,
       "source_ref": "/home/user/mastersuite/apps/analysis-api/Entities/Property/PropertyDataEntry.cs",
       "confidence": "medium",
-      "status": "draft",
-      "question": "I think DispositionNotes is where the team writes exit-strategy thoughts (flip vs wholetail vs rental etc.) for the deal — right, or is it used for something else?"
+      "status": "confirmed",
+      "question": null
     }
   }
 }
