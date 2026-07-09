@@ -21,6 +21,8 @@ import { syncStageToGHL } from "@/lib/ghl/stage-sync";
 import { carryForwardContactEos } from "@/lib/eos/carry-forward";
 import { markJourneyBriefStale } from "@/lib/briefs/mark-journey-brief-stale";
 import { isSubStageMoveLog } from "@/lib/contacts/stage-visual-state";
+import { matchWorkflowTriggers } from "@/lib/workflows/trigger-matcher";
+import { runContactResearch } from "@/lib/agents/contact-research";
 import * as ghl from "@/lib/ghl";
 
 interface JournalRow extends RowDataPacket {
@@ -90,6 +92,59 @@ interface MarkSmsReadPayload {
   read_at: string; // "YYYY-MM-DD HH:MM:SS" UTC
 }
 
+interface ToggleTaskPayload {
+  task_id: string;
+  contact_id: string;
+  ghl_contact_id: string | null;
+  completed: boolean;
+  toggled_by: string;
+}
+
+interface SubTaskLogPayload {
+  log_id: string;
+  state_id: string;
+  journey_id: string;
+  sub_task_id: string;
+  contact_id: string;
+  territory_slug: string | null;
+  completed: boolean;
+  note: string | null;
+  logged_by: string;
+}
+
+interface WorkflowStatusPayload {
+  workflow_id: string;
+  from_status: string;
+  to_status: string;
+  changed_by: string;
+}
+
+interface CreateContactPayload {
+  contact_id: string;
+  journey_id: string;
+  journey_contact_id: string;
+  state_id: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  state: string | null;
+  source: string | null;
+  sub_source: string | null;
+  journey_slug: string;
+  journey_name: string;
+  created_by: string;
+}
+
+interface UpdateContactPayload {
+  contact_id: string;
+  ghl_contact_id: string | null;
+  phone: string | null;
+  email: string | null;
+  updated_by: string;
+}
+
 export interface ApplyResult {
   pending: number;
   applied: number;
@@ -128,6 +183,16 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applyScoutMemoryMerge(JSON.parse(row.PayloadJson) as ScoutMemoryMergePayload);
       } else if (row.WriteType === "mark_sms_read") {
         await applyMarkSmsRead(JSON.parse(row.PayloadJson) as MarkSmsReadPayload);
+      } else if (row.WriteType === "toggle_task") {
+        await applyToggleTask(JSON.parse(row.PayloadJson) as ToggleTaskPayload);
+      } else if (row.WriteType === "sub_task_log") {
+        await applySubTaskLog(JSON.parse(row.PayloadJson) as SubTaskLogPayload);
+      } else if (row.WriteType === "workflow_status") {
+        await applyWorkflowStatus(JSON.parse(row.PayloadJson) as WorkflowStatusPayload);
+      } else if (row.WriteType === "create_contact") {
+        await applyCreateContact(JSON.parse(row.PayloadJson) as CreateContactPayload);
+      } else if (row.WriteType === "update_contact") {
+        await applyUpdateContact(JSON.parse(row.PayloadJson) as UpdateContactPayload);
       } else {
         throw new Error(`Unknown WriteType '${row.WriteType}'`);
       }
@@ -641,6 +706,458 @@ async function applyMarkSmsRead(payload: MarkSmsReadPayload): Promise<void> {
     { onConflict: "user_id,conversation_key" }
   );
   if (error) throw new Error(`sms_conversation_reads upsert failed: ${error.message}`);
+}
+
+/**
+ * Task toggle replay — mirror of lib/tasks/sync.ts updateTask (which backs the
+ * app's PUT task route): flip completed/completed_at on the Supabase row, then
+ * best-effort push the same flag to GHL. Idempotent: already at the requested
+ * state means no Supabase write (GHL push still runs — it's a no-op there too).
+ */
+async function applyToggleTask(payload: ToggleTaskPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const { data: task, error: readError } = await supabase
+    .from("tasks")
+    .select("id, completed, ghl_task_id, ghl_contact_id")
+    .eq("id", payload.task_id)
+    .maybeSingle();
+  if (readError) throw new Error(`task read failed: ${readError.message}`);
+  if (!task) throw new Error(`task ${payload.task_id} not found in Supabase`);
+
+  const now = new Date().toISOString();
+  if (task.completed !== payload.completed) {
+    const { error: updError } = await supabase
+      .from("tasks")
+      .update({
+        completed: payload.completed,
+        completed_at: payload.completed ? now : null,
+        updated_at: now,
+      })
+      .eq("id", payload.task_id);
+    if (updError) throw new Error(`task update failed: ${updError.message}`);
+  }
+
+  // Best-effort GHL sync — placeholder pto_ contacts and unsynced tasks skip.
+  const ghlContactId = payload.ghl_contact_id ?? (task.ghl_contact_id as string | null);
+  if (!task.ghl_task_id || !ghlContactId || ghlContactId.startsWith("pto_")) return;
+  try {
+    await ghl.updateTask(ghlContactId, task.ghl_task_id as string, { completed: payload.completed });
+  } catch (err) {
+    console.error("[apply-native-writes] GHL task update failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+/**
+ * Sub-task log replay. completed=true: insert the log with MasterSuite's
+ * minted id (the push then upserts onto the native row), same row shape and
+ * attribution as the app's log route — state_advance "second" completes a
+ * two-state sub-task. completed=false: soft-delete the live log(s) for
+ * (state, sub_task), matching the app's DELETE /api/sub-task-logs behavior.
+ * Idempotent both ways: insert skipped if the id or a live (state, sub_task)
+ * log already exists; deleting an absent log matches zero rows.
+ */
+async function applySubTaskLog(payload: SubTaskLogPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const now = new Date().toISOString();
+
+  if (payload.completed) {
+    const { data: byId, error: idError } = await supabase
+      .from("contact_sub_task_logs")
+      .select("id")
+      .eq("id", payload.log_id)
+      .maybeSingle();
+    if (idError) throw new Error(`log read failed: ${idError.message}`);
+
+    if (!byId) {
+      const { data: existing } = await supabase
+        .from("contact_sub_task_logs")
+        .select("id")
+        .eq("journey_pipeline_state_id", payload.state_id)
+        .eq("sub_task_id", payload.sub_task_id)
+        .is("deleted_at", null)
+        .limit(1)
+        .maybeSingle();
+
+      if (!existing) {
+        const { data: subTask } = await supabase
+          .from("pipeline_sub_tasks")
+          .select("state_type")
+          .eq("id", payload.sub_task_id)
+          .maybeSingle();
+
+        const { error: insError } = await supabase.from("contact_sub_task_logs").insert({
+          id: payload.log_id,
+          journey_pipeline_state_id: payload.state_id,
+          sub_task_id: payload.sub_task_id,
+          logger_user_id: null,
+          source: "manual",
+          state_advance: subTask?.state_type === "two_state" ? "second" : null,
+          content_type: "note",
+          content_text: attributed(payload.note, payload.logged_by),
+          created_at: now,
+        });
+        if (insError && !insError.message.includes("duplicate")) {
+          throw new Error(`sub-task log insert failed: ${insError.message}`);
+        }
+      }
+    }
+  } else {
+    // Un-complete: soft-delete like the app route (deleted_at, never a hard delete).
+    // Prefer the exact log_id MasterSuite recorded; fall back to matching by
+    // (state, sub_task) only if that row is already gone or already deleted.
+    const { data: byId, error: idDelError } = await supabase
+      .from("contact_sub_task_logs")
+      .update({ deleted_at: now })
+      .eq("id", payload.log_id)
+      .is("deleted_at", null)
+      .select("id");
+    if (idDelError) throw new Error(`sub-task log delete failed: ${idDelError.message}`);
+
+    if (!byId || byId.length === 0) {
+      const { error: delError } = await supabase
+        .from("contact_sub_task_logs")
+        .update({ deleted_at: now })
+        .eq("journey_pipeline_state_id", payload.state_id)
+        .eq("sub_task_id", payload.sub_task_id)
+        .is("deleted_at", null);
+      if (delError) throw new Error(`sub-task log delete failed: ${delError.message}`);
+    }
+  }
+
+  try {
+    await markJourneyBriefStale(payload.journey_id);
+  } catch {
+    /* cosmetic */
+  }
+}
+
+/**
+ * Workflow status replay — the PATCH route's status change with an optimistic
+ * from_status guard. Transition validity was enforced at the source; here the
+ * only question is whether the app moved the workflow since. Conflict rule
+ * matches advance_stage: fail the journal row, the push restores MySQL.
+ */
+async function applyWorkflowStatus(payload: WorkflowStatusPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const { data: workflow, error: readError } = await supabase
+    .from("workflows")
+    .select("id, status")
+    .eq("id", payload.workflow_id)
+    .maybeSingle();
+  if (readError) throw new Error(`workflow read failed: ${readError.message}`);
+  if (!workflow) throw new Error(`workflow ${payload.workflow_id} not found in Supabase`);
+  if (workflow.status === payload.to_status) return; // already there — idempotent
+  if (workflow.status !== payload.from_status)
+    throw new Error(
+      `conflict: workflow is '${workflow.status}', expected '${payload.from_status}' — changed in the app since`
+    );
+
+  const { error: updError } = await supabase
+    .from("workflows")
+    .update({ status: payload.to_status, updated_at: new Date().toISOString() })
+    .eq("id", payload.workflow_id)
+    .eq("status", payload.from_status); // optimistic guard
+  if (updError) throw new Error(`workflow update failed: ${updError.message}`);
+}
+
+/**
+ * Contact-create replay — the full /api/contacts/create flow with the ids
+ * MasterSuite minted. GHL upsert runs first (dedup by email/phone; an existing
+ * GHL contact still lands on OUR minted Supabase row, storing the returned
+ * ghl_contact_id), then contacts/journeys/journey_contacts/journey_pipeline_state
+ * insert with those exact ids so the push upserts onto the native rows.
+ * Follow-ups (workflow trigger, retro-link calls, EOS seed, research agent)
+ * are best-effort like the route. Idempotent: every insert is existence-guarded,
+ * so a partially failed row can be safely re-run.
+ */
+async function applyCreateContact(payload: CreateContactPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const now = new Date().toISOString();
+
+  const { data: existingContact, error: readError } = await supabase
+    .from("contacts")
+    .select("id, ghl_contact_id")
+    .eq("id", payload.contact_id)
+    .maybeSingle();
+  if (readError) throw new Error(`contact read failed: ${readError.message}`);
+
+  let ghlContactId = (existingContact?.ghl_contact_id as string | null) ?? null;
+
+  if (!existingContact) {
+    // 1. GHL first — required, like the route. Dedup is GHL's (email/phone).
+    const ghlResult = await ghl.upsertContact({
+      firstName: payload.first_name,
+      lastName: payload.last_name,
+      ...(payload.email ? { email: payload.email } : {}),
+      ...(payload.phone ? { phone: payload.phone } : {}),
+      ...(payload.city ? { city: payload.city } : {}),
+      ...(payload.state ? { state: payload.state } : {}),
+      ...(payload.source ? { source: payload.source } : {}),
+    });
+    ghlContactId = ghlResult.contact.id;
+
+    // 2. Supabase mirror with the minted id (id precheck above covers re-runs,
+    // so a duplicate here means the GHL contact is already mirrored under a
+    // different row — a real conflict worth failing on).
+    const { error: insError } = await supabase.from("contacts").insert({
+      id: payload.contact_id,
+      ghl_contact_id: ghlContactId,
+      first_name: payload.first_name,
+      last_name: payload.last_name,
+      email: payload.email ?? null,
+      phone: payload.phone ?? null,
+      city: payload.city ?? null,
+      state: payload.state ?? null,
+      opportunity_source: payload.source ?? null,
+      sub_source: payload.sub_source ?? null,
+      last_synced_at: now,
+    });
+    if (insError) throw new Error(`contacts insert failed: ${insError.message}`);
+  }
+
+  // 3. Journey + primary membership with minted ids.
+  const { data: existingJourney } = await supabase
+    .from("journeys")
+    .select("id")
+    .eq("id", payload.journey_id)
+    .maybeSingle();
+  if (!existingJourney) {
+    const { error: jError } = await supabase.from("journeys").insert({
+      id: payload.journey_id,
+      primary_contact_id: payload.contact_id,
+      name: payload.journey_name,
+      slug: payload.journey_slug,
+      status: "active",
+    });
+    if (jError && !jError.message.includes("duplicate")) throw new Error(`journey insert failed: ${jError.message}`);
+  }
+
+  const { data: existingMember } = await supabase
+    .from("journey_contacts")
+    .select("id")
+    .eq("id", payload.journey_contact_id)
+    .maybeSingle();
+  if (!existingMember) {
+    const { error: mError } = await supabase.from("journey_contacts").insert({
+      id: payload.journey_contact_id,
+      journey_id: payload.journey_id,
+      contact_id: payload.contact_id,
+      role: "primary",
+    });
+    if (mError && !mError.message.includes("duplicate") && !mError.message.includes("uniq_active_journey_contact")) {
+      throw new Error(`journey member insert failed: ${mError.message}`);
+    }
+  }
+
+  // 4. Sales pipeline → first stage, single NULL-territory jps row, minted id.
+  const { data: existingState } = await supabase
+    .from("journey_pipeline_state")
+    .select("id")
+    .eq("id", payload.state_id)
+    .maybeSingle();
+  if (!existingState) {
+    const { data: salesPipeline } = await supabase.from("pipelines").select("id").eq("slug", "sales").maybeSingle();
+    if (!salesPipeline) throw new Error("sales pipeline not found in Supabase");
+
+    const { data: dupState } = await supabase
+      .from("journey_pipeline_state")
+      .select("id")
+      .eq("journey_id", payload.journey_id)
+      .eq("pipeline_id", salesPipeline.id)
+      .maybeSingle();
+
+    if (!dupState) {
+      const { data: firstStage } = await supabase
+        .from("pipeline_stages")
+        .select("id")
+        .eq("pipeline_id", salesPipeline.id)
+        .order("sort_order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!firstStage) throw new Error("sales first stage not found in Supabase");
+
+      const { data: firstSubTask } = await supabase
+        .from("pipeline_sub_tasks")
+        .select("id")
+        .eq("stage_id", firstStage.id)
+        .order("sort_order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      const { data: chadOwner } = await supabase
+        .from("users")
+        .select("id")
+        .eq("email", "chad@newagainhouses.com")
+        .maybeSingle();
+
+      const { error: sError } = await supabase.from("journey_pipeline_state").insert({
+        id: payload.state_id,
+        journey_id: payload.journey_id,
+        TerritorySlug: null,
+        pipeline_id: salesPipeline.id,
+        current_stage_id: firstStage.id,
+        current_sub_task_id: firstSubTask?.id ?? null,
+        assigned_user_id: chadOwner?.id ?? null,
+        is_active: true,
+      });
+      if (sError && !sError.message.includes("duplicate")) {
+        throw new Error(`pipeline state insert failed: ${sError.message}`);
+      }
+    }
+  }
+
+  // 5. Follow-ups. Trigger + research only on the first pass (fresh contact) so
+  // re-runs don't re-enroll workflows; retro-link + EOS seed are inherently
+  // idempotent and run every pass. All best-effort like the route.
+  if (!existingContact && ghlContactId) {
+    try {
+      await matchWorkflowTriggers("journey.created", ghlContactId, {
+        pipelineName: "Sales — Path to Ownership",
+        pipelineSlug: "sales",
+        stageName: "Engagement",
+        contactName: `${payload.first_name} ${payload.last_name}`.trim(),
+      });
+    } catch (err) {
+      console.error("[apply-native-writes] journey.created trigger failed:", err instanceof Error ? err.message : err);
+    }
+  }
+
+  try {
+    await retroLinkCallsForContact(supabase, payload.contact_id, payload);
+  } catch (err) {
+    console.error("[apply-native-writes] call retro-link failed:", err instanceof Error ? err.message : err);
+  }
+
+  try {
+    await supabase
+      .from("eos_contact_goals")
+      .upsert(
+        { contact_id: payload.contact_id, source: "system" },
+        { onConflict: "contact_id", ignoreDuplicates: true }
+      );
+  } catch (err) {
+    console.error("[apply-native-writes] EOS goals seed failed:", err instanceof Error ? err.message : err);
+  }
+
+  if (!existingContact && ghlContactId && !ghlContactId.startsWith("pto_")) {
+    // Non-blocking like the route — the research agent can take minutes.
+    runContactResearch(ghlContactId, true).catch((err) => {
+      console.error("[apply-native-writes] background research failed:", err instanceof Error ? err.message : err);
+    });
+  }
+}
+
+/** Mirror of the create route's step 4: link existing calls/participants by email or display name. */
+async function retroLinkCallsForContact(
+  supabase: ReturnType<typeof getServiceSupabase>,
+  contactId: string,
+  payload: Pick<CreateContactPayload, "first_name" | "last_name" | "email">
+): Promise<void> {
+  const displayName = `${payload.first_name} ${payload.last_name}`.trim();
+  const emailsToLink: string[] = [];
+
+  const contactEmail = payload.email?.trim()?.toLowerCase();
+  if (contactEmail) emailsToLink.push(contactEmail);
+
+  const { data: relatedPeople } = await supabase
+    .from("contact_related_people")
+    .select("email")
+    .eq("contact_id", contactId)
+    .not("email", "is", null);
+  for (const rp of relatedPeople ?? []) {
+    if (rp.email) {
+      const rpEmail = (rp.email as string).trim().toLowerCase();
+      if (rpEmail && !emailsToLink.includes(rpEmail)) emailsToLink.push(rpEmail);
+    }
+  }
+
+  const { data: nameMatchParticipants } = await supabase
+    .from("call_participants")
+    .select("call_id, email")
+    .eq("display_name", displayName)
+    .is("contact_id", null);
+  for (const p of nameMatchParticipants ?? []) {
+    if (p.email) {
+      const pEmail = (p.email as string).trim().toLowerCase();
+      if (!emailsToLink.includes(pEmail)) emailsToLink.push(pEmail);
+    }
+  }
+
+  for (const email of emailsToLink) {
+    await supabase
+      .from("call_participants")
+      .update({ contact_id: contactId, role: "prospect", display_name: displayName })
+      .eq("email", email)
+      .is("contact_id", null);
+
+    const { data: sessions } = await supabase
+      .from("read_ai_sessions")
+      .select("session_id")
+      .contains("participant_emails", [email]);
+    if (sessions && sessions.length > 0) {
+      const sessionIds = sessions.map((s: { session_id: string }) => s.session_id);
+      await supabase
+        .from("calls")
+        .update({ contact_id: contactId })
+        .in("read_ai_session_id", sessionIds)
+        .is("contact_id", null);
+    }
+  }
+}
+
+/**
+ * Contact field-update replay — the PATCH route's phone/email path. Phone
+ * patches contacts directly; a new primary email routes through contact_emails
+ * (the trigger keeps contacts.email in sync). GHL sync is best-effort. Both
+ * writes are naturally idempotent.
+ */
+async function applyUpdateContact(payload: UpdateContactPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const phone = payload.phone?.trim() || null;
+  const email = payload.email?.trim() || null;
+  if (!phone && !email) return; // nothing to patch
+
+  if (email) {
+    await supabase
+      .from("contact_emails")
+      .update({ is_primary: false })
+      .eq("contact_id", payload.contact_id)
+      .eq("is_primary", true);
+    const { error: emailError } = await supabase
+      .from("contact_emails")
+      .upsert(
+        { contact_id: payload.contact_id, email, is_primary: true, source: "manual" },
+        { onConflict: "contact_id,email" }
+      );
+    if (emailError) throw new Error(`contact_emails upsert failed: ${emailError.message}`);
+  }
+
+  if (phone) {
+    const { error } = await supabase.from("contacts").update({ phone }).eq("id", payload.contact_id);
+    if (error) throw new Error(`contact update failed: ${error.message}`);
+  }
+
+  // Best-effort GHL sync (the PATCH route's ghlFields block — including email,
+  // which the journal payload carries directly).
+  const ghlFields: Record<string, string> = {};
+  if (phone) ghlFields.phone = phone;
+  if (email) ghlFields.email = email;
+
+  let ghlContactId = payload.ghl_contact_id;
+  if (!ghlContactId) {
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("ghl_contact_id")
+      .eq("id", payload.contact_id)
+      .maybeSingle();
+    ghlContactId = (contact?.ghl_contact_id as string | null) ?? null;
+  }
+  if (!ghlContactId || ghlContactId.startsWith("pto_")) return;
+  try {
+    await ghl.updateContact(ghlContactId, ghlFields);
+  } catch (err) {
+    console.error("[apply-native-writes] GHL contact sync failed:", err instanceof Error ? err.message : err);
+  }
 }
 
 function attributed(text: string | null, username: string): string {
