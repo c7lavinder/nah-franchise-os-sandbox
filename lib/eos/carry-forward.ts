@@ -68,7 +68,7 @@ export async function carryForwardContactEos(
   if (issues.length > 0) {
     const issueRows = issues.map((issue) => ({
       TerritorySlug: territorySlug,
-      Issue: issue.Issue,
+      Issue: issue.issue_text,
       source: "carried_forward" as const,
       origin_contact_id: contactId,
     }));
@@ -79,7 +79,7 @@ export async function carryForwardContactEos(
   if (todos.length > 0) {
     const todoRows = todos.map((todo) => ({
       TerritorySlug: territorySlug,
-      Todo: todo.Todo,
+      Todo: todo.todo_text,
       owner_user_id: todo.owner_user_id,
       source: "carried_forward" as const,
       origin_contact_id: contactId,
