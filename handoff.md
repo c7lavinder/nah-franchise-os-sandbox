@@ -1,4 +1,98 @@
-# Session Handoff — 2026-07-09 — Session 70
+# Session Handoff — 2026-07-09 — Session 71
+
+## Status
+
+Phase: FranDev native rebuild INSIDE MasterSuite — **UI/FUNCTIONALITY PARITY PASS BUILT → PR #114** (analytics dashboard, net-new Contact page, on-page actions everywhere, 5 new journaled write types; replay handlers already LIVE on app main) / Health: Green / Duration: full session
+
+**Important:** MasterSuite work now lives in its own worktree `~/Mastersuite/mastersuite-frandev-parity-wt` (branch `frandev-ui-parity`). The main clone `~/Mastersuite/mastersuite` is shared with a concurrent Gunner session that switches branches and stashes at will — **never leave FranDev work sitting uncommitted in the shared clone** (it got stashed out from under us mid-session; recovered fully from `stash@{0}` without disturbing their state).
+
+## What Was Built This Session
+
+- **9-agent parity audit** (app screen vs native port, element by element) → consolidated gap map. Headline findings: app `/pipeline` is now a Kanban board (native's lead-list design maps to app `/contacts`); NO native Contacts page existed; zero write paths for tasks/sub-tasks/workflows/contact edits; DayHub queries were global instead of per-user.
+- **Wave 1 (8 parallel build agents, contract-first — `IFrandevService` made `partial`, each domain adds its own `IFrandevService.{Domain}.cs`):**
+  - `/frandev` landing: Analytics section — 7/30/90/365 period selector, KPI cards (contacts/active/won/conversion), CSS sales-funnel bars w/ avg-days, lead-sources conic donut, conversion-funnel table, rep leaderboard (`FrandevService.DashboardExtras.cs`, 5-min per-period cache)
+  - **`/frandev/contact/{key}` NET-NEW page** (uuid or GHL id): franchisee/prospect/slim classification, inventory KPIs reusing `GetTerritoryKpis`, Contacts/Profile/Personal-EOS tabs, 30-call history (`Contact.cshtml(.cs)`, `FrandevService.Contacts.cs`)
+  - Pipeline: In-Sales/Onboarding/Runway scorecard row, territory-card mode (C# port of the quartile scorer), pending workflow steps in quick panel, sort-direction toggles, colored source pills, contextual empty states (`FrandevService.PipelineExtras.cs`)
+  - Journey: clickable stage drilldowns (sub-tasks + logs), Advance/Revert/Drop wired on-page (reusing existing writes), per-member profile tabs, territory performance snapshot, call host names, task cap 12→100 (`FrandevService.JourneyExtras.cs`)
+  - Calls: calendar Mon–Sun week/month (was rolling 7/30d), Read.ai classifiedType fallback, participant chip pills, NextStepHero w/ full fallback library, all summary bullets, Speaker-N→name remap + copy button, Knowledge Captured (KbIntelItems JSON), read-only Data Extraction review (`frandev_call_data_extraction`), linked header chips (`FrandevService.CallExtras.cs`)
+  - Scout: self-contained XSS-safe markdown renderer (internal links → /frandev/ pills), per-message timestamps, chips fill composer, Confirm All (n), hero greeting — 1.2s polling/D-057 preserved
+  - L10: lead-list donut, full 8-cell coaching scoreboard, avg closed→first-house card, per-territory coaching flag + insight line — ALL in new `FrandevService.L10Extras.cs` (`FrandevService.L10.cs` untouched; #107 merged cleanly)
+  - DayHub/Messages/Workflows: **per-user task/queue scoping (correctness fix — was global)**, linked work-queue rows, completed-tasks strip, needs-review banner, day separators + Delivered receipt + 30s refresh + email search, human trigger labels + needs-approval set aligned to app ({sms, email, stage_move_suggestion}) + health warnings + FROM→TO routing
+- **Wave 2 — 5 NEW journaled write types** (mirror-first MySQL + `frandev_native_write`, minted-id discipline): `toggle_task` (Journey + DayHub checkboxes), `sub_task_log` (Journey drilldown, current stage only, two*state 'second' rule), `workflow_status` (Go Live/Pause/Resume, 0-step guard, optimistic guard — the unlock for finalizing DRAFT workflows natively), `create_contact` (Add Journey modal: dedup email/phone, runtime-resolved sales stage, `ms_native*{id}`GHL placeholder),`update_contact`(quick-panel inline phone/email edit). Files:`FrandevService.Writes{Tasks,Workflow,Contact}.cs`.
+- **App-side replay for all 5 types** (`lib/mastersuite/apply-native-writes.ts`, commit `ce343e1` PUSHED to main → Vercel deployed BEFORE the MasterSuite PR can merge — ordering rule for all future write types). Verifier fixed 2 real bugs (un-complete path could delete a sibling log; EOS seed not best-effort-wrapped) + NEW `tests/business-logic/apply-native-writes.test.ts` (17 tests).
+
+## What Is Confirmed Working
+
+- Combined `dotnet build` 0 errors (both in the shared clone pre-stash and in the parity worktree after merging latest main w/ #107+#108)
+- All 14 top-level FranDev routes + journey/call/territory/workflow detail: 200, no error blocks, against dev data (call-page "exception" hits were transcript content, not errors)
+- Write affordances render: Add Journey modal, DayHub ToggleTask forms, workflow Pause/Resume
+- **Task-toggle FULL round trip on dev:** done→reopen via real POSTs → both `toggle_task` journal rows byte-exact per contract → task back to Completed=0 → journal rows deleted (net zero; deployed replay never saw unknown types)
+- App repo: `npx tsc --noEmit` 0 errors, `npx next build` clean, 239 vitest green (46 files) incl. the new 17
+- Session 70's L10 parity PR #107 merged by Ben; our L10Extras coexists (separate file)
+
+## What Is Broken or Incomplete
+
+- **Prospects push still failing live** (`NewAgainHouses_FormSubmissions` missing on dev DB) — carried from session 70, NOT touched this session — High
+- New write types are smoke-tested (task toggle) but `sub_task_log`/`workflow_status`/`create_contact`/`update_contact` not yet exercised end-to-end with replay — do one loop each after #114 deploys to dev — Medium
+- Wave-2 agents died mid-flight on a usage-credits outage; all recovered/verified, but the replay-handler code was written by the interrupted agent and verified by a second — extra scrutiny in Ben's review welcome — Low
+- App Kanban pipeline view not ported (structural decision deferred — native keeps the lead-list layout) — By design, revisit
+- Skipped deliberately: sends (SMS/email composers), GHL-live appointment feeds, knowledge/doc editing, quarterly-grades card (`territory_owner_grades` unmirrored), bulk composer, admin surfaces — By design
+- App bug found during audit (not fixed — scope discipline): Knowledge page Cross-cutting category buttons render a blank pillar view (`knowledge/page.tsx:428` sets pillar null); native's `?pillar=cross` works — Low
+- DayHub needs-review banner links to `/frandev/pipeline?needs_review=1` — filter implemented via cast-based read (not on IFrandevService) — works, slightly off-pattern — Low
+
+## Decisions Made
+
+- Replay handlers deploy app-side BEFORE the native write types can ship (unknown journal types would trip the deployed cron) — Claude (autonomous; standing ordering rule)
+- FranDev work lands via dedicated worktree, never the shared clone (learned the hard way — concurrent Gunner session stashed our tree mid-build) — Claude (standing)
+- `IFrandevService` converted to `partial interface`; every new domain gets its own interface file → 8 agents, zero conflicts — Claude
+- L10 additions isolated in `L10Extras` partial to keep clear of then-open PR #107 — Claude
+- Kanban board port deferred; native stays on the lead-list design (which the app still serves at /contacts) — Claude (flag for Corey/Ben)
+- Workflow status transitions limited to draft→live/live→paused/paused→live; archive + approval queues stay app-side — Claude
+- Quick-panel inline edit targets primary contact only (GetQuickPanel members carry no ContactId; FrandevService.Pipeline.cs was off-limits) — Claude
+- Smoke-test journal rows verified then surgically deleted (nothing pending for a replay that didn't know the types yet) — Claude
+
+## Files Created
+
+- MasterSuite (PR #114): `Pages/Frandev/Contact.cshtml(.cs)`; entities `Entities/Frandev/{FrandevContact,FrandevCallExtras,FrandevDashboardExtras,FrandevJourneyExtras,FrandevL10Extras,FrandevPipelineExtras,FrandevWriteExtras}.cs`; interface partials `IFrandevService.{Contacts,CallExtras,DashboardExtras,JourneyExtras,L10Extras,PipelineExtras,WritesExtras}.cs`; service partials `FrandevService.{Contacts,CallExtras,DashboardExtras,JourneyExtras,L10Extras,PipelineExtras,WritesTasks,WritesWorkflow,WritesContact}.cs`
+- This repo: `tests/business-logic/apply-native-writes.test.ts` (17 tests)
+
+## Files Modified
+
+- MasterSuite (PR #114): `IFrandevService.cs` (→ partial), `FrandevService.{Calls,DayHub,Journey,Messaging}.cs`, `Entities/Frandev/{FrandevDayHub,FrandevMessaging}.cs`, pages `{FrandevIndex,Pipeline,Journey,DayHub,Calls,Call,Scout,Messages,Workflows,Workflow,L10,Knowledge,Marketing,Onboarding,Activity}.cshtml(+most .cs)`
+- This repo: `lib/mastersuite/apply-native-writes.ts` (+5 replay handlers, 2 bug fixes), `handoff.md`
+
+## Files Deleted
+
+- None (smoke-test journal rows removed from dev DB — data, not code)
+
+## Open Issues Carried Forward
+
+- **Prospects push failing live** (NewAgainHouses_FormSubmissions missing on dev DB) — High
+- **PR #114 awaiting Ben** (the parity pass; FranDev-only files, no migrations) — Medium
+- **PROD launch pending (Ben):** prod migrations → swap sync to prod → ApiKey_Anthropic → prod nav flip + perms; **Corey to schedule Ben's demo call** — Medium
+- Exercise the 4 untested write types end-to-end once #114 is on dev — Medium
+- L10 PropertyStatusHistory Inserted index (Ben's call) — Medium
+- Audit app for more unpaged 1000-row caps — Medium
+- Multi-territory close fan-out + EOS carry-forward still not exercised live — Low
+- Duplicate disabled nav row 77 (`/v2/frandev`) on dev — Low
+- App Knowledge cross-cutting blank-pillar bug (report to fix app-side) — Low
+- Kanban pipeline view decision (port it natively or keep lead-list?) — Low
+
+## Exact Next Step
+
+Fix the failing prospects push (find why `mastersuite.NewAgainHouses_FormSubmissions` is missing on the dev DB, restore or re-point the sync source, clear the app banner), then walk PR #114 with Ben.
+
+## Copy This To Start Next Session In Claude.ai
+
+---
+
+Read this file then tell me: current status, last session summary, open issues, what we build today.
+GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
+Then: fix the failing prospects push (NewAgainHouses_FormSubmissions missing on dev DB); PR #114 review with Ben in parallel.
+
+---
+
+# Session Handoff — 2026-07-09 — Session 70 (below)
 
 ## Status
 
