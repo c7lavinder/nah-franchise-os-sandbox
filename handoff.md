@@ -33,7 +33,9 @@ Phase: FranDev native rebuild INSIDE MasterSuite — **CLEANUP + VERIFICATION SE
 
 ## Exact Next Step
 
-PR #114 review + prod launch checklist (all Ben's side now — no demo call). Then: scope the full-cutover port plan (sends, GHL, post-call, RAG, agents) so Supabase can eventually retire.
+**NEW WORK STREAM (Corey, 2026-07-09): design-driven page rebuild.** Corey sends per-page screenshots to Claude design → handoff folder (README w/ pixel specs + .dc.html reference) lands in `docs/design_handoff_*` → build the NATIVE MasterSuite page ONLY to match design + current-app functionality (existing data reads + journaled writes unchanged; send composers visual-only until the send layer ports). First handoff already in repo: `docs/design_handoff_messaging_hub/`. First page built establishes the shared FranDev stylesheet. Corey picks page order — wait for his go.
+
+In parallel: PR #114 review + prod launch checklist (all Ben's side now — no demo call).
 
 ---
 
