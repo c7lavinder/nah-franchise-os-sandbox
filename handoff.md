@@ -1,3 +1,79 @@
+# Session Handoff — 2026-07-09 — Session 74
+
+## Status
+
+Phase: FranDev design-driven rebuild — **Pipeline rebuilt as the app's drag-drop KANBAN + new board_move write verified E2E through the deployed replay** / Health: Green / Duration: full session
+
+## What Was Built This Session
+
+- **Pipeline page → native kanban** (worktree `~/Mastersuite/mastersuite-frandev-parity-wt`, branch **`frandev-design-pipeline`** stacked on `frandev-design-dailyhq`; committed locally, NOT pushed). Matches `docs/NAH Frandev rebuild deisgn/04-pipeline.md` + the app's `/pipeline`, keeping MasterSuite chrome:
+  - Scorecard (In Sales / In Onboarding / In Runway) + prospect search
+  - One accordion group per nav-visible pipeline; collapsed = red→green stage count pills, expands inline into stage columns
+  - Cards grouped under their current sub-task (Outreach = orange "Focus Queue" at 12+), urgency dot (fresh/at-risk/losing/won), age + source, "+N more", "—" empty sub-tasks / "No prospects" empty columns
+  - **Drag a card between sub-tasks/stages → confirm modal → persists** (native HTML5 DnD, no framework)
+  - Files: `Pages/Frandev/Pipeline.cshtml(.cs)` rewritten; new `Entities/Frandev/FrandevBoard.cs`, `FrandevService.Board.cs` (GetBoard read = 3 flat reads grouped in memory; BoardMove write), `IFrandevService.Board.cs`.
+- **New `board_move` native write + app-side replay** (`lib/mastersuite/apply-native-writes.ts` commit `70981f1`, PUSHED to main → deployed BEFORE the native write can ship, per the ordering rule). Mirrors POST `/api/pipeline/board/move`: repositions a state to any sub-task/stage (multi-stage jump or in-stage re-sort), optimistic from-stage guard, minted stage-history row on a stage change, "Moved into X" note (sub_stage_move metadata) on a sub-task change, GHL stage sync + brief-stale best-effort. +4 vitest (243 green).
+- **Scope decision (Corey): Pipeline = kanban-only**, matching the app. Lead-list / territory cards / Add Journey / needs-review move to the Contacts page (built later); those service reads stay defined, only the Pipeline model stopped calling them.
+
+## What Is Confirmed Working
+
+- `dotnet build` 0 errors. Board renders 200 on dev: 5 groups, 3,267 cards, 50 drop zones, count pills, Focus Queue, urgency key, move modal, DnD JS.
+- **board_move FULL round trip on dev** (card "Archie Smalls", state 0357ca2e): 3 real moves via POST — within-stage re-sort (sub only, no history), cross-stage (stage+sub, history+note), unsorted drop (stage change, sub→null, history, no note) → mirror byte-correct (2 history rows, 2 move-notes) → deployed cron replayed 3/3 applied → **Supabase matched the mirror exactly** (Discovery / null sub / 2 history / 2 `sub_stage_move` notes) → test card surgically reset to Engagement/Outreach on BOTH DBs, journal empty.
+- App repo: `npx tsc --noEmit` + `npx next build` + 243 vitest green.
+
+## What Is Broken or Incomplete
+
+- **Visual side-by-side screenshot vs the app NOT captured** — concurrent Gunner session on this machine keeps killing the local dotnet server; verified via curl structure check + DB round-trip instead. View on deployed dev after merge — Medium
+- `frandev-design-pipeline` + `frandev-design-dailyhq` branches committed locally only, not pushed / no PR (MasterSuite is Ben's repo — push/PR is Corey's call) — Low
+- Card double-click → journey uses JourneySlug; single/drag interactions are DnD — no known issues, but not click-tested in a real browser this session — Low
+
+## Decisions Made
+
+- Pipeline = kanban-only (app parity); lead-list/territory/Add-Journey/needs-review → Contacts page later — Corey
+- board_move is a NEW journaled write type; app replay deploys before the native write (standing ordering rule) — Claude
+- Board read assembles in memory from 3 flat queries (stages, sub-tasks, cards) rather than N+1 — Claude
+- Kanban stacked on the Daily HQ branch (both are design-rebuild work); each page still its own `frandev-design-<page>` branch — Claude
+
+## Files Created
+
+- MasterSuite (`frandev-design-pipeline`): `Entities/Frandev/FrandevBoard.cs`, `MasterSuite.Modules.Frandev/FrandevService.Board.cs`, `MasterSuite.Modules.Frandev/IFrandevService.Board.cs`
+- This repo: none (test added to existing spec)
+
+## Files Modified
+
+- MasterSuite (`frandev-design-pipeline`): `Pages/Frandev/Pipeline.cshtml`, `Pages/Frandev/Pipeline.cshtml.cs`
+- This repo: `lib/mastersuite/apply-native-writes.ts` (+board_move), `tests/business-logic/apply-native-writes.test.ts` (+4), `handoff.md`
+
+## Files Deleted
+
+- None (test card moves reset on both DBs — data, not code)
+
+## Open Issues Carried Forward
+
+- **Design rebuild — 6 pages remain** (Scout AI, Calls, Contacts/Journeys, Territory detail, L10, + app-shell polish); Corey picks order and drops each handoff — In progress
+- Daily HQ (`frandev-design-dailyhq`) + Pipeline (`frandev-design-pipeline`) done; capture visual side-by-side once the server can stay up (or on deployed dev) — Medium
+- **PR #114 awaiting Ben** (the earlier parity pass) — Medium
+- **PROD launch pending (Ben):** prod migrations → swap sync to prod → ApiKey_Anthropic → prod nav flip + perms. No demo call (Corey declined) — Medium
+- **Ben: run on prod when ready:** `CREATE INDEX ix_PropertyStatusHistory_Inserted ON PropertyStatusHistory (Inserted);` — Medium
+- Prod→dev refresh wipes the dev launch flip (nav row 76 + perms) — re-restore after each refresh until prod migrations run — Medium
+- **Supabase is transition-only**; end state = MasterSuite DB (journal/replay + push + Supabase retire at cutover). Port list before cutover: sends, GHL, post-call, RAG, agents/crons, knowledge editing, admin — Standing
+
+## Exact Next Step
+
+Wait for Corey to name the next page (and drop its design handoff), then rebuild it natively the same way — match design + app functionality, keep MasterSuite chrome, own `frandev-design-<page>` branch, app-side replay first for any new write type.
+
+## Copy This To Start Next Session In Claude.ai
+
+---
+
+Read this file then tell me: current status, last session summary, open issues, what we build today.
+GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
+Then: rebuild the next FranDev page from `docs/NAH Frandev rebuild deisgn/` natively (keep MasterSuite chrome, own `frandev-design-<page>` branch, app-side replay first for new writes). Done: Daily HQ (`frandev-design-dailyhq`), Pipeline kanban (`frandev-design-pipeline`).
+
+---
+
+---
+
 # Session Handoff — 2026-07-09 — Session 73
 
 ## Status
