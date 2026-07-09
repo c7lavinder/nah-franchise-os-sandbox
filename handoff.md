@@ -1,3 +1,85 @@
+# Session Handoff — 2026-07-09 — Session 75
+
+## Status
+
+Phase: FranDev design-driven rebuild — **whole spec pack (pages 00–07 + Messaging Hub) finished; everything consolidated into PR #118 and MERGED to main** / Health: Green / Duration: full session
+
+## What Was Built This Session
+
+Work is in the MasterSuite repo (`~/Mastersuite/mastersuite`), all shipped to `main` via **PR #118** (now merged). Remaining pages were already on the `.fd-page` design system from prior fidelity work, so most were gap-closing, not full rewrites — **Scout was the only true rebuild.**
+
+- **01 · Scout AI** (`Pages/Frandev/Scout.cshtml`) — full rebuild from the old dark/purple chrome to the app's clean Scout: centered hero (logo wordmark, time-of-day greeting, the app's six prompt chips, rounded composer pill, disclaimer) over a light blue conversation view. All chat plumbing preserved verbatim (markdown, DRC approval cards + Confirm All, History, dual polling, page-context chips, Send).
+- **03 · Calls list** (`Pages/Frandev/Calls.cshtml(.cs)`) — added the 3-card scorecard (Calls This Week / Scheduled / Avg Score) via a new **`GetCallStats()`** mirroring the app's `getCallsScorecard`, plus the "Drop New Call Here" zone (visual; upload = write phase). Call detail was already at parity — no change.
+- **05 · Contacts/Journeys** — journey CONTACTS names now link to `/frandev/contact/{id}` (added `ContactId` to `GetJourneyMembers` + `FrandevJourneyMember`). Journey + contact detail already at parity.
+- **06 · Territory detail** — owner card name now links to the owner's contact detail (owner rows already carried `ContactId`). All 4 tabs (Ecosystem/Performance/EOS/Data) already at parity.
+- **07 · L10** — verified at full parity (period control, Franchise Sales + Coaching KPIs, lead-list donut, Q1–Q4 Territory Operating Board). No change needed.
+- **PR consolidation** — retargeted #118 from the `frandev-ui-parity` stack to **`main`** so it contained the parity pass + all design rebuilds in one PR; **closed #114 as superseded**; #118 **merged**.
+- **Cleanup** — stopped the local dev server; removed worktree `mastersuite-frandev-parity-wt` + deleted branch `frandev-design-pipeline` (local + remote) after confirming fully merged.
+
+## What Is Confirmed Working
+
+- Every rebuilt page verified in Chrome against `docs/NAH Frandev rebuild deisgn/`: Scout hero + chip→composer wiring; Calls KPIs (22/0/63 · 461 graded) + drop zone; journey contact-name → contact detail; territory owner → contact detail (Ken Tolbert, Franchisee); L10 sales funnel + quartile board render with real data.
+- `dotnet build` 0 errors after every change.
+- PR #118 MERGED into `origin/main` (verified all commits are ancestors of main); working tree clean; branch/worktree removed.
+
+## What Is Broken or Incomplete
+
+- Combined **"Contacts" list view** (spec 05-A: stage-chip filter grid → journeys list → territory network on one screen) is NOT built natively — currently split across the Pipeline kanban + Territories list — Medium
+- Journey detail missing header comms buttons (Call/Text/Email/Schedule/Merge/Delete) + the **Messages tab** (deferred — mostly comms/write) — Low
+- **Write-phase boundaries** still dark (built visually, disabled): SMS/email reply composers (Messaging Hub, Daily HQ, journeys), Calls **upload** drop zone, **Calendar/appointments** card (Daily HQ + Messaging Hub) — Medium
+- **7 non-spec pages** never given a design handoff / not audited vs the app: Activity, Knowledge, Marketing, Onboarding, Workflows, Site Guide, FranDev home — Low
+
+## Decisions Made
+
+- Consolidate all FranDev design + parity work into a single PR (#118 → `main`), close #114 as superseded — Corey approved
+- "Full parity, my call per page" for the remaining rebuilds (add backend queries where a page needed them, e.g. `GetCallStats`; write-phase items stay visual+disabled) — Corey approved
+- Tackle all three remaining tracks (Contacts list · write-phase · non-spec page audit) NEXT session — Corey
+
+## Files Created
+
+- (none new — `FrandevCallStats` added to the existing `Entities/Frandev/FrandevCallDetail.cs`)
+
+## Files Modified
+
+MasterSuite repo (`~/Mastersuite/mastersuite`), merged via #118:
+
+- `apps/analysis-api/MasterSuite/Pages/Frandev/Scout.cshtml`
+- `apps/analysis-api/MasterSuite/Pages/Frandev/Calls.cshtml` + `Calls.cshtml.cs`
+- `apps/analysis-api/MasterSuite/Pages/Frandev/Journey.cshtml`
+- `apps/analysis-api/MasterSuite/Pages/Frandev/Territory.cshtml`
+- `apps/analysis-api/Entities/Frandev/FrandevCallDetail.cs` (+ `FrandevCallStats`)
+- `apps/analysis-api/Entities/Frandev/FrandevQuickPanel.cs` (+ `ContactId` on member)
+- `apps/analysis-api/MasterSuite.Modules.Frandev/FrandevService.Calls.cs` (+ `GetCallStats`)
+- `apps/analysis-api/MasterSuite.Modules.Frandev/FrandevService.Journey.cs` (member `ContactId`)
+- `apps/analysis-api/MasterSuite.Modules.Frandev/IFrandevService.cs` (`GetCallStats` decl)
+
+## Files Deleted
+
+- (git only) worktree `~/Mastersuite/mastersuite-frandev-parity-wt`; branch `frandev-design-pipeline` (local + remote)
+
+## Open Issues Carried Forward
+
+- Combined "Contacts" list view not built natively — Medium
+- Write-phase boundaries dark: reply composers, call upload, GHL calendar — Medium (standing)
+- 7 non-spec FranDev pages not audited vs the app — Low
+- **Supabase is transition-only**; end state = MasterSuite DB (journal/replay + push + retire at cutover) — Standing
+
+## Exact Next Step
+
+Start the three carried-forward tracks in this order: (1) build the native combined **Contacts list view** (spec 05-A) to match the app, (2) begin **write-phase** work (sends → call upload → GHL calendar) to light up the disabled composers/cards, (3) audit the 7 non-spec pages and report which need design work.
+
+## Copy This To Start Next Session In Claude.ai
+
+---
+
+Read this file then tell me: current status, last session summary, open issues, what we build today.
+GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
+Then: pick up the three carried-forward tracks — (1) build the native combined Contacts list view (spec 05-A) to match the app, (2) start write-phase work (sends → call upload → GHL calendar), (3) audit the 7 non-spec FranDev pages (Activity, Knowledge, Marketing, Onboarding, Workflows, Site Guide, home). All FranDev design work lives in the MasterSuite repo (`~/Mastersuite/mastersuite`); own a `frandev-<feature>` branch, app-side replay first for any new write type.
+
+---
+
+---
+
 # Session Handoff — 2026-07-09 — Session 74
 
 ## Status
