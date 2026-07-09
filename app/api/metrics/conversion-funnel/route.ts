@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
+import { fetchPaged } from "@/lib/supabase/fetch-paged";
 
 type Period = "week" | "month" | "quarter" | "year" | "all";
 
@@ -50,22 +51,27 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ funnel: [], pipeline: pipeline.name });
   }
 
-  // Get all stage history entries in the period
-  const { data: historyRows } = await supabase
-    .from("pipeline_stage_history")
-    .select("from_stage_id, to_stage_id, created_at")
-    .gte("created_at", periodStart);
+  // Get all stage history entries in the period (paged past the 1000-row cap)
+  const history = await fetchPaged<{ from_stage_id: string | null; to_stage_id: string; created_at: string }>(
+    (from, to) =>
+      supabase
+        .from("pipeline_stage_history")
+        .select("from_stage_id, to_stage_id, created_at")
+        .gte("created_at", periodStart)
+        .order("id")
+        .range(from, to)
+  );
 
-  const history = historyRows ?? [];
-
-  // Also get current active states (people currently in each stage)
-  const { data: activeStates } = await supabase
-    .from("journey_pipeline_state")
-    .select("current_stage_id, entered_current_stage_at")
-    .eq("pipeline_id", pipeline.id)
-    .eq("is_active", true);
-
-  const active = activeStates ?? [];
+  // Also get current active states (people currently in each stage) — paged
+  const active = await fetchPaged<{ current_stage_id: string; entered_current_stage_at: string }>((from, to) =>
+    supabase
+      .from("journey_pipeline_state")
+      .select("current_stage_id, entered_current_stage_at")
+      .eq("pipeline_id", pipeline.id)
+      .eq("is_active", true)
+      .order("id")
+      .range(from, to)
+  );
   const now = Date.now();
 
   // Build funnel data

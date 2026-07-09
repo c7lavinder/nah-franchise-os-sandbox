@@ -152,14 +152,18 @@ export async function GET(request: NextRequest) {
   const activeSlugs = (territories ?? []).filter((t) => t.status === "active").map((t) => t.TerritorySlug);
 
   if (slugs.length > 0) {
-    // Start from inventory (small set) then look up territories
-    const { data: recentPurchases } = await supabase
-      .from("ms_property_inventory")
-      .select("PropertyId")
-      .not("Inv_PurchaseDate", "is", null)
-      .gte("Inv_PurchaseDate", twelveMonthsAgo.toISOString());
+    // Start from inventory then look up territories (paged — T12 purchases grow past the 1000-row cap)
+    const recentPurchases = await fetchPaged<{ PropertyId: number }>((from, to) =>
+      supabase
+        .from("ms_property_inventory")
+        .select("PropertyId")
+        .not("Inv_PurchaseDate", "is", null)
+        .gte("Inv_PurchaseDate", twelveMonthsAgo.toISOString())
+        .order("PropertyId")
+        .range(from, to)
+    );
 
-    const purchasedIds = (recentPurchases ?? []).map((r) => r.PropertyId);
+    const purchasedIds = recentPurchases.map((r) => r.PropertyId);
     const purchasesBySlug: Record<string, number> = {};
 
     for (let i = 0; i < purchasedIds.length; i += 500) {

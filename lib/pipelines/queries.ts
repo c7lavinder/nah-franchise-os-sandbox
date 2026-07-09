@@ -7,6 +7,7 @@
  */
 
 import { createServerClient } from "@/lib/supabase/server";
+import { fetchPaged } from "@/lib/supabase/fetch-paged";
 
 export interface PipelineWithStages {
   id: string;
@@ -132,18 +133,22 @@ export async function getContactsInPipeline(
   });
 }
 
-/** Count contacts per stage in a pipeline */
+/** Count contacts per stage in a pipeline (paged — active states can exceed the 1000-row cap) */
 export async function countContactsByStage(pipelineId: string): Promise<Map<string, number>> {
   const supabase = createServerClient();
 
-  const { data } = await supabase
-    .from("journey_pipeline_state")
-    .select("current_stage_id")
-    .eq("pipeline_id", pipelineId)
-    .eq("is_active", true);
+  const rows = await fetchPaged<{ current_stage_id: string }>((from, to) =>
+    supabase
+      .from("journey_pipeline_state")
+      .select("current_stage_id")
+      .eq("pipeline_id", pipelineId)
+      .eq("is_active", true)
+      .order("id")
+      .range(from, to)
+  );
 
   const counts = new Map<string, number>();
-  for (const row of data ?? []) {
+  for (const row of rows) {
     counts.set(row.current_stage_id, (counts.get(row.current_stage_id) ?? 0) + 1);
   }
   return counts;

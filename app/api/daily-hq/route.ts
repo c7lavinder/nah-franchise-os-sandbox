@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
+import { fetchPaged } from "@/lib/supabase/fetch-paged";
 import { getWorkQueueItems, syncWorkQueueSources } from "@/lib/work-queue/sources";
 import type { GHLAppointment } from "@/types/ghl";
 import type { InactivityAlert } from "@/types/database";
@@ -34,21 +35,15 @@ export async function GET(request: NextRequest) {
   const ghlUserId = appUser?.ghl_user_id ?? null;
 
   // Fetch all data in parallel for speed
-  const [
-    alertsResult,
-    pipelineResult,
-    appointmentsResult,
-    scorecardResult,
-    tasksResult,
-    workQueueResult,
-  ] = await Promise.allSettled([
-    fetchAlerts(userId),
-    fetchPipelineSnapshot(userId),
-    fetchUpcoming(ghlUserId),
-    fetchScorecard(userId, ghlUserId),
-    fetchTasks(ghlUserId),
-    fetchWorkQueue(userId),
-  ]);
+  const [alertsResult, pipelineResult, appointmentsResult, scorecardResult, tasksResult, workQueueResult] =
+    await Promise.allSettled([
+      fetchAlerts(userId),
+      fetchPipelineSnapshot(userId),
+      fetchUpcoming(ghlUserId),
+      fetchScorecard(userId, ghlUserId),
+      fetchTasks(ghlUserId),
+      fetchWorkQueue(userId),
+    ]);
 
   const alerts = alertsResult.status === "fulfilled" ? alertsResult.value : [];
   const pipeline = pipelineResult.status === "fulfilled" ? pipelineResult.value : [];
@@ -105,29 +100,23 @@ async function fetchPipelineSnapshot(userId: string): Promise<{ stage: string; c
   try {
     const supabase = createServerClient();
 
-    // Get active journey_pipeline_state rows with stage names
-    // For non-admin users, filter to their assigned contacts
-    const query = supabase
-      .from("journey_pipeline_state")
-      .select("pipeline_id, current_stage_id, pipelines!inner(name, slug), pipeline_stages!inner(name)")
-      .eq("is_active", true);
-
     const { data: appUser } = await supabase.from("users").select("role").eq("id", userId).single();
+    const isAdmin = appUser?.role === "admin";
 
-    // Admins see all; non-admins see only their assigned pipeline states
-    if (appUser?.role !== "admin") {
-      query.eq("assigned_user_id", userId);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      console.error("Failed to fetch pipeline snapshot:", error.message);
-      return [];
-    }
+    // Get active journey_pipeline_state rows with stage names.
+    // Admins see all (>1000 active states — must page); non-admins see only their assigned states.
+    const data = await fetchPaged<Record<string, unknown>>((from, to) => {
+      const query = supabase
+        .from("journey_pipeline_state")
+        .select("pipeline_id, current_stage_id, pipelines!inner(name, slug), pipeline_stages!inner(name)")
+        .eq("is_active", true);
+      if (!isAdmin) query.eq("assigned_user_id", userId);
+      return query.order("id").range(from, to);
+    });
 
     // Count per pipeline + stage
     const counts = new Map<string, { stage: string; count: number; pipeline: string }>();
-    for (const row of data ?? []) {
+    for (const row of data) {
       const pipelineName = (row as any).pipelines?.name ?? "Unknown";
       const stageName = (row as any).pipeline_stages?.name ?? "Unknown";
       const key = `${pipelineName}:${stageName}`;

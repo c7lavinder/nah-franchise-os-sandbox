@@ -9,6 +9,7 @@
  */
 
 import { createServerClient } from "@/lib/supabase/server";
+import { fetchPaged } from "@/lib/supabase/fetch-paged";
 
 export function getWeekBounds(): { start: Date; end: Date } {
   const now = new Date();
@@ -58,14 +59,18 @@ export async function getDailyHQScorecard() {
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
-  // Start from inventory (small set ~500 recent purchases) then look up territories
-  const { data: recentPurchases } = await supabase
-    .from("ms_property_inventory")
-    .select("PropertyId")
-    .not("Inv_PurchaseDate", "is", null)
-    .gte("Inv_PurchaseDate", twelveMonthsAgo.toISOString());
+  // Start from inventory then look up territories (paged — T12 purchases grow past the 1000-row cap)
+  const recentPurchases = await fetchPaged<{ PropertyId: number }>((from, to) =>
+    supabase
+      .from("ms_property_inventory")
+      .select("PropertyId")
+      .not("Inv_PurchaseDate", "is", null)
+      .gte("Inv_PurchaseDate", twelveMonthsAgo.toISOString())
+      .order("PropertyId")
+      .range(from, to)
+  );
 
-  const purchasedIds = (recentPurchases ?? []).map((r) => r.PropertyId);
+  const purchasedIds = recentPurchases.map((r) => r.PropertyId);
   const purchasesByTerritory: Record<string, number> = {};
 
   // Look up territory for each purchased property (batch in 500s)
@@ -144,15 +149,19 @@ export async function getCallsScorecard() {
     .is("deleted_at", null);
 
   // Avg call score — from all rubric-graded calls that aren't deleted.
-  // Join call_grades → calls to exclude deleted calls.
-  const { data: gradedCalls } = await supabase
-    .from("call_grades")
-    .select("overall_score, call_id, calls!inner(deleted_at)")
-    .not("overall_score", "is", null)
-    .is("calls.deleted_at", null);
+  // Join call_grades → calls to exclude deleted calls. Paged: grades grow ~1/graded call.
+  const gradedCalls = await fetchPaged<{ overall_score: number | null }>((from, to) =>
+    supabase
+      .from("call_grades")
+      .select("overall_score, call_id, calls!inner(deleted_at)")
+      .not("overall_score", "is", null)
+      .is("calls.deleted_at", null)
+      .order("call_id")
+      .range(from, to)
+  );
 
   let avgScore = "—";
-  if (gradedCalls && gradedCalls.length > 0) {
+  if (gradedCalls.length > 0) {
     const total = gradedCalls.reduce((s, g) => s + (g.overall_score ?? 0), 0);
     avgScore = String(Math.round(total / gradedCalls.length));
   }
@@ -160,7 +169,7 @@ export async function getCallsScorecard() {
   return {
     callsCompleted: { value: callsCompleted, label: "Calls This Week", sub: "Mon–Sun" },
     callsScheduled: { value: callsScheduled ?? 0, label: "Calls Scheduled", sub: "upcoming" },
-    avgCallScore: { value: avgScore, label: "Avg Call Score", sub: `${gradedCalls?.length ?? 0} graded calls` },
+    avgCallScore: { value: avgScore, label: "Avg Call Score", sub: `${gradedCalls.length} graded calls` },
   };
 }
 

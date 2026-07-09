@@ -9,6 +9,7 @@
 
 import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
+import { fetchPaged } from "@/lib/supabase/fetch-paged";
 import { analyzeWorkflow } from "@/lib/workflows/health-scoring";
 import { generateRewrites } from "@/lib/workflows/rewrite-engine";
 import { generateFlags } from "@/lib/intelligence/flags";
@@ -320,19 +321,27 @@ async function executeGetPipeline(input: Record<string, unknown>): Promise<ToolE
         .eq("pipeline_id", pipeline.id)
         .order("sort_order");
 
-      // Count active leads per stage
-      const { data: jpsRows } = await supabase
-        .from("journey_pipeline_state")
-        .select("current_stage_id, assigned_user_id, contacts!inner(first_name, last_name, ghl_contact_id)")
-        .eq("pipeline_id", pipeline.id)
-        .eq("is_active", true);
+      // Count active leads per stage (paged — active states exceed the 1000-row cap)
+      const jpsRows = await fetchPaged<{
+        current_stage_id: string;
+        assigned_user_id: string | null;
+        contacts: unknown;
+      }>((from, to) =>
+        supabase
+          .from("journey_pipeline_state")
+          .select("current_stage_id, assigned_user_id, contacts!inner(first_name, last_name, ghl_contact_id)")
+          .eq("pipeline_id", pipeline.id)
+          .eq("is_active", true)
+          .order("id")
+          .range(from, to)
+      );
 
       const stageCounts = new Map<string, { count: number; contacts: { name: string; ghlId: string }[] }>();
       for (const stage of stages ?? []) {
         stageCounts.set(stage.id, { count: 0, contacts: [] });
       }
 
-      for (const row of jpsRows ?? []) {
+      for (const row of jpsRows) {
         const entry = stageCounts.get(row.current_stage_id);
         if (entry) {
           entry.count++;
@@ -359,7 +368,7 @@ async function executeGetPipeline(input: Record<string, unknown>): Promise<ToolE
         pipeline: pipeline.name,
         slug: pipeline.slug,
         stages: stagesWithCounts,
-        totalActive: jpsRows?.length ?? 0,
+        totalActive: jpsRows.length,
       });
     }
 

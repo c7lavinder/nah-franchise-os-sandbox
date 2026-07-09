@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { fetchPaged } from "@/lib/supabase/fetch-paged";
 import { bearerToken, logAiApiActivity, validateAiApiToken } from "@/lib/ai-api-tokens";
 import { executeTool } from "@/lib/scout/tool-executor";
 import { SCOUT_TOOLS } from "@/lib/scout/tools";
@@ -152,26 +153,29 @@ export async function GET(request: NextRequest) {
   }
 
   if (resource === "l10") {
-    const [territoriesRes, stagesRes, activeRowsRes] = await Promise.all([
+    const [territoriesRes, stagesRes, activeRows] = await Promise.all([
       supabase
         .from("territories")
         .select("TerritorySlug, Nickname, region, status")
         .eq("status", "active")
         .limit(limit),
       supabase.from("pipeline_stages").select("id, name, slug, sort_order").order("sort_order").limit(100),
-      supabase
-        .from("journey_pipeline_state")
-        .select("id, current_stage_id, entered_current_stage_at, updated_at, assigned_user_id")
-        .eq("is_active", true)
-        .limit(1000),
+      // Active states exceed 1000 rows — page instead of a flat limit
+      fetchPaged<{ id: string; current_stage_id: string }>((from, to) =>
+        supabase
+          .from("journey_pipeline_state")
+          .select("id, current_stage_id, entered_current_stage_at, updated_at, assigned_user_id")
+          .eq("is_active", true)
+          .order("id")
+          .range(from, to)
+      ),
     ]);
     if (territoriesRes.error) return NextResponse.json({ error: territoriesRes.error.message }, { status: 500 });
     if (stagesRes.error) return NextResponse.json({ error: stagesRes.error.message }, { status: 500 });
-    if (activeRowsRes.error) return NextResponse.json({ error: activeRowsRes.error.message }, { status: 500 });
 
     const stageNameById = new Map((stagesRes.data ?? []).map((s) => [s.id, s.name]));
     const stageCounts = new Map<string, number>();
-    for (const row of activeRowsRes.data ?? []) {
+    for (const row of activeRows) {
       const name = stageNameById.get(row.current_stage_id) ?? "Unknown";
       stageCounts.set(name, (stageCounts.get(name) ?? 0) + 1);
     }

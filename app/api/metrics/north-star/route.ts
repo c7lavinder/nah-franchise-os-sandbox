@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
+import { fetchPaged } from "@/lib/supabase/fetch-paged";
 
 export async function GET(request: NextRequest) {
   {
@@ -24,15 +25,20 @@ export async function GET(request: NextRequest) {
     .select("TerritorySlug", { count: "exact", head: true })
     .eq("status", "active");
 
-  // Count territories with 10+ purchases YTD from actual property data
+  // Count territories with 10+ purchases YTD from actual property data.
+  // Paged: at goal (100 territories × 10+ buyers) YTD purchases exceed the 1000-row cap.
   const yearStart = `${new Date().getFullYear()}-01-01`;
-  const { data: purchased } = await supabase
-    .from("ms_properties")
-    .select("TerritorySlug, ms_property_inventory!inner(Inv_PurchaseDate)")
-    .gte("ms_property_inventory.Inv_PurchaseDate", yearStart);
+  const purchased = await fetchPaged<{ TerritorySlug: string }>((from, to) =>
+    supabase
+      .from("ms_properties")
+      .select("TerritorySlug, ms_property_inventory!inner(Inv_PurchaseDate)")
+      .gte("ms_property_inventory.Inv_PurchaseDate", yearStart)
+      .order("PropertyId")
+      .range(from, to)
+  );
 
   const countByTerritory = new Map<string, number>();
-  for (const row of (purchased ?? []) as { TerritorySlug: string }[]) {
+  for (const row of purchased) {
     if (row.TerritorySlug) countByTerritory.set(row.TerritorySlug, (countByTerritory.get(row.TerritorySlug) ?? 0) + 1);
   }
   const tenPlusBuyers = [...countByTerritory.values()].filter((c) => c >= 10).length;

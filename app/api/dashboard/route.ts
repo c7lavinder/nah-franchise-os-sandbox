@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { getPipelinesFromSupabase } from "@/lib/pipelines/queries";
+import { fetchPaged } from "@/lib/supabase/fetch-paged";
 import { SYNC_JOBS, summarizeSyncHealth, type CronJobLogRow } from "@/lib/mastersuite/sync-health";
 
 type DashboardPeriod = "week" | "month" | "quarter" | "year";
@@ -57,13 +58,23 @@ export async function GET(request: NextRequest) {
       supabase.from("data_update_suggestions").select("id", { count: "exact", head: true }).eq("status", "pending"),
     ]);
 
-    // Journey pipeline state — replaces GHL opportunities
-    const { data: jpsRows } = await supabase
-      .from("journey_pipeline_state")
-      .select("id, contact_id, pipeline_id, current_stage_id, entered_current_stage_at, is_active, created_at")
-      .in("pipeline_id", pipelineIds);
-
-    const allStates = jpsRows ?? [];
+    // Journey pipeline state — replaces GHL opportunities (paged: >1000 rows)
+    const allStates = await fetchPaged<{
+      id: string;
+      contact_id: string | null;
+      pipeline_id: string;
+      current_stage_id: string;
+      entered_current_stage_at: string;
+      is_active: boolean;
+      created_at: string;
+    }>((from, to) =>
+      supabase
+        .from("journey_pipeline_state")
+        .select("id, contact_id, pipeline_id, current_stage_id, entered_current_stage_at, is_active, created_at")
+        .in("pipeline_id", pipelineIds)
+        .order("id")
+        .range(from, to)
+    );
     const filtered = allStates.filter((s) => s.created_at >= periodStart);
 
     // Count by active status

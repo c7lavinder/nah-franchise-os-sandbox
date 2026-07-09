@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
+import { fetchPaged } from "@/lib/supabase/fetch-paged";
 
 type Period = "week" | "month" | "quarter" | "year";
 
@@ -71,46 +72,65 @@ export async function GET(request: NextRequest) {
 
   const userIds = users.map((u) => u.id);
 
-  // Parallel queries for all metrics
-  const [activeLeadsResult, stalledResult, stageAdvancesResult, callGradesResult, scoutActionsResult] =
-    await Promise.all([
-      // Active leads per user
-      supabase
-        .from("journey_pipeline_state")
-        .select("assigned_user_id")
-        .eq("is_active", true)
-        .in("assigned_user_id", userIds),
-
-      // Stalled leads per user (7+ days in current stage)
+  // Parallel queries for all metrics (paged — these tables exceed Supabase's 1000-row cap)
+  const [activeLeadsRows, stalledRows, stageAdvancesRows, callGradesRows, scoutActionsRows] = await Promise.all([
+    // Active leads per user
+    fetchPaged<{ assigned_user_id: string }>((from, to) =>
       supabase
         .from("journey_pipeline_state")
         .select("assigned_user_id")
         .eq("is_active", true)
         .in("assigned_user_id", userIds)
-        .lt("entered_current_stage_at", sevenDaysAgo),
+        .order("id")
+        .range(from, to)
+    ),
 
-      // Stage advances per user in period
+    // Stalled leads per user (7+ days in current stage)
+    fetchPaged<{ assigned_user_id: string }>((from, to) =>
+      supabase
+        .from("journey_pipeline_state")
+        .select("assigned_user_id")
+        .eq("is_active", true)
+        .in("assigned_user_id", userIds)
+        .lt("entered_current_stage_at", sevenDaysAgo)
+        .order("id")
+        .range(from, to)
+    ),
+
+    // Stage advances per user in period
+    fetchPaged<{ moved_by_user_id: string }>((from, to) =>
       supabase
         .from("pipeline_stage_history")
         .select("moved_by_user_id")
         .in("moved_by_user_id", userIds)
         .gte("created_at", periodStart)
-        .eq("was_revert", false),
+        .eq("was_revert", false)
+        .order("id")
+        .range(from, to)
+    ),
 
-      // Call grades in period (join calls → call_grades)
+    // Call grades in period (join calls → call_grades)
+    fetchPaged<{ overall_score: number; calls: unknown }>((from, to) =>
       supabase
         .from("call_grades")
         .select("overall_score, calls!inner(hosted_by_user_id)")
-        .gte("created_at", periodStart),
+        .gte("created_at", periodStart)
+        .order("id")
+        .range(from, to)
+    ),
 
-      // Scout actions per user in period
+    // Scout actions per user in period
+    fetchPaged<{ user_id: string }>((from, to) =>
       supabase
         .from("scout_action_logs")
         .select("user_id")
         .in("user_id", userIds)
         .eq("action_status", "executed")
-        .gte("created_at", periodStart),
-    ]);
+        .gte("created_at", periodStart)
+        .order("id")
+        .range(from, to)
+    ),
+  ]);
 
   // Aggregate per user
   const metricsMap = new Map<string, RepMetrics>();
@@ -131,26 +151,26 @@ export async function GET(request: NextRequest) {
   }
 
   // Active leads
-  for (const row of activeLeadsResult.data ?? []) {
+  for (const row of activeLeadsRows) {
     const m = metricsMap.get(row.assigned_user_id);
     if (m) m.activeLeads++;
   }
 
   // Stalled leads
-  for (const row of stalledResult.data ?? []) {
+  for (const row of stalledRows) {
     const m = metricsMap.get(row.assigned_user_id);
     if (m) m.stalledLeads++;
   }
 
   // Stage advances
-  for (const row of stageAdvancesResult.data ?? []) {
+  for (const row of stageAdvancesRows) {
     const m = metricsMap.get(row.moved_by_user_id);
     if (m) m.stagesAdvanced++;
   }
 
   // Call grades
   const gradesByUser = new Map<string, number[]>();
-  for (const row of callGradesResult.data ?? []) {
+  for (const row of callGradesRows) {
     const hostId = (row.calls as unknown as { hosted_by_user_id: string | null })?.hosted_by_user_id;
     if (!hostId) continue;
     const existing = gradesByUser.get(hostId) ?? [];
@@ -167,7 +187,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Scout actions
-  for (const row of scoutActionsResult.data ?? []) {
+  for (const row of scoutActionsRows) {
     const m = metricsMap.get(row.user_id);
     if (m) m.scoutActions++;
   }

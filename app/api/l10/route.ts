@@ -219,8 +219,8 @@ export async function GET(request: NextRequest) {
     issuesRes,
     todosRes,
     leadListRes,
-    inventory30Res,
-    inventoryT12Res,
+    inventory30Rows,
+    inventoryT12Rows,
   ] = await Promise.all([
     supabase.from("pipelines").select("id, slug").in("slug", ["sales", "runway", "onboarding"]),
     supabase.from("pipeline_stages").select("id, pipeline_id, slug, name, sort_order, is_terminal").order("sort_order"),
@@ -243,17 +243,26 @@ export async function GET(request: NextRequest) {
       .select("TerritorySlug, LeadCategory, LeadType, count")
       .in("TerritorySlug", activeSlugs)
       .gte("month", leadListPeriodMonthStart.toISOString().slice(0, 10)),
-    supabase
-      .from("ms_property_inventory")
-      .select("PropertyId, Inv_ContractedPurchaseDate, Inv_PurchaseDate")
-      .or(
-        `Inv_ContractedPurchaseDate.gte.${periodStart.toISOString()},Inv_PurchaseDate.gte.${periodStart.toISOString()}`
-      ),
-    supabase
-      .from("ms_property_inventory")
-      .select("PropertyId, Inv_ContractedPurchaseDate, Inv_PurchaseDate")
-      .not("Inv_PurchaseDate", "is", null)
-      .gte("Inv_PurchaseDate", twelveMonthsAgo.toISOString()),
+    // Both inventory reads paged — purchase volume grows past the 1000-row cap
+    fetchPaged<InventoryRow>((from, to) =>
+      supabase
+        .from("ms_property_inventory")
+        .select("PropertyId, Inv_ContractedPurchaseDate, Inv_PurchaseDate")
+        .or(
+          `Inv_ContractedPurchaseDate.gte.${periodStart.toISOString()},Inv_PurchaseDate.gte.${periodStart.toISOString()}`
+        )
+        .order("PropertyId")
+        .range(from, to)
+    ),
+    fetchPaged<InventoryRow>((from, to) =>
+      supabase
+        .from("ms_property_inventory")
+        .select("PropertyId, Inv_ContractedPurchaseDate, Inv_PurchaseDate")
+        .not("Inv_PurchaseDate", "is", null)
+        .gte("Inv_PurchaseDate", twelveMonthsAgo.toISOString())
+        .order("PropertyId")
+        .range(from, to)
+    ),
   ]);
 
   const pipelines = pipelinesRes.data ?? [];
@@ -472,9 +481,7 @@ export async function GET(request: NextRequest) {
       .range(from, to)
   );
   const historyPropertyIds = [...new Set(history30.map((h) => h.PropertyId))];
-  const inventoryPropertyIds = [
-    ...new Set([...(inventory30Res.data ?? []), ...(inventoryT12Res.data ?? [])].map((row) => row.PropertyId)),
-  ];
+  const inventoryPropertyIds = [...new Set([...inventory30Rows, ...inventoryT12Rows].map((row) => row.PropertyId))];
   const propertyIdsToLookup = [...new Set([...historyPropertyIds, ...inventoryPropertyIds])];
   const propertyById = new Map<number, PropertyRow>();
   for (let i = 0; i < propertyIdsToLookup.length; i += 500) {
@@ -525,7 +532,7 @@ export async function GET(request: NextRequest) {
 
   const contracts30BySlug = new Map<string, number>();
   const purchases30BySlug = new Map<string, number>();
-  for (const row of (inventory30Res.data ?? []) as InventoryRow[]) {
+  for (const row of inventory30Rows) {
     const prop = propertyById.get(row.PropertyId);
     if (!prop) continue;
     if (row.Inv_ContractedPurchaseDate && new Date(row.Inv_ContractedPurchaseDate) >= periodStart) {
@@ -537,7 +544,7 @@ export async function GET(request: NextRequest) {
   }
 
   const purchasesT12BySlug = new Map<string, number>();
-  for (const row of (inventoryT12Res.data ?? []) as InventoryRow[]) {
+  for (const row of inventoryT12Rows) {
     const prop = propertyById.get(row.PropertyId);
     if (!prop) continue;
     purchasesT12BySlug.set(prop.TerritorySlug, (purchasesT12BySlug.get(prop.TerritorySlug) ?? 0) + 1);
