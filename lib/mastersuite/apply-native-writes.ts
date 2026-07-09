@@ -20,7 +20,7 @@ import { getMasterSuiteWritePool, isWriteConfigured } from "./write-client";
 import { syncStageToGHL } from "@/lib/ghl/stage-sync";
 import { carryForwardContactEos } from "@/lib/eos/carry-forward";
 import { markJourneyBriefStale } from "@/lib/briefs/mark-journey-brief-stale";
-import { isSubStageMoveLog } from "@/lib/contacts/stage-visual-state";
+import { isSubStageMoveLog, SUB_STAGE_MOVE_METADATA_KIND } from "@/lib/contacts/stage-visual-state";
 import { matchWorkflowTriggers } from "@/lib/workflows/trigger-matcher";
 import { runContactResearch } from "@/lib/agents/contact-research";
 import * as ghl from "@/lib/ghl";
@@ -145,6 +145,25 @@ interface UpdateContactPayload {
   updated_by: string;
 }
 
+interface BoardMovePayload {
+  state_id: string;
+  journey_id: string;
+  contact_id: string;
+  pipeline_slug: string;
+  target_type: "subtask" | "unsorted";
+  target_stage_id: string;
+  target_sub_task_id: string | null; // null for "unsorted"
+  to_stage_slug: string | null;
+  from_stage_id: string | null;
+  from_sub_task_id: string | null;
+  stage_changed: boolean;
+  sub_task_changed: boolean;
+  history_id: string | null; // minted natively, only when stage_changed
+  sub_task_log_id: string | null; // minted natively, only when moving into a real sub-task
+  sub_task_name: string | null;
+  moved_by: string;
+}
+
 export interface ApplyResult {
   pending: number;
   applied: number;
@@ -193,6 +212,8 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applyCreateContact(JSON.parse(row.PayloadJson) as CreateContactPayload);
       } else if (row.WriteType === "update_contact") {
         await applyUpdateContact(JSON.parse(row.PayloadJson) as UpdateContactPayload);
+      } else if (row.WriteType === "board_move") {
+        await applyBoardMove(JSON.parse(row.PayloadJson) as BoardMovePayload);
       } else {
         throw new Error(`Unknown WriteType '${row.WriteType}'`);
       }
@@ -360,6 +381,110 @@ async function applyRevertStage(payload: AdvancePayload): Promise<void> {
     await markJourneyBriefStale(payload.journey_id);
   } catch {
     /* cosmetic */
+  }
+}
+
+/**
+ * Kanban board move replay — mirrors POST /api/pipeline/board/move. Repositions a
+ * state to a new sub-task and/or stage. Unlike advance/revert this can jump any
+ * number of stages (or none — a pure sub-task move within a stage). Idempotent:
+ * a no-op when the Supabase row already sits at the target stage + sub-task.
+ * Optimistic guard: if the row moved in the app since (no longer at from_stage),
+ * fail the journal row rather than fight — the nightly push restores MySQL truth.
+ */
+async function applyBoardMove(payload: BoardMovePayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const now = new Date().toISOString();
+
+  const { data: jps, error: jpsError } = await supabase
+    .from("journey_pipeline_state")
+    .select("id, current_stage_id, current_sub_task_id")
+    .eq("id", payload.state_id)
+    .maybeSingle();
+  if (jpsError) throw new Error(`jps read failed: ${jpsError.message}`);
+  if (!jps) throw new Error(`journey_pipeline_state ${payload.state_id} not found in Supabase`);
+
+  const atTargetStage = jps.current_stage_id === payload.target_stage_id;
+  const atTargetSubTask = (jps.current_sub_task_id ?? null) === payload.target_sub_task_id;
+  if (atTargetStage && atTargetSubTask) return; // already there — idempotent
+
+  if (payload.stage_changed && payload.from_stage_id && jps.current_stage_id !== payload.from_stage_id)
+    throw new Error(
+      `conflict: state is at ${jps.current_stage_id}, expected ${payload.from_stage_id} — moved in the app since`
+    );
+
+  const update: Record<string, unknown> = {
+    current_sub_task_id: payload.target_sub_task_id,
+    current_sub_task_started_at: now,
+    updated_at: now,
+  };
+  if (payload.stage_changed) {
+    update.current_stage_id = payload.target_stage_id;
+    update.entered_current_stage_at = now;
+  }
+  let upd = supabase.from("journey_pipeline_state").update(update).eq("id", payload.state_id);
+  if (payload.stage_changed && payload.from_stage_id) upd = upd.eq("current_stage_id", payload.from_stage_id);
+  const { error: updError } = await upd;
+  if (updError) throw new Error(`jps update failed: ${updError.message}`);
+
+  // Stage transition history — same minted id as the native row so the push upserts onto it.
+  if (payload.stage_changed && payload.history_id && payload.from_stage_id) {
+    const { error: histError } = await supabase.from("pipeline_stage_history").insert({
+      id: payload.history_id,
+      journey_pipeline_state_id: payload.state_id,
+      from_stage_id: payload.from_stage_id,
+      to_stage_id: payload.target_stage_id,
+      moved_by_user_id: null,
+      reason: attributed("Moved on pipeline board", payload.moved_by),
+      was_skip: false,
+      was_revert: false,
+      was_auto: false,
+      created_at: now,
+    });
+    if (histError && !histError.message.includes("duplicate")) {
+      throw new Error(`history insert failed: ${histError.message}`);
+    }
+  }
+
+  // "Moved into X" sub-task note — carries the SUB_STAGE_MOVE metadata kind so the
+  // app renders it as a move, not a completion. Same minted id as the native row.
+  if (payload.sub_task_changed && payload.sub_task_log_id && payload.target_sub_task_id) {
+    const { error: logError } = await supabase.from("contact_sub_task_logs").insert({
+      id: payload.sub_task_log_id,
+      journey_pipeline_state_id: payload.state_id,
+      sub_task_id: payload.target_sub_task_id,
+      logger_user_id: null,
+      source: "api",
+      state_advance: null,
+      content_type: "note",
+      content_text: `Moved into ${payload.sub_task_name ?? "sub-task"} (via MasterSuite by ${payload.moved_by}).`,
+      metadata: {
+        kind: SUB_STAGE_MOVE_METADATA_KIND,
+        source: "mastersuite_board",
+        from_stage_id: payload.from_stage_id,
+        to_stage_id: payload.target_stage_id,
+        from_sub_task_id: payload.from_sub_task_id,
+        to_sub_task_id: payload.target_sub_task_id,
+      },
+      created_at: now,
+    });
+    if (logError && !logError.message.includes("duplicate")) {
+      throw new Error(`sub-task log insert failed: ${logError.message}`);
+    }
+  }
+
+  // Side effects on a stage change — best-effort, never fail the replay over them.
+  if (payload.stage_changed && payload.to_stage_slug) {
+    try {
+      await syncStageToGHL(payload.contact_id, payload.pipeline_slug, payload.to_stage_slug);
+    } catch (err) {
+      console.error("[apply-native-writes] GHL stage sync failed:", err instanceof Error ? err.message : err);
+    }
+    try {
+      await markJourneyBriefStale(payload.journey_id);
+    } catch {
+      /* cosmetic */
+    }
   }
 }
 

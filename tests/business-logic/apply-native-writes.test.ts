@@ -741,3 +741,157 @@ describe("applyNativeWrites — create_contact", () => {
     expect(fakeSupabase.get("journey_pipeline_state")).toHaveLength(1);
   });
 });
+
+describe("applyNativeWrites — board_move", () => {
+  beforeEach(() => {
+    fakeSupabase.tables.clear();
+    pendingRows = [];
+    statusUpdates.length = 0;
+    poolQuery.mockClear();
+    Object.values(ghlMocks).forEach((m) => m.mockClear());
+  });
+
+  it("moves stage + sub-task, updating jps and inserting history + a move note with the minted ids", async () => {
+    fakeSupabase.seed("journey_pipeline_state", [
+      { id: "state-1", current_stage_id: "stage-a", current_sub_task_id: "sub-a1" },
+    ]);
+    pendingRows = [
+      journalRow(1, "board_move", {
+        state_id: "state-1",
+        journey_id: "journey-1",
+        contact_id: "contact-1",
+        pipeline_slug: "sales",
+        target_type: "subtask",
+        target_stage_id: "stage-b",
+        target_sub_task_id: "sub-b1",
+        to_stage_slug: "qualification",
+        from_stage_id: "stage-a",
+        from_sub_task_id: "sub-a1",
+        stage_changed: true,
+        sub_task_changed: true,
+        history_id: "hist-1",
+        sub_task_log_id: "log-1",
+        sub_task_name: "NDA",
+        moved_by: "chad",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const jps = fakeSupabase.get("journey_pipeline_state")[0];
+    expect(jps.current_stage_id).toBe("stage-b");
+    expect(jps.current_sub_task_id).toBe("sub-b1");
+    const hist = fakeSupabase.get("pipeline_stage_history");
+    expect(hist).toHaveLength(1);
+    expect(hist[0].id).toBe("hist-1");
+    expect(hist[0].from_stage_id).toBe("stage-a");
+    expect(hist[0].to_stage_id).toBe("stage-b");
+    const logs = fakeSupabase.get("contact_sub_task_logs");
+    expect(logs).toHaveLength(1);
+    expect(logs[0].id).toBe("log-1");
+    expect((logs[0].metadata as { kind: string }).kind).toBe("sub_stage_move");
+  });
+
+  it("is idempotent — replaying when already at the target stage + sub-task is a no-op", async () => {
+    fakeSupabase.seed("journey_pipeline_state", [
+      { id: "state-1", current_stage_id: "stage-b", current_sub_task_id: "sub-b1" },
+    ]);
+    pendingRows = [
+      journalRow(1, "board_move", {
+        state_id: "state-1",
+        journey_id: "journey-1",
+        contact_id: "contact-1",
+        pipeline_slug: "sales",
+        target_type: "subtask",
+        target_stage_id: "stage-b",
+        target_sub_task_id: "sub-b1",
+        to_stage_slug: "qualification",
+        from_stage_id: "stage-a",
+        from_sub_task_id: "sub-a1",
+        stage_changed: true,
+        sub_task_changed: true,
+        history_id: "hist-1",
+        sub_task_log_id: "log-1",
+        sub_task_name: "NDA",
+        moved_by: "chad",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(fakeSupabase.get("pipeline_stage_history")).toHaveLength(0);
+    expect(fakeSupabase.get("contact_sub_task_logs")).toHaveLength(0);
+  });
+
+  it("fails on a stage-change conflict when the row moved in the app since", async () => {
+    fakeSupabase.seed("journey_pipeline_state", [
+      { id: "state-1", current_stage_id: "stage-c", current_sub_task_id: null },
+    ]);
+    pendingRows = [
+      journalRow(1, "board_move", {
+        state_id: "state-1",
+        journey_id: "journey-1",
+        contact_id: "contact-1",
+        pipeline_slug: "sales",
+        target_type: "subtask",
+        target_stage_id: "stage-b",
+        target_sub_task_id: "sub-b1",
+        to_stage_slug: "qualification",
+        from_stage_id: "stage-a",
+        from_sub_task_id: "sub-a1",
+        stage_changed: true,
+        sub_task_changed: true,
+        history_id: "hist-1",
+        sub_task_log_id: "log-1",
+        sub_task_name: "NDA",
+        moved_by: "chad",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/conflict/);
+  });
+
+  it("moves sub-task only within the same stage — no history row, just the move note", async () => {
+    fakeSupabase.seed("journey_pipeline_state", [
+      { id: "state-1", current_stage_id: "stage-a", current_sub_task_id: "sub-a1" },
+    ]);
+    pendingRows = [
+      journalRow(1, "board_move", {
+        state_id: "state-1",
+        journey_id: "journey-1",
+        contact_id: "contact-1",
+        pipeline_slug: "sales",
+        target_type: "subtask",
+        target_stage_id: "stage-a",
+        target_sub_task_id: "sub-a2",
+        to_stage_slug: "engagement",
+        from_stage_id: "stage-a",
+        from_sub_task_id: "sub-a1",
+        stage_changed: false,
+        sub_task_changed: true,
+        history_id: null,
+        sub_task_log_id: "log-2",
+        sub_task_name: "Intro Call",
+        moved_by: "chad",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const jps = fakeSupabase.get("journey_pipeline_state")[0];
+    expect(jps.current_sub_task_id).toBe("sub-a2");
+    expect(jps.current_stage_id).toBe("stage-a");
+    expect(fakeSupabase.get("pipeline_stage_history")).toHaveLength(0);
+    expect(fakeSupabase.get("contact_sub_task_logs")).toHaveLength(1);
+  });
+});
