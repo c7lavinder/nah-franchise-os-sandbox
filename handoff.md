@@ -24,15 +24,16 @@ Phase: FranDev native rebuild INSIDE MasterSuite — **CLEANUP + VERIFICATION SE
 ## Open Issues Carried Forward
 
 - **PR #114 awaiting Ben** (parity pass; FranDev-only files, no migrations) — Medium
-- **PROD launch pending (Ben):** prod migrations → swap sync to prod → ApiKey_Anthropic → prod nav flip + perms; **Corey to schedule Ben's demo call** — Medium
+- **PROD launch pending (Ben):** prod migrations → swap sync to prod → ApiKey_Anthropic → prod nav flip + perms. **No demo call — Corey declined (2026-07-09); Ben reviews the permission/nav setup via PR #114 + this handoff instead** — Medium
 - **Ben: run on prod when ready:** `CREATE INDEX ix_PropertyStatusHistory_Inserted ON PropertyStatusHistory (Inserted);` (measured 6x on dev, 1.4s build) — Medium
+- **Architecture note (Corey, 2026-07-09): Supabase is transition-phase only.** End state = everything on the MasterSuite DB; the journal/replay + nightly push + Supabase project retire at cutover. Still app-side and needing a port plan before that: sends (SMS/email + workflow scheduler), GHL integration, post-call pipeline, Scout RAG (pgvector), background agents/crons, knowledge editing, admin — Standing
 - Prod→dev refresh wipes the dev launch flip (nav row 76 + perms) — restored this session, will need re-restoring after each refresh until prod migrations run — Medium
 - Kanban pipeline view decision (port to native or keep lead-list?) — Corey/Ben — Low
 - data_update_suggestions: contact-research logged "9 suggestions" for the test contact but none persisted under its contact_id — didn't chase (agent may key differently or not persist) — Low
 
 ## Exact Next Step
 
-Walk PR #114 with Ben + schedule his demo call; prod launch checklist (all Ben's side now).
+PR #114 review + prod launch checklist (all Ben's side now — no demo call). Then: scope the full-cutover port plan (sends, GHL, post-call, RAG, agents) so Supabase can eventually retire.
 
 ---
 
