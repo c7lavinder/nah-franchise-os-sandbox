@@ -1,4 +1,42 @@
-# Session Handoff — 2026-07-09 — Session 71
+# Session Handoff — 2026-07-09 — Session 72
+
+## Status
+
+Phase: FranDev native rebuild INSIDE MasterSuite — **CLEANUP + VERIFICATION SESSION: prospects push FIXED live, all 5 write types + multi-territory close E2E-verified through the DEPLOYED replay cron, 12 more 1000-row-cap bugs fixed, EOS carry-forward bug found+fixed** / Health: Green / Duration: full session
+
+## What Was Built This Session
+
+- **Prospects push fixed + verified live (`093c87e`):** MasterSuite renamed `NewAgainHouses_FormSubmissions` → `FormSubmissions` (~2026-06-30, old table kept as `OBSOLETE_*`). Same columns, same FormSubmissionIds (all 2,452 verified by ID+email), so `franchise_req_{id}` dedup intact. Re-pointed `sync-prospects.ts` + dead `sync-franchise-requests.ts` + doc. **13:00Z cron ran clean: 9 prospects created, 12 skipped, watermark advanced — banner clears.**
+- **1000-row cap sweep (`e3370e2`):** audit found `journey_pipeline_state` (3,489 rows / 3,267 active) read unpaged in 7 places — dashboard KPIs+funnel, rep leaderboard (5 queries), conversion funnel, admin Daily HQ snapshot, `countContactsByStage`, Scout `get_pipeline`, external AI-read L10 (`limit(1000)`). Verified live: unpaged=1000 vs paged=3,489. Also paged growth-risk aggregates before they cross 1000: north-star `ten_plus_buyers`, scorecards (high performers + avg call score — call_grades at 489), territory-cards T12, L10 inventory reads. New shared helper `lib/supabase/fetch-paged.ts`.
+- **Knowledge cross-cutting fix (same commit):** category buttons now open a virtual `cross` pillar (was `setActivePillar(null)` → blank view); mirrors native's `?pillar=cross`.
+- **EOS carry-forward bug found + fixed (`5aa0dc0`):** `carryForwardContactEos` mapped `issue.Issue`/`todo.Todo` but contact tables use `issue_text`/`todo_text` — every real carry-forward would have failed on NOT NULL. Found by exercising the close live; fix deployed BEFORE the close replay ran.
+- **All 4 untested write types E2E-verified through the DEPLOYED Vercel replay cron** (first true full loop for the session-71 handlers): synthetic prospect "Claude Writetest" → `create_contact` (all 4 rows in Supabase with same minted uuids + real GHL upsert replacing the `ms_native_` placeholder + contact-research agent auto-ran) → `update_contact` (phone/email) → `sub_task_log` ×3 (complete → un-complete → re-complete; soft-delete pair netted, re-complete lives under its minted id) → `workflow_status` ×4 on "2026 Q2 Cold Lead Drip" (draft→live→paused→live→paused; stale-`from` optimistic guard correctly refused a 5th) → 4 advances → **multi-territory Close (Win)**.
+- **Multi-territory close fan-out + EOS carry-forward VERIFIED:** 2 seeded `frandev_territory_owner` rows (TRI, CLTW) → native close spawned one onboarding state per territory (same minted ids in Supabase), close history row landed, sub-task auto-complete logs written, seeded contact EOS issue+todo carried into BOTH territories with `source='carried_forward'` + `origin_contact_id` (running the fixed code). **Everything surgically removed afterward on both DBs + the GHL contact deleted; journal empty, workflow back to draft both sides.**
+- **Dev DB restoration:** duplicate nav row 77 (`/v2/frandev`) deleted; discovered a prod→dev refresh had WIPED the session-68 dev launch flip — restored nav row 76 (Enabled=1, SortOrder=91) + Frandev permission (id 15) for Corey (36) and Ben (3).
+- **PropertyStatusHistory index ON DEV:** `CREATE INDEX ix_PropertyStatusHistory_Inserted ON PropertyStatusHistory (Inserted)` (1.4s to build, 903k rows). 90-day scan 809ms→137ms, plan flips to range scan. **Prod is Ben's call — hand him that exact SQL.** (Local L10 cold load stays slow (~80s) — network-latency-bound from a laptop; deployed server sits next to the DB. Cached: 0.96s.)
+
+## What Is Confirmed Working
+
+- Prospects cron: success at 13:00Z (9 created / 12 skipped / 0 errors) after two final failures at 12:01/12:30 — fix verified in prod.
+- All 14 journal rows (create/update/sub-task ×3/workflow ×4/advance ×4/close) replayed by the deployed cron with 0 failures; both DBs verified consistent, then reset to pre-test state (0 journal rows, no test data remains, GHL contact deleted).
+- `npx tsc --noEmit` + `npx next build` + 239 vitest green on every push (3 commits: `093c87e`, `e3370e2`, `5aa0dc0`).
+
+## Open Issues Carried Forward
+
+- **PR #114 awaiting Ben** (parity pass; FranDev-only files, no migrations) — Medium
+- **PROD launch pending (Ben):** prod migrations → swap sync to prod → ApiKey_Anthropic → prod nav flip + perms; **Corey to schedule Ben's demo call** — Medium
+- **Ben: run on prod when ready:** `CREATE INDEX ix_PropertyStatusHistory_Inserted ON PropertyStatusHistory (Inserted);` (measured 6x on dev, 1.4s build) — Medium
+- Prod→dev refresh wipes the dev launch flip (nav row 76 + perms) — restored this session, will need re-restoring after each refresh until prod migrations run — Medium
+- Kanban pipeline view decision (port to native or keep lead-list?) — Corey/Ben — Low
+- data_update_suggestions: contact-research logged "9 suggestions" for the test contact but none persisted under its contact_id — didn't chase (agent may key differently or not persist) — Low
+
+## Exact Next Step
+
+Walk PR #114 with Ben + schedule his demo call; prod launch checklist (all Ben's side now).
+
+---
+
+# Session Handoff — 2026-07-09 — Session 71 (below)
 
 ## Status
 
