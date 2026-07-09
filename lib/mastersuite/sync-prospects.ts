@@ -1,7 +1,8 @@
 /**
  * Unified prospect sync — pulls from BOTH MasterSuite sources in one pass:
  *   1. PathToOwnershipEntries (PTO form)
- *   2. NewAgainHouses_FormSubmissions WHERE FormType = 'FRANCHISE_REQUEST'
+ *   2. FormSubmissions WHERE FormType = 'FRANCHISE_REQUEST'
+ *      (renamed from NewAgainHouses_FormSubmissions ~2026-06-30; same FormSubmissionIds)
  *
  * Single email dedup across both sources prevents duplicates.
  * New prospects get: contact + journey + journey_pipeline_state in Sales → Engagement.
@@ -178,7 +179,7 @@ async function fetchProspects(since?: string): Promise<Prospect[]> {
     `SELECT FormSubmissionId, Inserted, FirstName, LastName,
             PersonalCity, PersonalState, PersonalZip, Phone, Email, Comments,
             utmSource, utmMedium, utmCampaign
-     FROM NewAgainHouses_FormSubmissions ${frWhere} ORDER BY Inserted DESC`,
+     FROM FormSubmissions ${frWhere} ORDER BY Inserted DESC`,
     frParams.length > 0 ? frParams : undefined
   );
 

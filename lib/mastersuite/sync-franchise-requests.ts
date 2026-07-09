@@ -88,7 +88,7 @@ export async function syncFranchiseRequests(
             Phone, Email, Comments,
             utmSource, utmMedium, utmCampaign, utmContent, utmTerm,
             Gclid, Fbclid, IpAddress
-     FROM NewAgainHouses_FormSubmissions
+     FROM FormSubmissions
      ${whereClause}
      ORDER BY Inserted DESC`,
     params.length > 0 ? params : undefined
