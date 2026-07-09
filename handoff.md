@@ -1,3 +1,75 @@
+# Session Handoff — 2026-07-09 — Session 73
+
+## Status
+
+Phase: FranDev native rebuild INSIDE MasterSuite — **DESIGN-DRIVEN PAGE REBUILD begins: Daily HQ rebuilt to match the app's design (per-page workflow)** / Health: Green / Duration: full session
+
+## What Was Built This Session
+
+- **New work stream kicked off (Corey):** per-page design rebuild. Corey drops a design handoff folder per page (screenshots → Claude design → spec md + prototype). Package `docs/NAH Frandev rebuild deisgn/` added with specs for all pages: `00-app-shell, 01-scout-ai, 02-daily-hq, 03-calls, 04-pipeline, 05-contacts-journeys, 06-territory-detail, 07-l10`. (Prototype HTML `New Again Houses App.dc.html` referenced by the specs is NOT in the folder — only the .md specs + README came through; ask Corey for it to raise fidelity.)
+- **Shell model decided (Corey): keep MasterSuite chrome (Gunner pattern)** — FranDev pages keep MasterSuite's header/sidebar; only page CONTENT matches the designs. The app's own sidebar is NOT reproduced.
+- **Daily HQ page rebuilt** (`~/Mastersuite/mastersuite-frandev-parity-wt`, branch **`frandev-design-dailyhq`**, committed locally, NOT pushed): `/frandev/dayhub` reworked to match `02-daily-hq.md`. Changes: orange unread pill above KPIs (was a header link); 3 gradient KPI cards kept; needs-review banner kept; **inbox folded INTO Daily HQ** (the app has no separate Messages nav item) — conversation list + thread with instant client-side switching (no reload), reusing `GetSmsConversations` + the journaled `MarkSmsConversationRead` write; composer rendered but disabled until the messaging send phase; work rail now **Work Queue / Calendar / Tasks** (Calendar replaces the old Alerts column, shows today + "from GHL" empty state); task rail keeps the journaled `ToggleTask`. Files: `Pages/Frandev/DayHub.cshtml(.cs)`. Data + writes reuse existing IFrandevService methods unchanged — layout/parity change only.
+
+## What Is Confirmed Working
+
+- `dotnet build` clean (0 errors) after the Daily HQ rebuild.
+- Page renders 200 with all design sections present (verified by HTML structure check while the server was briefly up): unread pill (conditional), 3 KPI cards, needs-review banner, inbox workspace with 3 conversations + 3 threads, disabled composer, Work Queue / Calendar (with "from GHL" date line) / Tasks rail, client-side `openConv` switching JS, no error block. Alerts column correctly removed.
+
+## What Is Broken or Incomplete
+
+- **Visual side-by-side screenshot vs the app NOT captured** — the concurrent Gunner session on this machine repeatedly kills the local `dotnet` server (both `dotnet run` and the built dll) within seconds via its `pkill`, so live Chrome verification kept failing. Structure verified via curl instead. View on the deployed dev site after merge, or when the other session is idle — Medium
+- `frandev-design-dailyhq` branch is committed locally only, not pushed / no PR yet (MasterSuite is Ben's repo — push/PR is Corey's call) — Low
+- Composer on Daily HQ is disabled (sends stay app-side until the messaging send layer ports) — by design — Low
+- Prototype HTML (`New Again Houses App.dc.html`) missing from the design folder — specs are buildable without it but fidelity is higher with it — Low
+
+## Decisions Made
+
+- Build target for the redesign = **native MasterSuite pages ONLY** (app is throwaway at cutover; never double-build) — Corey
+- Shell = **keep MasterSuite chrome (Gunner pattern)**; only page content matches the designs — Corey
+- First page = **Daily HQ** — Corey
+- Daily HQ folds the inbox in (no separate Messages page in the app's design) and drops the Alerts column to match the app — Claude (per design)
+- Each redesigned page = its own branch/PR (`frandev-design-<page>`), stacked on the parity work, NOT piled onto PR #114 — Claude (per [[project_design_rebuild_workflow]])
+
+## Files Created
+
+- MasterSuite (branch `frandev-design-dailyhq`): none (both Day Hub files pre-existed)
+- This repo: none (design folder `docs/NAH Frandev rebuild deisgn/` was added by Corey)
+
+## Files Modified
+
+- MasterSuite (branch `frandev-design-dailyhq`): `Pages/Frandev/DayHub.cshtml`, `Pages/Frandev/DayHub.cshtml.cs`
+- This repo: `handoff.md`
+
+## Files Deleted
+
+- None
+
+## Open Issues Carried Forward
+
+- **Design rebuild — 7 pages remain** (Scout AI, Calls, Pipeline/Kanban, Contacts/Journeys, Territory detail, L10, + app-shell polish); Corey picks order and drops each handoff — In progress
+- Capture the Daily HQ visual side-by-side once the server can stay up (or on deployed dev) — Medium
+- **PR #114 awaiting Ben** (the earlier parity pass) — Medium
+- **PROD launch pending (Ben):** prod migrations → swap sync to prod → ApiKey_Anthropic → prod nav flip + perms. No demo call (Corey declined) — Medium
+- **Ben: run on prod when ready:** `CREATE INDEX ix_PropertyStatusHistory_Inserted ON PropertyStatusHistory (Inserted);` — Medium
+- Prod→dev refresh wipes the dev launch flip (nav row 76 + perms) — re-restore after each refresh until prod migrations run — Medium
+- **Supabase is transition-only**; end state = MasterSuite DB (journal/replay + push + Supabase retire at cutover). Port list before cutover: sends, GHL, post-call, RAG, agents/crons, knowledge editing, admin — Standing
+
+## Exact Next Step
+
+Wait for Corey to name the next page (and drop its design handoff), then rebuild it natively the same way — matching design + app functionality, keeping MasterSuite chrome, own `frandev-design-<page>` branch.
+
+## Copy This To Start Next Session In Claude.ai
+
+---
+
+Read this file then tell me: current status, last session summary, open issues, what we build today.
+GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
+Then: rebuild the next FranDev page from `docs/NAH Frandev rebuild deisgn/` natively to match its design + the current app's functionality (keep MasterSuite chrome, own `frandev-design-<page>` branch). Daily HQ (`frandev-design-dailyhq`) is done.
+
+---
+
+---
+
 # Session Handoff — 2026-07-09 — Session 72
 
 ## Status
