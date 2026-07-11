@@ -1,3 +1,90 @@
+# Session Handoff — 2026-07-11 — Session 76
+
+## Status
+
+Phase: FranDev design rebuild — **all three carried tracks closed or scoped: native Contacts list SHIPPED (PR #120 merged by Ben), SMS send write-phase LIVE end-to-end (PR #134 open), 7-page audit done (zero design handoffs needed)** / Health: Green / Duration: full session
+
+## What Was Built This Session
+
+**Track 1 — Native Contacts list view (spec 05-A) — DONE, MERGED.** New `/frandev/contacts` (`Pages/Frandev/Contacts.cshtml(.cs)`): 3 KPI cards, stage-chip filter grid over all 5 pipelines, journeys list (urgency/name/recent sorts, quick panel w/ advance/revert/drop/close + inline contact edit) stacked above the Territory Network (quartile/gap tags, 4 sorts; hidden while a sales stage is selected). Hosts + Add Journey and `?needs_review=1` (DayHub banner repointed). Reconnected the orphaned lead-list/territory-card/CreateProspect reads the kanban rebuild parked. One data fix inside `GetStageBar`: **Territories-pipeline chips now count from `frandev_territory` by status** (26/0/62), matching the app — they previously counted journey states. Verified live in Chrome vs dev data (KPIs 43/7/10, groups 58/59/52/88/3,010, filter matrix by URL). **PR #120 → merged by Ben 2026-07-09.**
+
+**Track 2 — Write-phase, sends — SMS DONE end-to-end.**
+
+- **App side (this repo, `6b0f1cd`, pushed to main + deployed):** `send_sms` + `send_email` replay handlers in `lib/mastersuite/apply-native-writes.ts`. send*sms executes via `sendContactSmsViaActiveProvider` (Vonage → SignalHouse → GHL, logs the `sms_messages` row so threads + delivery webhooks work); send_email via `ghl.sendMessage`. Both honor `CUSTOMER_FACING_SENDS_ENABLED` and refuse `pto*`/`ms*native*`placeholder ids. **Sends are the one non-idempotent write type, so both CLAIM the journal row (pending→'sending') before touching a provider** — an overlapping cron or crash-rerun can never double-text; unknown-outcome rows park as 'sending' for review.`updateTouchFields`extracted from the inbox route to`lib/ghl/touch-fields.ts` (shared). +7 vitest (250 green).
+- **Native side (MasterSuite branch `frandev-send-writes` → PR #134, open):** `FrandevService.WritesSend.cs` `SendSms` (validates contact/phone/body ≤1600, journals send_sms) + live composers on **Messaging Hub and Daily HQ** for contact-linked threads (optimistic session-local "queued" bubble surviving the 30s auto-refresh; refresh yields to an active composer; phone-only threads keep an honest disabled note).
+- **E2E through PRODUCTION:** synthetic mirror-only contact → native composer POST → journal row byte-correct → **deployed replay cron picked it up at 17:15Z, claimed it, entered the SignalHouse path, failed it safely at contact resolution** (no provider call, nobody texted). Deploy, dispatch, kill-switch pass, claim transition all proven live. Test row + contact surgically removed; journal empty.
+
+**Track 3 — 7-page audit — DONE, report only.** All 7 non-spec pages (Activity, Knowledge, Marketing, Onboarding, Workflows, Site Guide, FranDev home) are **already on the `.fd-page` design system — none needs a design handoff.** Real gaps are product scope, not design: **Workflows** lacks the app's authoring surface (New/Clone/Archive, step builder, approval queue, pending confirmations); **Knowledge** is read-only by design (no KB CRUD natively); **home** could optionally gain the app's Mission Control health strip. Fun fact: the app's own dashboard is still dark-themed — native home is ahead.
+
+**Remaining write-phase tracks SCOPED (research only, options for Corey below):** call upload + GHL calendar.
+
+## What Is Confirmed Working
+
+- PR #120 merged; PR #134 builds clean (`dotnet build` 0 errors) and is verified as above.
+- This repo: `npx tsc --noEmit` + `npx next build` + 250 vitest green on `6b0f1cd`.
+- Deployed replay cron demonstrably runs the NEW handler code in production (the 17:15Z claim+fail proof).
+
+## What Is Broken or Incomplete
+
+- **Native email composer not built** (send_email replay handler is deployed and ready; journey-header Email button was already deferred) — Low
+- **App bug found, NOT fixed (scope discipline):** `app/api/pipeline/territory-cards/route.ts` declares `purchasesBySlug` twice (~lines 151/167); quartile scoring reads the outer empty map, so the T12-purchases factor is likely always 0 in app quartile scores. The native port (PipelineExtras) computes it correctly, so app vs native quartiles may differ — Medium
+- Composer sends appear in the native thread only after the next mirror sync (optimistic bubble covers the gap; noted in the UI) — By design
+- Visual side-by-side screenshots still blocked by the concurrent Gunner session killing local dotnet servers — verify on deployed dev after PR #134 merges — Low
+
+## Decisions Made
+
+- Replay claims send rows before provider contact (no double-send possible); lost-send-on-crash preferred over double-text — Claude
+- MasterSuite never talks to an SMS/email provider; the composer click IS the DRC approval — Claude (per standing pattern)
+- E2E send test targeted a synthetic mirror-only contact so the production cron could prove the loop without texting anyone — Claude
+- Contacts page: journeys list ALWAYS shown; Territory Network hidden only for sales-stage selection (matches app) — Claude (per app behavior)
+
+## Decisions Needed From Corey (next session)
+
+1. **Call upload path** — the journal can't carry audio files. Options: (A) MasterSuite POSTs the file to the app's existing upload endpoint with a new shared-secret guard (fullest: Whisper transcription + post-call agent all reuse; needs a small app auth addition modeled on CRON_SECRET); (B) native uploads straight to Supabase Storage with a service credential, journals a pointer row; (C) **transcript-only via the existing journal** (paste/.txt rides the JSON row; recordings stay app-side) — lowest friction, zero new auth.
+2. **GHL calendar** — recommended: new `appointments` Supabase table + small sync cron (`ghl.getAllAppointments` upsert), add to `SUPABASE_TABLES` in `push-frandev.ts` + matching `frandev_appointment` mirror table; native reads it like every other mirror table. (Alternative: filter the already-mirrored `calls` table where status='scheduled' — no new table, but couples appointments to call semantics.)
+3. **Workflow authoring scope** — how much of the app's workflow builder (create/edit steps/approval queue) should exist natively vs staying app-side until cutover?
+4. (Optional) app-side fix for the `purchasesBySlug` quartile bug above.
+
+## Files Created
+
+- MasterSuite (PR #120, merged): `Pages/Frandev/Contacts.cshtml(.cs)`
+- MasterSuite (PR #134, open): `MasterSuite.Modules.Frandev/FrandevService.WritesSend.cs`, `IFrandevService.WritesSend.cs`
+- This repo (`6b0f1cd`, pushed): `lib/ghl/touch-fields.ts`
+
+## Files Modified
+
+- MasterSuite #120: `FrandevService.Pipeline.cs` (GetStageBar territories counts), `DayHub.cshtml` (banner link), `FrandevIndex.cshtml` (Contacts tile)
+- MasterSuite #134: `Pages/Frandev/Messages.cshtml(.cs)`, `Pages/Frandev/DayHub.cshtml(.cs)` (live composers + OnPostSend)
+- This repo: `lib/mastersuite/apply-native-writes.ts` (+send_sms/send_email + claim guard), `app/api/inbox/send/route.ts` (touch-fields extraction), `tests/business-logic/apply-native-writes.test.ts` (+7), `handoff.md`
+
+## Files Deleted
+
+- None (test journal row + synthetic contact removed from dev DB — data, not code)
+
+## Open Issues Carried Forward
+
+- **PR #134 awaiting Ben** (SMS composers; FranDev-only, no migrations) — Medium
+- Write-phase remaining: **call upload** + **GHL calendar** — scoped, blocked on Corey's option picks above — Medium
+- App quartile `purchasesBySlug` shadowing bug — Medium
+- Native email composer (handler deployed, UI not built) — Low
+- **Supabase is transition-only**; end state = MasterSuite DB (journal/replay + push + retire at cutover) — Standing
+
+## Exact Next Step
+
+Get Corey's picks on the four decisions above, then build the chosen call-upload path and the appointments mirror (app-side cron + table first, then the native calendar cards). PR #134 review is Ben's.
+
+## Copy This To Start Next Session In Claude.ai
+
+---
+
+Read this file then tell me: current status, last session summary, open issues, what we build today.
+GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
+Then: I'll pick options for the call-upload path + GHL calendar (see "Decisions Needed"); build the picked options — app-side pieces first (replay/cron/table), then native. MasterSuite work in its own worktree, own `frandev-<feature>` branch.
+
+---
+
+---
+
 # Session Handoff — 2026-07-09 — Session 75
 
 ## Status
