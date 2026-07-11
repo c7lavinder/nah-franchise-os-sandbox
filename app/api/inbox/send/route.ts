@@ -15,6 +15,7 @@ import { customerFacingSendsDisabledReason, customerFacingSendsEnabled } from "@
 import { createServerClient } from "@/lib/supabase/server";
 import { getAssignedSmsNumber, getConfiguredSmsNumbers, normalizeSmsNumber } from "@/lib/sms/number-assignment";
 import { sendContactSmsViaSignalHouse, sendContactSmsViaVonage } from "@/lib/sms/contact-sms";
+import { updateTouchFields } from "@/lib/ghl/touch-fields";
 import { sendSignalHouseSms, signalHouseEnabled, type SignalHouseMessage } from "@/lib/sms/signalhouse-client";
 import { sendVonageSms, vonageEnabled } from "@/lib/vonage/client";
 import type { GHLMessage, GHLSendMessagePayload } from "@/types/ghl";
@@ -93,63 +94,6 @@ async function sendDirectVonageSms(toNumber: string, body: string, fromNumber: s
     to: normalizeSmsNumber(result.to) ?? undefined,
     source: "vonage",
   };
-}
-
-/** Update engagement tracking fields after sending a message */
-async function updateTouchFields(contactId: string, channel: "SMS" | "Email") {
-  try {
-    const supabase = createServerClient();
-    const { data: mappings } = await supabase
-      .from("ghl_custom_fields")
-      .select("field_name, ghl_field_id")
-      .eq("entity_type", "contact")
-      .in("field_name", ["Last Touch Date", "Last Touch Channel", "Contact Attempt Count"]);
-
-    if (!mappings || mappings.length === 0) return;
-
-    // Get current attempt count to increment
-    let currentCount = 0;
-    const attemptFieldId = mappings.find((m) => m.field_name === "Contact Attempt Count")?.ghl_field_id;
-    if (attemptFieldId) {
-      try {
-        const contact = await ghl.getContact(contactId);
-        const attemptField = contact.customFields.find((f) => f.id === attemptFieldId);
-        if (attemptField?.value) {
-          currentCount = parseInt(attemptField.value) || 0;
-        }
-      } catch {
-        // Continue with 0
-      }
-    }
-
-    const customFields: { id: string; value: string }[] = [];
-    for (const m of mappings) {
-      if (m.field_name === "Last Touch Date") {
-        customFields.push({ id: m.ghl_field_id, value: new Date().toISOString() });
-      }
-      if (m.field_name === "Last Touch Channel") {
-        customFields.push({ id: m.ghl_field_id, value: channel });
-      }
-      if (m.field_name === "Contact Attempt Count") {
-        customFields.push({ id: m.ghl_field_id, value: String(currentCount + 1) });
-      }
-    }
-
-    if (customFields.length > 0) {
-      await ghl.updateContact(contactId, { customFields });
-    }
-
-    // Auto-resolve stale lead alerts for this contact
-    await supabase
-      .from("inactivity_alerts")
-      .update({ is_resolved: true, resolved_at: new Date().toISOString() })
-      .eq("ghl_contact_id", contactId)
-      .eq("is_resolved", false)
-      .in("alert_type", ["stale_active", "stale_active_high", "stale_followup", "stale_reengaged", "speed_to_lead"]);
-  } catch {
-    // Non-critical — don't fail the send if touch tracking fails
-    console.warn("Failed to update touch fields for", contactId);
-  }
 }
 
 export async function POST(request: NextRequest) {

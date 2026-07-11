@@ -195,9 +195,15 @@ vi.mock("@/lib/mastersuite/supabase", () => ({
 let pendingRows: Array<{ Id: number; WriteType: string; PayloadJson: string }> = [];
 const statusUpdates: Array<{ id: number; status: string; error: string | null }> = [];
 
+let claimAffectedRows = 1; // send-type claim UPDATE result; set 0 to simulate a lost claim
+
 const poolQuery = vi.fn(async (sql: string, params: unknown[]) => {
   if (sql.includes("SELECT Id, WriteType")) {
     return [pendingRows];
+  }
+  if (sql.includes("Status = 'sending'")) {
+    statusUpdates.push({ id: params[0] as number, status: "sending", error: null });
+    return [{ affectedRows: claimAffectedRows }];
   }
   if (sql.includes("UPDATE frandev_native_write")) {
     if (sql.includes("Status = 'applied'")) {
@@ -222,9 +228,20 @@ const ghlMocks = {
   updateContact: vi.fn(async () => ({ id: "ghl-new-1" })),
   updateTask: vi.fn(async () => ({ id: "ghl-task-1" })),
   createTask: vi.fn(async () => ({ id: "ghl-task-1" })),
+  sendMessage: vi.fn(async () => ({ id: "ghl-msg-1" })),
 };
 
 vi.mock("@/lib/ghl", () => ghlMocks);
+
+let sendsEnabled = true;
+vi.mock("@/lib/ghl/action-safety", () => ({
+  customerFacingSendsEnabled: () => sendsEnabled,
+  customerFacingSendsDisabledReason: () => "Customer-facing sends are disabled.",
+}));
+const touchFieldsMock = vi.fn(async () => {});
+vi.mock("@/lib/ghl/touch-fields", () => ({ updateTouchFields: touchFieldsMock }));
+const sendSmsProviderMock = vi.fn(async () => ({ id: "prov-msg-1" }));
+vi.mock("@/lib/sms/contact-sms", () => ({ sendContactSmsViaActiveProvider: sendSmsProviderMock }));
 vi.mock("@/lib/ghl/stage-sync", () => ({ syncStageToGHL: vi.fn(async () => {}) }));
 vi.mock("@/lib/eos/carry-forward", () => ({ carryForwardContactEos: vi.fn(async () => {}) }));
 vi.mock("@/lib/briefs/mark-journey-brief-stale", () => ({ markJourneyBriefStale: vi.fn(async () => {}) }));
@@ -893,5 +910,153 @@ describe("applyNativeWrites — board_move", () => {
     expect(jps.current_stage_id).toBe("stage-a");
     expect(fakeSupabase.get("pipeline_stage_history")).toHaveLength(0);
     expect(fakeSupabase.get("contact_sub_task_logs")).toHaveLength(1);
+  });
+});
+
+describe("applyNativeWrites — send_sms / send_email", () => {
+  beforeEach(() => {
+    fakeSupabase.tables.clear();
+    pendingRows = [];
+    statusUpdates.length = 0;
+    claimAffectedRows = 1;
+    sendsEnabled = true;
+    poolQuery.mockClear();
+    touchFieldsMock.mockClear();
+    sendSmsProviderMock.mockClear();
+    Object.values(ghlMocks).forEach((m) => m.mockClear());
+  });
+
+  const smsPayload = {
+    send_id: "send-1",
+    contact_id: "contact-1",
+    ghl_contact_id: "ghl-contact-1",
+    from_number: "+16155550100",
+    body: "Hi Denzel — following up on the territory call.",
+    requested_by: "chad",
+  };
+
+  it("send_sms: claims the row, sends via the active-provider dispatcher, then updates touch fields", async () => {
+    pendingRows = [journalRow(1, "send_sms", smsPayload)];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(sendSmsProviderMock).toHaveBeenCalledWith("contact-1", smsPayload.body, {
+      fromNumber: "+16155550100",
+    });
+    expect(touchFieldsMock).toHaveBeenCalledWith("ghl-contact-1", "SMS");
+    expect(statusUpdates).toEqual([
+      { id: 1, status: "sending", error: null },
+      { id: 1, status: "applied", error: null },
+    ]);
+  });
+
+  it("send_sms: a lost claim (row not pending anymore) never reaches the provider", async () => {
+    claimAffectedRows = 0;
+    pendingRows = [journalRow(2, "send_sms", smsPayload)];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(sendSmsProviderMock).not.toHaveBeenCalled();
+    expect(touchFieldsMock).not.toHaveBeenCalled();
+    const failed = statusUpdates.find((u) => u.status === "failed");
+    expect(failed?.error).toContain("could not be claimed");
+  });
+
+  it("send_sms: kill-switch off fails the row before any claim or send", async () => {
+    sendsEnabled = false;
+    pendingRows = [journalRow(3, "send_sms", smsPayload)];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(sendSmsProviderMock).not.toHaveBeenCalled();
+    expect(statusUpdates).toEqual([{ id: 3, status: "failed", error: "Customer-facing sends are disabled." }]);
+  });
+
+  it("send_sms: empty body fails without claiming or sending", async () => {
+    pendingRows = [journalRow(4, "send_sms", { ...smsPayload, body: "   " })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(sendSmsProviderMock).not.toHaveBeenCalled();
+    expect(statusUpdates.some((u) => u.status === "sending")).toBe(false);
+  });
+
+  it("send_sms: falls back to a real ghl_contact_id when contact_id is missing, but refuses placeholders", async () => {
+    pendingRows = [
+      journalRow(5, "send_sms", { ...smsPayload, contact_id: null }),
+      journalRow(6, "send_sms", { ...smsPayload, contact_id: null, ghl_contact_id: "ms_native_abc" }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(result.failed).toBe(1);
+    expect(sendSmsProviderMock).toHaveBeenCalledTimes(1);
+    expect(sendSmsProviderMock).toHaveBeenCalledWith("ghl-contact-1", smsPayload.body, {
+      fromNumber: "+16155550100",
+    });
+  });
+
+  it("send_email: sends through GHL with the route's default from address and stamps touch fields", async () => {
+    pendingRows = [
+      journalRow(7, "send_email", {
+        send_id: "send-2",
+        contact_id: "contact-1",
+        ghl_contact_id: "ghl-contact-1",
+        subject: "Discovery day details",
+        html: "<p>See you Thursday.</p>",
+        email_from: null,
+        requested_by: "chad",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(ghlMocks.sendMessage).toHaveBeenCalledWith({
+      type: "Email",
+      contactId: "ghl-contact-1",
+      html: "<p>See you Thursday.</p>",
+      subject: "Discovery day details",
+      emailFrom: "chad@newagainhouses.com",
+    });
+    expect(touchFieldsMock).toHaveBeenCalledWith("ghl-contact-1", "Email");
+    expect(statusUpdates).toEqual([
+      { id: 7, status: "sending", error: null },
+      { id: 7, status: "applied", error: null },
+    ]);
+  });
+
+  it("send_email: refuses a contact that has never synced to GHL (placeholder id)", async () => {
+    pendingRows = [
+      journalRow(8, "send_email", {
+        send_id: "send-3",
+        contact_id: "contact-1",
+        ghl_contact_id: "pto_placeholder",
+        subject: "Hello",
+        html: "<p>Hi</p>",
+        email_from: null,
+        requested_by: "chad",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(ghlMocks.sendMessage).not.toHaveBeenCalled();
+    const failed = statusUpdates.find((u) => u.status === "failed");
+    expect(failed?.error).toContain("no synced ghl_contact_id");
   });
 });

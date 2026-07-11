@@ -24,6 +24,9 @@ import { isSubStageMoveLog, SUB_STAGE_MOVE_METADATA_KIND } from "@/lib/contacts/
 import { matchWorkflowTriggers } from "@/lib/workflows/trigger-matcher";
 import { runContactResearch } from "@/lib/agents/contact-research";
 import * as ghl from "@/lib/ghl";
+import { customerFacingSendsDisabledReason, customerFacingSendsEnabled } from "@/lib/ghl/action-safety";
+import { updateTouchFields } from "@/lib/ghl/touch-fields";
+import { sendContactSmsViaActiveProvider } from "@/lib/sms/contact-sms";
 
 interface JournalRow extends RowDataPacket {
   Id: number;
@@ -164,6 +167,25 @@ interface BoardMovePayload {
   moved_by: string;
 }
 
+interface SendSmsPayload {
+  send_id: string; // minted natively — journal reference only, no Supabase row carries it
+  contact_id: string | null; // Supabase contact uuid
+  ghl_contact_id: string | null;
+  from_number: string | null; // the thread's owned sending number
+  body: string;
+  requested_by: string;
+}
+
+interface SendEmailPayload {
+  send_id: string;
+  contact_id: string | null;
+  ghl_contact_id: string | null;
+  subject: string;
+  html: string;
+  email_from: string | null;
+  requested_by: string;
+}
+
 export interface ApplyResult {
   pending: number;
   applied: number;
@@ -214,6 +236,10 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applyUpdateContact(JSON.parse(row.PayloadJson) as UpdateContactPayload);
       } else if (row.WriteType === "board_move") {
         await applyBoardMove(JSON.parse(row.PayloadJson) as BoardMovePayload);
+      } else if (row.WriteType === "send_sms") {
+        await applySendSms(pool, row.Id, JSON.parse(row.PayloadJson) as SendSmsPayload);
+      } else if (row.WriteType === "send_email") {
+        await applySendEmail(pool, row.Id, JSON.parse(row.PayloadJson) as SendEmailPayload);
       } else {
         throw new Error(`Unknown WriteType '${row.WriteType}'`);
       }
@@ -831,6 +857,91 @@ async function applyMarkSmsRead(payload: MarkSmsReadPayload): Promise<void> {
     { onConflict: "user_id,conversation_key" }
   );
   if (error) throw new Error(`sms_conversation_reads upsert failed: ${error.message}`);
+}
+
+/**
+ * Claim a send-type journal row before touching the provider. Sends are the
+ * one write type whose side effect (an outbound message to a real prospect)
+ * cannot be made idempotent by a minted id, so the row is flipped
+ * pending → sending first: a concurrent cron run, or a rerun after a crash
+ * that lost the final status update, finds the row out of 'pending' and can
+ * never double-send. A row stuck in 'sending' means the send outcome is
+ * unknown — surface it for a human instead of retrying. The runner's normal
+ * applied/failed update then overwrites 'sending' with the final status.
+ */
+async function claimSendRow(pool: Pool, journalId: number, writeType: string): Promise<void> {
+  const [res] = await pool.query(
+    "UPDATE frandev_native_write SET Status = 'sending' WHERE Id = ? AND Status = 'pending'",
+    [journalId]
+  );
+  const affected = (res as { affectedRows?: number }).affectedRows ?? 0;
+  if (affected !== 1)
+    throw new Error(
+      `${writeType} #${journalId} could not be claimed (row not in 'pending' — a previous attempt may have sent already; check before retrying)`
+    );
+}
+
+/**
+ * Native SMS send replay — the deployed twin of POST /api/inbox/send for a
+ * MasterSuite composer. The human confirmed the send natively (DRC holds:
+ * the click IS the approval); this executes it through the app's one send
+ * dispatcher, which picks the active provider (Vonage → SignalHouse → GHL)
+ * and logs the outbound sms_messages row so the thread shows the message
+ * and the delivery webhook can land receipts. Honors the customer-facing
+ * kill-switch, so an unconfigured sandbox stays inert (row fails with the
+ * reason instead of sending). Touch tracking mirrors the route: best-effort,
+ * never fails the send.
+ */
+async function applySendSms(pool: Pool, journalId: number, payload: SendSmsPayload): Promise<void> {
+  if (!payload.body || !payload.body.trim()) throw new Error("send_sms payload has an empty body");
+  const contactKey =
+    payload.contact_id ??
+    (payload.ghl_contact_id &&
+    !payload.ghl_contact_id.startsWith("pto_") &&
+    !payload.ghl_contact_id.startsWith("ms_native_")
+      ? payload.ghl_contact_id
+      : null);
+  if (!contactKey) throw new Error("send_sms payload has no usable contact_id/ghl_contact_id");
+  if (!customerFacingSendsEnabled()) throw new Error(customerFacingSendsDisabledReason());
+
+  await claimSendRow(pool, journalId, "send_sms");
+  await sendContactSmsViaActiveProvider(contactKey, payload.body, { fromNumber: payload.from_number });
+
+  if (
+    payload.ghl_contact_id &&
+    !payload.ghl_contact_id.startsWith("pto_") &&
+    !payload.ghl_contact_id.startsWith("ms_native_")
+  ) {
+    await updateTouchFields(payload.ghl_contact_id, "SMS"); // never throws
+  }
+}
+
+/**
+ * Native email send replay — GHL is the only email provider (same as the
+ * app's send routes), so this is ghl.sendMessage with the route's defaults.
+ * Same claim-first non-idempotence guard and kill-switch as send_sms.
+ */
+async function applySendEmail(pool: Pool, journalId: number, payload: SendEmailPayload): Promise<void> {
+  if (!payload.subject || !payload.html) throw new Error("send_email payload missing subject/html");
+  const ghlContactId =
+    payload.ghl_contact_id &&
+    !payload.ghl_contact_id.startsWith("pto_") &&
+    !payload.ghl_contact_id.startsWith("ms_native_")
+      ? payload.ghl_contact_id
+      : null;
+  if (!ghlContactId) throw new Error("send_email payload has no synced ghl_contact_id (email sends through GHL)");
+  if (!customerFacingSendsEnabled()) throw new Error(customerFacingSendsDisabledReason());
+
+  await claimSendRow(pool, journalId, "send_email");
+  await ghl.sendMessage({
+    type: "Email",
+    contactId: ghlContactId,
+    html: payload.html,
+    subject: payload.subject,
+    emailFrom: payload.email_from ?? "chad@newagainhouses.com",
+  });
+
+  await updateTouchFields(ghlContactId, "Email"); // never throws
 }
 
 /**
