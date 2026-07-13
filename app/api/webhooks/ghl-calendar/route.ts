@@ -65,6 +65,31 @@ async function processWebhook(body: GHLCalendarWebhookPayload, supabase: ReturnT
     const ghlContactId = body.contactId;
     const now = new Date();
 
+    // Mirror into ghl_appointments regardless of call-flow outcome, so the
+    // native calendar cards fill no matter which webhook endpoint GHL is
+    // pointed at (this route or /api/webhooks/ghl). Best-effort.
+    await supabase
+      .from("ghl_appointments")
+      .upsert(
+        {
+          ghl_appointment_id: ghlEventId,
+          calendar_id: body.calendarId ?? null,
+          ghl_contact_id: ghlContactId ?? null,
+          title: body.title ?? null,
+          assigned_user_id: body.assignedUserId ?? null,
+          appointment_status: body.appointmentStatus ?? body.status ?? null,
+          address: (body.meetLink as string | undefined) ?? (body.meetingLocation as string | undefined) ?? null,
+          start_time: body.startTime ?? null,
+          end_time: body.endTime ?? null,
+          deleted_at: null,
+          updated_at: now.toISOString(),
+        },
+        { onConflict: "ghl_appointment_id" }
+      )
+      .then(({ error }) => {
+        if (error) console.error("[ghl-calendar-webhook] ghl_appointments upsert failed:", error.message);
+      });
+
     // Resolve contact UUID
     let localContactId: string | null = null;
     const signals: ParticipantSignal[] = [];
