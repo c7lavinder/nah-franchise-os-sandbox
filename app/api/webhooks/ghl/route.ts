@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
  *
  * Setup: In GHL Marketplace App > Advanced > Webhooks, enable events.
  * Auth: Verified via X-GHL-Signature (Ed25519) sent by GHL on every webhook.
- * Subscribe to: InboundMessage, OutboundMessage, TaskUpdate
+ * Subscribe to: InboundMessage, OutboundMessage, TaskUpdate,
+ *               AppointmentCreate, AppointmentUpdate, AppointmentDelete
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -42,6 +43,23 @@ interface GHLWebhookPayload {
   previousStageId?: string;
   status?: string;
   dateAdded?: string;
+  // Appointment events — data is nested, not at root
+  appointment?: {
+    id?: string;
+    title?: string;
+    calendarId?: string;
+    contactId?: string;
+    groupId?: string | null;
+    assignedUserId?: string;
+    appointmentStatus?: string;
+    address?: string;
+    source?: string;
+    notes?: string;
+    startTime?: string;
+    endTime?: string;
+    dateAdded?: string;
+    dateUpdated?: string;
+  };
   // Catch-all for unknown fields
   [key: string]: unknown;
 }
@@ -59,7 +77,8 @@ function getEventType(payload: GHLWebhookPayload): string {
 
 /** Get the contact ID from various payload formats */
 function getContactId(payload: GHLWebhookPayload): string | null {
-  return payload.contactId ?? payload.contact_id ?? null;
+  // Appointment events carry the contact id nested under `appointment`
+  return payload.contactId ?? payload.contact_id ?? payload.appointment?.contactId ?? null;
 }
 
 export async function POST(request: NextRequest) {
@@ -218,6 +237,47 @@ export async function POST(request: NextRequest) {
             assignedTo: p.assignedTo as string | undefined,
           });
         }
+        break;
+      }
+
+      // ─── Appointment Events (Create, Update, Delete) ───
+      // Payload is nested under `appointment`; see ghl-masterclass/webhooks/appointment-events.md.
+      // Deletes are soft (deleted_at) so the MasterSuite push mirror stays consistent.
+      case eventType.includes("appointment"): {
+        const appt = payload.appointment;
+        if (!appt?.id) break;
+
+        if (eventType.includes("delete")) {
+          await supabase
+            .from("ghl_appointments")
+            .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+            .eq("ghl_appointment_id", appt.id);
+          break;
+        }
+
+        await supabase.from("ghl_appointments").upsert(
+          {
+            ghl_appointment_id: appt.id,
+            calendar_id: appt.calendarId ?? null,
+            ghl_contact_id: appt.contactId ?? null,
+            title: appt.title ?? null,
+            assigned_user_id: appt.assignedUserId ?? null,
+            appointment_status: appt.appointmentStatus ?? null,
+            address: appt.address ?? null,
+            source: appt.source ?? null,
+            notes: appt.notes ?? null,
+            location_id: payload.locationId ?? null,
+            group_id: appt.groupId ?? null,
+            start_time: appt.startTime ?? null,
+            end_time: appt.endTime ?? null,
+            date_added: appt.dateAdded ?? null,
+            date_updated: appt.dateUpdated ?? null,
+            // Un-cancelled/re-created appointments come back to life
+            deleted_at: null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "ghl_appointment_id" }
+        );
         break;
       }
 

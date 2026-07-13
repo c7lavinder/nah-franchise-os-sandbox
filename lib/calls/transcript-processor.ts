@@ -9,6 +9,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { transcribeAudio } from "@/lib/calls/whisper";
 import { generateReviewPackage } from "@/lib/calls/review-package";
 import { embedTranscript } from "@/lib/rag/embedder";
+import { resolveFromTranscript } from "@/lib/calls/resolve-from-transcript";
 
 const MAX_ATTEMPTS = 3;
 const BATCH_SIZE = 5;
@@ -93,9 +94,20 @@ export async function processTranscriptJobs(): Promise<{
       // Auto-log sub-task and trigger review package (fire-and-forget)
       const { data: call } = await supabase
         .from("calls")
-        .select("id, contact_id, sub_task_id, journey_pipeline_state_id, hosted_by_user_id")
+        .select("id, contact_id, sub_task_id, journey_pipeline_state_id, hosted_by_user_id, source")
         .eq("id", job.call_id)
         .single();
+
+      // Manual uploads that ride this queue (native MasterSuite intake)
+      // get the same speaker/contact resolution as the inline upload route.
+      // GHL/Read.ai calls arrive with participants already attributed.
+      if (call?.source === "manual") {
+        await resolveFromTranscript(supabase, job.call_id, result.text, call.hosted_by_user_id, call.contact_id).catch(
+          (err) => {
+            console.error(`[transcript-processor] speaker resolution failed for call ${job.call_id}:`, err);
+          }
+        );
+      }
 
       if (call?.sub_task_id && call.journey_pipeline_state_id) {
         const preview = result.text.length > 500 ? result.text.slice(0, 500) + "..." : result.text;

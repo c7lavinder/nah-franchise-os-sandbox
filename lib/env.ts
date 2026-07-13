@@ -9,6 +9,7 @@ export type EnvKey =
   | "SUPABASE_URL"
   | "MASTERSUITE_API_JWT_SECRET"
   | "MASTERSUITE_API_URL"
+  | "MASTERSUITE_UPLOAD_SECRET"
   | "CRON_SECRET"
   | "ANTHROPIC_API_KEY"
   | "OPENAI_API_KEY"
@@ -56,7 +57,7 @@ export const ENV_GROUPS: EnvGroup[] = [
   {
     name: "Auth / cron",
     required: ["MASTERSUITE_API_JWT_SECRET", "CRON_SECRET"],
-    optional: ["MASTERSUITE_API_URL"],
+    optional: ["MASTERSUITE_API_URL", "MASTERSUITE_UPLOAD_SECRET"],
   },
   {
     name: "Scout / AI",

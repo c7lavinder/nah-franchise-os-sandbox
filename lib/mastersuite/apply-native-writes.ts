@@ -27,6 +27,11 @@ import * as ghl from "@/lib/ghl";
 import { customerFacingSendsDisabledReason, customerFacingSendsEnabled } from "@/lib/ghl/action-safety";
 import { updateTouchFields } from "@/lib/ghl/touch-fields";
 import { sendContactSmsViaActiveProvider } from "@/lib/sms/contact-sms";
+import { executeGHLAction } from "@/lib/ghl/actions/executor";
+import type { GHLActionCode } from "@/lib/ghl/permissions";
+import { prepareEmailForTracking } from "@/lib/workflows/tracking";
+import { advanceDay } from "@/lib/workflows/enrollment";
+import { personalizeWorkflowText } from "@/lib/workflows/personalization";
 
 interface JournalRow extends RowDataPacket {
   Id: number;
@@ -186,6 +191,16 @@ interface SendEmailPayload {
   requested_by: string;
 }
 
+interface ApproveWorkflowStepPayload {
+  log_id: string; // workflow_step_logs.id — the queue row being approved
+  approved_by: string;
+}
+
+interface RejectWorkflowStepPayload {
+  log_id: string;
+  rejected_by: string;
+}
+
 export interface ApplyResult {
   pending: number;
   applied: number;
@@ -240,6 +255,10 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applySendSms(pool, row.Id, JSON.parse(row.PayloadJson) as SendSmsPayload);
       } else if (row.WriteType === "send_email") {
         await applySendEmail(pool, row.Id, JSON.parse(row.PayloadJson) as SendEmailPayload);
+      } else if (row.WriteType === "approve_workflow_step") {
+        await applyApproveWorkflowStep(pool, row.Id, JSON.parse(row.PayloadJson) as ApproveWorkflowStepPayload);
+      } else if (row.WriteType === "reject_workflow_step") {
+        await applyRejectWorkflowStep(JSON.parse(row.PayloadJson) as RejectWorkflowStepPayload);
       } else {
         throw new Error(`Unknown WriteType '${row.WriteType}'`);
       }
@@ -942,6 +961,226 @@ async function applySendEmail(pool: Pool, journalId: number, payload: SendEmailP
   });
 
   await updateTouchFields(ghlContactId, "Email"); // never throws
+}
+
+/** Maps sendable workflow step types to GHL action codes (same as the app's
+ *  pending-steps confirm route and the scheduler). */
+const WORKFLOW_STEP_ACTION_MAP: Record<string, GHLActionCode> = {
+  sms: "C1",
+  email: "C2",
+  send_reminder: "A5",
+};
+
+type PendingStepLog = {
+  id: string;
+  enrollment_id: string;
+  confirmed_at: string | null;
+  executed_at: string | null;
+  delivery_data: Record<string, unknown> | null;
+  workflow_enrollments: { id: string; ghl_contact_id: string; contact_name: string | null };
+  workflow_steps: {
+    id: string;
+    step_type: string;
+    content: string | null;
+    subject: string | null;
+    condition_config: Record<string, unknown> | null;
+  };
+};
+
+async function loadPendingStepLog(logId: string): Promise<PendingStepLog> {
+  const supabase = getServiceSupabase();
+  const { data: log, error } = await supabase
+    .from("workflow_step_logs")
+    .select(
+      `id, enrollment_id, confirmed_at, executed_at, delivery_data,
+       workflow_enrollments!inner ( id, ghl_contact_id, contact_name ),
+       workflow_steps!inner ( id, step_type, content, subject, condition_config )`
+    )
+    .eq("id", logId)
+    .maybeSingle();
+  if (error) throw new Error(`workflow_step_logs read failed: ${error.message}`);
+  if (!log) throw new Error(`workflow_step_logs ${logId} not found in Supabase`);
+  return log as unknown as PendingStepLog;
+}
+
+/** Resolve a MasterSuite username (email) to a Supabase users.id for the
+ *  log's confirmed_by column. Best-effort — the display name still lands in
+ *  delivery_data even when no user row matches. */
+async function resolveApproverUserId(username: string | null | undefined): Promise<string | null> {
+  if (!username?.trim()) return null;
+  const supabase = getServiceSupabase();
+  const { data } = await supabase.from("users").select("id").ilike("email", username.trim()).maybeSingle();
+  return data?.id ?? null;
+}
+
+/** Mirror of the confirm route's post-send day advance: when every step of the
+ *  enrollment's current day has executed, advance immediately instead of
+ *  waiting for the scheduler. Best-effort — the scheduler catches up anyway. */
+async function advanceDayIfComplete(enrollmentId: string): Promise<void> {
+  const supabase = getServiceSupabase();
+  try {
+    const { data: enrollment } = await supabase
+      .from("workflow_enrollments")
+      .select("id, workflow_version_id, current_day")
+      .eq("id", enrollmentId)
+      .eq("status", "active")
+      .single();
+    if (!enrollment) return;
+
+    const [{ data: daySteps }, { data: executedLogs }] = await Promise.all([
+      supabase
+        .from("workflow_steps")
+        .select("id")
+        .eq("workflow_version_id", enrollment.workflow_version_id)
+        .eq("day_number", enrollment.current_day),
+      supabase
+        .from("workflow_step_logs")
+        .select("step_id")
+        .eq("enrollment_id", enrollment.id)
+        .not("executed_at", "is", null),
+    ]);
+
+    const executedStepIds = new Set((executedLogs ?? []).map((l) => l.step_id));
+    const allDone = (daySteps ?? []).every((s) => executedStepIds.has(s.id));
+    if (allDone && (daySteps ?? []).length > 0) {
+      await advanceDay(enrollment.id);
+    }
+  } catch (err) {
+    console.error(`[apply-native-writes] day advance check failed for enrollment ${enrollmentId}:`, err);
+  }
+}
+
+/**
+ * Workflow pending-step approval replay — the deployed twin of
+ * PATCH /api/workflows/pending-steps/:logId {action:"confirm"} for the native
+ * MasterSuite DRC queue. Approving IS the send (the app route sends
+ * immediately, not "mark for scheduler"), so this is a send-type write:
+ * claim-first non-idempotence guard + kill-switch, like send_sms/send_email.
+ * Content is re-read from the step definition and personalized at send time,
+ * exactly like the app route.
+ */
+async function applyApproveWorkflowStep(
+  pool: Pool,
+  journalId: number,
+  payload: ApproveWorkflowStepPayload
+): Promise<void> {
+  if (!payload.log_id) throw new Error("approve_workflow_step payload missing log_id");
+  const supabase = getServiceSupabase();
+  const log = await loadPendingStepLog(payload.log_id);
+
+  if (log.executed_at) return; // already sent (app-side or earlier replay) — idempotent
+  if (log.confirmed_at)
+    throw new Error(
+      `conflict: step log ${payload.log_id} was already resolved in the app (${
+        (log.delivery_data as { rejected?: boolean } | null)?.rejected ? "rejected" : "confirmed"
+      }) — not resending`
+    );
+
+  const step = log.workflow_steps;
+  const enrollment = log.workflow_enrollments;
+  const actionCode = WORKFLOW_STEP_ACTION_MAP[step.step_type];
+  if (!actionCode) throw new Error(`step type "${step.step_type}" cannot be confirmed — not a sendable action`);
+  if (!customerFacingSendsEnabled()) throw new Error(customerFacingSendsDisabledReason());
+
+  await claimSendRow(pool, journalId, "approve_workflow_step");
+
+  const approverUserId = await resolveApproverUserId(payload.approved_by);
+  const content = await personalizeWorkflowText({
+    text: step.content,
+    contactName: enrollment.contact_name,
+    ghlContactId: enrollment.ghl_contact_id,
+  });
+
+  const condConfig = (step.condition_config ?? {}) as Record<string, unknown>;
+  let actionParams: Record<string, unknown>;
+  if (step.step_type === "sms") {
+    actionParams = {
+      contactId: enrollment.ghl_contact_id,
+      message: content,
+      fromNumber: condConfig.fromNumber ?? undefined,
+    };
+  } else if (step.step_type === "send_reminder") {
+    actionParams = {
+      contactId: enrollment.ghl_contact_id,
+      reminderMessage: content || "Reminder: You have an upcoming call with New Again Houses.",
+      fromNumber: condConfig.fromNumber ?? undefined,
+    };
+  } else {
+    actionParams = {
+      contactId: enrollment.ghl_contact_id,
+      html: prepareEmailForTracking(content, payload.log_id),
+      subject: await personalizeWorkflowText({
+        text: step.subject,
+        contactName: enrollment.contact_name,
+        ghlContactId: enrollment.ghl_contact_id,
+      }),
+      emailFrom: condConfig.emailFrom ?? process.env.GHL_DEFAULT_EMAIL_FROM ?? "franchise@newagainhouses.com",
+    };
+  }
+
+  const result = await executeGHLAction(actionCode, actionParams, approverUserId ?? "", enrollment.ghl_contact_id);
+
+  if (!result.success) {
+    await supabase
+      .from("workflow_step_logs")
+      .update({
+        confirmed_by: approverUserId,
+        confirmed_at: new Date().toISOString(),
+        delivery_data: { queued: false, error: result.error, confirmedBy: payload.approved_by },
+      })
+      .eq("id", payload.log_id);
+    throw new Error(`GHL action failed: ${result.error ?? "unknown error"}`);
+  }
+
+  const ghlMessageId = (result.data as { id?: string } | null)?.id ?? null;
+  const { error: updError } = await supabase
+    .from("workflow_step_logs")
+    .update({
+      confirmed_by: approverUserId,
+      confirmed_at: new Date().toISOString(),
+      executed_at: new Date().toISOString(),
+      ghl_message_id: ghlMessageId,
+      delivered: false,
+      delivery_data: {
+        queued: false,
+        confirmedBy: payload.approved_by,
+        providerAccepted: true,
+        source: "mastersuite_native",
+      },
+    })
+    .eq("id", payload.log_id);
+  if (updError) throw new Error(`step log update failed AFTER send (message went out): ${updError.message}`);
+
+  await advanceDayIfComplete(log.enrollment_id);
+}
+
+/**
+ * Workflow pending-step rejection replay — twin of the app route's
+ * {action:"reject"}: resolve the queue row, nothing sends. Idempotent: an
+ * already-rejected row is a no-op; a row that was confirmed/sent in the app
+ * meanwhile is a conflict (the native reject came too late).
+ */
+async function applyRejectWorkflowStep(payload: RejectWorkflowStepPayload): Promise<void> {
+  if (!payload.log_id) throw new Error("reject_workflow_step payload missing log_id");
+  const supabase = getServiceSupabase();
+  const log = await loadPendingStepLog(payload.log_id);
+
+  if (log.confirmed_at || log.executed_at) {
+    if ((log.delivery_data as { rejected?: boolean } | null)?.rejected) return; // already rejected — idempotent
+    throw new Error(`conflict: step log ${payload.log_id} was already sent/confirmed in the app — cannot reject`);
+  }
+
+  const approverUserId = await resolveApproverUserId(payload.rejected_by);
+  const { error } = await supabase
+    .from("workflow_step_logs")
+    .update({
+      confirmed_by: approverUserId,
+      confirmed_at: new Date().toISOString(),
+      delivery_data: { queued: false, rejected: true, rejectedBy: payload.rejected_by, source: "mastersuite_native" },
+    })
+    .eq("id", payload.log_id)
+    .is("confirmed_at", null);
+  if (error) throw new Error(`step log reject update failed: ${error.message}`);
 }
 
 /**

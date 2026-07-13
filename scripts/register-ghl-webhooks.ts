@@ -12,6 +12,7 @@
  * Run: source .env.local && npx tsx scripts/register-ghl-webhooks.ts
  */
 
+import WebSocket from "ws";
 import { createClient } from "@supabase/supabase-js";
 
 const GHL = "https://services.leadconnectorhq.com";
@@ -28,7 +29,7 @@ const WEBHOOKS: WebhookConfig[] = [
   {
     name: "NAH OS — Messages",
     url: `${APP_URL}${BASE_PATH}/api/webhooks/ghl`,
-    events: ["InboundMessage", "OutboundMessage"],
+    events: ["InboundMessage", "OutboundMessage", "AppointmentCreate", "AppointmentUpdate", "AppointmentDelete"],
   },
 ];
 
@@ -37,7 +38,10 @@ async function getOAuthToken(): Promise<string> {
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
   if (!supabaseUrl || !supabaseKey) throw new Error("Supabase env vars required");
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    realtime: { transport: WebSocket as unknown as typeof globalThis.WebSocket },
+  });
   const { data } = await supabase
     .from("app_settings")
     .select("setting_value")
@@ -69,6 +73,29 @@ async function listWebhooks(token: string): Promise<Array<{ id: string; url: str
   }
   const data = await res.json();
   return (data.webhooks ?? []) as Array<{ id: string; url: string; events: string[] }>;
+}
+
+/** Try to add events to an existing subscription in place. GHL's documented
+ *  surface is POST-only, so a failed PUT is expected — caller falls back to a
+ *  supplemental subscription carrying just the missing events. */
+async function updateWebhook(
+  token: string,
+  webhookId: string,
+  config: WebhookConfig,
+  events: string[]
+): Promise<boolean> {
+  const locationId = process.env.GHL_LOCATION_ID;
+  const res = await fetch(`${GHL}/webhooks/${webhookId}`, {
+    method: "PUT",
+    headers: headers(token),
+    body: JSON.stringify({ url: config.url, events, name: config.name, locationId }),
+  });
+  if (res.ok) {
+    console.log(`  Result: UPDATED in place (id: ${webhookId})`);
+    return true;
+  }
+  console.log(`  PUT not supported (HTTP ${res.status}) — will register a supplemental subscription`);
+  return false;
 }
 
 async function createWebhook(token: string, config: WebhookConfig): Promise<boolean> {
@@ -120,20 +147,51 @@ async function main() {
     console.log("No existing webhooks found.");
   }
 
-  // Register missing webhooks
-  const missing = WEBHOOKS.filter((w) => !existing.some((e) => e.url === w.url));
-  if (missing.length === 0) {
-    console.log("\nAll webhooks are already registered. Nothing to do.");
-    return;
-  }
-
-  console.log(`\nRegistering ${missing.length} webhook(s)...`);
+  // Reconcile: create missing subscriptions, and add missing events to
+  // subscriptions that already exist for the same URL.
+  let changes = 0;
   let success = 0;
-  for (const wh of missing) {
-    if (await createWebhook(token, wh)) success++;
+  for (const wh of WEBHOOKS) {
+    const matches = existing.filter((e) => e.url === wh.url);
+    if (matches.length === 0) {
+      changes++;
+      if (await createWebhook(token, wh)) success++;
+      continue;
+    }
+
+    const subscribed = new Set(matches.flatMap((m) => m.events ?? []));
+    const missingEvents = wh.events.filter((ev) => !subscribed.has(ev));
+    if (missingEvents.length === 0) {
+      console.log(`\n${wh.name}: all ${wh.events.length} events already subscribed.`);
+      continue;
+    }
+
+    changes++;
+    console.log(`\n${wh.name}: missing events — ${missingEvents.join(", ")}`);
+    const primary = matches[0];
+    const union = [...new Set([...(primary.events ?? []), ...missingEvents])];
+    if (await updateWebhook(token, primary.id, wh, union)) {
+      success++;
+      continue;
+    }
+    // Supplemental subscription with only the missing events — disjoint from
+    // the existing one, so no event is delivered twice.
+    if (
+      await createWebhook(token, {
+        name: `${wh.name} (supplemental)`,
+        url: wh.url,
+        events: missingEvents,
+      })
+    ) {
+      success++;
+    }
   }
 
-  console.log(`\n=== Done: ${success}/${missing.length} registered ===`);
+  if (changes === 0) {
+    console.log("\nAll webhooks are already registered. Nothing to do.");
+  } else {
+    console.log(`\n=== Done: ${success}/${changes} change(s) applied ===`);
+  }
 }
 
 main().catch((err) => {

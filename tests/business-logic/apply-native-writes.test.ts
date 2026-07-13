@@ -65,6 +65,13 @@ class Builder implements PromiseLike<{ data: unknown; error: { message: string }
     this.filters.push((row) => row[col] === val);
     return this;
   }
+  ilike(col: string, val: unknown) {
+    // No %-pattern support — the handlers only pass exact (case-insensitive) values
+    this.filters.push(
+      (row) => typeof row[col] === "string" && (row[col] as string).toLowerCase() === String(val).toLowerCase()
+    );
+    return this;
+  }
   is(col: string, val: unknown) {
     this.filters.push((row) => (row[col] ?? null) === val);
     return this;
@@ -247,6 +254,25 @@ vi.mock("@/lib/eos/carry-forward", () => ({ carryForwardContactEos: vi.fn(async 
 vi.mock("@/lib/briefs/mark-journey-brief-stale", () => ({ markJourneyBriefStale: vi.fn(async () => {}) }));
 vi.mock("@/lib/workflows/trigger-matcher", () => ({ matchWorkflowTriggers: vi.fn(async () => {}) }));
 vi.mock("@/lib/agents/contact-research", () => ({ runContactResearch: vi.fn(async () => {}) }));
+
+const executeGHLActionMock = vi.fn(
+  async (): Promise<{ success: boolean; actionCode: string; data?: unknown; error?: string }> => ({
+    success: true,
+    actionCode: "C1",
+    data: { id: "ghl-msg-9" },
+  })
+);
+vi.mock("@/lib/ghl/actions/executor", () => ({
+  executeGHLAction: (...args: unknown[]) => executeGHLActionMock(...(args as [])),
+}));
+vi.mock("@/lib/workflows/tracking", () => ({
+  prepareEmailForTracking: (html: string) => `${html}<!--tracked-->`,
+}));
+const advanceDayMock = vi.fn(async () => {});
+vi.mock("@/lib/workflows/enrollment", () => ({ advanceDay: advanceDayMock }));
+vi.mock("@/lib/workflows/personalization", () => ({
+  personalizeWorkflowText: vi.fn(async ({ text }: { text: string | null }) => text ?? ""),
+}));
 
 // ---- Helpers --------------------------------------------------------------
 
@@ -1058,5 +1084,227 @@ describe("applyNativeWrites — send_sms / send_email", () => {
     expect(ghlMocks.sendMessage).not.toHaveBeenCalled();
     const failed = statusUpdates.find((u) => u.status === "failed");
     expect(failed?.error).toContain("no synced ghl_contact_id");
+  });
+});
+
+describe("applyNativeWrites — approve_workflow_step / reject_workflow_step", () => {
+  function seedPendingLog(overrides: Record<string, unknown> = {}) {
+    fakeSupabase.seed("workflow_step_logs", [
+      {
+        id: "log-1",
+        enrollment_id: "enr-1",
+        step_id: "step-1",
+        confirmed_at: null,
+        executed_at: null,
+        delivery_data: { queued: true },
+        workflow_enrollments: { id: "enr-1", ghl_contact_id: "ghl-contact-1", contact_name: "Pat Prospect" },
+        workflow_steps: {
+          id: "step-1",
+          step_type: "sms",
+          content: "Hi {{name}}, quick check-in.",
+          subject: null,
+          condition_config: { fromNumber: "+15550001111" },
+        },
+        ...overrides,
+      },
+    ]);
+  }
+
+  beforeEach(() => {
+    fakeSupabase.tables.clear();
+    pendingRows = [];
+    statusUpdates.length = 0;
+    poolQuery.mockClear();
+    Object.values(ghlMocks).forEach((m) => m.mockClear());
+    executeGHLActionMock.mockClear();
+    advanceDayMock.mockClear();
+    sendsEnabled = true;
+    claimAffectedRows = 1;
+    executeGHLActionMock.mockResolvedValue({ success: true, actionCode: "C1", data: { id: "ghl-msg-9" } });
+  });
+
+  it("approve sms: claims the row, sends via executeGHLAction, stamps the log, and advances the day", async () => {
+    seedPendingLog();
+    fakeSupabase.seed("users", [{ id: "user-uuid-1", email: "chad@newagainhouses.com" }]);
+    fakeSupabase.seed("workflow_enrollments", [
+      { id: "enr-1", workflow_version_id: "wfv-1", current_day: 1, status: "active" },
+    ]);
+    fakeSupabase.seed("workflow_steps", [{ id: "step-1", workflow_version_id: "wfv-1", day_number: 1 }]);
+    pendingRows = [
+      journalRow(11, "approve_workflow_step", { log_id: "log-1", approved_by: "chad@newagainhouses.com" }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(executeGHLActionMock).toHaveBeenCalledTimes(1);
+    const [actionCode, params] = executeGHLActionMock.mock.calls[0] as unknown as [string, Record<string, unknown>];
+    expect(actionCode).toBe("C1");
+    expect(params.message).toBe("Hi {{name}}, quick check-in.");
+    expect(params.fromNumber).toBe("+15550001111");
+
+    const log = fakeSupabase.get("workflow_step_logs")[0];
+    expect(log.executed_at).not.toBeNull();
+    expect(log.confirmed_by).toBe("user-uuid-1");
+    expect(log.ghl_message_id).toBe("ghl-msg-9");
+    expect((log.delivery_data as Record<string, unknown>).providerAccepted).toBe(true);
+    expect((log.delivery_data as Record<string, unknown>).queued).toBe(false);
+
+    expect(advanceDayMock).toHaveBeenCalledWith("enr-1");
+    expect(statusUpdates).toEqual([
+      { id: 11, status: "sending", error: null },
+      { id: 11, status: "applied", error: null },
+    ]);
+  });
+
+  it("approve email: routes through C2 with tracked html and the default from address", async () => {
+    seedPendingLog({
+      workflow_steps: {
+        id: "step-1",
+        step_type: "email",
+        content: "<p>Details inside.</p>",
+        subject: "Discovery day",
+        condition_config: {},
+      },
+    });
+    pendingRows = [journalRow(12, "approve_workflow_step", { log_id: "log-1", approved_by: "chad" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const [actionCode, params] = executeGHLActionMock.mock.calls[0] as unknown as [string, Record<string, unknown>];
+    expect(actionCode).toBe("C2");
+    expect(params.html).toBe("<p>Details inside.</p><!--tracked-->");
+    expect(params.subject).toBe("Discovery day");
+    expect(params.emailFrom).toBe("franchise@newagainhouses.com");
+  });
+
+  it("approve: already-executed log is an idempotent no-op — no claim, no send", async () => {
+    seedPendingLog({ executed_at: "2026-07-01T00:00:00.000Z", confirmed_at: "2026-07-01T00:00:00.000Z" });
+    pendingRows = [journalRow(13, "approve_workflow_step", { log_id: "log-1", approved_by: "chad" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(executeGHLActionMock).not.toHaveBeenCalled();
+    expect(statusUpdates).toEqual([{ id: 13, status: "applied", error: null }]);
+  });
+
+  it("approve: log rejected in the app since is a conflict — fails without sending", async () => {
+    seedPendingLog({
+      confirmed_at: "2026-07-01T00:00:00.000Z",
+      delivery_data: { queued: false, rejected: true },
+    });
+    pendingRows = [journalRow(14, "approve_workflow_step", { log_id: "log-1", approved_by: "chad" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/already resolved in the app \(rejected\)/);
+    expect(executeGHLActionMock).not.toHaveBeenCalled();
+  });
+
+  it("approve: kill-switch off fails the row before any claim or send", async () => {
+    seedPendingLog();
+    sendsEnabled = false;
+    pendingRows = [journalRow(15, "approve_workflow_step", { log_id: "log-1", approved_by: "chad" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(executeGHLActionMock).not.toHaveBeenCalled();
+    expect(statusUpdates).toEqual([{ id: 15, status: "failed", error: "Customer-facing sends are disabled." }]);
+  });
+
+  it("approve: a failed GHL action records the error on the log and fails the row (no executed_at)", async () => {
+    seedPendingLog();
+    executeGHLActionMock.mockResolvedValue({ success: false, actionCode: "C1", error: "provider down" });
+    pendingRows = [journalRow(16, "approve_workflow_step", { log_id: "log-1", approved_by: "chad" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/provider down/);
+    const log = fakeSupabase.get("workflow_step_logs")[0];
+    expect(log.executed_at).toBeNull();
+    expect(log.confirmed_at).not.toBeNull();
+    expect((log.delivery_data as Record<string, unknown>).error).toBe("provider down");
+    expect(advanceDayMock).not.toHaveBeenCalled();
+  });
+
+  it("approve: a non-sendable step type fails without claiming", async () => {
+    seedPendingLog({
+      workflow_steps: {
+        id: "step-1",
+        step_type: "stage_move_suggestion",
+        content: null,
+        subject: null,
+        condition_config: {},
+      },
+    });
+    pendingRows = [journalRow(17, "approve_workflow_step", { log_id: "log-1", approved_by: "chad" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/not a sendable action/);
+    expect(statusUpdates).toEqual([
+      { id: 17, status: "failed", error: expect.stringContaining("not a sendable action") },
+    ]);
+  });
+
+  it("reject: resolves the queue row with rejected delivery_data and no send", async () => {
+    seedPendingLog();
+    fakeSupabase.seed("users", [{ id: "user-uuid-1", email: "chad@newagainhouses.com" }]);
+    pendingRows = [journalRow(18, "reject_workflow_step", { log_id: "log-1", rejected_by: "chad@newagainhouses.com" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(executeGHLActionMock).not.toHaveBeenCalled();
+    const log = fakeSupabase.get("workflow_step_logs")[0];
+    expect(log.confirmed_at).not.toBeNull();
+    expect(log.executed_at).toBeNull();
+    expect(log.confirmed_by).toBe("user-uuid-1");
+    expect((log.delivery_data as Record<string, unknown>).rejected).toBe(true);
+  });
+
+  it("reject: already rejected is an idempotent no-op", async () => {
+    seedPendingLog({
+      confirmed_at: "2026-07-01T00:00:00.000Z",
+      delivery_data: { queued: false, rejected: true, rejectedBy: "app user" },
+    });
+    pendingRows = [journalRow(19, "reject_workflow_step", { log_id: "log-1", rejected_by: "chad" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const log = fakeSupabase.get("workflow_step_logs")[0];
+    expect((log.delivery_data as Record<string, unknown>).rejectedBy).toBe("app user"); // untouched
+  });
+
+  it("reject: log already sent in the app is a conflict", async () => {
+    seedPendingLog({
+      confirmed_at: "2026-07-01T00:00:00.000Z",
+      executed_at: "2026-07-01T00:00:01.000Z",
+      delivery_data: { queued: false, providerAccepted: true },
+    });
+    pendingRows = [journalRow(20, "reject_workflow_step", { log_id: "log-1", rejected_by: "chad" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/already sent\/confirmed in the app/);
   });
 });

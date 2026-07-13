@@ -503,6 +503,7 @@ export const SUPABASE_TABLES: string[] = [
   "franchise_owners",
   "franchisee_performance",
   "ghl_action_drafts",
+  "ghl_appointments",
   "ghl_custom_fields",
   "ghl_pipeline_stages",
   "ghl_sync_queue",
