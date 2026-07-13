@@ -52,7 +52,9 @@ export async function processTranscriptJobs(): Promise<{
       }
 
       const buffer = Buffer.from(await audioRes.arrayBuffer());
-      const filename = job.audio_url.split("/").pop() ?? "audio.webm";
+      // Strip any query string (signed URLs carry ?token=...) — Whisper infers
+      // the audio format from the filename extension.
+      const filename = job.audio_url.split("/").pop()?.split("?")[0] || "audio.webm";
 
       // Transcribe
       const result = await transcribeAudio(buffer, filename);
