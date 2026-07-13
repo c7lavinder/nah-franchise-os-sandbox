@@ -1,3 +1,89 @@
+# Session Handoff — 2026-07-13 — Session 77
+
+## Status
+
+Phase: FranDev write phase — **ALL remaining write-phase tracks BUILT + E2E-verified through production: call upload (full audio), GHL calendar via webhooks, native DRC approval queue, email composer. App side merged to main + deployed; native side = PR #145 awaiting Ben** / Health: Green / Duration: full session
+
+## What Was Built This Session
+
+Corey's picks: call upload = **full audio (option A)**, calendar = **from webhooks**, workflows = **approvals + status natively**. App-side pieces shipped FIRST (standing ordering rule), then native.
+
+**App side (this repo — `b00d885` + `364f31f`, pushed to main, deployed):**
+
+- **GHL appointments ingestion:** new `ghl_appointments` table (webhook-fed, soft deletes because the push can't propagate hard deletes), `AppointmentCreate/Update/Delete` branch in the GHL webhook route (payload is NESTED under `appointment`; `getContactId` now also reads `appointment.contactId` so trigger matching fires), table added to `SUPABASE_TABLES`, one-time backfill script ran (17 appointments), register script now RECONCILES missing events (PUT then supplemental-subscription fallback). **GHL's `/webhooks/` API 404s for our location token — the 3 appointment events must be toggled in the GHL Marketplace dashboard (manual, Corey/Ben).**
+- **Native call-upload intake `POST /api/mastersuite/call-upload`** guarded by new `MASTERSUITE_UPLOAD_SECRET` (Bearer; REQUIRED outside dev — 503 if unconfigured; set on Vercel production + .env.local): `init` (creates the calls row + Supabase Storage signed upload URL — big files never transit Vercel's ~4.5MB function cap), `complete` (recording_url + `transcript_jobs` enqueue → 5-min Whisper cron), `transcript` (inline ingest for .txt/paste). `resolveFromTranscript` extracted from the upload route to `lib/calls/resolve-from-transcript.ts` and wired into the transcript-job processor for `source='manual'` calls so async uploads get the same speaker/contact resolution as inline uploads. **Bug found by the live E2E and fixed (`364f31f`): the processor fed Whisper `recording.wav?token=...` as the filename (signed URLs carry query strings) → Whisper 400; filename now query-stripped.**
+- **Workflow approval replay:** `approve_workflow_step` / `reject_workflow_step` handlers in `apply-native-writes.ts`. Approve IS the send (twin of the app's pending-steps confirm route): claim-first like send_sms, kill-switch gated, personalizes content at send time, routes through `executeGHLAction` C1/C2/A5 for exact parity (email gets the tracking pixel), stamps the log, best-effort day-advance. Reject is idempotent; both conflict-fail if the app resolved the log first. +11 vitest (260 green).
+
+**Native side (MasterSuite branch `frandev-write-phase` → PR #145, open; `dotnet build` 0 errors):**
+
+- **Calls page upload LIVE:** drop zone (click/drag) + paste-a-transcript; recordings ≤25MB (Whisper's cap, honest error above) via init→PUT→complete through new `FrandevUploadApi`; env `ApiKey_FrandevUpload` (= the app's `MASTERSUITE_UPLOAD_SECRET`) + `FrandevApp_BaseUrl` (defaults to prod URL).
+- **Calendar cards wired** on Daily HQ (today) + Messaging Hub (upcoming 7d) reading new mirror `frandev_ghl_appointment` (migration `2026-07-13-050`, applied to dev, 17 rows pushed). Central-time conversion in C#, contact links, showed/no-show badges.
+- **Native Pending Confirmations queue** on Workflows (matches the app's DRC cards): reads mirror step logs where `queued=true` (MariaDB-safe `JSON_UNQUOTE(...) IN ('true','1')` idiom), Approve & Send / Reject journal the new write types with optimistic mirror resolve (self-healing — the nightly push restores Supabase truth if a replay fails), double-submit guard.
+- **Email composer** on Messaging Hub for threads with email + real GHL id (gate query refuses `pto_`/`ms_native_`); plain text → escaped `<p>`/`<br>` html; journals `send_email` only (non-idempotent send discipline); "queued" note, no fake bubble.
+
+## What Is Confirmed Working (all E2E through PRODUCTION, synthetic data, nobody contacted)
+
+- **Upload:** direct API 401s on bad auth; transcript action attributed to Corey's user; **recording loop init → signed PUT → complete → Whisper cron transcribed a real generated WAV → transcript row**; native paste-transcript through the .NET handler created the app call.
+- **Approvals:** native Approve/Reject POSTs → journal rows byte-correct → deployed cron: approve **claimed** the row, passed the kill-switch, entered the real SMS path, failed safely at contact resolution (fake contact); reject applied clean, Supabase log stamped `rejected` with `source:"mastersuite_native"`.
+- **Email:** native composer → `send_email` payload byte-correct (escaped html paragraphs) → deployed cron claimed + dispatched to real GHL API → safe 404 on the fake contact.
+- **Calendar:** GHL → Supabase (backfill) → dev mirror (17 rows) → Daily HQ rendered a seeded today-appointment with count pill + contact link.
+- Both repos verified: `tsc` + `next build` + 260 vitest; `dotnet build` 0 errors. All synthetic rows/objects removed from Supabase, mirror, and storage; `frandev_native_write` empty.
+
+## What Is Broken or Incomplete
+
+- **GHL appointment webhooks NOT yet subscribed** (API 404s for our token) — toggle `AppointmentCreate/Update/Delete` in GHL Marketplace App → Advanced → Webhooks for the existing endpoint URL; until then the calendar shows backfilled data only — High (5-min manual step)
+- **Ben's dev/prod hosts need env:** `ApiKey_FrandevUpload` (value = the app's `MASTERSUITE_UPLOAD_SECRET`, in Vercel env + Corey's .env.local) and optionally `FrandevApp_BaseUrl` — Medium
+- Local `dotnet run` uses the launch profile which sets `NAH_DB_PASSWORD=""` — run with `--no-launch-profile` locally (deployed hosts unaffected) — Low
+- Native upload attribution falls back to null host locally (dev-local username isn't a real user); real logged-in emails resolve fine — Low
+- App quartile `purchasesBySlug` shadowing bug (carried from s76, still unfixed, scope discipline) — Medium
+
+## Decisions Made
+
+- Call upload = full audio via signed-URL flow (Corey picked A; signed URLs dodge Vercel's 4.5MB cap and reuse the existing transcript_jobs queue) — Corey/Claude
+- Calendar = webhook-fed `ghl_appointments` + one-time backfill (Corey: "from webhooks"); soft deletes so the blind upsert push stays consistent — Corey/Claude
+- Workflows = approval queue + status natively; full builder stays app-side until cutover — Corey
+- Approve replay routes through `executeGHLAction` (exact app-route parity incl. email tracking pixel) rather than raw provider calls — Claude
+- Native approve/reject optimistically resolves the MIRROR row only (Supabase untouched until replay); self-healing via the nightly push — Claude
+
+## Files Created
+
+- This repo: `supabase/migrations/20260713120000_create_ghl_appointments.sql` (applied), `app/api/mastersuite/call-upload/route.ts`, `lib/calls/resolve-from-transcript.ts`, `scripts/backfill-ghl-appointments.ts`
+- MasterSuite (PR #145): `DatabaseMigrationRunner/Migrations/2026-07-13-050_FrandevGhlAppointments.sql` (applied to dev), `Entities/Frandev/{FrandevAppointment,FrandevPendingStep}.cs`, `MasterSuite.Modules.Frandev/{FrandevUploadApi,FrandevService.Appointments,FrandevService.WritesApprovals,IFrandevService.Appointments,IFrandevService.WritesApprovals}.cs`
+
+## Files Modified
+
+- This repo: `app/api/webhooks/ghl/route.ts`, `app/api/calls/[callId]/upload/route.ts` (extraction), `lib/calls/transcript-processor.ts`, `lib/mastersuite/{apply-native-writes,push-frandev}.ts`, `lib/env.ts`, `scripts/register-ghl-webhooks.ts`, `tests/business-logic/apply-native-writes.test.ts` (+11)
+- MasterSuite (PR #145): `Pages/Frandev/{Calls,DayHub,Messages,Workflows}.cshtml(.cs)`, `MasterSuite.Modules.Frandev/{FrandevService.WritesSend,IFrandevService.WritesSend}.cs`
+
+## Files Deleted
+
+- None (synthetic E2E data removed from both DBs + storage — data, not code)
+
+## Open Issues Carried Forward
+
+- **PR #145 awaiting Ben** (FranDev-only + one additive migration) — Medium
+- **Manual: subscribe GHL appointment events in the Marketplace dashboard** — High
+- **Manual (Ben): set `ApiKey_FrandevUpload` on the MasterSuite dev/prod hosts** — Medium
+- App quartile `purchasesBySlug` bug — Medium
+- Workflow AUTHORING (builder/steps/clone/archive) stays app-side until cutover — By design
+- **Supabase is transition-only**; end state = MasterSuite DB. The write phase is now COMPLETE — remaining before cutover: port sends/GHL/post-call/RAG/agents-crons/knowledge/admin to MasterSuite, then retire journal/replay + push + Supabase — Standing
+
+## Exact Next Step
+
+Ben: merge PR #145 + set `ApiKey_FrandevUpload` on the host. Corey: toggle the 3 appointment webhook events in GHL. Then the write phase is fully live and the next work stream is the **cutover port plan** (sends, GHL layer, post-call pipeline, Scout RAG, agents/crons, knowledge editing, admin → MasterSuite native).
+
+## Copy This To Start Next Session In Claude.ai
+
+---
+
+Read this file then tell me: current status, last session summary, open issues, what we build today.
+GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/handoff.md
+Then: confirm PR #145 merged + env/webhook manual steps done, spot-check the four live write surfaces on deployed dev, then start scoping the Supabase-cutover port plan (docs/ draft first).
+
+---
+
+---
+
 # Session Handoff — 2026-07-11 — Session 76
 
 ## Status
