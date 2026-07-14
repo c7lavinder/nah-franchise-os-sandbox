@@ -73,15 +73,19 @@ Shipped (`app/api/zoning/*`, all behind `requireAuth`, mutations admin-only):
   against **verified/manual districts only**; returns per-parcel
   pass/fail/unknown + check details and a summary.
 
+Also shipped: **admin UI** at `/settings/zoning` (linked from Settings →
+Integrations) — jurisdiction management, ordinance upload, one-click AI
+extraction, and the review queue (verify / unverify / delete) with an
+"awaiting review" counter. Field-level editing of a district still goes
+through `PATCH /api/zoning/districts/[id]`.
+
 Still to do:
 
-1. **Admin UI**: jurisdiction/district management pages + the extraction review queue
-   (verify/edit/reject) using the routes above via `apiFetch`.
-2. **Regenerate `types/supabase.ts`** (needs supabase CLI against the project)
+1. **Regenerate `types/supabase.ts`** (needs supabase CLI against the project)
    so the new tables are typed.
-3. **Seed core markets**: 5–15 districts per market where NAH actually buys
+2. **Seed core markets**: 5–15 districts per market where NAH actually buys
    (R-1/R-2/R-3 equivalents), starting with TN/NC/SC territories.
-4. **MasterSuite hook**: call `/api/zoning/prescreen` from the LandPortal
+3. **MasterSuite hook**: call `/api/zoning/prescreen` from the LandPortal
    import flow (or a pre-export CLI step) so verdicts land before mail spend.
 
 ## Phase 3 — later

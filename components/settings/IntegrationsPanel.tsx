@@ -2,10 +2,7 @@
 import { apiFetch } from "@/lib/auth/api-fetch";
 
 import { useState, useEffect } from "react";
-import {
-  CheckCircle2, XCircle, Clock, Loader2,
-  ChevronDown, ChevronRight, Zap, Radio,
-} from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, Radio, Landmark } from "lucide-react";
 import Link from "next/link";
 
 interface IntegrationLog {
@@ -47,13 +44,29 @@ const INTEGRATIONS = [
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
     case "connected":
-      return <span className="flex items-center gap-1 text-[11px] font-medium text-green-700"><CheckCircle2 size={12} /> Connected</span>;
+      return (
+        <span className="flex items-center gap-1 text-[11px] font-medium text-green-700">
+          <CheckCircle2 size={12} /> Connected
+        </span>
+      );
     case "error":
-      return <span className="flex items-center gap-1 text-[11px] font-medium text-red-700"><XCircle size={12} /> Error</span>;
+      return (
+        <span className="flex items-center gap-1 text-[11px] font-medium text-red-700">
+          <XCircle size={12} /> Error
+        </span>
+      );
     case "pending":
-      return <span className="flex items-center gap-1 text-[11px] font-medium text-yellow-700"><Clock size={12} /> Pending</span>;
+      return (
+        <span className="flex items-center gap-1 text-[11px] font-medium text-yellow-700">
+          <Clock size={12} /> Pending
+        </span>
+      );
     default:
-      return <span className="flex items-center gap-1 text-[11px] font-medium text-gray-400"><Zap size={12} /> Future</span>;
+      return (
+        <span className="flex items-center gap-1 text-[11px] font-medium text-gray-400">
+          <Zap size={12} /> Future
+        </span>
+      );
   }
 }
 
@@ -74,28 +87,39 @@ export default function IntegrationsPanel() {
         if (d.pdl?.connected) connectedSet.add("pdl");
         if (d.read_ai?.connected) connectedSet.add("read_ai");
 
-        setIntegrations(INTEGRATIONS.map((i) => ({
-          ...i,
-          status: ("future" in i && (i as { future?: boolean }).future)
-            ? "future" as const
-            : connectedSet.has(i.name) ? "connected" as const : "pending" as const,
-          lastLog: null,
-          logs: [],
-        })));
+        setIntegrations(
+          INTEGRATIONS.map((i) => ({
+            ...i,
+            status:
+              "future" in i && (i as { future?: boolean }).future
+                ? ("future" as const)
+                : connectedSet.has(i.name)
+                  ? ("connected" as const)
+                  : ("pending" as const),
+            lastLog: null,
+            logs: [],
+          }))
+        );
       })
       .catch(() => {
-        setIntegrations(INTEGRATIONS.map((i) => ({
-          ...i,
-          status: ("future" in i && (i as { future?: boolean }).future) ? "future" as const : "pending" as const,
-          lastLog: null,
-          logs: [],
-        })));
+        setIntegrations(
+          INTEGRATIONS.map((i) => ({
+            ...i,
+            status: "future" in i && (i as { future?: boolean }).future ? ("future" as const) : ("pending" as const),
+            lastLog: null,
+            logs: [],
+          }))
+        );
       })
       .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
-    return <div className="flex items-center justify-center py-12"><Loader2 size={20} className="animate-spin" /></div>;
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 size={20} className="animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -104,9 +128,20 @@ export default function IntegrationsPanel() {
         <p className="text-caption text-text-tertiary">
           Integration status is computed from activity logs. Connected = successful event in last 24 hours.
         </p>
-        <Link href="/settings/webhooks" className="flex items-center gap-1.5 px-3 py-1.5 text-caption font-medium text-nah-blue hover:bg-nah-blue/5 rounded-md transition-colors">
-          <Radio size={14} /> Webhook Admin
-        </Link>
+        <div className="flex items-center gap-1">
+          <Link
+            href="/settings/zoning"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-caption font-medium text-nah-blue hover:bg-nah-blue/5 rounded-md transition-colors"
+          >
+            <Landmark size={14} /> Zoning Admin
+          </Link>
+          <Link
+            href="/settings/webhooks"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-caption font-medium text-nah-blue hover:bg-nah-blue/5 rounded-md transition-colors"
+          >
+            <Radio size={14} /> Webhook Admin
+          </Link>
+        </div>
       </div>
       {integrations.map((intg) => (
         <div key={intg.name} className="border border-border-default rounded-lg overflow-hidden">
@@ -129,12 +164,20 @@ export default function IntegrationsPanel() {
                 <div className="space-y-1 mt-2">
                   {intg.logs.slice(0, 10).map((log) => (
                     <div key={log.id} className="flex items-center gap-2 text-caption">
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                        log.status === "success" ? "bg-green-400" : log.status === "failed" ? "bg-red-400" : "bg-yellow-400"
-                      }`} />
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          log.status === "success"
+                            ? "bg-green-400"
+                            : log.status === "failed"
+                              ? "bg-red-400"
+                              : "bg-yellow-400"
+                        }`}
+                      />
                       <span className="text-text-tertiary">{new Date(log.created_at).toLocaleString()}</span>
                       <span className="text-text-secondary">{log.event_type}</span>
-                      {log.error_message && <span className="text-red-600 truncate max-w-[200px]">{log.error_message}</span>}
+                      {log.error_message && (
+                        <span className="text-red-600 truncate max-w-[200px]">{log.error_message}</span>
+                      )}
                     </div>
                   ))}
                 </div>
