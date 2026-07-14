@@ -53,18 +53,36 @@ Only "pass" (and reviewed "unknown") leads get marketing spend
     envelope (LandPortal buildable acreage minus setbacks vs planned
     footprint), district use category. Unit-tested.
 
-## Phase 2 — next
+## Phase 2 — API layer shipped; UI + seeding next
 
-1. **API routes + admin UI** (`app/api/zoning/*`): CRUD for jurisdictions and
-   districts, ordinance upload (Supabase storage → `extractText` →
-   `extractZoningDistricts` → review queue), verify/reject flow.
-2. **Batch pre-screen endpoint**: accept a LandPortal export (or MasterSuite
-   batch id), join parcels to district rules via the REAPI `zoning` field, and
-   return per-parcel verdicts — run BEFORE skip-trace/mail spend.
-3. **Regenerate `types/supabase.ts`** (needs supabase CLI against the project)
+Shipped (`app/api/zoning/*`, all behind `requireAuth`, mutations admin-only):
+
+- `GET/POST /api/zoning/jurisdictions` — list (with district/document counts,
+  `?territory=` filter) and create.
+- `GET/POST /api/zoning/jurisdictions/[id]/districts` — list (`?status=`
+  filter) and manual district entry (stored as `manual`, trusted like verified).
+- `PATCH/DELETE /api/zoning/districts/[id]` — edit rule fields,
+  `{ verify: true }` / `{ unverify: true }` review actions; verified rows must
+  be unverified before deletion.
+- `GET/POST /api/zoning/jurisdictions/[id]/documents` — ordinance upload to the
+  `zoning-documents` bucket with text extraction on upload.
+- `POST /api/zoning/documents/[id]/extract` — AI extraction into
+  `ai_extracted` rows. Merge policy (`lib/zoning/merge-extracted.ts`): insert
+  new codes, refresh still-`ai_extracted` codes, NEVER touch verified/manual.
+- `POST /api/zoning/prescreen` — batch parcel screening (max 2000/request)
+  against **verified/manual districts only**; returns per-parcel
+  pass/fail/unknown + check details and a summary.
+
+Still to do:
+
+1. **Admin UI**: jurisdiction/district management pages + the extraction review queue
+   (verify/edit/reject) using the routes above via `apiFetch`.
+2. **Regenerate `types/supabase.ts`** (needs supabase CLI against the project)
    so the new tables are typed.
-4. **Seed core markets**: 5–15 districts per market where NAH actually buys
+3. **Seed core markets**: 5–15 districts per market where NAH actually buys
    (R-1/R-2/R-3 equivalents), starting with TN/NC/SC territories.
+4. **MasterSuite hook**: call `/api/zoning/prescreen` from the LandPortal
+   import flow (or a pre-export CLI step) so verdicts land before mail spend.
 
 ## Phase 3 — later
 
