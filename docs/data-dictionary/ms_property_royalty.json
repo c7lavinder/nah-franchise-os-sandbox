@@ -23,9 +23,9 @@
       "do_not_use_for": "The property's own sale price or ARV — this is a national median benchmark used only as a cap input.",
       "prefer_instead": null,
       "source_ref": "CalculationEngine/Inventory/Royalty/RoyaltyHelper.cs (GetMaximumRoyalty)",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think LockedInMedianSalePriceMax is the U.S. median home sale price we freeze per property and multiply by the royalty percent to cap the maximum royalty — right, or what is it?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "LockedInMedianSalePriceMaxSetDate": {
       "meaning": "Timestamp when LockedInMedianSalePriceMax was locked in for this property.",
@@ -45,9 +45,9 @@
       "do_not_use_for": "Assuming this is always populated — most properties run the territory default and leave this null.",
       "prefer_instead": null,
       "source_ref": "CalculationEngine/Inventory/Royalty/RoyaltyHelper.cs (GetRoyaltyVersionFromPayload, GetRoyaltyPercent)",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think RoyaltyVersionOverride manually forces the royalty version (1-5) that sets the percentage and cap rules, overriding the territory default — right, or what is it?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "RoyaltyPaidAtOverride": {
       "meaning": "Manual override of when the royalty is charged for this property: 'ACQUISITION' (when NAH buys) or 'DISPOSITION' (when NAH sells). When null, the territory default is used; versions 1-3 are always disposition, and the overall default is acquisition.",
@@ -56,9 +56,9 @@
       "do_not_use_for": "Determining the amount owed — this only controls timing (which component applies), not the dollar figure.",
       "prefer_instead": null,
       "source_ref": "CalculationEngine/Inventory/Royalty/RoyaltyHelper.cs (GetRoyaltyPaidAtFromPayload); Entities/Constants/PropertyRoyaltyOptions.cs",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think RoyaltyPaidAtOverride forces whether royalty is charged at acquisition (purchase) or disposition (sale), overriding the territory default — right, or what is it?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "Calculated_AcquisitionRoyalty": {
       "meaning": "System-computed acquisition royalty (royalty percent x property ARV, capped at the max) owed when the property's royalty is charged at acquisition; null when royalty is charged at disposition.",
@@ -122,9 +122,9 @@
       "do_not_use_for": "Assuming it subtracts partial payments — any recorded payment zeroes it out.",
       "prefer_instead": null,
       "source_ref": "CalculationEngine/Inventory/RoyaltyDue.cs",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think Calculated_AcquisitionRoyaltyDue is the acquisition royalty still owed, and it drops to 0 as soon as any payment is recorded rather than netting partial payments — right, or should it subtract partial payments like the disposition side?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "Calculated_DispositionRoyalty": {
       "meaning": "System-computed disposition royalty (royalty percent x property ARV, capped at the max) owed when the property's royalty is charged at disposition/sale; also the path used by legacy versions 1-3. Null when royalty is charged at acquisition.",
@@ -193,69 +193,69 @@
       "question": null
     },
     "Calculated_DelayedRoyaltyFee": {
-      "meaning": "A flat $2,000 fee the engine sets when a property's royalty is charged at disposition under royalty v4/v5; appears to penalize deferring the royalty to sale rather than paying at acquisition.",
+      "meaning": "A $2,000 fee charged when NAH approves deferring a property's royalty payment to disposition (sale) when it would otherwise have been owed at acquisition (purchase) — a deferred-payment approval fee, not a long-hold penalty. This is the computed fee amount (a flat $2,000 for eligible deferred-to-disposition properties).",
       "units": "USD",
       "use_when": "Reporting the delayed royalty fee assessed on a disposition-charged property.",
       "do_not_use_for": "The amount owed now (use Calculated_DelayedRoyaltyFeeDue); the final amount when an override exists (use DelayedRoyaltyFeeOverride).",
       "prefer_instead": "DelayedRoyaltyFeeOverride when an override may be set; Calculated_DelayedRoyaltyFeeDue for the outstanding balance.",
       "source_ref": "CalculationEngine/Inventory/Royalty/RoyaltyV4V5Calculator.cs; RoyaltyHelper.cs (IsRoyaltyEligibleForDelayFee)",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think the delayed royalty fee is a flat $2,000 charged on v4/v5 properties whose royalty is paid at disposition instead of at acquisition — right, or what actually triggers it (e.g., holding a property too long)?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "DelayedRoyaltyFeeOverride": {
-      "meaning": "Manual override of the delayed royalty fee amount; when non-null it supersedes Calculated_DelayedRoyaltyFee in the due calculation.",
+      "meaning": "Manual override of the computed delayed royalty fee (the deferred-payment approval fee); when set, it supersedes the calculated amount.",
       "units": "USD",
       "use_when": "Reporting the effective delayed fee when a human has manually set it.",
       "do_not_use_for": "Assuming it is always present — it is null unless someone manually overrode the computed fee.",
       "prefer_instead": null,
       "source_ref": "CalculationEngine/Inventory/Royalty/RoyaltyV4V5Calculator.cs",
       "confidence": "high",
-      "status": "draft",
+      "status": "confirmed",
       "question": null
     },
     "DelayedRoyaltyFeePaid": {
-      "meaning": "Delayed royalty fee amount actually paid to NAH for this property.",
+      "meaning": "Amount of the delayed royalty fee (deferred-payment approval fee) actually paid.",
       "units": "USD",
       "use_when": "Reporting how much of the delayed fee has been collected.",
       "do_not_use_for": "The amount still owed (use Calculated_DelayedRoyaltyFeeDue).",
       "prefer_instead": null,
       "source_ref": "CalculationEngine/Inventory/Royalty/RoyaltyV4V5Calculator.cs",
       "confidence": "high",
-      "status": "draft",
+      "status": "confirmed",
       "question": null
     },
     "Calculated_DelayedRoyaltyFeeDueDate": {
-      "meaning": "Date the delayed royalty fee is due; set equal to the disposition royalty due date (actual or contracted sell date).",
+      "meaning": "When the delayed royalty fee is due (mirrors the disposition royalty due date).",
       "units": "date",
       "use_when": "Showing when a property's delayed royalty fee came or comes due.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "CalculationEngine/Inventory/RoyaltyDueDates.cs",
       "confidence": "high",
-      "status": "draft",
+      "status": "confirmed",
       "question": null
     },
     "DelayedRoyaltyFeePaidDate": {
-      "meaning": "Date the delayed royalty fee was actually paid.",
+      "meaning": "Date the delayed royalty fee was paid.",
       "units": "date",
       "use_when": "Reporting when the delayed fee was collected.",
       "do_not_use_for": null,
       "prefer_instead": null,
       "source_ref": "Entities/Property/PropertyRoyalty.cs",
       "confidence": "high",
-      "status": "draft",
+      "status": "confirmed",
       "question": null
     },
     "Calculated_DelayedRoyaltyFeeDue": {
-      "meaning": "Outstanding delayed royalty fee balance = effective amount (DelayedRoyaltyFeeOverride if set, else Calculated_DelayedRoyaltyFee) minus DelayedRoyaltyFeePaid.",
+      "meaning": "Outstanding delayed-royalty-fee balance = (override if set, else calculated) minus amount paid.",
       "units": "USD",
       "use_when": "Answering how much of the delayed royalty fee a property still owes right now.",
       "do_not_use_for": "The originally assessed fee (use Calculated_DelayedRoyaltyFee) — this nets out what's been paid.",
       "prefer_instead": null,
       "source_ref": "CalculationEngine/Inventory/Royalty/RoyaltyV4V5Calculator.cs",
       "confidence": "high",
-      "status": "draft",
+      "status": "confirmed",
       "question": null
     },
     "Calculated_RoyaltyTrueUp": {
@@ -265,9 +265,9 @@
       "do_not_use_for": "The amount owed now (use Calculated_RoyaltyTrueUpDue); the base royalty (use the acquisition/disposition royalty fields).",
       "prefer_instead": "RoyaltyTrueUpOverride when an override may be set; Calculated_RoyaltyTrueUpDue for the outstanding balance.",
       "source_ref": "CalculationEngine/Inventory/RoyaltyTrueUp.cs",
-      "confidence": "medium",
-      "status": "draft",
-      "question": "I think the royalty true-up reconciles the final computed royalty against what was already paid (final royalty minus amount paid), so we catch shortfalls when ARV or the final number changes — right, or what does it reconcile against?"
+      "confidence": "high",
+      "status": "confirmed",
+      "question": null
     },
     "RoyaltyTrueUpOverride": {
       "meaning": "Manual override of the royalty true-up amount; when non-null it supersedes Calculated_RoyaltyTrueUp in the due calculation.",
