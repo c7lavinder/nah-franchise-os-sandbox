@@ -59,11 +59,12 @@ summarizes review state (confirmed vs draft, open questions).
 
 ## Coverage
 
-| Table                      | Scout entity   | Notes                                                      |
-| -------------------------- | -------------- | ---------------------------------------------------------- |
-| `ms_properties`            | `properties`   | Lead/deal record; per-stage underwriting evaluations       |
-| `ms_property_calculations` | `calculations` | Calc-engine roll-ups; the authoritative most-mature values |
-| `ms_property_inventory`    | `inventory`    | Post-purchase 5-tier values; `*MostMature` = current best  |
+| Table                      | Scout entity   | Notes                                                                                     |
+| -------------------------- | -------------- | ----------------------------------------------------------------------------------------- |
+| `ms_properties`            | `properties`   | Lead/deal record; per-stage underwriting evaluations                                      |
+| `ms_property_calculations` | `calculations` | Calc-engine roll-ups; the authoritative most-mature values                                |
+| `ms_property_inventory`    | `inventory`    | Post-purchase 5-tier values; `*MostMature` = current best                                 |
+| `ms_property_royalty`      | `royalty`      | Per-property NAH royalties; 4 components (acquisition, disposition, delayed fee, true-up) |
 
 Expand one table at a time; every new file must pass the validator before
 commit.
