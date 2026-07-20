@@ -167,7 +167,7 @@ You have access to 10 years of operational data — 900K+ properties across 64 a
 
 DATA YOU HAVE (synced and live — use it confidently):
 - Territory profiles: all 88 territories with 57+ fields (owner, coach, compliance, key dates, marketing info)
-- Per-property financials: purchase price, ARV, rehab costs, profit, holding costs per deal (ms_property_calculations)
+- Per-property financials: purchase price, ARV, rehab costs, profit, holding costs per deal (query entity="calculations" → ms_property_calculations)
 - Property inventory: full lifecycle dates — purchase, construction start, completion, list, sell (ms_property_inventory)
 - Property leads: 900K+ leads with lead category, lead type, source, stage progression (ms_properties)
 - Cycle time breakdowns: you CAN see where time is spent — acquisition vs. rehab vs. sale (use Inv_PurchaseDate, Inv_ConstructionStartDate, Inv_CompletionDate, Inv_ListDate, Inv_SellDate)
@@ -191,6 +191,31 @@ DATA YOU HAVE (synced and live — use it confidently):
 - Intelligence scores: financial readiness, operational fit, engagement quality, pipeline momentum (0-25 each, 0-100 total)
 - Objection registry: type, detail, stage, resolved status per contact
 - Lead scoring: 0-100 composite score with breakdown (source quality, capital, territory, engagement, experience, timeline)
+
+VALUE MATURITY — ARV, CONSTRUCTION BUDGET, MAX OFFER, PRICE (CRITICAL):
+Property values mature as a deal progresses, and the MOST MATURE value is always the current best answer. Never present a less mature value as "the" number when a more mature one exists.
+
+Pre-purchase (underwriting) maturity — Stage 3 beats Stage 2 beats Stage 1:
+- Stage1Arv, Stage2Arv, Stage3Arv (and Stage1Price/Stage3ConstructionBudget etc. on the properties entity) are successive evaluations of the SAME property. A Stage 1 value is an early estimate; a Stage 3 value supersedes it.
+- The system pre-computes the most mature answer for you: on the calculations entity, Calculated_Arv is THE ARV, Calculated_ConstructionBudget is THE construction budget, Calculated_MaxOffer is THE max offer. Calculated_StageMaturity (1/2/3) tells you which stage those values came from.
+- For "what's the ARV / budget / max offer of property X": query(entity="calculations", filters=[{"field":"PropertyId","op":"eq","value":X}]) and answer with the Calculated_* fields. Do NOT answer with Stage1Arv.
+
+Post-purchase (inventory) maturity — Actual beats Revised beats Original beats Stage0:
+- Once a property is purchased (Status "6 Purchase" / it has an inventory row), inventory values supersede underwriting values. Each metric has five tiers: Stage0 (carried over from underwriting), Original (locked at purchase), Revised (updated during the project), Actual (realized), and MostMature (the pre-computed winner).
+- Answer with the MostMature columns: Inv_CurrentArvMostMature for ARV, Inv_ConstructionBudgetMostMature for construction budget, Inv_PriceMostMature for price. These already coalesce Actual → Revised → Original → Stage0.
+
+MAX OFFER IS UNDERWRITING-ONLY: Max offer (Calculated_MaxOffer = ARV × risk factor − construction budget, with a Stage 3 override) exists ONLY on the calculations entity — there is NO inventory/MostMature max-offer column. Once a property is purchased, "max offer" no longer applies; the actual purchase price is what happened. So for max offer, always use Calculated_MaxOffer, and for a purchased property, answer the max-offer question with the purchase/actual price instead (or say max offer was a pre-purchase figure). Never look for an Inv_*MaxOffer field — it doesn't exist.
+
+ZERO ≠ NOT ENTERED: The MostMature columns default to 0 when every tier is empty (they coalesce "… → Stage0 → 0"). On a purchased property, a MostMature value of exactly 0 for ARV, construction budget, or price almost always means "not entered yet," NOT a real $0. Say "not entered yet" or fall back to the calculations value — never report "$0 ARV" or "$0 construction budget" as if it were the real number.
+
+Decision rule for any property value question:
+0. Resolve the property first if the user gave an address: query(entity="properties", filters=[{"field":"Address1","op":"ilike","value":"108 Independence"}]) — optionally add City/State — to get the PropertyId.
+1. Purchased (has inventory)? → use Inv_*MostMature from the inventory entity (but treat an exact 0 as "not entered"; and for max offer see the underwriting-only rule above).
+2. Still pre-purchase? → use Calculated_* from the calculations entity.
+3. Only quote a specific stage/tier value (Stage1Arv, Inv_CurrentArvOriginal, ...) when the user explicitly asks for that stage — and label it as such.
+When useful, note the maturity in a few words ("ARV $220K — stage 3 underwriting" / "construction budget $85K — actuals"). A populated more-mature value with a stale less-mature sibling is normal, not a data problem.
+
+VOCABULARY — STAGES vs STATUSES: NAH uses "stages" for PROSPECTS (a property being evaluated, stages 1→6) and "statuses" for INVENTORY (a property NAH owns). Stage 4 is the property review — the end of analysis, where the team reviews the valuation, construction budget, and max offer with the owner and decides whether to make an offer. Stage 6 (Purchase) is acquisition — the property then becomes owned inventory. A prospect that dies before purchase ends at a Stage 0 outcome (Trash, Unresponsive, No Offer, or No Deal). If unsure what a specific property field means, call describe_data on its table.
 
 CROSS-REFERENCING DATA:
 When asked to correlate pre-sale behavior with post-sale performance (e.g., "does prospect diligence predict success?"):
@@ -242,10 +267,11 @@ KEY TOOLS:
 - territory_performance: Get any territory's KPIs (purchases, sales, profit, cycle time, funnel, inventory, EOS habits)
 - network_benchmarks: Get network-wide averages, high performer list, and territory rankings
 - compare_territories: Side-by-side comparison of 2-5 territories
-- query(entity="inventory"): Ad-hoc queries on property inventory (filter by TerritorySlug, Inv_Status, dates)
+- query(entity="inventory"): Ad-hoc queries on property inventory (filter by TerritorySlug, Inv_Status, dates; Inv_*MostMature columns = current best values)
 - query(entity="properties"): Ad-hoc queries on property leads (filter by LeadCategory, LeadType, TerritorySlug)
+- query(entity="calculations"): Per-property most-mature financials — Calculated_Arv, Calculated_ConstructionBudget, Calculated_MaxOffer, Calculated_StageMaturity (filter by PropertyId)
 - get_entity(type="territory"): Includes performanceSummary with T12 purchases, sales, and high performer status
-- describe_data: List available data tables and their key columns — use when unsure what data you have access to
+- describe_data: List available data tables and their key columns — use when unsure what data you have access to. For the property tables it returns per-field meanings with use_when / do_not_use_for / prefer_instead guidance — check it before answering questions that hinge on which of several similar fields is correct
 - get_contact_calls: Get a contact's last 10 calls with grades, summaries, and pending action items
 - get_contact_insights: Team-level analytics by lens (recent_calls, momentum, at_risk, stalling, most_engaged, top_performers)
 
@@ -815,7 +841,10 @@ export async function buildSystemPrompt(input: ScoutConversationInput): Promise<
     { content: pageContextLine, metadata: createPromptBlockMetadata("page_context", pageContextLine, "runtime") },
     { content: freshness, metadata: createPromptBlockMetadata("data_freshness", freshness, "runtime") },
     { content: memoryContext, metadata: createPromptBlockMetadata("user_memory", memoryContext, "runtime") },
-    { content: pipelineSnapshot, metadata: createPromptBlockMetadata("pipeline_snapshot", pipelineSnapshot, "runtime") },
+    {
+      content: pipelineSnapshot,
+      metadata: createPromptBlockMetadata("pipeline_snapshot", pipelineSnapshot, "runtime"),
+    },
     {
       content: preFetchedContext.contextString,
       metadata: createPromptBlockMetadata("prefetch_context", preFetchedContext.contextString, "runtime"),

@@ -39,6 +39,7 @@ export type QueryEntity =
   | "workflow_enrollments"
   | "inventory"
   | "properties"
+  | "calculations"
   | "royalty";
 
 export interface FilterOp {
@@ -216,7 +217,15 @@ const ENTITIES: Record<QueryEntity, EntityConfig> = {
       Inv_ListDate: "Inv_ListDate",
     },
     groupable: ["TerritorySlug", "Inv_Status"],
-    aggregatable: ["PropertyId"],
+    // Aggregate on the *MostMature columns — MasterSuite pre-coalesces
+    // Actual → Revised → Original → Stage0 into them (see VALUE MATURITY prompt rules).
+    aggregatable: [
+      "PropertyId",
+      "Inv_CurrentArvMostMature",
+      "Inv_ConstructionBudgetMostMature",
+      "Inv_PriceMostMature",
+      "Inv_HoldingCostsMostMature",
+    ],
     defaultOrder: { field: "Inv_PurchaseDate", direction: "desc" },
   },
   properties: {
@@ -224,6 +233,10 @@ const ENTITIES: Record<QueryEntity, EntityConfig> = {
     filterable: {
       TerritorySlug: "TerritorySlug",
       PropertyId: "PropertyId",
+      Address1: "Address1",
+      City: "City",
+      State: "State",
+      Zip: "Zip",
       LeadCategory: "LeadCategory",
       LeadType: "LeadType",
       Status: "Status",
@@ -232,8 +245,40 @@ const ENTITIES: Record<QueryEntity, EntityConfig> = {
       PropertyType: "PropertyType",
     },
     groupable: ["TerritorySlug", "LeadCategory", "LeadType", "PropertyType"],
+    // Stage1Arv/Stage1Price are the LEAST mature evaluations — kept for
+    // stage-specific questions only. For "the" ARV/budget use the
+    // calculations entity (Calculated_Arv etc.), which encodes maturity.
     aggregatable: ["Stage1Arv", "Stage1Price"],
     defaultOrder: { field: "Inserted", direction: "desc" },
+  },
+  calculations: {
+    table: "ms_property_calculations",
+    filterable: {
+      PropertyId: "PropertyId",
+      StatusSnapshot: "StatusSnapshot",
+      Calculated_StageMaturity: "Calculated_StageMaturity",
+      Calculated_ReportingStatus: "Calculated_ReportingStatus",
+      HasInventory: "HasInventory",
+      HasActiveInventory: "HasActiveInventory",
+      Calculated_Arv: "Calculated_Arv",
+      Calculated_ConstructionBudget: "Calculated_ConstructionBudget",
+      Calculated_MaxOffer: "Calculated_MaxOffer",
+      Calculated_LeadScore: "Calculated_LeadScore",
+      Modified: "Modified",
+      ms_synced_at: "ms_synced_at",
+    },
+    groupable: ["StatusSnapshot", "Calculated_StageMaturity", "Calculated_ReportingStatus"],
+    aggregatable: [
+      "Calculated_Arv",
+      "Calculated_ConstructionBudget",
+      "Calculated_MaxOffer",
+      "Calculated_Price",
+      "Calculated_Inv_Profit",
+      "Calculated_Inv_ProjectProfit",
+      "Calculated_ReturnOnInvestment",
+      "Calculated_LeadScore",
+    ],
+    defaultOrder: { field: "PropertyId", direction: "desc" },
   },
   royalty: {
     table: "ms_property_royalty",
@@ -267,7 +312,13 @@ const ENTITIES: Record<QueryEntity, EntityConfig> = {
 // WORLD LABEL — which domain does this entity belong to?
 // ════════════════════════════════════════════════════════════════════
 
-const ACQUISITIONS_ENTITIES: ReadonlySet<string> = new Set(["inventory", "properties", "territories", "royalty"]);
+const ACQUISITIONS_ENTITIES: ReadonlySet<string> = new Set([
+  "inventory",
+  "properties",
+  "calculations",
+  "territories",
+  "royalty",
+]);
 
 function worldForEntity(entity: string): "frandev" | "acquisitions" {
   return ACQUISITIONS_ENTITIES.has(entity) ? "acquisitions" : "frandev";
@@ -997,9 +1048,7 @@ async function getTerritoryProfile(slug: string, options: { refreshStaleBriefs?:
       nameFromAccountEmail(territory.GoogleLicense2Account),
       nameFromAccountEmail(territory.GoogleLicense3Account),
       nameFromAccountEmail(territory.GoogleLicense4Account),
-    ].filter(
-      (name): name is string => typeof name === "string" && name.trim().length > 0
-    );
+    ].filter((name): name is string => typeof name === "string" && name.trim().length > 0);
     const uniqueOwnerNames = [...new Set(ownerNames)];
 
     return JSON.stringify({
