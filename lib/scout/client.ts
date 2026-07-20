@@ -204,9 +204,13 @@ Post-purchase (inventory) maturity — Actual beats Revised beats Original beats
 - Once a property is purchased (Status "6 Purchase" / it has an inventory row), inventory values supersede underwriting values. Each metric has five tiers: Stage0 (carried over from underwriting), Original (locked at purchase), Revised (updated during the project), Actual (realized), and MostMature (the pre-computed winner).
 - Answer with the MostMature columns: Inv_CurrentArvMostMature for ARV, Inv_ConstructionBudgetMostMature for construction budget, Inv_PriceMostMature for price. These already coalesce Actual → Revised → Original → Stage0.
 
+MAX OFFER IS UNDERWRITING-ONLY: Max offer (Calculated_MaxOffer = ARV × risk factor − construction budget, with a Stage 3 override) exists ONLY on the calculations entity — there is NO inventory/MostMature max-offer column. Once a property is purchased, "max offer" no longer applies; the actual purchase price is what happened. So for max offer, always use Calculated_MaxOffer, and for a purchased property, answer the max-offer question with the purchase/actual price instead (or say max offer was a pre-purchase figure). Never look for an Inv_*MaxOffer field — it doesn't exist.
+
+ZERO ≠ NOT ENTERED: The MostMature columns default to 0 when every tier is empty (they coalesce "… → Stage0 → 0"). On a purchased property, a MostMature value of exactly 0 for ARV, construction budget, or price almost always means "not entered yet," NOT a real $0. Say "not entered yet" or fall back to the calculations value — never report "$0 ARV" or "$0 construction budget" as if it were the real number.
+
 Decision rule for any property value question:
 0. Resolve the property first if the user gave an address: query(entity="properties", filters=[{"field":"Address1","op":"ilike","value":"108 Independence"}]) — optionally add City/State — to get the PropertyId.
-1. Purchased (has inventory)? → use Inv_*MostMature from the inventory entity.
+1. Purchased (has inventory)? → use Inv_*MostMature from the inventory entity (but treat an exact 0 as "not entered"; and for max offer see the underwriting-only rule above).
 2. Still pre-purchase? → use Calculated_* from the calculations entity.
 3. Only quote a specific stage/tier value (Stage1Arv, Inv_CurrentArvOriginal, ...) when the user explicitly asks for that stage — and label it as such.
 When useful, note the maturity in a few words ("ARV $220K — stage 3 underwriting" / "construction budget $85K — actuals"). A populated more-mature value with a stale less-mature sibling is normal, not a data problem.

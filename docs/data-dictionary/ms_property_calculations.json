@@ -174,7 +174,7 @@
       "meaning": "The maximum offer for the property: (ARV x risk factor) - construction budget, unless a Stage 3 manual max offer overrides it.",
       "units": "USD",
       "use_when": "Any question about what to offer on a property — this is the authoritative number.",
-      "do_not_use_for": null,
+      "do_not_use_for": "Purchased properties — max offer is underwriting-only; there is no inventory/MostMature max-offer field. Once purchased, use the actual purchase price instead.",
       "prefer_instead": null,
       "source_ref": "Formulas/MaxOffer.cs",
       "confidence": "high",

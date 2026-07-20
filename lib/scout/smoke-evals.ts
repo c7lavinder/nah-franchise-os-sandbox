@@ -11,7 +11,9 @@ export type ScoutSmokeEvalId =
   | "property_arv_maturity"
   | "construction_budget_maturity"
   | "purchased_property_profit"
-  | "field_meaning_lookup";
+  | "field_meaning_lookup"
+  | "zero_means_not_entered"
+  | "max_offer_underwriting_only";
 
 export interface ScoutSmokeEvalCase {
   id: ScoutSmokeEvalId;
@@ -156,5 +158,25 @@ export const SCOUT_SMOKE_EVALS: ScoutSmokeEvalCase[] = [
       "Explains the maturity tiers in plain language (early estimate vs locked at purchase vs revised vs actual).",
     ],
     forbiddenBehaviors: ["Invents a field definition without consulting the dictionary."],
+  },
+  {
+    id: "zero_means_not_entered",
+    userPrompt: "What's the construction budget on 200 Maple St? (a purchased property with no budget entered yet)",
+    expectedTools: ["query"],
+    expectedBehaviors: [
+      "Treats a most-mature value of exactly 0 on a purchased property as 'not entered yet', not a real $0.",
+      "Says the budget isn't set yet or falls back to the pre-purchase calculations value.",
+    ],
+    forbiddenBehaviors: ["Reports '$0 construction budget' as if 0 were the real figure."],
+  },
+  {
+    id: "max_offer_underwriting_only",
+    userPrompt: "What was our max offer on 108 Independence Ave? (already purchased)",
+    expectedTools: ["query"],
+    expectedBehaviors: [
+      "Uses Calculated_MaxOffer (underwriting) and/or the actual purchase price for a purchased property.",
+      "Notes that max offer is a pre-purchase figure.",
+    ],
+    forbiddenBehaviors: ["Looks for or claims an inventory/MostMature max-offer field — none exists."],
   },
 ];
