@@ -66,12 +66,15 @@ SystemConfig tab flags migrate into registry rows.
 
 ## 4. Build waves (each shippable, pixel-identical rule throughout)
 
-> Status 2026-07-21: Wave 1 BUILT (PR #293, beta to Corey, Corey-verified
+> Status 2026-07-22: Wave 1 BUILT (PR #293, beta to Corey, Corey-verified
 > pixel-identical). Wave 2 BUILT (PR #294 stacked on #293, beta to Corey,
 > smoke-verified on dev: registry rail + prefs round-trip + write/refresh
-> contracts + legacy fallback). Chain #289 → #293 → #294 awaits Ben's merges.
-> Wave 3 next — needs the Panel 0 B Chiron placement decision (replace the
-> floating dock or offer both) before starting.
+> contracts + legacy fallback). Wave 3 BUILT (PR #298 stacked on #294, beta to
+> Corey, smoke-verified on dev: registry header + Chiron open/close/context +
+> legacy fallback + frozen contracts). **Chiron placement decided (Corey
+> 2026-07-22): header ONLY — a granted header_chiron row replaces the floating
+> dock; ungranted users keep the dock until promotion.** Chain
+> #289 → #293 → #294 → #298 awaits Ben's merges.
 
 1. **Wave 1 — DB-driven tab strip (the quick win).** Replace the hardcoded tab
    markup with registry rows; keep the existing lazy-iframe/`fitFrame`/expand
@@ -98,7 +101,11 @@ SystemConfig tab flags migrate into registry rows.
 3. **Wave 3 — header strip.** Lift Panel 0 A / 0 C into header-slot panels;
    **build the new Panel 0 B header Chiron window** by re-hosting the existing
    `/Chiron/Panel` iframe (already context-parametrized) in a header panel —
-   design decision needed: replace the floating dock or offer both.
+   decided (Corey 2026-07-22): header ONLY, the header window replaces the
+   floating dock for granted users. BUILT (PR #298): `HeaderPanels/` partials
+   `_HeaderIdentity` / `_HeaderChiron` / `_HeaderActions`, seed migration
+   2026-07-22-159, ids `#s2val-run` + `#g-strat-chip` preserved as frozen
+   contracts.
 4. **Wave 4 — inline tabs become pages.** Extract Overview (hardest tab),
    Data Entry, Media to their own pages matching the other tabs, so every tab
    is uniform and independently versionable (`overview_v2` as a beta row).
