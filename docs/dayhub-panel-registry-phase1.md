@@ -73,6 +73,13 @@ migration when the Property page gets the same treatment (Phase 1b) and when
 Journey/Contact/Territory are redesigned onto the shared detail-page template
 (header strip · main column w/ tabbed workspace · right rail w/ KPIs + activity/comms).
 
+**User preference layer (added 2026-07-21, lands with Phase 1b Wave 2):** the registry is
+admin-assigned and defines the _menu_ of panels/versions a user type may have. A second
+lightweight table (`MasterSuiteUI_PagePanelUserPrefs`: UserId, PageKey, PanelKey,
+Hidden/VersionChoice) lets individual users pick and choose within that menu — hide
+optional cards, keep the simple version of a card instead of an enhanced one. Prefs can
+only narrow, never expand, what the registry grants.
+
 **Code catalog** (in the Gunner module): dictionary `PanelKey → { partial path, data loader }`.
 A registry row with no catalog entry is skipped (DB can't invent code); a catalog entry with
 no row never renders. **New card = 1 partial + 1 loader + 1 registry row. New version =

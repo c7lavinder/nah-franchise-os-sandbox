@@ -73,9 +73,21 @@ SystemConfig tab flags migrate into registry rows.
    ask. Migrate `Gunner_AcqTab`/`Gunner_ValuationTab`/NAx gating into rows.
 2. **Wave 2 — right-rail split.** Break `_GunnerRightRail` into registry
    panels: the two KPI cards (`rail-kpi` slot) and each accordion + the comms
-   thread (`rail-feed` slot). Write handlers stay on the parent page model;
-   only markup + data loaders move. Enables per-user rail composition (e.g.
-   franchise-side rails later on Journey pages).
+   thread (`rail-feed` slot) — Activity, Offers, Contacts, Team, Calls, Tasks,
+   Notes, Appointments, Documents, Contacts-on-deal each their own row. Write
+   handlers stay on the parent page model; only markup + data loaders move.
+   **Rail cards get the full tab treatment (Corey 2026-07-21):** (a) per page
+   type via PageKey — property/journey/contact/territory each define their own
+   rail lineup; (b) versioned — simple vs. enhanced variants of a card are
+   separate catalog entries, assigned per user, so users who prefer the old
+   simple cards keep them; (c) **user pick-and-choose via a preference layer**:
+   the registry defines the MENU of cards (and versions) a user type is
+   allowed; a lightweight per-user prefs table
+   (`MasterSuiteUI_PagePanelUserPrefs`: UserId, PageKey, PanelKey,
+   Hidden/VersionChoice) stores each person's selections, edited from a small
+   settings popover on the rail. Registry = what's possible; prefs = what that
+   person picked. Prefs never override permissions — hiding allowed cards and
+   choosing among offered versions only.
 3. **Wave 3 — header strip.** Lift Panel 0 A / 0 C into header-slot panels;
    **build the new Panel 0 B header Chiron window** by re-hosting the existing
    `/Chiron/Panel` iframe (already context-parametrized) in a header panel —
