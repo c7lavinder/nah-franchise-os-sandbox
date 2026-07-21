@@ -66,6 +66,13 @@ SystemConfig tab flags migrate into registry rows.
 
 ## 4. Build waves (each shippable, pixel-identical rule throughout)
 
+> Status 2026-07-21: Wave 1 BUILT (PR #293, beta to Corey, Corey-verified
+> pixel-identical). Wave 2 BUILT (PR #294 stacked on #293, beta to Corey,
+> smoke-verified on dev: registry rail + prefs round-trip + write/refresh
+> contracts + legacy fallback). Chain #289 → #293 → #294 awaits Ben's merges.
+> Wave 3 next — needs the Panel 0 B Chiron placement decision (replace the
+> floating dock or offer both) before starting.
+
 1. **Wave 1 — DB-driven tab strip (the quick win).** Replace the hardcoded tab
    markup with registry rows; keep the existing lazy-iframe/`fitFrame`/expand
    machinery untouched. Because 7 of 10 tabs are already standalone pages, this

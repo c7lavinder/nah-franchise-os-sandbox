@@ -1,49 +1,48 @@
-# Session Handoff — 2026-07-21 — Session 81
+# Session Handoff — 2026-07-21 — Session 82
 
 ## Status
 
-Phase: **Consolidation — Phase 1 smoke-tested COMPLETE; Phase 1b Wave 1 (Property tab strip) BUILT + Corey-verified.** Ben merged **PR #287 (framework)** and **PR #145 (FranDev write-phase)** during the session. Open: **#289 (Day Hub carve, draft — ready to flip)** and **#293 (Property tab strip, draft, stacked on #289)**. Corey verified the property page "looks the exact same" with the registry strip live for him. / Health: Green / Duration: full session
+Phase: **Consolidation — Phase 1b Wave 2 (right-rail split + user prefs) BUILT + smoke-verified on dev.** The whole merge chain now waits only on Ben: **#289 (Day Hub carve — flipped to READY, base `main`, this session)** → **#293 (Property tab strip, draft)** → **#294 (right-rail split + prefs, draft, NEW)**. Supabase-cutover port plan drafted (`docs/supabase-cutover-port-plan.md`). Gunner KB item closed (#284/#288 both merged). / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-- **Day Hub write-handler smoke test (Phase 1 §6 verification) — all 9 items PASS** on the local Wave 3 build against the dev DB, via authenticated browser session: LogOffer/DeleteOffer (ledger, goal bar, server-verified clean after), task circle arm→complete (CompleteTask; Teresa Davis "Qualify New Lead" completed, 363→362), ApptStatus (Linda Russell Jul 21 8AM → Showed, left the unrecorded queue), SearchAppts / client task filter / InboxFeed searches, Mine/Everyone (`?view=` links, clean empty states), live-dot swap (offers panel swapped 0→2 in place, no reload, `ofReset` re-seeded the form).
-- **Phase 1b Wave 1 — DB-driven Property tab strip** (MasterSuite branch `gunner-panel-property-wave1`, commit 2c81cbe6b, **PR #293 draft** stacked on `gunner-panel-wave1`): `GunnerPanelCatalog.PropertyTabs` (10 strip-button entries), migration `2026-07-21-157_PropertyTabPanels.sql` (idempotent, 10 rows `PageKey='property' Slot='tab'`, **Status='beta' BetaUserIds='corey@newagainhouses.com'** — zero granted rows → legacy hardcoded strip renders; promote/rollback = data flip, APPLIED TO DEV), `ResolvePropertyTabPanels()` + `GunnerTabsVm.RegistryTabs` in the page model, `_GunnerTabs.cshtml` strip fork (registry foreach vs verbatim legacy), `_GunnerTabsNaxDd.cshtml` (NAx dropdown extracted verbatim, shared by both paths). Panes/lazy iframes/fitFrame/expand/`?tab=`/postMessage untouched.
-- Sandbox: memory `project_panel_consolidation.md` + `MEMORY.md` updated through Wave 1b; this wrap.
+- **PR #289 flipped to ready with base `main`** — the `gh pr edit/ready` permission block from session 81 did not recur; done in one command.
+- **Phase 1b Wave 2 — right-rail split + user prefs** (MasterSuite branch `gunner-panel-property-wave2`, commit 3ac6bc261, **PR #294 draft** stacked on `gunner-panel-property-wave1`): `_GunnerRightRail.cshtml` 1,686 → 781-line shell (shared styles + shared `gp*` JS + registry/legacy fork); **12 verbatim partials** in `Pages/Property/Analysis/RailPanels/` (rail-kpi: PropertyDetails, DealNumbers; rail-feed: Activity, Offers, Contacts, Team, Calls, Tasks, Notes, Appointments, Documents, ContactsOnDeal). Both paths render the SAME partials (the `_GunnerTabsNaxDd` precedent) — carve was sed-extracted from the pristine file, case bodies wrapped in `@{ }`, so zero transcription drift. Migration `2026-07-21-158_PropertyRailPanels.sql` (idempotent, APPLIED TO DEV, 155 total): **`MasterSuiteUI_PagePanelUserPrefs`** table + 12 rows `Status='beta' BetaUserIds='corey@newagainhouses.com'`. Prefs layer: gear popover (registry users only) → `OnPostSaveRailPanelPref` → DAL upsert (`ON DUPLICATE KEY`). `ResolvePropertyTabPanels` generalized to `ResolvePropertyPanels` (one resolve feeds tabs + rail). Dropped the preamble's unused `isProvenance`.
+- **Supabase-cutover port plan** — `docs/supabase-cutover-port-plan.md`: full code inventory (~100 canonical tables, 238/293 routes on Supabase, 4 MySQL-direct modules, `apply-native-writes` = the seam), strategy = **consolidation completes the cutover domain-by-domain, no app re-point**, 7-domain flip order, bridge mechanics, risks, 4 open decisions for Corey/Ben. Supersedes ADR-0002/0009 when executed (new ADR at first flip).
+- Scope doc `property-page-panel-registry-phase1b.md` §4 status note updated; memory `project_panel_consolidation.md` + `MEMORY.md` updated through Wave 2.
 
 ## What Is Confirmed Working
 
-- All 9 Day Hub write-handler smoke items (above) — every handler answered 200, UI and server state verified.
-- Property registry strip: pixel-identical lineup for Corey; `media`→off removed the tab data-only; all rows off → legacy strip (full lineup); restored beta → registry strip; tab click + lazy iframe load + fitFrame sizing + `?tab=media` deep-link restore all work through registry buttons.
-- **Corey's authenticated side-by-side vs production: "property page looks the exact same"** (noted on PR #293).
-- `dotnet build` 0 errors; `MasterSuite.Modules.Gunner.Tests` 1,213/1,213 pass; migration runner dry-run clean, applied (154 total applied on dev).
-- Gotcha confirmed by-design, not a bug: Pulse loop pauses when the tab is hidden (`visibilityState` check) and Chrome throttles background-tab timers to ~1/min — live-swap testing needs a visible tab.
+- **Wave 2 smoke on dev (property 595831, Corey's authenticated browser):** registry rail renders pixel-identical for corey@ — all 9 accordions with live counts (tasks 27, appts 8, contacts 1), both KPI cards, contact-rail card; prefs round-trip (hid Team → gone after reload, still in menu → re-shown); AddNote + Delete through real handlers; `gunnerRefreshRegions` in-place accordion swap works against the carved DOM (dev re-render takes ~10s — don't call a race a bug); **all rail rows `off` → legacy lineup, no gear, tab strip unaffected**; restored to beta.
+- `dotnet build` 0 errors; `MasterSuite.Modules.Gunner.Tests` 1,213/1,213; migration runner dry-run clean then applied.
+- Gunner KB confirmed merged (#284 K1 + #288 K2, both 2026-07-21) — Knowledge consolidation unblocked.
 
 ## What Is Broken or Incomplete
 
-- **PR #289 still draft on base `gunner-panel-registry`** — needs base→`main` + ready flip now that #287 merged; Claude's `gh pr edit/ready` was blocked by the permission classifier — one click for Corey (or approve the command next session) — Medium
-- Rotate the Anthropic + BoldSign keys exposed in session-80 transcript — still pending — Medium
-- Smoke-test writes landed on dev DB intentionally (task 1398 completed, Linda Russell appt → Showed); shell comment says appointment/task writes sync to GHL via the bridge — dev bridge behavior unverified — Low
-- Local dev server STOPPED after wrap (exited cleanly, port 7128 free) — relaunch next session with `dotnet run --no-build --no-launch-profile` + explicit `NAH_DB_*` (dev password `development`) — Low
+- **Rotate the two exposed keys (session-80 transcript) — Corey action, prepped:** both live in `~/.zshrc` — `ApiKey_Anthropic` (MasterSuite reads it; also rotate anywhere production sets it) and `BOLDSIGN_API_KEY` (+`BOLDSIGN_API_BASE`, used by NAHgunner). Steps: console.anthropic.com → API Keys → create new + disable old; app.boldsign.com → API → regenerate. Then update `~/.zshrc` and any Vercel/Railway env holding them. Claude can't do this (credential handling) — Medium
+- Dev server running in background on 7128/5128 with the **Wave 2** build (started this session: `dotnet run --no-build --no-launch-profile` + `ASPNETCORE_URLS`, shell-env `NAH_DB_*`). Reuse for eyeballing (gear = top-right of rail) or kill — Low
+- Wave 2 smoke writes on dev were cleaned up (note 5639 created then deleted); prefs row for corey/team ended `Hidden=0` — Low
+- Full §4b-rule-4 ~30-handler regression checklist still owed on the beta rail before PROMOTION (smoke covered notes + refresh contract + prefs; offers/appts/contacts/uploads/dispo/booking handlers untested through the carved rail this session) — Medium
 - `dotnet test` MTP quirk (use `dotnet run --project <Tests>`) — Low
 
 ## Decisions Made
 
-- Phase 1b beta gate = the registry itself: seed rows `Status='beta'` listing only Corey; zero granted rows → legacy strip. No SystemConfig flag needed — Claude, per scope §4b rule 1.
-- `Gunner_AcqTab`/`Gunner_ValuationTab` flags STAY ANDed in both strip paths (child pages 404 without them); they retire when the legacy strip is deleted post-signoff — Claude, flagged in PR #293.
-- `valuation2`/`nax` rows carry `Permission='NAx'`; admins pass anyway (HasPermission admin-all — Corey's JWT has NAx:false but AdminPanel:true, so he sees the NAx dropdown, same as legacy) — verified matches production behavior.
-- NAx dropdown extracted to a shared partial so both strip paths render one block — Claude.
-- **Corey waived the §4b "previous wave verified in production" gate for sequencing: keep building through the merge chain, tight schedule** — Corey (this session close).
-- Ben's username NOT guessed for BetaUserIds — adding a tester is a one-row UPDATE — Claude.
+- **Wave 2 carve = shared partials on both paths** (legacy path renders the same carved partials in hardcoded order), extending the Wave 1 `_GunnerTabsNaxDd` precedent — markup lives once; the beta fork controls order/presence/prefs only — Claude.
+- Each accordion partial carries its own `acc-*` shell so `refreshGridRegion`'s body/count swap contract is untouched — Claude, verified live.
+- Prefs = hide/show only for now; `VersionChoice` column reserved, picker UI ships with the first `_v2` card — Claude, flagged in PR #294.
+- `contact_rail` registry row does NOT replace the `Gunner_ContactRail` flag — the partial still self-gates (dark-flag semantics unchanged) — Claude.
+- Supabase cutover strategy: **no app re-point; the consolidation IS the port** — drafted for Corey/Ben sign-off (port-plan §1/§7), not yet decided.
 
 ## Files Created
 
-- MasterSuite: `Pages/Property/Analysis/_GunnerTabsNaxDd.cshtml`, `DatabaseMigrationRunner/Migrations/2026-07-21-157_PropertyTabPanels.sql`
-- Scratchpad (not committed): `panelrows.mjs` — ad-hoc dev-DB row flips via sandbox repo's mysql2 (`import '/Users/coreylavinder/nah-franchise-os-sandbox/node_modules/mysql2/promise.js'`, host db-development.mastersuiteapp.com:60263)
+- MasterSuite: `Pages/Property/Analysis/RailPanels/` (12 partials), `Entities/MasterSuiteUI/PagePanelUserPref.cs`, `DatabaseMigrationRunner/Migrations/2026-07-21-158_PropertyRailPanels.sql`
+- Sandbox: `docs/supabase-cutover-port-plan.md`
+- Scratchpad (not committed): `carve-rail.sh`, `build-shell.sh` (the sed-verbatim carve/assembly scripts), `panelrows.mjs` (copied from session 81), `railflip.mjs` (rail-slot status flips), `findprop.mjs`
 
 ## Files Modified
 
-- MasterSuite: `Pages/Gunner/GunnerPanelCatalog.cs` (+PropertyTabs), `Pages/Property/Analysis/GunnerPropertyAnalysis.cshtml.cs` (resolver + VM prop), `Pages/Property/Analysis/_GunnerTabs.cshtml` (strip fork)
-- Sandbox: `handoff.md` (this wrap), memory `project_panel_consolidation.md` + `MEMORY.md`
+- MasterSuite: `Pages/Property/Analysis/_GunnerRightRail.cshtml` (→ shell), `Pages/Property/Analysis/GunnerPropertyAnalysis.cshtml.cs` (VM props, resolver, wiring, prefs handler), `Pages/Gunner/GunnerPanelCatalog.cs` (+PropertyRail), `DataAccess/DataAccessLayer.MasterSuiteUI.cs` (prefs read/upsert), `DataAccess/Utilities/DatabaseTables.cs`
+- Sandbox: `docs/property-page-panel-registry-phase1b.md` (§4 status), `handoff.md`, memory `project_panel_consolidation.md` + `MEMORY.md`
 - (Pre-existing uncommitted items untouched: `.claude/settings.json`, `docs/core-workflows.md`, `docs/design_handoff_messaging_hub/`, `docs/workflows-catalog.md`)
 
 ## Files Deleted
@@ -52,16 +51,16 @@ Phase: **Consolidation — Phase 1 smoke-tested COMPLETE; Phase 1b Wave 1 (Prope
 
 ## Open Issues Carried Forward
 
-- Flip PR #289 to ready + base `main` (then #293 rebases the same way after #289 merges) — Medium
-- Rotate the two API keys exposed in session-80 transcript — Medium
-- GHL appointment webhook events still need manual Marketplace-dashboard toggle (API 404s) — Medium
-- Supabase-cutover port plan (source-of-truth flip) still pending — Medium
-- Gunner KB page from parallel session — confirm merged before Knowledge consolidation — Low
-- Scope-doc line-number citations may drift as parallel sessions edit — re-verify at each wave start — Low
+- **Ben: merge the chain #289 → #293 → #294** (after #289 merges, retarget #293 to `main` + flip ready; then #294 the same) — the ONLY external blocker — High
+- Rotate the two API keys (prepped above — 5-minute Corey job) — Medium
+- **Wave 3 (header strip) blocked on the Chiron placement decision** (replace the floating dock or offer both) — Corey/Ben, then ~1 session to build — Medium
+- Full ~30-handler regression checklist on the beta rail before promoting rail rows to `live` — Medium
+- Supabase port plan §7 decisions (strategy sign-off / workflows port-or-archive / RAG landing zone / stop the 6 inbound syncs) — Medium
+- GHL appointment webhook events still need the manual Marketplace-dashboard toggle (API 404s) — Medium
 
 ## Exact Next Step
 
-Flip PR #289 to ready with base `main` (one click, or approve the `gh pr edit` command), then start **Phase 1b Wave 2 — right-rail split** (`docs/property-page-panel-registry-phase1b.md` §4 wave 2: `_GunnerRightRail` 1,686-line monolith → registry panels in `rail-kpi`/`rail-feed` slots + the `MasterSuiteUI_PagePanelUserPrefs` preference layer) on a branch stacked in the `wt-panels` worktree.
+Get Corey's Chiron-placement call (dock vs header vs both), then build **Phase 1b Wave 3 — header strip** (scope §4 wave 3: lift Panel 0 A/0 C into `header`-slot panels + the new Panel 0 B Chiron window re-hosting `/Chiron/Panel`) on a branch stacked on `gunner-panel-property-wave2` in `wt-panels`. If Ben merges the chain first, run the full ~30-handler checklist and promote Waves 1-2 rows to `live`.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -69,6 +68,6 @@ Flip PR #289 to ready with base `main` (one click, or approve the `gh pr edit` c
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Flip PR #289 to ready with base main, then start Phase 1b Wave 2 — right-rail split (property-page-panel-registry-phase1b.md §4 wave 2: \_GunnerRightRail → rail-kpi/rail-feed registry panels + MasterSuiteUI_PagePanelUserPrefs preference layer) on a stacked branch in the wt-panels worktree.
+Then: I'll give you my Chiron placement call (replace floating dock / header window / both) — build Phase 1b Wave 3 header strip on a branch stacked on gunner-panel-property-wave2 in wt-panels. If Ben merged #289/#293/#294, first run the 30-handler regression checklist and promote the Wave 1-2 registry rows to live.
 
 ---
