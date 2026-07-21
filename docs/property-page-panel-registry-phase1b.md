@@ -70,10 +70,12 @@ SystemConfig tab flags migrate into registry rows.
 > pixel-identical). Wave 2 BUILT (PR #294 stacked on #293, beta to Corey,
 > smoke-verified on dev: registry rail + prefs round-trip + write/refresh
 > contracts + legacy fallback). Wave 3 BUILT (PR #298 stacked on #294, beta to
-> Corey, smoke-verified on dev: registry header + Chiron open/close/context +
-> legacy fallback + frozen contracts). **Chiron placement decided (Corey
-> 2026-07-22): header ONLY — a granted header_chiron row replaces the floating
-> dock; ungranted users keep the dock until promotion.** Chain
+> Corey, smoke-verified on dev: registry header identity+actions + legacy
+> fallback + frozen contracts). **Chiron ruling (Corey 2026-07-22): the
+> floating dock is the persistent cross-page assistant and ALWAYS renders —
+> never replaced by a header panel. Panel 0 B is a different, future concept:
+> a header window where Chiron proactively surfaces what-to-do-next on the
+> deal; designed way later as its own catalog entry + row.** Chain
 > #289 → #293 → #294 → #298 awaits Ben's merges.
 
 1. **Wave 1 — DB-driven tab strip (the quick win).** Replace the hardcoded tab
@@ -98,14 +100,15 @@ SystemConfig tab flags migrate into registry rows.
    settings popover on the rail. Registry = what's possible; prefs = what that
    person picked. Prefs never override permissions — hiding allowed cards and
    choosing among offered versions only.
-3. **Wave 3 — header strip.** Lift Panel 0 A / 0 C into header-slot panels;
-   **build the new Panel 0 B header Chiron window** by re-hosting the existing
-   `/Chiron/Panel` iframe (already context-parametrized) in a header panel —
-   decided (Corey 2026-07-22): header ONLY, the header window replaces the
-   floating dock for granted users. BUILT (PR #298): `HeaderPanels/` partials
-   `_HeaderIdentity` / `_HeaderChiron` / `_HeaderActions`, seed migration
-   2026-07-22-159, ids `#s2val-run` + `#g-strat-chip` preserved as frozen
-   contracts.
+3. **Wave 3 — header strip.** Lift Panel 0 A / 0 C into header-slot panels.
+   BUILT (PR #298): `HeaderPanels/` partials `_HeaderIdentity` /
+   `_HeaderActions`, seed migration 2026-07-22-159, ids `#s2val-run` +
+   `#g-strat-chip` preserved as frozen contracts. \*\*Panel 0 B ruling (Corey
+   2026-07-22): the floating Chiron dock is the persistent cross-page
+   assistant and always renders — it never moves into the header. The header
+   Chiron window is a DIFFERENT future panel (Chiron proactively surfacing
+   what-to-do-next on the deal), designed way later as its own catalog entry
+   - registry row.\*\*
 4. **Wave 4 — inline tabs become pages.** Extract Overview (hardest tab),
    Data Entry, Media to their own pages matching the other tabs, so every tab
    is uniform and independently versionable (`overview_v2` as a beta row).
