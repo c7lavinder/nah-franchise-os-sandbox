@@ -1,52 +1,49 @@
-# Session Handoff — 2026-07-21 — Session 78
+# Session Handoff — 2026-07-21 — Session 79
 
 ## Status
 
-Phase: **Consolidation planning — DIRECTION PIVOT locked + two build-ready scope docs committed.** FranDev will NOT stay a sibling app inside MasterSuite; it consolidates INTO Gunner's pages via a card-level panel registry. No code was written this session (pure design/scoping). / Health: Green / Duration: full session
+Phase: **Consolidation Phase 1 — framework wave BUILT and PR'd.** Ben approved the Day Hub scope doc, so the panel-registry framework was built in the MasterSuite repo (branch `gunner-panel-registry`, worktree `/Users/coreylavinder/Mastersuite/wt-panels`) and opened as **MasterSuite PR #287**. Migration already applied to the dev DB. Rendered page is pixel-identical (card markup untouched; registry only controls presence + order). / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-Planning session — deliverables are two committed scope docs plus the locked design, all driven by Corey's annotated screenshots (Day hub.png, Property page panels.png, right-rail screenshot) with Ben's Day Hub annotations aligning.
+All in the MasterSuite repo (`wt-panels` worktree, commit 0da638d67, PR #287):
 
-- **`docs/dayhub-panel-registry-phase1.md`** — Phase 1 scope: full 20-card Day Hub inventory (slot/scoping/GHL-dependency/writes/difficulty per card), the generalized registry design (`MasterSuiteUI_PagePanels`: PageKey, PanelKey, Slot, Permission, ScopeSource fixed|territory|user, RequiresGhl, Status live|beta|off, BetaUserIds + code catalog PanelKey → partial+loader), three scoping axes (permissions → which cards; territory selector cookie → whose data, selector wiring UNCHANGED; AccessAllTerritories → "view as" a territory), GHL per-territory plan (`gunner_ghl_account` mapping table, RequiresGhl → "Not connected yet" empty state; today single sub-account via SystemConfig `Gunner_GhlLocationId`/`Gunner_GhlPrivateToken`, poll jobs fill mirror tables), build waves (framework → 14 easy cards → Inbox → Appointments/Tasks/Offers → verify), user-preference layer (`MasterSuiteUI_PagePanelUserPrefs` — can only narrow grants).
-- **`docs/property-page-panel-registry-phase1b.md`** — Phase 1b scope for `/Gunner/PropertyNative/{id}` (`Pages/Property/Analysis/GunnerPropertyAnalysis.cshtml`, 2,119-line page model): region→code map for Corey's Panel 0A/0B/0C/1/2/3/4 annotations, full tab inventory (7 of 10 tabs ALREADY standalone lazy-iframe pages — tab strip is a de-facto hardcoded registry, so Wave 1 = DB-driven tab strip w/ per-user beta is the quick win), right-rail split plan, §4b safety discipline (carved rendering itself ships beta-flagged w/ legacy markup as live fallback; ~30-handler regression checklist; frozen JS contracts: `refreshGridRegion`, `window.gunner*`, postMessage bus; one wave at a time; no parallel sessions in property files mid-wave).
-- **Memory `project_panel_consolidation.md`** (new) — carries the whole plan: pivot, scoping model, page disposition map, Phase 1b facts, all Corey rules.
+- **`DatabaseMigrationRunner/Migrations/2026-07-21-156_MasterSuiteUIPagePanels.sql`** — `MasterSuiteUI_PagePanels` registry table (PageKey, PanelKey, Slot, SortOrder, Permission, ScopeSource, RequiresGhl, Status live|beta|off, BetaUserIds, Enabled; UNIQUE on PageKey+PanelKey) + idempotent seed of today's 20 Day Hub cards in today's exact slot/sort order. **Applied to dev DB and row-verified** (also applied pending 155_ChironKbCard from main, additive-only).
+- **`Entities/MasterSuiteUI/PagePanel.cs`** — registry row entity.
+- **`DataAccess`** — `GetMasterSuitePagePanels(pageKey)` (interface + impl, mirrors nav-menu pattern) + `DatabaseTables.MasterSuiteUI_PagePanels` constant.
+- **`MasterSuite/Pages/Gunner/GunnerPanelCatalog.cs`** — code half: PanelKey → title / declared data reads / partial path (null while cards render inline), plus `DayHubDefaults()` fallback lineup so the hub can never render blank if the registry has no rows.
+- **`DayHub.cshtml.cs`** — reads registry once, filters by permission + live/beta/off (BetaUserIds = CSV of **login usernames**), fans out ONLY granted cards' reads in parallel; each read individually guarded — a failing query renders that card as a quiet error stub instead of 500ing the page; chips/contact-link enhancement reads degrade silently.
+- **`DayHub.cshtml`** — all 6 slots (top/today/kpi/acq/bld/run) render as loops over granted registry rows; the 20 cards' markup moved **verbatim** into per-panel switch cases (data-live keys, Pulse/busy() contract, all write handlers untouched).
+- Sandbox repo: memory `project_panel_consolidation.md` updated with the build state; this wrap.
 
 ## What Is Confirmed Working
 
-- Nothing new to test — no code changed. (Repo pre-commit suite ran green on every doc commit: 260/260 vitest.)
-- Verified by code inspection in the MasterSuite repo: territory selector mechanism (`currentTerritorySlug` cookie via `CookieHelper`, `AccessAllTerritories` short-circuit at CookieHelper.cs:245); Day Hub hardcoding (`BindingReferralPartner = "Corey Lavinder"` in GunnerService.Inventory.cs:330, `FranchiseSlug = "NASHC"` in DayHub.cshtml.cs:96); property-page tab isolation; Chiron dock = context-parametrized iframe onto `/Chiron/Panel`.
+- `dotnet build MasterSuite` — 0 errors.
+- `MasterSuite.Modules.Gunner.Tests` — 1,213/1,213 pass (run via `dotnet run --project` — plain `dotnet test` has an MTP-runner quirk and reports 0 tests).
+- Migration runner against dev: both pending migrations applied OK; all 20 `dayhub` seed rows confirmed present with correct slot/sort/permission/RequiresGhl via direct MySQL query.
+- App boots clean locally; `/Gunner/DayHub` answers 307 → login for unauthenticated (gate intact).
 
 ## What Is Broken or Incomplete
 
-- Panel 0 B "header Chiron window" on the property page does not exist yet — Chiron is a floating dock; header placement is new design work (Phase 1b Wave 3) — Low
-- Contacts merge detail (one list, user-type-filtered visibility) designed but detail-page routing rules not yet specced — Low
-- Day Hub / property-page inventories cite line numbers that may drift if the parallel Gunner session edits those files — re-verify at build start — Low
+- Authenticated side-by-side render check (dev vs prod hub) not done — needs Corey's login eyeball; everything below the auth gate is verified only by build/tests — Medium
+- CSS-primitive move listed in the scope doc's framework wave was already done pre-wave (gunner.css has `.card`/`.pill`/`.b` since 2026-07-07) — no action, noted so nobody re-does it — Low
+- `dotnet test` MTP quirk (reports 0 tests; use `dotnet run --project <Tests>`) — Low
 
 ## Decisions Made
 
-All approved by Corey this session (Ben aligned via his Day Hub screenshot annotations; his formal buy-in on the docs is the next-session gate):
-
-- **PIVOT: consolidate FranDev INTO Gunner's pages** (sibling `Pages/Frandev/` app becomes donor code) via a card-granular panel registry; cards swap individually inside columns, beta-testable per person without affecting anyone else.
-- **Registry generalized to `MasterSuiteUI_PagePanels`** (PageKey per page; tabs are panels with Slot='tab'); admin-assigned registry + per-user preference layer (`MasterSuiteUI_PagePanelUserPrefs`) that can only narrow grants — users pick-and-choose cards/versions (simple vs enhanced) within their menu.
-- **Territory selector: design + wiring untouched** — cards only read `CurrentTerritorySlug`; internal team's selector doubles as "view as a franchisee territory".
-- **GHL per-territory sub-accounts**: most territories have none → blank comms/tasks is EXPECTED; `RequiresGhl` cards show a quiet "Not connected yet" state.
-- **Page disposition map (revised)** — MERGE: Day Hub, Inventory (absorbs FranDev Pipeline + Territories index; permissions pick pipelines; click-through prospect→Journey, territory→Territory), Contacts (internal team sees prospects/franchisees NOT sellers), Knowledge (Gunner's new KB page becomes the one KB), Inbox/Messages, Tasks, Calendar, Activity, AI dock (Chiron+Scout→one). MERGE+REDESIGN: Calls. DROPPED: Onboarding; Workflows page (replaced by future agent-regenerated per-prospect cadences — Gunner's agent pattern applied to prospects; needs own scope doc later). STAY: Seller/Buyer/Partner Detail, Journey, Territory detail, L10, Marketing, utilities.
-- **Property page = reference detail-page template** (header · main w/ tabs · rail-kpi · rail-feed); Journey/Contact/Territory redesigned onto it later.
-- **Economics grid = ATOMIC panel** — swaps only as a whole, internals never refactored; other detail pages put a different panel in the `main` slot.
-- **Property page cannot break** — §4b safety discipline is non-negotiable (beta-flagged carve, legacy fallback until sign-off, handler checklist, frozen contracts).
-- Sequencing: **Phase 1 Day Hub framework → Phase 1b Property page → detail redesigns / Inventory merge / Calls redesign on the proven pattern.**
+- Ben approved `docs/dayhub-panel-registry-phase1.md` → build gate cleared — Corey confirmed this session.
+- `BetaUserIds` holds **login usernames** (CookieHelper.AuthenticatedUsername), not numeric ids — practical for admins; documented in the migration — Claude, per scope-doc ambiguity, flagged in PR.
+- Registry-empty fallback: catalog ships a built-in default lineup so a missing/unmigrated table can never blank the hub — Claude, safety addition consistent with §4b discipline.
+- Per-read failure → card-level error stub (page survives any single query failure) — implements the scope doc's error-stub wrapper.
 
 ## Files Created
 
-- `docs/dayhub-panel-registry-phase1.md` (commits 1c104ab, 46a8c17, ed089a8)
-- `docs/property-page-panel-registry-phase1b.md` (commits caf2f99, 36951fc, ed089a8)
-- Memory: `project_panel_consolidation.md` (+ MEMORY.md index line)
+- MasterSuite: `DatabaseMigrationRunner/Migrations/2026-07-21-156_MasterSuiteUIPagePanels.sql`, `Entities/MasterSuiteUI/PagePanel.cs`, `MasterSuite/Pages/Gunner/GunnerPanelCatalog.cs`
 
 ## Files Modified
 
-- `handoff.md` (this wrap)
-- Memory: `MEMORY.md` (index pointer)
+- MasterSuite: `DataAccess/DataAccessLayer.MasterSuiteUI.cs`, `DataAccess/Utilities/DatabaseTables.cs`, `MasterSuite/Pages/Gunner/DayHub.cshtml`, `MasterSuite/Pages/Gunner/DayHub.cshtml.cs`
+- Sandbox: `handoff.md` (this wrap), memory `project_panel_consolidation.md` + `MEMORY.md` index
 - (Pre-existing uncommitted items untouched: `.claude/settings.json`, `docs/core-workflows.md`, `docs/design_handoff_messaging_hub/`, `docs/workflows-catalog.md`)
 
 ## Files Deleted
@@ -55,15 +52,17 @@ All approved by Corey this session (Ben aligned via his Day Hub screenshot annot
 
 ## Open Issues Carried Forward
 
+- **MasterSuite PR #287 (framework wave) awaiting Ben's merge** — the gate for Wave 1 — High
+- Corey eyeball: dev Day Hub side-by-side vs production (should be indistinguishable) — Medium
 - PR #145 (MasterSuite native write-phase) still awaiting Ben — Medium
 - GHL appointment webhook events still need manual Marketplace-dashboard toggle (API 404s) — Medium
-- Supabase-cutover port plan (source-of-truth flip) still pending; unchanged by the pivot — Medium
-- Ben walkthrough/buy-in on the two panel-registry scope docs required BEFORE touching his Gunner pages — High (it's the gate for next session's build start)
-- Gunner KB page built in a parallel session, possibly uncommitted — confirm it's merged before the Knowledge consolidation — Low
+- Supabase-cutover port plan (source-of-truth flip) still pending — Medium
+- Gunner KB page from parallel session — confirm merged before Knowledge consolidation — Low
+- Day Hub line-number citations in scope docs may drift as parallel sessions edit — re-verify at each wave start — Low
 
 ## Exact Next Step
 
-Confirm Ben has seen/approved `docs/dayhub-panel-registry-phase1.md`, then start Phase 1 Wave "framework" in the MasterSuite repo on a fresh branch off main: `MasterSuiteUI_PagePanels` migration + code catalog + Day Hub shell render loop, seeded pixel-identical to today's layout.
+Once PR #287 is merged (or on the same branch if Ben prefers), start Phase 1 **Wave 1** in the `wt-panels` worktree: lift the 14 easy cards (scope doc §4 rows 1, 4, 6–7, 9–20) into partials + loaders one at a time, verifying each against the live page.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -71,6 +70,6 @@ Confirm Ben has seen/approved `docs/dayhub-panel-registry-phase1.md`, then start
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Confirm Ben has seen/approved docs/dayhub-panel-registry-phase1.md, then start Phase 1 Wave "framework" in the MasterSuite repo on a fresh branch off main: MasterSuiteUI_PagePanels migration + code catalog + Day Hub shell render loop, seeded pixel-identical to today's layout.
+Then: Once PR #287 is merged (or on the same branch if Ben prefers), start Phase 1 Wave 1 in the wt-panels worktree: lift the 14 easy Day Hub cards (scope doc §4 rows 1, 4, 6–7, 9–20) into partials + loaders one at a time, verifying each against the live page.
 
 ---
