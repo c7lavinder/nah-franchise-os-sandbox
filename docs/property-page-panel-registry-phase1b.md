@@ -77,6 +77,21 @@ SystemConfig tab flags migrate into registry rows.
 > a header window where Chiron proactively surfaces what-to-do-next on the
 > deal; designed way later as its own catalog entry + row.** Chain
 > #289 → #293 → #294 → #298 awaits Ben's merges.
+>
+> **§4b-rule-4 regression checklist RUN 2026-07-22** on the stacked
+> Waves 1-3 build (dev, property 595831, Corey's authenticated session, every
+> write cleaned up / same-value no-ops): grid preview AND apply (real calc
+> engine both paths) · stage save round trip · summary/stage1/deal field saves
+> (whitelist rejections also verified) · notes add/edit/delete · team chat
+> add/delete · tasks add/complete/delete · offers add/delete · appointments
+> add/update/delete · contacts search/link/unlink · team add/remove · rail S3
+> upload/rename/delete · prefs hide/show — ALL PASS, rail counts + stage
+> restored to baseline exactly. Deliberately NOT exercised (side effects
+> beyond dev data): rail SMS, booking-agent start/decide/stop, agent
+> instruction, S2 run (external engine), dispo-island writes (island page
+> untouched by the waves; its postMessage contract into the carved header
+> verified), Media-tab Dropzone (inline tab, Wave 4 scope). Remaining
+> promotion gate = Ben's merges + a production eyeball.
 
 1. **Wave 1 — DB-driven tab strip (the quick win).** Replace the hardcoded tab
    markup with registry rows; keep the existing lazy-iframe/`fitFrame`/expand
