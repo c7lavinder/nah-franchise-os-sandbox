@@ -23,7 +23,7 @@ Phase: **Consolidation — Phase 1 smoke-tested COMPLETE; Phase 1b Wave 1 (Prope
 - **PR #289 still draft on base `gunner-panel-registry`** — needs base→`main` + ready flip now that #287 merged; Claude's `gh pr edit/ready` was blocked by the permission classifier — one click for Corey (or approve the command next session) — Medium
 - Rotate the Anthropic + BoldSign keys exposed in session-80 transcript — still pending — Medium
 - Smoke-test writes landed on dev DB intentionally (task 1398 completed, Linda Russell appt → Showed); shell comment says appointment/task writes sync to GHL via the bridge — dev bridge behavior unverified — Low
-- Local dev server running in background on 7128/5128 with the Wave 1b build (`dotnet run --no-build --no-launch-profile` + explicit `NAH_DB_*`) — reuse or kill next session — Low
+- Local dev server STOPPED after wrap (exited cleanly, port 7128 free) — relaunch next session with `dotnet run --no-build --no-launch-profile` + explicit `NAH_DB_*` (dev password `development`) — Low
 - `dotnet test` MTP quirk (use `dotnet run --project <Tests>`) — Low
 
 ## Decisions Made
