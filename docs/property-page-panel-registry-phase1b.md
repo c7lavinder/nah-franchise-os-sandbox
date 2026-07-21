@@ -83,14 +83,43 @@ SystemConfig tab flags migrate into registry rows.
 4. **Wave 4 — inline tabs become pages.** Extract Overview (hardest tab),
    Data Entry, Media to their own pages matching the other tabs, so every tab
    is uniform and independently versionable (`overview_v2` as a beta row).
-5. **Wave 5 (optional/defer) — economics grid encapsulation.** The
-   preview-then-save engine + native-partial fork-shims stay as ONE registry
-   panel (`main` slot) rather than being split further; full encapsulation of
-   its `window.gunner*` globals is deferred until something actually needs to
-   swap inside it.
+5. ~~Wave 5 — economics grid encapsulation~~ **Resolved by design rule (Corey
+   2026-07-21): the economics grid is an ATOMIC panel.** The preview-then-save
+   engine + native-partial fork-shims are ONE registry row (`main` slot) that
+   only ever swaps as a whole. Nothing swaps inside it; its internals are never
+   refactored. It stays on property pages permanently; on other detail pages
+   (Journey/Contact/Territory) the `main` slot simply holds a different panel.
+   No internal encapsulation work exists in any phase.
 
 Rough effort: Wave 1 ~1 session; Wave 2 ~1–2; Wave 3 ~1 (+ Chiron placement
-decision); Wave 4 ~2–3 (Overview alone is ~1–2); Wave 5 only if needed.
+decision); Wave 4 ~2–3 (Overview alone is ~1–2).
+
+## 4b. Safety discipline (non-negotiable — this page cannot break)
+
+1. **The carved page itself ships as a beta.** The registry-rendered version of
+   the page runs behind the registry's own per-user mechanism (or an equivalent
+   SystemConfig + user check): legacy markup keeps rendering for everyone;
+   the registry rendering is visible only to named testers (Corey/Ben) until
+   verified. Rollback = flip the flag; the legacy code path is not deleted
+   until a wave is fully verified and signed off.
+2. **One wave at a time, each independently shippable.** No wave starts until
+   the previous one is verified in production.
+3. **Atomic-panel rule for anything fragile.** If a region's internals are
+   risky (the economics grid, the dispo island), it registers as one whole
+   panel and its code is moved, not modified.
+4. **Write-handler regression checklist per wave.** All ~30 handlers exercised
+   on a test property before promotion: grid preview/apply, stage save,
+   summary/stage1/deal field saves, notes/chat/agent-instruction, tasks,
+   offers, appointments, contacts link/unlink, uploads (Dropzone + rail S3),
+   S2 run/poll, dispo start/save/strategy/buyer/outbound, booking agent
+   start/decide/stop, rail SMS.
+5. **Contract preservation.** `refreshGridRegion` grid↔rail swap, the
+   `window.gunner*` globals, `data-live-stat` updates, and the iframe
+   postMessage bus (`gunnerDispoPrimary`, `gunnerGoTab`) are treated as frozen
+   interfaces — panels may call them, never alter them.
+6. **No parallel edits.** While a wave is in flight, no other session works in
+   the property-page files (coordination rule, since other Gunner work runs
+   concurrently).
 
 ## 5. Risks / entanglements (what the Day Hub didn't have)
 
@@ -105,7 +134,8 @@ decision); Wave 4 ~2–3 (Overview alone is ~1–2); Wave 5 only if needed.
   `gunnerGoTab`, header updates) — must survive the DB-driven tab strip.
 - **Fork-shims:** the page embeds MasterSuite's native economics partials
   without their JS bundle and re-implements behaviors inline (documented
-  "FORK-SHIM INDEX" in the page). Fragile; reason Wave 5 is deferred.
+  "FORK-SHIM INDEX" in the page). Fragile; reason the grid is an atomic panel
+  whose internals are never touched (§4 rule 5, §4b rule 3).
 - **Third-party libs** scoped to specific tabs (Angular 1.7.7 + Handlebars in
   Data Entry, Dropzone + Fancybox in Media, Google Maps in Panel 1) — each
   extracted tab-page carries its own libs, which iframe isolation already
