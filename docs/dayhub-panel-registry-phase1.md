@@ -45,13 +45,17 @@ auth-guard → `CurrentTerritorySlug` (returns null if not permitted) → pass s
 
 Two halves — DB controls _visibility and placement_, code controls _what a card is_:
 
-**DB table** (migration, name follows `MasterSuiteUI_NavigationMenuItems` convention):
+**DB table** (migration, name follows `MasterSuiteUI_NavigationMenuItems` convention).
+Generalized to serve every panelized page, not just the Day Hub — the same table later
+drives the Property page (panels AND its workspace tabs) and the redesigned
+Journey/Contact/Territory detail pages:
 
 ```sql
-CREATE TABLE MasterSuiteUI_DayHubPanels (
+CREATE TABLE MasterSuiteUI_PagePanels (
   Id            INT AUTO_INCREMENT PRIMARY KEY,
+  PageKey       VARCHAR(32)  NOT NULL,          -- dayhub | property | journey | contact | territory | ...
   PanelKey      VARCHAR(64)  NOT NULL,          -- matches code catalog entry
-  Slot          VARCHAR(16)  NOT NULL,          -- top | today | kpi | acq | bld | run | bottom
+  Slot          VARCHAR(24)  NOT NULL,          -- dayhub: top|today|kpi|acq|bld|run|bottom; detail pages: header|main|tab|rail-kpi|rail-feed
   SortOrder     INT          NOT NULL DEFAULT 0,
   Permission    VARCHAR(64)  NULL,              -- e.g. 'Gunner', 'Frandev'; NULL = any authed user
   ScopeSource   VARCHAR(16)  NOT NULL DEFAULT 'fixed',  -- fixed | territory | user
@@ -61,6 +65,13 @@ CREATE TABLE MasterSuiteUI_DayHubPanels (
   Enabled       TINYINT(1)   NOT NULL DEFAULT 1
 );
 ```
+
+A **tab is just a panel with `Slot='tab'`** — so a new or reworked workspace tab on the
+Property page can ship `Status='beta'` to named users only. Phase 1 only seeds
+`PageKey='dayhub'` rows; the generalization costs nothing now and avoids a schema
+migration when the Property page gets the same treatment (Phase 1b) and when
+Journey/Contact/Territory are redesigned onto the shared detail-page template
+(header strip · main column w/ tabbed workspace · right rail w/ KPIs + activity/comms).
 
 **Code catalog** (in the Gunner module): dictionary `PanelKey → { partial path, data loader }`.
 A registry row with no catalog entry is skipped (DB can't invent code); a catalog entry with
