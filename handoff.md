@@ -22,11 +22,10 @@ Phase: **Phase 2 sprint 2 — Corey's three design handoffs BUILT AND WIRED in o
 
 - JourneyV2 stage-advance not exercised live (would move a real dev journey; handlers are verbatim ports of the E2E-tested donor) — Corey should click one through — Medium
 - Gunner Retry assumes the grading worker re-picks PENDING (FAILED→PENDING flip) — confirm w/ Ben before promoting — Medium
-- Card targets (1 call/day, 5 signings/qtr, 25 leads/wk) are service constants — SystemConfig candidates — Low
 - Time to Launch measures sign→first HOUSE (labeled honestly); "first marketing live" isn't tracked anywhere — Low
 - Territory Grades = compliance buckets (dev data skews all-F); no quarterly grade-drop history — Low
 - Deferred by design: recording↔scheduled matcher, + Schedule flow, gunner ingest, Merge/Delete/Transfer writes, EOS write-back, profile-field editing beyond phone/email, rail reads for Offers/Team/Notes — see review brief
-- Carried: Jessica AdminPanel bypass + prod permission audit (High); GetBoard over-fetch (now feeds Ready to Dial too — lean read before Chad) (Medium); API key rotation (Corey); chain #289→#303 on Ben
+- Carried: Jessica AdminPanel bypass + prod permission audit (High); API key rotation (Corey). ~~GetBoard over-fetch~~ CLEARED — 4th commit 72fc6083c: lean GetReadyDial read (Day Hub no longer triggers GetBoard at all) + card targets → SystemConfig Frandev*Goal*\* (migration -165, applied)
 
 ## Decisions Made
 
@@ -58,7 +57,7 @@ Phase: **Phase 2 sprint 2 — Corey's three design handoffs BUILT AND WIRED in o
 
 ## Exact Next Step
 
-Corey eyeballs the three new surfaces on dev 7128 (Day Hub → FranDev; /Gunner/CallsV2 in both workspaces; the three CRM pages incl. a real stage-bar click), PR #306 is open — chain on Ben. Next build candidates: calls-page promotion (replace the two legacy pages), the deferred write set (Merge/Delete/Transfer, EOS write-back), recording↔scheduled matcher, lean board read.
+Corey eyeballs the three new surfaces on dev 7128 (Day Hub → FranDev; /Gunner/CallsV2 in both workspaces; the three CRM pages incl. a real stage-bar click), PR #306 is open — chain on Ben. Next build candidates: calls-page promotion (replace the two legacy pages), the deferred write set (Merge/Delete/Transfer, EOS write-back), recording↔scheduled matcher.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -66,6 +65,6 @@ Corey eyeballs the three new surfaces on dev 7128 (Day Hub → FranDev; /Gunner/
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: I've eyeballed (or will eyeball) the Day Hub FranDev v2 cards, /Gunner/CallsV2 (both workspaces), and the three CRM V2 pages on localhost:7128. PR #306 is open (chain #289→…→#306 on Ben). Pick up: calls promotion / deferred writes / recording↔scheduled matcher / lean board read. Chain #289→#303 still on Ben — blocks promotion only.
+Then: I've eyeballed (or will eyeball) the Day Hub FranDev v2 cards, /Gunner/CallsV2 (both workspaces), and the three CRM V2 pages on localhost:7128. PR #306 is open (chain #289→…→#306 on Ben). Pick up: calls promotion / deferred writes / recording↔scheduled matcher (lean board read DONE). Chain #289→#303 still on Ben — blocks promotion only.
 
 ---
