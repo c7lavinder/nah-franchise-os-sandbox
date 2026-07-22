@@ -127,7 +127,14 @@ SystemConfig tab flags migrate into registry rows.
 4. **Wave 4 — inline tabs become pages.** Extract Overview (hardest tab),
    Data Entry, Media to their own pages matching the other tabs, so every tab
    is uniform and independently versionable (`overview_v2` as a beta row).
-5. ~~Wave 5 — economics grid encapsulation~~ **Resolved by design rule (Corey
+5. **Panel 1 REGISTERED (2026-07-22, PR #298 addendum):** the atomic
+   photos/map · stage bar · economics grid region is now ONE `main`-slot
+   registry row (`economics_grid`, `MainPanels/_MainEconomicsGrid.cshtml`, a
+   verbatim move; both paths render the same partial; JS engine stays on the
+   page shell; migration 2026-07-22-161, beta corey@). **Every region of the
+   annotated image — header · main · tab · rail-kpi · rail-feed — is now
+   registry-driven.**
+6. ~~Wave 5 — economics grid encapsulation~~ **Resolved by design rule (Corey
    2026-07-21): the economics grid is an ATOMIC panel.** The preview-then-save
    engine + native-partial fork-shims are ONE registry row (`main` slot) that
    only ever swaps as a whole. Nothing swaps inside it; its internals are never
