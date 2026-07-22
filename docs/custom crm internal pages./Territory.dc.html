@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#eef1f6;font-family:'Nunito Sans',sans-serif;color:#26324b;}
+a{color:#1e88e5;text-decoration:none;} a:hover{color:#1565c0;text-decoration:underline;}
+*{box-sizing:border-box;}
+::-webkit-scrollbar{width:8px;} ::-webkit-scrollbar-thumb{background:#c4cddc;border-radius:4px;}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column;">
+  <div style="background:#fff;border-bottom:1px solid #dde4ef;height:44px;flex-shrink:0;"></div>
+
+  <!-- Row 0 -->
+  <div style="display:flex;gap:12px;padding:12px 16px 0 16px;align-items:stretch;">
+    <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;padding:10px 14px;min-width:290px;box-shadow:0 1px 2px rgba(27,42,74,.06);">
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span style="background:#e5f3e8;color:#2e7d43;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:10px;">ACTIVE</span>
+        <span style="background:#e5f3e8;color:#2e7d43;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:10px;">HIGH PERFORMER</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <a href="Journey.dc.html" style="font-size:16px;color:#8494ad;">←</a>
+        <span style="font-size:17px;font-weight:900;">Chattanooga</span>
+        <span style="font-size:11px;font-weight:800;letter-spacing:.6px;color:#b9c4d6;">CHATT</span>
+      </div>
+    </div>
+    <div style="flex:1;min-width:0;background:#fff;border:1px solid #dde4ef;border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);"></div>
+    <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;display:flex;align-items:center;gap:6px;padding:0 12px;box-shadow:0 1px 2px rgba(27,42,74,.06);">
+      <button style="background:#fdf3e3;color:#c07f16;border:none;border-radius:6px;font-family:'Nunito Sans',sans-serif;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer;white-space:nowrap;">Transfer</button>
+      <button style="background:#fdecec;color:#d64545;border:none;border-radius:6px;font-family:'Nunito Sans',sans-serif;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer;white-space:nowrap;">🗑 Retire Territory</button>
+    </div>
+  </div>
+
+  <!-- Main grid -->
+  <div style="display:flex;gap:12px;padding:12px 16px 20px 16px;align-items:flex-start;flex:1;">
+    <!-- LEFT -->
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:12px;">
+      <!-- Panel 1: territory hero -->
+      <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);padding:14px 18px;">
+        <div style="display:flex;gap:14px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">OWNERSHIP</div>
+            <div style="display:flex;gap:10px;align-items:center;margin-top:8px;">
+              <span style="width:38px;height:38px;border-radius:50%;background:#e3f0fc;color:#1e88e5;font-size:13px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;">KT</span>
+              <div>
+                <a href="Contact.dc.html" style="font-size:14px;font-weight:900;">Ken Tolbert</a>
+                <div style="font-size:11.5px;color:#8494ad;font-weight:600;">Owner since 2/5/2021 · <a href="Journey.dc.html">Open journey →</a></div>
+              </div>
+            </div>
+            <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;margin-top:14px;">TERRITORY BRIEF</div>
+            <div style="font-size:13px;color:#3e4d69;line-height:1.55;margin-top:4px;">Chattanooga is a high performer: 319 leads entered YTD with 32% deal progression and 6 houses sold at $22,497 average profit. Family stakeholders (Chandler, Tara) are engaged in operations.</div>
+          </div>
+          <div style="width:300px;flex-shrink:0;background:#e8f0e9;border:1px solid #d3e2d6;border-radius:8px;display:flex;align-items:center;justify-content:center;min-height:150px;position:relative;overflow:hidden;">
+            <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,rgba(255,255,255,.25) 0 12px,transparent 12px 24px);"></div>
+            <div style="text-align:center;position:relative;">
+              <div style="font-size:22px;">📍</div>
+              <div style="font-size:12px;font-weight:800;color:#5a7a60;">Territory map — Chattanooga, TN</div>
+              <div style="font-size:10.5px;color:#8aa38f;font-weight:600;">zip boundaries render from live data</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 2: tabs -->
+      <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);">
+        <div style="display:flex;gap:2px;border-bottom:1px solid #e8edf5;padding:0 12px;">
+          <sc-for list="{{ tabs }}" as="tab" hint-placeholder-count="4">
+            <button onClick="{{ tab.select }}" style="border:none;background:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;font-size:13px;font-weight:800;padding:12px 14px;color: {{ tab.color }};border-bottom: {{ tab.border }};margin-bottom:-1px;">{{ tab.name }}</button>
+          </sc-for>
+        </div>
+        <sc-if value="{{ showEcosystem }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:14px;">
+            <!-- stakeholder graph -->
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:20px;display:flex;flex-direction:column;align-items:center;">
+              <div style="display:flex;flex-direction:column;align-items:center;">
+                <span style="width:54px;height:54px;border-radius:50%;background:#e3f0fc;border:2px solid #1e88e5;color:#1e88e5;font-size:16px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;">KT</span>
+                <div style="font-size:13.5px;font-weight:900;margin-top:6px;">Ken Tolbert</div>
+                <div style="font-size:10px;font-weight:800;letter-spacing:.8px;color:#1e88e5;">OWNER</div>
+                <a href="Contact.dc.html" style="font-size:11.5px;font-weight:700;">View profile</a>
+              </div>
+              <div style="width:2px;height:22px;background:#e4eaf4;margin:8px 0;"></div>
+              <span style="background:#fdeef4;color:#c2447d;font-size:10.5px;font-weight:800;padding:2px 10px;border-radius:10px;">♡ Family</span>
+              <div style="display:flex;gap:26px;margin-top:12px;">
+                <div style="display:flex;flex-direction:column;align-items:center;">
+                  <span style="width:40px;height:40px;border-radius:50%;background:#fdeef4;color:#c2447d;font-size:12px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;">CT</span>
+                  <div style="font-size:11.5px;font-weight:800;margin-top:4px;">Chandler Tolbert</div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:center;">
+                  <span style="width:40px;height:40px;border-radius:50%;background:#fdeef4;color:#c2447d;font-size:12px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;">TT</span>
+                  <div style="font-size:11.5px;font-weight:800;margin-top:4px;">Tara Tolbert</div>
+                </div>
+              </div>
+            </div>
+            <!-- stakeholder table -->
+            <div style="border:1px solid #e4eaf4;border-radius:6px;margin-top:12px;overflow:hidden;">
+              <div style="display:grid;grid-template-columns:2fr 1fr 1.2fr 1.6fr;gap:0;background:#f6f8fc;padding:9px 14px;font-size:10.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">
+                <span>NAME / COMPANY</span><span>ROLE</span><span>PHONE</span><span>EMAIL</span>
+              </div>
+              <sc-for list="{{ stakeholders }}" as="sh" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:2fr 1fr 1.2fr 1.6fr;align-items:center;padding:10px 14px;border-top:1px solid #edf1f7;background: {{ sh.rowBg }};">
+                  <div>
+                    <a href="Contact.dc.html" style="font-size:13px;font-weight:800;">{{ sh.name }}</a>
+                    <div style="font-size:11px;color:#98a6bf;font-weight:600;font-style:italic;">{{ sh.sub }}</div>
+                  </div>
+                  <span><span style="background: {{ sh.roleBg }};color: {{ sh.roleFg }};font-size:10px;font-weight:800;padding:2px 8px;border-radius:9px;">{{ sh.role }}</span></span>
+                  <span style="font-size:12px;font-weight:700;color:#5a6b88;">{{ sh.phone }}</span>
+                  <span style="font-size:12px;font-weight:700;color:#5a6b88;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ sh.email }}</span>
+                </div>
+              </sc-for>
+              <div style="padding:10px 14px;border-top:1px solid #edf1f7;"><a href="#" style="font-size:12.5px;font-weight:800;">＋ Add stakeholder</a></div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showPerformance }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px;display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;gap:6px;">
+              <sc-for list="{{ perfRanges }}" as="rg" hint-placeholder-count="5">
+                <button onClick="{{ rg.select }}" style="border:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;font-size:12px;font-weight:800;padding:6px 14px;border-radius:15px;background: {{ rg.bg }};color: {{ rg.fg }};">{{ rg.name }}</button>
+              </sc-for>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+              <sc-for list="{{ perfCards }}" as="pk" hint-placeholder-count="9">
+                <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+                  <div style="font-size:11px;font-weight:800;color:#8494ad;">{{ pk.icon }} {{ pk.label }}</div>
+                  <div style="font-size:20px;font-weight:900;margin-top:6px;color: {{ pk.color }};">{{ pk.value }}</div>
+                  <div style="font-size:10.5px;color:#98a6bf;font-weight:600;margin-top:2px;">{{ pk.sub }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:14px;display:flex;gap:16px;align-items:center;">
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:900;">◔ Lead List Building</div>
+                <div style="font-size:11.5px;color:#98a6bf;font-weight:600;margin-top:3px;">Counts properties created in a Lead List during YTD.</div>
+                <div style="display:flex;align-items:baseline;gap:8px;margin-top:10px;"><span style="font-size:26px;font-weight:900;">5</span><span style="font-size:11.5px;color:#8494ad;font-weight:700;">Lead Lists Created</span></div>
+              </div>
+              <div style="width:110px;height:110px;border-radius:50%;background:conic-gradient(#1e5be5 0 100%);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><div style="width:52px;height:52px;border-radius:50%;background:#fff;"></div></div>
+              <div style="width:250px;flex-shrink:0;">
+                <div style="display:flex;align-items:center;gap:8px;border:1px solid #e4eaf4;border-radius:6px;padding:7px 12px;"><span style="width:8px;height:8px;border-radius:50%;background:#1e5be5;"></span><span style="font-size:12px;font-weight:800;">Agent Listed</span><span style="margin-left:auto;font-size:12.5px;font-weight:900;">5</span></div>
+                <div style="margin-top:10px;">
+                  <div style="display:flex;"><span style="font-size:12px;font-weight:900;">Benchmark Progression</span><span style="margin-left:auto;font-size:12px;font-weight:900;">0%</span></div>
+                  <div style="font-size:10.5px;color:#98a6bf;font-weight:700;">5 / 7,000 target</div>
+                  <div style="height:6px;border-radius:3px;background:#e8edf5;margin-top:5px;"></div>
+                  <div style="font-size:10.5px;color:#98a6bf;font-weight:700;margin-top:5px;">6,995 short of benchmark.</div>
+                </div>
+              </div>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:13px;font-weight:900;">Lead Sources — YTD</div>
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <span style="border:1px solid #e4eaf4;border-radius:14px;padding:4px 12px;font-size:11.5px;font-weight:700;color:#5a6b88;"><b style="color:#26324b;">7</b> Listed</span>
+                <span style="border:1px solid #e4eaf4;border-radius:14px;padding:4px 12px;font-size:11.5px;font-weight:700;color:#5a6b88;"><b style="color:#26324b;">3</b> Referral Partners</span>
+                <span style="border:1px solid #e4eaf4;border-radius:14px;padding:4px 12px;font-size:11.5px;font-weight:700;color:#5a6b88;"><b style="color:#26324b;">1</b> Direct Seller</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;">
+              <div style="flex:1.6;border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+                <div style="display:flex;"><span style="font-size:13px;font-weight:900;">Property Funnel</span><span style="margin-left:auto;font-size:11px;color:#98a6bf;font-weight:700;">vs prior YTD</span></div>
+                <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
+                  <sc-for list="{{ funnel }}" as="fn" hint-placeholder-count="6">
+                    <div style="display:grid;grid-template-columns:120px 1fr 50px;gap:12px;align-items:center;">
+                      <div><div style="font-size:12px;font-weight:800;">{{ fn.label }}</div><div style="font-size:10px;color:#98a6bf;font-weight:600;">{{ fn.sub }}</div></div>
+                      <div style="height:22px;border-radius:11px;background:#eef2f8;overflow:hidden;"><div style="height:100%;border-radius:11px;width: {{ fn.width }};background: {{ fn.color }};"></div></div>
+                      <div style="text-align:right;"><div style="font-size:12.5px;font-weight:900;">{{ fn.count }}</div><div style="font-size:10px;color:#98a6bf;font-weight:600;">{{ fn.pct }}</div></div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="background:#f6f8fc;border:1px solid #e4eaf4;border-radius:6px;padding:10px 12px;margin-top:12px;">
+                  <div style="font-size:11.5px;font-weight:800;color:#c07f16;">⏱ Bottleneck board — biggest pressure point: Stage 3 to Stage 4</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:8px;">
+                    <div><div style="font-size:11.5px;font-weight:800;color:#d64545;">↓ Stage 3 to Stage 4</div><div style="font-size:10.5px;color:#8494ad;font-weight:600;">5 did not advance · 38% conversion</div></div>
+                    <div><div style="font-size:11.5px;font-weight:800;color:#d64545;">↓ Stage 4 to Stage 5 Contract</div><div style="font-size:10.5px;color:#8494ad;font-weight:600;">3 did not advance · 0% conversion</div></div>
+                    <div><div style="font-size:11.5px;font-weight:800;color:#d64545;">↓ Stage 1 to Stage 2</div><div style="font-size:10.5px;color:#8494ad;font-weight:600;">2 did not advance · 83% conversion</div></div>
+                  </div>
+                </div>
+              </div>
+              <div style="flex:1;border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+                <div style="font-size:13px;font-weight:900;">Pipeline Comparison</div>
+                <div style="font-size:11px;color:#98a6bf;font-weight:600;">Median across 56 active territories</div>
+                <div style="display:grid;grid-template-columns:1.4fr .7fr .8fr .7fr;padding:8px 0 4px 0;font-size:10px;font-weight:800;letter-spacing:.6px;color:#8494ad;border-bottom:1px solid #edf1f7;">
+                  <span>STAGE</span><span>THIS</span><span>MEDIAN</span><span>TARGET</span>
+                </div>
+                <sc-for list="{{ pipeComp }}" as="pcm" hint-placeholder-count="6">
+                  <div style="display:grid;grid-template-columns:1.4fr .7fr .8fr .7fr;padding:8px 0;border-bottom:1px solid #edf1f7;">
+                    <span style="font-size:12px;font-weight:800;">{{ pcm.stage }}</span>
+                    <span style="font-size:12px;font-weight:900;">{{ pcm.thisV }}</span>
+                    <span style="font-size:12px;font-weight:700;color:#8494ad;">{{ pcm.median }}</span>
+                    <span style="font-size:12px;font-weight:700;color:#8494ad;">{{ pcm.target }}</span>
+                  </div>
+                </sc-for>
+                <div style="font-size:10px;color:#98a6bf;font-weight:600;margin-top:8px;line-height:1.5;">Targets scale from monthly goals: 30 Stage 1 leads, 10 Stage 4 offers, 1 contract, and 1 purchase.</div>
+              </div>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;overflow:hidden;">
+              <div style="display:flex;padding:12px 14px;"><span style="font-size:13px;font-weight:900;">◎ Latest Stage 4 Offers (3)</span><span style="margin-left:auto;font-size:11px;color:#98a6bf;font-weight:700;">YTD</span></div>
+              <sc-for list="{{ offers }}" as="of" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-top:1px solid #edf1f7;">
+                  <div>
+                    <div style="display:flex;gap:8px;align-items:center;"><a href="#" style="font-size:13px;font-weight:800;">{{ of.addr }}</a><span style="background: {{ of.badgeBg }};color: {{ of.badgeFg }};font-size:10px;font-weight:800;padding:2px 8px;border-radius:9px;">{{ of.badge }}</span></div>
+                    <div style="display:flex;gap:6px;margin-top:4px;font-size:10.5px;font-weight:700;color:#8494ad;"><span style="background:#eef2f8;padding:1px 8px;border-radius:8px;">{{ of.src }}</span><span style="background:#eef2f8;padding:1px 8px;border-radius:8px;">{{ of.type }}</span><span>{{ of.when }}</span></div>
+                  </div>
+                  <div style="margin-left:auto;display:flex;gap:8px;">
+                    <button style="border:1px solid #bfe3cd;background:#fff;color:#2e7d43;border-radius:6px;font-family:'Nunito Sans',sans-serif;font-size:11.5px;font-weight:800;padding:6px 14px;cursor:pointer;">Pictures</button>
+                    <button style="border:1px solid #bfe3cd;background:#fff;color:#2e7d43;border-radius:6px;font-family:'Nunito Sans',sans-serif;font-size:11.5px;font-weight:800;padding:6px 14px;cursor:pointer;">Mastermind</button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:13px;font-weight:900;">📦 Sold — YTD (0)</div>
+              <div style="text-align:center;padding:22px 0;color:#98a6bf;"><div style="font-size:18px;">⚠</div><div style="font-size:12.5px;font-weight:700;">No properties sold in this period</div></div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showData }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
+            <sc-for list="{{ dataSections }}" as="ds" hint-placeholder-count="11">
+              <div style="border:1px solid #e4eaf4;border-radius:6px;overflow:hidden;">
+                <button onClick="{{ ds.toggle }}" style="width:100%;display:flex;align-items:center;gap:10px;background: {{ ds.headBg }};border:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;padding:12px 14px;">
+                  <span style="color:#98a6bf;font-size:11px;">{{ ds.chev }}</span>
+                  <span style="font-size:14px;">{{ ds.icon }}</span>
+                  <span style="font-size:13px;font-weight:900;color:#26324b;">{{ ds.name }}</span>
+                  <span style="margin-left:auto;font-size:11.5px;color:#8494ad;font-weight:700;">{{ ds.filled }}</span>
+                </button>
+                <sc-if value="{{ ds.open }}" hint-placeholder-val="{{ false }}">
+                  <div>
+                    <sc-for list="{{ ds.rows }}" as="dr" hint-placeholder-count="3">
+                      <div style="display:grid;grid-template-columns:220px 1fr;gap:10px;padding:10px 14px;border-top:1px solid #edf1f7;">
+                        <span style="font-size:12.5px;font-weight:700;color:#5a6b88;">{{ dr.label }}</span>
+                        <span style="font-size:12.5px;font-weight:700;color: {{ dr.color }};">{{ dr.value }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showTEOS }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px;display:flex;flex-direction:column;gap:12px;">
+            <div style="border:1px solid #e4eaf4;border-radius:6px;overflow:hidden;">
+              <div style="padding:12px 14px 4px 14px;font-size:13px;font-weight:900;">Goals</div>
+              <div style="display:grid;grid-template-columns:1.4fr 1fr 2.4fr .6fr .6fr;padding:6px 14px;font-size:10.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">
+                <span></span><span>ACTUAL</span><span>CURRENT YEAR</span><span>YEAR 5</span><span>YEAR 25</span>
+              </div>
+              <sc-for list="{{ eosGoalRows }}" as="gr" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:1.4fr 1fr 2.4fr .6fr .6fr;padding:10px 14px;border-top:1px solid #edf1f7;align-items:center;">
+                  <span style="font-size:12.5px;font-weight:800;color:#26324b;">{{ gr.label }}</span>
+                  <span style="font-size:12.5px;font-weight:700;color:#5a6b88;">{{ gr.actual }}</span>
+                  <span style="font-size:12px;font-weight:700;color:#5a6b88;line-height:1.4;">{{ gr.year }}</span>
+                  <span style="font-size:12.5px;font-weight:700;color:#5a6b88;">{{ gr.y5 }}</span>
+                  <span style="font-size:12.5px;font-weight:700;color:#5a6b88;">{{ gr.y25 }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;overflow:hidden;">
+              <div style="padding:12px 14px 4px 14px;font-size:13px;font-weight:900;">Scorecard</div>
+              <div style="display:grid;grid-template-columns:2fr 1fr 1fr;padding:6px 14px;font-size:10.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">
+                <span>METRIC</span><span>GOAL</span><span>ACTUAL</span>
+              </div>
+              <sc-for list="{{ eosScore }}" as="sr" hint-placeholder-count="7">
+                <div style="display:grid;grid-template-columns:2fr 1fr 1fr;padding:9px 14px;border-top:1px solid #edf1f7;">
+                  <span style="font-size:12.5px;font-weight:700;color:#5a6b88;">{{ sr.metric }}</span>
+                  <span style="font-size:12.5px;font-weight:700;color:#8494ad;">{{ sr.goal }}</span>
+                  <span style="font-size:12.5px;font-weight:900;color:#26324b;">{{ sr.actual }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:13px;font-weight:900;">Monthly Spend</div>
+              <div style="margin-top:6px;">
+                <sc-for list="{{ eosSpend }}" as="sp" hint-placeholder-count="5">
+                  <div style="display:flex;padding:8px 0;border-bottom:1px solid #edf1f7;">
+                    <span style="font-size:12.5px;font-weight:700;color:#5a6b88;">{{ sp.label }}</span>
+                    <span style="margin-left:auto;font-size:12.5px;font-weight:800;color:#26324b;">{{ sp.value }}</span>
+                  </div>
+                </sc-for>
+                <div style="display:flex;padding:10px 0 2px 0;">
+                  <span style="font-size:12.5px;font-weight:900;color:#1e88e5;">Total</span>
+                  <span style="margin-left:auto;font-size:12.5px;font-weight:900;">$1,137.00</span>
+                </div>
+              </div>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:13px;font-weight:900;">Lead Generation Channels</div>
+              <div style="display:flex;gap:4px;margin-top:10px;justify-content:space-between;">
+                <sc-for list="{{ eosChannels }}" as="ch" hint-placeholder-count="12">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:0;">
+                    <input type="checkbox" checked="{{ ch.on }}" style="accent-color:#1e88e5;">
+                    <div style="width:100%;max-width:34px;height:170px;border-radius:4px;background: {{ ch.bg }};display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;">
+                      <span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:10px;font-weight:800;color: {{ ch.fg }};white-space:nowrap;">{{ ch.name }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:13px;font-weight:900;">Business Habits</div>
+              <sc-for list="{{ eosHabits }}" as="hb" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;padding:9px 0;border-bottom:1px solid #edf1f7;">
+                  <span style="font-size:12.5px;font-weight:700;color:#26324b;">{{ hb.name }}</span>
+                  <div style="margin-left:auto;display:flex;gap:5px;">
+                    <sc-for list="{{ hb.grades }}" as="gd" hint-placeholder-count="5">
+                      <span style="width:26px;height:26px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;background: {{ gd.bg }};color: {{ gd.fg }};">{{ gd.g }}</span>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+              <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+                <div style="font-size:13px;font-weight:900;">Rocks</div>
+                <sc-for list="{{ eosRocks }}" as="rk" hint-placeholder-count="4">
+                  <div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;">
+                    <span style="background: {{ rk.bg }};color: {{ rk.fg }};font-size:10px;font-weight:800;padding:2px 8px;border-radius:9px;flex-shrink:0;">{{ rk.status }}</span>
+                    <span style="font-size:12px;font-weight:700;color:#3e4d69;line-height:1.4;">{{ rk.text }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+                <div style="font-size:13px;font-weight:900;">Issues</div>
+                <sc-for list="{{ eosIssues }}" as="is" hint-placeholder-count="4">
+                  <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+                    <input type="checkbox" style="accent-color:#1e88e5;">
+                    <span style="font-size:12px;font-weight:700;color:#3e4d69;line-height:1.4;">{{ is }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+                <div style="font-size:13px;font-weight:900;">To-Dos</div>
+                <sc-for list="{{ eosTodos }}" as="td" hint-placeholder-count="5">
+                  <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+                    <input type="checkbox" checked="{{ td.done }}" style="accent-color:#43a55c;">
+                    <span style="font-size:12px;font-weight:700;color:#3e4d69;line-height:1.4;text-decoration: {{ td.deco }};">{{ td.text }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div style="width:360px;flex-shrink:0;display:flex;flex-direction:column;gap:12px;">
+      <!-- Panel 3: ops KPIs -->
+      <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);padding:12px 14px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#8494ad;">OPERATIONS — YTD</span>
+          <span style="margin-left:auto;background:#e5f3e8;color:#2e7d43;font-size:10px;font-weight:800;padding:1px 8px;border-radius:9px;">High Performer</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+          <div style="background:#f6f8fc;border:1px solid #e4eaf4;border-radius:6px;padding:8px 10px;">
+            <div style="font-size:9.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">LEADS ENTERED</div>
+            <div style="font-size:17px;font-weight:900;margin-top:2px;">319</div>
+            <div style="font-size:10px;color:#98a6bf;font-weight:600;">hit Stage 1</div>
+          </div>
+          <div style="background:#f6f8fc;border:1px solid #e4eaf4;border-radius:6px;padding:8px 10px;">
+            <div style="font-size:9.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">DEAL PROGRESSION</div>
+            <div style="font-size:17px;font-weight:900;margin-top:2px;">32%</div>
+            <div style="font-size:10px;color:#98a6bf;font-weight:600;">% of S1 → S4</div>
+          </div>
+          <div style="background:#f6f8fc;border:1px solid #e4eaf4;border-radius:6px;padding:8px 10px;">
+            <div style="font-size:9.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">SOLD</div>
+            <div style="font-size:17px;font-weight:900;margin-top:2px;">6</div>
+          </div>
+          <div style="background:#f6f8fc;border:1px solid #e4eaf4;border-radius:6px;padding:8px 10px;">
+            <div style="font-size:9.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">AVG PROFIT</div>
+            <div style="font-size:17px;font-weight:900;color:#2e7d43;margin-top:2px;">$22,497</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 4: rail -->
+      <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);display:flex;flex-direction:column;overflow:hidden;">
+        <sc-for list="{{ railSections }}" as="sec" hint-placeholder-count="9">
+          <div style="border-bottom:1px solid #e8edf5;">
+            <button onClick="{{ sec.toggle }}" style="width:100%;display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;padding:11px 14px;">
+              <span style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#5a6b88;">{{ sec.name }}</span>
+              <span style="background:#eef2f8;color:#5a6b88;font-size:10px;font-weight:800;padding:0 7px;border-radius:9px;">{{ sec.count }}</span>
+              <span style="margin-left:auto;color:#98a6bf;font-size:11px;">{{ sec.chev }}</span>
+            </button>
+            <sc-if value="{{ sec.open }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:0 14px 12px 14px;font-size:12.5px;color:#3e4d69;font-weight:600;line-height:1.5;">{{ sec.body }}</div>
+            </sc-if>
+          </div>
+        </sc-for>
+        <!-- contact selector -->
+        <div style="padding:14px;background:#fff;">
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">CONTACTS ON THIS TERRITORY</div>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <sc-for list="{{ dealContacts }}" as="dc" hint-placeholder-count="2">
+              <button onClick="{{ dc.select }}" style="border:1px solid {{ dc.border }};background: {{ dc.bg }};border-radius:8px;padding:8px 10px;cursor:pointer;font-family:'Nunito Sans',sans-serif;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:74px;">
+                <span style="width:28px;height:28px;border-radius:50%;background:#6b46c1;color:#fff;font-size:10.5px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;">{{ dc.initials }}</span>
+                <span style="font-size:11px;font-weight:800;color:#26324b;">{{ dc.name }}</span>
+              </button>
+            </sc-for>
+            <button style="border:1px dashed #dde4ef;background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer;font-family:'Nunito Sans',sans-serif;color:#98a6bf;font-size:11px;font-weight:800;min-width:60px;">＋<br>add</button>
+          </div>
+        </div>
+        <!-- purple workflow -->
+        <div style="background:#f7f5fd;padding:14px;margin:0 10px 12px 10px;border-radius:8px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:7px;height:7px;border-radius:50%;background:#f0a12c;"></span>
+            <span style="font-size:12px;font-weight:900;color:#6b46c1;">Booking agent</span>
+            <span style="background:#fff;border:1px solid #e2dcf5;color:#8494ad;font-size:10px;font-weight:800;padding:1px 8px;border-radius:9px;">Emails + texts</span>
+            <button onClick="{{ agentToggle }}" style="margin-left:auto;width:34px;height:18px;border-radius:9px;border:none;cursor:pointer;position:relative;background: {{ agentBg }};"><span style="position:absolute;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s;left: {{ agentKnob }};"></span></button>
+          </div>
+          <div style="font-size:11px;color:#8f7fc4;font-weight:600;margin-top:4px;">{{ agentStatus }}</div>
+          <div style="margin-top:10px;display:flex;flex-direction:column;">
+            <sc-for list="{{ agentSteps }}" as="stp" hint-placeholder-count="2">
+              <div style="display:flex;gap:10px;">
+                <div style="display:flex;flex-direction:column;align-items:center;width:12px;flex-shrink:0;">
+                  <span style="width:9px;height:9px;border-radius:50%;margin-top:6px;background: {{ stp.dot }};border:2px solid #fff;box-shadow:0 0 0 1px #d8cff0;"></span>
+                  <span style="flex:1;width:2px;background:#e2dcf5;"></span>
+                </div>
+                <div style="flex:1;background:#fff;border:1px solid #e7e1f6;border-radius:7px;padding:8px 10px;margin-bottom:8px;">
+                  <div style="display:flex;gap:6px;align-items:center;font-size:10.5px;font-weight:800;">
+                    <span style="color:#26324b;">{{ stp.when }}</span>
+                    <span style="background:#efeafb;color:#6b46c1;padding:1px 7px;border-radius:8px;">{{ stp.channel }}</span>
+                    <span style="margin-left:auto;color:#98a6bf;">{{ stp.status }}</span>
+                  </div>
+                  <div style="font-size:11.5px;color:#3e4d69;font-weight:600;line-height:1.45;margin-top:4px;">{{ stp.text }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="position:fixed;bottom:22px;right:22px;z-index:50;display:flex;align-items:center;gap:10px;">
+    <div style="background:#fff;border:1px solid #dde4ef;border-radius:20px;box-shadow:0 4px 14px rgba(27,42,74,.14);padding:9px 16px;font-size:13px;font-weight:700;color:#8494ad;">Ask Scout anything…</div>
+    <button style="width:48px;height:48px;border-radius:50%;background:#1e88e5;color:#fff;border:none;cursor:pointer;font-size:19px;box-shadow:0 4px 14px rgba(30,136,229,.4);">✦</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { tab: 'Ecosystem', open: {}, agentOn: true, dealContact: 0 };
+  renderVals() {
+    const s = this.state;
+    const tabs = ['Ecosystem', 'Performance', 'Data', 'EOS'].map(name => ({
+      name, color: s.tab === name ? '#1e88e5' : '#5a6b88',
+      border: s.tab === name ? '2px solid #1e88e5' : '2px solid transparent',
+      select: () => this.setState({ tab: name }),
+    }));
+    const railDefs = [
+      { name: 'ACTIVITY', count: 3, body: 'Jul 12 — deal 1408 Dodds Ave sold · Jul 3 — 41 new leads · Jun 30 — quarterly ops review logged.' },
+      { name: 'OFFERS', count: 5, body: '5 offers out across active deals in Chattanooga.' },
+      { name: 'CONTACTS', count: 3, body: 'Ken Tolbert · Chandler Tolbert · Tara Tolbert' },
+      { name: 'TEAM', count: 1, body: 'Chad Arnold — Operator coach' },
+      { name: 'CALLS', count: 1, body: 'Coaching Call — Chad Arnold, 35m. Graded.' },
+      { name: 'TASKS', count: 2, body: 'Verify Q3 marketing spend · Confirm zip expansion request.' },
+      { name: 'NOTES', count: 0, body: 'No notes yet.' },
+      { name: 'APPOINTMENTS', count: 1, body: 'Quarterly review — Aug 4, 10:00 AM CT.' },
+      { name: 'DOCUMENTS', count: 2, body: 'Franchise Agreement.pdf · Territory Map (CHATT).pdf' },
+    ];
+    const railSections = railDefs.map(d => ({
+      ...d, open: !!s.open[d.name], chev: s.open[d.name] ? '▾' : '▸',
+      toggle: () => this.setState(prev => ({ open: { ...prev.open, [d.name]: !prev.open[d.name] } })),
+    }));
+    const stakeholders = [
+      { name: 'Chandler Tolbert', sub: 'Son of Ken Tolbert', role: 'Family', roleBg: '#fdeef4', roleFg: '#c2447d', phone: '—', email: 'ctolbert@newagainhouses.com', rowBg: '#f2f8fd' },
+      { name: 'Tara Tolbert', sub: 'Wife of Ken Tolbert', role: 'Family', roleBg: '#fdeef4', roleFg: '#c2447d', phone: '—', email: 'ttolbert@newagainhouses.com', rowBg: '#fff' },
+      { name: 'Ken Tolbert', sub: '(423) 558-0080', role: 'owner', roleBg: '#eef2f8', roleFg: '#5a6b88', phone: '+14235580080', email: 'ktolbert@newagainhouses.com', rowBg: '#fff' },
+    ];
+    return {
+      tabs, railSections, stakeholders,
+      showEcosystem: s.tab === 'Ecosystem',
+      showPerformance: s.tab === 'Performance',
+      showData: s.tab === 'Data',
+      showTEOS: s.tab === 'EOS',
+      showStub: false, stubLabel: s.tab,
+      perfRanges: ['Last Month', 'Last 3 Months', 'Last 12 Months', 'YTD', 'All Time'].map(name => ({
+        name, select: () => this.setState({ perfRange: name }),
+        bg: (s.perfRange || 'YTD') === name ? '#1e88e5' : '#eef2f8',
+        fg: (s.perfRange || 'YTD') === name ? '#fff' : '#5a6b88',
+      })),
+      perfCards: [
+        { icon: '↗', label: 'Leads Entered', value: '319', sub: 'hit Stage 1', color: '#26324b' },
+        { icon: '◎', label: 'Lead Progression', value: '32%', sub: 'reached Stage 4', color: '#26324b' },
+        { icon: '🕐', label: 'Lead → Purchase', value: '41', sub: 'avg days', color: '#26324b' },
+        { icon: '🏠', label: 'Active Inventory', value: '5', sub: 'in hand', color: '#26324b' },
+        { icon: '🔑', label: 'Purchased', value: '6', sub: 'YTD', color: '#26324b' },
+        { icon: '📦', label: 'Sold', value: '6', sub: 'YTD', color: '#26324b' },
+        { icon: '🕐', label: 'Cycle Time', value: '112', sub: 'purchase → sold, days', color: '#26324b' },
+        { icon: '💲', label: 'Avg Profit', value: '$22,497', sub: 'per flip', color: '#2e7d43' },
+        { icon: '💲', label: 'Total Profit', value: '$134,982', sub: 'YTD', color: '#2e7d43' },
+      ],
+      funnel: [
+        { label: 'Stage 1', sub: 'start', count: '319', pct: '100%', width: '100%', color: '#9ec3f2' },
+        { label: 'Stage 2', sub: '78% from prior', count: '249', pct: '78%', width: '78%', color: '#7ba9ec' },
+        { label: 'Stage 3', sub: '61% from prior', count: '152', pct: '48%', width: '48%', color: '#9a8fe8' },
+        { label: 'Stage 4', sub: '67% from prior', count: '102', pct: '32%', width: '32%', color: '#a97fe0' },
+        { label: 'Stage 5 Contract', sub: '9% from prior', count: '9', pct: '3%', width: '3%', color: '#c9b8ec' },
+        { label: 'Stage 6 Purchase', sub: '67% from prior', count: '6', pct: '2%', width: '2%', color: '#dccff4' },
+      ],
+      pipeComp: [
+        { stage: 'Stage 1', thisV: '319', median: '0', target: '210' },
+        { stage: 'Stage 2', thisV: '249', median: '0', target: '—' },
+        { stage: 'Stage 3', thisV: '152', median: '0', target: '—' },
+        { stage: 'Stage 4', thisV: '102', median: '0', target: '70' },
+        { stage: 'Stage 5 Contract', thisV: '9', median: '0', target: '7' },
+        { stage: 'Stage 6 Purchase', thisV: '6', median: '0', target: '7' },
+      ],
+      offers: [
+        { addr: '1408 Dodds Ave, Chattanooga, TN', badge: 'Purchased', badgeBg: '#dcf3ea', badgeFg: '#1e8f65', src: 'Direct Seller', type: 'Direct Seller', when: 'Stage 4 Jun 24, 26' },
+        { addr: '2007 Elk Avenue, Chattanooga, TN', badge: '0 No Deal', badgeBg: '#e3f0fc', badgeFg: '#1e88e5', src: 'Referral Partners', type: 'Wholesaler', when: 'Stage 4 Jun 16, 26' },
+        { addr: '864 41st Street, Chattanooga, TN', badge: 'Stage 4', badgeBg: '#e3f0fc', badgeFg: '#1e88e5', src: 'Listed', type: 'Agent Listed', when: 'Stage 4 Jun 2, 26' },
+      ],
+      dataSections: [
+        { name: 'Owner & Contact', icon: '👤', filled: '', rows: [{ label: 'Owner', value: 'Ken Tolbert' }, { label: 'Phone', value: '+14235580080' }, { label: 'Email', value: 'ktolbert@newagainhouses.com' }] },
+        { name: 'Address', icon: '📍', filled: '', rows: [{ label: 'Market', value: 'Chattanooga, TN' }, { label: 'Zips', value: '37402, 37404, 37405, 37411' }] },
+        { name: 'Business', icon: '💼', filled: '', rows: [{ label: 'Entity', value: 'Tolbert Homes, LLC' }, { label: 'EIN', value: '—' }] },
+        { name: 'Key Dates', icon: '📅', filled: '', rows: [{ label: 'Awarded', value: '2/5/2021' }, { label: 'Launched', value: '5/1/2021' }, { label: 'Renewal', value: '—' }] },
+        { name: 'Marketing', icon: '📣', filled: '', rows: [{ label: 'Primary channels', value: 'Speed to Lead, Digital Storefront' }, { label: 'Monthly budget', value: '$1,137' }] },
+        { name: 'Compliance & Accounts', icon: '🛡', filled: '', rows: [{ label: 'Compliance score', value: '100%' }, { label: 'Insurance on file', value: 'Yes' }] },
+        { name: 'Territory Overview', icon: '📍', filled: '10/12 filled', rows: [{ label: 'Population', value: '182,000' }, { label: 'Median income', value: '$54,300' }, { label: 'Territory grade', value: 'B+' }] },
+        { name: 'Demographics', icon: '👥', filled: '4/15 filled', rows: [{ label: 'Median age', value: '38' }, { label: 'Owner-occupied', value: '58%' }, { label: 'Renters', value: '—' }] },
+        { name: 'Population Trends', icon: '↗', filled: '1/10 filled', rows: [{ label: '5-yr growth', value: '+4.2%' }, { label: 'Net migration', value: '—' }] },
+        { name: 'Housing', icon: '🏠', filled: '1/16 filled', rows: [{ label: 'Median home value', value: '$248,000' }, { label: 'Housing stock age', value: '—' }] },
+        { name: 'Real Estate Market', icon: '📊', filled: '0/16 filled', rows: [{ label: 'Days on market', value: '—' }, { label: 'Inventory months', value: '—' }] },
+      ].map(sec => ({
+        ...sec, open: !!s.dataOpen && !!s.dataOpen[sec.name],
+        chev: s.dataOpen && s.dataOpen[sec.name] ? '▾' : '▸',
+        headBg: s.dataOpen && s.dataOpen[sec.name] ? '#f6f8fc' : '#fff',
+        rows: sec.rows.map(r => ({ ...r, color: r.value === '—' ? '#98a6bf' : '#26324b' })),
+        toggle: () => this.setState(prev => ({ dataOpen: { ...(prev.dataOpen || {}), [sec.name]: !(prev.dataOpen || {})[sec.name] } })),
+      })),
+      eosGoalRows: [
+        { label: 'Gross Profit', actual: '$134,982', year: '$150,000', y5: '0', y25: '0' },
+        { label: 'Houses Purchased', actual: '6', year: '8', y5: '—', y25: '—' },
+        { label: 'Quality of Life', actual: '—', year: '2026 Chattanooga — 2 purchased per Qtr; $25K GP per quarter', y5: '—', y25: '—' },
+      ],
+      eosScore: [
+        { metric: 'T3 Leads Entered', goal: '60', actual: '81' },
+        { metric: 'T3 S1 to S4 %', goal: '0%', actual: '32%' },
+        { metric: 'T3 Purchased', goal: '2', actual: '2' },
+        { metric: 'T3 AVG Inventory', goal: '2', actual: '5' },
+        { metric: 'T12 Median Cycle Days', goal: '180', actual: '112' },
+        { metric: 'T3 Gross Profit', goal: '$50,000', actual: '$44,994' },
+        { metric: 'T3 Compliance Score', goal: '100%', actual: '100%' },
+      ],
+      eosSpend: [
+        { label: 'Speed to Lead', value: '$498.00' }, { label: 'Email', value: '$40.00' },
+        { label: 'Digital Storefront', value: '$599.00' }, { label: 'Lead Manager', value: '$0.00' },
+        { label: 'Direct Mail', value: '$0.00' },
+      ],
+      eosChannels: [
+        { name: 'Prospect Now', group: 'list' }, { name: 'Vacants', group: 'list' }, { name: 'High Equity', group: 'list' },
+        { name: 'Probates', group: 'list', on: true }, { name: 'Divorces', group: 'list', on: true }, { name: 'Birddogs', group: 'list' },
+        { name: 'Agent Listed', group: 'list', on: true }, { name: 'Foreclosures', group: 'list' },
+        { name: 'Wholesalers', group: 'ref', on: true }, { name: 'Agents', group: 'ref', on: true }, { name: 'Industry Network', group: 'ref' },
+        { name: 'Facebook Ads', group: 'paid' }, { name: 'Google Ads', group: 'paid' }, { name: 'Google Retargeting', group: 'paid' },
+        { name: 'Organic Search', group: 'list' }, { name: 'Google Business', group: 'list' },
+        { name: 'Facebook', group: 'ref' }, { name: 'Instagram', group: 'ref' }, { name: 'YouTube', group: 'ref' }, { name: 'Other Social Media', group: 'ref' },
+      ].map(c => ({
+        name: c.name, on: !!c.on,
+        bg: c.group === 'paid' ? '#8c2f4b' : c.group === 'ref' ? '#f0e3b2' : '#eddce2',
+        fg: c.group === 'paid' ? '#fff' : '#5a4a52',
+      })),
+      eosHabits: ['Daily Tasks', 'Weekly Contractor Meeting', 'Bi-weekly Agent Meeting', 'Weekly Accounting'].map((name, i) => ({
+        name,
+        grades: ['A', 'B', 'C', 'D', 'F'].map(g => {
+          const sel = (i === 1 ? 'B' : 'A') === g;
+          return { g, bg: sel ? (g === 'A' ? '#43a55c' : '#9fe0b3') : '#f1f4f9', fg: sel ? (g === 'A' ? '#fff' : '#1e6b35') : '#98a6bf' };
+        }),
+      })),
+      eosRocks: [
+        { status: 'On Track', text: '2 Projects (Flips) by end of Q3', bg: '#e5f3e8', fg: '#2e7d43' },
+        { status: 'On Track', text: 'Full marketing campaign by September', bg: '#e5f3e8', fg: '#2e7d43' },
+        { status: 'On Track', text: 'Hire Lead Manager August', bg: '#e5f3e8', fg: '#2e7d43' },
+        { status: 'Not Done', text: 'T3 Leads Entered to 90 by September', bg: '#eef2f8', fg: '#5a6b88' },
+      ],
+      eosIssues: ['Zip expansion request', 'Marketing hold', 'Building the lead list this quarter'],
+      eosTodos: [
+        { text: 'Bird dog new properties', done: true, deco: 'line-through' },
+        { text: 'Google Business Page', done: false, deco: 'none' },
+        { text: 'Facebook Business Page', done: true, deco: 'line-through' },
+        { text: 'Continue finding leads through referral partners and website', done: false, deco: 'none' },
+        { text: 'Initiate postcard campaign for mailing launch September', done: false, deco: 'none' },
+      ],
+      agentBg: s.agentOn ? '#6b46c1' : '#c9c2dd',
+      agentKnob: s.agentOn ? '18px' : '2px',
+      agentStatus: s.agentOn ? 'Running — pauses on reply.' : 'Paused — no outreach will send.',
+      agentToggle: () => this.setState(prev => ({ agentOn: !prev.agentOn })),
+      agentSteps: [
+        { when: 'Wed, Jul 22 · 9:00 AM', channel: 'EMAIL', status: 'queued', dot: '#6b46c1', text: 'Ken — scheduling the Q3 territory review. Does Tuesday morning work?' },
+        { when: 'Mon, Jul 27 · 10:30 AM', channel: 'TEXT', status: 'queued', dot: '#b3a3dd', text: 'Quick nudge on the Q3 review — happy to work around your closings.' },
+      ],
+      dealContacts: [
+        { name: 'Ken', initials: 'KT' }, { name: 'Chandler', initials: 'CT' }, { name: 'Tara', initials: 'TT' },
+      ].map((c, i) => ({
+        ...c, select: () => this.setState({ dealContact: i }),
+        bg: s.dealContact === i ? '#efeafb' : '#fff',
+        border: s.dealContact === i ? '#c9b8ec' : '#e4eaf4',
+      })),
+    };
+  }
+}
+</script>
+</body>
+</html>

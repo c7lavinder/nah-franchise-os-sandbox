@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#eef1f6;font-family:'Nunito Sans',sans-serif;color:#26324b;}
+a{color:#1e88e5;text-decoration:none;} a:hover{color:#1565c0;text-decoration:underline;}
+*{box-sizing:border-box;}
+::-webkit-scrollbar{width:8px;} ::-webkit-scrollbar-thumb{background:#c4cddc;border-radius:4px;}
+@keyframes chironPulse{0%,100%{opacity:1}50%{opacity:.55}}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column;">
+  <!-- Header: single white line -->
+  <div style="background:#fff;border-bottom:1px solid #dde4ef;height:44px;flex-shrink:0;"></div>
+
+  <!-- Row 0: title / chiron / actions -->
+  <div style="display:flex;gap:12px;padding:12px 16px 0 16px;align-items:stretch;">
+    <!-- 0A title -->
+    <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;padding:10px 14px;min-width:290px;box-shadow:0 1px 2px rgba(27,42,74,.06);">
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span style="background:#1e88e5;color:#fff;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:10px;">ONBOARDING</span>
+        <span style="background:#e5f3e8;color:#2e7d43;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:10px;">ACTIVE</span>
+        <span style="font-size:11px;color:#8494ad;font-weight:600;">Journey · since 5/5/2020</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <span style="font-size:16px;color:#8494ad;cursor:pointer;">←</span>
+        <span style="font-size:17px;font-weight:900;">Ryan Decker + Shannon Smylie</span>
+      </div>
+    </div>
+    <!-- 0B chiron -->
+    <div style="flex:1;min-width:0;background:#fff;border:1px solid #dde4ef;border-radius:8px;display:flex;align-items:center;gap:12px;padding:0 16px;box-shadow:0 1px 2px rgba(27,42,74,.06);">
+    </div>
+    <!-- 0C actions -->
+    <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;display:flex;align-items:center;gap:6px;padding:0 12px;box-shadow:0 1px 2px rgba(27,42,74,.06);">
+      <button style="background:#fdf3e3;color:#c07f16;border:none;border-radius:6px;font-family:'Nunito Sans',sans-serif;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer;white-space:nowrap;">Merge</button>
+      <button style="background:#fdecec;color:#d64545;border:none;border-radius:6px;font-family:'Nunito Sans',sans-serif;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer;white-space:nowrap;">🗑 Delete Journey</button>
+    </div>
+  </div>
+
+  <!-- Main grid -->
+  <div style="display:flex;gap:12px;padding:12px 16px 20px 16px;align-items:flex-start;flex:1;">
+    <!-- LEFT column: Panel 1 + Panel 2 -->
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:12px;">
+      <!-- Panel 1: journey hero -->
+      <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);padding:14px 18px;">
+        <div style="display:flex;gap:8px;">
+          <sc-for list="{{ tracks }}" as="tr" hint-placeholder-count="3">
+            <button onClick="{{ tr.select }}" style="border:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;font-size:12.5px;font-weight:800;padding:6px 14px;border-radius:15px;background: {{ tr.bg }};color: {{ tr.fg }};">{{ tr.name }}</button>
+          </sc-for>
+        </div>
+        <!-- pipeline: property-page stage tabs -->
+        <div style="display:flex;gap:10px;margin-top:16px;align-items:stretch;">
+          <sc-for list="{{ stages }}" as="st" hint-placeholder-count="4">
+            <button onClick="{{ st.select }}" style="flex:1;border:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;border-radius:8px;padding:12px 8px 10px 8px;background: {{ st.tabBg }};color: {{ st.tabFg }};box-shadow: {{ st.glow }};display:flex;flex-direction:column;align-items:center;gap:2px;">
+              <span style="font-size:14px;font-weight:800;white-space:nowrap;">{{ st.name }}</span>
+              <span style="font-size:9.5px;font-weight:800;letter-spacing:.8px;opacity:.75;">{{ st.date }}</span>
+            </button>
+          </sc-for>
+          <div style="position:relative;flex-shrink:0;">
+            <button onClick="{{ otherToggle }}" style="height:100%;border:1px solid #dde4ef;background:#fff;color:#5a6b88;border-radius:8px;font-family:'Nunito Sans',sans-serif;font-size:13px;font-weight:800;padding:0 16px;cursor:pointer;">Other ▾</button>
+            <sc-if value="{{ otherOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid #dde4ef;border-radius:8px;box-shadow:0 8px 22px rgba(27,42,74,.16);z-index:20;min-width:150px;overflow:hidden;">
+                <button onClick="{{ pickFollowup }}" style="display:block;width:100%;text-align:left;border:none;background:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;font-size:12.5px;font-weight:800;color:#5a6b88;padding:10px 14px;" style-hover="background:#f1f4f9;">↘ Follow-up</button>
+                <button onClick="{{ pickNurture }}" style="display:block;width:100%;text-align:left;border:none;background:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;font-size:12.5px;font-weight:800;color:#5a6b88;padding:10px 14px;" style-hover="background:#f1f4f9;">↘ Nurture</button>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+        <!-- journey brief -->
+        <div style="margin-top:14px;border-top:1px solid #e8edf5;padding-top:12px;display:flex;gap:14px;">
+          <div style="flex:1;">
+            <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">JOURNEY BRIEF</div>
+            <div style="font-size:13px;color:#3e4d69;line-height:1.55;margin-top:4px;">Ryan and Shannon completed onboarding across all four checkpoints and now operate Murfreesboro TN with Clarksville TN in reserve. Royalty pacing is ahead of the $500k goal. Coaching cadence is the gap: one graded call on record, none this month.</div>
+          </div>
+          <div style="width:190px;flex-shrink:0;background:#f6f8fc;border:1px solid #e4eaf4;border-radius:6px;padding:10px 12px;">
+            <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">TERRITORIES</div>
+            <div style="margin-top:6px;display:flex;flex-direction:column;gap:6px;">
+              <a href="Territory.dc.html" style="font-size:12.5px;font-weight:800;">Murfreesboro TN <span style="color:#2e7d43;font-weight:700;font-size:10.5px;">· active</span></a>
+              <a href="Territory.dc.html" style="font-size:12.5px;font-weight:800;color:#5a6b88;">Clarksville TN <span style="color:#98a6bf;font-weight:700;font-size:10.5px;">· reserved</span></a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 2: tabs -->
+      <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);">
+        <div style="display:flex;gap:2px;border-bottom:1px solid #e8edf5;padding:0 12px;">
+          <sc-for list="{{ tabs }}" as="tab" hint-placeholder-count="6">
+            <button onClick="{{ tab.select }}" style="border:none;background:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;font-size:13px;font-weight:800;padding:12px 14px;color: {{ tab.color }};border-bottom: {{ tab.border }};margin-bottom:-1px;">{{ tab.name }}</button>
+          </sc-for>
+        </div>
+        <sc-if value="{{ showOverview }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px;">
+            <!-- Contacts -->
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="display:flex;align-items:center;">
+                <span style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#8494ad;">CONTACTS (2)</span>
+                <a href="#" style="margin-left:auto;font-size:12px;font-weight:800;">+ Add</a>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+                <div style="display:flex;gap:10px;align-items:center;">
+                  <span style="width:32px;height:32px;border-radius:50%;background:#e3f0fc;color:#1e88e5;font-size:11.5px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">RD</span>
+                  <div>
+                    <div style="display:flex;gap:6px;align-items:center;"><a href="Contact.dc.html" style="font-size:13px;font-weight:800;">Ryan Decker</a><span style="background:#eef2f8;color:#5a6b88;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px;">Franchisee</span></div>
+                    <div style="font-size:11.5px;color:#8494ad;font-weight:600;">rdecker@newagainhouses.com · (586) 405-4987</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;">
+                  <span style="width:32px;height:32px;border-radius:50%;background:#e3f0fc;color:#1e88e5;font-size:11.5px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">SS</span>
+                  <div>
+                    <div style="display:flex;gap:6px;align-items:center;"><a href="Contact.dc.html" style="font-size:13px;font-weight:800;">Shannon Smylie</a><span style="background:#eef2f8;color:#5a6b88;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px;">Franchisee</span></div>
+                    <div style="font-size:11.5px;color:#8494ad;font-weight:600;">ssmylie@newagainhouses.com · (629) 230-7886</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Team -->
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="display:flex;align-items:center;">
+                <span style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#8494ad;">TEAM (1)</span>
+                <a href="#" style="margin-left:auto;font-size:12px;font-weight:800;">+ Add</a>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
+                <span style="width:32px;height:32px;border-radius:50%;background:#fdf3e3;color:#c07f16;font-size:11.5px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;">CA</span>
+                <div style="font-size:13px;font-weight:800;">Chad Arnold</div>
+                <span style="margin-left:auto;background:#eef2f8;color:#5a6b88;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px;">OPERATOR</span>
+              </div>
+              <div style="margin-top:14px;border-top:1px solid #edf1f7;padding-top:10px;">
+                <span style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#8494ad;">GRADED CALLS (1)</span>
+                <div style="display:flex;gap:8px;align-items:baseline;margin-top:8px;">
+                  <a href="#" style="font-size:13px;font-weight:800;">Coaching Call</a>
+                  <span style="font-size:11.5px;color:#8494ad;font-weight:600;">Chad Arnold · 35m</span>
+                  <span style="margin-left:auto;background:#e5f3e8;color:#2e7d43;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px;">GRADED</span>
+                </div>
+              </div>
+            </div>
+            <!-- Territory ownership -->
+            <div style="grid-column:1 / -1;border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#8494ad;">TERRITORY OWNERSHIP</span>
+                <div style="margin-left:auto;display:flex;gap:10px;font-size:13px;color:#8494ad;"><a href="#" title="Add">＋</a><a href="#" title="Transfer">⇄</a><a href="#" title="Revoke">⊘</a></div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:10px;">
+                <sc-for list="{{ terrTabs }}" as="tt" hint-placeholder-count="2">
+                  <button onClick="{{ tt.select }}" style="border:1px solid {{ tt.borderColor }};background: {{ tt.bg }};color: {{ tt.fg }};border-radius:6px;font-family:'Nunito Sans',sans-serif;font-size:12px;font-weight:800;padding:6px 12px;cursor:pointer;">{{ tt.name }}</button>
+                </sc-for>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:12px;">
+                <div>
+                  <a href="Territory.dc.html" style="font-size:14px;font-weight:900;">{{ activeTerr.name }}</a>
+                  <div style="font-size:11.5px;color:#8494ad;font-weight:600;">{{ activeTerr.sub }}</div>
+                </div>
+                <span style="margin-left:auto;background: {{ activeTerr.badgeBg }};color: {{ activeTerr.badgeFg }};font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:10px;">{{ activeTerr.badge }}</span>
+              </div>
+              <div style="font-size:11px;color:#98a6bf;font-weight:600;margin-top:8px;">↑ Pipeline above is scoped to this territory</div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showProfile }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px;display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;gap:4px;border-bottom:1px solid #e8edf5;padding-bottom:10px;">
+              <sc-for list="{{ profContacts }}" as="pc" hint-placeholder-count="2">
+                <button onClick="{{ pc.select }}" style="border:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;font-size:13px;font-weight:800;padding:6px 12px;border-radius:6px;color: {{ pc.fg }};background: {{ pc.bg }};">{{ pc.name }} <span style="font-size:10.5px;font-weight:700;color:#98a6bf;">{{ pc.role }}</span></button>
+              </sc-for>
+              <div style="margin-left:auto;display:flex;gap:8px;">
+                <button style="background:#e3f0fc;color:#1e88e5;border:none;border-radius:6px;font-family:'Nunito Sans',sans-serif;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer;">👤＋ Add contact</button>
+                <button style="background:#fdecec;color:#d64545;border:none;border-radius:6px;font-family:'Nunito Sans',sans-serif;font-size:12px;font-weight:800;padding:7px 12px;cursor:pointer;">⑂ Split Journey</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;">
+              <div style="flex:1.7;border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+                <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">FRANCHISEE INFORMATION</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;margin-top:10px;">
+                  <sc-for list="{{ profInfo }}" as="fi" hint-placeholder-count="6">
+                    <div>
+                      <div style="font-size:10.5px;font-weight:700;color:#98a6bf;">{{ fi.label }}</div>
+                      <div style="font-size:13px;font-weight:800;color:#26324b;margin-top:2px;">{{ fi.value }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="border-top:1px solid #edf1f7;margin-top:12px;padding-top:10px;">
+                  <div style="display:flex;align-items:center;"><span style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">✉ EMAIL (2)</span><a href="#" style="margin-left:auto;font-size:11.5px;font-weight:800;">＋ Add</a></div>
+                  <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;font-size:12.5px;font-weight:700;color:#3e4d69;">
+                    <span>★ {{ profEmail1 }}</span>
+                    <span style="color:#8494ad;">☆ {{ profEmail2 }}</span>
+                  </div>
+                </div>
+              </div>
+              <div style="flex:1;border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                <div style="font-size:34px;font-weight:900;color:#1e88e5;line-height:1;">{{ prospectScore }}</div>
+                <div style="font-size:11.5px;color:#8494ad;font-weight:700;margin-top:4px;">Prospect Score</div>
+              </div>
+            </div>
+            <sc-for list="{{ profSections }}" as="ps" hint-placeholder-count="6">
+              <div style="border:1px solid #e4eaf4;border-radius:6px;overflow:hidden;">
+                <button onClick="{{ ps.toggle }}" style="width:100%;display:flex;align-items:center;gap:10px;background: {{ ps.headBg }};border:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;padding:12px 14px;">
+                  <span style="color:#98a6bf;font-size:11px;">{{ ps.chev }}</span>
+                  <span style="font-size:14px;">{{ ps.icon }}</span>
+                  <span style="font-size:13px;font-weight:900;color:#26324b;">{{ ps.name }}</span>
+                  <span style="margin-left:auto;font-size:11.5px;color:#8494ad;font-weight:700;">{{ ps.filled }} filled</span>
+                </button>
+                <sc-if value="{{ ps.open }}" hint-placeholder-val="{{ false }}">
+                  <div>
+                    <sc-for list="{{ ps.rows }}" as="pr" hint-placeholder-count="3">
+                      <div style="display:grid;grid-template-columns:220px 1fr auto;gap:10px;padding:10px 14px;border-top:1px solid #edf1f7;align-items:center;">
+                        <span style="font-size:12.5px;font-weight:700;color:#5a6b88;">{{ pr.label }}</span>
+                        <span style="font-size:12.5px;font-weight:700;color: {{ pr.color }};">{{ pr.value }}</span>
+                        <span style="display:flex;gap:8px;align-items:center;">
+                          <sc-if value="{{ pr.tag }}" hint-placeholder-val="{{ false }}"><span style="background:#fdf3e3;color:#c07f16;font-size:10px;font-weight:800;padding:2px 8px;border-radius:9px;">{{ pr.tag }}</span></sc-if>
+                          <span style="color:#98a6bf;font-size:12px;cursor:pointer;">✎</span>
+                        </span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showTerritoriesTab }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px;display:flex;flex-direction:column;gap:12px;">
+            <sc-for list="{{ terrPanels }}" as="tp" hint-placeholder-count="2">
+              <div style="border:1px solid #e4eaf4;border-radius:6px;overflow:hidden;">
+                <button onClick="{{ tp.toggle }}" style="width:100%;display:flex;align-items:center;gap:10px;background:#fff;border:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;padding:12px 14px;">
+                  <span style="color:#98a6bf;font-size:11px;">{{ tp.chev }}</span>
+                  <span style="font-size:13px;font-weight:900;color:#1e88e5;">📍 {{ tp.name }}</span>
+                  <span style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#b9c4d6;">{{ tp.code }}</span>
+                  <span style="margin-left:auto;background: {{ tp.badgeBg }};color: {{ tp.badgeFg }};font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:10px;">{{ tp.badge }}</span>
+                </button>
+                <sc-if value="{{ tp.open }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:0 14px 14px 14px;display:flex;flex-direction:column;gap:12px;">
+                    <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+                      <div style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#8494ad;">⚡ OPERATIONS — YTD</div>
+                      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;">
+                        <sc-for list="{{ tp.ops }}" as="op" hint-placeholder-count="4">
+                          <div style="background:#f6f8fc;border:1px solid #e4eaf4;border-radius:6px;padding:8px 10px;">
+                            <div style="font-size:9.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">{{ op.label }}</div>
+                            <div style="font-size:16px;font-weight:900;margin-top:2px;color: {{ op.color }};">{{ op.value }}</div>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                    <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+                      <div style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#8494ad;">🏅 QUARTERLY GRADES</div>
+                      <div style="font-size:12.5px;color:#98a6bf;font-weight:700;text-align:center;padding:16px 0;">No grades recorded yet.</div>
+                    </div>
+                    <div style="border:1px solid #e4eaf4;border-radius:6px;padding:18px;display:flex;flex-direction:column;align-items:center;">
+                      <span style="width:50px;height:50px;border-radius:50%;background:#e3f0fc;border:2px solid #1e88e5;color:#1e88e5;font-size:15px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;">{{ tp.ownerInitials }}</span>
+                      <div style="font-size:13px;font-weight:900;margin-top:6px;">{{ tp.owner }}</div>
+                      <div style="font-size:10px;font-weight:800;letter-spacing:.8px;color:#1e88e5;">OWNER</div>
+                      <a href="Contact.dc.html" style="font-size:11.5px;font-weight:700;">View profile</a>
+                    </div>
+                    <div style="border:1px solid #e4eaf4;border-radius:6px;overflow:hidden;">
+                      <div style="display:grid;grid-template-columns:2fr 1fr 1.2fr 1.6fr;background:#f6f8fc;padding:9px 14px;font-size:10.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">
+                        <span>NAME / COMPANY</span><span>ROLE</span><span>PHONE</span><span>EMAIL</span>
+                      </div>
+                      <div style="display:grid;grid-template-columns:2fr 1fr 1.2fr 1.6fr;align-items:center;padding:10px 14px;border-top:1px solid #edf1f7;">
+                        <div><span style="font-size:13px;font-weight:800;">{{ tp.owner }}</span><div style="font-size:11px;color:#98a6bf;font-weight:600;font-style:italic;">{{ tp.ownerCo }}</div></div>
+                        <span><span style="background:#eef2f8;color:#5a6b88;font-size:10px;font-weight:800;padding:2px 8px;border-radius:9px;">owner</span></span>
+                        <span style="font-size:12px;font-weight:700;color:#5a6b88;">{{ tp.ownerPhone }}</span>
+                        <span style="font-size:12px;font-weight:700;color:#5a6b88;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ tp.ownerEmail }}</span>
+                      </div>
+                      <div style="padding:10px 14px;border-top:1px solid #edf1f7;"><a href="#" style="font-size:12.5px;font-weight:800;">＋ Add stakeholder</a></div>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showEOS }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px;display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:baseline;gap:8px;">
+              <span style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#8494ad;">PERSONAL EOS</span>
+              <span style="font-size:11px;color:#98a6bf;font-weight:600;">— goals &amp; issues that follow the person</span>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:13px;font-weight:900;">Goals</div>
+              <sc-for list="{{ eosGoals }}" as="g" hint-placeholder-count="3">
+                <div style="margin-top:10px;">
+                  <div style="font-size:12px;font-weight:800;color:#5a6b88;">{{ g.label }}</div>
+                  <textarea placeholder="{{ g.ph }}" style="width:100%;margin-top:5px;border:1px solid #e4eaf4;border-radius:6px;background:#fbfcfe;font-family:'Nunito Sans',sans-serif;font-size:12.5px;font-weight:600;color:#26324b;padding:9px 11px;resize:vertical;min-height:44px;outline:none;"></textarea>
+                </div>
+              </sc-for>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:13px;font-weight:900;">Issues</div>
+              <input placeholder="Add an issue…" style="width:100%;margin-top:8px;border:1px solid #e4eaf4;border-radius:6px;background:#fbfcfe;font-family:'Nunito Sans',sans-serif;font-size:12.5px;font-weight:600;color:#26324b;padding:9px 11px;outline:none;">
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:13px;font-weight:900;">To-Dos</div>
+              <input placeholder="Add a to-do…" style="width:100%;margin-top:8px;border:1px solid #e4eaf4;border-radius:6px;background:#fbfcfe;font-family:'Nunito Sans',sans-serif;font-size:12.5px;font-weight:600;color:#26324b;padding:9px 11px;outline:none;">
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:13px;font-weight:900;">Habits</div>
+              <div style="font-size:12px;color:#98a6bf;font-weight:700;margin-top:4px;">No habits yet. Add recurring practices that follow this person.</div>
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <input placeholder="Add a habit…" style="flex:1;border:1px solid #e4eaf4;border-radius:6px;background:#fbfcfe;font-family:'Nunito Sans',sans-serif;font-size:12.5px;font-weight:600;color:#26324b;padding:9px 11px;outline:none;">
+                <select style="border:1px solid #e4eaf4;border-radius:6px;font-family:'Nunito Sans',sans-serif;font-size:12.5px;font-weight:700;color:#26324b;padding:0 10px;background:#fff;"><option>Weekly</option><option>Daily</option><option>Monthly</option></select>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+              <span style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#8494ad;">TERRITORY EOS</span>
+              <span style="font-size:11px;color:#98a6bf;font-weight:600;">— operational: rocks, scorecard, marketing spend, etc.</span>
+              <div style="margin-left:auto;display:flex;gap:6px;">
+                <sc-for list="{{ eosTerrTabs }}" as="et" hint-placeholder-count="2">
+                  <button onClick="{{ et.select }}" style="border:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;font-size:12px;font-weight:800;padding:6px 14px;border-radius:15px;background: {{ et.bg }};color: {{ et.fg }};">{{ et.name }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;overflow:hidden;">
+              <div style="padding:12px 14px 4px 14px;font-size:13px;font-weight:900;">Goals</div>
+              <div style="display:grid;grid-template-columns:1.4fr 1fr 2.4fr .6fr .6fr;padding:6px 14px;font-size:10.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">
+                <span></span><span>ACTUAL</span><span>CURRENT YEAR</span><span>YEAR 5</span><span>YEAR 25</span>
+              </div>
+              <sc-for list="{{ eosGoalRows }}" as="gr" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:1.4fr 1fr 2.4fr .6fr .6fr;padding:10px 14px;border-top:1px solid #edf1f7;align-items:center;">
+                  <span style="font-size:12.5px;font-weight:800;color:#26324b;">{{ gr.label }}</span>
+                  <span style="font-size:12.5px;font-weight:700;color:#5a6b88;">{{ gr.actual }}</span>
+                  <span style="font-size:12px;font-weight:700;color:#5a6b88;line-height:1.4;">{{ gr.year }}</span>
+                  <span style="font-size:12.5px;font-weight:700;color:#5a6b88;">{{ gr.y5 }}</span>
+                  <span style="font-size:12.5px;font-weight:700;color:#5a6b88;">{{ gr.y25 }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;overflow:hidden;">
+              <div style="padding:12px 14px 4px 14px;font-size:13px;font-weight:900;">Scorecard</div>
+              <div style="display:grid;grid-template-columns:2fr 1fr 1fr;padding:6px 14px;font-size:10.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">
+                <span>METRIC</span><span>GOAL</span><span>ACTUAL</span>
+              </div>
+              <sc-for list="{{ eosScore }}" as="sr" hint-placeholder-count="7">
+                <div style="display:grid;grid-template-columns:2fr 1fr 1fr;padding:9px 14px;border-top:1px solid #edf1f7;">
+                  <span style="font-size:12.5px;font-weight:700;color:#5a6b88;">{{ sr.metric }}</span>
+                  <span style="font-size:12.5px;font-weight:700;color:#8494ad;">{{ sr.goal }}</span>
+                  <span style="font-size:12.5px;font-weight:900;color:#26324b;">{{ sr.actual }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:13px;font-weight:900;">Monthly Spend</div>
+              <div style="margin-top:6px;">
+                <sc-for list="{{ eosSpend }}" as="sp" hint-placeholder-count="5">
+                  <div style="display:flex;padding:8px 0;border-bottom:1px solid #edf1f7;">
+                    <span style="font-size:12.5px;font-weight:700;color:#5a6b88;">{{ sp.label }}</span>
+                    <span style="margin-left:auto;font-size:12.5px;font-weight:800;color:#26324b;">{{ sp.value }}</span>
+                  </div>
+                </sc-for>
+                <div style="display:flex;padding:10px 0 2px 0;">
+                  <span style="font-size:12.5px;font-weight:900;color:#1e88e5;">Total</span>
+                  <span style="margin-left:auto;font-size:12.5px;font-weight:900;">{{ eosSpendTotal }}</span>
+                </div>
+              </div>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:13px;font-weight:900;">Lead Generation Channels</div>
+              <div style="display:flex;gap:4px;margin-top:10px;overflow-x:auto;padding-bottom:4px;">
+                <sc-for list="{{ eosChannels }}" as="ch" hint-placeholder-count="12">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;">
+                    <input type="checkbox" checked="{{ ch.on }}" style="accent-color:#1e88e5;">
+                    <div style="width:26px;height:170px;border-radius:4px;background: {{ ch.bg }};display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;">
+                      <span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:10px;font-weight:800;color: {{ ch.fg }};white-space:nowrap;">{{ ch.name }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:13px;font-weight:900;">Business Habits</div>
+              <sc-for list="{{ eosHabits }}" as="hb" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;padding:9px 0;border-bottom:1px solid #edf1f7;">
+                  <span style="font-size:12.5px;font-weight:700;color:#26324b;">{{ hb.name }}</span>
+                  <div style="margin-left:auto;display:flex;gap:5px;">
+                    <sc-for list="{{ hb.grades }}" as="gd" hint-placeholder-count="5">
+                      <span style="width:26px;height:26px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;background: {{ gd.bg }};color: {{ gd.fg }};">{{ gd.g }}</span>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+              <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+                <div style="font-size:13px;font-weight:900;">Rocks</div>
+                <sc-for list="{{ eosRocks }}" as="rk" hint-placeholder-count="4">
+                  <div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;">
+                    <span style="background: {{ rk.bg }};color: {{ rk.fg }};font-size:10px;font-weight:800;padding:2px 8px;border-radius:9px;flex-shrink:0;">{{ rk.status }}</span>
+                    <span style="font-size:12px;font-weight:700;color:#3e4d69;line-height:1.4;">{{ rk.text }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+                <div style="font-size:13px;font-weight:900;">Issues</div>
+                <sc-for list="{{ eosIssues }}" as="is" hint-placeholder-count="4">
+                  <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+                    <input type="checkbox" style="accent-color:#1e88e5;">
+                    <span style="font-size:12px;font-weight:700;color:#3e4d69;line-height:1.4;">{{ is }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="border:1px solid #e4eaf4;border-radius:6px;padding:12px 14px;">
+                <div style="font-size:13px;font-weight:900;">To-Dos</div>
+                <sc-for list="{{ eosTodos }}" as="td" hint-placeholder-count="5">
+                  <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+                    <input type="checkbox" checked="{{ td.done }}" style="accent-color:#43a55c;">
+                    <span style="font-size:12px;font-weight:700;color:#3e4d69;line-height:1.4;text-decoration: {{ td.deco }};">{{ td.text }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showStub }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:40px;text-align:center;color:#98a6bf;font-size:13px;font-weight:700;">{{ stubLabel }} tab — content ports over from the current page in the next pass.</div>
+        </sc-if>
+      </div>
+    </div>
+
+    <!-- RIGHT column: Panel 3 + Panel 4 -->
+    <div style="width:360px;flex-shrink:0;display:flex;flex-direction:column;gap:12px;">
+      <!-- Panel 3: revenue KPIs -->
+      <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);padding:12px 14px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#8494ad;">REVENUE</span>
+          <span style="background:#e5f3e8;color:#2e7d43;font-size:10px;font-weight:800;padding:1px 8px;border-radius:9px;">Ahead of pace</span>
+          <span style="margin-left:auto;font-size:12px;color:#5a6b88;font-weight:700;">Total <b style="color:#26324b;">$343,877</b></span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px;">
+          <div style="background:#f6f8fc;border:1px solid #e4eaf4;border-radius:6px;padding:8px 10px;">
+            <div style="font-size:9.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">FRANCHISE FEE</div>
+            <div style="font-size:16px;font-weight:900;color:#98a6bf;margin-top:2px;">—</div>
+          </div>
+          <div style="background:#f6f8fc;border:1px solid #e4eaf4;border-radius:6px;padding:8px 10px;">
+            <div style="font-size:9.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">ROYALTY PAID</div>
+            <div style="font-size:16px;font-weight:900;color:#2e7d43;margin-top:2px;">$343,877</div>
+          </div>
+          <div style="background:#f6f8fc;border:1px solid #e4eaf4;border-radius:6px;padding:8px 10px;">
+            <div style="font-size:9.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">DUE</div>
+            <div style="font-size:16px;font-weight:900;margin-top:2px;">$0</div>
+          </div>
+        </div>
+        <div style="display:flex;font-size:11px;color:#8494ad;font-weight:700;margin-top:10px;"><span>$343,877 of $500k goal</span><span style="margin-left:auto;">69%</span></div>
+        <div style="height:8px;border-radius:4px;background:#e8edf5;margin-top:4px;overflow:hidden;"><div style="width:69%;height:100%;background:#43a55c;border-radius:4px;"></div></div>
+      </div>
+
+      <!-- Panel 4: activity rail -->
+      <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);display:flex;flex-direction:column;overflow:hidden;">
+        <sc-for list="{{ railSections }}" as="sec" hint-placeholder-count="5">
+          <div style="border-bottom:1px solid #e8edf5;">
+            <button onClick="{{ sec.toggle }}" style="width:100%;display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;font-family:'Nunito Sans',sans-serif;padding:11px 14px;">
+              <span style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#5a6b88;">{{ sec.name }}</span>
+              <span style="background:#eef2f8;color:#5a6b88;font-size:10px;font-weight:800;padding:0 7px;border-radius:9px;">{{ sec.count }}</span>
+              <span style="margin-left:auto;color:#98a6bf;font-size:11px;">{{ sec.chev }}</span>
+            </button>
+            <sc-if value="{{ sec.open }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:0 14px 12px 14px;font-size:12.5px;color:#3e4d69;font-weight:600;line-height:1.5;">{{ sec.body }}</div>
+            </sc-if>
+          </div>
+        </sc-for>
+        <!-- contact selector -->
+        <div style="padding:14px;background:#fff;">
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">CONTACTS ON THIS JOURNEY</div>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <sc-for list="{{ dealContacts }}" as="dc" hint-placeholder-count="2">
+              <button onClick="{{ dc.select }}" style="border:1px solid {{ dc.border }};background: {{ dc.bg }};border-radius:8px;padding:8px 10px;cursor:pointer;font-family:'Nunito Sans',sans-serif;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:74px;">
+                <span style="width:28px;height:28px;border-radius:50%;background:#6b46c1;color:#fff;font-size:10.5px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;">{{ dc.initials }}</span>
+                <span style="font-size:11px;font-weight:800;color:#26324b;">{{ dc.name }}</span>
+              </button>
+            </sc-for>
+            <button style="border:1px dashed #dde4ef;background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer;font-family:'Nunito Sans',sans-serif;color:#98a6bf;font-size:11px;font-weight:800;min-width:60px;">＋<br>add</button>
+          </div>
+        </div>
+        <!-- purple workflow / booking agent feed -->
+        <div style="background:#f7f5fd;padding:14px;margin:0 10px 12px 10px;border-radius:8px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:7px;height:7px;border-radius:50%;background:#f0a12c;"></span>
+            <span style="font-size:12px;font-weight:900;color:#6b46c1;">Booking agent</span>
+            <span style="background:#fff;border:1px solid #e2dcf5;color:#8494ad;font-size:10px;font-weight:800;padding:1px 8px;border-radius:9px;">Emails + texts</span>
+            <span style="font-size:10.5px;color:#98a6bf;font-weight:700;">goal · 90-day check-in</span>
+            <button onClick="{{ agentToggle }}" style="margin-left:auto;width:34px;height:18px;border-radius:9px;border:none;cursor:pointer;position:relative;background: {{ agentBg }};"><span style="position:absolute;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s;left: {{ agentKnob }};"></span></button>
+          </div>
+          <div style="font-size:11px;color:#8f7fc4;font-weight:600;margin-top:4px;">{{ agentStatus }}</div>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:0;">
+            <sc-for list="{{ agentSteps }}" as="stp" hint-placeholder-count="4">
+              <div style="display:flex;gap:10px;">
+                <div style="display:flex;flex-direction:column;align-items:center;width:12px;flex-shrink:0;">
+                  <span style="width:9px;height:9px;border-radius:50%;margin-top:6px;background: {{ stp.dot }};border:2px solid #fff;box-shadow:0 0 0 1px #d8cff0;"></span>
+                  <span style="flex:1;width:2px;background:#e2dcf5;"></span>
+                </div>
+                <div style="flex:1;background:#fff;border:1px solid #e7e1f6;border-radius:7px;padding:8px 10px;margin-bottom:8px;">
+                  <div style="display:flex;gap:6px;align-items:center;font-size:10.5px;font-weight:800;">
+                    <span style="color:#26324b;">{{ stp.when }}</span>
+                    <span style="background:#efeafb;color:#6b46c1;padding:1px 7px;border-radius:8px;">{{ stp.channel }}</span>
+                    <span style="margin-left:auto;color:#98a6bf;">{{ stp.status }}</span>
+                  </div>
+                  <div style="font-size:11.5px;color:#3e4d69;font-weight:600;line-height:1.45;margin-top:4px;">{{ stp.text }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:10.5px;font-weight:800;color:#6b46c1;margin-top:2px;">If they reply →</div>
+          <div style="font-size:11px;color:#8f7fc4;font-weight:600;margin-top:3px;">Scout books the call on Chad's calendar and pauses the sequence.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- floating AI assistant button -->
+  <div style="position:fixed;bottom:22px;right:22px;z-index:50;display:flex;align-items:center;gap:10px;">
+    <div style="background:#fff;border:1px solid #dde4ef;border-radius:20px;box-shadow:0 4px 14px rgba(27,42,74,.14);padding:9px 16px;font-size:13px;font-weight:700;color:#8494ad;">Ask Scout anything…</div>
+    <button style="width:48px;height:48px;border-radius:50%;background:#1e88e5;color:#fff;border:none;cursor:pointer;font-size:19px;box-shadow:0 4px 14px rgba(30,136,229,.4);">✦</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;chironVariant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;bar&quot;,&quot;banner&quot;],&quot;default&quot;:&quot;bar&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;railWidth&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:360,&quot;min&quot;:300,&quot;max&quot;:440,&quot;step&quot;:10,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Layout&quot;}}">
+class Component extends DCLogic {
+  state = {
+    track: 'Onboarding', stage: 3, tab: 'Overview', terr: 0,
+    open: {},
+    scoutText: '', agentOn: true, otherOpen: false, dealContact: 0,
+    feed: [
+      { tag: 'STAGE', tagColor: '#1e88e5', when: 'Jul 14', text: 'Journey advanced to Onboarded — all launch prep items verified.' },
+      { tag: 'CALL', tagColor: '#c07f16', when: 'Jul 9', text: 'Coaching Call graded by Chad Arnold (35m) — strong close-out habits.' },
+      { tag: 'ROYALTY', tagColor: '#2e7d43', when: 'Jul 1', text: '$28,400 royalty payment posted. YTD $343,877 (69% of goal).' },
+      { tag: 'TERRITORY', tagColor: '#8455c9', when: 'Jun 20', text: 'Clarksville TN placed in reserve for expansion review.' },
+    ],
+  };
+  renderVals() {
+    const s = this.state;
+    const stageNames = [
+      { name: 'Setup', date: '5/12/20' }, { name: 'Training', date: '6/03/20' },
+      { name: 'Launch Prep', date: '6/28/20' }, { name: 'Onboarded', date: '7/14/20' },
+    ];
+    const stages = stageNames.map((st, i) => {
+      const done = i < s.stage, current = i === s.stage;
+      return {
+        name: st.name, date: done ? '✓ ' + st.date : current ? 'CURRENT' : 'UPCOMING',
+        tabBg: current ? '#1e88e5' : done ? '#dbeafc' : '#eef2f8',
+        tabFg: current ? '#fff' : done ? '#1e88e5' : '#98a6bf',
+        glow: current ? '0 2px 8px rgba(30,136,229,.35)' : 'none',
+        select: () => this.setState({ stage: i }),
+      };
+    });
+    const tracks = ['Onboarding', 'Path to Inventory', 'Territories'].map(name => ({
+      name, bg: s.track === name ? '#1e88e5' : '#eef2f8', fg: s.track === name ? '#fff' : '#5a6b88',
+      select: () => this.setState({ track: name }),
+    }));
+    const tabs = ['Overview', 'Messages', 'Profile', 'Documents', 'Territories', 'EOS'].map(name => ({
+      name, color: s.tab === name ? '#1e88e5' : '#5a6b88',
+      border: s.tab === name ? '2px solid #1e88e5' : '2px solid transparent',
+      select: () => this.setState({ tab: name }),
+    }));
+    const terrData = [
+      { name: 'Murfreesboro TN', sub: 'Current owner since 5/5/2020', badge: 'active', badgeBg: '#e5f3e8', badgeFg: '#2e7d43' },
+      { name: 'Clarksville TN', sub: 'Reserved for expansion — no launch date set', badge: 'reserved', badgeBg: '#eef2f8', badgeFg: '#5a6b88' },
+    ];
+    const terrTabs = terrData.map((t, i) => ({
+      name: t.name, select: () => this.setState({ terr: i }),
+      bg: s.terr === i ? '#e3f0fc' : '#fff', fg: s.terr === i ? '#1e88e5' : '#5a6b88',
+      borderColor: s.terr === i ? '#a8d2f5' : '#dde4ef',
+    }));
+    const railDefs = [
+      { name: 'ACTIVITY', count: 4, body: 'Jul 14 — advanced to Onboarded · Jul 9 — coaching call graded · Jul 1 — royalty posted · Jun 20 — Clarksville reserved.' },
+      { name: 'OFFERS', count: 0, body: 'No offers on this record.' },
+      { name: 'CONTACTS', count: 2, body: 'Ryan Decker · Shannon Smylie' },
+      { name: 'TEAM', count: 1, body: 'Chad Arnold — Operator' },
+      { name: 'CALLS', count: 1, body: 'Coaching Call — Chad Arnold, 35m. Graded.' },
+      { name: 'TASKS', count: 0, body: 'No pending tasks.' },
+      { name: 'NOTES', count: 0, body: 'No notes yet.' },
+      { name: 'APPOINTMENTS', count: 1, body: 'Quarterly review with Chad Arnold — Aug 4, 10:00 AM CT.' },
+      { name: 'DOCUMENTS', count: 3, body: 'Franchise Agreement.pdf · Territory Addendum (Clarksville).pdf · Launch Checklist.xlsx' },
+    ];
+    const railSections = railDefs.map(d => ({
+      ...d, open: !!s.open[d.name], chev: s.open[d.name] ? '▾' : '▸',
+      toggle: () => this.setState(prev => ({ open: { ...prev.open, [d.name]: !prev.open[d.name] } })),
+    }));
+    const actions = [
+      { label: '📞 Call', bg: '#e3f0fc', fg: '#1e88e5' }, { label: '💬 Text', bg: '#e3f0fc', fg: '#1e88e5' },
+      { label: '✉ Email', bg: '#e3f0fc', fg: '#1e88e5' }, { label: '📅 Schedule', bg: '#e3f0fc', fg: '#1e88e5' },
+      { label: 'Merge', bg: '#fdf3e3', fg: '#c07f16' }, { label: '🗑 Delete', bg: '#fdecec', fg: '#d64545' },
+    ].map(a => ({ ...a }));
+    const agentSteps = [
+      { when: 'Thu, Jul 23 · 9:00 AM', channel: 'EMAIL', status: 'queued', dot: '#6b46c1', text: 'Hi Ryan — time for the 90-day royalty check-in. Could we grab 20 minutes this week?' },
+      { when: 'Mon, Jul 27 · 10:30 AM', channel: 'TEXT', status: 'queued', dot: '#b3a3dd', text: 'Following up on the check-in — any morning this week work for a quick call?' },
+      { when: 'Fri, Jul 31 · 2:00 PM', channel: 'EMAIL', status: 'queued', dot: '#b3a3dd', text: 'Last nudge before we hand this to Chad directly — happy to work around your schedule.' },
+    ];
+    return {
+      stages, tracks, tabs, terrTabs, actions, railSections, agentSteps,
+      agentBg: s.agentOn ? '#6b46c1' : '#c9c2dd',
+      agentKnob: s.agentOn ? '18px' : '2px',
+      agentStatus: s.agentOn ? 'Running — 3 touches scheduled, pauses on reply.' : 'Paused — no outreach will send.',
+      agentToggle: () => this.setState(prev => ({ agentOn: !prev.agentOn })),
+      otherOpen: s.otherOpen,
+      otherToggle: () => this.setState(prev => ({ otherOpen: !prev.otherOpen })),
+      pickFollowup: () => this.setState({ otherOpen: false }),
+      pickNurture: () => this.setState({ otherOpen: false }),
+      dealContacts: [
+        { name: 'Ryan', initials: 'RD' }, { name: 'Shannon', initials: 'SS' },
+      ].map((c, i) => ({
+        ...c, select: () => this.setState({ dealContact: i }),
+        bg: s.dealContact === i ? '#efeafb' : '#fff',
+        border: s.dealContact === i ? '#c9b8ec' : '#e4eaf4',
+      })),
+      activeTerr: terrData[s.terr],
+      showOverview: s.tab === 'Overview',
+      showProfile: s.tab === 'Profile',
+      showTerritoriesTab: s.tab === 'Territories',
+      showEOS: s.tab === 'EOS',
+      showStub: s.tab === 'Messages' || s.tab === 'Documents',
+      stubLabel: s.tab,
+      profContacts: [
+        { name: 'Ryan Decker', role: 'Franchisee' }, { name: 'Shannon Smylie', role: 'family' },
+      ].map((c, i) => ({
+        ...c, select: () => this.setState({ profContact: i }),
+        fg: (s.profContact || 0) === i ? '#1e88e5' : '#5a6b88',
+        bg: (s.profContact || 0) === i ? '#e3f0fc' : 'transparent',
+      })),
+      profInfo: (s.profContact || 0) === 0
+        ? [{ label: 'First Name', value: 'Ryan' }, { label: 'Last Name', value: 'Decker' }, { label: 'Phone', value: '+15864054987' }, { label: 'Email', value: 'rdecker@newagainhouses.com' }, { label: 'City', value: 'Murfreesboro' }, { label: 'State', value: 'TN' }, { label: 'Lead Source', value: 'Organic' }]
+        : [{ label: 'First Name', value: 'Shannon' }, { label: 'Last Name', value: 'Smylie' }, { label: 'Phone', value: '+16292307886' }, { label: 'Email', value: 'ssmylie@newagainhouses.com' }, { label: 'City', value: 'Murfreesboro' }, { label: 'State', value: 'TN' }, { label: 'Lead Source', value: 'Referral' }],
+      profEmail1: (s.profContact || 0) === 0 ? 'rdecker@newagainhouses.com' : 'ssmylie@newagainhouses.com',
+      profEmail2: 'murfreesboro@newagainhouses.com',
+      prospectScore: 94,
+      profSections: [
+        { name: 'Identity & Contact', icon: '👤', filled: '2/13', rows: [
+          { label: 'Preferred Contact', value: '—' }, { label: 'Best Time to Call', value: '—' }, { label: 'Mailing Address', value: '—' }] },
+        { name: 'Background & Demographics', icon: '💼', filled: '12/22', rows: [
+          { label: 'Current Occupation', value: 'Operations manager' }, { label: 'Years in Role', value: '8' }, { label: 'Household', value: 'Married, 2 kids' }] },
+        { name: 'Personality & Psychology', icon: '🧠', filled: '3/16', rows: [
+          { label: 'DISC Profile', value: 'DC' }, { label: 'Risk Tolerance', value: 'Moderate' }, { label: 'Decision Style', value: '—' }] },
+        { name: 'Goals & Vision', icon: '🎯', filled: '3/14', rows: [
+          { label: 'Income Goal Y1', value: '$150k' }, { label: 'Exit Vision', value: '—' }, { label: 'Why Franchising', value: 'Control of schedule' }] },
+        { name: 'Financial Profile', icon: '💲', filled: '2/18', rows: [
+          { label: 'Liquid Capital', value: '$120k' }, { label: 'Net Worth', value: '—' }, { label: 'Funding Plan', value: '—' }] },
+        { name: 'Franchise Fit', icon: '🧩', filled: '1/10', rows: [
+          { label: 'Real Estate Experience', value: '—', tag: 'Chad fills' }, { label: 'Construction Knowledge', value: '—', tag: 'Chad fills' }, { label: 'Business Owner?', value: '—', tag: 'Chad fills' }] },
+      ].map(sec => ({
+        ...sec, open: !!s.profOpen && !!s.profOpen[sec.name],
+        chev: s.profOpen && s.profOpen[sec.name] ? '▾' : '▸',
+        headBg: s.profOpen && s.profOpen[sec.name] ? '#f6f8fc' : '#fff',
+        rows: sec.rows.map(r => ({ ...r, color: r.value === '—' ? '#98a6bf' : '#26324b', tag: r.tag || false })),
+        toggle: () => this.setState(prev => ({ profOpen: { ...(prev.profOpen || {}), [sec.name]: !(prev.profOpen || {})[sec.name] } })),
+      })),
+      terrPanels: [
+        { name: 'Murfreesboro TN', code: 'MURF', badge: 'active', badgeBg: '#e5f3e8', badgeFg: '#2e7d43',
+          ops: [{ label: 'LEADS ENTERED', value: '19', color: '#26324b' }, { label: 'DEAL PROGRESSION', value: '42.1%', color: '#26324b' }, { label: 'SOLD', value: '2', color: '#26324b' }, { label: 'AVG PROFIT', value: '$-958', color: '#d64545' }],
+          owner: 'Ryan Decker', ownerInitials: 'RD', ownerCo: 'Decker Holdings, LLC', ownerPhone: '+15864054987', ownerEmail: 'rdecker@newagainhouses.com' },
+        { name: 'Clarksville TN', code: 'CLRK', badge: 'reserved', badgeBg: '#eef2f8', badgeFg: '#5a6b88',
+          ops: [{ label: 'LEADS ENTERED', value: '0', color: '#98a6bf' }, { label: 'DEAL PROGRESSION', value: '—', color: '#98a6bf' }, { label: 'SOLD', value: '0', color: '#98a6bf' }, { label: 'AVG PROFIT', value: '—', color: '#98a6bf' }],
+          owner: 'Ryan Decker', ownerInitials: 'RD', ownerCo: 'Decker Holdings, LLC', ownerPhone: '+15864054987', ownerEmail: 'rdecker@newagainhouses.com' },
+      ].map((t, i) => ({
+        ...t, open: s.terrOpen === undefined ? i === 0 : s.terrOpen === i,
+        chev: (s.terrOpen === undefined ? i === 0 : s.terrOpen === i) ? '▾' : '▸',
+        toggle: () => this.setState(prev => ({ terrOpen: (prev.terrOpen === undefined ? 0 : prev.terrOpen) === i ? -1 : i })),
+      })),
+      eosGoals: [
+        { label: 'Income Goal', ph: 'What income are they targeting in year 1?' },
+        { label: 'Lifestyle Goal', ph: 'What lifestyle change are they seeking?' },
+        { label: 'Quality of Life Goal', ph: 'What does success look like personally?' },
+      ],
+      eosTerrTabs: ['Murfreesboro TN', 'Clarksville TN'].map((name, i) => ({
+        name, select: () => this.setState({ eosTerr: i }),
+        bg: (s.eosTerr || 0) === i ? '#1e88e5' : '#eef2f8', fg: (s.eosTerr || 0) === i ? '#fff' : '#5a6b88',
+      })),
+      eosGoalRows: [
+        { label: 'Gross Profit', actual: '$0', year: '$25,000', y5: '0', y25: '0' },
+        { label: 'Houses Purchased', actual: '—', year: '—', y5: '—', y25: '—' },
+        { label: 'Quality of Life', actual: '—', year: '2026 Murfreesboro Moves — 2 purchased by mid Q3, 2 per Qtr after; $25K GP per quarter', y5: '—', y25: '—' },
+      ],
+      eosScore: [
+        { metric: 'T3 Leads Entered', goal: '60', actual: '19' },
+        { metric: 'T3 S1 to S4 %', goal: '0%', actual: '42.1%' },
+        { metric: 'T3 Purchased', goal: '2', actual: '2' },
+        { metric: 'T3 AVG Inventory', goal: '2', actual: '1' },
+        { metric: 'T12 Median Cycle Days', goal: '180', actual: '—' },
+        { metric: 'T3 Gross Profit', goal: '$50,000', actual: '$0' },
+        { metric: 'T3 Compliance Score', goal: '100%', actual: '100%' },
+      ],
+      eosSpend: [
+        { label: 'Speed to Lead', value: '$498.00' }, { label: 'Email', value: '$40.00' },
+        { label: 'Digital Storefront', value: '$599.00' }, { label: 'Lead Manager', value: '$0.00' },
+        { label: 'Direct Mail', value: '$0.00' },
+      ],
+      eosSpendTotal: '$1,137.00',
+      eosChannels: [
+        { name: 'Prospect Now', group: 'list' }, { name: 'Vacants', group: 'list' }, { name: 'High Equity', group: 'list' },
+        { name: 'Probates', group: 'list', on: true }, { name: 'Divorces', group: 'list', on: true }, { name: 'Birddogs', group: 'list' },
+        { name: 'Agent Listed', group: 'list', on: true }, { name: 'Foreclosures', group: 'list' },
+        { name: 'Wholesalers', group: 'ref', on: true }, { name: 'Agents', group: 'ref', on: true }, { name: 'Industry Network', group: 'ref' },
+        { name: 'Facebook Ads', group: 'paid' }, { name: 'Google Ads', group: 'paid' }, { name: 'Google Retargeting', group: 'paid' },
+        { name: 'Organic Search', group: 'list' }, { name: 'Google Business', group: 'list' },
+        { name: 'Facebook', group: 'ref' }, { name: 'Instagram', group: 'ref' }, { name: 'YouTube', group: 'ref' }, { name: 'Other Social Media', group: 'ref' },
+      ].map(c => ({
+        name: c.name, on: !!c.on,
+        bg: c.group === 'paid' ? '#8c2f4b' : c.group === 'ref' ? '#f0e3b2' : '#eddce2',
+        fg: c.group === 'paid' ? '#fff' : '#5a4a52',
+      })),
+      eosHabits: ['Daily Tasks', 'Weekly Contractor Meeting', 'Bi-weekly Agent Meeting', 'Weekly Accounting'].map((name, i) => ({
+        name,
+        grades: ['A', 'B', 'C', 'D', 'F'].map(g => {
+          const sel = (i === 1 ? 'B' : 'A') === g;
+          return { g, bg: sel ? (g === 'A' ? '#43a55c' : '#9fe0b3') : '#f1f4f9', fg: sel ? (g === 'A' ? '#fff' : '#1e6b35') : '#98a6bf' };
+        }),
+      })),
+      eosRocks: [
+        { status: 'On Track', text: '2 Projects (Flips) by end of Q3', bg: '#e5f3e8', fg: '#2e7d43' },
+        { status: 'On Track', text: 'Full marketing campaign by September', bg: '#e5f3e8', fg: '#2e7d43' },
+        { status: 'On Track', text: 'Hire Lead Manager August', bg: '#e5f3e8', fg: '#2e7d43' },
+        { status: 'Not Done', text: 'T3 Leads Entered to 9 by September', bg: '#eef2f8', fg: '#5a6b88' },
+      ],
+      eosIssues: ['Marketing hold', 'Starting up marketing campaign for Murfreesboro', 'Building the lead list this quarter'],
+      eosTodos: [
+        { text: 'Bird dog new properties', done: true, deco: 'line-through' },
+        { text: 'Google Business Page', done: false, deco: 'none' },
+        { text: 'Facebook Business Page', done: true, deco: 'line-through' },
+        { text: 'Continue finding leads through referral partners and website', done: false, deco: 'none' },
+        { text: 'Initiate postcard campaign for mailing launch September', done: false, deco: 'none' },
+      ],
+      feed: s.feed,
+      scoutText: s.scoutText,
+      scoutType: e => this.setState({ scoutText: e.target.value }),
+      scoutSend: () => {
+        const t = this.state.scoutText.trim();
+        if (!t) return;
+        this.setState(prev => ({
+          scoutText: '',
+          feed: [{ tag: 'SCOUT', tagColor: '#1e88e5', when: 'now', text: 'You asked: "' + t + '" — Scout responses wire up in the live app.' }, ...prev.feed],
+        }));
+      },
+      chironAct: () => this.setState(prev => ({
+        feed: [{ tag: 'CHIRON', tagColor: '#1e88e5', when: 'now', text: '90-day royalty check-in scheduling opened from Next Best Action.' }, ...prev.feed],
+      })),
+    };
+  }
+}
+</script>
+</body>
+</html>
