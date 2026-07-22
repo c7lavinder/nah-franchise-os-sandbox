@@ -6,6 +6,14 @@
 > three tabs still rendered INLINE — Overview, Data Entry, Media — become
 > standalone lazy-iframe pages like the other seven, so every tab is uniform
 > and independently versionable per user.
+>
+> **Status 2026-07-22: BUILT, same day (Corey: "get all those moved out").** All
+> three extractions shipped in one pass on PR #298 (retitled Waves 3+4), beta to
+> Corey via the \_v2 rows (migration 2026-07-22-160, applied to dev),
+> dev-smoked: all three render pixel-matching in-frame, Overview edit bridges
+> verified end-to-end, legacy fallback exact when rows flip off. Remaining =
+> Corey eyeball → Ben merges the chain → production verify → promote + delete
+> the inline panes.
 
 ---
 
