@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase: **Phase 2 sprint 2 — Corey's three design handoffs BUILT AND WIRED in one session.** (1) The Day Hub FranDev workspace now runs Corey's FINAL card designs: 13 new registry cards (CONVERT: Today's Target · Q3 Goal · New Journeys · Weekly Scorecard / LAUNCH: Onboarding · Runway · Time to Launch / GROW: System Scorecard T30 · Inventory Watch · Territory Grades · Calls) plus a new Ready to Dial top-row card and the 5-cell internal KPI strip w/ pipeline health — all over 4 new gated donor reads, migration -164 seeds them beta-corey@ and retires the v1 interim cards (Enabled=0, data-only rollback). (2) The UNIFIED CALLS PAGE (`/Gunner/CallsV2`, mock 1a) — frandev type-panels + upcoming rail + drop zone, workspace-scoped exactly like the Day Hub: Gunner side = the 7 locked acquisition call types over gunner_call, FranDev side = sales/onboarding/coaching/team/group over frandev_call; drag-retype PERSISTS on both sides (new journaled SetCallType for frandev, existing ReclassifyCall for gunner — id shape picks the table); old calls pages untouched pending promotion. (3) CRM V2 remaining passes: Journey EOS tab (personal + per-territory), Territory Data tab (11 sections, market fields keyed to the app's real field registry) + EOS tab (+Construction EOS) + Performance period chips + Stage-4 offers, rail content wired with real counts on all three pages, and FIRST WRITES — clickable stage bar (advance/revert/close/drop via the journaled donor writes), task toggles, phone/email inline edit, Scout ctx links. All on new branch `frandev-dayhub-calls-crm` (3 commits, pushed) stacked on the #289→#303 chain. Review-brief Artifact published per Matt's PR rule — NO PR opened yet. / Health: Green / Duration: full overnight session
+Phase: **Phase 2 sprint 2 — Corey's three design handoffs BUILT AND WIRED in one session.** (1) The Day Hub FranDev workspace now runs Corey's FINAL card designs: 13 new registry cards (CONVERT: Today's Target · Q3 Goal · New Journeys · Weekly Scorecard / LAUNCH: Onboarding · Runway · Time to Launch / GROW: System Scorecard T30 · Inventory Watch · Territory Grades · Calls) plus a new Ready to Dial top-row card and the 5-cell internal KPI strip w/ pipeline health — all over 4 new gated donor reads, migration -164 seeds them beta-corey@ and retires the v1 interim cards (Enabled=0, data-only rollback). (2) The UNIFIED CALLS PAGE (`/Gunner/CallsV2`, mock 1a) — frandev type-panels + upcoming rail + drop zone, workspace-scoped exactly like the Day Hub: Gunner side = the 7 locked acquisition call types over gunner_call, FranDev side = sales/onboarding/coaching/team/group over frandev_call; drag-retype PERSISTS on both sides (new journaled SetCallType for frandev, existing ReclassifyCall for gunner — id shape picks the table); old calls pages untouched pending promotion. (3) CRM V2 remaining passes: Journey EOS tab (personal + per-territory), Territory Data tab (11 sections, market fields keyed to the app's real field registry) + EOS tab (+Construction EOS) + Performance period chips + Stage-4 offers, rail content wired with real counts on all three pages, and FIRST WRITES — clickable stage bar (advance/revert/close/drop via the journaled donor writes), task toggles, phone/email inline edit, Scout ctx links. All on new branch `frandev-dayhub-calls-crm` (3 commits, pushed) stacked on the #289→#303 chain. Review-brief Artifact published, Corey approved → **PR #306 OPENED** (base gunner-frandev-workspace; chain now #289→#293→#294→#298→#303→#306, all on Ben). / Health: Green / Duration: full overnight session
 
 ## What Was Built This Session
 
@@ -51,14 +51,14 @@ Phase: **Phase 2 sprint 2 — Corey's three design handoffs BUILT AND WIRED in o
 
 ## Open Issues Carried Forward
 
-- Ben: chain #289→…→#303 + new `frandev-dayhub-calls-crm` (brief published, PR awaits go-ahead) — High
+- Ben: merge the chain #289→#293→#294→#298→#303→**#306** (retarget each to main as predecessors merge) — High
 - Jessica AdminPanel bypass + production permission rows — High
 - Lean Path-to-Ownership board read before Chad/promotion — Medium
 - Corey: eyeball all three surfaces + click a stage advance through; API keys — Medium
 
 ## Exact Next Step
 
-Corey eyeballs the three new surfaces on dev 7128 (Day Hub → FranDev; /Gunner/CallsV2 in both workspaces; the three CRM pages incl. a real stage-bar click), then gives the go-ahead to open the PR for `frandev-dayhub-calls-crm`. Next build candidates: calls-page promotion (replace the two legacy pages), the deferred write set (Merge/Delete/Transfer, EOS write-back), recording↔scheduled matcher, lean board read.
+Corey eyeballs the three new surfaces on dev 7128 (Day Hub → FranDev; /Gunner/CallsV2 in both workspaces; the three CRM pages incl. a real stage-bar click), PR #306 is open — chain on Ben. Next build candidates: calls-page promotion (replace the two legacy pages), the deferred write set (Merge/Delete/Transfer, EOS write-back), recording↔scheduled matcher, lean board read.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -66,6 +66,6 @@ Corey eyeballs the three new surfaces on dev 7128 (Day Hub → FranDev; /Gunner/
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: I've eyeballed (or will eyeball) the Day Hub FranDev v2 cards, /Gunner/CallsV2 (both workspaces), and the three CRM V2 pages on localhost:7128. If I say "open the PR", open it for frandev-dayhub-calls-crm (review brief already published). Then pick up: calls promotion / deferred writes / recording↔scheduled matcher / lean board read. Chain #289→#303 still on Ben — blocks promotion only.
+Then: I've eyeballed (or will eyeball) the Day Hub FranDev v2 cards, /Gunner/CallsV2 (both workspaces), and the three CRM V2 pages on localhost:7128. PR #306 is open (chain #289→…→#306 on Ben). Pick up: calls promotion / deferred writes / recording↔scheduled matcher / lean board read. Chain #289→#303 still on Ben — blocks promotion only.
 
 ---
