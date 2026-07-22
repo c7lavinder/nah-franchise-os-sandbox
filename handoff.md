@@ -58,7 +58,7 @@ Phase: **Phase 2 mega-sprint — FIVE workstreams built, wired, and live-verifie
 
 ## Open Issues Carried Forward
 
-- Ben: merge chain #289→#293→#294→#298→#303→**#306**; PR for `frandev-inventory-pipelines` awaits Corey's go-ahead; confirm Retry FAILED→PENDING worker-repick; Jessica AdminPanel bypass + prod permission rows — High
+- **Chain progress (end of session): #287 + #289 MERGED by Ben; #293 retargeted to main + flipped READY (Corey ran the gh one-liner — classifier blocks Claude's gh pr edit).** Remaining for Ben: #293 → #294 → #298 → #303 → #306, each retargeted to main + flipped ready as its predecessor merges (`gh pr edit <n> --base main && gh pr ready <n>`). PR for `frandev-inventory-pipelines` still awaits Corey's go-ahead. Also Ben: confirm Retry FAILED→PENDING worker-repick; Jessica AdminPanel bypass + prod permission rows — High
 - Production rollout data flips: Chad/Corey Frandev grants + nav row 76 — Medium
 - Corey: eyeball everything incl. one real stage advance; API keys; decide when chad@ joins the Gunner-page FranDev beta lists — Medium
 - Duplicate migration number 156 on main vs chain (cosmetic, runner tracks filenames) — note for Ben — Low
