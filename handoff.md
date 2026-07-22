@@ -55,6 +55,10 @@ Phase: **Phase 2 sprint 2 — Corey's three design handoffs BUILT AND WIRED in o
 - Jessica AdminPanel bypass + production permission rows — High
 - Corey: eyeball all three surfaces + click a stage advance through; API keys — Medium
 
+## Post-Wrap Addendum — merge preview
+
+Local branch `integration-preview-all-merges` (NOT pushed) = chain tip + origin/main (main already contains merged #287 + 12 more commits). **Merge is CLEAN — zero conflicts**; build 0 errors; dev DB 0 pending; FranDev hub / CallsV2 / CRM pages / legacy pages all verified rendering on the merged build. Dev 7128 now SERVES this post-merge build (wt-panels checkout = the preview branch; PR branch untouched). Notes for Ben: duplicate migration number 156 (main's GunnerPushClaim vs chain's PagePanels — cosmetic, runner tracks filenames); one transient registry-read miss on first request after restart fell back to the Gunner lineup as designed, self-healed.
+
 ## Exact Next Step
 
 Corey eyeballs the three new surfaces on dev 7128 (Day Hub → FranDev; /Gunner/CallsV2 in both workspaces; the three CRM pages incl. a real stage-bar click), PR #306 is open — chain on Ben. Next build candidates: calls-page promotion (replace the two legacy pages), the deferred write set (Merge/Delete/Transfer, EOS write-back), recording↔scheduled matcher.
