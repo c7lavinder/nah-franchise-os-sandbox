@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#eef1f6;font-family:'Nunito Sans',sans-serif;color:#26324b;}
+a{color:#1e88e5;text-decoration:none;} a:hover{color:#1565c0;text-decoration:underline;}
+*{box-sizing:border-box;}
+::-webkit-scrollbar{width:8px;} ::-webkit-scrollbar-thumb{background:#c4cddc;border-radius:4px;}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column;">
+  <div style="background:#fff;border-bottom:1px solid #dde4ef;height:44px;flex-shrink:0;"></div>
+  <div style="padding:14px 16px 20px 16px;display:flex;flex-direction:column;gap:12px;">
+    <div style="display:flex;align-items:baseline;gap:10px;">
+      <span style="font-size:19px;font-weight:900;">Good morning, Chad</span>
+      <span style="font-size:12px;color:#8494ad;font-weight:600;">Tuesday, July 22 · 3 appointments · 6 journeys need a touch today</span>
+    </div>
+
+    <!-- PANEL 1: today strip -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+      <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid #e8edf5;">
+          <span style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#5a6b88;">📅 TODAY'S APPOINTMENTS</span>
+          <span style="background:#eef2f8;color:#5a6b88;font-size:10px;font-weight:800;padding:0 7px;border-radius:9px;">3</span>
+        </div>
+        <sc-for list="{{ appts }}" as="ap" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #edf1f7;">
+            <div style="width:52px;flex-shrink:0;text-align:center;background:#f6f8fc;border:1px solid #e4eaf4;border-radius:6px;padding:4px 0;">
+              <div style="font-size:12px;font-weight:900;">{{ ap.time }}</div>
+              <div style="font-size:8.5px;font-weight:800;color:#98a6bf;">{{ ap.ampm }}</div>
+            </div>
+            <div style="min-width:0;flex:1;">
+              <div style="font-size:12.5px;font-weight:800;">{{ ap.who }}</div>
+              <div style="font-size:10.5px;color:#98a6bf;font-weight:600;">{{ ap.what }}</div>
+            </div>
+            <span style="background: {{ ap.pillBg }};color: {{ ap.pillFg }};font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:9px;flex-shrink:0;">{{ ap.pill }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="background:#fff;border:1px solid #f2e2c8;border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid #f7ecd9;background:#fffdf8;">
+          <span style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#c07f16;">📞 READY TO DIAL</span>
+          <span style="background:#fdf3e3;color:#c07f16;font-size:10px;font-weight:800;padding:0 7px;border-radius:9px;">6</span>
+          <span style="margin-left:auto;font-size:10px;color:#98a6bf;font-weight:700;">ranked by heat</span>
+        </div>
+        <sc-for list="{{ dials }}" as="dl" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #edf1f7;">
+            <div style="min-width:0;flex:1;">
+              <div style="display:flex;gap:6px;align-items:center;">
+                <a href="Journey.dc.html" style="font-size:12.5px;font-weight:800;color:#26324b;">{{ dl.who }}</a>
+                <span style="background:#e3f0fc;color:#1e88e5;font-size:9.5px;font-weight:800;padding:1px 7px;border-radius:8px;">{{ dl.stage }}</span>
+              </div>
+              <div style="font-size:10.5px;color:#98a6bf;font-weight:600;">{{ dl.why }}</div>
+            </div>
+            <button style="border:1px solid #bfe3cd;background:#fff;color:#2e7d43;border-radius:6px;font-family:'Nunito Sans',sans-serif;font-size:11px;font-weight:800;padding:4px 12px;cursor:pointer;flex-shrink:0;">Call</button>
+          </div>
+        </sc-for>
+      </div>
+      <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid #e8edf5;">
+          <span style="font-size:11px;font-weight:800;letter-spacing:.8px;color:#5a6b88;">📥 INBOX</span>
+          <span style="background:#eef2f8;color:#5a6b88;font-size:10px;font-weight:800;padding:0 7px;border-radius:9px;">5</span>
+        </div>
+        <sc-for list="{{ inbox }}" as="ib" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #edf1f7;">
+            <span style="width:26px;height:26px;border-radius:50%;background: {{ ib.avBg }};color: {{ ib.avFg }};font-size:10px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">{{ ib.initials }}</span>
+            <div style="min-width:0;flex:1;">
+              <div style="font-size:12px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ ib.text }}</div>
+              <div style="font-size:10px;color:#98a6bf;font-weight:600;">{{ ib.meta }}</div>
+            </div>
+            <button style="border:none;background:#e3f0fc;color:#1e88e5;border-radius:6px;font-family:'Nunito Sans',sans-serif;font-size:10.5px;font-weight:800;padding:4px 10px;cursor:pointer;flex-shrink:0;">Open</button>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- PANEL 2: KPI strip -->
+    <div style="background:#fff;border:1px solid #dde4ef;border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);display:flex;align-items:stretch;">
+      <sc-for list="{{ kpis }}" as="kp" hint-placeholder-count="5">
+        <div style="flex:1;padding:12px 16px;border-right:1px solid #e8edf5;">
+          <div style="font-size:9.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">{{ kp.label }}</div>
+          <div style="display:flex;align-items:baseline;gap:6px;margin-top:3px;">
+            <span style="font-size:20px;font-weight:900;color: {{ kp.color }};">{{ kp.value }}</span>
+            <span style="font-size:10.5px;font-weight:800;color: {{ kp.deltaColor }};">{{ kp.delta }}</span>
+          </div>
+        </div>
+      </sc-for>
+      <div style="width:230px;flex-shrink:0;padding:12px 16px;display:flex;flex-direction:column;justify-content:center;">
+        <div style="display:flex;"><span style="font-size:9.5px;font-weight:800;letter-spacing:.6px;color:#8494ad;">SYSTEM PIPELINE HEALTH</span><span style="margin-left:auto;font-size:12px;font-weight:900;color:#2e7d43;">68%</span></div>
+        <div style="height:8px;border-radius:4px;background:#e8edf5;margin-top:6px;overflow:hidden;"><div style="width:68%;height:100%;background:linear-gradient(90deg,#43a55c,#7cc98f);border-radius:4px;"></div></div>
+      </div>
+    </div>
+
+    <!-- PANEL 3: module cards — Convert · Launch · Grow (status pills are dev/admin-only in prod) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:4px;">
+      <sc-for list="{{ columns }}" as="col" hint-placeholder-count="3">
+        <div style="display:flex;flex-direction:column;gap:12px;min-width:0;">
+          <div style="background: {{ col.headBg }};border:1px solid {{ col.headBorder }};border-radius:8px;padding:10px 14px;">
+            <div style="font-size:13px;font-weight:900;color: {{ col.headFg }};">{{ col.name }}</div>
+            <div style="font-size:10.5px;color: {{ col.headSub }};font-weight:700;">{{ col.tagline }}</div>
+          </div>
+          <sc-for list="{{ col.cards }}" as="cd" hint-placeholder-count="3">
+            <div style="background:#fff;border: {{ cd.border }};border-radius:8px;box-shadow:0 1px 2px rgba(27,42,74,.06);overflow:hidden;opacity: {{ cd.opacity }};">
+              <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #e8edf5;">
+                <span style="font-size:13px;">{{ cd.icon }}</span>
+                <span style="font-size:12.5px;font-weight:900;">{{ cd.name }}</span>
+              </div>
+              <div style="padding:12px 14px;">
+                <sc-if value="{{ cd.isBuilding }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:11.5px;color:#8494ad;font-weight:600;line-height:1.5;">{{ cd.desc }}</div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+                    <div style="flex:1;height:5px;border-radius:3px;background:#e8edf5;overflow:hidden;"><div style="height:100%;background:#f0a12c;border-radius:3px;width: {{ cd.buildPct }};"></div></div>
+                    <span style="font-size:10px;color:#c07f16;font-weight:800;">{{ cd.buildPct }}</span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ cd.hasStat }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;gap:14px;">
+                    <sc-for list="{{ cd.stats }}" as="stx" hint-placeholder-count="2">
+                      <div>
+                        <div style="font-size:17px;font-weight:900;color: {{ stx.color }};">{{ stx.value }}</div>
+                        <div style="font-size:9.5px;font-weight:800;letter-spacing:.4px;color:#98a6bf;">{{ stx.label }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+                <sc-for list="{{ cd.rows }}" as="rw" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+                    <span style="width:7px;height:7px;border-radius:50%;background: {{ rw.dot }};flex-shrink:0;"></span>
+                    <span style="font-size:11.5px;font-weight:700;color:#3e4d69;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ rw.text }}</span>
+                    <span style="font-size:10.5px;color:#98a6bf;font-weight:700;flex-shrink:0;">{{ rw.right }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="position:fixed;bottom:22px;right:22px;z-index:50;display:flex;align-items:center;gap:10px;">
+    <div style="background:#fff;border:1px solid #dde4ef;border-radius:20px;box-shadow:0 4px 14px rgba(27,42,74,.14);padding:9px 16px;font-size:13px;font-weight:700;color:#8494ad;">Ask Scout anything…</div>
+    <button style="width:48px;height:48px;border-radius:50%;background:#1e88e5;color:#fff;border:none;cursor:pointer;font-size:19px;box-shadow:0 4px 14px rgba(30,136,229,.4);">✦</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const status = k => k === 'prod' ? { status: 'PRODUCTION', statusBg: '#e5f3e8', statusFg: '#2e7d43', border: '1px solid #dde4ef', opacity: 1 }
+      : k === 'beta' ? { status: 'BETA', statusBg: '#e3f0fc', statusFg: '#1e88e5', border: '1px solid #dde4ef', opacity: 1 }
+      : { status: 'BUILDING', statusBg: '#fdf3e3', statusFg: '#c07f16', border: '1px dashed #e8d9bd', opacity: .92 };
+    const card = (icon, name, k, opts) => ({
+      icon, name, ...status(k),
+      isBuilding: k === 'build', desc: opts.desc || '', buildPct: opts.buildPct || '0%',
+      hasStat: !!opts.stats, stats: opts.stats || [],
+      rows: opts.rows || [],
+    });
+    return {
+      appts: [
+        { time: '10:00', ampm: 'AM CT', who: 'Ken Tolbert', what: 'Quarterly review · Chattanooga', pill: 'Coaching', pillBg: '#fdeef4', pillFg: '#c2447d' },
+        { time: '1:30', ampm: 'PM CT', who: 'Ray Heath', what: 'Discovery call · Path to Ownership', pill: 'Convert', pillBg: '#e3f0fc', pillFg: '#1e88e5' },
+        { time: '4:00', ampm: 'PM CT', who: 'Jonathan Dreyer', what: 'Onboarding check-in · week 3', pill: 'Launch', pillBg: '#e5f3e8', pillFg: '#2e7d43' },
+      ],
+      dials: [
+        { who: 'Ryan Decker', stage: 'Onboarding', why: 'Marketing hold 6 days — unblock postcard campaign' },
+        { who: 'Peter Mermilliod', stage: 'Discovery', why: 'Went quiet after intro call · 8 days since touch' },
+        { who: 'Mat Martin', stage: 'Validation', why: 'FDD sent, no signature · follow up' },
+        { who: 'Richie Morris', stage: 'Award', why: 'Award call graded B — confirm funding plan' },
+      ],
+      inbox: [
+        { initials: 'KT', avBg: '#e3f0fc', avFg: '#1e88e5', text: 'Ken: "Can we move the review to 11?"', meta: 'Text · 22m ago' },
+        { initials: 'JD', avBg: '#e5f3e8', avFg: '#2e7d43', text: 'Jonathan uploaded signed insurance docs', meta: 'Document · 1h ago' },
+        { initials: 'SC', avBg: '#fdf3e3', avFg: '#c07f16', text: 'Scout: 2 coaching calls graded below C this week', meta: 'Alert · 2h ago' },
+        { initials: 'RD', avBg: '#e3f0fc', avFg: '#1e88e5', text: 'Ryan: "Lead manager candidate said yes!"', meta: 'Text · 3h ago' },
+        { initials: 'MM', avBg: '#efeafb', avFg: '#6b46c1', text: 'Booking agent scheduled Mat Martin for Thursday', meta: 'Agent · 5h ago' },
+      ],
+      kpis: [
+        { label: 'ACTIVE JOURNEYS', value: '38', delta: '+3 this mo', color: '#26324b', deltaColor: '#2e7d43' },
+        { label: 'IN ONBOARDING', value: '7', delta: '2 launch this qtr', color: '#26324b', deltaColor: '#8494ad' },
+        { label: 'ACTIVE TERRITORIES', value: '56', delta: '+2 YTD', color: '#26324b', deltaColor: '#2e7d43' },
+        { label: 'HOUSES BOUGHT — T30', value: '24', delta: '↑ 9%', color: '#26324b', deltaColor: '#2e7d43' },
+        { label: 'AVG CALL SCORE — T7', value: '63', delta: '↓ 4', color: '#26324b', deltaColor: '#d64545' },
+      ],
+      columns: [
+        { name: 'Convert', tagline: 'Turn prospects into franchisees', headBg: '#e3f0fc', headBorder: '#c8e0f8', headFg: '#1565c0', headSub: '#5a8fc4', cards: [
+          card('🧭', 'Journey Pipeline', 'prod', { stats: [ { value: '38', label: 'ACTIVE', color: '#26324b' }, { value: '6', label: 'NEED TOUCH', color: '#c07f16' }, { value: '3', label: 'AWARDS Q3', color: '#2e7d43' } ], rows: [
+            { text: 'Ryan Decker — Onboarding · marketing hold', right: '6d', dot: '#d64545' },
+            { text: 'Mat Martin — Validation · FDD unsigned', right: '3d', dot: '#f0a12c' },
+            { text: 'Ray Heath — Discovery call today 1:30 PM', right: 'today', dot: '#43a55c' } ] }),
+          card('🎯', 'Prospect Scoring', 'prod', { stats: [ { value: '94', label: 'TOP SCORE', color: '#1e88e5' }, { value: '12', label: 'SCORE > 80', color: '#26324b' } ], rows: [
+            { text: 'Ryan Decker 94 · Peter Mermilliod 88 · Mat Martin 86', right: '', dot: '#1e88e5' } ] }),
+          card('📇', 'Lead Sources', 'beta', { stats: [ { value: '31', label: 'NEW LEADS T30', color: '#26324b' }, { value: '42%', label: 'FROM REFERRAL', color: '#26324b' } ], rows: [
+            { text: 'Organic and referral outperforming paid 3:1', right: '', dot: '#43a55c' } ] }),
+          card('🗺', 'Territory Marketplace', 'build', { desc: 'Public-facing map of open territories with demand signals and reservation flow.', buildPct: '35%' }),
+        ] },
+        { name: 'Launch', tagline: 'Get new franchisees operating fast', headBg: '#e5f3e8', headBorder: '#cfe8d6', headFg: '#2e7d43', headSub: '#6fa27c', cards: [
+          card('🚀', 'Launch Runway', 'prod', { stats: [ { value: '7', label: 'IN ONBOARDING', color: '#26324b' }, { value: '31', label: 'AVG DAYS TO LAUNCH', color: '#26324b' } ], rows: [
+            { text: 'Jonathan Dreyer — week 3 · insurance ✓ · CRM training next', right: '68%', dot: '#43a55c' },
+            { text: 'J. Laurine — week 1 · entity setup pending', right: '22%', dot: '#f0a12c' } ] }),
+          card('🎓', 'Training Progress', 'prod', { stats: [ { value: '5/7', label: 'ON PACE', color: '#2e7d43' }, { value: '2', label: 'BEHIND', color: '#d64545' } ], rows: [
+            { text: 'Playbook certification: 2 franchisees overdue', right: '', dot: '#d64545' } ] }),
+          card('🧰', 'Deployment Center', 'beta', { stats: [ { value: '4', label: 'STACKS DEPLOYING', color: '#26324b' }, { value: '12', label: 'LIVE', color: '#2e7d43' } ], rows: [
+            { text: 'Murfreesboro digital storefront — DNS pending', right: '1d', dot: '#f0a12c' },
+            { text: 'Clarksville phone + CRM stack queued', right: '', dot: '#98a6bf' } ] }),
+          card('📋', 'Launch Checklist Builder', 'build', { desc: 'Templated week-by-week launch plans with auto-assigned tasks per territory.', buildPct: '60%' }),
+        ] },
+        { name: 'Grow', tagline: 'Help locations buy more houses', headBg: '#efeafb', headBorder: '#ddd2f2', headFg: '#6b46c1', headSub: '#9a86c9', cards: [
+          card('🏅', 'Coaching Board', 'prod', { stats: [ { value: '12', label: 'CALLS THIS WK', color: '#26324b' }, { value: '63', label: 'AVG SCORE', color: '#c07f16' } ], rows: [
+            { text: 'Jason Hoskins C · Anthony Candlish D — schedule redo', right: '', dot: '#d64545' },
+            { text: 'Richie Morris B — action items set', right: '', dot: '#43a55c' } ] }),
+          card('📊', 'Territory Scorecards', 'prod', { stats: [ { value: '56', label: 'TERRITORIES', color: '#26324b' }, { value: '9', label: 'BELOW BENCHMARK', color: '#d64545' } ], rows: [
+            { text: 'Chattanooga — high performer · $134,982 GP YTD', right: '', dot: '#43a55c' },
+            { text: 'Murfreesboro — leads entered 19/60 goal', right: '', dot: '#f0a12c' } ] }),
+          card('🪨', 'EOS Rocks Tracker', 'beta', { stats: [ { value: '71%', label: 'ROCKS ON TRACK', color: '#2e7d43' }, { value: '14', label: 'OPEN ISSUES', color: '#26324b' } ], rows: [
+            { text: 'Q3 rocks reviewed for 41 of 56 territories', right: '', dot: '#1e88e5' } ] }),
+          card('🏗', 'Construction Dashboard', 'build', { desc: 'Rehab project tracking — budgets, contractor milestones, and days-to-list per flip.', buildPct: '45%' }),
+        ] },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

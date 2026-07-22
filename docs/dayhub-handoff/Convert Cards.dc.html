@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#eef1f6;font-family:'Nunito Sans',sans-serif;color:#26324b;}
+a{color:#1e88e5;text-decoration:none;} a:hover{color:#1565c0;text-decoration:underline;}
+*{box-sizing:border-box;}
+</style>
+</helmet>
+<section style="padding:40px;display:flex;gap:40px;align-items:flex-start;">
+  <div style="width:440px;flex-shrink:0;">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+    <span style="width:4px;height:18px;border-radius:2px;background:#1e88e5;"></span>
+    <span style="font-size:13px;font-weight:900;letter-spacing:1px;color:#1e88e5;">CONVERT</span>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- 1 Today's target -->
+    <div style="background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(27,42,74,.08);padding:18px 20px;">
+      <div style="display:flex;align-items:flex-start;">
+        <div>
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">TODAY'S TARGET</div>
+          <div style="font-size:17px;font-weight:900;margin-top:4px;">Have 1 discovery call today</div>
+        </div>
+        <div style="margin-left:auto;text-align:right;">
+          <span style="font-size:26px;font-weight:900;color:#c07f16;">0</span><span style="font-size:15px;font-weight:800;color:#98a6bf;">/1</span>
+          <div style="font-size:10.5px;color:#98a6bf;font-weight:700;">calls held</div>
+        </div>
+      </div>
+      <div style="height:8px;border-radius:4px;background:#e8edf5;margin-top:12px;"></div>
+      <div style="font-size:11.5px;color:#98a6bf;font-weight:600;margin-top:8px;">Ray Heath is on the calendar at 1:30 PM CT</div>
+    </div>
+
+    <!-- 2 Q3 goal -->
+    <div style="background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(27,42,74,.08);padding:18px 20px;">
+      <div style="display:flex;align-items:flex-start;">
+        <div>
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">Q3 GOAL</div>
+          <div style="font-size:17px;font-weight:900;margin-top:4px;">Have 5 territories sign this quarter</div>
+        </div>
+        <div style="margin-left:auto;text-align:right;">
+          <span style="font-size:26px;font-weight:900;color:#1e88e5;">3</span><span style="font-size:15px;font-weight:800;color:#98a6bf;">/5</span>
+          <div style="font-size:10.5px;color:#98a6bf;font-weight:700;">signed</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:5px;margin-top:12px;">
+        <span style="flex:1;height:8px;border-radius:4px;background:#43a55c;"></span>
+        <span style="flex:1;height:8px;border-radius:4px;background:#43a55c;"></span>
+        <span style="flex:1;height:8px;border-radius:4px;background:#43a55c;"></span>
+        <span style="flex:1;height:8px;border-radius:4px;background:#e8edf5;"></span>
+        <span style="flex:1;height:8px;border-radius:4px;background:#e8edf5;"></span>
+      </div>
+      <div style="font-size:11.5px;color:#98a6bf;font-weight:600;margin-top:8px;">Mat Martin and Ray Heath are closest — both in Validation</div>
+    </div>
+
+    <!-- 3 New journeys -->
+    <div style="background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(27,42,74,.08);padding:18px 20px;">
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <span style="font-size:15px;font-weight:900;">New Journeys</span>
+        <span style="font-size:11px;color:#98a6bf;font-weight:600;">· latest 6 · newest first</span>
+      </div>
+      <div style="margin-top:10px;">
+        <sc-for list="{{ journeys }}" as="j" hint-placeholder-count="6">
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #edf1f7;">
+            <a href="Journey.dc.html" style="font-size:13px;font-weight:700;color:#26324b;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ j.name }}</a>
+            <span style="background:#eef2f8;color:#5a6b88;font-size:10px;font-weight:800;padding:2px 9px;border-radius:9px;flex-shrink:0;">{{ j.src }}</span>
+            <span style="background: {{ j.stageBg }};color: {{ j.stageFg }};font-size:10px;font-weight:800;padding:2px 9px;border-radius:9px;flex-shrink:0;">{{ j.stage }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <a href="Journey.dc.html" style="display:block;text-align:center;border:1px solid #dde4ef;border-radius:8px;padding:9px 0;font-size:12.5px;font-weight:800;color:#26324b;margin-top:12px;" style-hover="background:#f6f8fc;text-decoration:none;">Go to Journeys →</a>
+    </div>
+
+    <!-- 4 Weekly scorecard + sources -->
+    <div style="background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(27,42,74,.08);padding:18px 20px;">
+      <div style="display:flex;align-items:flex-start;">
+        <div>
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">WEEKLY SCORECARD</div>
+          <div style="margin-top:6px;"><span style="font-size:28px;font-weight:900;">14</span><span style="font-size:15px;font-weight:800;color:#98a6bf;"> / 25</span></div>
+          <div style="font-size:11.5px;color:#98a6bf;font-weight:600;">total leads in this week</div>
+        </div>
+        <div style="margin-left:auto;text-align:right;">
+          <span style="font-size:22px;font-weight:900;color:#1e88e5;">56%</span>
+          <div style="font-size:10.5px;color:#98a6bf;font-weight:700;">of weekly target</div>
+        </div>
+      </div>
+      <div style="height:8px;border-radius:4px;background:#e8edf5;margin-top:12px;overflow:hidden;"><div style="width:56%;height:100%;background:#1e88e5;border-radius:4px;"></div></div>
+      <div style="border-top:1px solid #edf1f7;margin-top:14px;padding-top:12px;">
+        <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">WHERE THEY CAME FROM</div>
+        <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
+          <sc-for list="{{ sources }}" as="src" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:130px 1fr 30px;gap:12px;align-items:center;">
+              <span style="font-size:12.5px;font-weight:700;color:#5a6b88;">{{ src.name }}</span>
+              <div style="height:8px;border-radius:4px;background:#e8edf5;overflow:hidden;"><div style="height:100%;border-radius:4px;background:#0a9bd6;width: {{ src.width }};"></div></div>
+              <span style="font-size:13px;font-weight:900;text-align:right;">{{ src.count }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ══════ LAUNCH — card concepts ══════ -->
+  <div style="width:440px;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <span style="width:4px;height:18px;border-radius:2px;background:#43a55c;"></span>
+      <span style="font-size:13px;font-weight:900;letter-spacing:1px;color:#2e7d43;">LAUNCH</span>
+      <span style="font-size:12px;color:#5a6b88;font-weight:600;">— onboarding → runway → first houses</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      <!-- L2 Launch runway -->
+      <div style="background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(27,42,74,.08);padding:18px 20px;">
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          <span style="font-size:15px;font-weight:900;">Onboarding</span>
+          <span style="font-size:11px;color:#98a6bf;font-weight:600;">· Setup → Training → Launch Prep → Onboarded · closest first</span>
+        </div>
+        <div style="margin-top:10px;">
+          <sc-for list="{{ runway }}" as="rw" hint-placeholder-count="4">
+            <div style="padding:9px 0;border-bottom:1px solid #edf1f7;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <a href="Journey.dc.html" style="font-size:13px;font-weight:800;color:#26324b;min-width:0;flex:1;">{{ rw.name }}</a>
+                <span style="font-size:11px;color:#98a6bf;font-weight:700;flex-shrink:0;">{{ rw.eta }}</span>
+                <span style="font-size:12px;font-weight:900;color: {{ rw.pctColor }};flex-shrink:0;">{{ rw.pct }}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:5px;">
+                <div style="flex:1;height:6px;border-radius:3px;background:#e8edf5;overflow:hidden;"><div style="height:100%;border-radius:3px;background: {{ rw.barColor }};width: {{ rw.pct }};"></div></div>
+                <span style="font-size:10.5px;color:#98a6bf;font-weight:600;flex-shrink:0;">{{ rw.step }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <a href="#" style="display:block;text-align:center;border:1px solid #dde4ef;border-radius:8px;padding:9px 0;font-size:12.5px;font-weight:800;color:#26324b;margin-top:12px;" style-hover="background:#f6f8fc;text-decoration:none;">Go to Onboarding →</a>
+      </div>
+
+      <!-- L7 Runway to first houses -->
+      <div style="background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(27,42,74,.08);padding:18px 20px;">
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          <span style="font-size:15px;font-weight:900;">Runway</span>
+          <span style="font-size:11px;color:#98a6bf;font-weight:600;">· onboarded → first houses · 49 franchisees</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <sc-for list="{{ runwayStages }}" as="rs" hint-placeholder-count="4">
+            <div style="flex:1;background:#f6f8fc;border:1px solid #e4eaf4;border-top:3px solid {{ rs.color }};border-radius:6px;padding:8px 10px;">
+              <div style="font-size:17px;font-weight:900;">{{ rs.count }}</div>
+              <div style="font-size:9.5px;font-weight:800;letter-spacing:.3px;color:#8494ad;line-height:1.3;">{{ rs.name }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin-top:10px;">
+          <sc-for list="{{ runwayMovers }}" as="rm" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid #edf1f7;">
+              <span style="width:7px;height:7px;border-radius:50%;background: {{ rm.dot }};flex-shrink:0;"></span>
+              <a href="Territory.dc.html" style="font-size:12.5px;font-weight:800;color:#26324b;min-width:0;flex:1;">{{ rm.who }}</a>
+              <span style="font-size:11px;color:#98a6bf;font-weight:700;flex-shrink:0;">{{ rm.note }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- L9 Time to launch -->
+      <div style="background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(27,42,74,.08);padding:18px 20px;">
+        <div style="display:flex;align-items:flex-start;">
+          <div>
+            <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">TIME TO LAUNCH</div>
+            <div style="margin-top:6px;"><span style="font-size:28px;font-weight:900;">31</span><span style="font-size:15px;font-weight:800;color:#98a6bf;"> days avg</span></div>
+            <div style="font-size:11.5px;color:#98a6bf;font-weight:600;">sign → first marketing live · last 4 launches</div>
+          </div>
+          <div style="margin-left:auto;text-align:right;">
+            <span style="font-size:22px;font-weight:900;color:#2e7d43;">↓ 6</span>
+            <div style="font-size:10.5px;color:#98a6bf;font-weight:700;">vs prior 4</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;margin-top:12px;align-items:flex-end;height:44px;">
+          <div style="flex:1;background:#c9e3f8;border-radius:4px 4px 0 0;height:100%;"></div>
+          <div style="flex:1;background:#9ec3f2;border-radius:4px 4px 0 0;height:80%;"></div>
+          <div style="flex:1;background:#5ba0e8;border-radius:4px 4px 0 0;height:66%;"></div>
+          <div style="flex:1;background:#1e88e5;border-radius:4px 4px 0 0;height:58%;"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════ GROW — card concepts ══════ -->
+  <div style="width:440px;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <span style="width:4px;height:18px;border-radius:2px;background:#6b46c1;"></span>
+      <span style="font-size:13px;font-weight:900;letter-spacing:1px;color:#6b46c1;">GROW</span>
+      <span style="font-size:12px;color:#5a6b88;font-weight:600;">— help locations buy more houses</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      <!-- G1 System scorecard -->
+      <div style="background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(27,42,74,.08);padding:18px 20px;break-inside:avoid;margin-bottom:16px;">
+        <div style="display:flex;align-items:flex-start;">
+          <div>
+            <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">SYSTEM SCORECARD — T30</div>
+            <div style="margin-top:6px;"><span style="font-size:28px;font-weight:900;">24</span><span style="font-size:15px;font-weight:800;color:#98a6bf;"> houses bought</span></div>
+            <div style="font-size:11.5px;color:#98a6bf;font-weight:600;">across 56 active territories</div>
+          </div>
+          <div style="margin-left:auto;text-align:right;">
+            <span style="font-size:22px;font-weight:900;color:#2e7d43;">↑ 9%</span>
+            <div style="font-size:10.5px;color:#98a6bf;font-weight:700;">vs prior 30</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:12px;border-top:1px solid #edf1f7;padding-top:12px;">
+          <div><div style="font-size:17px;font-weight:900;">1,204</div><div style="font-size:9.5px;font-weight:800;color:#98a6bf;">LEADS IN</div></div>
+          <div><div style="font-size:17px;font-weight:900;">311</div><div style="font-size:9.5px;font-weight:800;color:#98a6bf;">OFFERS</div></div>
+          <div><div style="font-size:17px;font-weight:900;">31</div><div style="font-size:9.5px;font-weight:800;color:#98a6bf;">CONTRACTS</div></div>
+          <div><div style="font-size:17px;font-weight:900;color:#2e7d43;">$21.4k</div><div style="font-size:9.5px;font-weight:800;color:#98a6bf;">AVG PROFIT</div></div>
+        </div>
+        <div style="border-top:1px solid #edf1f7;margin-top:12px;padding-top:12px;">
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#8494ad;">BOTTLENECKS — WHERE DEALS DIE</div>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+            <sc-for list="{{ gBottle }}" as="gt" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:150px 1fr 44px;gap:12px;align-items:center;">
+                <span style="font-size:12px;font-weight:800;color:#5a6b88;">{{ gt.step }}</span>
+                <div style="height:14px;border-radius:7px;background:#eef2f8;overflow:hidden;"><div style="height:100%;border-radius:7px;background: {{ gt.color }};width: {{ gt.width }};"></div></div>
+                <span style="font-size:12px;font-weight:900;text-align:right;color: {{ gt.pctColor }};">{{ gt.pct }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:11.5px;color:#c07f16;font-weight:700;margin-top:10px;">⏱ Biggest pressure: Stage 3 → Stage 4 · 38% conversion system-wide</div>
+        </div>
+      </div>
+
+      <!-- G4 Inventory watch -->
+      <div style="background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(27,42,74,.08);padding:18px 20px;break-inside:avoid;margin-bottom:16px;">
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          <span style="font-size:15px;font-weight:900;">Inventory Watch</span>
+          <span style="font-size:11px;color:#98a6bf;font-weight:600;">· flips aging past plan</span>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:12px;">
+          <div><div style="font-size:24px;font-weight:900;">87</div><div style="font-size:10px;font-weight:800;color:#98a6bf;">ACTIVE FLIPS</div></div>
+          <div><div style="font-size:24px;font-weight:900;color:#c07f16;">11</div><div style="font-size:10px;font-weight:800;color:#98a6bf;">PAST 120D</div></div>
+          <div><div style="font-size:24px;font-weight:900;color:#d64545;">4</div><div style="font-size:10px;font-weight:800;color:#98a6bf;">PAST 180D</div></div>
+        </div>
+        <div style="margin-top:10px;">
+          <sc-for list="{{ gInv }}" as="gi" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid #edf1f7;">
+              <span style="width:40px;text-align:center;background: {{ gi.dayBg }};color: {{ gi.dayFg }};font-size:11px;font-weight:900;padding:3px 0;border-radius:6px;flex-shrink:0;">{{ gi.days }}d</span>
+              <div style="min-width:0;flex:1;">
+                <div style="font-size:12.5px;font-weight:800;">{{ gi.addr }}</div>
+                <div style="font-size:10.5px;color:#98a6bf;font-weight:600;">{{ gi.terr }}</div>
+              </div>
+              <span style="font-size:11px;color:#98a6bf;font-weight:700;flex-shrink:0;">{{ gi.stage }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- G8 Grades map -->
+      <div style="background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(27,42,74,.08);padding:18px 20px;break-inside:avoid;margin-bottom:16px;">
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          <span style="font-size:15px;font-weight:900;">Territory Grades</span>
+          <span style="font-size:11px;color:#98a6bf;font-weight:600;">· quarterly grade distribution</span>
+        </div>
+        <div style="display:flex;gap:5px;margin-top:12px;align-items:flex-end;height:64px;">
+          <sc-for list="{{ gGrades }}" as="gg" hint-placeholder-count="5">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;">
+              <span style="font-size:11px;font-weight:900;">{{ gg.count }}</span>
+              <div style="width:100%;border-radius:4px 4px 0 0;background: {{ gg.color }};height: {{ gg.h }};"></div>
+              <span style="font-size:10px;font-weight:800;color:#98a6bf;">{{ gg.g }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:11.5px;color:#98a6bf;font-weight:600;margin-top:8px;">6 territories dropped a grade this quarter — coaching priority</div>
+      </div>
+
+      <!-- G11 Calls panel -->
+      <div style="background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(27,42,74,.08);padding:18px 20px;break-inside:avoid;margin-bottom:16px;">
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          <span style="font-size:15px;font-weight:900;">Calls</span>
+          <span style="font-size:11px;color:#98a6bf;font-weight:600;">· latest graded · newest first</span>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:12px;">
+          <div><div style="font-size:24px;font-weight:900;">12</div><div style="font-size:10px;font-weight:800;color:#98a6bf;">THIS WEEK</div></div>
+          <div><div style="font-size:24px;font-weight:900;color:#c07f16;">63</div><div style="font-size:10px;font-weight:800;color:#98a6bf;">AVG SCORE</div></div>
+          <div><div style="font-size:24px;font-weight:900;color:#d64545;">2</div><div style="font-size:10px;font-weight:800;color:#98a6bf;">BELOW C</div></div>
+        </div>
+        <div style="margin-top:10px;">
+          <sc-for list="{{ gCalls }}" as="gc" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid #edf1f7;">
+              <span style="width:26px;height:26px;border-radius:6px;background: {{ gc.gBg }};color: {{ gc.gFg }};font-size:11.5px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">{{ gc.g }}</span>
+              <div style="min-width:0;flex:1;">
+                <div style="font-size:12.5px;font-weight:800;color:#26324b;">{{ gc.who }}</div>
+                <div style="font-size:10.5px;color:#98a6bf;font-weight:600;">{{ gc.meta }}</div>
+              </div>
+              <span style="background: {{ gc.typeBg }};color: {{ gc.typeFg }};font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:9px;flex-shrink:0;">{{ gc.type }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <a href="Calls Options.dc.html" style="display:block;text-align:center;border:1px solid #dde4ef;border-radius:8px;padding:9px 0;font-size:12.5px;font-weight:800;color:#26324b;margin-top:12px;" style-hover="background:#f6f8fc;text-decoration:none;">Go to Calls →</a>
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      journeys: [
+        { name: 'Nora Bell · open', src: 'Paid', stage: 'Lead', stageBg: '#eef2f8', stageFg: '#5a6b88' },
+        { name: 'Ray Heath · Knoxville', src: 'Event', stage: 'Discovery', stageBg: '#e3f0fc', stageFg: '#1e88e5' },
+        { name: 'Peter Mermilliod · open', src: 'Organic', stage: 'Discovery', stageBg: '#e3f0fc', stageFg: '#1e88e5' },
+        { name: 'Mat Martin · Nashville SW', src: 'Referral', stage: 'Validation', stageBg: '#efeafb', stageFg: '#6b46c1' },
+        { name: 'J. Laurine · Clarksville', src: 'Referral', stage: 'Award', stageBg: '#fdf3e3', stageFg: '#c07f16' },
+        { name: 'Ryan Decker · Murfreesboro TN', src: 'Organic', stage: 'Onboarding', stageBg: '#e5f3e8', stageFg: '#2e7d43' },
+      ],
+      sources: [
+        { name: 'Referral Partners', count: 7, width: '100%' },
+        { name: 'Organic', count: 5, width: '71%' },
+        { name: 'Events', count: 2, width: '29%' },
+        { name: 'Paid', count: 1, width: '14%' },
+      ],
+      runway: [
+        { name: 'Spencer Lambert', eta: 'Launch Prep · Accounts', pct: '80%', pctColor: '#2e7d43', barColor: '#43a55c', step: '49d in onboarding' },
+        { name: 'Larry Hall + Jonathan Suda', eta: 'Training · Trainual Pt 1', pct: '40%', pctColor: '#c07f16', barColor: '#f0a12c', step: '49d · Organic' },
+        { name: 'Jonathan Dreyer', eta: 'Training · Trainual Pt 1', pct: '40%', pctColor: '#c07f16', barColor: '#f0a12c', step: '49d · Paid Ad' },
+        { name: 'Nicki + Ron Cates', eta: 'Training · Trainual Pt 1', pct: '40%', pctColor: '#d64545', barColor: '#d64545', step: '119d — stalled' },
+      ],
+      blockers: [
+        { days: 119, what: 'Stuck in Trainual Part 1', who: 'Nicki + Ron Cates · no progress since March', cta: 'Call', dayBg: '#fdecec', dayFg: '#d64545' },
+        { days: 72, what: 'Trainual Part 1 idle', who: 'Erik Spersrud · Ryan Rodriguez-Wiggins + Lauren Dulin', cta: 'Nudge', dayBg: '#fdecec', dayFg: '#d64545' },
+        { days: 49, what: 'Accounts setup — Launch Prep', who: 'Spencer Lambert · insurance + workstation next', cta: 'Chase', dayBg: '#fdf3e3', dayFg: '#c07f16' },
+      ],
+      deploys: [
+        { terr: 'Spencer Lambert', status: 'launch prep', stBg: '#fdf3e3', stFg: '#c07f16', steps: [
+          { name: 'Legal Entity', mark: '✓', bg: '#e5f3e8', fg: '#2e7d43' }, { name: 'NAH Website', mark: '✓', bg: '#e5f3e8', fg: '#2e7d43' },
+          { name: 'Accounts', mark: '⏳', bg: '#fdf3e3', fg: '#c07f16' }, { name: 'Insurance', mark: '·', bg: '#eef2f8', fg: '#98a6bf' },
+          { name: 'Workstation', mark: '·', bg: '#eef2f8', fg: '#98a6bf' } ] },
+        { terr: 'Jonathan Dreyer', status: 'setup', stBg: '#eef2f8', stFg: '#5a6b88', steps: [
+          { name: 'Legal Entity', mark: '✓', bg: '#e5f3e8', fg: '#2e7d43' }, { name: 'Google Workspace', mark: '⏳', bg: '#fdf3e3', fg: '#c07f16' },
+          { name: 'NAH Website', mark: '·', bg: '#eef2f8', fg: '#98a6bf' }, { name: 'Bank Account', mark: '·', bg: '#eef2f8', fg: '#98a6bf' } ] },
+        { terr: 'Sarah Calderone', status: 'onboarded', stBg: '#e5f3e8', stFg: '#2e7d43', steps: [
+          { name: 'Setup', mark: '✓', bg: '#e5f3e8', fg: '#2e7d43' }, { name: 'Training', mark: '✓', bg: '#e5f3e8', fg: '#2e7d43' },
+          { name: 'Launch Prep', mark: '✓', bg: '#e5f3e8', fg: '#2e7d43' } ] },
+      ],
+      training: [
+        { who: 'Nicki + Ron Cates — Trainual Part 1 of 5', note: '119 days idle', noteColor: '#d64545' },
+        { who: 'Erik Spersrud — Trainual Part 1 of 5', note: '72 days', noteColor: '#d64545' },
+        { who: 'Larry Hall + Jonathan Suda — Part 1 of 5', note: '49 days', noteColor: '#c07f16' },
+      ],
+      runwayStages: [
+        { name: 'FIRST OFFER', count: 0, color: '#e8734a' },
+        { name: 'FIRST PURCHASE', count: 2, color: '#f0a12c' },
+        { name: 'INVENTORY BUILDING', count: 8, color: '#a3c94f' },
+        { name: 'RUNNING', count: 39, color: '#43a55c' },
+      ],
+      gBelow: [
+        { terr: 'Murfreesboro TN', gap: 'leads 19 / 60 goal', flag: 'marketing hold', flagBg: '#fdecec', flagFg: '#d64545' },
+        { terr: 'Knoxville TN', gap: '0 offers in 21d', flag: 'coaching set', flagBg: '#fdf3e3', flagFg: '#c07f16' },
+        { terr: 'Memphis E TN', gap: 'conv. 11% vs 32% median', flag: 'watch', flagBg: '#eef2f8', flagFg: '#5a6b88' },
+        { terr: 'Huntsville AL', gap: 'no purchase in 94d', flag: 'coaching set', flagBg: '#fdf3e3', flagFg: '#c07f16' },
+      ],
+      gCalls: [
+        { g: 'A', gBg: '#e5f3e8', gFg: '#2e7d43', who: 'Chad → Ken Tolbert', meta: 'Yesterday 8:59 PM CT · 1h 28m', type: 'Coaching', typeBg: '#fdeef4', typeFg: '#c2447d' },
+        { g: 'C', gBg: '#fdf3e3', gFg: '#c07f16', who: 'John → Jason Hoskins', meta: 'Yesterday 8:59 PM CT · 8m', type: 'Coaching', typeBg: '#fdeef4', typeFg: '#c2447d' },
+        { g: 'D', gBg: '#fdecec', gFg: '#d64545', who: 'John → Anthony Candlish', meta: 'Jul 20 7:00 PM CT · 3m', type: 'Coaching', typeBg: '#fdeef4', typeFg: '#c2447d' },
+        { g: 'B', gBg: '#e8f2e3', gFg: '#4f8f3a', who: 'Team Call — Amber, Ben +3', meta: 'Jul 20 4:01 PM CT · 1h 0m', type: 'Team', typeBg: '#e3f0fc', typeFg: '#1e88e5' },
+      ],
+      gInv: [
+        { days: 212, addr: '4727 Briarwood Circle', terr: 'Chattanooga TN', stage: 'listed', dayBg: '#fdecec', dayFg: '#d64545' },
+        { days: 164, addr: '286 Service Rd', terr: 'Nashville SW', stage: 'rehab', dayBg: '#fdecec', dayFg: '#d64545' },
+        { days: 131, addr: '920 Carrie Lane', terr: 'Chattanooga TN', stage: 'rehab', dayBg: '#fdf3e3', dayFg: '#c07f16' },
+      ],
+      gBottle: [
+        { step: 'Stage 1 → 2', width: '78%', pct: '78%', color: '#7ba9ec', pctColor: '#26324b' },
+        { step: 'Stage 2 → 3', width: '61%', pct: '61%', color: '#9a8fe8', pctColor: '#26324b' },
+        { step: 'Stage 3 → 4', width: '38%', pct: '38%', color: '#d64545', pctColor: '#d64545' },
+        { step: 'Stage 4 → Contract', width: '9%', pct: '9%', color: '#c9b8ec', pctColor: '#c07f16' },
+      ],
+      gMkt: [
+        { terr: 'Chattanooga — $1,137 → 41 leads · $28/lead', note: 'best in system', noteColor: '#2e7d43' },
+        { terr: 'Memphis E — $2,400 → 9 leads · $267/lead', note: 'audit channels', noteColor: '#d64545' },
+        { terr: '12 territories under-spending their plan', note: 'nudge', noteColor: '#c07f16' },
+      ],
+      gGrades: [
+        { g: 'A', count: 14, h: '70%', color: '#43a55c' },
+        { g: 'B', count: 20, h: '100%', color: '#9fe0b3' },
+        { g: 'C', count: 13, h: '65%', color: '#f0cf7c' },
+        { g: 'D', count: 6, h: '30%', color: '#f0a12c' },
+        { g: 'F', count: 3, h: '15%', color: '#d64545' },
+      ],
+      gQuiet: [
+        { days: 23, terr: 'Huntsville AL', note: 'owner on vacation?', dayBg: '#fdecec', dayFg: '#d64545' },
+        { days: 17, terr: 'Memphis E TN', note: 'lead manager left', dayBg: '#fdecec', dayFg: '#d64545' },
+        { days: 14, terr: 'Bowling Green KY', note: 'marketing paused', dayBg: '#fdf3e3', dayFg: '#c07f16' },
+      ],
+      gWins: [
+        { icon: '💰', text: 'Chattanooga sold 1408 Dodds Ave — $31,200 gross profit, best flip this year', when: 'Jul 20' },
+        { icon: '🏠', text: 'Sarah Calderone hit the 25-offers milestone in her first 60 days', when: 'Jul 19' },
+        { icon: '📈', text: 'System-wide houses bought up 9% over prior 30 days', when: 'this wk' },
+      ],
+      runwayMovers: [
+        { who: 'Joanne Mccann', note: 'Construction Start · 27d', dot: '#f0a12c' },
+        { who: 'Sarah Calderone', note: '25 Offers milestone · 27d', dot: '#a3c94f' },
+        { who: 'Eric Wilkening', note: '1st flip completed · 48d', dot: '#43a55c' },
+      ],
+      lSuggests: [
+        { icon: '📞', text: 'Nicki + Ron Cates are 119 days into Trainual Part 1 — call to unstick or pause the journey.', cta: 'Call' },
+        { icon: '🎓', text: 'All 5 in-training franchisees sit in Part 1 — the module itself may be the bottleneck.', cta: 'Review' },
+        { icon: '🚀', text: 'Spencer Lambert only needs accounts, insurance, workstation — bundle into one setup session.', cta: 'Book' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>
