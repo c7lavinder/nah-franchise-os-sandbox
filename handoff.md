@@ -1,5 +1,12 @@
 # Session Handoff — 2026-07-22 — Session 85
 
+> **UPDATE 2026-07-27 — the chain is fully merged; the pipeline page shipped.**
+> Everything this file lists as "remaining for Ben" is **DONE**: #293, #294, #298, #303, #306 all merged 2026-07-22 (plus #287/#289 already noted). #365 (FranDev workspace — Matt gets the switch, Day Hub today-row parity, fixed-size top cards) merged 2026-07-25 after this file was written.
+> `frandev-inventory-pipelines` was opened as **PR #381**, merged into current `main` (one JS conflict in `Inventory.cshtml` — s71's single-`location.replace()` fix unioned with this branch's `FD_WS` lens guard; `dotnet build` 0 errors), and **merged by Ben 2026-07-27 14:23Z**. Branch realigned to the merged commit, 0 divergence.
+> **Not browser-verified since that merge** — the sticky-filter path is JS, so the build does not exercise it. Needs one click in each lens.
+> Pages folded in so far: **Day Hub, Property page, Calls (list), Inventory/Pipeline**. Registry `PageKey`s live: `dayhub`, `property`, `tab`, `rail-kpi`, `payhub_pulse`, `pipeline`.
+> Blocked-on-Ben is no longer the story. Remaining work is ours — see the task list.
+
 ## Status
 
 Phase: **Phase 2 mega-sprint — FIVE workstreams built, wired, and live-verified in one session.** (1) **Day Hub FranDev card set v2** — Corey's final Convert/Launch/Grow designs: 13 registry cards over 4 gated donor reads + Ready to Dial top-row card + 5-cell internal KPI strip w/ pipeline health; v1 interim cards retired by data. (2) **Unified Calls page `/Gunner/CallsV2`** (mock 1a) — frandev type-panels + upcoming rail + drop zone, workspace-scoped; drag-retype persists on BOTH tables (journaled SetCallType / existing ReclassifyCall — id shape picks the side); legacy pages untouched. (3) **CRM V2 completion** — Journey EOS tab, Territory Data (11 sections) + EOS tabs, rails wired on all three pages, first writes (clickable stage bar via journaled donor writes, task toggles, phone/email inline edit). (4) **Lean reads + config** — GetReadyDial (Day Hub no longer triggers the 3.4k-row GetBoard; Chad/promotion prerequisite CLEARED) + card targets → SystemConfig `Frandev_Goal_*`. (5) **UNIFIED PIPELINE PAGE** — the Gunner Inventory page renders FranDev pipelines in the FranDev workspace: strips are PANEL-REGISTRY rows (PageKey='pipeline', migration -166; permission + beta per strip, composing WITHIN a kind is data-driven), the **workspace switch is a LENS** (Corey's ruling: switch, not all-at-once) deciding which kind displays; journey rows expand an inline SUB-STAGE CHECKLIST with **AUTO-MOVE** (pointer hops to next incomplete sub-stage; last one auto-advances the stage, terminal refused — all composed from existing journaled writes). Plus: **Chad Arnold + Corey granted the Frandev permission on dev** and the FranDev left-nav entry enabled (was off for everyone; still permission-gated). Branches: `frandev-dayhub-calls-crm` (4 commits, **PR #306 OPEN**, chain #289→…→#306 on Ben) and `frandev-inventory-pipelines` (3 commits, pushed, stacked — PR awaits Corey's word). Merge preview: chain + main merged CLEAN (zero conflicts), built, verified. / Health: Green / Duration: full overnight + day session
@@ -58,14 +65,14 @@ Phase: **Phase 2 mega-sprint — FIVE workstreams built, wired, and live-verifie
 
 ## Open Issues Carried Forward
 
-- **Chain progress (end of session): #287 + #289 MERGED by Ben; #293 retargeted to main + flipped READY (Corey ran the gh one-liner — classifier blocks Claude's gh pr edit).** Remaining for Ben: #293 → #294 → #298 → #303 → #306, each retargeted to main + flipped ready as its predecessor merges (`gh pr edit <n> --base main && gh pr ready <n>`). PR for `frandev-inventory-pipelines` still awaits Corey's go-ahead. Also Ben: confirm Retry FAILED→PENDING worker-repick; Jessica AdminPanel bypass + prod permission rows — High
+- ~~**Chain progress:** #287 + #289 merged; #293 → #294 → #298 → #303 → #306 remaining for Ben; `frandev-inventory-pipelines` awaits Corey's PR go-ahead~~ — **ALL RESOLVED as of 2026-07-27.** Whole chain merged 2026-07-22; PR #381 (inventory pipelines) merged by Ben 2026-07-27. Still open for Ben: confirm Retry FAILED→PENDING worker-repick; Jessica AdminPanel bypass + prod permission rows — High
 - Production rollout data flips: Chad/Corey Frandev grants + nav row 76 — Medium
 - Corey: eyeball everything incl. one real stage advance; API keys; decide when chad@ joins the Gunner-page FranDev beta lists — Medium
 - Duplicate migration number 156 on main vs chain (cosmetic, runner tracks filenames) — note for Ben — Low
 
 ## Exact Next Step
 
-Corey picks the next merge from the remaining page list — recommendation: **Contacts** (one list, user-type visibility: internal sees prospects/franchisees, acquisitions sees sellers/buyers/partners — same lens pattern just proven on Inventory); alternatives: Messages/Inbox, Tasks, Calendar, Activity, Knowledge, unified call detail, territory rows on the pipeline page. Also: give the go-ahead to open the `frandev-inventory-pipelines` PR.
+**(Updated 2026-07-27 — the PR go-ahead is done; #381 is merged.)** Build the **Contacts** merge: one list, user-type visibility (internal sees prospects/franchisees, acquisitions sees sellers/buyers/partners), reusing the registry-strips + lens pattern proven on Inventory. Remaining pages after that: Messages/Inbox, Tasks, Calendar, Activity, Knowledge, unified call detail, territory rows on the pipeline page. Non-page blockers: prod permission/nav flips (gated on the AdminPanel bypass audit), Retry worker-repick confirmation, one live stage-advance click.
 
 ## Copy This To Start Next Session In Claude.ai
 
