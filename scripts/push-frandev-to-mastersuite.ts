@@ -8,11 +8,15 @@
  * Usage:
  *   npx tsx scripts/push-frandev-to-mastersuite.ts --dry-run
  *   npx tsx scripts/push-frandev-to-mastersuite.ts --dry-run --tables=contacts,calls --limit=50
- *   npx tsx scripts/push-frandev-to-mastersuite.ts            # real push (needs dev creds)
+ *   npx tsx scripts/push-frandev-to-mastersuite.ts            # real push (needs write creds)
  *
- * --dry-run validates read+map+SQL generation WITHOUT writing. It needs no dev
- * write creds: it reads the frandev_ schema from the read-only prod DB (dev
- * mirrors prod), so it can be run today to prove the mapping end-to-end.
+ * Which database it writes to is `MASTERSUITE_WRITE_TARGET` (dev | prod) — see
+ * lib/mastersuite/write-client.ts. Production is authorized for `frandev_*`
+ * only and requires MASTERSUITE_PROD_DB_* explicitly (no fallback).
+ *
+ * --dry-run validates read+map+SQL generation WITHOUT writing. It needs no
+ * write creds: it reads the frandev_ schema from the read-only prod DB, so it
+ * proves the mapping against production end-to-end before any grant exists.
  */
 
 require("dotenv").config({ path: require("path").resolve(__dirname, "../.env.local") });
@@ -41,6 +45,7 @@ async function main() {
     getMasterSuiteWritePool,
     isWriteConfigured,
     endMasterSuiteWritePool,
+    getWriteTarget,
   } = require("@/lib/mastersuite/write-client");
   const { getMasterSuitePool } = require("@/lib/mastersuite/client");
 
@@ -55,13 +60,20 @@ async function main() {
     console.log("Schema source: read-only PRODUCTION (dry run, no writes)\n");
   } else {
     if (!isWriteConfigured()) {
-      console.error("MASTERSUITE_DEV_DB_* credentials are not set. Cannot do a live push.");
-      console.error("Set MASTERSUITE_DEV_DB_HOST / _PORT / _USER / _PASSWORD / _NAME, or use --dry-run.");
+      const t = getWriteTarget();
+      const prefix = t === "prod" ? "MASTERSUITE_PROD_DB_*" : "MASTERSUITE_DEV_DB_*";
+      console.error(`${prefix} credentials are not set. Cannot do a live push to ${t}.`);
+      console.error(`Set ${prefix.replace("*", "")}HOST / _PORT / _USER / _PASSWORD / _NAME, or use --dry-run.`);
       process.exit(1);
     }
     schemaPool = getMasterSuiteWritePool();
-    writePool = schemaPool; // dev DB is both schema source and write target
-    console.log("Target: MasterSuite DEV database\n");
+    writePool = schemaPool; // target DB is both schema source and write target
+    const target = getWriteTarget();
+    console.log(`Target: MasterSuite ${target.toUpperCase()} database`);
+    if (target === "prod") {
+      console.log("*** WRITING TO PRODUCTION (frandev_ tables only) ***");
+    }
+    console.log("");
   }
 
   const summary = await pushFrandev({

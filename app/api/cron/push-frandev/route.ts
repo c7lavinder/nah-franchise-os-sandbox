@@ -5,16 +5,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { pushFrandev } from "@/lib/mastersuite/push-frandev";
 import { applyNativeWrites } from "@/lib/mastersuite/apply-native-writes";
-import { getMasterSuiteWritePool, isWriteConfigured, checkMSWriteConnection } from "@/lib/mastersuite/write-client";
+import {
+  getMasterSuiteWritePool,
+  isWriteConfigured,
+  checkMSWriteConnection,
+  getWriteTarget,
+} from "@/lib/mastersuite/write-client";
 
 /**
- * Nightly OUTBOUND push: FranDev (Supabase) -> MasterSuite dev `frandev_*`.
+ * Nightly OUTBOUND push: FranDev (Supabase) -> MasterSuite `frandev_*`.
  *
- * MasterSuite dev refreshes from prod each night; schedule this AFTER that
- * refresh so the data survives the working day. Idempotent (upsert by PK).
+ * Target is `MASTERSUITE_WRITE_TARGET` (dev | prod). Idempotent (upsert by PK,
+ * never deletes). Once pointed at prod, the nightly prod->dev refresh carries
+ * the data down to dev on its own — dev no longer needs its own push.
  *
- * No-ops cleanly (HTTP 200, skipped) until the dev write credentials exist, so
- * the cron doesn't fail every night while we wait on Ben for dev DB access.
+ * No-ops cleanly (HTTP 200, skipped) when the target's credentials are absent,
+ * so the cron never fails nightly while access is pending.
  */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -23,12 +29,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const target = getWriteTarget();
+
   if (!isWriteConfigured()) {
     return NextResponse.json({
       success: false,
       skipped: true,
-      reason: "dev_db_not_configured",
-      hint: "Set MASTERSUITE_DEV_DB_HOST/_PORT/_USER/_PASSWORD/_NAME once Ben grants dev write access.",
+      target,
+      reason: target === "prod" ? "prod_db_not_configured" : "dev_db_not_configured",
+      hint:
+        target === "prod"
+          ? "Set MASTERSUITE_PROD_DB_HOST/_PORT/_USER/_PASSWORD/_NAME (account needs INSERT/UPDATE/DELETE on mastersuite.frandev_%)."
+          : "Set MASTERSUITE_DEV_DB_HOST/_PORT/_USER/_PASSWORD/_NAME.",
     });
   }
 
@@ -36,7 +48,10 @@ export async function GET(request: NextRequest) {
     await checkMSWriteConnection();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ success: false, error: `Dev DB unreachable: ${message}` }, { status: 503 });
+    return NextResponse.json(
+      { success: false, target, error: `MasterSuite ${target} DB unreachable: ${message}` },
+      { status: 503 }
+    );
   }
 
   const supabase = createServerClient();
@@ -58,6 +73,7 @@ export async function GET(request: NextRequest) {
     const summary = await pushFrandev({ schemaPool: pool, writePool: pool });
     const status = summary.tablesWithErrors === 0 ? "success" : "failed";
     const resultData = {
+      target,
       tablesPlanned: summary.totalTables,
       tablesPushed: summary.pushedTables,
       rowsPushed: summary.totalPushedRows,
@@ -86,6 +102,6 @@ export async function GET(request: NextRequest) {
         .update({ finished_at: new Date().toISOString(), status: "failed", error: message })
         .eq("id", log.id);
     }
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({ success: false, target, error: message }, { status: 500 });
   }
 }
