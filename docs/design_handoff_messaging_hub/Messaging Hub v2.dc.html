@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; background: #eef2f6; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(120,135,155,.28); border-radius: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  @keyframes expand { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</helmet>
+
+<div style="min-height:100vh;padding:40px 32px 70px;display:flex;justify-content:center;overflow-x:auto;">
+  <div style="width:1280px;max-width:100%;background:radial-gradient(900px 480px at 50% -8%, #f4faff, #e6f1fb);border:1px solid rgba(180,205,230,.5);border-radius:26px;padding:24px;box-shadow:0 30px 60px -30px rgba(20,60,100,.35);">
+
+    <div style="display:inline-flex;align-items:center;gap:6px;background:#F5A623;color:#fff;padding:6px 14px;border-radius:999px;font-size:13px;font-weight:700;box-shadow:0 3px 8px rgba(245,166,35,.32);margin-bottom:16px;">2 unread</div>
+
+    <div style="display:flex;gap:18px;margin-bottom:18px;">
+      <div style="flex:1;background:linear-gradient(135deg,#1aa6e6,#0a85cf);border-radius:18px;padding:22px 24px;color:#fff;box-shadow:0 12px 26px rgba(13,131,201,.26);"><div style="font-size:40px;font-weight:700;line-height:1;">25</div><div style="font-size:16px;font-weight:600;margin-top:10px;">New Prospects</div><div style="font-size:13px;opacity:.82;margin-top:2px;">last 30 days</div></div>
+      <div style="flex:1;background:linear-gradient(135deg,#1aa6e6,#0a85cf);border-radius:18px;padding:22px 24px;color:#fff;box-shadow:0 12px 26px rgba(13,131,201,.26);"><div style="font-size:40px;font-weight:700;line-height:1;">62/250</div><div style="font-size:16px;font-weight:600;margin-top:10px;">Active Franchisees</div><div style="font-size:13px;opacity:.82;margin-top:2px;">of 250 goal</div></div>
+      <div style="flex:1;background:linear-gradient(135deg,#1aa6e6,#0a85cf);border-radius:18px;padding:22px 24px;color:#fff;box-shadow:0 12px 26px rgba(13,131,201,.26);"><div style="font-size:40px;font-weight:700;line-height:1;">7/100</div><div style="font-size:16px;font-weight:600;margin-top:10px;">High Performers</div><div style="font-size:13px;opacity:.82;margin-top:2px;">10+ purchased last 12mo</div></div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:18px;">
+
+      <!-- LIST -->
+      <div style="flex:0 0 300px;height:730px;display:flex;flex-direction:column;background:#fff;border-radius:18px;box-shadow:0 1px 3px rgba(16,40,70,.06),0 12px 28px -16px rgba(16,40,70,.2);overflow:hidden;">
+        <div style="padding:14px 14px 10px;">
+          <div style="display:flex;align-items:center;gap:8px;background:#f1f4f8;border-radius:11px;padding:9px 12px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9aa3b0" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <span style="font-size:14px;color:#9aa3b0;">Search conversations…</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:12px;">
+            <span style="background:#0E96D8;color:#fff;font-size:13px;font-weight:600;padding:5px 14px;border-radius:999px;">All</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;color:#7a8696;font-size:13px;font-weight:600;padding:5px 10px;">Unread <span style="background:#0E96D8;color:#fff;font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px;">2</span></span>
+            <div style="margin-left:auto;cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9aa3b0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><polyline points="21 3 21 9 15 9"></polyline></svg></div>
+          </div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:4px 8px 10px;">
+          <sc-for list="{{ convos }}" as="c" hint-placeholder-count="5">
+            <button onClick="{{ c.onSelect }}" style="display:flex;gap:11px;align-items:center;width:100%;text-align:left;border:none;background:{{ c.bg }};padding:10px 11px;border-radius:13px;cursor:pointer;margin-bottom:2px;" style-hover="background:#f3f7fb;">
+              <div style="width:42px;height:42px;border-radius:50%;background:{{ c.color }};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex-shrink:0;">{{ c.initials }}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:baseline;gap:6px;"><span style="font-weight:600;font-size:14.5px;color:#1c2430;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ c.name }}</span><span style="margin-left:auto;font-size:12px;color:#9aa3b0;flex-shrink:0;">{{ c.time }}</span></div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:2px;"><span style="flex:1;min-width:0;font-size:13px;color:#8a94a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ c.preview }}</span><sc-if value="{{ c.hasUnread }}" hint-placeholder-val="{{ true }}"><span style="background:#0E96D8;color:#fff;font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">{{ c.unread }}</span></sc-if></div>
+              </div>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- THREAD (1b panel) -->
+      <div style="flex:1 1 460px;min-width:360px;height:730px;display:flex;flex-direction:column;background:#fff;border-radius:18px;box-shadow:0 1px 3px rgba(16,40,70,.06),0 12px 28px -16px rgba(16,40,70,.2);overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #eef1f5;">
+          <div style="width:36px;height:36px;border-radius:50%;background:{{ activeColor }};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex-shrink:0;">{{ activeInitials }}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:8px;"><span style="font-weight:600;font-size:14px;color:#1c2430;white-space:nowrap;">{{ activeName }}</span><sc-if value="{{ typePros }}" hint-placeholder-val="{{ true }}"><span style="background:#FEF3E0;color:#C77B12;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;">Prospect</span></sc-if><sc-if value="{{ typeFran }}" hint-placeholder-val="{{ true }}"><span style="background:#E4F6F0;color:#127D6B;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;">Franchisee</span></sc-if></div>
+            <div style="font-size:12px;color:#8a94a3;margin-top:1px;">{{ activePhone }}</div>
+          </div>
+          <div style="display:inline-flex;align-items:center;gap:6px;color:#9aa3b0;font-size:12px;"><span style="width:7px;height:7px;border-radius:50%;background:#1FB6A8;"></span>SMS · Signal House</div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:14px 20px;background:#fff;display:flex;flex-direction:column;">
+          <sc-for list="{{ messages }}" as="m" hint-placeholder-count="6">
+            <sc-if value="{{ m.isSep }}" hint-placeholder-val="{{ true }}"><div style="text-align:center;margin:14px 0 8px;font-size:11px;color:#9aa3b0;font-weight:600;">{{ m.sep }}</div></sc-if>
+            <sc-if value="{{ m.isIn }}" hint-placeholder-val="{{ true }}"><div style="display:flex;justify-content:flex-start;margin:2px 0;"><div style="max-width:70%;background:#E9E9EB;color:#1c1c1e;padding:7px 12px;border-radius:18px;border-bottom-left-radius:6px;font-size:13px;line-height:1.4;">{{ m.text }}</div></div></sc-if>
+            <sc-if value="{{ m.isOut }}" hint-placeholder-val="{{ true }}"><div style="display:flex;flex-direction:column;align-items:flex-end;margin:2px 0;"><div style="max-width:70%;background:linear-gradient(180deg,#1aa3e6,#0E96D8);color:#fff;padding:7px 12px;border-radius:18px;border-bottom-right-radius:6px;font-size:13px;line-height:1.4;">{{ m.text }}</div><sc-if value="{{ m.delivered }}" hint-placeholder-val="{{ true }}"><div style="font-size:11px;color:#9aa3b0;margin-top:3px;">Delivered</div></sc-if></div></sc-if>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid #eef1f5;">
+          <div style="width:30px;height:30px;border-radius:50%;border:1.5px solid #d5dbe3;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9aa3b0" stroke-width="2" stroke-linecap="round"><line x1="12" y1="6" x2="12" y2="18"></line><line x1="6" y1="12" x2="18" y2="12"></line></svg></div>
+          <input value="{{ draft }}" onInput="{{ onDraft }}" onKeyDown="{{ onKey }}" placeholder="Text Message" style="flex:1;border:1.5px solid #e2e7ee;border-radius:999px;padding:9px 15px;font-size:13.5px;color:#1c2430;outline:none;font-family:inherit;" />
+          <button onClick="{{ send }}" style="width:34px;height:34px;border-radius:50%;border:none;background:#0E96D8;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="5"></line><polyline points="6 11 12 5 18 11"></polyline></svg></button>
+        </div>
+      </div>
+
+      <!-- RAIL : Work Queue / Calendar / Tasks -->
+      <div style="flex:1 1 280px;min-width:280px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:14px;">
+        <div style="flex:1 1 240px;min-width:240px;background:#fff;border-radius:16px;box-shadow:0 1px 3px rgba(16,40,70,.06),0 12px 28px -16px rgba(16,40,70,.2);padding:16px;">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0E96D8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="18" rx="2"></rect><path d="M9 4V3h6v1"></path><path d="M9 12l2 2 4-4"></path></svg><span style="font-weight:700;font-size:15px;color:#1c2430;">Work Queue</span><span style="margin-left:auto;font-size:12px;color:#9aa3b0;">2 to clear</span></div>
+          <sc-for list="{{ workQueue }}" as="w" hint-placeholder-count="2">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #f2f4f7;">
+              <div style="width:8px;height:8px;border-radius:50%;background:{{ w.color }};flex-shrink:0;"></div>
+              <div style="flex:1;min-width:0;"><div style="font-size:13.5px;font-weight:600;color:#1c2430;">{{ w.label }}</div><div style="font-size:12px;color:#9aa3b0;">{{ w.meta }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- CALENDAR (expandable) -->
+        <div style="flex:1 1 240px;min-width:240px;background:#fff;border-radius:16px;box-shadow:0 1px 3px rgba(16,40,70,.06),0 12px 28px -16px rgba(16,40,70,.2);padding:16px;">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0E96D8" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg><span style="font-weight:700;font-size:15px;color:#1c2430;">Calendar</span><span style="margin-left:auto;font-size:12px;color:#9aa3b0;">2 events</span></div>
+          <div style="font-size:12.5px;color:#9aa3b0;margin-bottom:6px;">Tuesday, June 30 · from GHL</div>
+          <sc-for list="{{ calendar }}" as="e" hint-placeholder-count="2">
+            <div style="border-top:1px solid #f2f4f7;">
+              <button onClick="{{ e.onToggle }}" style="display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:none;background:transparent;padding:9px 0;cursor:pointer;">
+                <div style="width:3px;align-self:stretch;border-radius:2px;background:{{ e.color }};flex-shrink:0;"></div>
+                <div style="flex:1;min-width:0;"><div style="font-size:13.5px;font-weight:600;color:#1c2430;">{{ e.title }}</div><div style="font-size:12px;color:#8a94a3;">{{ e.time }} · {{ e.who }}</div></div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b3bcc8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:{{ e.rot }};transition:transform .2s;flex-shrink:0;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+              <sc-if value="{{ e.isOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="background:#f7f9fc;border-radius:11px;padding:13px 14px;margin:2px 0 11px 13px;animation:expand .18s ease;">
+                  <div style="font-size:12.5px;color:#5b6573;line-height:1.45;margin-bottom:11px;">{{ e.desc }}</div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="font-size:12px;color:#9aa3b0;">Date</span><span style="font-size:12.5px;font-weight:600;color:#1c2430;">{{ e.date }}</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="font-size:12px;color:#9aa3b0;">Time</span><span style="font-size:12.5px;font-weight:600;color:#1c2430;">{{ e.time }} · {{ e.duration }}</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="font-size:12px;color:#9aa3b0;">Type</span><span style="font-size:12.5px;font-weight:600;color:#1c2430;">{{ e.type }}</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="font-size:12px;color:#9aa3b0;">Assignee</span><span style="font-size:12.5px;font-weight:600;color:#1c2430;">{{ e.assignee }}</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="font-size:12px;color:#9aa3b0;">Contact</span><span style="font-size:12.5px;font-weight:600;color:#1c2430;">{{ e.contact }}</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="font-size:12px;color:#9aa3b0;">Phone</span><span style="font-size:12.5px;font-weight:600;color:#1c2430;">{{ e.phone }}</span></div>
+                  <div style="display:flex;gap:8px;margin-top:11px;"><span style="flex:1;text-align:center;background:#0E96D8;color:#fff;font-size:12.5px;font-weight:600;padding:8px 0;border-radius:9px;cursor:pointer;">Join</span><span style="flex:1;text-align:center;background:#eef1f5;color:#5b6573;font-size:12.5px;font-weight:600;padding:8px 0;border-radius:9px;cursor:pointer;">Open in GHL</span></div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- TASKS (expandable) -->
+        <div style="flex:1 1 240px;min-width:240px;background:#fff;border-radius:16px;box-shadow:0 1px 3px rgba(16,40,70,.06),0 12px 28px -16px rgba(16,40,70,.2);padding:16px;">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="18" rx="2"></rect><line x1="9" y1="3" x2="15" y2="3"></line><path d="M9 12l2 2 4-4"></path></svg><span style="font-weight:700;font-size:15px;color:#1c2430;">Tasks</span><span style="margin-left:auto;font-size:12px;color:#9aa3b0;">3 pending</span></div>
+          <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="3">
+            <div style="border-top:1px solid #f2f4f7;">
+              <button onClick="{{ t.onToggle }}" style="display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:none;background:transparent;padding:9px 0;cursor:pointer;">
+                <div style="width:16px;height:16px;border-radius:5px;border:1.5px solid #cfd6df;flex-shrink:0;"></div>
+                <div style="flex:1;min-width:0;"><div style="font-size:13.5px;font-weight:600;color:#1c2430;">{{ t.title }}</div></div>
+                <span style="font-size:10.5px;font-weight:700;color:{{ t.priColor }};background:{{ t.priBg }};border-radius:999px;padding:2px 8px;flex-shrink:0;">{{ t.priority }}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b3bcc8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:{{ t.rot }};transition:transform .2s;flex-shrink:0;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+              <sc-if value="{{ t.isOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="background:#f7f9fc;border-radius:11px;padding:13px 14px;margin:2px 0 11px 26px;animation:expand .18s ease;">
+                  <div style="font-size:12.5px;color:#5b6573;line-height:1.45;margin-bottom:11px;">{{ t.desc }}</div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="font-size:12px;color:#9aa3b0;">Due</span><span style="font-size:12.5px;font-weight:600;color:#1c2430;">{{ t.due }}</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="font-size:12px;color:#9aa3b0;">Priority</span><span style="font-size:12.5px;font-weight:600;color:{{ t.priColor }};">{{ t.priority }}</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="font-size:12px;color:#9aa3b0;">Assignee</span><span style="font-size:12.5px;font-weight:600;color:#1c2430;">{{ t.assignee }}</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="font-size:12px;color:#9aa3b0;">Contact</span><span style="font-size:12.5px;font-weight:600;color:#1c2430;">{{ t.contact }}</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="font-size:12px;color:#9aa3b0;">Phone</span><span style="font-size:12.5px;font-weight:600;color:#1c2430;">{{ t.phone }}</span></div>
+                  <div style="display:flex;gap:8px;margin-top:11px;"><span style="flex:1;text-align:center;background:#1FB6A8;color:#fff;font-size:12.5px;font-weight:600;padding:8px 0;border-radius:9px;cursor:pointer;">Mark done</span><span style="flex:1;text-align:center;background:#eef1f5;color:#5b6573;font-size:12.5px;font-weight:600;padding:8px 0;border-radius:9px;cursor:pointer;">Open in GHL</span></div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.data = [
+      { id:"denzel", name:"Denzel Lavinder", phone:"(615) 878-9793", type:"Prospect", time:"Thu", unread:1, preview:"Just confirming we\u2019re still on for 2?", initials:"DL", color:"#0E96D8" },
+      { id:"brittany", name:"Brittany Cho", phone:"(210) 555-0148", type:"Franchisee", time:"Thu", unread:0, preview:"Thank you! That helped a ton.", initials:"BC", color:"#7C5CFC" },
+      { id:"marcus", name:"Marcus Webb", phone:"(404) 555-0192", type:"Prospect", time:"Jun 22", unread:1, preview:"Sounds good, I\u2019ll get those over.", initials:"MW", color:"#1FB6A8" },
+      { id:"priya", name:"Priya Nair", phone:"(480) 555-0177", type:"Franchisee", time:"Jun 21", unread:0, preview:"Numbers looked great this month.", initials:"PN", color:"#F5A623" },
+      { id:"sofia", name:"Sofia Ramos", phone:"(305) 555-0133", type:"Prospect", time:"Jun 20", unread:0, preview:"Might revisit this in the fall.", initials:"SR", color:"#EB5757" },
+    ];
+    this.calendar = [
+      { time:"2:00 PM", title:"Discovery call", who:"Denzel Lavinder", color:"#0E96D8", date:"Tue, Jun 30", duration:"30 min", type:"Zoom call", assignee:"You", contact:"Denzel Lavinder", phone:"(615) 878-9793", desc:"Walk through royalty-structure questions and confirm the North Nashville territory before sending the agreement." },
+      { time:"4:30 PM", title:"Coaching session", who:"Brittany Cho", color:"#7C5CFC", date:"Tue, Jun 30", duration:"45 min", type:"Phone call", assignee:"You", contact:"Brittany Cho", phone:"(210) 555-0148", desc:"Review Q2 performance and map out a 2-unit expansion plan for the fall." },
+    ];
+    this.tasks = [
+      { title:"Send FDD to Marcus Webb", due:"Today", priority:"High", assignee:"You", contact:"Marcus Webb", phone:"(404) 555-0192", desc:"Email the FDD document with the e-sign link and flag the royalty section for his review." },
+      { title:"Follow up with Sofia Ramos", due:"Today", priority:"Medium", assignee:"You", contact:"Sofia Ramos", phone:"(305) 555-0133", desc:"Nurture lead \u2014 check her interest level and confirm fall timing for a revisit." },
+      { title:"Prep coaching deck \u2014 Priya", due:"Tomorrow", priority:"Low", assignee:"You", contact:"Priya Nair", phone:"(480) 555-0177", desc:"Pull this month\u2019s numbers into the coaching deck before the scheduled call." },
+    ];
+    this.workQueue = [
+      { label:"Reply to Denzel Lavinder", meta:"Unread \u00b7 2h ago", color:"#0E96D8" },
+      { label:"Reply to Marcus Webb", meta:"Unread \u00b7 8d ago", color:"#1FB6A8" },
+    ];
+    this.state = {
+      sel: "denzel",
+      draft: "",
+      openEvent: null,
+      openTask: null,
+      threads: {
+        denzel: [
+          { sep:"Thursday 9:41 AM" },
+          { in:true, text:"Hey, saw your follow-up. Still interested in the North Nashville territory." },
+          { out:true, text:"Awesome, Denzel! It\u2019s still open. Did you get a chance to review the FDD I sent over?" },
+          { in:true, text:"Yeah, went through most of it. Had a couple questions on the royalty structure." },
+          { out:true, text:"Totally fair. Want to hop on a quick call? I can walk you through it." },
+          { in:true, text:"That works. Afternoon is better for me." },
+          { out:true, text:"Perfect \u2014 sending a calendar invite for 2:00 PM today. Talk then \ud83d\udc4d", delivered:true },
+          { sep:"Today" },
+          { in:true, text:"Just confirming we\u2019re still on for 2?" },
+        ],
+        brittany: [
+          { sep:"Thursday 1:12 PM" },
+          { in:true, text:"The new POS rollout went smooth. Team\u2019s happy." },
+          { out:true, text:"Love to hear it! Your numbers have been climbing all quarter.", delivered:true },
+          { in:true, text:"Thank you! That helped a ton." },
+        ],
+        marcus: [
+          { sep:"Jun 22" },
+          { out:true, text:"Hi Marcus \u2014 to move your application forward I\u2019ll need your last two tax returns.", delivered:true },
+          { in:true, text:"Sounds good, I\u2019ll get those over." },
+        ],
+        priya: [
+          { sep:"Jun 21" },
+          { in:true, text:"Numbers looked great this month \u2014 up 14%." },
+          { out:true, text:"That\u2019s fantastic, Priya. Let\u2019s talk expansion on our next call.", delivered:true },
+        ],
+        sofia: [
+          { sep:"Jun 20" },
+          { out:true, text:"No pressure at all \u2014 want me to check back in a few months?", delivered:true },
+          { in:true, text:"Might revisit this in the fall." },
+        ],
+      },
+    };
+  }
+
+  send() {
+    const text = (this.state.draft || "").trim();
+    if (!text) return;
+    const sel = this.state.sel;
+    this.setState(s => {
+      const threads = { ...s.threads };
+      const arr = (threads[sel] || []).slice();
+      arr.push({ out:true, text, delivered:true });
+      threads[sel] = arr;
+      return { threads, draft: "" };
+    });
+  }
+
+  renderVals() {
+    const sel = this.state.sel;
+    const active = this.data.find(c => c.id === sel) || this.data[0];
+    const PRI = {
+      High:   { color:"#D64545", bg:"#FDECEC" },
+      Medium: { color:"#C77B12", bg:"#FEF3E0" },
+      Low:    { color:"#127D6B", bg:"#E4F6F0" },
+    };
+
+    const convos = this.data.map(c => ({
+      ...c,
+      bg: c.id === sel ? "#eaf4fd" : "transparent",
+      hasUnread: c.unread > 0,
+      onSelect: () => this.setState({ sel: c.id }),
+    }));
+
+    const raw = this.state.threads[sel] || [];
+    const messages = raw.map(m => ({
+      isSep: !!m.sep, isIn: !!m.in, isOut: !!m.out,
+      sep: m.sep || "", text: m.text || "", delivered: !!m.delivered,
+    }));
+
+    const calendar = this.calendar.map((e, i) => ({
+      ...e,
+      isOpen: this.state.openEvent === i,
+      rot: this.state.openEvent === i ? "rotate(180deg)" : "rotate(0deg)",
+      onToggle: () => this.setState(s => ({ openEvent: s.openEvent === i ? null : i })),
+    }));
+
+    const tasks = this.tasks.map((t, i) => ({
+      ...t,
+      isOpen: this.state.openTask === i,
+      rot: this.state.openTask === i ? "rotate(180deg)" : "rotate(0deg)",
+      priColor: (PRI[t.priority] || PRI.Low).color,
+      priBg: (PRI[t.priority] || PRI.Low).bg,
+      onToggle: () => this.setState(s => ({ openTask: s.openTask === i ? null : i })),
+    }));
+
+    return {
+      convos, messages, calendar, tasks, workQueue: this.workQueue,
+      activeName: active.name, activePhone: active.phone, activeInitials: active.initials,
+      activeColor: active.color,
+      typePros: active.type === "Prospect",
+      typeFran: active.type === "Franchisee",
+      draft: this.state.draft,
+      onDraft: e => this.setState({ draft: e.target.value }),
+      onKey: e => { if (e.key === "Enter") { e.preventDefault(); this.send(); } },
+      send: () => this.send(),
+    };
+  }
+}
+</script>
+</body>
+</html>
