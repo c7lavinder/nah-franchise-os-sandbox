@@ -1,78 +1,79 @@
-# Session Handoff — 2026-07-22 — Session 85
-
-> **UPDATE 2026-07-27 — the chain is fully merged; the pipeline page shipped.**
-> Everything this file lists as "remaining for Ben" is **DONE**: #293, #294, #298, #303, #306 all merged 2026-07-22 (plus #287/#289 already noted). #365 (FranDev workspace — Matt gets the switch, Day Hub today-row parity, fixed-size top cards) merged 2026-07-25 after this file was written.
-> `frandev-inventory-pipelines` was opened as **PR #381**, merged into current `main` (one JS conflict in `Inventory.cshtml` — s71's single-`location.replace()` fix unioned with this branch's `FD_WS` lens guard; `dotnet build` 0 errors), and **merged by Ben 2026-07-27 14:23Z**. Branch realigned to the merged commit, 0 divergence.
-> **Not browser-verified since that merge** — the sticky-filter path is JS, so the build does not exercise it. Needs one click in each lens.
-> Pages folded in so far: **Day Hub, Property page, Calls (list), Inventory/Pipeline**. Registry `PageKey`s live: `dayhub`, `property`, `tab`, `rail-kpi`, `payhub_pulse`, `pipeline`.
-> Blocked-on-Ben is no longer the story. Remaining work is ours — see the task list.
+# Session Handoff — 2026-07-29 — Session 86
 
 ## Status
 
-Phase: **Phase 2 mega-sprint — FIVE workstreams built, wired, and live-verified in one session.** (1) **Day Hub FranDev card set v2** — Corey's final Convert/Launch/Grow designs: 13 registry cards over 4 gated donor reads + Ready to Dial top-row card + 5-cell internal KPI strip w/ pipeline health; v1 interim cards retired by data. (2) **Unified Calls page `/Gunner/CallsV2`** (mock 1a) — frandev type-panels + upcoming rail + drop zone, workspace-scoped; drag-retype persists on BOTH tables (journaled SetCallType / existing ReclassifyCall — id shape picks the side); legacy pages untouched. (3) **CRM V2 completion** — Journey EOS tab, Territory Data (11 sections) + EOS tabs, rails wired on all three pages, first writes (clickable stage bar via journaled donor writes, task toggles, phone/email inline edit). (4) **Lean reads + config** — GetReadyDial (Day Hub no longer triggers the 3.4k-row GetBoard; Chad/promotion prerequisite CLEARED) + card targets → SystemConfig `Frandev_Goal_*`. (5) **UNIFIED PIPELINE PAGE** — the Gunner Inventory page renders FranDev pipelines in the FranDev workspace: strips are PANEL-REGISTRY rows (PageKey='pipeline', migration -166; permission + beta per strip, composing WITHIN a kind is data-driven), the **workspace switch is a LENS** (Corey's ruling: switch, not all-at-once) deciding which kind displays; journey rows expand an inline SUB-STAGE CHECKLIST with **AUTO-MOVE** (pointer hops to next incomplete sub-stage; last one auto-advances the stage, terminal refused — all composed from existing journaled writes). Plus: **Chad Arnold + Corey granted the Frandev permission on dev** and the FranDev left-nav entry enabled (was off for everyone; still permission-gated). Branches: `frandev-dayhub-calls-crm` (4 commits, **PR #306 OPEN**, chain #289→…→#306 on Ben) and `frandev-inventory-pipelines` (3 commits, pushed, stacked — PR awaits Corey's word). Merge preview: chain + main merged CLEAN (zero conflicts), built, verified. / Health: Green / Duration: full overnight + day session
+Phase: **FranDev → MasterSuite fold-in. Two workstreams: (1) unblock the production data load, (2) a wiring pass over the consolidated pages.** The headline discovery is that production ALREADY has all 116 `frandev_` tables and all 18 FranDev migrations — they are simply **empty**. So the prod job is a data load, not a schema job, and it is blocked on exactly one thing: a database GRANT only Ben can issue. While that waits, roughly **half the Day Hub already returns real numbers on production**, because those cards read MasterSuite's own tables (`Territories`, `PropertyInventory`, `PropertySummaries`, `PropertyStatusHistory`) rather than the FranDev mirror — Corey's insight, and the lever for aligning most things without Ben. Two PRs opened: **#409** (the grant) and **#412** (the wiring pass). / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-- **Day Hub v2** (376074d8a): `FrandevService.DayHubCards.cs` (GetConvertCards/GetLaunchCards/GetGrowCards/GetDayHubKpis), 13 partials in `DayHubPanels/`, tinted column headers, migration -164; Fetch failures now log to stderr.
-- **CallsV2** (c2c706e1a): `Pages/Gunner/CallsV2.cshtml(.cs)`, `GunnerService.CallsV2.cs` (stats/upcoming/RequeueCallGrading), `FrandevService.CallsV2.cs` (GetCallGrades/GetScheduledCalls/SetCallType journaled to frandev_native_write).
-- **CRM V2 pass 2** (4c81f281f): JourneyV2/TerritoryV2/ContactV2 — EOS/Data tabs, rails, writes; honest empty states where no donor reads exist.
-- **Lean reads** (72fc6083c): GetReadyDial one-query urgency read; SystemConfig goals, migration -165.
-- **Unified pipeline** (1b41720ea + 8f0a93147 + f44dc9e2f): Inventory workspace fork → registry strips (catalog `PipelineStrips`, migration -166) → lens ruling; `_FrandevLeadPanel.cshtml` sub-stage expander; `CompleteSubTaskAuto` (LogSubTask → BoardMove pointer hop → AdvanceJourneyStage on stage completion); handlers FrandevPanel/FrandevSubTask; gunner-only JS (bulk, prospect expander, quick-filter stickies) gated off in FranDev.
-- **Dev-DB data flips** (node mysql2 pattern): chad@ (UserId 152) + corey@ (UserId 36) → Frandev permission = 1; nav row Id 76 (/frandev) Enabled=1 (Id 77 /v2/frandev left off).
-- Sandbox: design handoffs committed (f6bd532); review brief v2 Artifact: https://claude.ai/code/artifact/abce677f-7ddf-4ac7-b3df-7a91ce89e238 (original URL rejected redeploys — org-mismatch service error).
+- **Prod-target capability for the outbound push** (sandbox): `lib/mastersuite/write-client.ts` gained `MASTERSUITE_WRITE_TARGET` = `dev` (default) | `prod`. Prod resolves `MASTERSUITE_PROD_DB_*` with **no fallback chain** on purpose (a typo must fail loudly, never silently fire 97,818 rows at dev), plus `assertNotReadOnlyUser` which refuses the SELECT-only reporting account _before_ connecting. Dev keeps the original `/prod/i` host refusal. Cron + script report which database they wrote to.
+- **The grant script for Ben** (MasterSuite PR #409): `database/2026-07-29_grant_frandev_sync_write.sql` — 116 explicit GRANT lines generated from production's own `information_schema`, deliberately NOT a migration (one-time permission change; the runner would try it on dev where the account does not exist).
+- **Inventory Watch fix** (`FrandevService.DayHubCards.cs`, `_FrandevInventoryWatch.cshtml`): new `Frandev_AbandonedFlipDays` (default 1095) filters the LIST only; the three counts keep the unfiltered definition so the Day Hub and Territory page never disagree.
+- **Pipeline count fix** (`FrandevService.Pipeline.cs`): `GetLeadRowCount` now mirrors `GetLeadRows`' own rule — states when a stage filter is active, distinct journeys when not.
+- **Territory rows** (`FrandevService.Pipeline.cs`, `IFrandevService.cs`, `Inventory.cshtml(.cs)`): `GetTerritoryRows`/`GetTerritoryRowCount` + `FdRowKind` + a territory row block. Sourced from **native `Territories`**, not the mirror. Stage dot moved to the same source. Page counts now say what they count (properties / journeys / territories).
+- **Permission gate** (`Program.cs`, `DayHub.cshtml.cs`, migration `2026-07-29-184`): `Frandev` admitted to `/Gunner/{DayHub,CallsV2,Inventory}` only; `dayhub-frandev` rows moved onto the `Frandev` permission; Day Hub picks the frandev lens when that is the only world granted.
+- **Test-runner migration** (4 `.csproj`): `CommonWebUtilitiesTests`, `DataAccess.Tests`, `FormatHelpersTests`, `ServiceEngineTests` moved to Microsoft.Testing.Platform; duplicate MSTest PackageReferences dropped.
+- **Docs landed** (sandbox): `docs/workflows-catalog.md` (1,324 lines), `docs/core-workflows.md`, `docs/design_handoff_messaging_hub/`.
 
-## What Is Confirmed Working (dev 7128, Corey's authenticated browser)
+## What Is Confirmed Working
 
-- FranDev Day Hub: all 13 v2 cards on real data; Ready to Dial on the lean read; KPI strip + health; Gunner hub byte-identical.
-- CallsV2 both workspaces; retype round-tripped on both call tables (changed + reverted, ok:true).
-- JourneyV2 (jarrod-turner), TerritoryV2 (ATHENS — Data + full EOS w/ real goals/scorecard/$945 spend/habit grades/rocks), ContactV2 (Personal EOS + handlers).
-- Unified pipeline, both lenses: FranDev = 5 FranDev strips + journey rows + toggle; Gunner = the 4 property strips + property rows, unchanged. Stage-dot filters match dot counts (acq.stage1 → 33 props; Engagement → 41 journeys). Sub-stage check → pointer auto-moved to "Intro Call" → unchecked and restored.
-- Merge preview (chain + origin/main incl. merged #287): ZERO conflicts, build 0 errors, all surfaces render.
-- `dotnet build` 0 errors after every stage; migrations 164/165/166 applied to dev.
+- **Production reality, queried directly:** 116 `frandev_` tables + `frandev_native_write` present, all 18 FranDev migrations recorded, **every table 0 rows**. Nav rows 76/77 `Enabled=0`. No `FRANDV` Territories row (migration -168 never merged to main).
+- **The prod account is read-only, proven empirically** — `SHOW GRANTS` says `GRANT SELECT ON mastersuite.*` and nothing else, and INSERT/UPDATE/DELETE against `frandev_` tables all return `ER_TABLEACCESS_DENIED_ERROR` inside a rolled-back transaction.
+- **Full dry-run against PRODUCTION schema: 115 tables planned, 92 with rows, 97,818 rows, 0 skipped, 0 errors.** Engine is upsert-only (`INSERT … ON DUPLICATE KEY UPDATE`), no row-removal statements anywhere.
+- **All three write-client guards tested:** dev dry-run works, prod-without-credentials refuses, prod-pointed-at-the-read-only-account refuses before connecting.
+- **Day Hub structural wiring:** all 15 enabled FranDev cards have a catalog entry, a partial on disk, and reads that are genuinely fetched. All 15 degrade cleanly with no data.
+- **Half the Day Hub live on production today:** System Scorecard (13 houses/30d, 43 contracts, $21,210 avg profit), Inventory Watch (174 active flips, 103 past 120d), Time to Launch (55 launches, PIELLA 74d), Quarter Goal (10 territories YTD).
+- **All 5 FranDev pipelines present and rendering** — sales (67 active), onboarding (53), runway (48), territories (85), followup (3,021). All 5 registry strips match a real pipeline slug; no orphans either direction.
+- **All 17 journey stages report dot = header = rows**, with the six multi-territory rows correctly counted twice.
+- **Territory rows verified on BOTH databases:** dot equals row count for active/inactive/available on production (59/30/0, mirror empty) and dev (same, mirror full). Production renders TRI at 32 in inventory / 29 bought in 12 months; dev adds owner names.
+- **`dotnet test MasterSuite.sln` — 3,808 tests, 0 failures.** `dotnet build` 0 errors after every commit.
+- Migration -184 applied to dev; all 20 `dayhub-frandev` rows confirmed on `perm=Frandev`.
 
 ## What Is Broken or Incomplete
 
-- JourneyV2 stage-advance + pipeline-page stage AUTO-advance not exercised live (compose the E2E-tested advance write; would move real journeys) — Corey should click one through — Medium
-- Gunner Retry on CallsV2 assumes the grading worker re-picks PENDING — confirm w/ Ben — Medium
-- Territories strip on the pipeline page: stage dots filter to JOURNEY rows; entity-typed territory rows linking to Territory V2 are a follow-up — Low
-- Time to Launch = sign→first HOUSE (labeled honestly); Territory Grades = compliance buckets — Low
-- Deferred by design: recording↔scheduled matcher, + Schedule flow, gunner call ingest, Merge/Delete/Transfer writes, EOS write-back, unified call DETAIL page, one AI dock, Offers/Team/Notes rail reads — Low/Medium
-- Test residue on dev: mark woodring's sub-stage pointer sits on Intro Call w/ fresh timer — cosmetic
-- Carried: Jessica AdminPanel bypass + PROD permission audit (High); API key rotation (Corey); prod needs the Chad/Corey permission + nav flips at rollout
+- **Production `frandev_` tables are still empty** — blocked on PR #409 — High
+- **Nothing in this session was verified in a browser.** Every claim is from SQL and builds. The territory rows are new markup nobody has seen rendered — Medium
+- `Program.cs` permission-gate widening needs Ben's explicit sign-off, not a silent merge — Medium
+- No `MasterSuite.Modules.Frandev.Tests` exists — FranDev code has zero unit coverage — Medium
+- Pages not yet audited: Contacts, Inbox, Tasks, Calendar, Activity, Knowledge, unified call detail — Medium
+- `FRANDV` territory-selector row absent from prod; migration -168 never merged to main — Medium
+- Territories strip stage `available` maps to nothing (no native equivalent; 0 rows either side today) — Low
+- Owner/Region read blank on production territory rows until the mirror fills — Low, by design
 
 ## Decisions Made
 
-- **Pipelines compose per user via the registry, but the workspace switch is a LENS** — registry grants, lens displays one kind at a time; single-kind users see theirs with no switch — Corey.
-- Auto-move semantics: pointer hops on sub-stage completion; stage auto-advances only when ALL sub-stages complete; NEVER onto a terminal stage; unchecking never cascades — built to Corey's "ideally auto move".
-- Chad Arnold gets FranDev now (lean read prerequisite cleared); Gunner-page FranDev workspaces stay beta corey@-only until Corey adds chad@ to BetaUserIds.
-- CallsV2 + unified pipeline ship beside legacy pages; retirement after sign-off.
-- v1 cards + legacy paths retired by data flips only (rollback = flip back).
+- **Production is loaded BY HAND, never on a schedule** — "no one is using the frandev in mastersuite so it does not have to be perfect, just need to ensure everything looks good and wired up." Load once, build against it, refresh on demand, final load at cutover. The Vercel cron stays pointed at dev — Corey
+- **Territory rows source native `Territories`, not the `frandev_` mirror** — makes the strip work on production before any load, and guarantees dot and list cannot drift — Claude, on Corey's "align the majority without Ben" steer
+- Inventory Watch counts keep the unfiltered definition while the list filters — page-to-page consistency beats internal tidiness — Claude
+- The grant ships as a one-time script, not a migration — it is a DBA action and the runner would attempt it on dev — Claude
+- Ready to Dial staying off the top row and `frandev_scorecard` staying parked are **Corey's existing decisions**, re-confirmed, not bugs — Corey (2026-07-25, via migration -176)
 
 ## Files Created
 
-- MasterSuite: `Entities/Frandev/{FrandevDayHubCards,FrandevCallsV2,FrandevPipelineAuto}.cs`, `Entities/Gunner/GunnerCallsV2Stats.cs`, `MasterSuite.Modules.Frandev/{FrandevService,IFrandevService}.{DayHubCards,CallsV2,PipelineAuto}.cs`, `MasterSuite.Modules.Gunner/GunnerService.CallsV2.cs`, `Pages/Gunner/CallsV2.cshtml(.cs)`, `Pages/Gunner/_FrandevLeadPanel.cshtml`, 13 `DayHubPanels/_Frandev*.cshtml`, migrations `2026-07-22-164/-165/-166`, `docs/frandev-design/{dayhub,calls}/`
-- Sandbox: `docs/dayhub-handoff/`, `docs/calls-handoff/`
+- MasterSuite: `database/2026-07-29_grant_frandev_sync_write.sql`, `DatabaseMigrationRunner/Migrations/2026-07-29-184_FrandevDayHubCardsOnFrandevPermission.sql`
+- Sandbox: `docs/core-workflows.md`, `docs/workflows-catalog.md`, `docs/design_handoff_messaging_hub/` (2 files)
 
 ## Files Modified
 
-- MasterSuite: `GunnerPanelCatalog.cs` (+13 card entries, +PipelineStrips catalog + defaults), `DayHub.cshtml(.cs)`, `Inventory.cshtml(.cs)` (workspace lens + registry strips + FranDev rows/handlers), `IGunnerService.cs`, `Pages/Frandev/{JourneyV2,TerritoryV2,ContactV2}.cshtml(.cs)`
-- Sandbox: `handoff.md`; memories `project_panel_consolidation.md`
-- Dev DB (data): UserPermissionConfiguration (chad@/corey@ Frandev=1), MasterSuiteUI_NavigationMenuItems Id 76 Enabled=1, registry rows via migrations
+- Sandbox: `lib/mastersuite/write-client.ts`, `app/api/cron/push-frandev/route.ts`, `scripts/push-frandev-to-mastersuite.ts`, `.claude/settings.json`
+- MasterSuite: `MasterSuite.Modules.Frandev/FrandevService.DayHubCards.cs`, `FrandevService.Pipeline.cs`, `IFrandevService.cs`, `MasterSuite/Pages/Gunner/DayHubPanels/_FrandevInventoryWatch.cshtml`, `Inventory.cshtml`, `Inventory.cshtml.cs`, `DayHub.cshtml.cs`, `Program.cs`, and 4 test `.csproj` files
+- Dev DB: `MasterSuiteUI_PagePanels` — 20 `dayhub-frandev` rows moved to `Permission='Frandev'`
 
 ## Files Deleted
 
-- None (retirements are data flips)
+- None. **Six `journey_pipeline_state` rows were deleted and then fully restored** — see Open Issues.
 
 ## Open Issues Carried Forward
 
-- ~~**Chain progress:** #287 + #289 merged; #293 → #294 → #298 → #303 → #306 remaining for Ben; `frandev-inventory-pipelines` awaits Corey's PR go-ahead~~ — **ALL RESOLVED as of 2026-07-27.** Whole chain merged 2026-07-22; PR #381 (inventory pipelines) merged by Ben 2026-07-27. Still open for Ben: confirm Retry FAILED→PENDING worker-repick; Jessica AdminPanel bypass + prod permission rows — High
-- Production rollout data flips: Chad/Corey Frandev grants + nav row 76 — Medium
-- Corey: eyeball everything incl. one real stage advance; API keys; decide when chad@ joins the Gunner-page FranDev beta lists — Medium
-- Duplicate migration number 156 on main vs chain (cosmetic, runner tracks filenames) — note for Ben — Low
+- **PR #409 (the grant) — everything about the production load waits on Ben.** One file, run once — High
+- **PR #412 (wiring pass) — needs Ben, and the `Program.cs` commit specifically** — Medium
+- **Mistake worth remembering: six pipeline states were deleted as "duplicates" and were not.** Onboarding/runway are `entity_type='territory'` and fan out one state per (journey, territory) — Phil Dunbar owns BUCKMT+DELACO, Eric Wilkening FREDVA+CLTW, Erik Spersrud SASOTA+INDYNW. Grouping on (journey, stage) without checking `TerritorySlug` is what caused it. All six restored to Supabase and the mirror, verified byte-identical against the pre-delete backup. **There are no duplicate states to clean** — Resolved, but do not repeat
+- Corey to eyeball the Day Hub and pipeline page, especially the new territory rows — Medium
+- Carried from prior sessions: Jessica AdminPanel bypass + prod permission audit; API key rotation; prod rollout data flips (nav row 76, Chad/Corey grants); Retry FAILED→PENDING worker-repick confirmation — High/Medium
 
 ## Exact Next Step
 
-**(Updated 2026-07-27 — the PR go-ahead is done; #381 is merged.)** Build the **Contacts** merge: one list, user-type visibility (internal sees prospects/franchisees, acquisitions sees sellers/buyers/partners), reusing the registry-strips + lens pattern proven on Inventory. Remaining pages after that: Messages/Inbox, Tasks, Calendar, Activity, Knowledge, unified call detail, territory rows on the pipeline page. Non-page blockers: prod permission/nav flips (gated on the AdminPanel bypass audit), Retry worker-repick confirmation, one live stage-advance click.
+Ask Ben to run `database/2026-07-29_grant_frandev_sync_write.sql` against production (PR #409) — then set `MASTERSUITE_WRITE_TARGET=prod` plus `MASTERSUITE_PROD_DB_*` and run `npx tsx scripts/push-frandev-to-mastersuite.ts` once to load all 97,818 rows.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -80,6 +81,6 @@ Phase: **Phase 2 mega-sprint — FIVE workstreams built, wired, and live-verifie
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: PR #306 is open; `frandev-inventory-pipelines` (unified pipeline page w/ lens + auto-move) is pushed and awaits my PR go-ahead — open it if I say so. Next build: the Contacts merge (one list, user-type visibility, lens pattern from Inventory) unless I pick another page from the list in Exact Next Step. Chain on Ben blocks promotion only.
+Then: Ask Ben to run `database/2026-07-29_grant_frandev_sync_write.sql` against production (PR #409) — then set `MASTERSUITE_WRITE_TARGET=prod` plus `MASTERSUITE_PROD_DB_*` and run `npx tsx scripts/push-frandev-to-mastersuite.ts` once to load all 97,818 rows.
 
 ---
