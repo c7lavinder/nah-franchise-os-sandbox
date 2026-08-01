@@ -46,6 +46,7 @@ async function main() {
     isWriteConfigured,
     endMasterSuiteWritePool,
     getWriteTarget,
+    assertWriteCapableOrThrow,
   } = require("@/lib/mastersuite/write-client");
   const { getMasterSuitePool } = require("@/lib/mastersuite/client");
 
@@ -68,6 +69,7 @@ async function main() {
     }
     schemaPool = getMasterSuiteWritePool();
     writePool = schemaPool; // target DB is both schema source and write target
+    await assertWriteCapableOrThrow(); // privileges are real, not inferred from the username
     const target = getWriteTarget();
     console.log(`Target: MasterSuite ${target.toUpperCase()} database`);
     if (target === "prod") {

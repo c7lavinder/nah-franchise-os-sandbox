@@ -72,8 +72,27 @@ function charLimit(destType: string): number | null {
   return m ? parseInt(m[1], 10) : null;
 }
 
-function coerceValue(value: unknown, destType: string): Primitive {
+/** True when `text` already parses as JSON, so it can be stored verbatim. */
+function isJsonText(text: string): boolean {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function coerceValue(value: unknown, destType: string, destIsJson = false): Primitive {
   if (value === null || value === undefined) return null;
+  // MariaDB models JSON as `longtext ... CHECK (json_valid(col))`. A bare scalar
+  // from a Supabase *text* column ("default") violates that check, and because
+  // the split-retry floor discards a whole chunk, a handful of such rows takes
+  // valid neighbours down with them. Encode to JSON so the value survives as
+  // what the destination actually models: a JSON value.
+  if (destIsJson) {
+    if (typeof value === "string") return isJsonText(value) ? value : JSON.stringify(value);
+    return JSON.stringify(value); // objects, numbers, booleans
+  }
   if (typeof value === "boolean") return value ? 1 : 0;
   if (typeof value === "number") return value;
   if (typeof value === "object") {
@@ -114,6 +133,7 @@ interface DestColumn {
   type: string; // MySQL column type, lowercased
   isPrimary: boolean;
   required: boolean; // NOT NULL with no default and not auto-generated
+  isJson: boolean; // carries a json_valid() CHECK — value must be JSON text
 }
 
 async function getFrandevTables(schemaPool: Pool): Promise<string[]> {
@@ -121,8 +141,31 @@ async function getFrandevTables(schemaPool: Pool): Promise<string[]> {
   return rows.map((r) => Object.values(r)[0] as string);
 }
 
+/**
+ * Column names carrying a `json_valid()` CHECK. SHOW COLUMNS cannot see CHECK
+ * constraints — it reports these as plain `longtext` — so ask information_schema
+ * directly, or every JSON column looks like free text and rejects bare scalars.
+ */
+async function getJsonColumns(schemaPool: Pool, table: string): Promise<Set<string>> {
+  const [rows] = await schemaPool.query<RowDataPacket[]>(
+    `SELECT CONSTRAINT_NAME, CHECK_CLAUSE FROM information_schema.CHECK_CONSTRAINTS
+      WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CHECK_CLAUSE LIKE '%json_valid%'`,
+    [table]
+  );
+  const names = new Set<string>();
+  for (const r of rows) {
+    // Column-level checks name the constraint after the column; fall back to
+    // parsing the clause for table-level ones.
+    const clause = String(r.CHECK_CLAUSE ?? "");
+    const m = clause.match(/json_valid\(`([^`]+)`\)/i);
+    names.add(m ? m[1] : String(r.CONSTRAINT_NAME));
+  }
+  return names;
+}
+
 async function getDestColumns(schemaPool: Pool, table: string): Promise<DestColumn[]> {
   const [rows] = await schemaPool.query<RowDataPacket[]>(`SHOW COLUMNS FROM \`${table}\``);
+  const jsonCols = await getJsonColumns(schemaPool, table);
   return rows.map((r) => {
     const extra = String(r.Extra ?? "").toLowerCase();
     const generated = extra.includes("auto_increment") || extra.includes("default_generated");
@@ -132,6 +175,7 @@ async function getDestColumns(schemaPool: Pool, table: string): Promise<DestColu
       isPrimary: r.Key === "PRI",
       // A column we MUST supply: NOT NULL, no default, not auto-generated.
       required: r.Null === "NO" && r.Default === null && !generated,
+      isJson: jsonCols.has(r.Field as string),
     };
   });
 }
@@ -163,6 +207,7 @@ export interface TablePushResult {
   sourceRows: number;
   pushedRows: number;
   skippedRows: number; // rows that failed individually and were skipped
+  skipReason?: string; // DB error behind those skips (first one seen)
   mappedColumns: number;
   unmappedDestColumns: string[]; // frandev cols with no Supabase source
   droppedSourceColumns: string[]; // Supabase cols with no frandev dest
@@ -249,17 +294,24 @@ function rowBytes(values: Primitive[]): number {
 async function insertBatch(
   conn: PoolConnection,
   sql: string,
-  values: Primitive[][]
+  values: Primitive[][],
+  onSkipError?: (message: string) => void
 ): Promise<{ inserted: number; skipped: number }> {
   if (values.length === 0) return { inserted: 0, skipped: 0 };
   try {
     await conn.query(sql, [values]);
     return { inserted: values.length, skipped: 0 };
-  } catch {
-    if (values.length <= MIN_SPLIT_ROWS) return { inserted: 0, skipped: values.length };
+  } catch (err) {
+    if (values.length <= MIN_SPLIT_ROWS) {
+      // Terminal skip — the only point where the real cause is still in hand.
+      // It used to be discarded, so a whole table silently dropping to zero
+      // reported the same way as a couple of bad rows.
+      onSkipError?.(err instanceof Error ? err.message : String(err));
+      return { inserted: 0, skipped: values.length };
+    }
     const mid = Math.floor(values.length / 2);
-    const a = await insertBatch(conn, sql, values.slice(0, mid));
-    const b = await insertBatch(conn, sql, values.slice(mid));
+    const a = await insertBatch(conn, sql, values.slice(0, mid), onSkipError);
+    const b = await insertBatch(conn, sql, values.slice(mid), onSkipError);
     return { inserted: a.inserted + b.inserted, skipped: a.skipped + b.skipped };
   }
 }
@@ -326,7 +378,9 @@ async function pushTable(
     if (batch.length === 0) return;
     if (!opts.dryRun) {
       if (!writeConn) throw new Error("writeConn required for a non-dry-run push");
-      const { inserted, skipped } = await insertBatch(writeConn, sql, batch);
+      const { inserted, skipped } = await insertBatch(writeConn, sql, batch, (msg) => {
+        result.skipReason ??= msg; // first cause wins; the rest are usually the same
+      });
       result.pushedRows += inserted;
       result.skippedRows += skipped;
     } else {
@@ -337,7 +391,7 @@ async function pushTable(
   };
 
   for (const row of rows) {
-    const values = mapped.map((m) => coerceValue(row[m.sourceKey], m.dest.type));
+    const values = mapped.map((m) => coerceValue(row[m.sourceKey], m.dest.type, m.dest.isJson));
     const bytes = rowBytes(values);
     if (batch.length >= MAX_BATCH_ROWS || (batch.length > 0 && batchBytes + bytes > MAX_BATCH_BYTES)) {
       await flush();
@@ -403,6 +457,7 @@ export async function pushFrandev(opts: PushOptions): Promise<PushSummary> {
           `  ${frandev} <- ${supabase}: ${r.pushedRows}/${r.sourceRows} rows${skip}, ` +
             `${r.mappedColumns} cols${r.skipped ? ` (skipped: ${r.skipped})` : ""}`
         );
+        if (r.skipReason) log(`      ^ cause: ${r.skipReason}`);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         results.push({

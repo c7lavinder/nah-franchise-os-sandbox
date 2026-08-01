@@ -88,13 +88,33 @@ function assertNotProduction(host: string): void {
   }
 }
 
-/** Guard: when targeting prod, refuse the read-only user — it cannot INSERT. */
-function assertNotReadOnlyUser(cfg: WriteDbConfig): void {
-  if (process.env.MASTERSUITE_DB_USER && cfg.user === process.env.MASTERSUITE_DB_USER) {
+/**
+ * Guard: when targeting prod, refuse an account that cannot actually write.
+ *
+ * This used to compare the configured user against `MASTERSUITE_DB_USER` and
+ * refuse on a name match, on the premise that the reporting account held
+ * SELECT only. That premise expired on 2026-08-01, when the PR #409 grant gave
+ * `mastersuite_nah_franchise_os` INSERT/UPDATE/DELETE on `frandev_%` — the same
+ * account named by `MASTERSUITE_DB_USER`, so the name check blocked the very
+ * credential the grant was written to enable.
+ *
+ * Ask the database instead of guessing from a name: the intent was always
+ * "don't start a 100k-row push with a credential that will die at the first
+ * INSERT", and privileges are the honest test of that. Still fails loudly, just
+ * on evidence.
+ */
+async function assertWriteCapable(pool: mysql.Pool, cfg: WriteDbConfig): Promise<void> {
+  const [rows] = await pool.query<mysql.RowDataPacket[]>("SHOW GRANTS FOR CURRENT_USER()");
+  const grants = rows.map((r) => String(Object.values(r)[0] ?? ""));
+  const canWrite = grants.some(
+    (g) => /\b(INSERT|ALL PRIVILEGES)\b/i.test(g) && /frandev|\*\.\*|`mastersuite`\.\*/i.test(g)
+  );
+  if (!canWrite) {
     throw new Error(
-      `MASTERSUITE_PROD_DB_USER is set to "${cfg.user}", which is the read-only ` +
-        `reporting user (GRANT SELECT only). Use the account holding INSERT/UPDATE/DELETE ` +
-        `on mastersuite.frandev_%.`
+      `The account "${cfg.user}" on ${cfg.host} holds no INSERT privilege on ` +
+        `mastersuite.frandev_% — a live push would fail at the first row. ` +
+        `Run database/2026-07-29_grant_frandev_sync_write.sql, or point ` +
+        `MASTERSUITE_PROD_DB_USER at the account that has the grant.`
     );
   }
 }
@@ -116,11 +136,11 @@ export function getMasterSuiteWritePool(): mysql.Pool {
         : "MasterSuite dev write credentials not set. Provide MASTERSUITE_DEV_DB_* or NAH_DB_* env vars."
     );
   }
-  if (target === "prod") {
-    assertNotReadOnlyUser(cfg);
-  } else {
+  if (target !== "prod") {
     assertNotProduction(cfg.host);
   }
+  // The prod-side privilege check needs a live connection, so it runs in
+  // assertWriteCapableOrThrow() once the pool exists — call it before pushing.
   writePoolTarget = target;
 
   writePool = mysql.createPool({
@@ -138,6 +158,18 @@ export function getMasterSuiteWritePool(): mysql.Pool {
   });
 
   return writePool;
+}
+
+/**
+ * Verify the configured prod account can actually INSERT into `frandev_%`.
+ * No-op when targeting dev. Call once before a live push.
+ */
+export async function assertWriteCapableOrThrow(): Promise<void> {
+  const target = getWriteTarget();
+  if (target !== "prod") return;
+  const cfg = resolveWriteConfig(target);
+  if (!cfg) return; // credential absence is reported by the caller's own check
+  await assertWriteCapable(getMasterSuiteWritePool(), cfg);
 }
 
 /** Fast connectivity check — fails within ~5s if the target DB is unreachable. */
