@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin" />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400..800&amp;display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/vendor/font-awesome.min.css" />
+<style>
+  html, body { margin:0; padding:0; background:#F6F8FB; }
+  * { box-sizing:border-box; }
+  a { color:#00A1E1; text-decoration:none; }
+  a:hover { color:#0080B5; text-decoration:none; }
+</style>
+</helmet>
+<div style="min-height:100vh;background:#F6F8FB;font:400 13.5px/1.5 'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1B2430;-webkit-font-smoothing:antialiased">
+  <dc-import name="MSHeader" hint-size="100%,52px"></dc-import>
+
+  <div style="padding:18px 22px 60px;display:flex;flex-direction:column;gap:14px">
+
+    <div style="display:flex;gap:8px;font-size:12px;font-weight:600;color:#7A828F;align-items:center">
+      <a href="Gunner Buyer.dc.html">Buyer</a>
+      <span style="color:#D5DAE1">/</span><a href="Gunner Seller.dc.html">Seller</a>
+      <span style="color:#D5DAE1">/</span><a href="Gunner Partner.dc.html">Partner</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Prospect.dc.html">Prospect</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Franchisee.dc.html">Franchisee</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Journey.dc.html">Journey</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Territory.dc.html" style="color:#00A1E1;font-weight:700">Territory</a>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:7px;min-width:0">
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <span style="font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:999px;white-space:nowrap;background:#E7F6EC;color:#15803d">ACTIVE</span>
+          <span style="font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:999px;white-space:nowrap;background:#d1fae5;color:#047857">HIGH PERFORMER</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:26px;font-weight:800;letter-spacing:-.025em;color:#1B2430;line-height:1.1">Knoxville</span>
+          <span style="font-size:13px;font-weight:700;letter-spacing:.07em;color:#AEB5BF">knoxville-west</span>
+        </div>
+        <span style="font-size:12.5px;color:#7A828F;font-weight:500">Franchise agreement Feb 2, 2023 · compliance 94%</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button disabled="disabled" style="font:inherit;font-size:12px;font-weight:700;color:#B07A0E;background:#FFF4D6;border:0;border-radius:9px;padding:9px 13px;opacity:.55;cursor:default">Transfer</button>
+        <button disabled="disabled" style="font:inherit;font-size:12px;font-weight:700;color:#CE4138;background:#FDEAEA;border:0;border-radius:9px;padding:9px 13px;opacity:.55;cursor:default">Retire territory</button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 392px;gap:14px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px">
+          <div style="min-width:0">
+            <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Ownership</div>
+            <div style="display:flex;align-items:center;gap:13px;margin-top:11px">
+              <span style="width:44px;height:44px;border-radius:999px;background:#00A1E1;color:#fff;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">TA</span>
+              <div>
+                <div style="font-size:16px;font-weight:800;letter-spacing:-.01em"><a href="Frandev Franchisee.dc.html" style="color:#1B2430" style-hover="color:#00A1E1">Tom Ackley</a></div>
+                <div style="font-size:12.5px;color:#7A828F;font-weight:600">Owner since 2/2/2023 · <a href="Frandev Journey.dc.html">Open journey →</a></div>
+              </div>
+            </div>
+            <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F;margin-top:20px">Territory brief</div>
+            <div style="font-size:13.5px;line-height:1.55;color:#4A5462;margin-top:8px">Nine ZIPs across west Knox and Farragut, 214k population. Lead flow is steady and cycle time is the best in the region; the constraint this year is construction capacity, not acquisitions.</div>
+          </div>
+          <div style="background:#E7F3EA;border:1px solid #CDE5D3;border-radius:12px;min-height:190px;display:flex;align-items:center;justify-content:center;color:#5F8A6B;font-size:12.5px;font-weight:600;text-align:center;padding:12px">zip boundaries render from live data — next pass</div>
+        </div>
+
+        <div>
+          <div style="display:flex;gap:2px;border-bottom:2px solid #E6E9ED;margin-bottom:14px">
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+              <button onClick="{{ t.onClick }}" style="padding:11px 16px 12px;font-size:13.5px;font-weight:700;font-family:inherit;color:{{ t.fg }};background:none;border:0;border-bottom:2px solid {{ t.bar }};margin-bottom:-2px;letter-spacing:-.01em;white-space:nowrap;cursor:pointer">{{ t.label }}</button>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ showOverview }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;align-items:start">
+              <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px;margin-bottom:2px">
+                    <i class="fa fa-users" style="color:#AEB5BF;font-size:12px"></i>
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Contacts ({{ contactCount }})</span>
+                    <a href="#" style="margin-left:auto;font-size:12px;font-weight:700">＋ Add</a>
+                  </div>
+                  <sc-for list="{{ members }}" as="m" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-top:1px solid #F4F6F8">
+                      <span style="width:32px;height:32px;border-radius:999px;background:#E6F7FD;color:#0080B5;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">{{ m.initials }}</span>
+                      <div style="min-width:0">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                          <a href="#" style="font-size:13.5px;font-weight:800">{{ m.name }}</a>
+                          <span style="font-size:10px;font-weight:700;background:#E6F7FD;color:#0080B5;border-radius:999px;padding:2px 9px;white-space:nowrap">{{ m.role }}</span>
+                        </div>
+                        <div style="font-size:12px;color:#AEB5BF;font-weight:600;margin-top:1px">{{ m.meta }}</div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px;margin-bottom:2px">
+                    <i class="fa fa-users" style="color:#AEB5BF;font-size:12px"></i>
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Team ({{ teamCount }})</span>
+                    <a href="#" style="margin-left:auto;font-size:12px;font-weight:700">＋ Add</a>
+                  </div>
+                  <sc-for list="{{ team }}" as="p" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid #F4F6F8">
+                      <span style="width:30px;height:30px;border-radius:999px;background:#F2F4F7;color:#4A5462;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">{{ p.initials }}</span>
+                      <span style="font-size:13px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.name }}</span>
+                      <span style="margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:#F2F4F7;color:#7A828F;border-radius:999px;padding:3px 9px;white-space:nowrap">{{ p.role }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <i class="fa fa-certificate" style="color:#AEB5BF;font-size:12px"></i>
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Graded calls ({{ callCount }})</span>
+                  </div>
+                  <sc-for list="{{ calls }}" as="c" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid #F4F6F8;flex-wrap:wrap">
+                      <a href="#" style="font-size:13px;font-weight:800;color:#1B2430" style-hover="color:#00A1E1">{{ c.name }}</a>
+                      <span style="font-size:12px;color:#AEB5BF;font-weight:600">{{ c.who }}</span>
+                      <span style="font-size:12px;color:#AEB5BF;font-weight:600;font-variant-numeric:tabular-nums">{{ c.length }}</span>
+                      <span style="margin-left:auto;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap;background:{{ c.gradeBg }};color:{{ c.gradeFg }}">{{ c.grade }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <i class="fa fa-clipboard" style="color:#AEB5BF;font-size:12px"></i>
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Tasks ({{ pendingCount }} pending)</span>
+                  </div>
+                  <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid #F4F6F8">
+                      <span style="width:15px;height:15px;border-radius:5px;border:1.5px solid {{ t.boxBorder }};background:{{ t.boxBg }};flex:none;display:flex;align-items:center;justify-content:center"><i class="fa fa-check" style="font-size:8px;color:{{ t.checkFg }}"></i></span>
+                      <span style="font-size:13px;font-weight:700;color:{{ t.fg }};min-width:0">{{ t.text }}</span>
+                      <span style="margin-left:auto;font-size:11.5px;font-weight:700;color:{{ t.dueFg }};white-space:nowrap">{{ t.due }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Notes ({{ noteCount }})</span>
+                    <a href="#" style="margin-left:auto;font-size:12px;font-weight:700">＋ Add note</a>
+                  </div>
+                  <sc-for list="{{ notes }}" as="n" hint-placeholder-count="2">
+                    <div style="padding:11px 0;border-top:1px solid #F4F6F8">
+                      <div style="font-size:13px;color:#4A5462;line-height:1.5">{{ n.text }}</div>
+                      <div style="font-size:11.5px;color:#AEB5BF;font-weight:600;margin-top:3px">{{ n.meta }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showEcosystem }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:26px 18px 22px">
+                <div style="display:flex;flex-direction:column;align-items:center">
+                  <span style="width:72px;height:72px;border-radius:999px;background:#E6F7FD;border:2px solid #9BD9F2;color:#0080B5;font-size:20px;font-weight:800;display:flex;align-items:center;justify-content:center">TA</span>
+                  <div style="font-size:14.5px;font-weight:800;margin-top:9px">Tom Ackley</div>
+                  <div style="font-size:10.5px;font-weight:800;letter-spacing:.08em;color:#0080B5;margin-top:2px">OWNER</div>
+                  <a href="Frandev Franchisee.dc.html" style="font-size:12.5px;font-weight:600;margin-top:2px">View profile</a>
+                  <span style="width:1px;height:34px;background:#DDE2E8;margin-top:10px"></span>
+                </div>
+                <div style="display:flex;justify-content:center;gap:26px;flex-wrap:wrap;margin-top:10px">
+                  <sc-for list="{{ stakeholders }}" as="s" hint-placeholder-count="4">
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+                      <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap;background:{{ s.chipBg }};color:{{ s.chipFg }}"><i class="fa {{ s.icon }}" style="font-size:10px"></i>{{ s.role }}</span>
+                      <span style="width:58px;height:58px;border-radius:999px;background:{{ s.dotBg }};color:{{ s.dotFg }};font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center">{{ s.initials }}</span>
+                      <span style="font-size:12px;font-weight:700;color:#4A5462">{{ s.name }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+                <div style="display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,0.9fr) minmax(0,1fr) minmax(0,1.3fr) 22px;gap:12px;padding:12px 18px;background:#FBFCFD;border-bottom:1px solid #EFF1F4">
+                  <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Name / company</span>
+                  <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Role</span>
+                  <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Phone</span>
+                  <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Email</span>
+                  <span></span>
+                </div>
+                <sc-for list="{{ stakeholders }}" as="s" hint-placeholder-count="4">
+                  <div style="display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,0.9fr) minmax(0,1fr) minmax(0,1.3fr) 22px;gap:12px;padding:12px 18px;border-bottom:1px solid #F4F6F8;align-items:center">
+                    <span style="font-size:13px;font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</span>
+                    <span><span style="font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap;background:{{ s.chipBg }};color:{{ s.chipFg }}">{{ s.role }}</span></span>
+                    <span style="font-size:13px;font-weight:600;color:{{ s.phoneFg }}">{{ s.phone }}</span>
+                    <span style="font-size:13px;font-weight:600;color:{{ s.emailFg }};overflow:hidden;text-overflow:ellipsis">{{ s.email }}</span>
+                    <i class="fa fa-trash-o" style="color:#C9CFD8;font-size:14px;text-align:right;cursor:pointer" style-hover="color:#CE4138"></i>
+                  </div>
+                </sc-for>
+                <button style="display:flex;align-items:center;gap:8px;width:100%;padding:13px 18px;background:none;border:0;font:inherit;font-size:12.5px;font-weight:700;color:#00A1E1;cursor:pointer" style-hover="background:#FBFCFD"><i class="fa fa-plus" style="font-size:11px"></i>Add stakeholder</button>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showPerformance }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:inline-flex;gap:2px;background:#fff;border:1px solid #E6E9ED;border-radius:11px;padding:4px;align-self:flex-start">
+                <sc-for list="{{ periods }}" as="p" hint-placeholder-count="5">
+                  <button onClick="{{ p.onClick }}" style="font:inherit;font-size:12.5px;font-weight:700;padding:7px 15px;border:0;border-radius:8px;white-space:nowrap;cursor:pointer;background:{{ p.bg }};color:{{ p.fg }}">{{ p.label }}</button>
+                </sc-for>
+              </div>
+
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:11px">
+                <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="9">
+                  <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:14px 16px">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <i class="fa {{ k.icon }}" style="color:#AEB5BF;font-size:13px;width:15px"></i>
+                      <span style="font-size:12.5px;font-weight:600;color:#7A828F">{{ k.label }}</span>
+                    </div>
+                    <div style="font-size:26px;font-weight:800;letter-spacing:-.03em;margin-top:5px;color:{{ k.fg }};font-variant-numeric:tabular-nums">{{ k.value }}</div>
+                    <div style="font-size:11.5px;color:#AEB5BF;font-weight:600">{{ k.note }}</div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;align-items:start">
+                <div style="min-width:0">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <i class="fa fa-pie-chart" style="color:#00A1E1;font-size:14px"></i>
+                    <span style="font-size:14px;font-weight:800">Lead list building</span>
+                  </div>
+                  <div style="font-size:12.5px;color:#AEB5BF;font-weight:600;margin-top:4px">Counts properties created in 4 lead lists during YTD.</div>
+                  <div style="display:flex;align-items:baseline;gap:10px;margin-top:14px">
+                    <span style="font-size:38px;font-weight:800;letter-spacing:-.04em;font-variant-numeric:tabular-nums">472</span>
+                    <span style="font-size:13px;font-weight:600;color:#AEB5BF">lead list created</span>
+                  </div>
+                  <div style="display:flex;justify-content:center;margin-top:8px">
+                    <span style="width:172px;height:172px;border-radius:999px;display:block;background:{{ donut }}"></span>
+                  </div>
+                </div>
+                <div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                    <sc-for list="{{ leadTypes }}" as="l" hint-placeholder-count="8">
+                      <div style="display:flex;align-items:center;gap:8px;background:#F6F8FB;border:1px solid #EDF0F4;border-radius:10px;padding:8px 11px">
+                        <span style="width:9px;height:9px;border-radius:999px;flex:none;background:{{ l.color }}"></span>
+                        <span style="font-size:12.5px;font-weight:600;color:#4A5462;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ l.label }}</span>
+                        <span style="margin-left:auto;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums">{{ l.count }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="background:#F6F8FB;border:1px solid #EDF0F4;border-radius:11px;padding:13px 14px;margin-top:10px">
+                    <div style="display:flex;align-items:baseline;gap:8px">
+                      <span style="font-size:13px;font-weight:800">Benchmark progression</span>
+                      <span style="margin-left:auto;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums">6%</span>
+                    </div>
+                    <div style="font-size:11.5px;color:#AEB5BF;font-weight:600;margin-top:2px">472 / 8,000 target</div>
+                    <div style="height:7px;border-radius:999px;background:#E2E7EE;margin-top:9px;overflow:hidden"><span style="display:block;height:100%;width:6%;background:#00A1E1;border-radius:999px"></span></div>
+                    <div style="font-size:11.5px;color:#AEB5BF;font-weight:600;margin-top:7px">7,528 short of benchmark.</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                <div style="font-size:13.5px;font-weight:800">Lead sources — YTD</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:11px">
+                  <sc-for list="{{ leadSources }}" as="s" hint-placeholder-count="4">
+                    <span style="display:inline-flex;align-items:baseline;gap:7px;border:1px solid #E6E9ED;border-radius:10px;padding:7px 13px;white-space:nowrap"><b style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">{{ s.count }}</b><span style="font-size:12.5px;font-weight:600;color:#7A828F">{{ s.label }}</span></span>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;align-items:start">
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px;min-width:0">
+                  <div style="display:flex;align-items:baseline;gap:10px">
+                    <div>
+                      <div style="font-size:13.5px;font-weight:800">Property funnel</div>
+                      <div style="font-size:12px;color:#AEB5BF;font-weight:600">YTD</div>
+                    </div>
+                    <span style="margin-left:auto;font-size:12px;color:#AEB5BF;font-weight:600">vs prior YTD</span>
+                  </div>
+                  <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+                    <sc-for list="{{ funnel }}" as="f" hint-placeholder-count="6">
+                      <div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(40px,3fr) minmax(0,0.62fr);gap:12px;align-items:center">
+                        <div style="min-width:0">
+                          <div style="font-size:12.5px;font-weight:800">{{ f.label }}</div>
+                          <div style="font-size:11px;color:#AEB5BF;font-weight:600">{{ f.from }}</div>
+                        </div>
+                        <div style="height:30px;border-radius:8px;background:#F2F5F9;overflow:hidden"><span style="display:block;height:100%;border-radius:8px;width:{{ f.width }};background:{{ f.bar }}"></span></div>
+                        <div style="text-align:right">
+                          <div style="font-size:13.5px;font-weight:800;font-variant-numeric:tabular-nums">{{ f.count }}</div>
+                          <div style="font-size:11px;color:#AEB5BF;font-weight:600;font-variant-numeric:tabular-nums">{{ f.pct }}</div>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="border:1px solid #EFF1F4;border-radius:12px;padding:13px 14px;margin-top:14px">
+                    <div style="display:flex;align-items:center;gap:9px">
+                      <span style="width:30px;height:30px;border-radius:9px;background:#FFF4D6;color:#B07A0E;display:flex;align-items:center;justify-content:center;flex:none"><i class="fa fa-tachometer" style="font-size:14px"></i></span>
+                      <div>
+                        <div style="font-size:12px;color:#AEB5BF;font-weight:600">Bottleneck board</div>
+                        <div style="font-size:13px;font-weight:800">Biggest pressure point: Stage 1 to Stage 2</div>
+                      </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:12px">
+                      <sc-for list="{{ bottlenecks }}" as="b" hint-placeholder-count="3">
+                        <div>
+                          <div style="display:flex;align-items:center;gap:7px">
+                            <i class="fa fa-long-arrow-down" style="color:#CE4138;font-size:12px"></i>
+                            <span style="font-size:12.5px;font-weight:800;color:{{ b.fg }}">{{ b.label }}</span>
+                          </div>
+                          <div style="font-size:11.5px;color:#AEB5BF;font-weight:600;margin-top:3px">{{ b.note }}</div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="font-size:13.5px;font-weight:800">Pipeline comparison</div>
+                  <div style="font-size:12px;color:#AEB5BF;font-weight:600">Median across 56 active territories</div>
+                  <div style="display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,0.55fr) minmax(0,0.62fr) minmax(0,0.58fr);gap:8px;padding:10px 0 8px;border-bottom:1px solid #EFF1F4;margin-top:10px">
+                    <span style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Stage</span>
+                    <span style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F;text-align:right">This</span>
+                    <span style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F;text-align:right">Median</span>
+                    <span style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F;text-align:right">Target</span>
+                  </div>
+                  <sc-for list="{{ comparison }}" as="c" hint-placeholder-count="6">
+                    <div style="display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,0.55fr) minmax(0,0.62fr) minmax(0,0.58fr);gap:8px;padding:10px 0;border-bottom:1px solid #F4F6F8;align-items:center">
+                      <span style="font-size:12.5px;font-weight:700">{{ c.stage }}</span>
+                      <span style="font-size:13px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums">{{ c.this }}</span>
+                      <span style="font-size:13px;font-weight:700;color:#7A828F;text-align:right;font-variant-numeric:tabular-nums">{{ c.median }}</span>
+                      <span style="font-size:13px;font-weight:700;color:{{ c.targetFg }};text-align:right;font-variant-numeric:tabular-nums">{{ c.target }}</span>
+                    </div>
+                  </sc-for>
+                  <div style="font-size:11.5px;color:#AEB5BF;font-weight:600;margin-top:10px;line-height:1.45">Targets scale from monthly goals: 30 Stage 1 leads, 10 Stage 4 offers, 1 contract, and 1 purchase.</div>
+                </div>
+              </div>
+
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+                <div style="display:flex;align-items:center;gap:9px;padding:14px 18px;border-bottom:1px solid #EFF1F4">
+                  <i class="fa fa-home" style="color:#00A1E1;font-size:14px"></i>
+                  <span style="font-size:13.5px;font-weight:800">Active inventory (2)</span>
+                </div>
+                <sc-for list="{{ inventory }}" as="p" hint-placeholder-count="2">
+                  <div style="padding:14px 18px;border-bottom:1px solid #F4F6F8">
+                    <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+                      <a href="#" style="font-size:13.5px;font-weight:800;color:#1B2430" style-hover="color:#00A1E1">{{ p.address }}</a>
+                      <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;background:#E6F7FD;color:#0080B5">{{ p.status }}</span>
+                      <span style="font-size:11px;font-weight:600;color:#AEB5BF">{{ p.source }}</span>
+                      <span style="margin-left:auto;display:flex;align-items:baseline;gap:14px;font-size:12.5px;font-weight:700">
+                        <span style="color:#CE4138;font-variant-numeric:tabular-nums">{{ p.held }}</span>
+                        <span style="color:#AEB5BF;font-weight:600">ARV <b style="color:#4A5462;font-variant-numeric:tabular-nums">{{ p.arv }}</b></span>
+                        <span style="color:#1E8E4E;font-variant-numeric:tabular-nums">{{ p.profit }}</span>
+                      </span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-top:14px">
+                      <sc-for list="{{ p.steps }}" as="s" hint-placeholder-count="5">
+                        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;position:relative">
+                          <div style="display:flex;align-items:center;width:100%">
+                            <span style="flex:1;height:2px;background:{{ s.lineL }}"></span>
+                            <span style="width:13px;height:13px;border-radius:999px;flex:none;background:{{ s.dotBg }};border:2px solid {{ s.dotBorder }}"></span>
+                            <span style="flex:1;height:2px;background:{{ s.lineR }}"></span>
+                          </div>
+                          <span style="font-size:11.5px;font-weight:700;color:{{ s.fg }}">{{ s.label }}</span>
+                          <span style="font-size:10.5px;font-weight:600;color:#C3C9D2">{{ s.date }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+                <div style="display:flex;align-items:center;gap:9px;padding:14px 18px;border-bottom:1px solid #EFF1F4">
+                  <i class="fa fa-cube" style="color:#00A1E1;font-size:14px"></i>
+                  <span style="font-size:13.5px;font-weight:800">Sold — YTD (2)</span>
+                </div>
+                <sc-for list="{{ sold }}" as="p" hint-placeholder-count="2">
+                  <div style="padding:14px 18px;border-bottom:1px solid #F4F6F8">
+                    <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+                      <a href="#" style="font-size:13.5px;font-weight:800;color:#1B2430" style-hover="color:#00A1E1">{{ p.address }}</a>
+                      <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;background:#E6F7FD;color:#0080B5">Sold</span>
+                      <span style="font-size:11px;font-weight:600;color:#AEB5BF">{{ p.source }}</span>
+                      <span style="margin-left:auto;display:flex;align-items:baseline;gap:14px;font-size:12.5px;font-weight:700">
+                        <span style="color:#CE4138;font-variant-numeric:tabular-nums">{{ p.cycle }}</span>
+                        <span style="color:#AEB5BF;font-weight:600">ARV <b style="color:#4A5462;font-variant-numeric:tabular-nums">{{ p.arv }}</b></span>
+                        <span style="color:{{ p.profitFg }};font-variant-numeric:tabular-nums">{{ p.profit }}</span>
+                      </span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-top:14px">
+                      <sc-for list="{{ p.steps }}" as="s" hint-placeholder-count="5">
+                        <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+                          <div style="display:flex;align-items:center;width:100%">
+                            <span style="flex:1;height:2px;background:{{ s.lineL }}"></span>
+                            <span style="width:13px;height:13px;border-radius:999px;flex:none;background:{{ s.dotBg }};border:2px solid {{ s.dotBorder }}"></span>
+                            <span style="flex:1;height:2px;background:{{ s.lineR }}"></span>
+                          </div>
+                          <span style="font-size:11.5px;font-weight:700;color:{{ s.fg }}">{{ s.label }}</span>
+                          <span style="font-size:10.5px;font-weight:600;color:#C3C9D2">{{ s.date }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showData }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <sc-for list="{{ dataSections }}" as="d" hint-placeholder-count="16">
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:12px;box-shadow:0 1px 2px rgba(16,30,51,.04);display:flex;align-items:center;gap:12px;padding:14px 17px;cursor:pointer" style-hover="background:#FBFCFD">
+                  <i class="fa fa-angle-right" style="color:#C9CFD8;font-size:15px;width:9px"></i>
+                  <i class="fa {{ d.icon }}" style="color:#00A1E1;font-size:14px;width:17px"></i>
+                  <span style="font-size:13.5px;font-weight:800">{{ d.label }}</span>
+                  <span style="margin-left:auto;font-size:12px;font-weight:700;color:{{ d.fillFg }};font-variant-numeric:tabular-nums">{{ d.filled }}</span>
+                </div>
+              </sc-for>
+              <div style="text-align:right;font-size:11.5px;color:#AEB5BF;font-weight:600;margin-top:4px">Last synced from MasterSuite: 8/5/2026, 9:00:11 PM</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showEos }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                <div style="font-size:13.5px;font-weight:800">Goals</div>
+                <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.6fr) minmax(0,0.8fr);gap:12px;padding:12px 0 9px;border-bottom:1px solid #EFF1F4;margin-top:8px">
+                  <span></span>
+                  <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Actual</span>
+                  <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Current year</span>
+                  <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Year 5</span>
+                  <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F;text-align:right">Year 25</span>
+                </div>
+                <sc-for list="{{ goals }}" as="g" hint-placeholder-count="3">
+                  <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.6fr) minmax(0,0.8fr);gap:12px;padding:11px 0;border-bottom:1px solid #F4F6F8;align-items:center">
+                    <span style="font-size:13px;font-weight:800">{{ g.label }}</span>
+                    <span style="font-size:13px;font-weight:700;color:{{ g.actualFg }};font-variant-numeric:tabular-nums">{{ g.actual }}</span>
+                    <span style="font-size:13px;font-weight:700;color:{{ g.curFg }};font-variant-numeric:tabular-nums">{{ g.current }}</span>
+                    <span style="font-size:13px;font-weight:700;color:{{ g.y5Fg }};min-width:0;text-wrap:pretty">{{ g.year5 }}</span>
+                    <span style="font-size:13px;font-weight:700;color:#C3C9D2;text-align:right">{{ g.year25 }}</span>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                <div style="font-size:13.5px;font-weight:800">Scorecard</div>
+                <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,0.5fr) minmax(0,0.5fr);gap:12px;padding:12px 0 9px;border-bottom:1px solid #EFF1F4;margin-top:8px">
+                  <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Metric</span>
+                  <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F;text-align:right">Goal</span>
+                  <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F;text-align:right">Actual</span>
+                </div>
+                <sc-for list="{{ scorecard }}" as="s" hint-placeholder-count="7">
+                  <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,0.5fr) minmax(0,0.5fr);gap:12px;padding:11px 0;border-bottom:1px solid #F4F6F8;align-items:center">
+                    <span style="font-size:13px;font-weight:600;color:#4A5462">{{ s.metric }}</span>
+                    <span style="font-size:13px;font-weight:700;color:#7A828F;text-align:right;font-variant-numeric:tabular-nums">{{ s.goal }}</span>
+                    <span style="font-size:13px;font-weight:800;color:{{ s.fg }};text-align:right;font-variant-numeric:tabular-nums">{{ s.actual }}</span>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                <div style="font-size:13.5px;font-weight:800">Monthly spend</div>
+                <sc-for list="{{ spend }}" as="s" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #F4F6F8">
+                    <span style="font-size:13px;font-weight:600;color:#4A5462">{{ s.label }}</span>
+                    <span style="margin-left:auto;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums">{{ s.value }}</span>
+                  </div>
+                </sc-for>
+                <div style="display:flex;align-items:center;gap:12px;padding:12px 0 0">
+                  <span style="font-size:12.5px;font-weight:700;color:#7A828F">Total</span>
+                  <span style="margin-left:auto;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums">$4,850.00</span>
+                </div>
+              </div>
+
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px;overflow:hidden">
+                <div style="font-size:13.5px;font-weight:800;margin-bottom:12px">Lead generation channels</div>
+                <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:4px">
+                  <sc-for list="{{ channelGroups }}" as="g" hint-placeholder-count="6">
+                    <div style="flex:none">
+                      <div style="font-size:11.5px;font-weight:800;color:#4A5462;text-align:center;border-bottom:1px solid #E6E9ED;padding-bottom:7px;margin-bottom:9px;white-space:nowrap">{{ g.label }}</div>
+                      <div style="display:flex;gap:5px">
+                        <sc-for list="{{ g.items }}" as="c" hint-placeholder-count="4">
+                          <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+                            <span style="width:15px;height:15px;border-radius:4px;flex:none;display:flex;align-items:center;justify-content:center;background:{{ c.boxBg }};border:1.5px solid {{ c.boxBorder }}"><i class="fa fa-check" style="font-size:8px;color:{{ c.checkFg }}"></i></span>
+                            <span style="width:34px;height:150px;border-radius:5px;display:flex;align-items:center;justify-content:center;background:{{ c.barBg }}">
+                              <span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:10.5px;font-weight:700;color:{{ c.barFg }};white-space:nowrap">{{ c.label }}</span>
+                            </span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                <div style="font-size:13.5px;font-weight:800">Business habits</div>
+                <div style="font-size:12px;color:#AEB5BF;font-weight:600;margin-top:2px">Habits</div>
+                <sc-for list="{{ habits }}" as="h" hint-placeholder-count="5">
+                  <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #F4F6F8">
+                    <span style="font-size:13px;font-weight:700;color:#4A5462">{{ h.label }}</span>
+                    <span style="margin-left:auto;display:flex;gap:5px">
+                      <sc-for list="{{ h.grades }}" as="g" hint-placeholder-count="5">
+                        <button style="width:32px;height:28px;border-radius:8px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;background:{{ g.bg }};color:{{ g.fg }};border:1px solid {{ g.border }}">{{ g.letter }}</button>
+                      </sc-for>
+                    </span>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+                <sc-for list="{{ eosLists }}" as="l" hint-placeholder-count="3">
+                  <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span style="font-size:13.5px;font-weight:800">{{ l.label }}</span>
+                      <span style="margin-left:auto;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:#E6F7FD;color:#0080B5;font-variant-numeric:tabular-nums">{{ l.count }}</span>
+                    </div>
+                    <sc-for list="{{ l.items }}" as="i" hint-placeholder-count="2">
+                      <div style="display:flex;align-items:flex-start;gap:9px;padding:10px 0;border-top:1px solid #F4F6F8">
+                        <span style="width:7px;height:7px;border-radius:999px;margin-top:6px;flex:none;background:{{ i.dot }}"></span>
+                        <div style="min-width:0">
+                          <div style="font-size:12.5px;font-weight:700;line-height:1.4">{{ i.text }}</div>
+                          <div style="font-size:11px;color:#AEB5BF;font-weight:600;margin-top:1px">{{ i.meta }}</div>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="text-align:right;font-size:11.5px;color:#AEB5BF;font-weight:600">Last synced from MasterSuite: 8/5/2026, 9:30:09 PM</div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px;min-width:0">
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:15px 16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Operations — YTD</span>
+            <span style="margin-left:auto;font-size:10px;font-weight:800;background:#E7F6EC;color:#15803d;border-radius:999px;padding:2px 9px">High performer</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+            <sc-for list="{{ ops }}" as="k" hint-placeholder-count="4">
+              <div style="background:#F6F8FB;border:1px solid #EDF0F4;border-radius:11px;padding:11px 13px">
+                <div style="font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">{{ k.label }}</div>
+                <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:3px;color:{{ k.fg }};font-variant-numeric:tabular-nums">{{ k.value }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <sc-for list="{{ rail }}" as="s" hint-placeholder-count="9">
+          <div style="background:#fff;border:1px solid #E6E9ED;border-radius:12px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:11px;padding:12px 15px;cursor:pointer" style-hover="background:#FBFCFD">
+              <i class="fa {{ s.icon }}" style="color:#94a3b8;font-size:15px;width:18px;text-align:center;flex:none"></i>
+              <span style="flex:1;font-size:12.5px;font-weight:700;letter-spacing:.04em;color:#4A5462;text-transform:uppercase">{{ s.label }}</span>
+              <span style="font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:{{ s.pillBg }};color:{{ s.pillFg }};font-variant-numeric:tabular-nums">{{ s.count }}</span>
+              <span style="color:#C9CFD8;font-size:15px">›</span>
+            </div>
+          </div>
+        </sc-for>
+
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:15px 16px;margin-top:2px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F;margin-bottom:11px">Contacts on this territory</div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap">
+            <sc-for list="{{ people }}" as="p" hint-placeholder-count="4">
+              <div style="border:1px solid #E6E9ED;background:#F6F8FB;border-radius:11px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:78px">
+                <span style="width:30px;height:30px;border-radius:999px;background:#E6F7FD;color:#0080B5;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center">{{ p.initials }}</span>
+                <span style="font-size:11px;font-weight:800;color:#1B2430">{{ p.first }}</span>
+                <span style="font-size:9px;font-weight:700;color:#AEB5BF;text-transform:uppercase;letter-spacing:.04em">{{ p.role }}</span>
+              </div>
+            </sc-for>
+            <div style="border:1px dashed #D5DAE1;background:#fff;border-radius:11px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:78px;color:#AEB5BF;font-size:11px;font-weight:700;cursor:pointer">
+              <span style="font-size:15px;line-height:1">＋</span>add
+            </div>
+          </div>
+          <div style="background:#ECEBFE;border:1px solid #C9C5F0;border-radius:12px;padding:13px 14px;margin-top:12px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="width:7px;height:7px;border-radius:999px;background:#F0A12C;flex:none"></span>
+              <span style="font-size:12.5px;font-weight:800;color:#423DA8">Workflow agent</span>
+              <span style="margin-left:auto;font-size:10px;font-weight:800;background:#fff;border:1px solid #DCD9F3;color:#8F7FC4;padding:2px 9px;border-radius:999px">Emails + texts</span>
+            </div>
+            <div style="font-size:11.5px;color:#6F66B8;font-weight:600;margin-top:7px;line-height:1.45">The territory's automation timeline renders here in the next pass.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <a href="#" style="position:fixed;right:24px;bottom:24px;display:flex;align-items:center;gap:10px;width:300px;background:#fff;border:1px solid #E6E9ED;border-radius:999px;padding:8px 8px 8px 16px;box-shadow:0 12px 26px -10px rgba(16,30,51,.28);font-size:13.5px;font-weight:600;color:#AEB5BF">Ask Scout anything…<span style="margin-left:auto;width:32px;height:32px;border-radius:999px;background:#00A1E1;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none">➤</span></a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1400}}">
+class Component extends DCLogic {
+  state = { tab: "Overview", period: "YTD" };
+
+  step(label, date, state, first, last) {
+    const done = state === "done", cur = state === "current";
+    const line = done ? "#1E8E4E" : "#E2E7EE";
+    return {
+      label, date,
+      dotBg: done ? "#1E8E4E" : cur ? "#fff" : "#fff",
+      dotBorder: done ? "#1E8E4E" : cur ? "#00A1E1" : "#DDE2E8",
+      lineL: first ? "transparent" : line,
+      lineR: last ? "transparent" : (done ? "#1E8E4E" : "#E2E7EE"),
+      fg: done || cur ? "#4A5462" : "#C3C9D2"
+    };
+  }
+
+  renderVals() {
+    const active = this.state.tab;
+    const tab = (label) => ({
+      label,
+      fg: label === active ? "#00A1E1" : "#7A828F",
+      bar: label === active ? "#00A1E1" : "transparent",
+      onClick: () => this.setState({ tab: label })
+    });
+    const per = (label) => ({
+      label,
+      bg: label === this.state.period ? "#00A1E1" : "transparent",
+      fg: label === this.state.period ? "#fff" : "#7A828F",
+      onClick: () => this.setState({ period: label })
+    });
+    const sh = (initials, name, role, phone, email, chipBg, chipFg, dotBg, dotFg, icon) => ({
+      initials, name, role, icon,
+      phone: phone || "—", email: email || "—",
+      phoneFg: phone ? "#4A5462" : "#C3C9D2", emailFg: email ? "#4A5462" : "#C3C9D2",
+      chipBg, chipFg, dotBg, dotFg
+    });
+    const types = [
+      { label: "Birddog", count: 107, color: "#2563eb" }, { label: "Probate", count: 80, color: "#ea580c" },
+      { label: "Litigation", count: 67, color: "#16a34a" }, { label: "City citations", count: 67, color: "#dc2626" },
+      { label: "Eviction", count: 57, color: "#8b5cf6" }, { label: "Divorce", count: 42, color: "#0891b2" },
+      { label: "Tax delinquent", count: 24, color: "#ca8a04" }, { label: "Other", count: 28, color: "#db2777" }
+    ];
+    const total = types.reduce((n, t) => n + t.count, 0);
+    let acc = 0;
+    const stops = types.map(t => {
+      const from = (acc / total) * 100; acc += t.count;
+      return `${t.color} ${from.toFixed(2)}% ${((acc / total) * 100).toFixed(2)}%`;
+    }).join(",");
+    const grades = (earned) => ["A", "B", "C", "D", "F"].map(letter => ({
+      letter,
+      bg: letter === earned ? "#00A1E1" : "#F6F8FB",
+      fg: letter === earned ? "#fff" : "#AEB5BF",
+      border: letter === earned ? "#00A1E1" : "#EDF0F4"
+    }));
+    const chan = (label, on, tone) => {
+      const tones = { list: ["#F3E8EE", "#7A5468"], ref: ["#FBF0C9", "#7A6420"], ads: ["#7F1D3A", "#fff"] };
+      const [barBg, barFg] = tones[tone];
+      return {
+        label, barBg, barFg,
+        boxBg: on ? "#0A6BD8" : "#fff",
+        boxBorder: on ? "#0A6BD8" : "#C9CFD8",
+        checkFg: on ? "#fff" : "transparent"
+      };
+    };
+
+    return {
+      tabs: [tab("Overview"), tab("Ecosystem"), tab("Performance"), tab("Data"), tab("EOS")],
+      showOverview: active === "Overview",
+      contactCount: "3",
+      members: [
+        { initials: "TA", name: "Tom Ackley", role: "Owner", meta: "tom@newagainknox.com · (865) 771-3320" },
+        { initials: "DM", name: "Daniel Martinez", role: "Contractor", meta: "(865) 442-1180" },
+        { initials: "KB", name: "Kyle Barks", role: "Partner", meta: "kyle@barksrealty.com" }
+      ],
+      teamCount: "2",
+      team: [
+        { initials: "CW", name: "Corey Wilson", role: "Coach" },
+        { initials: "JM", name: "Jenna Miles", role: "Project mgr" }
+      ],
+      callCount: "2",
+      calls: [
+        { name: "Territory review", who: "Corey Wilson", length: "38m", grade: "A−", gradeBg: "#E7F6EC", gradeFg: "#15803d" },
+        { name: "Capacity planning", who: "Jenna Miles", length: "44m", grade: "B", gradeBg: "#E6F7FD", gradeFg: "#0080B5" }
+      ],
+      pendingCount: "2",
+      tasks: [
+        { text: "Hire third construction crew", due: "Due Sep 30", boxBorder: "#C9CFD8", boxBg: "#fff", checkFg: "transparent", fg: "#1B2430", dueFg: "#7A828F" },
+        { text: "Launch Farragut mailer", due: "Due Aug 31", boxBorder: "#C9CFD8", boxBg: "#fff", checkFg: "transparent", fg: "#1B2430", dueFg: "#7A828F" },
+        { text: "Permit follow-up on two houses", due: "Overdue 6d", boxBorder: "#E8A6A1", boxBg: "#fff", checkFg: "transparent", fg: "#1B2430", dueFg: "#CE4138" },
+        { text: "Q2 compliance packet", due: "Done Jul 14", boxBorder: "#1E8E4E", boxBg: "#1E8E4E", checkFg: "#fff", fg: "#AEB5BF", dueFg: "#AEB5BF" }
+      ],
+      noteCount: "2",
+      notes: [
+        { text: "Acquisitions are outrunning construction — nine houses waiting on two crews. Capacity is the constraint, not lead flow.", meta: "Corey Wilson · Aug 1, 2026" },
+        { text: "Bearden and Farragut carry the profit; Cedar Bluff is the weakest ZIP on avg profit.", meta: "Jenna Miles · Jul 12, 2026" }
+      ],
+      showEcosystem: active === "Ecosystem",
+      showPerformance: active === "Performance",
+      showData: active === "Data",
+      showEos: active === "EOS",
+      periods: [per("Last Month"), per("Last 3 Months"), per("Last 12 Months"), per("YTD"), per("All Time")],
+
+      stakeholders: [
+        sh("DM", "Daniel Martinez", "Contractor", "(865) 442-1180", null, "#FBF0C9", "#8A6209", "#FBF0C9", "#8A6209", "fa-wrench"),
+        sh("KB", "Kyle Barks", "Partner", null, "kyle@barksrealty.com", "#E7F6EC", "#15803d", "#DCF3E3", "#15803d", "fa-handshake-o"),
+        sh("ML", "Matt Ackley", "Family", null, null, "#FCE7F0", "#BE185D", "#FCE7F0", "#BE185D", "fa-heart-o"),
+        sh("HL", "Hollie Ackley", "Family", "(865) 771-3321", null, "#FCE7F0", "#BE185D", "#FCE7F0", "#BE185D", "fa-heart-o")
+      ],
+
+      kpis: [
+        { label: "Leads entered", value: "412", note: "hit Stage 1", icon: "fa-line-chart", fg: "#1B2430" },
+        { label: "Lead progression", value: "34%", note: "reached Stage 4", icon: "fa-bullseye", fg: "#1B2430" },
+        { label: "Lead → purchase", value: "48d", note: "avg days", icon: "fa-clock-o", fg: "#1B2430" },
+        { label: "Active inventory", value: "9", note: "in hand", icon: "fa-home", fg: "#1B2430" },
+        { label: "Purchased", value: "41", note: "YTD", icon: "fa-key", fg: "#1B2430" },
+        { label: "Sold", value: "34", note: "YTD", icon: "fa-cube", fg: "#1B2430" },
+        { label: "Cycle time", value: "126d", note: "purchase → sold", icon: "fa-clock-o", fg: "#1B2430" },
+        { label: "Avg profit", value: "$38,400", note: "per flip", icon: "fa-usd", fg: "#1E8E4E" },
+        { label: "Total profit", value: "$1.31M", note: "YTD", icon: "fa-usd", fg: "#1E8E4E" }
+      ],
+
+      donut: `conic-gradient(${stops})`,
+      leadTypes: types,
+      leadSources: [
+        { count: "451", label: "Referral partners" }, { count: "96", label: "Lists" },
+        { count: "13", label: "Lead mining" }, { count: "10", label: "Direct seller" }
+      ],
+
+      funnel: [
+        { label: "Stage 1", from: "start", count: "605", pct: "100%", width: "100%", bar: "#93B4F5" },
+        { label: "Stage 2", from: "29% from prior", count: "174", pct: "29%", width: "29%", bar: "#7C9DEC" },
+        { label: "Stage 3", from: "99% from prior", count: "173", pct: "29%", width: "29%", bar: "#8B87E8" },
+        { label: "Stage 4", from: "14% from prior", count: "25", pct: "4%", width: "5%", bar: "#A78BFA" },
+        { label: "Stage 5 contract", from: "52% from prior", count: "13", pct: "2%", width: "3%", bar: "#F5A97B" },
+        { label: "Stage 6 purchase", from: "38% from prior", count: "5", pct: "1%", width: "2%", bar: "#6EE7A8" }
+      ],
+      bottlenecks: [
+        { label: "Stage 1 to Stage 2", note: "431 did not advance · 29% conversion", fg: "#1B2430" },
+        { label: "Stage 3 to Stage 4", note: "148 did not advance · 14% conversion", fg: "#1B2430" },
+        { label: "Stage 4 to Stage 5", note: "12 did not advance · 52% conversion", fg: "#7A828F" }
+      ],
+      comparison: [
+        { stage: "Stage 1", this: "605", median: "268", target: "240", targetFg: "#1E8E4E" },
+        { stage: "Stage 2", this: "174", median: "96", target: "—", targetFg: "#C3C9D2" },
+        { stage: "Stage 3", this: "173", median: "88", target: "—", targetFg: "#C3C9D2" },
+        { stage: "Stage 4", this: "25", median: "34", target: "80", targetFg: "#CE4138" },
+        { stage: "Stage 5 contract", this: "13", median: "11", target: "8", targetFg: "#1E8E4E" },
+        { stage: "Stage 6 purchase", this: "5", median: "6", target: "8", targetFg: "#CE4138" }
+      ],
+
+      inventory: [
+        {
+          address: "515 Wedgewood Ave", status: "Complete", source: "Lists", held: "1,499d held", arv: "$1,100,000", profit: "$438",
+          steps: [
+            this.step("Purchased", "Jun 29, 22", "done", true, false),
+            this.step("Construction", "Jul 1, 22", "done", false, false),
+            this.step("Complete", "Jul 1, 22", "current", false, false),
+            this.step("Listed", "", "todo", false, false),
+            this.step("Rented", "", "todo", false, true)
+          ]
+        },
+        {
+          address: "1003 Bradford Pl", status: "Purchased", source: "Lists", held: "1,203d held", arv: "$330,000", profit: "$12,500",
+          steps: [
+            this.step("Purchased", "Apr 21, 23", "current", true, false),
+            this.step("Construction", "", "todo", false, false),
+            this.step("Complete", "", "todo", false, false),
+            this.step("Listed", "", "todo", false, false),
+            this.step("Sold", "", "todo", false, true)
+          ]
+        }
+      ],
+      sold: [
+        {
+          address: "1535 Springfield Hwy", source: "Direct seller", cycle: "1,507d cycle", arv: "$425,000", profit: "$-92,575", profitFg: "#CE4138",
+          steps: [
+            this.step("Purchased", "Jun 21, 22", "done", true, false),
+            this.step("Construction", "Jun 27, 22", "done", false, false),
+            this.step("Complete", "Oct 20, 23", "done", false, false),
+            this.step("Listed", "Oct 23, 23", "done", false, false),
+            this.step("Sold", "May 18, 26", "current", false, true)
+          ]
+        },
+        {
+          address: "1212 Stockell Street", source: "Referral partners", cycle: "525d cycle", arv: "$950,000", profit: "$74,188", profitFg: "#1E8E4E",
+          steps: [
+            this.step("Purchased", "Feb 27, 25", "done", true, false),
+            this.step("Construction", "Feb 28, 25", "done", false, false),
+            this.step("Complete", "Oct 3, 25", "done", false, false),
+            this.step("Listed", "Oct 15, 25", "done", false, false),
+            this.step("Sold", "Apr 30, 26", "current", false, true)
+          ]
+        }
+      ],
+
+      dataSections: [
+        { label: "Owner & contact", icon: "fa-user-o", filled: "6/6 filled", fillFg: "#0080B5" },
+        { label: "Address", icon: "fa-map-marker", filled: "4/4 filled", fillFg: "#0080B5" },
+        { label: "Business", icon: "fa-briefcase", filled: "5/8 filled", fillFg: "#0080B5" },
+        { label: "Key dates", icon: "fa-calendar-o", filled: "3/5 filled", fillFg: "#0080B5" },
+        { label: "Marketing", icon: "fa-bullhorn", filled: "2/9 filled", fillFg: "#7A828F" },
+        { label: "Compliance & accounts", icon: "fa-shield", filled: "7/9 filled", fillFg: "#0080B5" },
+        { label: "Territory overview", icon: "fa-map-marker", filled: "5/12 filled", fillFg: "#7A828F" },
+        { label: "Demographics", icon: "fa-users", filled: "0/15 filled", fillFg: "#C3C9D2" },
+        { label: "Population trends", icon: "fa-line-chart", filled: "0/10 filled", fillFg: "#C3C9D2" },
+        { label: "Housing", icon: "fa-home", filled: "0/16 filled", fillFg: "#C3C9D2" },
+        { label: "Real estate market", icon: "fa-bar-chart", filled: "0/16 filled", fillFg: "#C3C9D2" },
+        { label: "Flip market", icon: "fa-exchange", filled: "0/14 filled", fillFg: "#C3C9D2" },
+        { label: "Economy & employment", icon: "fa-briefcase", filled: "0/14 filled", fillFg: "#C3C9D2" },
+        { label: "Construction", icon: "fa-wrench", filled: "0/11 filled", fillFg: "#C3C9D2" },
+        { label: "Competition", icon: "fa-bullseye", filled: "0/10 filled", fillFg: "#C3C9D2" }
+      ],
+
+      goals: [
+        { label: "Gross profit", actual: "$1,310,400", actualFg: "#1E8E4E", current: "$1,053,801", curFg: "#4A5462", year5: "$1,500,000", y5Fg: "#4A5462", year25: "—" },
+        { label: "Houses purchased", actual: "41", actualFg: "#4A5462", current: "36", curFg: "#4A5462", year5: "60", y5Fg: "#4A5462", year25: "—" },
+        { label: "Quality of life", actual: "—", actualFg: "#C3C9D2", current: "—", curFg: "#C3C9D2", year5: "40–50% profit margin. Marketing spend is most of the overhead.", y5Fg: "#4A5462", year25: "—" }
+      ],
+      scorecard: [
+        { metric: "T3 leads entered", goal: "1,500", actual: "1,180", fg: "#B07A0E" },
+        { metric: "T3 S1 to S4 %", goal: "15%", actual: "18.2%", fg: "#1E8E4E" },
+        { metric: "T3 purchased", goal: "9", actual: "11", fg: "#1E8E4E" },
+        { metric: "T3 avg inventory", goal: "7", actual: "9", fg: "#1E8E4E" },
+        { metric: "T12 median cycle days", goal: "280", actual: "126", fg: "#1E8E4E" },
+        { metric: "T3 gross profit", goal: "$397,000", actual: "$412,300", fg: "#1E8E4E" },
+        { metric: "T3 compliance score", goal: "80%", actual: "94%", fg: "#1E8E4E" }
+      ],
+      spend: [
+        { label: "Digital storefront", value: "$1,200.00" },
+        { label: "Lead manager", value: "$2,400.00" },
+        { label: "Direct mail", value: "$1,250.00" }
+      ],
+
+      channelGroups: [
+        { label: "Bulk lists", items: [chan("Prospect Now", true, "list"), chan("Vacants", true, "list"), chan("High Equity", false, "list"), chan("Absentee Owners", true, "list")] },
+        { label: "Lead mining", items: [chan("Probates", true, "list"), chan("Evictions", true, "list"), chan("City Citations", true, "list"), chan("Distressed Rentals", true, "list"), chan("Divorces", false, "list"), chan("Social Platforms", false, "list"), chan("Birddogs", true, "list")] },
+        { label: "Listed", items: [chan("Agent Listed", true, "list"), chan("FSBO", true, "list")] },
+        { label: "Auctions", items: [chan("Foreclosures", false, "list"), chan("Brokered Auctions", false, "list")] },
+        { label: "Referral partners", items: [chan("Wholesalers", true, "ref"), chan("Agents", true, "ref"), chan("Industry Network", true, "ref"), chan("Homelight", false, "ref"), chan("Asset Managers", false, "ref")] },
+        { label: "Digital", items: [chan("Facebook Ads", true, "ads"), chan("Google Ads", true, "ads"), chan("Google Retargeting", true, "ads"), chan("Organic Search", false, "list"), chan("Google Map Pack", true, "list"), chan("Google Business", true, "list"), chan("Facebook", true, "ref"), chan("Instagram", true, "ref"), chan("Tik Tok", false, "ref"), chan("YouTube", false, "ref"), chan("Google Business Profile", true, "ref"), chan("Other Social Media", false, "ref")] }
+      ],
+
+      habits: [
+        { label: "Daily tasks", grades: grades("A") },
+        { label: "Weekly contractor meeting", grades: grades("B") },
+        { label: "Bi-weekly agent meeting", grades: grades("A") },
+        { label: "Weekly accounting", grades: grades("C") },
+        { label: "Monthly lead manager", grades: grades("B") }
+      ],
+      eosLists: [
+        { label: "Rocks", count: "3", items: [
+          { text: "Hire third construction crew", meta: "Tom · due Sep 30", dot: "#1E8E4E" },
+          { text: "Cut rehab cycle to 100 days", meta: "Jenna · off track", dot: "#B07A0E" },
+          { text: "Launch Farragut mailer", meta: "Tom · due Aug 31", dot: "#1E8E4E" }
+        ] },
+        { label: "Issues", count: "2", items: [
+          { text: "Two houses stalled waiting on permits", meta: "raised Jul 28", dot: "#CE4138" },
+          { text: "Lead manager coverage on weekends", meta: "raised Aug 2", dot: "#B07A0E" }
+        ] },
+        { label: "To-dos", count: "3", items: [
+          { text: "Send updated ARV comps to Kyle", meta: "due Aug 7", dot: "#00A1E1" },
+          { text: "Review Q3 marketing spend", meta: "due Aug 12", dot: "#00A1E1" },
+          { text: "Book coaching call", meta: "overdue 12d", dot: "#CE4138" }
+        ] }
+      ],
+
+      ops: [
+        { label: "Leads entered", value: "263", fg: "#1B2430" },
+        { label: "Deal progression", value: "31%", fg: "#1B2430" },
+        { label: "Sold", value: "21", fg: "#1B2430" },
+        { label: "Avg profit", value: "$41,900", fg: "#1E8E4E" }
+      ],
+      people: [
+        { initials: "TA", first: "Tom", role: "Owner" },
+        { initials: "JM", first: "Jenna", role: "PM" },
+        { initials: "RC", first: "Ryan", role: "Wholesaler" },
+        { initials: "BL", first: "Brett", role: "Broker" }
+      ],
+      rail: [
+        { icon: "fa-commenting-o", label: "Activity", count: "41", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-users", label: "Journeys", count: "2", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-users", label: "Contacts", count: "4", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-user-o", label: "Team", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" },
+        { icon: "fa-phone", label: "Calls", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" },
+        { icon: "fa-check-square-o", label: "Tasks", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" },
+        { icon: "fa-file-text-o", label: "Notes", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" },
+        { icon: "fa-calendar-o", label: "Appointments", count: "3", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-folder-o", label: "Documents", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

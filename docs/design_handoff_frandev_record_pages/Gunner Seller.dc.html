@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin" />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400..800&amp;display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/vendor/font-awesome.min.css" />
+<style>
+  html, body { margin:0; padding:0; background:#F6F8FB; }
+  * { box-sizing:border-box; }
+  a { color:#00A1E1; text-decoration:none; }
+  a:hover { color:#0080B5; text-decoration:none; }
+</style>
+</helmet>
+<div style="min-height:100vh;background:#F6F8FB;font:400 13.5px/1.5 'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1B2430;-webkit-font-smoothing:antialiased">
+  <dc-import name="MSHeader" hint-size="100%,52px"></dc-import>
+
+  <div style="padding:18px 22px 60px;display:flex;flex-direction:column;gap:14px">
+
+    <div style="display:flex;gap:8px;font-size:12px;font-weight:600;color:#7A828F;align-items:center">
+      <a href="Gunner Buyer.dc.html">Buyer</a>
+      <span style="color:#D5DAE1">/</span><a href="Gunner Seller.dc.html" style="color:#00A1E1;font-weight:700">Seller</a>
+      <span style="color:#D5DAE1">/</span><a href="Gunner Partner.dc.html">Partner</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Prospect.dc.html">Prospect</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Franchisee.dc.html">Franchisee</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Journey.dc.html">Journey</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Territory.dc.html">Territory</a>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:7px;min-width:0">
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <span style="font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:999px;white-space:nowrap;background:#e0e7ff;color:#4338ca">PRIMARY SELLER</span>
+          <span style="font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:999px;white-space:nowrap;background:#e0f2fe;color:#0369a1">ALSO CASH BUYER</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:26px;font-weight:800;letter-spacing:-.025em;color:#1B2430;line-height:1.1">Deborah Hastings</span>
+        </div>
+        <span style="font-size:12.5px;color:#7A828F;font-weight:500">(865) 300-7712 · dhastings58@gmail.com · first touched Jun 2, 2026</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <select style="font:inherit;font-size:12px;font-weight:600;color:#4A5462;background:#fff;border:1px solid #E6E9ED;border-radius:9px;padding:8px 10px;cursor:pointer">
+          <option>Type: Seller</option><option>Buyer</option><option>Partner</option>
+        </select>
+        <a href="#" style="font-size:12px;font-weight:700;color:#fff;background:#00A1E1;border-radius:9px;padding:9px 14px;white-space:nowrap;box-shadow:0 1px 2px rgba(0,161,225,.3)" style-hover="background:#0080B5;color:#fff">Open in GHL ↗</a>
+        <button style="font:inherit;font-size:12px;font-weight:700;color:#CE4138;background:#FDEAEA;border:0;border-radius:9px;padding:9px 13px;cursor:pointer" style-hover="background:#f9dcdc">Delete contact</button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 392px;gap:14px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+          <div style="padding:16px 18px;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px">
+            <div style="min-width:0">
+              <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Strongest seller signals</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:9px">
+                <sc-for list="{{ signals }}" as="s" hint-placeholder-count="5">
+                  <span style="font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:999px;background:{{ s.bg }};color:{{ s.fg }};white-space:nowrap">{{ s.label }}</span>
+                </sc-for>
+              </div>
+            </div>
+            <div style="background:#F2F4F7;border:1px solid #E6E9ED;border-radius:12px;padding:13px 15px">
+              <div style="display:flex;align-items:baseline;gap:8px">
+                <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Complete the profile</span>
+                <span style="margin-left:auto;font-size:12px;font-weight:800;color:#1B2430;font-variant-numeric:tabular-nums">10 / 14 · 71%</span>
+              </div>
+              <div style="height:6px;border-radius:999px;background:#E2E7EE;margin-top:9px;overflow:hidden"><span style="display:block;height:100%;width:71%;background:#00A1E1;border-radius:999px"></span></div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:11px">
+                <sc-for list="{{ missing }}" as="m" hint-placeholder-count="4">
+                  <button style="border:1px dashed #BFE6F6;background:#E6F7FD;color:#0080B5;font:inherit;font-size:11px;font-weight:700;padding:4px 11px;border-radius:999px;cursor:pointer;white-space:nowrap" style-hover="background:#D6F0FB">＋ {{ m }}</button>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:10px;border-top:1px solid #E6E9ED;background:#FBFCFD;padding:12px 18px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Linked properties</span>
+            <span style="font-size:11px;font-weight:800;color:#0080B5;background:#E6F7FD;border-radius:999px;padding:2px 9px;font-variant-numeric:tabular-nums">2</span>
+            <div style="margin-left:auto;display:flex;gap:7px">
+              <button style="font:inherit;font-size:11.5px;font-weight:700;color:#00A1E1;background:#fff;border:1px solid #BFE6F6;border-radius:9px;padding:7px 13px;cursor:pointer" style-hover="background:#E6F7FD">Link existing</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px 18px 18px">
+            <sc-for list="{{ properties }}" as="p" hint-placeholder-count="2">
+              <div style="border:1px solid {{ p.border }};background:{{ p.bg }};border-radius:12px;padding:12px 14px">
+                <div style="display:flex;align-items:flex-start;gap:8px">
+                  <a href="#" style="font-size:13.5px;font-weight:800;line-height:1.3;color:#1B2430;min-width:0" style-hover="color:#00A1E1">{{ p.address }}</a>
+                  <span style="margin-left:auto;flex:none;color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.04em;padding:3px 9px;border-radius:999px;background:{{ p.stageBg }}">{{ p.stage }}</span>
+                </div>
+                <div style="font-size:11.5px;color:#AEB5BF;font-weight:600;margin-top:3px">{{ p.city }}</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:11.5px;font-weight:600;color:#7A828F;align-items:baseline">
+                  <span>MAO <b style="color:#1B2430;font-variant-numeric:tabular-nums">{{ p.max }}</b></span>
+                  <span>ARV <b style="color:#1B2430;font-variant-numeric:tabular-nums">{{ p.arv }}</b></span>
+                  <span>CB <b style="color:#1B2430;font-variant-numeric:tabular-nums">{{ p.rehab }}</b></span>
+                  <span style="margin-left:auto;font-size:11px;font-weight:800;color:#CE4138;cursor:pointer">Unlink</span>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;border-top:1px dashed #E6E9ED;padding-top:9px">
+                  <sc-for list="{{ p.gaps }}" as="g" hint-placeholder-count="2">
+                    <span style="border:1px dashed #BFE6F6;background:#E6F7FD;color:#0080B5;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px">＋ {{ g }}</span>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div>
+          <div style="display:flex;gap:2px;border-bottom:2px solid #E6E9ED;margin-bottom:14px">
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+              <a href="#" style="padding:11px 16px 12px;font-size:13.5px;font-weight:700;color:{{ t.fg }};border-bottom:2px solid {{ t.bar }};margin-bottom:-2px;letter-spacing:-.01em;white-space:nowrap">{{ t.label }}</a>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <sc-for list="{{ sections }}" as="sec" hint-placeholder-count="4">
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+                <div style="display:flex;align-items:center;gap:9px;padding:13px 17px;cursor:pointer">
+                  <span style="color:{{ sec.caretFg }};font-size:11px">{{ sec.caret }}</span>
+                  <span style="flex:1;font-size:13.5px;font-weight:800;color:#1B2430">{{ sec.title }}</span>
+                  <span style="font-size:11px;font-weight:700;color:#7A828F;font-variant-numeric:tabular-nums">{{ sec.count }}</span>
+                </div>
+                <sc-for list="{{ sec.rows }}" as="f" hint-placeholder-count="0">
+                  <div style="display:grid;grid-template-columns:210px minmax(0,1fr);gap:16px;padding:10px 17px;border-top:1px solid #F4F6F8;align-items:center">
+                    <div style="font-size:12.5px;font-weight:600;color:#7A828F">{{ f.label }}</div>
+                    <div style="font-size:13px;font-weight:700;color:{{ f.fg }};border-radius:6px;padding:2px 6px;margin:-2px -6px;cursor:text" style-hover="background:#E6F7FD;box-shadow:inset 0 0 0 1px rgba(0,161,225,.25)">{{ f.value }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px;min-width:0">
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:15px 16px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F;margin-bottom:12px">Seller snapshot</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+            <div style="background:#F6F8FB;border:1px solid #EDF0F4;border-radius:11px;padding:11px 13px">
+              <div style="font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Profile filled</div>
+              <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums">10<span style="font-size:14px;color:#AEB5BF">/14</span></div>
+              <div style="font-size:10.5px;color:#AEB5BF;font-weight:600">71% complete</div>
+            </div>
+            <div style="background:#F6F8FB;border:1px solid #EDF0F4;border-radius:11px;padding:11px 13px">
+              <div style="font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Deal context</div>
+              <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums">2</div>
+              <div style="font-size:10.5px;color:#AEB5BF;font-weight:600">linked properties</div>
+            </div>
+            <div style="grid-column:1 / -1;background:#F6F8FB;border:1px solid #EDF0F4;border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:14px">
+              <div>
+                <div style="font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Last contact</div>
+                <div style="font-size:15px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums">Aug 1, 2026</div>
+              </div>
+              <div style="margin-left:auto;text-align:right">
+                <div style="font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Next touch</div>
+                <div style="font-size:15px;font-weight:800;margin-top:2px;color:#0080B5;font-variant-numeric:tabular-nums">Aug 5, 9:30 AM</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <sc-for list="{{ rail }}" as="s" hint-placeholder-count="9">
+          <div style="background:#fff;border:1px solid #E6E9ED;border-radius:12px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:11px;padding:12px 15px;cursor:pointer" style-hover="background:#FBFCFD">
+              <i class="fa {{ s.icon }}" style="color:#94a3b8;font-size:15px;width:18px;text-align:center;flex:none"></i>
+              <span style="flex:1;font-size:12.5px;font-weight:700;letter-spacing:.04em;color:#4A5462;text-transform:uppercase">{{ s.label }}</span>
+              <span style="font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:{{ s.pillBg }};color:{{ s.pillFg }};font-variant-numeric:tabular-nums">{{ s.count }}</span>
+              <span style="color:#C9CFD8;font-size:15px">›</span>
+            </div>
+          </div>
+        </sc-for>
+
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:15px 16px;margin-top:2px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F;margin-bottom:11px">Contacts on this record</div>
+          <div style="display:flex;gap:7px">
+            <div style="border:1px solid #E6E9ED;background:#F6F8FB;border-radius:11px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:76px">
+              <span style="width:30px;height:30px;border-radius:999px;background:#00A1E1;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center">DH</span>
+              <span style="font-size:11px;font-weight:800;color:#1B2430">Deborah</span>
+              <span style="font-size:9px;font-weight:700;color:#AEB5BF;text-transform:uppercase;letter-spacing:.04em">Seller</span>
+            </div>
+            <div style="border:1px dashed #D5DAE1;background:#fff;border-radius:11px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:76px;color:#AEB5BF;font-size:11px;font-weight:700;cursor:pointer">
+              <span style="font-size:15px;line-height:1">＋</span>add
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#ECEBFE;border:1px solid #C9C5F0;border-radius:14px;padding:14px 16px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:7px;height:7px;border-radius:999px;background:#F0A12C;flex:none"></span>
+            <span style="font-size:12.5px;font-weight:800;color:#423DA8">Booking agent</span>
+            <span style="margin-left:auto;font-size:10px;font-weight:800;background:#fff;border:1px solid #DCD9F3;color:#8F7FC4;padding:2px 9px;border-radius:999px">Emails + texts</span>
+            <span style="width:34px;height:19px;border-radius:999px;background:#5751C4;position:relative;cursor:pointer;flex:none"><span style="position:absolute;top:2px;left:17px;width:15px;height:15px;border-radius:999px;background:#fff"></span></span>
+          </div>
+          <div style="font-size:11.5px;color:#6F66B8;font-weight:600;margin-top:7px">Running — pauses on reply.</div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:11px">
+            <sc-for list="{{ agentSteps }}" as="st" hint-placeholder-count="2">
+              <div style="background:#fff;border:1px solid #E7E1F6;border-radius:10px;padding:9px 11px">
+                <div style="display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:800">
+                  <span style="color:#4A5462">{{ st.when }}</span>
+                  <span style="background:#ECEBFE;color:#5751C4;padding:1px 8px;border-radius:999px">{{ st.channel }}</span>
+                  <span style="margin-left:auto;color:#AEB5BF;font-weight:700">{{ st.status }}</span>
+                </div>
+                <div style="font-size:11.5px;color:#4A5462;font-weight:500;line-height:1.45;margin-top:5px">{{ st.text }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1180}}">
+class Component extends DCLogic {
+  renderVals() {
+    const tab = (label, on) => ({ label, fg: on ? "#00A1E1" : "#7A828F", bar: on ? "#00A1E1" : "transparent" });
+    const row = (label, value) => ({ label, value: value || "—", fg: value ? "#1B2430" : "#C3C9D2" });
+    const sec = (title, count, rows, open) => ({ title, count, rows: open ? rows : [], caret: open ? "▾" : "▸", caretFg: open ? "#00A1E1" : "#C9CFD8" });
+    return {
+      signals: [
+        { label: "High urgency", bg: "#FDEAEA", fg: "#CE4138" },
+        { label: "Behind payments", bg: "#FFF4D6", fg: "#B07A0E" },
+        { label: "Probate signal", bg: "#e0f2fe", fg: "#0369a1" },
+        { label: "Subject-to open", bg: "#ECEBFE", fg: "#5751C4" },
+        { label: "Motivation 0.82", bg: "#E7F6EC", fg: "#1E8E4E" },
+        { label: "Close 64%", bg: "#E6F7FD", fg: "#0080B5" }
+      ],
+      missing: ["Decision makers", "Preferred contact", "AI summary", "Motivation"],
+      tabs: [tab("Identity", true), tab("Situation", false), tab("Financial", false), tab("Activity", false), tab("AI Insights", false)],
+      properties: [
+        { address: "612 Deaderick Rd", city: "Knoxville, TN 37920", stage: "Stage 3", stageBg: "#6152c9", max: "$118,000", arv: "$205,000", rehab: "$62,000", border: "#BFE6F6", bg: "#F4FAFE", gaps: ["Timeline", "Lowest acceptable"] },
+        { address: "2140 Merchants Dr", city: "Knoxville, TN 37912", stage: "Lead", stageBg: "#8494ad", max: "—", arv: "$168,000", rehab: "—", border: "#E6E9ED", bg: "#fff", gaps: ["Asking price", "Timeline"] }
+      ],
+      sections: [
+        sec("Contact information", "6 / 8 filled", [
+          row("Phone", "(865) 300-7712"), row("Secondary phone", "(865) 300-7799"), row("Mobile", null),
+          row("Email", "dhastings58@gmail.com"), row("Secondary email", null), row("Preferred contact", "Phone"),
+          row("Best time to call", "Mornings"), row("Language", "English")
+        ], false),
+        sec("Personal details", "3 / 6 filled", [], false),
+        sec("Mailing address", "4 / 4 filled", [], false),
+        sec("Lead info", "4 / 5 filled", [], false)
+      ],
+      rail: [
+        { icon: "fa-bolt", label: "Activity", count: "22", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-file-text-o", label: "Offers", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" },
+        { icon: "fa-users", label: "Contacts", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" },
+        { icon: "fa-user-o", label: "Team", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" },
+        { icon: "fa-phone", label: "Calls", count: "9", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-check-square-o", label: "Tasks", count: "4", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-sticky-note-o", label: "Notes", count: "13", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-calendar", label: "Appointments", count: "2", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-folder-o", label: "Documents", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" }
+      ],
+      agentSteps: [
+        { when: "Wed, Aug 5", channel: "TEXT", status: "planned", text: "Hi Deborah — still happy to work around your timeline on Deaderick. Want me to hold Friday at 10?" },
+        { when: "Mon, Aug 10", channel: "EMAIL", status: "planned", text: "Following up with the two options we discussed, plus what the as-is number looks like today." }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

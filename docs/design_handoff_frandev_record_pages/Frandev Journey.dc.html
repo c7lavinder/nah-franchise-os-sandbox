@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin" />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400..800&amp;display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/vendor/font-awesome.min.css" />
+<style>
+  html, body { margin:0; padding:0; background:#F6F8FB; }
+  * { box-sizing:border-box; }
+  a { color:#00A1E1; text-decoration:none; }
+  a:hover { color:#0080B5; text-decoration:none; }
+</style>
+</helmet>
+<div style="min-height:100vh;background:#F6F8FB;font:400 13.5px/1.5 'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1B2430;-webkit-font-smoothing:antialiased">
+  <dc-import name="MSHeader" hint-size="100%,52px"></dc-import>
+
+  <div style="padding:18px 22px 60px;display:flex;flex-direction:column;gap:14px">
+
+    <div style="display:flex;gap:8px;font-size:12px;font-weight:600;color:#7A828F;align-items:center">
+      <a href="Gunner Buyer.dc.html">Buyer</a>
+      <span style="color:#D5DAE1">/</span><a href="Gunner Seller.dc.html">Seller</a>
+      <span style="color:#D5DAE1">/</span><a href="Gunner Partner.dc.html">Partner</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Prospect.dc.html">Prospect</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Franchisee.dc.html">Franchisee</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Journey.dc.html" style="color:#00A1E1;font-weight:700">Journey</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Territory.dc.html">Territory</a>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:7px;min-width:0">
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <span style="font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:999px;white-space:nowrap;background:#dbeafe;color:#1d4ed8">DISCOVERY DAY</span>
+          <span style="font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:999px;white-space:nowrap;background:#E7F6EC;color:#15803d">ACTIVE</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:26px;font-weight:800;letter-spacing:-.025em;color:#1B2430;line-height:1.1">Alicia Brennan</span>
+        </div>
+        <span style="font-size:12.5px;color:#7A828F;font-weight:500">alicia.brennan@outlook.com · (615) 224-8890 · Franklin, TN</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button disabled="disabled" style="font:inherit;font-size:12px;font-weight:700;color:#B07A0E;background:#FFF4D6;border:0;border-radius:9px;padding:9px 13px;opacity:.55;cursor:default">Merge</button>
+        <button disabled="disabled" style="font:inherit;font-size:12px;font-weight:700;color:#CE4138;background:#FDEAEA;border:0;border-radius:9px;padding:9px 13px;opacity:.55;cursor:default">Delete journey</button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 392px;gap:14px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+            <sc-for list="{{ pipelines }}" as="p" hint-placeholder-count="4">
+              <button onClick="{{ p.onClick }}" style="display:flex;align-items:center;gap:7px;font:inherit;font-size:12px;font-weight:700;border:1px solid {{ p.border }};border-radius:999px;padding:6px 13px;background:{{ p.bg }};color:{{ p.fg }};white-space:nowrap;cursor:pointer">{{ p.name }}</button>
+            </sc-for>
+            <span style="margin-left:auto;font-size:11.5px;font-weight:700;white-space:nowrap;color:{{ daysFg }}">{{ daysLabel }}</span>
+          </div>
+
+          <div style="display:grid;grid-auto-flow:column;grid-auto-columns:minmax(126px,1fr);gap:7px;margin:18px 0 2px;overflow-x:auto;padding-bottom:4px">
+            <sc-for list="{{ stages }}" as="s" hint-placeholder-count="6">
+              <div style="min-width:0;display:flex;flex-direction:column;gap:9px">
+                <div style="display:flex;align-items:center">
+                  <span style="flex:1;height:3px;border-radius:2px;background:{{ s.lineL }}"></span>
+                  <span style="width:22px;height:22px;border-radius:999px;flex:none;display:flex;align-items:center;justify-content:center;background:{{ s.nodeBg }};border:2px solid {{ s.nodeBorder }};box-shadow:{{ s.nodeShadow }}"><i class="fa {{ s.nodeIcon }}" style="font-size:9px;color:{{ s.nodeFg }}"></i></span>
+                  <span style="flex:1;height:3px;border-radius:2px;background:{{ s.lineR }}"></span>
+                </div>
+                <div style="background:{{ s.cardBg }};border:1px solid {{ s.cardBorder }};border-radius:11px;box-shadow:{{ s.shadow }};flex:1;cursor:pointer;overflow:hidden">
+                  <span style="display:block;height:3px;background:{{ s.accent }}"></span>
+                  <div style="padding:9px 9px 10px">
+                    <div style="display:flex;align-items:baseline;gap:5px">
+                      <span style="font-size:11.5px;font-weight:800;line-height:1.2;color:{{ s.titleFg }};text-wrap:balance;min-width:0">{{ s.name }}</span>
+                      <span style="margin-left:auto;font-size:9.5px;font-weight:800;color:{{ s.metaFg }};font-variant-numeric:tabular-nums;white-space:nowrap">{{ s.meta }}</span>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:5px;margin-top:9px">
+                      <sc-for list="{{ s.subs }}" as="u" hint-placeholder-count="3">
+                        <div style="display:flex;align-items:flex-start;gap:5px">
+                          <i class="fa {{ u.icon }}" style="color:{{ u.iconFg }};font-size:9px;width:9px;flex:none;margin-top:3px"></i>
+                          <span style="font-size:10.5px;font-weight:600;line-height:1.3;color:{{ u.fg }};min-width:0;overflow-wrap:anywhere">{{ u.label }}</span>
+                        </div>
+                      </sc-for>
+                      <sc-if value="{{ s.empty }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:10.5px;font-weight:600;color:#C3C9D2">No sub-stages</span>
+                      </sc-if>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F;margin-top:18px">Journey brief</div>
+          <div style="font-size:13.5px;line-height:1.55;color:#4A5462;margin-top:8px">Second-generation contractor evaluating a Knoxville-adjacent territory. Cleared financial review on 6/28 with liquid capital above the floor; discovery day is booked for 8/14. Open question is whether she wants Maryville added to the base territory before the agreement is drafted.</div>
+        </div>
+
+        <div>
+          <div style="display:flex;gap:2px;border-bottom:2px solid #E6E9ED;margin-bottom:14px">
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+              <button onClick="{{ t.onClick }}" style="padding:11px 16px 12px;font-size:13.5px;font-weight:700;font-family:inherit;color:{{ t.fg }};background:none;border:0;border-bottom:2px solid {{ t.bar }};margin-bottom:-2px;letter-spacing:-.01em;white-space:nowrap;cursor:pointer">{{ t.label }}</button>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ showOverview }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;align-items:start">
+              <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px;margin-bottom:2px">
+                    <i class="fa fa-users" style="color:#AEB5BF;font-size:12px"></i>
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Contacts ({{ contactCount }})</span>
+                    <a href="#" style="margin-left:auto;font-size:12px;font-weight:700">＋ Add</a>
+                  </div>
+                  <sc-for list="{{ members }}" as="m" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-top:1px solid #F4F6F8">
+                      <span style="width:32px;height:32px;border-radius:999px;background:#E6F7FD;color:#0080B5;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">{{ m.initials }}</span>
+                      <div style="min-width:0">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                          <a href="Frandev Prospect.dc.html" style="font-size:13.5px;font-weight:800">{{ m.name }}</a>
+                          <span style="font-size:10px;font-weight:700;background:#E6F7FD;color:#0080B5;border-radius:999px;padding:2px 9px;white-space:nowrap">{{ m.role }}</span>
+                        </div>
+                        <div style="font-size:12px;color:#AEB5BF;font-weight:600;margin-top:1px">{{ m.meta }}</div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px;margin-bottom:2px">
+                    <i class="fa fa-users" style="color:#AEB5BF;font-size:12px"></i>
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Team ({{ teamCount }})</span>
+                    <a href="#" style="margin-left:auto;font-size:12px;font-weight:700">＋ Add</a>
+                  </div>
+                  <sc-for list="{{ team }}" as="p" hint-placeholder-count="5">
+                    <div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid #F4F6F8">
+                      <span style="width:30px;height:30px;border-radius:999px;background:#F2F4F7;color:#4A5462;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">{{ p.initials }}</span>
+                      <span style="font-size:13px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.name }}</span>
+                      <span style="margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:#F2F4F7;color:#7A828F;border-radius:999px;padding:3px 9px;white-space:nowrap">{{ p.role }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <i class="fa fa-certificate" style="color:#AEB5BF;font-size:12px"></i>
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Graded calls ({{ callCount }})</span>
+                  </div>
+                  <sc-for list="{{ calls }}" as="c" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid #F4F6F8;flex-wrap:wrap">
+                      <a href="#" style="font-size:13px;font-weight:800;color:#1B2430" style-hover="color:#00A1E1">{{ c.name }}</a>
+                      <span style="font-size:12px;color:#AEB5BF;font-weight:600">{{ c.who }}</span>
+                      <span style="font-size:12px;color:#AEB5BF;font-weight:600;font-variant-numeric:tabular-nums">{{ c.length }}</span>
+                      <span style="margin-left:auto;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap;background:{{ c.gradeBg }};color:{{ c.gradeFg }}">{{ c.grade }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <i class="fa fa-clipboard" style="color:#AEB5BF;font-size:12px"></i>
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Tasks ({{ pendingCount }} pending)</span>
+                  </div>
+                  <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid #F4F6F8">
+                      <span style="width:15px;height:15px;border-radius:5px;border:1.5px solid {{ t.boxBorder }};background:{{ t.boxBg }};flex:none;display:flex;align-items:center;justify-content:center"><i class="fa fa-check" style="font-size:8px;color:{{ t.checkFg }}"></i></span>
+                      <span style="font-size:13px;font-weight:700;color:{{ t.fg }};min-width:0">{{ t.text }}</span>
+                      <span style="margin-left:auto;font-size:11.5px;font-weight:700;color:{{ t.dueFg }};white-space:nowrap">{{ t.due }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Notes ({{ noteCount }})</span>
+                    <a href="#" style="margin-left:auto;font-size:12px;font-weight:700">＋ Add note</a>
+                  </div>
+                  <sc-for list="{{ notes }}" as="n" hint-placeholder-count="2">
+                    <div style="padding:11px 0;border-top:1px solid #F4F6F8">
+                      <div style="font-size:13px;color:#4A5462;line-height:1.5">{{ n.text }}</div>
+                      <div style="font-size:11.5px;color:#AEB5BF;font-weight:600;margin-top:3px">{{ n.meta }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showProfile }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <sc-for list="{{ profileSections }}" as="p" hint-placeholder-count="18">
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:12px;box-shadow:0 1px 2px rgba(16,30,51,.04);display:flex;align-items:center;gap:12px;padding:14px 17px;cursor:pointer" style-hover="background:#FBFCFD">
+                  <i class="fa fa-angle-right" style="color:#C9CFD8;font-size:15px;width:9px"></i>
+                  <i class="fa {{ p.icon }}" style="color:{{ p.iconFg }};font-size:14px;width:17px"></i>
+                  <span style="font-size:13.5px;font-weight:800">{{ p.label }}</span>
+                  <span style="margin-left:auto;font-size:12px;font-weight:700;color:{{ p.fillFg }};font-variant-numeric:tabular-nums">{{ p.filled }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showTerritories }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F;margin-bottom:8px">Territory ownership</div>
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                  <div style="min-width:0">
+                    <a href="Frandev Territory.dc.html" style="font-size:14px;font-weight:800;color:#1B2430" style-hover="color:#00A1E1">knoxville-west</a>
+                    <div style="font-size:12px;color:#AEB5BF;font-weight:600">Pipeline above is scoped to this territory</div>
+                  </div>
+                  <span style="margin-left:auto;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:#E7F6EC;color:#15803d;border-radius:999px;padding:3px 10px;white-space:nowrap">reserved</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:9px;margin-top:14px">
+                  <sc-for list="{{ terrStats }}" as="s" hint-placeholder-count="3">
+                    <div style="background:#F6F8FB;border:1px solid #EDF0F4;border-radius:11px;padding:11px 13px">
+                      <div style="font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">{{ s.label }}</div>
+                      <div style="font-size:20px;font-weight:800;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums">{{ s.value }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F;margin-bottom:4px">Territories under discussion</div>
+                <sc-for list="{{ terrOptions }}" as="t" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #F4F6F8;flex-wrap:wrap">
+                    <div style="min-width:0">
+                      <span style="font-size:13px;font-weight:800">{{ t.slug }}</span>
+                      <div style="font-size:11.5px;color:#AEB5BF;font-weight:600">{{ t.note }}</div>
+                    </div>
+                    <span style="margin-left:auto;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 10px;border-radius:999px;white-space:nowrap;background:{{ t.bg }};color:{{ t.fg }}">{{ t.status }}</span>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F;margin-bottom:6px">Stage history</div>
+                <sc-for list="{{ history }}" as="h" hint-placeholder-count="5">
+                  <div style="display:flex;gap:14px;padding:9px 0;border-bottom:1px solid #F4F6F8;font-size:13px;color:#4A5462">
+                    <div style="color:#AEB5BF;min-width:104px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums">{{ h.date }}</div>
+                    <div>{{ h.from }} <b style="color:#1B2430">{{ h.to }}</b></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px;min-width:0">
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:15px 16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Revenue</span>
+            <span style="font-size:10px;font-weight:800;background:#E7F6EC;color:#15803d;border-radius:999px;padding:2px 9px">Ahead of pace</span>
+          </div>
+          <sc-for list="{{ revenue }}" as="r" hint-placeholder-count="4">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;padding:9px 2px;border-top:1px solid #F4F6F8">
+              <span style="font-size:13px;color:#7A828F;font-weight:600">{{ r.label }}</span>
+              <span style="font-size:{{ r.size }};font-weight:800;color:{{ r.fg }};letter-spacing:-.01em;font-variant-numeric:tabular-nums">{{ r.value }}</span>
+            </div>
+          </sc-for>
+          <div style="display:flex;justify-content:space-between;font-size:11.5px;color:#7A828F;font-weight:600;margin-top:12px">
+            <span>$347,500 of $500k goal</span><span style="font-weight:800;color:#1B2430;font-variant-numeric:tabular-nums">70%</span>
+          </div>
+          <div style="height:8px;border-radius:999px;background:#E2E7EE;margin-top:7px;overflow:hidden"><span style="display:block;height:100%;width:70%;background:#1E8E4E;border-radius:999px"></span></div>
+        </div>
+
+        <sc-for list="{{ rail }}" as="s" hint-placeholder-count="9">
+          <div style="background:#fff;border:1px solid #E6E9ED;border-radius:12px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:11px;padding:12px 15px;cursor:pointer" style-hover="background:#FBFCFD">
+              <i class="fa {{ s.icon }}" style="color:#94a3b8;font-size:15px;width:18px;text-align:center;flex:none"></i>
+              <span style="flex:1;font-size:12.5px;font-weight:700;letter-spacing:.04em;color:#4A5462;text-transform:uppercase">{{ s.label }}</span>
+              <span style="font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:{{ s.pillBg }};color:{{ s.pillFg }};font-variant-numeric:tabular-nums">{{ s.count }}</span>
+              <span style="color:#C9CFD8;font-size:15px">›</span>
+            </div>
+          </div>
+        </sc-for>
+
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:15px 16px;margin-top:2px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F;margin-bottom:11px">Contacts on this journey</div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap">
+            <sc-for list="{{ members }}" as="m" hint-placeholder-count="2">
+              <div style="border:1px solid #E6E9ED;background:#F6F8FB;border-radius:11px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:78px">
+                <span style="width:30px;height:30px;border-radius:999px;background:#E6F7FD;color:#0080B5;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center">{{ m.initials }}</span>
+                <span style="font-size:11px;font-weight:800;color:#1B2430">{{ m.first }}</span>
+                <span style="font-size:9px;font-weight:700;color:#AEB5BF;text-transform:uppercase;letter-spacing:.04em">{{ m.role }}</span>
+              </div>
+            </sc-for>
+            <div style="border:1px dashed #D5DAE1;background:#fff;border-radius:11px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:78px;color:#AEB5BF;font-size:11px;font-weight:700;cursor:pointer">
+              <span style="font-size:15px;line-height:1">＋</span>add
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <a href="#" style="position:fixed;right:24px;bottom:24px;display:flex;align-items:center;gap:10px;width:300px;background:#fff;border:1px solid #E6E9ED;border-radius:999px;padding:8px 8px 8px 16px;box-shadow:0 12px 26px -10px rgba(16,30,51,.28);font-size:13.5px;font-weight:600;color:#AEB5BF">Ask Scout anything…<span style="margin-left:auto;width:32px;height:32px;border-radius:999px;background:#00A1E1;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none">➤</span></a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1060}}">
+class Component extends DCLogic {
+  state = { tab: "Overview", pipeline: "Path to Ownership" };
+  renderVals() {
+    const active = this.state.tab;
+    const tab = (label) => ({
+      label,
+      fg: label === active ? "#00A1E1" : "#7A828F",
+      bar: label === active ? "#00A1E1" : "transparent",
+      onClick: () => this.setState({ tab: label })
+    });
+    const psec = (label, filled, total, icon, iconFg) => ({
+      label, icon, iconFg,
+      filled: filled + "/" + total + " filled",
+      fillFg: filled > 0 ? "#0080B5" : "#C3C9D2"
+    });
+    const PIPES = [
+      {
+        name: "Path to Ownership", badge: "76", cur: 2, curSub: 2,
+        stages: [
+          { name: "Engagement", subs: ["New Lead", "Intro Call", "PTO"], date: "Jun 4" },
+          { name: "Qualification", subs: ["NDA", "Matt Call", "Zorakle"], date: "Jun 12" },
+          { name: "Discovery", subs: ["Sam Call", "PFS", "Background", "Mark Call"], date: "Jul 2" },
+          { name: "Compliance", subs: ["FDD", "FDD Review Call", "Territory Call", "FA Info Gathering"] },
+          { name: "Awarding", subs: ["Matt Final Call", "Franchise Award Letter", "FA", "FF"] },
+          { name: "Closed", subs: ["Closed"] }
+        ]
+      },
+      {
+        name: "Onboarding", badge: "55", cur: -1, curSub: 0,
+        stages: [
+          { name: "Setup", subs: ["Legal Entity", "NAH Website", "Google Workspace", "Bank Account"] },
+          { name: "Training", subs: ["Trainual Part 1", "Trainual Part 2", "Trainual Part 3", "Trainual Part 4", "Trainual Part 5"] },
+          { name: "Launch Prep", subs: ["Accounts", "Insurance", "Workstation"] },
+          { name: "Onboarded", subs: ["Onboarded"] }
+        ]
+      },
+      {
+        name: "Runway", badge: "49", cur: -1, curSub: 0,
+        stages: [
+          { name: "First Offer", subs: ["First Lead", "First Walkthrough", "First Offer", "10 Offers"] },
+          { name: "First Purchase", subs: ["First Contract", "Closing Set", "Closing", "Construction Start"] },
+          { name: "Inventory Building", subs: ["1st Completed", "25 Offers", "3 Purchased"] },
+          { name: "Running", subs: ["Running"] }
+        ]
+      },
+      {
+        name: "Long-Term Follow-Up", badge: "3026", cur: -1, curSub: 0,
+        stages: [
+          { name: "Nurture", subs: ["Nurture"] },
+          { name: "Follow-up", subs: [] },
+          { name: "Re-engaged", subs: ["Resume Sales"] }
+        ]
+      }
+    ];
+    const pipe = PIPES.find(p => p.name === this.state.pipeline) || PIPES[0];
+    const cur = pipe.cur, last = pipe.stages.length - 1;
+    const accent = (i) => {
+      const t = last === 0 ? 1 : i / last;
+      return "hsl(" + Math.round(6 + t * 132) + " 72% 58%)";
+    };
+    const stages = pipe.stages.map((d, i) => {
+      const isDone = cur >= 0 && i < cur, isCur = i === cur;
+      const doneCount = isDone ? d.subs.length : isCur ? pipe.curSub : 0;
+      const subs = d.subs.map((label, j) => {
+        if (j < doneCount) return { label, icon: "fa-check-circle", iconFg: isDone ? "#8FCBA5" : "#1E8E4E", fg: isDone ? "#8B949F" : "#4A5462" };
+        if (isCur && j === doneCount) return { label, icon: "fa-dot-circle-o", iconFg: "#00A1E1", fg: "#1B2430" };
+        return { label, icon: "fa-circle-o", iconFg: "#D9DEE5", fg: "#AEB5BF" };
+      });
+      return {
+        name: d.name, subs, empty: d.subs.length === 0,
+        meta: isDone ? (d.date || "✓") : isCur ? (doneCount + "/" + d.subs.length) : "",
+        accent: isDone || isCur ? accent(i) : "#E8ECF1",
+        nodeBg: isDone ? "#1E8E4E" : isCur ? "#00A1E1" : "#fff",
+        nodeBorder: isDone ? "#1E8E4E" : isCur ? "#0284c7" : "#DDE2E8",
+        nodeFg: isDone || isCur ? "#fff" : "transparent",
+        nodeIcon: isDone ? "fa-check" : "fa-circle",
+        nodeShadow: isCur ? "0 0 0 4px rgba(0,161,225,.15)" : "none",
+        lineL: i === 0 ? "transparent" : (cur >= 0 && i <= cur ? "#1E8E4E" : "#E2E7EE"),
+        lineR: i === last ? "transparent" : (cur >= 0 && i < cur ? "#1E8E4E" : "#E2E7EE"),
+        cardBg: isCur ? "#fff" : isDone ? "#F8FBF9" : "#FBFCFD",
+        cardBorder: isCur ? "#9BD9F2" : isDone ? "#E0EEE5" : "#EDF0F4",
+        shadow: isCur ? "0 3px 12px -4px rgba(0,161,225,.35)" : "none",
+        titleFg: isCur ? "#1B2430" : isDone ? "#4A5462" : "#AEB5BF",
+        metaFg: isCur ? "#0080B5" : isDone ? "#8FCBA5" : "#C3C9D2"
+      };
+    });
+    const pipelines = PIPES.map(p => {
+      const on = p.name === pipe.name;
+      return {
+        name: p.name, badge: p.badge,
+        bg: on ? "#00A1E1" : "#fff", fg: on ? "#fff" : "#7A828F",
+        border: on ? "#00A1E1" : "#E6E9ED",
+        pillBg: on ? "rgba(255,255,255,.24)" : "#F2F4F7",
+        pillFg: on ? "#fff" : "#AEB5BF",
+        onClick: () => this.setState({ pipeline: p.name })
+      };
+    });
+    return {
+      pipelines,
+      stages,
+      stageCounter: cur >= 0 ? "Stage " + (cur + 1) + " of " + pipe.stages.length + " ·" : "Not entered ·",
+      daysLabel: cur >= 0 ? "33 days in stage" : "no history in this pipeline",
+      daysFg: cur >= 0 ? "#B07A0E" : "#AEB5BF",
+      tabs: [tab("Overview"), tab("Profile"), tab("Territories")],
+      showOverview: active === "Overview",
+      showProfile: active === "Profile",
+      showTerritories: active === "Territories",
+
+      contactCount: "2", teamCount: "5", callCount: "2", pendingCount: "2", noteCount: "2",
+      messageCount: "4", docCount: "4",
+
+      team: [
+        { initials: "MP", name: "Mark Pate", role: "Specialist" },
+        { initials: "RR", name: "Rylyn Ricker", role: "Specialist" },
+        { initials: "ML", name: "Matt Lavinder", role: "Admin" },
+        { initials: "CA", name: "Chad Arnold", role: "Operator" },
+        { initials: "SF", name: "Sam Ferguson", role: "Specialist" }
+      ],
+      calls: [
+        { name: "FDD Review", who: "Chad Arnold", length: "64m", grade: "A−", gradeBg: "#E7F6EC", gradeFg: "#15803d" },
+        { name: "Intro Call", who: "Chad Arnold", length: "33m", grade: "B+", gradeBg: "#E6F7FD", gradeFg: "#0080B5" }
+      ],
+      tasks: [
+        { text: "Confirm Maryville ZIPs can be carved out", due: "Due Aug 8", dueFg: "#B07A0E", fg: "#1B2430", boxBg: "#fff", boxBorder: "#C9CFD8", checkFg: "transparent" },
+        { text: "Spouse call before discovery day", due: "Overdue 3d", dueFg: "#CE4138", fg: "#1B2430", boxBg: "#fff", boxBorder: "#C9CFD8", checkFg: "transparent" },
+        { text: "Send FDD receipt to legal", due: "Done Jul 2", dueFg: "#AEB5BF", fg: "#AEB5BF", boxBg: "#1E8E4E", boxBorder: "#1E8E4E", checkFg: "#fff" }
+      ],
+      notes: [
+        { text: "Wants Maryville added before signing. Corey is checking whether the ZIPs can be carved out of the existing owner's map.", meta: "Corey Wilson · Jul 30, 2026" },
+        { text: "Financing is not a constraint — liquid capital verified well above the floor on the PFS review.", meta: "Sam Ferguson · Jun 28, 2026" }
+      ],
+      messages: [
+        { initials: "AB", who: "Alicia Brennan", channel: "EMAIL", when: "Aug 2, 4:12 PM", text: "Thanks for sending the territory map. Dan and I looked it over — can we talk through whether Maryville could be included?", initialsBg: "", avBg: "#E6F7FD", avFg: "#0080B5", chanBg: "#E6F7FD", chanFg: "#0080B5" },
+        { initials: "CW", who: "Corey Wilson", channel: "EMAIL", when: "Aug 1, 9:04 AM", text: "Map attached. The base territory is nine ZIPs; happy to walk through the boundary logic on our call Thursday.", avBg: "#F2F4F7", avFg: "#4A5462", chanBg: "#E6F7FD", chanFg: "#0080B5" },
+        { initials: "AB", who: "Alicia Brennan", channel: "TEXT", when: "Jul 29, 6:41 PM", text: "Discovery day on the 14th works for both of us.", avBg: "#E6F7FD", avFg: "#0080B5", chanBg: "#ECEBFE", chanFg: "#5751C4" },
+        { initials: "SF", who: "Sam Ferguson", channel: "TEXT", when: "Jul 29, 2:15 PM", text: "Great — I'll send the travel details and the agenda by Friday.", avBg: "#F2F4F7", avFg: "#4A5462", chanBg: "#ECEBFE", chanFg: "#5751C4" }
+      ],
+      documents: [
+        { name: "Franchise Disclosure Document", size: "PDF · 2.4 MB", status: "receipted", stBg: "#E7F6EC", stFg: "#15803d", date: "Jul 2, 2026", icon: "fa-file-pdf-o" },
+        { name: "Personal Financial Statement", size: "PDF · 640 KB", status: "reviewed", stBg: "#E7F6EC", stFg: "#15803d", date: "Jun 28, 2026", icon: "fa-file-pdf-o" },
+        { name: "Background check authorization", size: "PDF · 180 KB", status: "signed", stBg: "#E7F6EC", stFg: "#15803d", date: "Jun 20, 2026", icon: "fa-file-pdf-o" },
+        { name: "Franchise agreement — draft", size: "DOCX · 320 KB", status: "pending", stBg: "#FFF4D6", stFg: "#B07A0E", date: "—", icon: "fa-file-word-o" }
+      ],
+      profileSections: [
+        psec("Identity & contact", 3, 13, "fa-user-o", "#00A1E1"),
+        psec("Background & demographics", 6, 22, "fa-briefcase", "#1B2430"),
+        psec("Personality & psychology", 1, 16, "fa-lightbulb-o", "#00A1E1"),
+        psec("Goals & vision", 3, 14, "fa-bullseye", "#00A1E1"),
+        psec("Financial profile", 0, 18, "fa-usd", "#1E8E4E"),
+        psec("Franchise fit", 0, 10, "fa-puzzle-piece", "#00A1E1"),
+        psec("Territory", 1, 11, "fa-map-marker", "#00A1E1"),
+        psec("Sales journey", 0, 12, "fa-line-chart", "#F0A12C"),
+        psec("Validation", 0, 8, "fa-check-circle-o", "#F0A12C"),
+        psec("Trainual", 0, 5, "fa-book", "#00A1E1"),
+        psec("Compliance", 1, 8, "fa-shield", "#CE4138"),
+        psec("Objections & concerns", 3, 16, "fa-exclamation-triangle", "#CE4138"),
+        psec("Behavioral signals", 0, 12, "fa-heartbeat", "#00A1E1"),
+        psec("Engagement", 0, 8, "fa-bolt", "#1E8E4E"),
+        psec("External research", 0, 10, "fa-search", "#4A5462"),
+        psec("AI Scout intelligence", 0, 17, "fa-android", "#00A1E1"),
+        psec("Predictive scores", 0, 12, "fa-bar-chart", "#F0A12C"),
+        psec("Metadata & audit", 0, 12, "fa-database", "#4A5462")
+      ],
+      terrStats: [
+        { label: "ZIP codes", value: "9" },
+        { label: "Population", value: "214k" },
+        { label: "Households", value: "88k" }
+      ],
+      terrOptions: [
+        { slug: "maryville", note: "Requested add-on · overlaps an existing owner", status: "needs sign-off", bg: "#FFF4D6", fg: "#B07A0E" },
+        { slug: "sevierville", note: "Available · discussed as year-2 expansion", status: "available", bg: "#E6F7FD", fg: "#0080B5" },
+        { slug: "knoxville-east", note: "Owned by Marla Whitfield", status: "unavailable", bg: "#F2F4F7", fg: "#7A828F" }
+      ],
+      members: [
+        { initials: "AB", first: "Alicia", name: "Alicia Brennan", meta: "alicia.brennan@outlook.com · (615) 224-8890", role: "Prospect" },
+        { initials: "DB", first: "Dan", name: "Dan Brennan", meta: "dan.brennan@outlook.com", role: "Spouse" }
+      ],
+      history: [
+        { date: "Jul 2, 2026", from: "Financial review →", to: "Discovery day" },
+        { date: "Jun 28, 2026", from: "Qualify →", to: "Financial review" },
+        { date: "Jun 4, 2026", from: "Inquiry →", to: "Qualify" },
+        { date: "May 12, 2026", from: "entered", to: "Inquiry" }
+      ],
+      revenue: [
+        { label: "Franchise fee", value: "$55,000", size: "17px", fg: "#1B2430" },
+        { label: "Royalty paid", value: "$248,300", size: "17px", fg: "#1B2430" },
+        { label: "Due", value: "$44,200", size: "17px", fg: "#B07A0E" },
+        { label: "Total", value: "$347,500", size: "21px", fg: "#1E8E4E" }
+      ],
+      rail: [
+        { icon: "fa-commenting-o", label: "Activity", count: "27", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-map-marker", label: "Territories", count: "1", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-users", label: "Contacts", count: "2", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-user-o", label: "Team", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" },
+        { icon: "fa-phone", label: "Calls", count: "5", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-check-square-o", label: "Tasks", count: "3", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-file-text-o", label: "Notes", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" },
+        { icon: "fa-calendar-o", label: "Appointments", count: "1", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-folder-o", label: "Documents", count: "4", pillBg: "#E6F7FD", pillFg: "#0080B5" }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin" />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400..800&amp;display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/vendor/font-awesome.min.css" />
+<style>
+  html, body { margin:0; padding:0; background:#F6F8FB; }
+  * { box-sizing:border-box; }
+  a { color:#00A1E1; text-decoration:none; }
+  a:hover { color:#0080B5; text-decoration:none; }
+</style>
+</helmet>
+<div style="min-height:100vh;background:#F6F8FB;font:400 13.5px/1.5 'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1B2430;-webkit-font-smoothing:antialiased">
+  <dc-import name="MSHeader" hint-size="100%,52px"></dc-import>
+
+  <div style="padding:18px 22px 60px;display:flex;flex-direction:column;gap:14px">
+
+    <div style="display:flex;gap:8px;font-size:12px;font-weight:600;color:#7A828F;align-items:center">
+      <a href="Gunner Buyer.dc.html">Buyer</a>
+      <span style="color:#D5DAE1">/</span><a href="Gunner Seller.dc.html">Seller</a>
+      <span style="color:#D5DAE1">/</span><a href="Gunner Partner.dc.html">Partner</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Prospect.dc.html" style="color:#00A1E1;font-weight:700">Prospect</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Franchisee.dc.html">Franchisee</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Journey.dc.html">Journey</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Territory.dc.html">Territory</a>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:7px;min-width:0">
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <span style="font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:999px;white-space:nowrap;background:#FFF4D6;color:#B07A0E">PROSPECT</span>
+          <span style="font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:999px;white-space:nowrap;background:#dbeafe;color:#1d4ed8">DISCOVERY</span>
+          <span style="font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:999px;white-space:nowrap;background:#F2F4F7;color:#4A5462">Franchise Times ad</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:26px;font-weight:800;letter-spacing:-.025em;color:#1B2430;line-height:1.1">Alicia Brennan</span>
+        </div>
+        <span style="font-size:12.5px;color:#7A828F;font-weight:500">alicia.brennan@outlook.com · (615) 224-8890 · Franklin, TN</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <a href="Frandev Journey.dc.html" style="font-size:12px;font-weight:700;color:#fff;background:#00A1E1;border-radius:9px;padding:9px 14px;white-space:nowrap;box-shadow:0 1px 2px rgba(0,161,225,.3)" style-hover="background:#0080B5;color:#fff">Open journey →</a>
+        <button disabled="disabled" style="font:inherit;font-size:12px;font-weight:700;color:#CE4138;background:#FDEAEA;border:0;border-radius:9px;padding:9px 13px;opacity:.55;cursor:default">Delete contact</button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 392px;gap:14px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding-bottom:16px;border-bottom:1px solid #EFF1F4">
+            <sc-for list="{{ contactCells }}" as="c" hint-placeholder-count="3">
+              <div>
+                <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">{{ c.label }}</div>
+                <div style="display:flex;align-items:center;gap:7px;margin-top:5px">
+                  <span style="font-size:14.5px;font-weight:700;color:{{ c.fg }};word-break:break-word">{{ c.value }}</span>
+                  <i class="fa fa-pencil" style="color:#C9CFD8;font-size:12px;cursor:pointer" style-hover="color:#00A1E1"></i>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F;margin-top:16px">Contact brief</div>
+          <div style="font-size:13.5px;line-height:1.55;color:#AEB5BF;margin-top:8px">No contact brief yet — the nightly agent writes one after the first meaningful activity.</div>
+        </div>
+
+        <div>
+          <div style="display:flex;gap:2px;border-bottom:2px solid #E6E9ED;margin-bottom:14px">
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+              <button onClick="{{ t.onClick }}" style="display:flex;align-items:center;gap:8px;padding:11px 16px 12px;font-size:13.5px;font-weight:700;font-family:inherit;color:{{ t.fg }};background:none;border:0;border-bottom:2px solid {{ t.bar }};margin-bottom:-2px;letter-spacing:-.01em;white-space:nowrap;cursor:pointer"><i class="fa {{ t.icon }}" style="font-size:13px"></i>{{ t.label }}</button>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ showOverview }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;align-items:start">
+              <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px;margin-bottom:2px">
+                    <i class="fa fa-users" style="color:#AEB5BF;font-size:12px"></i>
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Contacts ({{ contactCount }})</span>
+                    <a href="#" style="margin-left:auto;font-size:12px;font-weight:700">＋ Add</a>
+                  </div>
+                  <sc-for list="{{ members }}" as="m" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-top:1px solid #F4F6F8">
+                      <span style="width:32px;height:32px;border-radius:999px;background:#E6F7FD;color:#0080B5;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">{{ m.initials }}</span>
+                      <div style="min-width:0">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                          <a href="#" style="font-size:13.5px;font-weight:800">{{ m.name }}</a>
+                          <span style="font-size:10px;font-weight:700;background:#E6F7FD;color:#0080B5;border-radius:999px;padding:2px 9px;white-space:nowrap">{{ m.role }}</span>
+                        </div>
+                        <div style="font-size:12px;color:#AEB5BF;font-weight:600;margin-top:1px">{{ m.meta }}</div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px;margin-bottom:2px">
+                    <i class="fa fa-users" style="color:#AEB5BF;font-size:12px"></i>
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Team ({{ teamCount }})</span>
+                    <a href="#" style="margin-left:auto;font-size:12px;font-weight:700">＋ Add</a>
+                  </div>
+                  <sc-for list="{{ team }}" as="p" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid #F4F6F8">
+                      <span style="width:30px;height:30px;border-radius:999px;background:#F2F4F7;color:#4A5462;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">{{ p.initials }}</span>
+                      <span style="font-size:13px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.name }}</span>
+                      <span style="margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:#F2F4F7;color:#7A828F;border-radius:999px;padding:3px 9px;white-space:nowrap">{{ p.role }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <i class="fa fa-certificate" style="color:#AEB5BF;font-size:12px"></i>
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Graded calls ({{ callCount }})</span>
+                  </div>
+                  <sc-for list="{{ calls }}" as="c" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid #F4F6F8;flex-wrap:wrap">
+                      <a href="#" style="font-size:13px;font-weight:800;color:#1B2430" style-hover="color:#00A1E1">{{ c.name }}</a>
+                      <span style="font-size:12px;color:#AEB5BF;font-weight:600">{{ c.who }}</span>
+                      <span style="font-size:12px;color:#AEB5BF;font-weight:600;font-variant-numeric:tabular-nums">{{ c.length }}</span>
+                      <span style="margin-left:auto;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap;background:{{ c.gradeBg }};color:{{ c.gradeFg }}">{{ c.grade }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <i class="fa fa-clipboard" style="color:#AEB5BF;font-size:12px"></i>
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Tasks ({{ pendingCount }} pending)</span>
+                  </div>
+                  <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid #F4F6F8">
+                      <span style="width:15px;height:15px;border-radius:5px;border:1.5px solid {{ t.boxBorder }};background:{{ t.boxBg }};flex:none;display:flex;align-items:center;justify-content:center"><i class="fa fa-check" style="font-size:8px;color:{{ t.checkFg }}"></i></span>
+                      <span style="font-size:13px;font-weight:700;color:{{ t.fg }};min-width:0">{{ t.text }}</span>
+                      <span style="margin-left:auto;font-size:11.5px;font-weight:700;color:{{ t.dueFg }};white-space:nowrap">{{ t.due }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Notes ({{ noteCount }})</span>
+                    <a href="#" style="margin-left:auto;font-size:12px;font-weight:700">＋ Add note</a>
+                  </div>
+                  <sc-for list="{{ notes }}" as="n" hint-placeholder-count="2">
+                    <div style="padding:11px 0;border-top:1px solid #F4F6F8">
+                      <div style="font-size:13px;color:#4A5462;line-height:1.5">{{ n.text }}</div>
+                      <div style="font-size:11.5px;color:#AEB5BF;font-weight:600;margin-top:3px">{{ n.meta }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showProfile }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:9px">
+              <sc-for list="{{ sections }}" as="sec" hint-placeholder-count="17">
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:12px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+                  <div style="display:flex;align-items:center;gap:11px;padding:14px 17px;cursor:pointer" style-hover="background:#FBFCFD">
+                    <i class="fa fa-angle-right" style="color:#C9CFD8;font-size:15px;width:9px"></i>
+                    <i class="fa {{ sec.icon }}" style="color:{{ sec.iconFg }};font-size:14px;width:17px"></i>
+                    <span style="flex:1;font-size:13.5px;font-weight:800;color:#1B2430">{{ sec.title }}</span>
+                    <span style="font-size:12px;font-weight:700;color:{{ sec.countFg }};font-variant-numeric:tabular-nums">{{ sec.count }}</span>
+                  </div>
+                  <sc-for list="{{ sec.rows }}" as="f" hint-placeholder-count="0">
+                    <div style="display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,2fr) 18px;gap:14px;padding:10px 17px;border-top:1px solid #F4F6F8;align-items:center">
+                      <div style="font-size:12.5px;font-weight:600;color:#7A828F">{{ f.label }}</div>
+                      <div style="font-size:13px;font-weight:700;color:{{ f.fg }}">{{ f.value }}</div>
+                      <i class="fa fa-pencil" style="color:#D9DEE5;font-size:11px;text-align:right;cursor:pointer" style-hover="color:#00A1E1"></i>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+              <div style="text-align:right;font-size:11.5px;color:#AEB5BF;font-weight:600;margin-top:4px">Last synced from MasterSuite: 8/5/2026, 9:00:11 PM</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showEos }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                <div style="font-size:13.5px;font-weight:800">Goals</div>
+                <sc-for list="{{ eosGoals }}" as="g" hint-placeholder-count="3">
+                  <div style="margin-top:14px">
+                    <div style="font-size:12.5px;font-weight:700;color:#4A5462">{{ g.label }}</div>
+                    <div style="border:1px solid #E6E9ED;border-radius:11px;background:#FBFCFD;padding:13px 14px;margin-top:7px;font-size:13px;color:{{ g.fg }};min-height:52px;line-height:1.5;cursor:text" style-hover="border-color:#BFE6F6">{{ g.value }}</div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <sc-for list="{{ eosLists }}" as="l" hint-placeholder-count="2">
+                <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:13.5px;font-weight:800">{{ l.label }}</span>
+                    <span style="margin-left:auto;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:{{ l.pillBg }};color:{{ l.pillFg }};font-variant-numeric:tabular-nums">{{ l.count }}</span>
+                  </div>
+                  <sc-for list="{{ l.items }}" as="i" hint-placeholder-count="0">
+                    <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-top:1px solid #F4F6F8">
+                      <span style="width:7px;height:7px;border-radius:999px;margin-top:6px;flex:none;background:{{ i.dot }}"></span>
+                      <div style="min-width:0">
+                        <div style="font-size:13px;font-weight:700;line-height:1.4">{{ i.text }}</div>
+                        <div style="font-size:11.5px;color:#AEB5BF;font-weight:600;margin-top:1px">{{ i.meta }}</div>
+                      </div>
+                    </div>
+                  </sc-for>
+                  <input placeholder="{{ l.placeholder }}" style="width:100%;border:1px solid #E6E9ED;border-radius:11px;background:#FBFCFD;padding:11px 13px;margin-top:11px;font:inherit;font-size:13px;color:#1B2430;outline:none" />
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px;min-width:0">
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:15px 16px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F;margin-bottom:12px">Where things stand</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+            <sc-for list="{{ snapshot }}" as="k" hint-placeholder-count="4">
+              <div style="background:#F6F8FB;border:1px solid #EDF0F4;border-radius:11px;padding:11px 13px">
+                <div style="font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">{{ k.label }}</div>
+                <div style="font-size:{{ k.size }};font-weight:800;letter-spacing:-.02em;margin-top:3px;color:{{ k.fg }};font-variant-numeric:tabular-nums">{{ k.value }}</div>
+                <div style="font-size:10.5px;color:#AEB5BF;font-weight:600">{{ k.note }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <sc-for list="{{ rail }}" as="s" hint-placeholder-count="9">
+          <div style="background:#fff;border:1px solid #E6E9ED;border-radius:12px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:11px;padding:12px 15px;cursor:pointer" style-hover="background:#FBFCFD">
+              <i class="fa {{ s.icon }}" style="color:#94a3b8;font-size:15px;width:18px;text-align:center;flex:none"></i>
+              <span style="flex:1;font-size:12.5px;font-weight:700;letter-spacing:.04em;color:#4A5462;text-transform:uppercase">{{ s.label }}</span>
+              <span style="font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:{{ s.pillBg }};color:{{ s.pillFg }};font-variant-numeric:tabular-nums">{{ s.count }}</span>
+              <span style="color:#C9CFD8;font-size:15px">›</span>
+            </div>
+          </div>
+        </sc-for>
+
+        <div style="background:#ECEBFE;border:1px solid #C9C5F0;border-radius:14px;padding:14px 16px;margin-top:2px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:7px;height:7px;border-radius:999px;background:#F0A12C;flex:none"></span>
+            <span style="font-size:12.5px;font-weight:800;color:#423DA8">Workflow agent</span>
+            <span style="margin-left:auto;font-size:10px;font-weight:800;background:#fff;border:1px solid #DCD9F3;color:#8F7FC4;padding:2px 9px;border-radius:999px">Emails + texts</span>
+          </div>
+          <div style="font-size:11.5px;color:#6F66B8;font-weight:600;margin-top:7px;line-height:1.45">The contact's automation timeline renders here in the next pass.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <a href="#" style="position:fixed;right:24px;bottom:24px;display:flex;align-items:center;gap:10px;width:300px;background:#fff;border:1px solid #E6E9ED;border-radius:999px;padding:8px 8px 8px 16px;box-shadow:0 12px 26px -10px rgba(16,30,51,.28);font-size:13.5px;font-weight:600;color:#AEB5BF">Ask Scout anything…<span style="margin-left:auto;width:32px;height:32px;border-radius:999px;background:#00A1E1;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none">➤</span></a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = { tab: "Overview" };
+  renderVals() {
+    const active = this.state.tab;
+    const tab = (label, icon) => ({
+      label, icon,
+      fg: label === active ? "#00A1E1" : "#7A828F",
+      bar: label === active ? "#00A1E1" : "transparent",
+      onClick: () => this.setState({ tab: label })
+    });
+    const row = (label, value) => ({ label, value: value || "—", fg: value ? "#1B2430" : "#C3C9D2" });
+    const sec = (title, filled, total, icon, iconFg, rows) => ({
+      title, icon, iconFg,
+      count: filled + "/" + total + " filled",
+      countFg: filled > 0 ? "#0080B5" : "#C3C9D2",
+      rows: rows || []
+    });
+    return {
+      contactCells: [
+        { label: "Email", value: "alicia.brennan@outlook.com", fg: "#1B2430" },
+        { label: "Phone", value: "(615) 224-8890", fg: "#1B2430" },
+        { label: "Location", value: "Franklin, TN", fg: "#1B2430" }
+      ],
+      tabs: [tab("Overview", "fa-th-large"), tab("Profile", "fa-pie-chart"), tab("Personal EOS", "fa-line-chart")],
+      showOverview: active === "Overview",
+      contactCount: "2",
+      members: [
+        { initials: "AB", name: "Alicia Brennan", role: "Prospect", meta: "alicia.brennan@outlook.com · (615) 224-8890" },
+        { initials: "DB", name: "Dan Brennan", role: "Spouse", meta: "dan.brennan@outlook.com" }
+      ],
+      teamCount: "2",
+      team: [
+        { initials: "SO", name: "Sam Ortiz", role: "Franchise dev" },
+        { initials: "CW", name: "Corey Wilson", role: "VP frandev" }
+      ],
+      callCount: "2",
+      calls: [
+        { name: "Intro call", who: "Sam Ortiz", length: "32m", grade: "B+", gradeBg: "#E6F7FD", gradeFg: "#0080B5" },
+        { name: "Financial review", who: "Corey Wilson", length: "47m", grade: "A−", gradeBg: "#E7F6EC", gradeFg: "#15803d" }
+      ],
+      pendingCount: "2",
+      tasks: [
+        { text: "Confirm territory carve-out", due: "Due Aug 8", boxBorder: "#C9CFD8", boxBg: "#fff", checkFg: "transparent", fg: "#1B2430", dueFg: "#7A828F" },
+        { text: "Send discovery day agenda", due: "Due Aug 11", boxBorder: "#C9CFD8", boxBg: "#fff", checkFg: "transparent", fg: "#1B2430", dueFg: "#7A828F" },
+        { text: "Spouse call", due: "Overdue 3d", boxBorder: "#E8A6A1", boxBg: "#fff", checkFg: "transparent", fg: "#1B2430", dueFg: "#CE4138" },
+        { text: "Send FDD", due: "Done Jul 2", boxBorder: "#1E8E4E", boxBg: "#1E8E4E", checkFg: "#fff", fg: "#AEB5BF", dueFg: "#AEB5BF" }
+      ],
+      noteCount: "2",
+      notes: [
+        { text: "Wants Maryville added to the base territory before signing — needs corporate sign-off on the carve-out.", meta: "Sam Ortiz · Jul 2, 2026" },
+        { text: "Financing is not a constraint — liquid capital verified well above the floor on the PFS review.", meta: "Corey Wilson · Jun 28, 2026" }
+      ],
+      showProfile: active === "Profile",
+      showEos: active === "Personal EOS",
+      sections: [
+        sec("Identity & contact", 5, 13, "fa-user-o", "#00A1E1", [
+          row("Name", "Alicia Brennan"), row("Email", "alicia.brennan@outlook.com"), row("Phone", "(615) 224-8890"),
+          row("Address", null), row("City", "Franklin"), row("State", "TN"), row("Linkedin", null)
+        ]),
+        sec("Background & demographics", 3, 22, "fa-briefcase", "#1B2430"),
+        sec("Personality & psychology", 1, 16, "fa-lightbulb-o", "#00A1E1"),
+        sec("Goals & vision", 2, 14, "fa-bullseye", "#00A1E1"),
+        sec("Financial profile", 4, 18, "fa-usd", "#1E8E4E"),
+        sec("Franchise fit", 2, 10, "fa-puzzle-piece", "#00A1E1"),
+        sec("Territory", 1, 11, "fa-map-marker", "#00A1E1"),
+        sec("Sales journey", 3, 12, "fa-line-chart", "#F0A12C"),
+        sec("Validation", 0, 8, "fa-check-circle-o", "#F0A12C"),
+        sec("Trainual", 0, 5, "fa-book", "#00A1E1"),
+        sec("Compliance", 0, 8, "fa-shield", "#CE4138"),
+        sec("Objections & concerns", 2, 16, "fa-exclamation-triangle", "#CE4138"),
+        sec("Behavioral signals", 0, 12, "fa-heartbeat", "#00A1E1"),
+        sec("Engagement", 0, 8, "fa-bolt", "#1E8E4E"),
+        sec("External research", 0, 10, "fa-search", "#4A5462"),
+        sec("AI Scout intelligence", 0, 17, "fa-android", "#00A1E1"),
+        sec("Predictive scores", 0, 12, "fa-bar-chart", "#F0A12C")
+      ],
+      eosGoals: [
+        { label: "Income goal", value: "What income does she want the business to produce?", fg: "#C3C9D2" },
+        { label: "Lifestyle goal", value: "Wants to stop taking contractor jobs herself by year two.", fg: "#1B2430" },
+        { label: "Quality of life goal", value: "What does success look like personally?", fg: "#C3C9D2" }
+      ],
+      eosLists: [
+        { label: "Issues", count: "2", pillBg: "#FDEAEA", pillFg: "#CE4138", placeholder: "Add an issue…", items: [
+          { text: "Maryville overlaps an existing owner", meta: "raised Jul 2", dot: "#CE4138" },
+          { text: "Spouse hasn't been on a call yet", meta: "raised Jul 18", dot: "#B07A0E" }
+        ] },
+        { label: "To-dos", count: "2", pillBg: "#E6F7FD", pillFg: "#0080B5", placeholder: "Add a to-do…", items: [
+          { text: "Confirm territory carve-out with corporate", meta: "due Aug 8", dot: "#00A1E1" },
+          { text: "Send discovery day agenda", meta: "due Aug 11", dot: "#00A1E1" }
+        ] }
+      ],
+      snapshot: [
+        { label: "Next touch", value: "Aug 11", size: "19px", note: "discovery day agenda", fg: "#0080B5" },
+        { label: "Last contact", value: "6 days", size: "19px", note: "ago · call with Sam", fg: "#1B2430" },
+        { label: "Owner", value: "Sam Ortiz", size: "16px", note: "franchise development", fg: "#1B2430" },
+        { label: "Capital", value: "Verified", size: "16px", note: "above the floor", fg: "#1E8E4E" }
+      ],
+      territoryCount: "1",
+      territories: [
+        { slug: "knoxville-west", status: "reserved", bg: "#FFF4D6", fg: "#B07A0E", meta: "Held through Sep 14 · 9 ZIPs" }
+      ],
+      rail: [
+        { icon: "fa-commenting-o", label: "Activity", count: "11", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-map-marker", label: "Territories", count: "1", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-users", label: "Journeys", count: "1", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-user-o", label: "Team", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" },
+        { icon: "fa-phone", label: "Calls", count: "3", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-check-square-o", label: "Tasks", count: "2", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-file-text-o", label: "Notes", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" },
+        { icon: "fa-calendar-o", label: "Appointments", count: "1", pillBg: "#E6F7FD", pillFg: "#0080B5" },
+        { icon: "fa-folder-o", label: "Documents", count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

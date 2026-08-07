@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin" />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400..800&amp;display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/vendor/font-awesome.min.css" />
+<style>
+  html, body { margin:0; padding:0; background:#F6F8FB; }
+  * { box-sizing:border-box; }
+  a { color:#00A1E1; text-decoration:none; }
+  a:hover { color:#0080B5; text-decoration:none; }
+</style>
+</helmet>
+<div style="min-height:100vh;background:#F6F8FB;font:400 13.5px/1.5 'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1B2430;-webkit-font-smoothing:antialiased">
+  <dc-import name="MSHeader" hint-size="100%,52px"></dc-import>
+
+  <div style="padding:18px 22px 60px;display:flex;flex-direction:column;gap:14px">
+
+    <div style="display:flex;gap:8px;font-size:12px;font-weight:600;color:#7A828F;align-items:center">
+      <a href="Gunner Buyer.dc.html" style="color:#00A1E1;font-weight:700">Buyer</a>
+      <span style="color:#D5DAE1">/</span><a href="Gunner Seller.dc.html">Seller</a>
+      <span style="color:#D5DAE1">/</span><a href="Gunner Partner.dc.html">Partner</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Prospect.dc.html">Prospect</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Franchisee.dc.html">Franchisee</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Journey.dc.html">Journey</a>
+      <span style="color:#D5DAE1">/</span><a href="Frandev Territory.dc.html">Territory</a>
+    </div>
+
+    <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:7px;min-width:0">
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <span style="font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:999px;white-space:nowrap;background:#f5f5f4;color:#57534e">BUYER</span>
+          <span style="font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:999px;white-space:nowrap;background:#E7F6EC;color:#15803d">QUALIFIED</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-size:26px;font-weight:800;letter-spacing:-.025em;color:#1B2430;line-height:1.1">Marcus Delgado</span>
+        </div>
+        <span style="font-size:12.5px;color:#7A828F;font-weight:500">(865) 412-9034 · marcus@delgadocapital.com · Delgado Capital Group</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <select style="font:inherit;font-size:12px;font-weight:600;color:#4A5462;background:#fff;border:1px solid #E6E9ED;border-radius:9px;padding:8px 10px;cursor:pointer">
+          <option>Type: Buyer</option><option>Seller</option><option>Partner</option>
+        </select>
+        <a href="#" style="font-size:12px;font-weight:700;color:#fff;background:#00A1E1;border-radius:9px;padding:9px 14px;white-space:nowrap;box-shadow:0 1px 2px rgba(0,161,225,.3)" style-hover="background:#0080B5;color:#fff">Open in GHL</a>
+        <button style="font:inherit;font-size:12px;font-weight:700;color:#CE4138;background:#FDEAEA;border:0;border-radius:9px;padding:9px 13px;cursor:pointer" style-hover="background:#f9dcdc">Delete contact</button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 392px;gap:14px;align-items:start">
+
+      <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+          <div style="padding:16px 18px;display:flex;gap:18px;flex-wrap:wrap">
+            <div style="flex:1;min-width:0">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+                <div>
+                  <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Tier</div>
+                  <select style="width:100%;margin-top:6px;border:1px solid #E6E9ED;border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;font-weight:600;color:#1B2430;background:#fff;outline:none;cursor:pointer">
+                    <option selected="selected">Qualified</option><option>Priority</option><option>Unqualified</option><option>JV Partner</option><option>Halted</option><option>Realtor</option>
+                  </select>
+                </div>
+                <div>
+                  <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Response speed</div>
+                  <select style="width:100%;margin-top:6px;border:1px solid #E6E9ED;border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;font-weight:600;color:#1B2430;background:#fff;outline:none;cursor:pointer">
+                    <option>Lightning</option><option>Same Day</option><option>Slow</option><option>Ghost</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px;align-items:start">
+                <div style="min-width:0">
+                  <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Markets</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+                    <sc-for list="{{ markets }}" as="m" hint-placeholder-count="3">
+                      <span style="display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:999px;background:#00A1E1;color:#fff;white-space:nowrap">{{ m }}<span style="opacity:.7;font-weight:800;cursor:pointer">×</span></span>
+                    </sc-for>
+                  </div>
+                  <input placeholder="Add market — pick or type new…" style="margin-top:9px;border:1px solid #E6E9ED;border-radius:9px;padding:8px 11px;font:inherit;font-size:12.5px;width:100%;min-width:0;outline:none;background:#fff" />
+                </div>
+                <div style="min-width:0">
+                  <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Buybox</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+                    <sc-for list="{{ buybox }}" as="b" hint-placeholder-count="5">
+                      <span style="display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;padding:5px 13px;border-radius:999px;border:1px solid #E6E9ED;background:{{ b.bg }};color:{{ b.fg }};cursor:pointer;user-select:none;white-space:nowrap">{{ b.name }}</span>
+                    </sc-for>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div style="display:flex;align-items:center;gap:10px;border-top:1px solid #E6E9ED;background:#FBFCFD;padding:12px 18px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F">Linked properties</span>
+            <span style="font-size:11px;font-weight:800;color:#0080B5;background:#E6F7FD;border-radius:999px;padding:2px 9px;font-variant-numeric:tabular-nums">3</span>
+            <div style="margin-left:auto;display:flex;gap:7px">
+              <button style="font:inherit;font-size:11.5px;font-weight:700;color:#00A1E1;background:#fff;border:1px solid #BFE6F6;border-radius:9px;padding:7px 13px;cursor:pointer" style-hover="background:#E6F7FD">Link existing</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px 18px 18px">
+            <sc-for list="{{ properties }}" as="p" hint-placeholder-count="3">
+              <div style="border:1px solid {{ p.border }};background:{{ p.bg }};border-radius:12px;padding:12px 14px">
+                <div style="display:flex;align-items:flex-start;gap:8px">
+                  <a href="#" style="font-size:13.5px;font-weight:800;line-height:1.3;color:#1B2430;min-width:0" style-hover="color:#00A1E1">{{ p.address }}</a>
+                  <span style="margin-left:auto;flex:none;color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.04em;padding:3px 9px;border-radius:999px;background:{{ p.stageBg }}">{{ p.stage }}</span>
+                </div>
+                <div style="font-size:11.5px;color:#AEB5BF;font-weight:600;margin-top:3px">{{ p.city }} · Matched buyer</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:11.5px;font-weight:600;color:#7A828F;align-items:baseline">
+                  <span>MAO <b style="color:#1B2430;font-variant-numeric:tabular-nums">{{ p.ask }}</b></span>
+                  <span>ARV <b style="color:#1B2430;font-variant-numeric:tabular-nums">{{ p.arv }}</b></span>
+                  <span>CB <b style="color:#1B2430;font-variant-numeric:tabular-nums">{{ p.rehab }}</b></span>
+                  <span style="margin-left:auto;font-size:11px;font-weight:800;color:#CE4138;cursor:pointer">Unlink</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div>
+          <div style="display:flex;gap:2px;border-bottom:2px solid #E6E9ED;margin-bottom:14px">
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+              <a href="#" style="padding:11px 16px 12px;font-size:13.5px;font-weight:700;color:{{ t.fg }};border-bottom:2px solid {{ t.bar }};margin-bottom:-2px;letter-spacing:-.01em;white-space:nowrap">{{ t.label }}</a>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+              <div style="display:flex;align-items:center;gap:9px;padding:13px 17px;cursor:pointer" style-hover="background:#FBFCFD">
+                <span style="color:#C9CFD8;font-size:11px">▸</span>
+                <span style="flex:1;font-size:13.5px;font-weight:800;color:#1B2430">Contact information</span>
+                <span style="font-size:11px;font-weight:700;color:#7A828F;font-variant-numeric:tabular-nums">6 / 8 filled</span>
+              </div>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+              <div style="display:flex;align-items:center;gap:9px;padding:13px 17px;cursor:pointer" style-hover="background:#FBFCFD">
+                <span style="color:#C9CFD8;font-size:11px">▸</span>
+                <span style="flex:1;font-size:13.5px;font-weight:800;color:#1B2430">Active deals</span>
+                <span style="font-size:11px;font-weight:800;color:#0080B5;background:#E6F7FD;border-radius:999px;padding:2px 9px;font-variant-numeric:tabular-nums">2</span>
+              </div>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+              <div style="display:flex;align-items:center;gap:9px;padding:13px 17px;cursor:pointer" style-hover="background:#FBFCFD">
+                <span style="color:#C9CFD8;font-size:11px">▸</span>
+                <span style="flex:1;font-size:13.5px;font-weight:800;color:#1B2430">Previous deals</span>
+                <span style="font-size:11px;font-weight:700;color:#AEB5BF;font-variant-numeric:tabular-nums">1</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px;min-width:0">
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:15px 16px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F;margin-bottom:12px">Buyer snapshot</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+            <sc-for list="{{ snapshot }}" as="k" hint-placeholder-count="4">
+              <div style="background:#F6F8FB;border:1px solid #EDF0F4;border-radius:11px;padding:11px 13px">
+                <div style="font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">{{ k.label }}</div>
+                <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:3px;color:{{ k.fg }};font-variant-numeric:tabular-nums">{{ k.value }}</div>
+                <div style="font-size:10.5px;color:#AEB5BF;font-weight:600">{{ k.note }}</div>
+              </div>
+            </sc-for>
+            <div style="grid-column:1 / -1;background:#F6F8FB;border:1px solid #EDF0F4;border-radius:11px;padding:11px 13px">
+              <div style="display:flex;align-items:baseline;gap:8px">
+                <div style="font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A828F">Profile filled</div>
+                <div style="margin-left:auto;font-size:12px;font-weight:800;color:#1B2430;font-variant-numeric:tabular-nums">11 / 15 · 73%</div>
+              </div>
+              <div style="height:6px;border-radius:999px;background:#E2E7EE;margin-top:8px;overflow:hidden"><span style="display:block;height:100%;width:73%;background:#00A1E1;border-radius:999px"></span></div>
+            </div>
+          </div>
+        </div>
+
+        <sc-for list="{{ rail }}" as="s" hint-placeholder-count="9">
+          <div style="background:#fff;border:1px solid #E6E9ED;border-radius:12px;box-shadow:0 1px 2px rgba(16,30,51,.04);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:11px;padding:12px 15px;cursor:pointer" style-hover="background:#FBFCFD">
+              <i class="fa {{ s.icon }}" style="color:#94a3b8;font-size:15px;width:18px;text-align:center;flex:none"></i>
+              <span style="flex:1;font-size:12.5px;font-weight:700;letter-spacing:.04em;color:#4A5462;text-transform:uppercase">{{ s.label }}</span>
+              <span style="font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:{{ s.pillBg }};color:{{ s.pillFg }};font-variant-numeric:tabular-nums">{{ s.count }}</span>
+              <span style="color:#C9CFD8;font-size:15px">›</span>
+            </div>
+          </div>
+        </sc-for>
+
+        <div style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;box-shadow:0 1px 2px rgba(16,30,51,.04);padding:15px 16px;margin-top:2px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#7A828F;margin-bottom:11px">Contacts on this record</div>
+          <div style="display:flex;gap:7px">
+            <div style="border:1px solid #E6E9ED;background:#F6F8FB;border-radius:11px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:76px">
+              <span style="width:30px;height:30px;border-radius:999px;background:#00A1E1;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center">MD</span>
+              <span style="font-size:11px;font-weight:800;color:#1B2430">Marcus</span>
+              <span style="font-size:9px;font-weight:700;color:#AEB5BF;text-transform:uppercase;letter-spacing:.04em">Buyer</span>
+            </div>
+            <div style="border:1px dashed #D5DAE1;background:#fff;border-radius:11px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:76px;color:#AEB5BF;font-size:11px;font-weight:700;cursor:pointer">
+              <span style="font-size:15px;line-height:1">＋</span>add
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#ECEBFE;border:1px solid #C9C5F0;border-radius:14px;padding:14px 16px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:7px;height:7px;border-radius:999px;background:#C9C2DD;flex:none"></span>
+            <span style="font-size:12.5px;font-weight:800;color:#423DA8">Deal-match agent</span>
+            <span style="margin-left:auto;font-size:10px;font-weight:800;background:#fff;border:1px solid #DCD9F3;color:#8F7FC4;padding:2px 9px;border-radius:999px">Coming soon</span>
+          </div>
+          <div style="font-size:11.5px;color:#6F66B8;font-weight:600;margin-top:7px;line-height:1.45">Will send matched deals in this buyer's markets.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1180}}">
+class Component extends DCLogic {
+  renderVals() {
+    const tab = (label, on) => ({ label, fg: on ? "#00A1E1" : "#7A828F", bar: on ? "#00A1E1" : "transparent" });
+    const bb = (name, on) => on
+      ? { name, bg: "#00A1E1", fg: "#fff" }
+      : { name, bg: "#fff", fg: "#7A828F" };
+    return {
+      markets: ["Knoxville", "Maryville", "Sevierville"],
+      buybox: [bb("Builder", false), bb("Flipper", true), bb("Landlord", true), bb("Multi Family", false), bb("Turn Key", true)],
+      tabs: [tab("Identity", true), tab("Buybox", false), tab("Activity", false), tab("Communication", false), tab("AI Insights", false)],
+      properties: [
+        { address: "1428 Woodbine Ave", city: "Knoxville, TN", stage: "Stage 4", stageBg: "#2e7d43", ask: "$185,000", arv: "$262,000", rehab: "$48,000", border: "#BFE6F6", bg: "#F4FAFE" },
+        { address: "3306 Selma Ave", city: "Knoxville, TN", stage: "Contract", stageBg: "#0A84FF", ask: "$142,500", arv: "$215,000", rehab: "$55,000", border: "#BFE6F6", bg: "#F4FAFE" },
+        { address: "907 Chickamauga Ave", city: "Knoxville, TN", stage: "Purchased", stageBg: "#1e8f65", ask: "$128,000", arv: "$198,000", rehab: "$41,000", border: "#E6E9ED", bg: "#fff" }
+      ],
+      activeDeals: [
+        { address: "1428 Woodbine Ave", meta: "Knoxville, TN · Sent Jul 22, 2026", offer: "Offer $181,000", stage: "Interested", stageBg: "#dcfce7", stageFg: "#15803d", status: "Stage 4" },
+        { address: "3306 Selma Ave", meta: "Knoxville, TN · Sent Jul 30, 2026", offer: "Offer $139,000", stage: "Offer made", stageBg: "#fae8ff", stageFg: "#a21caf", status: "Contract" }
+      ],
+      contactFields: [
+        { label: "Phone", value: "(865) 412-9034", fg: "#1B2430" },
+        { label: "Secondary phone", value: "—", fg: "#C3C9D2" },
+        { label: "Mobile", value: "(865) 555-2210", fg: "#1B2430" },
+        { label: "Email", value: "marcus@delgadocapital.com", fg: "#1B2430" },
+        { label: "Company", value: "Delgado Capital Group", fg: "#1B2430" },
+        { label: "Website", value: "delgadocapital.com", fg: "#1B2430" },
+        { label: "Preferred contact", value: "Text", fg: "#1B2430" },
+        { label: "Best time", value: "—", fg: "#C3C9D2" }
+      ],
+      snapshot: [
+        { label: "Active deals", value: "2", note: "live links", fg: "#1B2430" },
+        { label: "Closed deals", value: "6", note: "with us", fg: "#1B2430" },
+        { label: "Revenue", value: "$1.84M", note: "accepted offers", fg: "#1E8E4E" },
+        { label: "Response rate", value: "68%", note: "on blasts", fg: "#1B2430" }
+      ],
+      rail: this.railData()
+    };
+  }
+  railData() {
+    const live = (icon, label, count) => ({ icon, label, count, pillBg: "#E6F7FD", pillFg: "#0080B5" });
+    const dim = (icon, label) => ({ icon, label, count: "0", pillBg: "#F2F4F7", pillFg: "#AEB5BF" });
+    return [
+      live("fa-bolt", "Activity", "14"), dim("fa-file-text-o", "Offers"), dim("fa-users", "Contacts"), dim("fa-user-o", "Team"),
+      live("fa-phone", "Calls", "6"), live("fa-check-square-o", "Tasks", "3"), live("fa-sticky-note-o", "Notes", "9"),
+      live("fa-calendar", "Appointments", "1"), dim("fa-folder-o", "Documents")
+    ];
+  }
+}
+</script>
+</body>
+</html>
