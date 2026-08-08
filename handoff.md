@@ -1,93 +1,95 @@
-# Session Handoff — 2026-08-08 — Session 93
+# Session Handoff — 2026-08-08 — Session 94
 
 ## Status
 
-Phase: **FranDev → MasterSuite fold-in. A cleanup session, run deliberately BEFORE Corey walks the five pages — the app was still serving an old and a new version of nearly every page, and the old ones were reachable by accident.** PR #669 open, CI green, awaiting merge. / Health: Green / Duration: short session
+Phase: **FranDev → MasterSuite fold-in. Corey walked the five pages and returned ~33 findings; this session measured the slow-page complaint to a single missing index, shipped the small cleanups, and built the first new write.** Seven PRs merged and deployed. / Health: Green / Duration: full session
 
-Worktree: `/Users/coreylavinder/Mastersuite/wt-s93-retire`, branch `s93-retire-old-frandev-pages`, pushed. Clean — nothing uncommitted.
+Branch prefixes `s94`–`s97` were all used inside this one session. Everything is merged; no worktree is left holding work.
 
 ## What Was Built This Session
 
-**First: both repos were behind, which is why this ran first.**
+**Seven PRs, all merged AND deployed to production.**
 
-- MasterSuite local `main` was **12 commits behind** origin — it did not have #665, #666 or #667. Pulled. The other window's contact-pages work (#666) had already landed, and it **moved the shared record shell to `Pages/Records/`** (`RecordFormat.cs`, `RecordPageVm.cs`, `RecordPanelRegistry.cs`, `_RailSection.cshtml`). Anything reaching for those under `Pages/Frandev/` will miss.
-- Sandbox had session 92's wrap committed but **unpushed**. Pushed.
+- **#669** — the five old FranDev pages deleted (carried in from s93, merged at the top of this session).
+- **#670 — the workspace picker stops forgetting which account you chose.** `SetGunnerScope` wrote `new CookieOptions { Path = "/" }` and no `Expires`, while the doc comment two lines above claimed it "rides the JWT's own expiry". Omitting `Expires` makes a SESSION cookie: the browser drops it on quit, `GetGunnerScope` returns empty, and empty reads as `territory` — so a user who picked FranDev yesterday is silently in Gunner today. Now matches `SetJwtCookie`/`SetCurrentTerritory`. Pinned by `GunnerScopeCookieContractTests`, which **was confirmed to fail on the old code before being trusted**.
+- **#673 — `Inv_PurchaseDate` indexed.** See the measurement below; this is the session's biggest result.
+- **#674 — J8/C3/T7/C2.** Removed "Open contact" (journey), "Open journey" (contact; territory header **and** owner card), and the "owner since" tail from the contact header. All four were single buttons standing for something there can be several of.
+- **#675 → #676 — D3 phone formatting**, in two moves. #675 gave FranDev its own `FormatUsPhoneNumber` to avoid restyling the whole app unasked; Corey then said _"format the same as all mastersuite is already"_, so #676 **deleted that variant** and moved FranDev onto `PhoneNumberHelper.FormatPhoneNumber`. Seven raw render sites on the record pages, plus two hand-rolled duplicate formatters in `FrandevService` and `MlsDealAlertJobs`, now all go through one function.
+- **#676 — G4 tab icons.** Corey clarified: _"i mean no icons on the tab names. look at property page, they do not exist."_ All 11 tab icons removed from the three record pages. `RecordTab.Icon` itself stays — the shell is generic.
+- **#678 — J2 journey rename.** New `RenameJourney` service write + `NameCustom` column (migration 244) + opt-in `RecordPageVm.TitleEdit` + inline pencil/Save/Cancel in the shared shell, JSON not redirect (item J5, no banner).
 
-**The finding that made this a session: there were two of every page, and the old ones pulled you backwards.**
-
-- Both versions were live: `/frandev/dayhub` beside `/Gunner/DayHub`, `/frandev/contacts` beside `/Gunner/Contacts`, and v1 `journey`/`contact`/`territory` beside their `-v2` rebuilds.
-- **Every old list page linked to old detail pages**, and the **Kanban button on the NEW pipeline page jumped to `/frandev/pipeline`**, from which every row went to v1. Start on the right page, click twice, audit a page nobody had touched in months. That is what would have wasted the walkthrough.
-
-**PR #669 — five pages deleted, every link repointed** (27 files, +45 / −4,124)
-
-- **Deleted (10 files):** `DayHub`, `Contacts`, `Journey`, `Contact`, `Territory` (`.cshtml` + `.cshtml.cs` each).
-- **Handler parity was checked one by one BEFORE deleting, not assumed.** Every write on a deleted page already exists on its replacement: advance/revert/close/drop and the inline phone-email edit on `JourneyV2.OnPostAction`/`OnPostContactEdit`; prospect creation on `Inventory.OnPostCreateJourney` (**the same `FrandevService.CreateProspect(input, user)` call**); the quick panel on `Inventory.OnGetFrandevPanel`; sub-tasks on `Inventory.OnPostFrandevSubTask`. Nothing that worked stopped working.
-- **`/frandev/pipeline` KEPT** — its drag-and-drop Kanban board is the one thing with no equivalent on the new pipeline page. Its cards now open `journey-v2`, so the single surviving old page no longer leads anywhere old.
-- **Links repointed** in FranDev index tiles, `Helpers/NaxProgram.cs` launcher doors, `Call`, `Messages`, `L10`, `Territories`, `Scout`'s client-side route mapper, `_Tasks` panel footer, `_FrandevNewJourneys` panel, `SiteGuide`, and the redirect a newly created journey lands on.
+**Also: `docs/mastersuite-walkthrough-findings.md`** — Corey's ~33 walkthrough findings, deduped ("owner since" was listed twice), grouped, ID'd (P/J/C/T/D/G), with a status board and four open questions.
 
 ## What Is Confirmed Working
 
-- **`dotnet build MasterSuite.sln` — 0 errors.**
-- **`dotnet test MasterSuite.sln` — 5,095 / 5,095 passed, 0 failed.**
-- **CI "build and test" — pass, 4m8s.** PR #669 reports `MERGEABLE`.
-- **Repo-wide grep proves no live link to a deleted route survives** — the only remaining hits are historical comments, and the two that named a deleted page as a _current consumer_ were corrected.
-- **No hidden dependency on the deleted code:** no test, no migration, and no V2 page referenced the deleted page models; the v1 statics (`Humanize`, `Tabs`, `Periods`) had no callers outside their own files. `GetDayHub` is NOT orphaned — `/Gunner/DayHub` and `/frandev/messages` still call it.
+**All measured against PRODUCTION, not dev, not predicted.**
+
+- **`/frandev` went 13–16 s → 0.3–0.9 s.** The cause was one query: `HighPerformerTerritories` at **16,209 ms** while every other query on the page ran ~115–132 ms. It filters `PropertyInventory` on `Inv_PurchaseDate`, which had no index — 983,166 rows read to find the 229 that can match (only 1,351 rows in the table have a purchase date at all). After the index: **225 ms**, same answer (7).
+- **Migration 244 applied:** `frandev_journey.NameCustom tinyint(1)` confirmed present in production after deploy.
+- `dotnet build` 0 errors and `dotnet test` green on every PR — final count **5,157 / 5,157**.
+- **`FrandevJourneyHeader.DisplayName` precedence** pinned by 6 new tests; **`SetGunnerScope`'s `Expires`** pinned by 2 contract tests that were verified to fail on the old code.
+- `frandev_journey.UpdatedAt` exists and `Name` is `varchar(255)` — read from production's schema before shipping the rename, rather than assuming the UPDATE would land.
+- Production serving HTTP 200 throughout.
 
 ## What Is Broken or Incomplete
 
-- **PR #669 is not merged or deployed.** Nothing above is live yet — Medium
-- **Not clicked in a browser.** Local authed pages cannot render on this machine, so the repoints are verified by build + grep, not by eye. Two clicks after deploy settle it: a FranDev index tile, and one journey row from the Kanban — Medium
-- **The workspace picker still decides which world `/Gunner/*` shows.** A link to `/Gunner/DayHub` from a FranDev page lands on whatever the picker cookie says; there is no `?ws=` override. Existing behaviour, not introduced here, but it will look like a bug during the walkthrough if the picker is on Gunner — Low
-- **`/frandev/territories` was left in place** — it was not in the list Corey approved, so scope discipline kept it. Its rows now point at `territory-v2` — Low
-- Carried from s92, all still true and all Low: ungraded calls read "Group Call"; some real AI titles run 87 chars and get cut off; the Overview left column ends early leaving a gap; casing is inconsistent in data-driven labels (`Owner`/`owner`, `PROSPECT`/`Paid Ad`, `erick valeriano`)
-- **Writes still not wired on the record pages** — deliberately disabled with tooltips — Medium
+- **`/Gunner/DayHub` (4.9 s) and `/Gunner/Inventory` (5.7 s) are still slow.** The index did **not** help them — measured after deploy, was 4.6 s / 6.6 s before. A different cause, not yet investigated. **This is the single best next perf lead** — High
+- **Nothing from this session has been clicked in a browser.** Local authed pages cannot render on this machine. Two checks settle it: rename a journey and confirm Contacts keeps the legal name; pick FranDev, quit Chrome, reopen — Medium
+- **G4 may not be finished.** Icons are off the three record pages' tabs. If Corey meant other pages too, they are untouched — Low
+- **Most of the walkthrough is not started:** P1, P3, J1, J3, J4, J6, J7, C1, T1–T5, T8, D1, D5, D6, D7, G2, G3 — Medium
+- Carried from s92/s93, all still true and all Low: ungraded calls read "Group Call"; some AI titles run 87 chars and get cut off; the Overview left column ends early; casing is inconsistent in data-driven labels
 - No `MasterSuite.Modules.Frandev.Tests` — Medium
+- **`DataAccess.Tests` is an empty shell** — no test files and no MSTest packages, so it silently cannot host a test. Cost one build failure this session — Low
 
 ## Decisions Made
 
-- **Delete the five old pages outright** — Corey ("get rid of the old pages, just delete. we do not need. Point everything to new pages")
-- **Keep `/frandev/pipeline` for the Kanban drag board** — Corey, chosen over deleting it, when told the drag board exists nowhere else. Advance/revert/won/drop remain on the journey page either way
-- **Repoint the surviving Kanban's cards to `journey-v2`** — Claude. A kept page that still fed the old world would have defeated the point
-- **The task panel's "N open" footer goes to `/Gunner/Tasks`**, not the deleted Day Hub — Claude, after confirming `/Gunner/Tasks` has its own FranDev lens over `frandev_task`
-- **Check every handler before deleting its page** — Claude. `/frandev/contacts` owned four write handlers; deleting on the assumption it was "just a duplicate list" would have removed prospect creation from the platform
-- **Do not extend the deletion to pages with no replacement** (Knowledge, L10, Marketing, Onboarding, Workflows, SiteGuide, Territories) — Claude, scope discipline
+- **Fix the picker cookie first** — Corey, chosen from four options for "the frandev account"
+- **Merge #673 knowing it applies a production schema change** — Corey ("yes get it all done"). Merging to main auto-runs migrations against prod with **no reviewer gate** (`deploy.yml`)
+- **One phone format across MasterSuite, and it is the existing one** — Corey ("format the same as all mastersuite is already"), reversing #675's call
+- **No icons on tab names, matching the property page** — Corey
+- **Option A for the journey name: a renamed journey wins, everything else untouched** — Corey, with the reason that matters: _"sometimes someone might go by Jon Dreyer and want to make sure to keep legit name in contacts"_. That is why `RenameJourney` never writes `frandev_contact` and never rewrites `Slug`
+- **Do not guess at G4** — Claude. No emoji tab names exist; a repo scan found 194 glyphs across 83 files that are arrows in comments and UI marks. Asked instead of shipping an 83-file diff
+- **Delete `FormatUsPhoneNumber` rather than leave it** — Claude. A second formatter in a shared helper is one someone picks by accident
 
 ## Files Created
 
-- None. (PR #669 is deletions + repoints.)
+- `docs/mastersuite-walkthrough-findings.md` (sandbox)
+- `DatabaseMigrationRunner/Migrations/2026-08-08-243_PropertyInventoryPurchaseDateIndex.sql`
+- `DatabaseMigrationRunner/Migrations/2026-08-08-244_FrandevJourneyNameCustom.sql`
+- `MasterSuite.Platform.Tests/Helpers/GunnerScopeCookieContractTests.cs`
+- `MasterSuite.Platform.Tests/Frandev/FrandevJourneyDisplayNameTests.cs`
 
 ## Files Modified
 
-- `MasterSuite.Modules.Frandev/`: `FrandevService.DayHub.cs`, `IFrandevService.Contacts.cs` (doc comments naming deleted pages)
-- `MasterSuite/Helpers/`: `NaxProgram.cs` (both FranDev launcher doors)
-- `Pages/Frandev/`: `FrandevIndex.cshtml`, `Call.cshtml`, `Messages.cshtml`, `Scout.cshtml`, `L10.cshtml`, `Territories.cshtml`, `Pipeline.cshtml`, `SiteGuide.cshtml.cs`
-- `Pages/Gunner/`: `Contacts.cshtml`, `Contacts.cshtml.cs`, `Inventory.cshtml.cs`, `_InventoryAddJourneyBody.cshtml`, `DayHubPanels/_Tasks.cshtml`, `DayHubPanels/_FrandevNewJourneys.cshtml`
-- Sandbox: `handoff.md`
+- `MasterSuite/Helpers/CookieHelper.cs`, `Pages/Territory-Selector.cshtml.cs`
+- `Pages/Frandev/`: `JourneyV2.cshtml.cs`, `ContactV2.cshtml.cs`, `TerritoryV2.cshtml.cs`, `RecordPanels/_TerritoryHero.cshtml`
+- `Pages/Records/RecordPageVm.cs`; `Pages/Gunner/ShellStyles/_RecordShell.cshtml`, `_RecordPage.cshtml`
+- `MasterSuite.Modules.Frandev/`: `FrandevService.Messaging.cs`, `FrandevService.WritesContact.cs`, `FrandevService.Journey.cs`, `IFrandevService.WritesExtras.cs`, `.csproj`
+- `MasterSuite.Modules.Gunner/`: `Jobs/MlsDealAlertJobs.cs`, `.csproj`
+- `FormatHelpers/PhoneNumberHelper.cs`, `FormatHelpersTests/PhoneNumberHelperTests.cs`
+- `Entities/Frandev/FrandevJourneyDetail.cs`
+- Sandbox: `handoff.md`, `docs/mastersuite-walkthrough-findings.md`
 
 ## Files Deleted
 
-- `Pages/Frandev/DayHub.cshtml` + `.cs`
-- `Pages/Frandev/Contacts.cshtml` + `.cs`
-- `Pages/Frandev/Journey.cshtml` + `.cs`
-- `Pages/Frandev/Contact.cshtml` + `.cs`
-- `Pages/Frandev/Territory.cshtml` + `.cs`
+- None this session. (#669's ten page deletions were built in s93 and merged here.)
 
 ## Open Issues Carried Forward
 
-- **⚠️ COLLATIONS.** `frandev_*` ids are `CHAR(36) ascii_bin`; names and slugs are `utf8mb4`. Never let two collations meet in one expression when C# can do the job — High
-- **Running SQL against dev is NOT verification.** Run it read-only against PRODUCTION before shipping, and measure CSS on the live page — High
-- **Local browser verification is impossible** (`CookieHelper` wants a `jwt` this machine cannot sign) — **driving Corey's Chrome at production is the way to check UI** — Medium
-- **The shared record shell now lives in `Pages/Records/`**, moved by #666. Old paths under `Pages/Frandev/` are stale in any note written before today — Medium
-- **Corey to flip the dev pill on a journey in prod** — the overlay is confirmed _rendering_; the _write_ half is unproven (retire a tab, reload, put it back) — Medium
-- **The FranDev data in MasterSuite is an Aug 1 snapshot** — newest contact/journey is Jul 30. The territory/property half of every page is live MasterSuite. Refresh before reading any count as today's truth — Medium
-- **Never clicked:** `/Gunner/Inventory` on a FranDev stage → Territories dot → territory row → does the pull-down resolve an owner the way the journey one does. Built and deployed in s91, still unverified — Medium
-- **PR #668 (`s137-signwell`) is open** on the Documents panel — another window's work — Low
+- **⚠️ Measure before optimising — this session proved it twice.** The slow query was rewritten as a `GROUP BY` + `JOIN` on the assumption its correlated-subquery shape was the fault: the rewrite measured **19,159 ms, slower than the 16,209 ms original**. The index was the answer. Separately, the index was predicted to help Day Hub and Inventory; measured afterwards, **it did not** — High
+- **⚠️ COLLATIONS.** `frandev_*` ids are `CHAR(36) ascii_bin`; names and slugs are `utf8mb4`. (Checked this session on `frandev_territory.TerritorySlug` — it is deliberately collation-matched to MasterSuite, so it was **not** the cause of the slow query) — High
+- **Running SQL against dev is NOT verification.** Read-only production access works: `.env.local` `MASTERSUITE_DB_*`, MariaDB 12.3, via `mysql2` with `NODE_PATH` set to the sandbox's `node_modules` — High
+- **Merging to main deploys AND migrates production with no reviewer gate** — treat every merged migration as immediately live — High
+- **Local browser verification is impossible** (`CookieHelper` wants a `jwt` this machine cannot sign) — driving Corey's Chrome at production is the way — Medium
+- **Two large tables worth a later look, deliberately untouched:** `NewAgainHouses_Analytics_PageVisits` (8.2 M rows, 1.6 GB, indexed only on `Id`) and `ThirdPartyApiResponses` (11 GB) — Low
+- **The FranDev data in MasterSuite is an Aug 1 snapshot** — newest contact/journey is Jul 30; the territory/property half is live — Medium
+- **PR #668 (SignWell e-sign) is another window's work** — needs a prod migration, an API key, and Corey's answer on COE/inspection business days — Low
 - **~40 stale worktrees** under `/Users/coreylavinder/Mastersuite/` — Low
-- Carried: Jessica AdminPanel bypass + prod permission audit; API key rotation; prod rollout data flips (nav rows 76/77 still `Enabled=0`); `FRANDV` territory row absent from prod — High/Medium
+- Carried: Jessica AdminPanel bypass + prod permission audit; API key rotation; nav rows 76/77 still `Enabled=0` so **FranDev still has no sidebar link**; `FRANDV` territory row absent from prod — High/Medium
 
 ## Exact Next Step
 
-Merge PR #669 and let it deploy, then open `/Gunner/DayHub` on production with the workspace picker on FranDev and begin the page-by-page walkthrough — Day Hub, pipeline, contacts, journeys, territory — with the DEV MODE pill on, logging what you find.
+Time the individual queries behind `/Gunner/DayHub` (4.9 s) and `/Gunner/Inventory` (5.7 s) against production the same way `/frandev` was measured — one query at a time, read-only — and find their real cause before changing any code.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -95,6 +97,6 @@ Merge PR #669 and let it deploy, then open `/Gunner/DayHub` on production with t
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Merge PR #669 and let it deploy, then open /Gunner/DayHub on production with the workspace picker on FranDev and begin the page-by-page walkthrough — Day Hub, pipeline, contacts, journeys, territory — with the DEV MODE pill on, logging what you find.
+Then: Time the individual queries behind /Gunner/DayHub (4.9s) and /Gunner/Inventory (5.7s) against production the same way /frandev was measured — one query at a time, read-only — and find their real cause before changing any code.
 
 ---
