@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * Pins the one thing that makes a merged journey still findable:
@@ -184,5 +185,51 @@ describe("POST /api/contacts/[contactId]/merge — journey reachability", () => 
         "fails, the contact is flagged merged and the journey is stranded — the exact state " +
         "found on production."
     ).toBeLessThan(markAt);
+  });
+});
+
+/**
+ * Until 2026-08-08 this route imported `requireAuth` and never called it, and there is no
+ * `middleware.ts` gating it either — so the import read as protection while an unauthenticated
+ * POST could reassign 20+ tables and mark a contact merged. An unused import is invisible to
+ * every other test, which is why this one asserts the CALL, not the import.
+ */
+describe("POST /api/contacts/[contactId]/merge — authentication", () => {
+  beforeEach(() => {
+    writes.length = 0;
+    vi.mocked(requireAuth).mockClear();
+  });
+
+  it("returns the 401 from requireAuth instead of merging", async () => {
+    vi.mocked(requireAuth).mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }) as never
+    );
+
+    const res = await call();
+
+    expect(
+      res.status,
+      "An unauthenticated POST was not rejected. This endpoint reassigns 20+ tables and marks " +
+        "a contact merged; nothing else gates it, as there is no middleware.ts."
+    ).toBe(401);
+  });
+
+  it("writes nothing at all when the caller is rejected", async () => {
+    vi.mocked(requireAuth).mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }) as never
+    );
+
+    await call();
+
+    expect(
+      writes,
+      "A rejected caller still reached the database. The auth check must sit above every write, " +
+        "not partway down the route — a half-applied merge is worse than a refused one."
+    ).toHaveLength(0);
+  });
+
+  it("actually calls requireAuth — an unused import is not a gate", async () => {
+    await call();
+    expect(vi.mocked(requireAuth)).toHaveBeenCalledTimes(1);
   });
 });

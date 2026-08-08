@@ -39,6 +39,15 @@ interface StepResult {
 }
 
 export async function POST(request: NextRequest, { params }: { params: { contactId: string } }) {
+  // Gate FIRST — before the body is read or any row is touched. `requireAuth`
+  // returns a Response on 401 rather than throwing, so the caller must check.
+  // Not admin-only on purpose: the Merge button in LeadDetailView is shown to
+  // every signed-in role (unlike Delete, which is gated to admin/operator), so
+  // an admin check here would silently break a button people use today. Whether
+  // merging SHOULD be admin-only is a separate call — see the session notes.
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+
   const dupRaw = params.contactId;
   const body = (await request.json()) as MergeBody;
   if (!body.keepContactId) {

@@ -38,6 +38,39 @@ const APPLY = process.argv.includes("--apply");
 const norm = (first?: string | null, last?: string | null) =>
   `${first ?? ""} ${last ?? ""}`.trim().toLowerCase().replace(/\s+/g, " ");
 
+/**
+ * Different-people merges a human has explicitly ruled correct.
+ *
+ * The name-match rule below is the safety net, and it stays. This list is the ONLY way
+ * past it, and it is deliberately not a flag like `--force`: a flag would wave through
+ * whatever happens to be orphaned on the day someone runs this. Each entry names the
+ * exact row it authorises.
+ *
+ * A row must match on ALL THREE of slug, from-name and to-name to be repointed. If the
+ * underlying data shifts — a rename, a re-merge, a different keeper — the entry stops
+ * matching and the script goes back to refusing. Silence is the right failure here.
+ *
+ * Ruled by Corey on 2026-08-08, asked directly and answered "think those are correct":
+ * both pairs are the same person under two records despite the names reading differently.
+ */
+const RULED_BY_HUMAN = [
+  {
+    slug: "vince-vitale",
+    from: "vince vitale",
+    to: "jo vitale",
+    note: "Corey 2026-08-08 — merge confirmed correct; journey is archived",
+  },
+  {
+    slug: "courtney-mcdonald",
+    from: "courtney mcdonald",
+    to: "michael scott",
+    note: "Corey 2026-08-08 — merge confirmed correct; keeper already holds an active journey, which is allowed",
+  },
+] as const;
+
+const ruling = (slug: string | null, from: string, to: string) =>
+  RULED_BY_HUMAN.find((r) => r.slug === slug && r.from === from.toLowerCase() && r.to === to.toLowerCase());
+
 async function main() {
   const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -97,11 +130,15 @@ async function main() {
       continue;
     }
 
-    if (norm(loser.first_name, loser.last_name) !== norm(keeper.first_name, keeper.last_name)) {
+    const namesMatch = norm(loser.first_name, loser.last_name) === norm(keeper.first_name, keeper.last_name);
+    const ruled = namesMatch ? undefined : ruling(j.slug as string | null, from, to);
+
+    if (!namesMatch && !ruled) {
       console.log(
         `SKIP  ${label}\n` +
           `      "${from}" was merged into "${to}" — DIFFERENT PEOPLE. Not repointing.\n` +
-          `      If that merge was wrong, undo the merge; do not hand this journey to ${to}.`
+          `      If that merge was wrong, undo the merge; do not hand this journey to ${to}.\n` +
+          `      If it was right, add this row to RULED_BY_HUMAN at the top of this file.`
       );
       skipped++;
       continue;
@@ -115,8 +152,10 @@ async function main() {
       ? `keeper already has ${keeperJourneys.length} journey(s) — that is allowed, a person can hold several`
       : "keeper has no journey of its own";
 
+    const basis = ruled ? `RULED: ${ruled.note}` : "same person";
+
     if (!APPLY) {
-      console.log(`WOULD REPAIR  ${label}\n      "${from}" -> "${to}" (same person); ${note}`);
+      console.log(`WOULD REPAIR  ${label}\n      "${from}" -> "${to}" (${basis}); ${note}`);
       repaired++;
       continue;
     }
@@ -127,7 +166,7 @@ async function main() {
       skipped++;
       continue;
     }
-    console.log(`REPAIRED  ${label}\n      "${from}" -> "${to}"; ${note}`);
+    console.log(`REPAIRED  ${label}\n      "${from}" -> "${to}" (${basis}); ${note}`);
     repaired++;
   }
 
