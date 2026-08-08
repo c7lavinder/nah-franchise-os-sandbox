@@ -257,10 +257,14 @@ export const HANDLED_WRITE_TYPES = [
   "board_move",
   "close_journey",
   "create_contact",
+  "create_eos_habit",
+  "create_eos_item",
+  "create_stakeholder",
   "create_task",
   "drop_journey",
   "mark_sms_read",
   "reject_workflow_step",
+  "remove_stakeholder",
   "rename_journey",
   "revert_stage",
   "scout_memory_merge",
@@ -275,6 +279,44 @@ export const HANDLED_WRITE_TYPES = [
 ] as const;
 
 const HANDLED = new Set<string>(HANDLED_WRITE_TYPES);
+
+/** MasterSuite's Personal EOS add boxes (its T8). `kind` is "issue" or "todo". */
+interface CreateEosItemPayload {
+  item_id: string;
+  contact_id: string;
+  kind: "issue" | "todo";
+  text: string;
+  source: string;
+  created_by: string;
+}
+
+interface CreateEosHabitPayload {
+  habit_id: string;
+  contact_id: string;
+  habit_text: string;
+  /** Already normalised MasterSuite-side to the five values our CHECK allows. */
+  cadence: string;
+  source: string;
+  created_by: string;
+}
+
+interface CreateStakeholderPayload {
+  stakeholder_id: string;
+  ms_slug: string;
+  first_name: string;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  role: string;
+  created_by: string;
+}
+
+interface RemoveStakeholderPayload {
+  stakeholder_id: string;
+  ms_slug: string;
+  removed_by: string;
+}
 
 export interface ApplyResult {
   pending: number;
@@ -347,6 +389,14 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applyRenameJourney(JSON.parse(row.PayloadJson) as RenameJourneyPayload);
       } else if (row.WriteType === "set_call_type") {
         await applySetCallType(JSON.parse(row.PayloadJson) as SetCallTypePayload);
+      } else if (row.WriteType === "create_eos_item") {
+        await applyCreateEosItem(JSON.parse(row.PayloadJson) as CreateEosItemPayload);
+      } else if (row.WriteType === "create_eos_habit") {
+        await applyCreateEosHabit(JSON.parse(row.PayloadJson) as CreateEosHabitPayload);
+      } else if (row.WriteType === "create_stakeholder") {
+        await applyCreateStakeholder(JSON.parse(row.PayloadJson) as CreateStakeholderPayload);
+      } else if (row.WriteType === "remove_stakeholder") {
+        await applyRemoveStakeholder(JSON.parse(row.PayloadJson) as RemoveStakeholderPayload);
       } else {
         unhandled.add(row.WriteType);
         throw new Error(
@@ -1801,6 +1851,124 @@ async function applySetCallType(payload: SetCallTypePayload): Promise<void> {
 
   const { error } = await supabase.from("calls").update({ call_type_id: id }).eq("id", payload.call_id);
   if (error) throw new Error(`call retype failed: ${error.message}`);
+}
+
+/**
+ * Replay MasterSuite's Personal EOS add box (its T8) into `eos_contact_issues` /
+ * `eos_contact_todos`.
+ *
+ * ⚠ The id comes from the payload, not from `gen_random_uuid()`. MasterSuite already wrote
+ * the row into its mirror with that id; minting a second one here would leave the nightly
+ * push inserting a duplicate beside the native row instead of upserting onto it. Same id
+ * discipline as `create_task` and `sub_task_log`.
+ *
+ * Idempotent: an upsert on the primary key, so replaying the same journal row twice is a
+ * no-op rather than a second issue.
+ */
+async function applyCreateEosItem(payload: CreateEosItemPayload): Promise<void> {
+  if (payload.kind !== "issue" && payload.kind !== "todo") {
+    throw new Error(`create_eos_item carried an unknown kind '${payload.kind}'`);
+  }
+  const text = payload.text?.trim();
+  if (!text) throw new Error("create_eos_item carried empty text");
+
+  const supabase = getServiceSupabase();
+  const table = payload.kind === "issue" ? "eos_contact_issues" : "eos_contact_todos";
+  const textColumn = payload.kind === "issue" ? "issue_text" : "todo_text";
+
+  const { error } = await supabase.from(table).upsert(
+    {
+      id: payload.item_id,
+      contact_id: payload.contact_id,
+      [textColumn]: text,
+      is_done: false,
+      source: "manual",
+    },
+    { onConflict: "id" }
+  );
+  if (error) throw new Error(`${table} insert failed: ${error.message}`);
+}
+
+/**
+ * Replay MasterSuite's EOS habit add into `eos_contact_habits`.
+ *
+ * ⚠ `cadence` carries a CHECK constraint here — `('daily','weekly','biweekly','monthly',
+ * 'quarterly')` — that the mirror's plain `varchar(16)` does not. MasterSuite normalises
+ * before it writes (its dropdown says "Bi-weekly"), and this checks again: the two lists
+ * are separate copies, and a drift would otherwise surface as a raw Postgres constraint
+ * error on a row that already looks saved on the page.
+ *
+ * `grade` is left unset — the CHECK allows only A–D and F, so a never-reviewed habit has
+ * no value to write.
+ */
+const HABIT_CADENCES = new Set(["daily", "weekly", "biweekly", "monthly", "quarterly"]);
+
+async function applyCreateEosHabit(payload: CreateEosHabitPayload): Promise<void> {
+  const text = payload.habit_text?.trim();
+  if (!text) throw new Error("create_eos_habit carried empty text");
+  if (!HABIT_CADENCES.has(payload.cadence)) {
+    throw new Error(
+      `create_eos_habit carried cadence '${payload.cadence}', which eos_contact_habits.cadence would reject`
+    );
+  }
+
+  const supabase = getServiceSupabase();
+  const { error } = await supabase.from("eos_contact_habits").upsert(
+    {
+      id: payload.habit_id,
+      contact_id: payload.contact_id,
+      habit_text: text,
+      cadence: payload.cadence,
+      source: "manual",
+    },
+    { onConflict: "id" }
+  );
+  if (error) throw new Error(`eos_contact_habits insert failed: ${error.message}`);
+}
+
+/**
+ * Replay MasterSuite's Ecosystem "Add stakeholder" into `territory_stakeholders`.
+ *
+ * ⚠ The territory key is `ms_slug` here and `TerritorySlug` on the mirror — the same value
+ * under two names, which is why the payload spells it `ms_slug` rather than carrying
+ * MasterSuite's column name across.
+ */
+async function applyCreateStakeholder(payload: CreateStakeholderPayload): Promise<void> {
+  if (!payload.first_name?.trim()) throw new Error("create_stakeholder carried no name");
+  if (!payload.ms_slug) throw new Error("create_stakeholder carried no territory");
+
+  const supabase = getServiceSupabase();
+  const { error } = await supabase.from("territory_stakeholders").upsert(
+    {
+      id: payload.stakeholder_id,
+      ms_slug: payload.ms_slug,
+      first_name: payload.first_name.trim(),
+      last_name: payload.last_name?.trim() || null,
+      email: payload.email?.trim() || null,
+      phone: payload.phone?.trim() || null,
+      company: payload.company?.trim() || null,
+      role: payload.role,
+      is_active: true,
+    },
+    { onConflict: "id" }
+  );
+  if (error) throw new Error(`territory_stakeholders insert failed: ${error.message}`);
+}
+
+/**
+ * Replay MasterSuite's stakeholder removal.
+ *
+ * ⚠ A soft delete — `is_active = false`, matching what MasterSuite writes and what both
+ * reads filter on. A hard DELETE here would diverge from the mirror, and the next push
+ * (an upsert-by-PK) would put the row back.
+ */
+async function applyRemoveStakeholder(payload: RemoveStakeholderPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const { error } = await supabase
+    .from("territory_stakeholders")
+    .update({ is_active: false })
+    .eq("id", payload.stakeholder_id);
+  if (error) throw new Error(`territory_stakeholders remove failed: ${error.message}`);
 }
 
 function attributed(text: string | null, username: string): string {

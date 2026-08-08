@@ -1530,3 +1530,193 @@ describe("applyNativeWrites — dispatch coverage", () => {
     expect(result.errors[0]).toMatch(/nightly push will otherwise overwrite it/);
   });
 });
+
+/**
+ * The four handlers for MasterSuite's remaining G2 write surfaces — the Personal EOS add
+ * boxes (its T8) and the Ecosystem stakeholder controls.
+ *
+ * ⚠ Written in the SAME change as the MasterSuite side that emits them, which is the
+ * lesson from the three handlers above: those shipped months apart from their emitters and
+ * silently failed replay the whole time.
+ */
+describe("applyNativeWrites — EOS add boxes and stakeholders", () => {
+  beforeEach(() => {
+    fakeSupabase.tables.clear();
+    pendingRows = [];
+    statusUpdates.length = 0;
+    poolQuery.mockClear();
+  });
+
+  it("an EOS issue lands with MasterSuite's minted id, not a new one", async () => {
+    // The id discipline: a fresh uuid here would leave the nightly push inserting a
+    // duplicate beside the native row instead of upserting onto it.
+    pendingRows = [
+      journalRow(40, "create_eos_item", {
+        item_id: "issue-uuid-1",
+        contact_id: "contact-1",
+        kind: "issue",
+        text: "  Cash flow is tight in Q3  ",
+        source: "manual",
+        created_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const row = fakeSupabase.get("eos_contact_issues")[0];
+    expect(row.id).toBe("issue-uuid-1");
+    expect(row.issue_text).toBe("Cash flow is tight in Q3");
+    expect(row.is_done).toBe(false);
+  });
+
+  it("a to-do goes to its own table and text column", async () => {
+    pendingRows = [
+      journalRow(41, "create_eos_item", {
+        item_id: "todo-uuid-1",
+        contact_id: "contact-1",
+        kind: "todo",
+        text: "Call the lender",
+        source: "manual",
+        created_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    await applyNativeWrites();
+
+    expect(fakeSupabase.get("eos_contact_todos")[0].todo_text).toBe("Call the lender");
+    expect(fakeSupabase.get("eos_contact_issues")).toHaveLength(0);
+  });
+
+  it("replaying the same item twice does not create a second one", async () => {
+    const payload = {
+      item_id: "issue-uuid-1",
+      contact_id: "contact-1",
+      kind: "issue",
+      text: "Cash flow",
+      source: "manual",
+      created_by: "corey",
+    };
+    pendingRows = [journalRow(42, "create_eos_item", payload), journalRow(43, "create_eos_item", payload)];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(2);
+    expect(fakeSupabase.get("eos_contact_issues")).toHaveLength(1);
+  });
+
+  it("an unknown item kind fails the row rather than guessing a table", async () => {
+    pendingRows = [
+      journalRow(44, "create_eos_item", {
+        item_id: "x",
+        contact_id: "contact-1",
+        kind: "rock",
+        text: "Open a second market",
+        source: "manual",
+        created_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/unknown kind/);
+  });
+
+  it("a habit lands with the normalised cadence", async () => {
+    pendingRows = [
+      journalRow(45, "create_eos_habit", {
+        habit_id: "habit-uuid-1",
+        contact_id: "contact-1",
+        habit_text: "Weekly numbers review",
+        cadence: "biweekly",
+        source: "manual",
+        created_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const row = fakeSupabase.get("eos_contact_habits")[0];
+    expect(row.cadence).toBe("biweekly");
+    expect(row.grade).toBeUndefined(); // never-reviewed: the CHECK allows only A-D and F
+  });
+
+  it("a cadence our CHECK would reject fails here with a readable error, not a raw constraint", async () => {
+    // ⚠ THE case this pair of guards exists for. MasterSuite's dropdown reads "Bi-weekly"
+    // and its mirror column is a plain varchar(16) — so the value passes there and only
+    // this side knows the constraint. MasterSuite normalises; this is the second copy of
+    // the list, checked because two copies can drift.
+    pendingRows = [
+      journalRow(46, "create_eos_habit", {
+        habit_id: "habit-uuid-2",
+        contact_id: "contact-1",
+        habit_text: "Numbers review",
+        cadence: "Bi-weekly",
+        source: "manual",
+        created_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/would reject/);
+    expect(fakeSupabase.get("eos_contact_habits")).toHaveLength(0);
+  });
+
+  it("a stakeholder lands under ms_slug with is_active true", async () => {
+    pendingRows = [
+      journalRow(47, "create_stakeholder", {
+        stakeholder_id: "stk-uuid-1",
+        ms_slug: "kitty-hawk",
+        first_name: "Mary",
+        last_name: "Jo Van Der Berg",
+        email: null,
+        phone: "5551234567",
+        company: "Berg Construction",
+        role: "contractor",
+        created_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const row = fakeSupabase.get("territory_stakeholders")[0];
+    expect(row.ms_slug).toBe("kitty-hawk");
+    // The surname keeps its spaces — MasterSuite splits on the FIRST space only.
+    expect(row.last_name).toBe("Jo Van Der Berg");
+    expect(row.is_active).toBe(true);
+    expect(row.email).toBeNull();
+  });
+
+  it("removing a stakeholder is a soft delete, so the next push cannot resurrect it", async () => {
+    fakeSupabase.seed("territory_stakeholders", [
+      { id: "stk-uuid-1", ms_slug: "kitty-hawk", first_name: "Mary", is_active: true },
+    ]);
+    pendingRows = [
+      journalRow(48, "remove_stakeholder", {
+        stakeholder_id: "stk-uuid-1",
+        ms_slug: "kitty-hawk",
+        removed_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const rows = fakeSupabase.get("territory_stakeholders");
+    expect(rows).toHaveLength(1); // ⚠ still there, flagged — not deleted
+    expect(rows[0].is_active).toBe(false);
+  });
+});
