@@ -398,6 +398,27 @@ P1, P2 (the writer question), P3, P4, J1, J3, J4, J7, C1, T4, T8, D1 (the 2 real
 duplicates — Loretta Koonce and Jorge Villalta), D5, D6, D7, G3.
 J6 and G2 are **part done** — see the G2 entry under "Every page" for exactly what is left.
 
+## Held until FranDev is off Vercel (Corey, s96)
+
+Four nightly jobs are **fixed but deliberately unscheduled** — their paths were removed from
+`vercel.json` and each route says why. Nothing runs until the MasterSuite move is complete.
+
+| Job                 | What it does                                  |
+| ------------------- | --------------------------------------------- |
+| `score-recalculate` | candidate viability score + flags refresh     |
+| `generate-briefs`   | contact, territory and journey briefs         |
+| `stale-leads`       | inactivity alerts on untouched pipeline leads |
+| `daily-brief`       | per-user morning summary notification         |
+
+**Post-move backfill (Corey):** on the switch to MasterSuite, backfill **all journeys** so
+there is something there, and **territories** too. **Contacts probably not** — a brief for
+someone nobody has spoken to has nothing in it, which is why the job only generates contact
+briefs for people with at least one call.
+
+⚠ Journey briefs call Claude Haiku once per journey; contact and territory briefs are pure
+data aggregation and cost nothing. A full journey backfill is ~3,175 LLM calls, so it wants
+to be a deliberate one-off run, not left to a 25-a-night trickle.
+
 ## Waiting on Corey
 
 1. **Merge #684?** (territory layout + donut colours). No migration; it deploys on merge.
