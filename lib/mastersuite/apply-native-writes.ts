@@ -261,8 +261,10 @@ export const HANDLED_WRITE_TYPES = [
   "create_eos_habit",
   "create_eos_item",
   "create_stakeholder",
+  "create_note",
   "create_task",
   "delete_journey",
+  "delete_note",
   "drop_journey",
   "mark_sms_read",
   "reject_workflow_step",
@@ -278,6 +280,7 @@ export const HANDLED_WRITE_TYPES = [
   "toggle_task",
   "transfer_territory",
   "update_contact",
+  "update_note",
   "update_profile_field",
   "workflow_status",
 ] as const;
@@ -353,6 +356,47 @@ interface TransferTerritoryPayload {
   new_ghl_contact_id: string | null;
   notes: string | null;
   transferred_by: string;
+}
+
+/**
+ * The Notes panel on MasterSuite's three record pages (journey / territory / contact).
+ *
+ * ⚠ `scope` decides which ONE of the three target fields is set, and `notes` carries a CHECK
+ * that enforces exactly that. A payload naming the wrong pair is rejected by Postgres, so
+ * these handlers check it first and fail with a sentence instead of a constraint dump.
+ *
+ * ⚠ The rollup — "a territory or contact note also shows on that person's active journeys"
+ * — is a READ, not a row. Nothing here fans a note out to journeys. Writing a copy per
+ * journey would mean an edit or delete has to find every copy, which is the duplicated-state
+ * bug this module has already produced twice.
+ */
+interface CreateNotePayload {
+  note_id: string;
+  scope: "journey" | "territory" | "contact";
+  journey_id: string | null;
+  contact_id: string | null;
+  ms_slug: string | null;
+  body: string;
+  author_email: string;
+  author_name: string | null;
+  source: string;
+}
+
+/** An edit in place. Only the body changes; the note keeps its home and its author. */
+interface UpdateNotePayload {
+  note_id: string;
+  body: string;
+  edited_by: string;
+}
+
+/**
+ * ⚠ A SOFT delete — `deleted_at`, never a row removal. The nightly push into MasterSuite is
+ * an upsert-by-primary-key with no way to say "this row is gone", so a hard delete here
+ * would clear the note in Supabase and leave it in `frandev_note` forever.
+ */
+interface DeleteNotePayload {
+  note_id: string;
+  deleted_by: string;
 }
 
 export interface ApplyResult {
@@ -442,6 +486,12 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applyRetireTerritory(JSON.parse(row.PayloadJson) as RetireTerritoryPayload);
       } else if (row.WriteType === "transfer_territory") {
         await applyTransferTerritory(JSON.parse(row.PayloadJson) as TransferTerritoryPayload);
+      } else if (row.WriteType === "create_note") {
+        await applyCreateNote(JSON.parse(row.PayloadJson) as CreateNotePayload);
+      } else if (row.WriteType === "update_note") {
+        await applyUpdateNote(JSON.parse(row.PayloadJson) as UpdateNotePayload);
+      } else if (row.WriteType === "delete_note") {
+        await applyDeleteNote(JSON.parse(row.PayloadJson) as DeleteNotePayload);
       } else {
         unhandled.add(row.WriteType);
         throw new Error(
@@ -2118,4 +2168,132 @@ async function applyTransferTerritory(payload: TransferTerritoryPayload): Promis
 function attributed(text: string | null, username: string): string {
   const suffix = `(via MasterSuite by ${username})`;
   return text ? `${text} ${suffix}` : suffix;
+}
+
+// ── Notes ───────────────────────────────────────────────────────────────────
+//
+// The journey / territory / contact triangle Corey settled on 2026-08-08. The panel has been
+// on all three record pages with Wired = false since the record-page rebuild because FranDev
+// had nowhere to put a note a PERSON wrote — contact_journals is the AI's daily summary, and
+// contacts.notes is one free-text column with no author, no history and no delete.
+//
+// Store shipped 2026-08-09: supabase/migrations/20260809000000_create_notes.sql (app),
+// 2026-08-09-246_FrandevNotes.sql (mirror), plus the push list entry beside them.
+
+/** The one target column each scope is allowed to set — mirrors the table's CHECK. */
+const NOTE_SCOPES = new Set(["journey", "territory", "contact"]);
+
+/**
+ * Replay MasterSuite's "Add note".
+ *
+ * ⚠ The id comes from the payload. MasterSuite already wrote the row into `frandev_note`
+ * with that id; minting a new one here would leave the nightly push inserting a duplicate
+ * beside the native row rather than upserting onto it. Same id discipline as create_task,
+ * sub_task_log and create_eos_item.
+ *
+ * ⚠ The scope/target pairing is checked HERE rather than left to the CHECK constraint, so a
+ * malformed payload fails with a sentence naming the mismatch instead of a raw Postgres
+ * constraint dump on a row that already looks saved on the page.
+ *
+ * ⚠ `TerritorySlug` is PascalCase on BOTH sides — migration 20260509000000 renamed ms_slug
+ * across seventeen tables. Only the payload KEY still says ms_slug, matching create_stakeholder
+ * and retire_territory. Getting this wrong is what broke applyCreateStakeholder in #692.
+ *
+ * Idempotent: an upsert on the primary key, so replaying the same journal row twice is a
+ * no-op rather than a second note.
+ */
+async function applyCreateNote(payload: CreateNotePayload): Promise<void> {
+  if (!NOTE_SCOPES.has(payload.scope)) {
+    throw new Error(`create_note carried an unknown scope '${payload.scope}'`);
+  }
+  const body = payload.body?.trim();
+  if (!body) throw new Error("create_note carried an empty body");
+  if (!payload.author_email?.trim()) throw new Error("create_note carried no author");
+
+  // Exactly one target, and it must be the one `scope` names.
+  const target = {
+    journey: payload.journey_id,
+    contact: payload.contact_id,
+    territory: payload.ms_slug,
+  }[payload.scope];
+  if (!target) {
+    throw new Error(`create_note scope '${payload.scope}' carried no matching id`);
+  }
+  const others = [payload.journey_id, payload.contact_id, payload.ms_slug].filter(Boolean);
+  if (others.length > 1) {
+    throw new Error(
+      `create_note carried ${others.length} targets — a note lives on exactly one record, and notes_exactly_one_target would reject it`
+    );
+  }
+
+  const supabase = getServiceSupabase();
+  const { error } = await supabase.from("notes").upsert(
+    {
+      id: payload.note_id,
+      scope: payload.scope,
+      journey_id: payload.scope === "journey" ? payload.journey_id : null,
+      contact_id: payload.scope === "contact" ? payload.contact_id : null,
+      TerritorySlug: payload.scope === "territory" ? payload.ms_slug : null,
+      body,
+      author_email: payload.author_email.trim(),
+      author_name: payload.author_name,
+      source: payload.source || "manual",
+    },
+    { onConflict: "id" }
+  );
+  if (error) throw new Error(`note insert failed: ${error.message}`);
+}
+
+/**
+ * Replay an edit. "Anyone can edit or delete" (Corey), so there is no author check — only a
+ * record of who touched it.
+ *
+ * ⚠ Deliberately NOT an upsert. An update against a note that no longer exists must not
+ * resurrect it as a fresh row with a null scope, which is exactly what an upsert would do
+ * and what the CHECK would then reject. A missing row is a no-op, matching applyDeleteJourney.
+ */
+async function applyUpdateNote(payload: UpdateNotePayload): Promise<void> {
+  const body = payload.body?.trim();
+  if (!body) throw new Error("update_note carried an empty body");
+
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("notes")
+    .update({
+      body,
+      edited_at: new Date().toISOString(),
+      edited_by: payload.edited_by,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", payload.note_id)
+    .is("deleted_at", null)
+    .select("id");
+  if (error) throw new Error(`note update failed: ${error.message}`);
+  // Already deleted, or never here. Not an error: the note is gone either way, and failing
+  // would park the row as `failed` forever with nothing anyone can do about it.
+  if (!data || data.length === 0) return;
+}
+
+/**
+ * Replay a delete — SOFT, always.
+ *
+ * ⚠ Do NOT change this to a row delete. The nightly push (lib/mastersuite/push-frandev.ts)
+ * is an upsert-by-primary-key and cannot express a removal, so a hard delete would clear the
+ * note here and leave it in frandev_note forever. `deleted_at` is how a delete crosses the
+ * fold, the same reason ghl_appointments carries one.
+ *
+ * Idempotent: deleting an already-deleted note changes nothing.
+ */
+async function applyDeleteNote(payload: DeleteNotePayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const { error } = await supabase
+    .from("notes")
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: payload.deleted_by,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", payload.note_id)
+    .is("deleted_at", null);
+  if (error) throw new Error(`note delete failed: ${error.message}`);
 }

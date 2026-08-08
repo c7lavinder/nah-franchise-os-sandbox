@@ -576,6 +576,10 @@ export const SUPABASE_TABLES: string[] = [
   "lead_sub_sources",
   "llm_call_logs",
   "market_signals",
+  // Resolves frandev_note -> notes through the standard pluralizer. The note
+  // BODY is the payload, so the row can be large; the byte-budgeted batching
+  // above is what keeps a long note from blowing max_allowed_packet.
+  "notes",
   "notifications",
   "objection_registry",
   "pipeline_app_settings",

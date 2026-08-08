@@ -1907,3 +1907,264 @@ describe("applyNativeWrites — record lifecycle", () => {
     expect(current[0].contact_id).toBe("contact-new");
   });
 });
+
+/**
+ * The journey / territory / contact note triangle (Corey, 2026-08-08). The store shipped
+ * 2026-08-09: supabase/migrations/20260809000000_create_notes.sql, the frandev_note mirror,
+ * and the push list entry.
+ *
+ * Two rules carry most of the weight here, and both are cheap to break by accident:
+ *   - a note lives on EXACTLY ONE record, and `scope` names which;
+ *   - a delete is SOFT, because the nightly push is upsert-by-PK and cannot remove a row.
+ */
+describe("applyNativeWrites — notes", () => {
+  beforeEach(() => {
+    fakeSupabase.tables.clear();
+    pendingRows = [];
+    statusUpdates.length = 0;
+    poolQuery.mockClear();
+  });
+
+  const journeyNote = {
+    note_id: "note-uuid-1",
+    scope: "journey",
+    journey_id: "journey-1",
+    contact_id: null,
+    ms_slug: null,
+    body: "  Wants to close before the end of Q3.  ",
+    author_email: "corey@newagainhouses.com",
+    author_name: "Corey Lavinder",
+    source: "manual",
+  };
+
+  it("a journey note lands with MasterSuite's minted id and a trimmed body", async () => {
+    // Same id discipline as create_eos_item: a fresh uuid here would leave the nightly push
+    // inserting a duplicate beside the native row instead of upserting onto it.
+    pendingRows = [journalRow(60, "create_note", journeyNote)];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const row = fakeSupabase.get("notes")[0];
+    expect(row.id).toBe("note-uuid-1");
+    expect(row.body).toBe("Wants to close before the end of Q3.");
+    expect(row.scope).toBe("journey");
+    expect(row.journey_id).toBe("journey-1");
+    expect(row.author_email).toBe("corey@newagainhouses.com");
+    expect(row.deleted_at ?? null).toBeNull();
+  });
+
+  it("a territory note writes the PascalCase TerritorySlug and leaves the other two null", async () => {
+    // ⚠ The column is TerritorySlug on BOTH sides (migration 20260509000000); only the
+    // payload key still says ms_slug. Writing territory_slug here is the exact mistake that
+    // broke applyCreateStakeholder in #692.
+    pendingRows = [
+      journalRow(61, "create_note", {
+        ...journeyNote,
+        note_id: "note-uuid-2",
+        scope: "territory",
+        journey_id: null,
+        ms_slug: "kitty-hawk",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    await applyNativeWrites();
+
+    const row = fakeSupabase.get("notes")[0];
+    expect(row.TerritorySlug).toBe("kitty-hawk");
+    expect(row.journey_id).toBeNull();
+    expect(row.contact_id).toBeNull();
+  });
+
+  it("a contact note writes contact_id only", async () => {
+    pendingRows = [
+      journalRow(62, "create_note", {
+        ...journeyNote,
+        note_id: "note-uuid-3",
+        scope: "contact",
+        journey_id: null,
+        contact_id: "contact-1",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    await applyNativeWrites();
+
+    const row = fakeSupabase.get("notes")[0];
+    expect(row.contact_id).toBe("contact-1");
+    expect(row.TerritorySlug).toBeNull();
+    expect(row.journey_id).toBeNull();
+  });
+
+  it("does NOT fan a contact note out to that person's journeys — the rollup is a read", async () => {
+    // "Journey holds everything" is a JOIN when the page is built. A second row per journey
+    // would mean an edit or delete has to find every copy.
+    pendingRows = [
+      journalRow(63, "create_note", {
+        ...journeyNote,
+        note_id: "note-uuid-4",
+        scope: "contact",
+        journey_id: null,
+        contact_id: "contact-1",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    await applyNativeWrites();
+
+    expect(fakeSupabase.get("notes")).toHaveLength(1);
+  });
+
+  it("replaying the same note twice does not create a second one", async () => {
+    pendingRows = [journalRow(64, "create_note", journeyNote), journalRow(65, "create_note", journeyNote)];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(2);
+    expect(fakeSupabase.get("notes")).toHaveLength(1);
+  });
+
+  it("an unknown scope fails the row rather than guessing a target", async () => {
+    pendingRows = [journalRow(66, "create_note", { ...journeyNote, scope: "call" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/unknown scope/);
+    expect(fakeSupabase.get("notes")).toHaveLength(0);
+  });
+
+  it("a scope with no matching id fails instead of writing a homeless note", async () => {
+    pendingRows = [journalRow(67, "create_note", { ...journeyNote, journey_id: null })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/carried no matching id/);
+  });
+
+  it("two targets at once fails here rather than as a raw CHECK violation", async () => {
+    pendingRows = [journalRow(68, "create_note", { ...journeyNote, contact_id: "contact-1" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/exactly one record/);
+  });
+
+  it("an empty body fails — a blank note is not a note", async () => {
+    pendingRows = [journalRow(69, "create_note", { ...journeyNote, body: "   " })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/empty body/);
+  });
+
+  it("an edit changes the body and records who, leaving the original author alone", async () => {
+    fakeSupabase.seed("notes", [
+      {
+        id: "note-uuid-1",
+        scope: "journey",
+        journey_id: "journey-1",
+        body: "First draft",
+        author_email: "corey@newagainhouses.com",
+        deleted_at: null,
+      },
+    ]);
+    pendingRows = [
+      journalRow(70, "update_note", { note_id: "note-uuid-1", body: "  Second draft  ", edited_by: "chad" }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const row = fakeSupabase.get("notes")[0];
+    expect(row.body).toBe("Second draft");
+    expect(row.edited_by).toBe("chad");
+    expect(row.edited_at).toBeTruthy();
+    expect(row.author_email).toBe("corey@newagainhouses.com");
+  });
+
+  it("editing a note that is already deleted is a no-op, not a failure", async () => {
+    // Failing would park the journal row as `failed` forever with nothing anyone can do.
+    fakeSupabase.seed("notes", [
+      { id: "note-uuid-1", scope: "journey", journey_id: "journey-1", body: "Gone", deleted_at: "2026-08-01" },
+    ]);
+    pendingRows = [journalRow(71, "update_note", { note_id: "note-uuid-1", body: "New text", edited_by: "chad" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(fakeSupabase.get("notes")[0].body).toBe("Gone");
+  });
+
+  it("editing a note that does not exist never resurrects it as a scopeless row", async () => {
+    // The reason applyUpdateNote is an update and not an upsert: an upsert would insert a
+    // row with a null scope, which notes_exactly_one_target rejects.
+    pendingRows = [journalRow(72, "update_note", { note_id: "ghost", body: "Hello", edited_by: "chad" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(fakeSupabase.get("notes")).toHaveLength(0);
+  });
+
+  it("a delete is SOFT — the row survives so the nightly push can carry the deletion across", async () => {
+    // ⚠ If this ever becomes a row delete, the note vanishes here and lives in frandev_note
+    // forever: the push is an upsert-by-PK and has no way to say "this row is gone".
+    fakeSupabase.seed("notes", [
+      {
+        id: "note-uuid-1",
+        scope: "journey",
+        journey_id: "journey-1",
+        body: "Delete me",
+        author_email: "corey@newagainhouses.com",
+        deleted_at: null,
+      },
+    ]);
+    pendingRows = [journalRow(73, "delete_note", { note_id: "note-uuid-1", deleted_by: "chad" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const rows = fakeSupabase.get("notes");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].deleted_at).toBeTruthy();
+    expect(rows[0].deleted_by).toBe("chad");
+    expect(rows[0].body).toBe("Delete me");
+  });
+
+  it("deleting an already-deleted note changes nothing", async () => {
+    fakeSupabase.seed("notes", [
+      {
+        id: "note-uuid-1",
+        scope: "journey",
+        journey_id: "journey-1",
+        body: "x",
+        deleted_at: "2026-08-01T00:00:00Z",
+        deleted_by: "corey",
+      },
+    ]);
+    pendingRows = [journalRow(74, "delete_note", { note_id: "note-uuid-1", deleted_by: "chad" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    await applyNativeWrites();
+
+    const row = fakeSupabase.get("notes")[0];
+    expect(row.deleted_at).toBe("2026-08-01T00:00:00Z");
+    expect(row.deleted_by).toBe("corey");
+  });
+});
