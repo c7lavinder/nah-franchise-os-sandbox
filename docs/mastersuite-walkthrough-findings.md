@@ -10,17 +10,119 @@
 
 ## Status board (session 95)
 
-| Item                                       | State                                                                               |
-| ------------------------------------------ | ----------------------------------------------------------------------------------- |
-| **G1** performance                         | **PR #673** — root cause found and measured. One unindexed column, not "all pages". |
-| **J8 · C3 · T7 · C2** button/tail removals | **PR #674**                                                                         |
-| **D3** phone formatting                    | **PR #675**                                                                         |
-| **T6** dev-mode card stages                | **Already built** — look before building (see below)                                |
-| **G4** tab emojis                          | **Blocked** — no emoji tab names exist anywhere. Needs Corey to point at a page.    |
-| **Q1–Q4**                                  | **Blocked on Corey** — see Open questions                                           |
-| Everything else                            | Not started. See Suggested order.                                                   |
+| Item                                       | State                                                                                     |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| **G1** performance                         | **DONE for `/frandev`** (#673, 13–16 s → 0.3–0.9 s). **PR #682** for Day Hub + Inventory. |
+| **J8 · C3 · T7 · C2** button/tail removals | **Merged** — #674                                                                         |
+| **D3** phone formatting                    | **Merged** — #675 → #676 (one format across MasterSuite, the existing one)                |
+| **J2 · J5** journey rename, inline save    | **Merged** — #678                                                                         |
+| **G4** tab emojis                          | **CLOSED** — Corey: #676 was the thing he meant. No emoji tab names exist.                |
+| **T6** dev-mode card stages                | **Already built** — look before building (see below)                                      |
+| **P2** no tasks in system                  | **Corey was right, it is not a display bug** — `frandev_task` holds **1 row**. See below. |
+| **D1** merge duplicate journeys            | **Rescoped** — only **2 real** duplicates; 2 more are legitimate and must not be merged.  |
+| **D5** merge duplicate contacts            | **Rescoped** — a merge mechanism already exists and has run 28 times.                     |
+| **D6** multiple phones/emails              | **Rescoped** — the email table is live with 2,765 rows. Phones are 5 flat columns.        |
+| **D7** coach on the person                 | **Unblocked** — Q3 answered: derive from the territory. Covers 72 of 89 territories.      |
+| **Q1**                                     | Still a conversation Corey wants to have                                                  |
+| **Q2**                                     | Still lost (two truncated lines)                                                          |
+| **Q3 · Q4**                                | **Answered** — see Open questions                                                         |
+| Everything else                            | Not started. See Suggested order.                                                         |
 
-None of the three PRs is merged or deployed as of writing.
+---
+
+## Session 95 — what measuring actually changed
+
+### G1 is finished being diagnosed. Both remaining slow pages had the same cause.
+
+`/frandev` was one 16-second query. **The Day Hub and Inventory are not.** They have a
+**floor**, measured read-only against production one query at a time:
+
+`PropertySummaries` is 977,886 rows / 481 MB, and its indexes carry two non-key columns
+between them. The workspace scope selects 20,374 rows. Reading an indexed column is an
+index-only scan; reading any other column is 20,374 scattered row fetches:
+
+| Same rows, same predicate — only the column changes | Time     |
+| --------------------------------------------------- | -------- |
+| `COUNT(*)`                                          | 143 ms   |
+| `COUNT(Status)` — in an index                       | 148 ms   |
+| `COUNT(Inserted)` — in an index                     | 131 ms   |
+| `COUNT(LeadCategory)` — not indexed                 | 1,353 ms |
+| `COUNT(Latitude)` — not indexed                     | 1,312 ms |
+
+- **Inventory (5.7 s)** is ONE read: `GetDataIssueBreakdown` at **4,217 ms**, while every
+  other read on the page is ≤ 1,315 ms. It fills a dropdown that is **hidden until
+  clicked**. PR #682 moves it off page load.
+- **Day Hub (4.9 s)** has no single slow query at all. Its worst read is the funnel at
+  2,341 ms (three queries run sequentially inside one method), then 1,563 / 1,105 /
+  1,058 ms. ~40 reads fire at once, so the wall clock is contention over ~9 s of total
+  database work.
+- **`GetDayHubPulse` is 2,665 ms and runs every ~12 seconds.** Its own comment says "must
+  stay cheap." Half of it is one unindexed `MAX(LastModified)`.
+- **`GetAvgCycleDays` has no callers** and measures 3,418 ms — a landmine if anyone wires
+  it up. `PropertyCalculations` is 4.2 GB. Left alone deliberately (scope).
+
+⚠ **A third rewrite measured slower than the original.** Driving the funnel from the date
+window instead of the scope: 1,627 ms vs the 786 ms the optimizer already picks. And four
+shapes of the duplicate-address `EXISTS` were tried; the best was still 2,424 ms against
+3,186 ms. After migration 243's `GROUP BY` at 19,159 ms vs 16,209 ms, that is three for
+three. **Measure before optimising is not a slogan on this codebase.**
+
+### P2 — Corey was right, and the earlier note here was wrong
+
+The previous section guessed this was a scoping bug in the read path. It is not.
+**`frandev_task` contains exactly one row.** The panel is empty because the table is empty.
+Nothing to fix in the query; the question is why nothing writes tasks.
+
+### D1 — "merge the duplicate journeys" is three different problems
+
+Only **4 contacts hold more than one active journey**, and they are not the same kind of
+thing. A tool that merged all four would destroy real data:
+
+| Contact            | Journeys                                            | What it is                                       |
+| ------------------ | --------------------------------------------------- | ------------------------------------------------ |
+| **Loretta Koonce** | `Loretta Koonce` + `Loretta  Koonce` (double space) | ✅ a real duplicate — the double space caused it |
+| **Jorge Villalta** | two identical names, both created the same day      | ✅ a real duplicate                              |
+| **NAH System**     | Global, Kane IL, Salt Lake North, Training          | ❌ **territory journeys — must NOT be merged**   |
+| **Jason Semper**   | Fresno CA East, Fort Worth West TX                  | ❌ **two territories he legitimately holds**     |
+
+That last pair is exactly the P1 warning ("an owner can hold several territories at once")
+showing up in the data. So D1 is: merge **two** journeys, and never key a merge on
+"one contact = one journey".
+
+⚠ **Jonathan Dreyer — the example in the original walkthrough — now has only ONE journey.**
+Whatever was on screen is no longer duplicated.
+
+### The orphan-journey trap is not hypothetical. It has already happened twice.
+
+`reference_journeys_merge` warned that contact merges leave orphaned active journeys.
+**Two active journeys in production point at a contact that has been merged away:**
+
+- **Jarrod Turner** — merged 14 Jul into a _different_ Jarrod Turner contact. The winner
+  has **no journey**, so the journey is stranded on the loser.
+- **Courtney McDonald** — merged 15 May into **Michael Scott**, who is a different person
+  and has his own active journey. ⚠ **That looks like a bad merge, not just an orphan.**
+
+This is a live data bug and it is worth more than a new merge tool.
+
+### D5 — a contact merge mechanism already exists and has run
+
+`frandev_contact` carries `MergedIntoContactId` and `MergedAt`, and **28 contacts are
+already merged**. 61 same-name groups remain (of 3,204 contacts). **Tom Winspear — the
+example in the walkthrough — now appears once.** So D5 is not "build a merge"; it is
+"finish the one that exists, and make it carry journeys" (see the orphans above).
+
+### D6 — emails are live, phones are five flat columns
+
+`frandev_contact_email` has **2,765 rows and 84 contacts with more than one email**, so the
+child table is not just present, it is in use — the record page simply doesn't read it.
+Phones are five separate columns with very different fill: `Phone` 3,060,
+`MarketingPhone` 31, `NexaPhone` 29, `PartnerPhone` 11, `RealEstatePhone` 5.
+
+### D7 — deriving the coach from the territory covers most of the book
+
+Q3 answered (derive from territory). **72 of 89 territories carry a `PrimaryCoach`.**
+`frandev_coach_assignment` is confirmed **empty (0 rows)**, which is why option (b) was the
+wrong bet.
 
 ---
 
@@ -121,7 +223,9 @@ change what the work is:
 - **G3 — Keep franchisees and prospects in MasterSuite, and use the MasterSuite fields that already
   exist rather than inventing new ones.** A lot of data (phones and such) is already housed —
   audit what is there first.
-- **G4 — Remove the emojis from tab names on every page.** — **blocked, needs Corey.**
+- **G4 — Remove the emojis from tab names on every page.** — **CLOSED (Corey, s95):** the
+  FontAwesome icons removed from the three record pages' tabs in #676 were the thing he
+  meant. Nothing further to do. The scan below stands as the record of why it looked stuck.
   There are none. Every tab on the three record pages is plain text with a FontAwesome icon:
   `Overview · Profile · Territories` (journey), `Overview · Profile · Personal EOS` (contact),
   `Overview · Ecosystem · Performance · Data · EOS` (territory). A repo-wide scan found 194
@@ -138,32 +242,46 @@ change what the work is:
   runs per-contact per-night.
 - **Q2 — Two lines in the notes were cut off:** a bare "Everything" under Data, and a trailing
   dash under Territory pages and under Pages. If those were headed somewhere, they are lost.
-- **Q3 — Where does "coach" live?** Options: (a) derive it from the person's territory
-  (`Territories.PrimaryCoach`, works today, but wrong for anyone with no territory or several);
-  (b) start using the empty `frandev_coach_assignment` table; (c) put a coach directly on the
-  contact. This decides D7.
-- **Q4 — "Same wiring as the Vercel site" (T4) needs a source of truth.** The Vercel app is the
-  reference for T1, T4 and P4. Confirm it is still deployed and reachable, or those three are
-  guesswork.
+- **Q3 — ANSWERED (Corey, s95): derive the coach from the person's territory.**
+  `Territories.PrimaryCoach`, which covers **72 of 89** territories. `frandev_coach_assignment`
+  was confirmed **empty**, so option (b) would have meant populating it first. The known
+  weakness is accepted: someone with no territory shows no coach, and someone with several
+  (Jason Semper, NAH System — see D1 above) needs a rule for which one wins.
+- **Q4 — ANSWERED (Corey, s95): the Vercel site is live** at
+  `https://nah-franchise-os-sandbox.vercel.app/frandev`. ⚠ **Better than screenshots: its
+  source is this very repo** (`app/(auth)/territories/[TerritorySlug]/page.tsx` and
+  siblings), so T1/T4/P4 parity can be read off the actual components and queries rather
+  than eyeballed off a rendered page. Read the source, not the screen.
 
 ---
 
-## Suggested order
+## Suggested order — revised after session 95
 
-Not a commitment — a recommendation, to be argued with.
+Steps 1–3 of the original order are done. What is left, re-ranked by what measuring taught us:
 
-1. **Look at T6 in the browser first.** It costs minutes and may delete an item from the list.
-2. **G1 (slow pages).** It taxes every other item on this list and every demo. **Measure before
-   changing anything** — the fix is worthless if we guess wrong about the cause.
-3. **The delete/cleanup batch: J8, C2, C3, T7, G4.** Small, safe, visible, and they make the pages
-   read the way Corey wants while the bigger work is underway.
-4. **G2 (the write layer).** Unlocks J2, J6, T8 and much of J4 in one go. Biggest single unlock.
-5. **G3 (the field audit), then D3 → D6 → D7.** The audit has to come first; standardising phone
-   formatting before knowing which columns we are standardising on is wasted work.
-6. **D1 / D5 (the merges).** Last of the data items, because a merge tool that gets it wrong is
-   worse than duplicates — and the orphaned-journey trap is real.
-7. **The Vercel-parity batch: T1–T5, P4.** Needs Q4 answered first.
-8. **The bigger builds: P1, P3, J1, J3, J4, J7, C1.** Each is its own session.
+1. ~~Look at T6 in the browser~~ · ~~G1~~ · ~~the cleanup batch~~ — **done** (#673, #674,
+   #675/#676, #678, #682).
+2. **Repair the two orphaned journeys, then guard the merge path.** This is a live data bug
+   with named rows, it is small, and one of the two (Courtney McDonald → Michael Scott) may
+   be a wrong merge that needs Corey's eye before anything is repointed. Do this before
+   building any merge UI, or the UI inherits the bug.
+3. **The Vercel-parity batch: T1, T2, T3, T5, P4.** Now unblocked, and cheaper than it
+   looked — the reference is source in this repo, not a screenshot. T2/T3/T5 are layout and
+   colour; T1 is a 3×3 grid. Small, visible, and they make the territory page read right.
+4. **G2 (the write layer).** Still the biggest single unlock: J6, T8, much of J4. J2 already
+   shipped through it in #678, so the pattern exists to copy.
+5. **D7 (coach), then D6 (emails first — the table is already full; phones second).** Both
+   now have known shapes, so neither needs discovery.
+6. **D1 / D5, scoped down.** Two journeys to merge, not a system. Never key a merge on "one
+   contact = one journey" — NAH System and Jason Semper prove that shape wrong.
+7. **P2 — find out why nothing writes `frandev_task`.** One row in the whole table is a
+   writer problem, not a reader problem.
+8. **The bigger builds: P1, P3, J1, J3, J4, J7, C1.** Each is its own session. J7 (hide
+   pipelines never entered) is the cheapest of these and worth pulling forward.
+
+## Still not started
+
+P1, P3, P4, J1, J3, J4, J6, J7, C1, T1–T5, T8, D1 (the 2 real ones), D5, D6, D7, G2, G3.
 
 ---
 
@@ -172,5 +290,16 @@ Not a commitment — a recommendation, to be argued with.
 Corey's walkthrough, 2026-08-08, after PR #669 (old pages deleted) and PR #670 (workspace picker
 persistence) were merged and deployed. Code checks in the "not what they look like" table were run
 read-only against the working tree at `54e14e0d2`; **no production data was queried**, so every
-statement here about _rows_ (tasks existing, duplicates existing) is still Corey's observation, not
-a verified count.
+statement there about _rows_ (tasks existing, duplicates existing) was still Corey's observation,
+not a verified count.
+
+**Session 95 closed that gap.** Every number in the "what measuring actually changed" section
+above was read from **production**, read-only, over `mysql2` using the `MASTERSUITE_DB_*`
+credentials in the sandbox's `.env.local` — query timings one at a time, row counts by direct
+`COUNT`. Nothing in that section is a prediction or an estimate. Where something is still
+unproven it says so.
+
+⚠ Two things in this document are still **not** verified by a browser: nothing from session 94 or
+95 has been clicked, because local authed MasterSuite pages cannot render on this machine
+(`CookieHelper` wants a `jwt` it cannot sign). T6 in particular is asserted from source, not from
+seeing the control on screen.
