@@ -1,91 +1,91 @@
-# Session Handoff — 2026-08-08 — Session 91
+# Session Handoff — 2026-08-08 — Session 92
 
 ## Status
 
-Phase: **FranDev → MasterSuite fold-in. The FranDev pipeline page is the Gunner pipeline page with journeys in it — built, shipped to production, and verified in a browser.** Three PRs merged and deployed (#661, #663, #664). / Health: Green / Duration: full session
+Phase: **FranDev → MasterSuite fold-in. An audit session, not a build session — the three record pages and the pipeline page were read, clicked on production, and checked against the live database. Four fixes found, fixed, shipped and verified.** PR #667 merged and deployed. / Health: Green / Duration: full session
 
-Worktree: `/Users/coreylavinder/Mastersuite/wt-s135-rowlinks`, now parked on branch `s136-done` at `origin/main` (`524a9ece4`). **Clean — nothing uncommitted, nothing unpushed.** The three session branches were merged and deleted on the remote.
+Worktree: **none — cleaned up.** `wt-s138-audit` and branch `s138-record-audit-fixes` were removed after the merge; the remote branch is still on GitHub, matching the house pattern. Nothing uncommitted, nothing unpushed.
 
 ## What Was Built This Session
 
-**#661 — the page reaches parity** (`Inventory.cshtml`, `Inventory.cshtml.cs`, new `FrandevService.PipelinePage.cs` + `IFrandevService.PipelinePage.cs` + `Entities/Frandev/FrandevPipelinePage.cs`)
+**First: the backfill question, answered with a query rather than a memory.**
 
-- **Strips align.** The Gunner lens never showed the problem because both its steppers hold six stages, so `flex:1` gave them the same six positions by coincidence. FranDev's hold 6/4/4/3/3, and each spread itself across the full width alone. `.fd-stepper` is one grid `--fd-cols` wide (the longest pipeline on the page), so stage 1 sits under stage 1 and a short pipeline stops early instead of re-centring.
-- **The control bar** — sorting, download, quick filters, in the property lens's idiom. Facets are urgency / pipeline / source / territory, every chip read from the journeys in scope (`GetPipelineFacetOptions`) so none can be clicked into an empty list. A Territories stage gets a deliberately shorter bar: those rows have no urgency, no source, no days-in-stage.
-- **Hide closed** in the same slot beside Pipeline | Kanban, **different default on purpose** — a terminal property is a finished deal, a terminal journey is an owner who signed. Off unless asked for, own localStorage key. The quick-filter pin store is per-lens too (a shared key had each lens purging the other's pins as "stale").
-- **The row** wears the property row's anatomy: two time chips, stage chip, name over contact, source / territory / pipeline / urgency, plus the next-open-task pill from ONE batched read (`GetPipelineNextTasks`).
-- **The pull-down** is the property pull-down's own `.pxd` skeleton, no new CSS: people + sub-stages left, conversation middle (shared `_GunnerConversation`), workflow right. Territory rows got the panel too.
+- **Production holds 99,711 FranDev rows across 92 of its 116 `frandev_` tables, loaded 2026-08-01** (commit `350f4bd`). Verified live this session — the count still matches exactly. The other 24 tables are empty _in Supabase too_, so they are honest, not failed.
+- The Aug 1 load matched source exactly after three quiet bugs were fixed that day: the prod guard was blocking the very account Ben's GRANT had just enabled, `insertBatch` was swallowing driver errors, and MariaDB's `json_valid()` CHECK was rejecting bare scalars.
+- **The data is a snapshot.** Newest contact/journey is Jul 30; it does not move until someone re-runs the push. Corey's call this session: no refresh yet — the territory/property half of every page is live MasterSuite anyway.
 
-**#663 — the row opens it, and a dead read stops hiding** (`Inventory.cshtml`, `_FrandevLeadPanel.cshtml`, `FrandevService.PipelinePage.cs`)
+**Then the audit — read the code, clicked production, ran the reads against the live DB.**
 
-- **Whole row opens the pull-down**, like the property row. Reverses s135's row-navigates behaviour — the journey page is still cmd-click and the panel's **Open journey →** link.
-- Each panel read is `Guarded()` on its own; the reason lands on `FrandevPanelExtras.ReadError` and **the panel prints it**. Primary contact always gets a tile; people falls back to `GetQuickPanel`'s members.
-- **Urgency and Name sorts deleted** (Corey: "not needed").
+- Every panel on all three record pages traced registry → catalog → partial → read. Dev mode's own scorecards agree: journey **18/18 cards, 21 values wired**; contact **18/18, 18 wired**; territory **20/20, 32 wired**; _all reads ok_ on each, and 0 JavaScript console errors anywhere.
+- 23 empty cards were checked and are honest — each states in plain English why it is empty, and the source table really is empty.
 
-**#664 — the collation fix** (`FrandevService.PipelinePage.cs`)
+**PR #667 — four fixes** (`FrandevService.Activity.cs`, `RecordFormat.cs`, the three V2 page models, `_RecordPage.cshtml`, plus a 28-file rename sweep)
 
-- `COALESCE(j.Slug, CAST(j.Id AS CHAR))` mixed `utf8mb4` with a CAST result. **Passed on dev, failed on every production row**, and because the throw was in the HEAD read it took the whole panel with it. Slug and Id now come back as separate columns and C# picks. Same treatment for the territory head's `Nickname`.
+- **Activity was wrong, not empty.** All three pages called `GetActivityFeed("all", 50)` — the newest fifty events _system-wide_ — then filtered to the record. A global LIMIT before the filter, so contacts with real history read `Activity (0)`. New `GetActivityFeedForRecord` scopes the union in SQL. **Both filters sit inside the union branches on base columns, never on the merged alias** — that is the collation rule from s91 applied on purpose.
+- **The assistant is Chiron everywhere** (Corey). FranDev said Scout, Gunner said Chiron, one click apart. Only the _name_ moved: `/frandev/scout`, `_ScoutDock.cshtml`, `ScoutModel`, `#scout-dock`, `frandev_scout_action_log` and the `"scout-chat"` agent scope all keep the old word, and the code now says why.
+- **The docks stopped trapping the last card.** The Chiron capsule and the DEV MODE pill are both viewport-fixed; the rail's Workflow agent card sat under one of them with nothing left to scroll. `.gn-person` reserves the band — `!important` because of an inline `padding`, 96px because that padding is inside the `zoom:.82` wrapper while the docks are outside it.
+- **Call titles were guest lists.** 40 of 465 calls carry a raw run of email addresses from the calendar invite. `RecordFormat.CallTitle` falls back to the call type on an `@` or a `Group Call w/` prefix.
 
 ## What Is Confirmed Working
 
-- **Verified in a browser on production, by clicking it** — click any journey row → the three-column pull-down opens with the contact tile (name · primary · phone), **Open journey →** resolving to `/frandev/journey-v2/jarrien-jones`, the stage's sub-stage checklist, a live conversation composer, and an honest empty Workflow card. Handler probed directly: `contactResolved` is a real uuid, `readError` empty.
-- **Strips align on screen** — Path to Ownership 6 / Onboarding 4 / Path to Inventory 4 / Territories 3 / Follow-up 3, all on the same six columns.
-- **Sort bar is P and S only**, with Download / Quick filters / Customize.
-- **CI green on all three PRs**; six gating suites run locally each time (Valuation 852, Coaching 255, Gunner 1633, Training 37, Chiron 194, Platform 74 = 3,045, 0 failures). Full `dotnet test MasterSuite.sln`: **5,083/5,083**.
-- **All three deploys succeeded** (build-test ✅, deploy ✅); prod responds 200.
-- Every new query was run against the dev database read-only — which caught the territory-owner collation bug before it shipped.
+- **Verified on production after the deploy, by clicking it.** James Choromanski's contact page read `ACTIVITY (0)` before and reads **`ACTIVITY (50)`** after, with real alert rows and a populated "last contact" tile. Every FranDev dock says **Ask Chiron**. The Workflow agent card sits clear of the capsule at the bottom of the page. Joanne McCann's journey lists `Group Call · 73m · Jul 28` where four cut-off email lists used to be.
+- **The new SQL was run against the PRODUCTION database before it shipped** — three contacts that returned nothing now return their fifty newest, with no `Illegal mix of collations`. Dev would have proven neither half.
+- **The CSS number was measured on the live page, not derived** — the card cleared the capsule by 2px at maximum scroll before, and by 69px after.
+- **The title rule was run against all 465 real rows** — 57 replaced, 408 kept exactly as written.
+- Build 0 errors; `MasterSuite.Platform.Tests` 74/74; CI "build and test" green in 4m14s; deploy `31255130451` succeeded.
+- **Dev mode works on production on a journey page** — the overlay draws its panel boxes, per-card PRODUCTION badges and the status bar. That is the render half of an item carried five sessions.
 
 ## What Is Broken or Incomplete
 
-- **The pull-down is mostly empty space on a quiet journey** — the shared `.pxd-cols` height is `clamp(540px, 88vh, 1100px)`, right for a busy property and tall for a journey with no messages and no workflow. Cosmetic, not yet raised by Corey — Low
-- **Workflow column is empty for nearly everyone** — every FranDev workflow is paused to DRAFT pending content. Honest, not broken — Low
-- **The next-task pill will show on ~one row** — `frandev_task` holds exactly ONE open task platform-wide. Wiring verified; data is simply thin — Low
-- **FranDev strip counts do not narrow with the quick filters** — pre-existing; the strip is how you navigate to a stage, and the `data-wire` note now says so out loud — Low
-- **The Gunner search box still drops quick filters and Hide closed on submit.** Fixed on the FranDev side only, deliberately, because Corey said not to touch Gunner. Real bug, reported not fixed — Medium
-- Writes not wired on the FranDev record pages — profile fields, notes, team, stakeholders still render honest empty states — Medium
-- No `MasterSuite.Modules.Frandev.Tests` — this session's whole service layer has no unit coverage — Medium
+- **Ungraded calls now all read "Group Call".** Honest and short, but not informative — those calls never got an AI title, so the type is all there is. Re-titling is a separate job — Low
+- **Some genuine AI titles run to 87 characters** and still get cut off in the rail. That is the titling prompt, not the page; trimming a real title on the way out would be the same mistake inverted — Low
+- **The Overview left column runs out early**, leaving a tall gap beside a long middle column. Most visible on a thin contact record — Low
+- **Casing is inconsistent in data-driven labels** — `Owner` beside `owner`, `PROSPECT` beside `Paid Ad`, names stored as `erick valeriano` — Low
+- **Writes still not wired on the record pages** — profile fields, notes, team, stakeholders, EOS goals. All are _deliberately_ disabled with tooltips and dev-mode annotations, so nothing pretends to work — Medium
+- No `MasterSuite.Modules.Frandev.Tests` — this session's service change has no unit coverage either — Medium
 
 ## Decisions Made
 
-- **Hide closed defaults OFF under the FranDev lens** (Gunner's defaults ON). A terminal journey is an owner who signed — Onboarded, Running, Closed are the franchise base, and defaulting them off-screen would hide the business — Claude, flagged to Corey
-- **Row click opens the pull-down, reversing s135** — Corey ("it does not have the inline pull down on rows" + "the pages should be almost identical"). Journey page kept via cmd-click and the panel's own link
-- **Urgency and Name sorts removed** — Corey ("not needed")
-- **New service methods rather than widening `GetLeadRows`** — that read is also the Contacts page's and wants none of this; the SELECT is shared so rows cannot drift — Claude
-- **Merging = deploying to production**, and Corey asked for it explicitly after being told the page was unverified — Corey
-- **A duplicate `const:` wire-prefix fix was dropped, not merged** — PR #657 landed the same fix mid-session, plus a `sql:` branch and Platform.Tests joining CI — Claude
+- **The assistant is Chiron on every page of MasterSuite** — Corey ("the assistant everywhere should be chiron now that we are in mastersuite")
+- **Rename the NAME only, never the plumbing** — route, file, model type and agent scope keep `scout`, because renaming a live route breaks saved links and renaming the agent scope orphans stored conversations — Claude
+- **No data refresh yet** — Corey ("most of it is coming from mastersuite live fields so that is good anyway"). Stale rows prove the wiring as well as fresh ones
+- **Deploy on green CI** — Corey, explicitly
+- **The call-title tell stays narrow** (`@` or `Group Call w/`) so a long _real_ title is still shown in full — Claude
+- **Fix the page, not the data, for call titles** — a backfill would fix it everywhere but is a titling job, raised not done — Claude
 
 ## Files Created
 
-- `apps/analysis-api/Entities/Frandev/FrandevPipelinePage.cs`
-- `apps/analysis-api/MasterSuite.Modules.Frandev/FrandevService.PipelinePage.cs`
-- `apps/analysis-api/MasterSuite.Modules.Frandev/IFrandevService.PipelinePage.cs`
+- `apps/analysis-api/MasterSuite.Modules.Frandev/FrandevService.Activity.cs` → `GetActivityFeedForRecord` (+95 lines in an existing file)
+- Memory: `reference_mastersuite_urls.md`, `decision_assistant_named_chiron.md`
 
 ## Files Modified
 
-- `apps/analysis-api/MasterSuite/Pages/Gunner/Inventory.cshtml`
-- `apps/analysis-api/MasterSuite/Pages/Gunner/Inventory.cshtml.cs`
-- `apps/analysis-api/MasterSuite/Pages/Gunner/_FrandevLeadPanel.cshtml`
-- `apps/analysis-api/Entities/Frandev/FrandevLeadRow.cs`
-- `apps/analysis-api/MasterSuite.Modules.Frandev/FrandevService.Pipeline.cs`
-- Sandbox: `handoff.md`
+- `MasterSuite.Modules.Frandev/`: `FrandevService.Activity.cs`, `IFrandevService.cs`
+- `Pages/Frandev/`: `JourneyV2.cshtml.cs`, `ContactV2.cshtml.cs`, `TerritoryV2.cshtml.cs`, `RecordFormat.cs`, `RecordPageVm.cs`, `_ScoutDock.cshtml`, `Scout.cshtml`, `Scout.cshtml.cs`, plus the rename sweep across `Activity`, `Call`, `Contact(s)`, `FrandevIndex`, `Journey`, `Knowledge`, `Messages`, `Territory`, `Workflow`
+- `Pages/Gunner/`: `ShellStyles/_RecordPage.cshtml`, `ShellStyles/_RecordShell.cshtml`, `GunnerSlotCatalog.cs`, `Activity.cshtml(.cs)`, `Inbox.cshtml.cs`
+- Sandbox: `handoff.md`, `MEMORY.md`
+
+29 files, +233 / −77.
 
 ## Files Deleted
 
-- None
+- None (worktree `wt-s138-audit` and local branch `s138-record-audit-fixes` removed after merge)
 
 ## Open Issues Carried Forward
 
-- **⚠️ COLLATIONS — three bugs in one feature, all the same shape.** `frandev_*` ids are `CHAR(36) ascii_bin`; names and slugs are `utf8mb4`. Any `CAST`/`COALESCE`/`CONCAT`/`GROUP_CONCAT` mixing the two can throw `Illegal mix of collations` — **and MariaDB does not decide it the same way on dev and prod.** Never let two collations meet in one expression when C# can do the job — High
-- **Running SQL against the dev database is NOT full verification.** It proves the queries parse and run _there_; it does not prove they run on prod, and it never exercises the C# mapper. Both gaps hid bugs this session — High
-- **Local browser verification is still impossible** (`CookieHelper.RedirectIfNotAuthenticated` wants a `jwt`; the signing secret is not on the machine) — **but driving Corey's Chrome at production works and is now the way to check UI.** That is how the panel bug was found — Medium
-- **Corey to flip the dev pill on a journey in prod** — retire a tab, reload, put it back. Carried a fifth session — High
-- **Ben still blocking the production `frandev_%` GRANT** for the outbound sync — High
-- **The two URL families still coexist** — `/frandev/journey/{key}` (v1) beside `/frandev/journey-v2/{key}`. Most FranDev-native pages still point at v1; the older board at `/frandev/pipeline` and list at `/frandev/territories` were left alone per Corey — Medium
-- Carried: Jessica AdminPanel bypass + prod permission audit; API key rotation; prod rollout data flips (nav row 76, Chad/Corey grants); `FRANDV` territory row absent from prod — High/Medium
+- **⚠️ COLLATIONS.** `frandev_*` ids are `CHAR(36) ascii_bin`; names and slugs are `utf8mb4`. Never let two collations meet in one expression when C# can do the job. Applied deliberately in this session's new query — High
+- **Running SQL against dev is NOT verification.** This session ran every new query against the PRODUCTION database read-only before shipping, and measured the CSS on the live page. Keep doing both — High
+- **Local browser verification is still impossible** (`CookieHelper` wants a `jwt` the machine cannot sign) — **driving Corey's Chrome at production is the way to check UI**, and it is how all four of this session's findings were made — Medium
+- **Corey to flip the dev pill on a journey in prod** — the overlay is now _confirmed rendering_ on production; what is still unproven is the write half: retire a tab, reload, put it back — Medium (was High)
+- **The two URL families still coexist** — `/frandev/journey/{key}` (v1) beside `/frandev/journey-v2/{key}` — Medium
+- **The FranDev data in MasterSuite is an Aug 1 snapshot.** Refresh before anyone reads a count as today's truth; the push is one script run — Medium
+- **Another window is on `wt-s137-contacts`** (branch `s137-contact-pages`) rebuilding the Gunner Buyer/Seller/Partner detail pages onto this same shell. Anything touching `_RecordShell` or `_RecordPage` will meet it — Medium
+- Carried: Jessica AdminPanel bypass + prod permission audit; API key rotation; prod rollout data flips (nav rows 76/77 still `Enabled=0`); `FRANDV` territory row absent from prod — High/Medium
+- **RESOLVED this session: "Ben still blocking the production `frandev_%` GRANT."** It was carried through three session wraps after it stopped being true — the grant landed before Aug 1, which is how prod got its 99,711 rows. Re-check a blocker before carrying it again — was High
 
 ## Exact Next Step
 
-Open `/Gunner/Inventory` on a FranDev stage, click a Territories dot and then a territory row, and confirm the territory pull-down resolves an owner the way the journey one now does — it is the one path in this feature that was built and deployed but never clicked.
+Open `/Gunner/Inventory` on a FranDev stage, click a Territories dot and then a territory row, and confirm the territory pull-down resolves an owner the way the journey one does — carried from session 91, still the one path in that feature that was built and deployed but never clicked.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -93,6 +93,6 @@ Open `/Gunner/Inventory` on a FranDev stage, click a Territories dot and then a 
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Open /Gunner/Inventory on a FranDev stage, click a Territories dot and then a territory row, and confirm the territory pull-down resolves an owner the way the journey one now does — it is the one path in this feature that was built and deployed but never clicked.
+Then: Open /Gunner/Inventory on a FranDev stage, click a Territories dot and then a territory row, and confirm the territory pull-down resolves an owner the way the journey one does — carried from session 91, still the one path in that feature that was built and deployed but never clicked.
 
 ---
