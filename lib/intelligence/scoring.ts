@@ -203,8 +203,22 @@ function scoreMomentum(p: CandidateIntelligence, changes: ScoreChange[]): number
   let score = 0;
 
   // Base momentum — having a score at all means some progress
-  const activeFlags = (p.active_flags as string[] | null) ?? [];
-  const stallAlerts = activeFlags.filter((f) => f.toLowerCase().includes("stall") || f.toLowerCase().includes("stale"));
+  //
+  // ⚠ `active_flags` holds OBJECTS, not strings. `generateFlags` writes
+  // `{ text, severity, category, createdAt }` and `updateCandidateFlags` stores that
+  // verbatim; the column is typed `Record<string, unknown>[]` to match. This used to cast
+  // to `string[]` and call `.toLowerCase()` on each entry, which threw
+  // "f.toLowerCase is not a function" for every candidate that had any flag —
+  // **470 of 500 sampled on production**. The throw was swallowed by the try/catch in each
+  // caller, so scores simply stopped updating for those candidates instead of erroring
+  // visibly. Strings are still accepted in case any old row holds the earlier shape.
+  const activeFlags = Array.isArray(p.active_flags) ? p.active_flags : [];
+  const stallAlerts = activeFlags
+    .map((f) => (typeof f === "string" ? f : String((f as Record<string, unknown>)?.text ?? "")))
+    .filter((text) => {
+      const t = text.toLowerCase();
+      return t.includes("stall") || t.includes("stale");
+    });
 
   if (stallAlerts.length === 0) {
     score += 15;

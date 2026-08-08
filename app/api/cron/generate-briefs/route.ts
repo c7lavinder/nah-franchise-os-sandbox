@@ -1,13 +1,25 @@
 export const dynamic = "force-dynamic";
+// The journey section calls Claude Haiku once per journey, so this needs real headroom.
+export const maxDuration = 300;
 
 /**
- * POST /api/cron/generate-briefs — regenerate stale contact + territory briefs.
+ * GET|POST /api/cron/generate-briefs — keep the contact, territory and journey briefs fresh.
  *
- * Runs nightly via Vercel Cron. Finds all briefs marked stale=true
- * and regenerates them. Also generates briefs for contacts/territories
- * that don't have one yet.
+ * Runs nightly (01:00). For each of the three record types it regenerates the briefs marked
+ * `stale = true`, then fills in records that have no brief yet, up to BATCH_SIZE each. The
+ * batch cap is what keeps a run inside its time limit; the backlog drains over successive
+ * nights rather than being attempted in one go.
  *
- * No LLM call — pure data aggregation for speed and cost.
+ * ⚠ Two corrections to what this file used to claim:
+ *
+ *  - It said "regenerate stale contact + territory briefs" and "no LLM call — pure data
+ *    aggregation". Contact and territory briefs are indeed pure aggregation, but
+ *    `generateAndStoreJourneyBrief` calls Claude Haiku once per journey. That is the cost
+ *    driver here and the reason for `maxDuration` above.
+ *  - It said "Runs nightly via Vercel Cron", but the path was never listed in `vercel.json`
+ *    and the route exported only POST. It has never run on a schedule: as of 2026-08-08
+ *    production held **0 contact briefs and 0 territory briefs**, and 58 journey briefs —
+ *    all of those written by the event-driven path, not by this job.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -52,15 +64,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 2. Generate briefs for contacts that don't have one yet (new contacts)
-  // Only contacts with at least one call (active leads)
-  const { data: newContacts } = await supabase
-    .from("contacts")
-    .select("id")
-    .not("id", "in", supabase.from("contact_briefs").select("contact_id"))
-    .limit(BATCH_SIZE);
-
-  // Supabase doesn't support subquery NOT IN, so use a different approach
+  // 2. Generate briefs for contacts that don't have one yet — only contacts with at least
+  //    one call, i.e. active leads. A brief for someone nobody has spoken to has nothing in it.
+  //
+  //    (A `.not("id", "in", <subquery>)` attempt used to sit here. Supabase's REST filter
+  //    cannot take a subquery, so it never filtered anything and its result was never read.
+  //    Removed — it was one wasted round trip per run.)
   const { data: existingBriefIds } = await supabase.from("contact_briefs").select("contact_id");
   const existingSet = new Set((existingBriefIds ?? []).map((r) => r.contact_id));
 
@@ -189,3 +198,9 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json(results);
 }
+
+/**
+ * ⚠ Vercel Cron invokes a scheduled path with **GET**. This route exported only POST, so
+ * every scheduled run answered 405 and did nothing. Same body, both verbs.
+ */
+export const GET = POST;

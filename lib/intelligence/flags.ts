@@ -59,12 +59,21 @@ export function generateFlags(profile: CandidateIntelligence): IntelligenceFlag[
   // ─── Engagement Flags ───
   const pct = profile.trainual_completion_pct ?? 0;
   if (pct === 0 && profile.trainual_last_activity === null) {
-    const daysSinceCreated = Math.floor(
-      (Date.now() - new Date(profile.created_at).getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const daysSinceCreated = Math.floor((Date.now() - new Date(profile.created_at).getTime()) / (1000 * 60 * 60 * 24));
     if (daysSinceCreated >= 5) {
+      // ⚠ The day count is deliberately NOT in this text any more.
+      //
+      // It used to read "… (47 days since created)". Two problems. A stored counter is only
+      // true on the day it was written, and since the nightly refresh never actually ran
+      // (the route answered POST while Vercel Cron sends GET), every flag on production
+      // still carried its 2026-03-27 number — a figure four months wrong on every record.
+      // And because the number changed daily, the flag set compared as "changed" for every
+      // candidate every night, which would force a rewrite of the whole book nightly for
+      // nothing but a moving digit.
+      //
+      // The flag states the fact; elapsed time belongs at render, derived from created_at.
       flags.push({
-        text: `PTO not started — 84% of candidates who don't start within 5 days never complete it (${daysSinceCreated} days since created)`,
+        text: "PTO not started — 84% of candidates who don't start within 5 days never complete it",
         severity: "critical",
         category: "engagement",
         createdAt: now,
@@ -81,7 +90,11 @@ export function generateFlags(profile: CandidateIntelligence): IntelligenceFlag[
     });
   }
 
-  if (profile.avg_response_time_hours !== null && profile.avg_response_time_hours !== undefined && profile.avg_response_time_hours > 72) {
+  if (
+    profile.avg_response_time_hours !== null &&
+    profile.avg_response_time_hours !== undefined &&
+    profile.avg_response_time_hours > 72
+  ) {
     flags.push({
       text: `Candidate has not responded in ${Math.round(profile.avg_response_time_hours / 24)} days — surface to Chad for personal touch`,
       severity: "warning",

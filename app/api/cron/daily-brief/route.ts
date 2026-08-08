@@ -179,3 +179,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+/**
+ * ⚠ Vercel Cron invokes a scheduled path with **GET**. This route exported only POST, so
+ * every scheduled run answered 405 and did nothing. Same body, both verbs.
+ */
+export const GET = POST;

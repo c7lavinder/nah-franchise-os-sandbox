@@ -70,9 +70,7 @@ export async function POST(request: NextRequest) {
       .select("ghl_contact_id, alert_type")
       .eq("is_resolved", false);
 
-    const existingAlertKeys = new Set(
-      (existingAlerts ?? []).map((a) => `${a.ghl_contact_id}:${a.alert_type}`)
-    );
+    const existingAlertKeys = new Set((existingAlerts ?? []).map((a) => `${a.ghl_contact_id}:${a.alert_type}`));
 
     // Load field mapping for Last Touch Date
     const { data: fieldMappings } = await supabase
@@ -212,3 +210,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Stale lead check failed" }, { status: 502 });
   }
 }
+
+/**
+ * ⚠ Vercel Cron invokes a scheduled path with **GET**. This route exported only POST, so
+ * every scheduled run answered 405 and did nothing. Same body, both verbs.
+ */
+export const GET = POST;
