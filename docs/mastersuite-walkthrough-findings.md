@@ -8,6 +8,22 @@
 
 ---
 
+## Status board (session 95)
+
+| Item                                       | State                                                                               |
+| ------------------------------------------ | ----------------------------------------------------------------------------------- |
+| **G1** performance                         | **PR #673** — root cause found and measured. One unindexed column, not "all pages". |
+| **J8 · C3 · T7 · C2** button/tail removals | **PR #674**                                                                         |
+| **D3** phone formatting                    | **PR #675**                                                                         |
+| **T6** dev-mode card stages                | **Already built** — look before building (see below)                                |
+| **G4** tab emojis                          | **Blocked** — no emoji tab names exist anywhere. Needs Corey to point at a page.    |
+| **Q1–Q4**                                  | **Blocked on Corey** — see Open questions                                           |
+| Everything else                            | Not started. See Suggested order.                                                   |
+
+None of the three PRs is merged or deployed as of writing.
+
+---
+
 ## Read this first — four items are not what they look like
 
 Before anything gets built, four of Corey's asks were checked against the source. The answers
@@ -90,13 +106,28 @@ change what the work is:
 
 ## Every page
 
-- **G1 — Pages load extremely slowly. They need to be near-instant.**
+- **G1 — Pages load extremely slowly. They need to be near-instant.** — **root cause found, PR #673.**
+  Measured on production. It is **not** all pages: `/dashboard` 0.5 s, `/frandev/pipeline` 0.9 s,
+  `/Gunner/Contacts` 0.9 s are all fine; `/Gunner/DayHub` 4.6 s and `/Gunner/Inventory` 6.6 s are
+  slow; `/frandev` is 13–16 s. On `/frandev`, **one query is 16.2 s and every other query is
+  ~0.12 s**. It filters `PropertyInventory` on `Inv_PurchaseDate`, which had no index — so it
+  reads 983,166 rows to find the 229 that can match.
+  ⚠ Rewriting that query was tried and **measured slower** (19.2 s). The shape was never the
+  problem. Do not retry it.
+  ⚠ `/Gunner/DayHub` and `/Gunner/Inventory` read the same column and _should_ improve, but that
+  is **unproven** — their own queries have not been timed individually.
 - **G2 — Everything on the page needs to be writable.** Writes are currently disabled on purpose,
   with tooltips. This is the parent of J2, J6 and T8 — one write layer serves all of them.
 - **G3 — Keep franchisees and prospects in MasterSuite, and use the MasterSuite fields that already
   exist rather than inventing new ones.** A lot of data (phones and such) is already housed —
   audit what is there first.
-- **G4 — Remove the emojis from tab names on every page.**
+- **G4 — Remove the emojis from tab names on every page.** — **blocked, needs Corey.**
+  There are none. Every tab on the three record pages is plain text with a FontAwesome icon:
+  `Overview · Profile · Territories` (journey), `Overview · Profile · Personal EOS` (contact),
+  `Overview · Ecosystem · Performance · Data · EOS` (territory). A repo-wide scan found 194
+  non-ASCII glyphs across 83 files, but they are arrows in code comments and UI glyphs
+  (`✓ ✕ ★ ⚙`). Real emoji exist on a few Gunner buttons (`👍 👎` on `Call.cshtml`), which is not
+  a tab name either. **Which page?**
 
 ---
 
