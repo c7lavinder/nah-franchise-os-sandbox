@@ -46,7 +46,7 @@ type Filter = (row: Row) => boolean;
 
 class Builder implements PromiseLike<{ data: unknown; error: { message: string } | null }> {
   private filters: Filter[] = [];
-  private mode: "select" | "insert" | "update" | "upsert" = "select";
+  private mode: "select" | "insert" | "update" | "upsert" | "delete" = "select";
   private payload: Row | Row[] | null = null;
   private opts: { onConflict?: string; ignoreDuplicates?: boolean } | null = null;
   private terminal: "single" | "maybeSingle" | null = null;
@@ -121,6 +121,13 @@ class Builder implements PromiseLike<{ data: unknown; error: { message: string }
     this.opts = opts ?? null;
     return this;
   }
+  // Real deletes arrived with the record-lifecycle handlers (delete_journey). The
+  // duplicate-email cleanup in applyUpdateContact uses this too — it just had no test
+  // reaching it, which is why the fake went this long without one.
+  delete() {
+    this.mode = "delete";
+    return this;
+  }
 
   then<TResult1, TResult2 = never>(
     onfulfilled?:
@@ -161,6 +168,13 @@ class Builder implements PromiseLike<{ data: unknown; error: { message: string }
     if (this.mode === "update") {
       const rows = this.matched();
       for (const row of rows) Object.assign(row, this.payload);
+      return this.finish(rows);
+    }
+
+    if (this.mode === "delete") {
+      const rows = this.matched();
+      const doomed = new Set(rows);
+      this.store.rows = this.store.rows.filter((r) => !doomed.has(r));
       return this.finish(rows);
     }
 
@@ -1672,7 +1686,7 @@ describe("applyNativeWrites — EOS add boxes and stakeholders", () => {
     expect(fakeSupabase.get("eos_contact_habits")).toHaveLength(0);
   });
 
-  it("a stakeholder lands under ms_slug with is_active true", async () => {
+  it("a stakeholder lands under the TerritorySlug COLUMN, not ms_slug", async () => {
     pendingRows = [
       journalRow(47, "create_stakeholder", {
         stakeholder_id: "stk-uuid-1",
@@ -1692,7 +1706,11 @@ describe("applyNativeWrites — EOS add boxes and stakeholders", () => {
 
     expect(result.applied).toBe(1);
     const row = fakeSupabase.get("territory_stakeholders")[0];
-    expect(row.ms_slug).toBe("kitty-hawk");
+    // ⚠ Migration 20260509000000 renamed ms_slug -> "TerritorySlug" across seventeen
+    // tables. The first version of this handler wrote ms_slug and would have inserted a
+    // row the app cannot read. The payload KEY is still ms_slug; only the column moved.
+    expect(row.TerritorySlug).toBe("kitty-hawk");
+    expect(row.ms_slug).toBeUndefined();
     // The surname keeps its spaces — MasterSuite splits on the FIRST space only.
     expect(row.last_name).toBe("Jo Van Der Berg");
     expect(row.is_active).toBe(true);
@@ -1718,5 +1736,174 @@ describe("applyNativeWrites — EOS add boxes and stakeholders", () => {
     const rows = fakeSupabase.get("territory_stakeholders");
     expect(rows).toHaveLength(1); // ⚠ still there, flagged — not deleted
     expect(rows[0].is_active).toBe(false);
+  });
+});
+
+/**
+ * The header actions Corey settled on 2026-08-08: retire (not delete) for the everyday
+ * case, delete only for a duplicate, transfer keeping the outgoing owner.
+ *
+ * ⚠ Every assertion below names a COLUMN, because that is what went wrong in the pass
+ * before this one. Migration 20260509000000 renamed `ms_slug` to `"TerritorySlug"` across
+ * seventeen tables and the first handlers were written against the old name — a write that
+ * type-checks, passes review, and inserts a row nothing can read.
+ */
+describe("applyNativeWrites — record lifecycle", () => {
+  beforeEach(() => {
+    fakeSupabase.tables.clear();
+    pendingRows = [];
+    statusUpdates.length = 0;
+    poolQuery.mockClear();
+  });
+
+  it("retiring a journey sets status archived — the only value the CHECK allows for this", async () => {
+    fakeSupabase.seed("journeys", [{ id: "journey-1", name: "Jon Dreyer", status: "active" }]);
+    pendingRows = [
+      journalRow(50, "archive_journey", {
+        journey_id: "journey-1",
+        previous_status: "active",
+        reason: "went quiet",
+        archived_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    // Not "retired", not "inactive" — journeys.status is active/archived/closed.
+    expect(fakeSupabase.get("journeys")[0].status).toBe("archived");
+  });
+
+  it("deleting a journey removes it, and lets Supabase's cascade take the children", async () => {
+    fakeSupabase.seed("journeys", [{ id: "journey-1", name: "dupe", status: "archived" }]);
+    pendingRows = [
+      journalRow(51, "delete_journey", {
+        journey_id: "journey-1",
+        journey_name: "dupe",
+        previous_status: "archived",
+        deleted_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.errors).toEqual([]);
+    expect(result.applied).toBe(1);
+    expect(fakeSupabase.get("journeys")).toHaveLength(0);
+  });
+
+  it("refuses to delete a journey that went active again after MasterSuite queued it", async () => {
+    // ⚠ The status is re-read here rather than trusted from the payload. MasterSuite
+    // refuses an active journey, but minutes can pass before the replay runs.
+    fakeSupabase.seed("journeys", [{ id: "journey-1", name: "back in play", status: "active" }]);
+    pendingRows = [
+      journalRow(52, "delete_journey", {
+        journey_id: "journey-1",
+        journey_name: "back in play",
+        previous_status: "archived",
+        deleted_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/reactivated/);
+    expect(fakeSupabase.get("journeys")).toHaveLength(1);
+  });
+
+  it("deleting an already-gone journey is a no-op, not a failure", async () => {
+    pendingRows = [
+      journalRow(53, "delete_journey", {
+        journey_id: "journey-gone",
+        journey_name: "x",
+        previous_status: "archived",
+        deleted_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+  });
+
+  it("retiring a territory sets status inactive on the TerritorySlug column", async () => {
+    fakeSupabase.seed("territories", [{ TerritorySlug: "kitty-hawk", status: "active" }]);
+    pendingRows = [
+      journalRow(54, "retire_territory", {
+        ms_slug: "kitty-hawk",
+        previous_status: "active",
+        retired_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(fakeSupabase.get("territories")[0].status).toBe("inactive");
+  });
+
+  it("a transfer end-dates the sitting owner and keeps them, then adds the new one", async () => {
+    // ⚠ Corey: keep the old owner, marked as ended. Deleting them loses the ownership
+    // history that end_date exists to record.
+    fakeSupabase.seed("territory_owners", [
+      { id: "owner-old", TerritorySlug: "kitty-hawk", contact_id: "contact-old", end_date: null },
+    ]);
+    pendingRows = [
+      journalRow(55, "transfer_territory", {
+        owner_id: "owner-new",
+        ms_slug: "kitty-hawk",
+        new_contact_id: "contact-new",
+        new_ghl_contact_id: "ghl-new",
+        notes: "sold the territory",
+        transferred_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const rows = fakeSupabase.get("territory_owners");
+    expect(rows).toHaveLength(2); // the old one is KEPT
+
+    const old = rows.find((r) => r.id === "owner-old")!;
+    const fresh = rows.find((r) => r.id === "owner-new")!;
+    expect(old.end_date).not.toBeNull();
+    expect(fresh.end_date).toBeNull();
+    // ⚠ The column, not the payload key.
+    expect(fresh.TerritorySlug).toBe("kitty-hawk");
+    expect(fresh.contact_id).toBe("contact-new");
+    expect(fresh.transfer_notes).toBe("sold the territory");
+  });
+
+  it("leaves exactly one current owner after a transfer", async () => {
+    // The reason end-dating must happen BEFORE the insert: both sides read "current owner"
+    // as end_date is null, and a window with two of them makes the header pick arbitrarily.
+    fakeSupabase.seed("territory_owners", [
+      { id: "owner-old", TerritorySlug: "kitty-hawk", contact_id: "contact-old", end_date: null },
+    ]);
+    pendingRows = [
+      journalRow(56, "transfer_territory", {
+        owner_id: "owner-new",
+        ms_slug: "kitty-hawk",
+        new_contact_id: "contact-new",
+        new_ghl_contact_id: null,
+        notes: null,
+        transferred_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    await applyNativeWrites();
+
+    const current = fakeSupabase.get("territory_owners").filter((r) => r.end_date === null);
+    expect(current).toHaveLength(1);
+    expect(current[0].contact_id).toBe("contact-new");
   });
 });

@@ -254,6 +254,7 @@ interface SetCallTypePayload {
 export const HANDLED_WRITE_TYPES = [
   "advance_stage",
   "approve_workflow_step",
+  "archive_journey",
   "board_move",
   "close_journey",
   "create_contact",
@@ -261,11 +262,13 @@ export const HANDLED_WRITE_TYPES = [
   "create_eos_item",
   "create_stakeholder",
   "create_task",
+  "delete_journey",
   "drop_journey",
   "mark_sms_read",
   "reject_workflow_step",
   "remove_stakeholder",
   "rename_journey",
+  "retire_territory",
   "revert_stage",
   "scout_memory_merge",
   "send_email",
@@ -273,6 +276,7 @@ export const HANDLED_WRITE_TYPES = [
   "set_call_type",
   "sub_task_log",
   "toggle_task",
+  "transfer_territory",
   "update_contact",
   "update_profile_field",
   "workflow_status",
@@ -316,6 +320,39 @@ interface RemoveStakeholderPayload {
   stakeholder_id: string;
   ms_slug: string;
   removed_by: string;
+}
+
+/** MasterSuite's "Retire journey" header action. Status goes to `archived`. */
+interface ArchiveJourneyPayload {
+  journey_id: string;
+  previous_status: string | null;
+  reason: string | null;
+  archived_by: string;
+}
+
+/** MasterSuite's "Delete journey". ⚠ A real delete — Supabase's FKs cascade the children. */
+interface DeleteJourneyPayload {
+  journey_id: string;
+  journey_name: string;
+  previous_status: string | null;
+  deleted_by: string;
+}
+
+/** MasterSuite's "Retire territory". Status goes to `inactive`. */
+interface RetireTerritoryPayload {
+  ms_slug: string;
+  previous_status: string | null;
+  retired_by: string;
+}
+
+/** MasterSuite's "Transfer". The outgoing owner is end-dated, never removed. */
+interface TransferTerritoryPayload {
+  owner_id: string;
+  ms_slug: string;
+  new_contact_id: string;
+  new_ghl_contact_id: string | null;
+  notes: string | null;
+  transferred_by: string;
 }
 
 export interface ApplyResult {
@@ -397,6 +434,14 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applyCreateStakeholder(JSON.parse(row.PayloadJson) as CreateStakeholderPayload);
       } else if (row.WriteType === "remove_stakeholder") {
         await applyRemoveStakeholder(JSON.parse(row.PayloadJson) as RemoveStakeholderPayload);
+      } else if (row.WriteType === "archive_journey") {
+        await applyArchiveJourney(JSON.parse(row.PayloadJson) as ArchiveJourneyPayload);
+      } else if (row.WriteType === "delete_journey") {
+        await applyDeleteJourney(JSON.parse(row.PayloadJson) as DeleteJourneyPayload);
+      } else if (row.WriteType === "retire_territory") {
+        await applyRetireTerritory(JSON.parse(row.PayloadJson) as RetireTerritoryPayload);
+      } else if (row.WriteType === "transfer_territory") {
+        await applyTransferTerritory(JSON.parse(row.PayloadJson) as TransferTerritoryPayload);
       } else {
         unhandled.add(row.WriteType);
         throw new Error(
@@ -1929,9 +1974,11 @@ async function applyCreateEosHabit(payload: CreateEosHabitPayload): Promise<void
 /**
  * Replay MasterSuite's Ecosystem "Add stakeholder" into `territory_stakeholders`.
  *
- * ⚠ The territory key is `ms_slug` here and `TerritorySlug` on the mirror — the same value
- * under two names, which is why the payload spells it `ms_slug` rather than carrying
- * MasterSuite's column name across.
+ * ⚠ The COLUMN is `TerritorySlug`, not `ms_slug`. Migration 20260509000000 renamed
+ * `ms_slug` -> `"TerritorySlug"` across territory_stakeholders, territory_owners and
+ * fifteen other tables, to match MasterSuite's naming. The payload KEY is still `ms_slug`
+ * because that is what MasterSuite already emits; only the column moved. Every live query
+ * confirms it — e.g. lib/calls/resolve-participants.ts selects "TerritorySlug".
  */
 async function applyCreateStakeholder(payload: CreateStakeholderPayload): Promise<void> {
   if (!payload.first_name?.trim()) throw new Error("create_stakeholder carried no name");
@@ -1941,7 +1988,7 @@ async function applyCreateStakeholder(payload: CreateStakeholderPayload): Promis
   const { error } = await supabase.from("territory_stakeholders").upsert(
     {
       id: payload.stakeholder_id,
-      ms_slug: payload.ms_slug,
+      TerritorySlug: payload.ms_slug,
       first_name: payload.first_name.trim(),
       last_name: payload.last_name?.trim() || null,
       email: payload.email?.trim() || null,
@@ -1969,6 +2016,103 @@ async function applyRemoveStakeholder(payload: RemoveStakeholderPayload): Promis
     .update({ is_active: false })
     .eq("id", payload.stakeholder_id);
   if (error) throw new Error(`territory_stakeholders remove failed: ${error.message}`);
+}
+
+/**
+ * Replay MasterSuite's "Retire journey" — `journeys.status` to `archived`.
+ *
+ * ⚠ `archived` is one of only three values the CHECK allows (active / archived / closed).
+ * "Retired" and "inactive" are the words people use; `archived` is what the column takes.
+ */
+async function applyArchiveJourney(payload: ArchiveJourneyPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const { error } = await supabase.from("journeys").update({ status: "archived" }).eq("id", payload.journey_id);
+  if (error) throw new Error(`journey archive failed: ${error.message}`);
+}
+
+/**
+ * Replay MasterSuite's "Delete journey" — a real delete, matching the property delete.
+ *
+ * ⚠ Only the parent row is deleted here. Unlike MasterSuite's mirror, which has no foreign
+ * keys and has to remove each child by hand, Supabase declares these relationships with
+ * ON DELETE CASCADE — so the children go with it. Deleting them individually first would
+ * be redundant and would risk diverging from whatever the schema actually cascades.
+ *
+ * ⚠ MasterSuite refuses to delete an ACTIVE journey or one that still holds calls. This
+ * re-checks the status rather than trusting the payload, because a journey can have been
+ * reactivated in the app between the native write and this replay.
+ */
+async function applyDeleteJourney(payload: DeleteJourneyPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+
+  const { data: current } = await supabase.from("journeys").select("status").eq("id", payload.journey_id).maybeSingle();
+
+  if (!current) return; // already gone — replaying a delete twice is a no-op
+
+  if (current.status === "active") {
+    throw new Error(
+      `journey ${payload.journey_id} is active in the app — it was reactivated after MasterSuite queued the delete`
+    );
+  }
+
+  const { error } = await supabase.from("journeys").delete().eq("id", payload.journey_id);
+  if (error) throw new Error(`journey delete failed: ${error.message}`);
+}
+
+/**
+ * Replay MasterSuite's "Retire territory" — `territories.status` to `inactive`.
+ *
+ * ⚠ The column is `TerritorySlug` on both sides — `territories.ms_slug` was renamed by
+ * migration 20260509000000. Only the payload KEY still says ms_slug.
+ */
+async function applyRetireTerritory(payload: RetireTerritoryPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const { error } = await supabase
+    .from("territories")
+    .update({ status: "inactive" })
+    .eq("TerritorySlug", payload.ms_slug);
+  if (error) throw new Error(`territory retire failed: ${error.message}`);
+}
+
+/**
+ * Replay MasterSuite's territory transfer.
+ *
+ * ⚠ Two writes in one action, and the ORDER matters: end-date the sitting owner, then add
+ * the new one. Both sides filter "current owner" on `end_date is null`, so doing it the
+ * other way round leaves a window where the territory has two current owners — and the
+ * territory header picks one of them arbitrarily.
+ *
+ * ⚠ The outgoing owner is KEPT, end-dated (Corey). Deleting them would lose the ownership
+ * history the `end_date` column exists to record.
+ */
+async function applyTransferTerritory(payload: TransferTerritoryPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { error: endError } = await supabase
+    .from("territory_owners")
+    .update({ end_date: today })
+    .eq("TerritorySlug", payload.ms_slug)
+    .is("end_date", null);
+  if (endError) throw new Error(`ending the previous owner failed: ${endError.message}`);
+
+  const { error: addError } = await supabase.from("territory_owners").upsert(
+    {
+      id: payload.owner_id,
+      TerritorySlug: payload.ms_slug,
+      // ⚠ contact_id was added later (migration 20260511200000) precisely so a territory
+      // lookup does not need a GHL round-trip. Both are written: ghl_contact_id still
+      // carries a real FK to contacts(ghl_contact_id).
+      contact_id: payload.new_contact_id,
+      ghl_contact_id: payload.new_ghl_contact_id,
+      role: "owner",
+      start_date: today,
+      end_date: null,
+      transfer_notes: payload.notes,
+    },
+    { onConflict: "id" }
+  );
+  if (addError) throw new Error(`adding the new owner failed: ${addError.message}`);
 }
 
 function attributed(text: string | null, username: string): string {
