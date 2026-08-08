@@ -1308,3 +1308,225 @@ describe("applyNativeWrites — approve_workflow_step / reject_workflow_step", (
     expect(result.errors[0]).toMatch(/already sent\/confirmed in the app/);
   });
 });
+
+/**
+ * ⚠ The three handlers below were MISSING until 2026-08-08, months after MasterSuite
+ * started journaling them. `update_profile_field` (its #686), `rename_journey` (its #678)
+ * and `set_call_type` all hit the dispatcher's final `else`, were marked `failed`, and
+ * would then have been overwritten by the nightly push — `journeys` and
+ * `contact_profile_fields` are both on its table list, so the push writes the stale
+ * Supabase value back over the native edit. That is the exact clobber the journal exists
+ * to prevent.
+ *
+ * Nothing was actually lost: `frandev_native_write` on production still held zero rows
+ * when the gap was found. The dispatch-coverage test at the bottom of this file is the
+ * guard so the next one is caught by CI instead of by hand.
+ */
+describe("applyNativeWrites — update_profile_field", () => {
+  beforeEach(() => {
+    fakeSupabase.tables.clear();
+    pendingRows = [];
+    statusUpdates.length = 0;
+    poolQuery.mockClear();
+  });
+
+  it("upserts the field with last_updated_by 'manual' and a JSON-encoded value", async () => {
+    pendingRows = [
+      journalRow(30, "update_profile_field", {
+        contact_id: "contact-1",
+        ghl_contact_id: "ghl-1",
+        field_name: "full_name",
+        field_label: "Full Name",
+        field_value: "Jon Dreyer",
+        previous_value: "Jonathan Dreyer",
+        source: "manual",
+        updated_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const row = fakeSupabase.get("contact_profile_fields")[0];
+    expect(row.contact_id).toBe("contact-1");
+    expect(row.field_name).toBe("full_name");
+    // JSON-encoded, matching setContactProfileField — the column is jsonb.
+    expect(row.field_value).toBe(JSON.stringify("Jon Dreyer"));
+    expect(row.last_updated_by).toBe("manual");
+  });
+
+  it("clears the field to a real null rather than the JSON string 'null'", async () => {
+    // MasterSuite stores SQL NULL on a clear so its "n of m filled" count falls; reads
+    // here filter on `field_value is not null`, so the two must agree.
+    fakeSupabase.seed("contact_profile_fields", [
+      { contact_id: "contact-1", field_name: "full_name", field_value: JSON.stringify("Jon"), last_updated_by: "ai" },
+    ]);
+    pendingRows = [
+      journalRow(31, "update_profile_field", {
+        contact_id: "contact-1",
+        ghl_contact_id: null,
+        field_name: "full_name",
+        field_label: "Full Name",
+        field_value: null,
+        previous_value: "Jon",
+        source: "manual",
+        updated_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const row = fakeSupabase.get("contact_profile_fields")[0];
+    expect(row.field_value).toBeNull();
+    expect(row.field_value).not.toBe("null");
+  });
+
+  it("fails the journal row when the two catalogs have drifted on a field name", async () => {
+    // MasterSuite's catalog is case-INSENSITIVE; this registry compares with ===. A name
+    // that resolved there but not here must fail loudly, not land an unreadable EAV row.
+    pendingRows = [
+      journalRow(32, "update_profile_field", {
+        contact_id: "contact-1",
+        ghl_contact_id: null,
+        field_name: "Full_Name",
+        field_label: "Full Name",
+        field_value: "Jon",
+        previous_value: null,
+        source: "manual",
+        updated_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/drifted/);
+    expect(fakeSupabase.get("contact_profile_fields")).toHaveLength(0);
+  });
+});
+
+describe("applyNativeWrites — rename_journey", () => {
+  beforeEach(() => {
+    fakeSupabase.tables.clear();
+    pendingRows = [];
+    statusUpdates.length = 0;
+    poolQuery.mockClear();
+  });
+
+  it("writes the new name onto the journey", async () => {
+    fakeSupabase.seed("journeys", [{ id: "journey-1", name: "Jonathan Dreyer" }]);
+    pendingRows = [
+      journalRow(33, "rename_journey", {
+        journey_id: "journey-1",
+        journey_slug: "jonathan-dreyer",
+        previous_name: "Jonathan Dreyer",
+        name: "Jon Dreyer",
+        updated_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(fakeSupabase.get("journeys")[0].name).toBe("Jon Dreyer");
+  });
+
+  it("fails rather than blanking the name when the payload carries an empty one", async () => {
+    fakeSupabase.seed("journeys", [{ id: "journey-1", name: "Jonathan Dreyer" }]);
+    pendingRows = [
+      journalRow(34, "rename_journey", {
+        journey_id: "journey-1",
+        journey_slug: "jonathan-dreyer",
+        previous_name: "Jonathan Dreyer",
+        name: "   ",
+        updated_by: "corey",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(fakeSupabase.get("journeys")[0].name).toBe("Jonathan Dreyer");
+  });
+});
+
+describe("applyNativeWrites — set_call_type", () => {
+  beforeEach(() => {
+    fakeSupabase.tables.clear();
+    pendingRows = [];
+    statusUpdates.length = 0;
+    poolQuery.mockClear();
+  });
+
+  it("resolves the slug to an id and repoints the call", async () => {
+    fakeSupabase.seed("call_types", [{ id: "type-2", slug: "discovery", name: "Discovery" }]);
+    fakeSupabase.seed("calls", [{ id: "call-1", call_type_id: "type-1" }]);
+    pendingRows = [journalRow(35, "set_call_type", { call_id: "call-1", type_slug: "discovery", changed_by: "corey" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(fakeSupabase.get("calls")[0].call_type_id).toBe("type-2");
+  });
+
+  it("fails on an unknown slug instead of nulling a NOT NULL column", async () => {
+    fakeSupabase.seed("call_types", [{ id: "type-2", slug: "discovery", name: "Discovery" }]);
+    fakeSupabase.seed("calls", [{ id: "call-1", call_type_id: "type-1" }]);
+    pendingRows = [journalRow(36, "set_call_type", { call_id: "call-1", type_slug: "nope", changed_by: "corey" })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/Unknown call type slug/);
+    expect(fakeSupabase.get("calls")[0].call_type_id).toBe("type-1"); // untouched
+  });
+});
+
+describe("applyNativeWrites — dispatch coverage", () => {
+  beforeEach(() => {
+    fakeSupabase.tables.clear();
+    pendingRows = [];
+    statusUpdates.length = 0;
+    poolQuery.mockClear();
+  });
+
+  /**
+   * The guard for the bug that produced the three handlers above.
+   *
+   * HANDLED_WRITE_TYPES is documentation — an exported list of what this app can replay,
+   * meant to be diffed against MasterSuite's emitters. Documentation that can be wrong is
+   * worse than none, so this feeds one journal row per listed type and asserts the
+   * dispatcher recognises every one. The payloads are empty, so most handlers fail on
+   * their own data; what matters is that NOTHING reports 'Unknown WriteType' and
+   * `unhandledTypes` stays absent.
+   */
+  it("dispatches every type in HANDLED_WRITE_TYPES — the list cannot claim more than the code does", async () => {
+    const { applyNativeWrites, HANDLED_WRITE_TYPES } = await import("@/lib/mastersuite/apply-native-writes");
+    pendingRows = HANDLED_WRITE_TYPES.map((t, i) => journalRow(100 + i, t, {}));
+
+    const result = await applyNativeWrites(HANDLED_WRITE_TYPES.length);
+
+    expect(result.pending).toBe(HANDLED_WRITE_TYPES.length);
+    expect(result.errors.filter((e) => e.includes("Unknown WriteType"))).toEqual([]);
+    expect(result.unhandledTypes).toBeUndefined();
+  });
+
+  it("reports a type MasterSuite journals but this app cannot replay, separately from a failed apply", async () => {
+    pendingRows = [journalRow(200, "some_future_write", { anything: true })];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.unhandledTypes).toEqual(["some_future_write"]);
+    expect(result.errors[0]).toMatch(/nightly push will otherwise overwrite it/);
+  });
+});

@@ -32,6 +32,8 @@ import type { GHLActionCode } from "@/lib/ghl/permissions";
 import { prepareEmailForTracking } from "@/lib/workflows/tracking";
 import { advanceDay } from "@/lib/workflows/enrollment";
 import { personalizeWorkflowText } from "@/lib/workflows/personalization";
+import { isValidFieldName } from "@/lib/profile/field-registry";
+import { resolveCallTypeBySlug } from "@/lib/calls/resolve-call-type";
 
 interface JournalRow extends RowDataPacket {
   Id: number;
@@ -201,16 +203,96 @@ interface RejectWorkflowStepPayload {
   rejected_by: string;
 }
 
+/** MasterSuite's Profile-tab inline edit (its #686). `field_value` null CLEARS the field. */
+interface UpdateProfileFieldPayload {
+  contact_id: string;
+  ghl_contact_id: string | null;
+  field_name: string;
+  field_label: string;
+  field_value: string | null;
+  previous_value: string | null;
+  source: string;
+  updated_by: string;
+}
+
+/** MasterSuite's journey rename (its #678). */
+interface RenameJourneyPayload {
+  journey_id: string;
+  journey_slug: string | null;
+  previous_name: string | null;
+  name: string;
+  updated_by: string;
+}
+
+/** MasterSuite's drag-retype on the CallsV2 board. */
+interface SetCallTypePayload {
+  call_id: string;
+  type_slug: string;
+  changed_by: string;
+}
+
+/**
+ * Every WriteType the dispatcher below knows how to apply.
+ *
+ * ⚠ This list is HALF of a contract. The other half lives in MasterSuite, and nothing
+ * mechanically ties them together — a write type added there and not here journals fine,
+ * fails replay, and then gets clobbered by the nightly push, because `journeys` and
+ * `contact_profile_fields` are both on the push's table list.
+ *
+ * That is not hypothetical: `update_profile_field`, `rename_journey` and `set_call_type`
+ * all shipped to production with no handler here and were found by diffing the two sides
+ * by hand on 2026-08-08. Nothing was lost only because `frandev_native_write` still held
+ * zero rows.
+ *
+ * To re-derive MasterSuite's side, from its repo root:
+ *   grep -rhon 'JournalNativeWrite(conn, tx, "[a-z_]*"' MasterSuite.Modules.Frandev/ \
+ *     | sed 's/.*"\(.*\)"/\1/' | sort -u
+ * Every name it prints must appear below. `applyNativeWrites` reports anything that does
+ * not as `unhandledTypes` so the gap is one named line in the cron result rather than a
+ * stack of per-row errors nobody reads.
+ */
+export const HANDLED_WRITE_TYPES = [
+  "advance_stage",
+  "approve_workflow_step",
+  "board_move",
+  "close_journey",
+  "create_contact",
+  "create_task",
+  "drop_journey",
+  "mark_sms_read",
+  "reject_workflow_step",
+  "rename_journey",
+  "revert_stage",
+  "scout_memory_merge",
+  "send_email",
+  "send_sms",
+  "set_call_type",
+  "sub_task_log",
+  "toggle_task",
+  "update_contact",
+  "update_profile_field",
+  "workflow_status",
+] as const;
+
+const HANDLED = new Set<string>(HANDLED_WRITE_TYPES);
+
 export interface ApplyResult {
   pending: number;
   applied: number;
   failed: number;
   skipped?: string;
   errors: string[];
+  /**
+   * Distinct WriteTypes seen that this app has no handler for — i.e. MasterSuite has
+   * shipped a write we cannot replay. Separated from `errors` because the fix is a code
+   * change here, not a retry.
+   */
+  unhandledTypes?: string[];
 }
 
 export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
   const result: ApplyResult = { pending: 0, applied: 0, failed: 0, errors: [] };
+  const unhandled = new Set<string>();
   if (!isWriteConfigured()) {
     result.skipped = "dev_db_not_configured";
     return result;
@@ -259,8 +341,18 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applyApproveWorkflowStep(pool, row.Id, JSON.parse(row.PayloadJson) as ApproveWorkflowStepPayload);
       } else if (row.WriteType === "reject_workflow_step") {
         await applyRejectWorkflowStep(JSON.parse(row.PayloadJson) as RejectWorkflowStepPayload);
+      } else if (row.WriteType === "update_profile_field") {
+        await applyUpdateProfileField(JSON.parse(row.PayloadJson) as UpdateProfileFieldPayload);
+      } else if (row.WriteType === "rename_journey") {
+        await applyRenameJourney(JSON.parse(row.PayloadJson) as RenameJourneyPayload);
+      } else if (row.WriteType === "set_call_type") {
+        await applySetCallType(JSON.parse(row.PayloadJson) as SetCallTypePayload);
       } else {
-        throw new Error(`Unknown WriteType '${row.WriteType}'`);
+        unhandled.add(row.WriteType);
+        throw new Error(
+          `Unknown WriteType '${row.WriteType}' — MasterSuite journals a write this app cannot replay. ` +
+            `Add a handler and list it in HANDLED_WRITE_TYPES; the nightly push will otherwise overwrite it.`
+        );
       }
       await pool.query(
         "UPDATE frandev_native_write SET Status = 'applied', AppliedAt = UTC_TIMESTAMP(), Error = NULL WHERE Id = ?",
@@ -278,6 +370,7 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
     }
   }
 
+  if (unhandled.size > 0) result.unhandledTypes = [...unhandled].sort();
   return result;
 }
 
@@ -1633,6 +1726,81 @@ async function applyUpdateContact(payload: UpdateContactPayload): Promise<void> 
   } catch (err) {
     console.error("[apply-native-writes] GHL contact sync failed:", err instanceof Error ? err.message : err);
   }
+}
+
+/**
+ * Replay MasterSuite's Profile-tab inline edit into `contact_profile_fields`.
+ *
+ * MasterSuite already resolved the name against its own catalog before writing, and all
+ * 212 of its catalog fields were diffed against this app's 224-field registry — so a
+ * well-formed journal row always passes `isValidFieldName`. It is still checked here:
+ * the two catalogs are separate lists that can drift, and a name this app does not know
+ * would otherwise land an unreadable row in the EAV table instead of a named failure on
+ * the journal row.
+ *
+ * `field_value: null` CLEARS the field rather than storing JSON `null`, matching what
+ * MasterSuite stores (SQL NULL) — reads filter on `field_value is not null`, so only a
+ * real null makes a "n of m filled" count fall on either side.
+ */
+async function applyUpdateProfileField(payload: UpdateProfileFieldPayload): Promise<void> {
+  if (!isValidFieldName(payload.field_name)) {
+    throw new Error(
+      `Unknown profile field '${payload.field_name}' — MasterSuite's catalog and this app's field registry have drifted`
+    );
+  }
+
+  const supabase = getServiceSupabase();
+  const value = payload.field_value?.trim() ? payload.field_value.trim() : null;
+
+  const { error } = await supabase.from("contact_profile_fields").upsert(
+    {
+      contact_id: payload.contact_id,
+      field_name: payload.field_name,
+      field_value: value === null ? null : JSON.stringify(value),
+      last_updated_by: "manual",
+      last_updated_at: new Date().toISOString(),
+    },
+    { onConflict: "contact_id,field_name" }
+  );
+  if (error) throw new Error(`contact_profile_fields upsert failed: ${error.message}`);
+}
+
+/**
+ * Replay MasterSuite's journey rename into `journeys.name`.
+ *
+ * ⚠ There is no `name_custom` column here — that flag is MasterSuite-only (its migration
+ * 244), and it is what makes a hand-typed name win over the derived one. The push maps
+ * only columns both sides share, so `NameCustom` is never in its UPDATE clause and
+ * survives untouched. Without this handler, though, `Name` IS shared: the rename failed
+ * replay, the push wrote the old Supabase name back over it, and `NameCustom = 1` then
+ * made the page display that stale name with full confidence.
+ */
+async function applyRenameJourney(payload: RenameJourneyPayload): Promise<void> {
+  const name = payload.name?.trim();
+  if (!name) throw new Error("rename_journey carried an empty name");
+
+  const supabase = getServiceSupabase();
+  const { error } = await supabase.from("journeys").update({ name }).eq("id", payload.journey_id);
+  if (error) throw new Error(`journey rename failed: ${error.message}`);
+}
+
+/**
+ * Replay MasterSuite's drag-retype on the CallsV2 board into `calls.call_type_id`.
+ *
+ * The slug is resolved to an id FIRST and an unknown one throws, because `call_type_id`
+ * is NOT NULL app-side (migration 20260420000200) — the same reason MasterSuite resolves
+ * before it writes. A typo must fail the journal row loudly, not null the column.
+ */
+async function applySetCallType(payload: SetCallTypePayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const slug = payload.type_slug?.trim();
+  if (!slug) throw new Error("set_call_type carried an empty slug");
+
+  const { id } = await resolveCallTypeBySlug(supabase, slug);
+  if (!id) throw new Error(`Unknown call type slug '${slug}'`);
+
+  const { error } = await supabase.from("calls").update({ call_type_id: id }).eq("id", payload.call_id);
+  if (error) throw new Error(`call retype failed: ${error.message}`);
 }
 
 function attributed(text: string | null, username: string): string {
