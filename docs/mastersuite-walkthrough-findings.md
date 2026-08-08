@@ -23,10 +23,15 @@
 | **D5** merge duplicate contacts            | **Rescoped** — a merge mechanism already exists and has run 28 times.                     |
 | **D6** multiple phones/emails              | **Rescoped** — the email table is live with 2,765 rows. Phones are 5 flat columns.        |
 | **D7** coach on the person                 | **Unblocked** — Q3 answered: derive from the territory. Covers 72 of 89 territories.      |
+| **T1 · T2 · T3 · T5** territory layout     | **PR #684** — T2 was real: 26 of 35 lead types shared one colour. See below.              |
+| **D1** the orphaned journeys               | **Fixed + repaired** (sandbox `4d07340`) — 1 of 3 repaired, 2 need Corey. See below.      |
 | **Q1**                                     | Still a conversation Corey wants to have                                                  |
 | **Q2**                                     | Still lost (two truncated lines)                                                          |
 | **Q3 · Q4**                                | **Answered** — see Open questions                                                         |
 | Everything else                            | Not started. See Suggested order.                                                         |
+
+Open PRs: **#682** (Day Hub + Inventory perf) and **#684** (territory layout + donut colours).
+Both unmerged. ⚠ #682 carries migration 245, which applies to production on merge.
 
 ---
 
@@ -103,6 +108,56 @@ Whatever was on screen is no longer duplicated.
   and has his own active journey. ⚠ **That looks like a bad merge, not just an orphan.**
 
 This is a live data bug and it is worth more than a new merge tool.
+
+### T2 — the pie chart really was one colour, and the cause was in the code
+
+`LeadTypeColor` matched **eight hard-coded keywords** and returned one pink for everything
+else. The data carries **35 distinct lead types and 26 of them — 57.6% of all rows — hit that
+pink.** In Nashville the 2nd, 4th, 8th, 9th and 10th biggest slices were the same colour.
+
+Fixed in PR #684. Two designs were tried and **rejected by the data**:
+
+- **A fixed global type → colour map** (so a type looks the same on every territory). No eight
+  types cover the book — the best eight by breadth still leave territory **CLTW at 0%
+  coverage**. Slots are therefore per chart.
+- **Generating a 9th hue.** Past eight, the tail folds into one gray bucket. It is called
+  **"Smaller types"**, not "Other", because ⚠ **"Other" is itself a real lead type** (2,006
+  rows, Nashville's second-biggest slice).
+
+⚠ The ring is **drawn in palette-slot order, never biggest-first.** The palette is validated
+only for _adjacent_ pairs; across all pairs red vs orange is ΔE 7.1 to normal vision (floor 15)
+and green vs orange is ΔE 3.2 to a protanope. Sorting the ring by size lets those pairs touch
+and read as one wedge.
+
+⚠ **This surfaced a G3 item:** the taxonomy has near-duplicate values — `Obituary` AND
+`Obituaries`, `ProspectNow` AND `Prospect Now`, `PropStream` AND `Propstream`. Cross-page
+colour stability is impossible until that is cleaned up, because it needs ≤8 canonical types.
+
+### D1 — the orphaned journeys are fixed, and 2 of 3 are waiting on Corey
+
+The cause was found in code, not guessed: `app/api/contacts/[contactId]/merge/route.ts`
+reassigns 20+ tables and closes `journey_contacts` memberships — **but never touched
+`journeys.primary_contact_id`**, the pointer that makes a journey reachable. Closing the
+memberships is exactly what made the hole look handled. **3 of the route's 5 real merges
+orphaned a journey.**
+
+Fixed (new step 3b, which runs _before_ the contact is marked merged) and pinned by 4 tests.
+`scripts/repair-orphaned-journey-primaries.ts` repairs existing rows and **refuses most of
+them on purpose**:
+
+| Journey             | Merged into   | Action                                               |
+| ------------------- | ------------- | ---------------------------------------------------- |
+| `Jarrod Turner`     | Jarrod Turner | ✅ **repaired** — same person, keeper had no journey |
+| `Vince Vitale`      | jo Vitale     | ⏸ **skipped — different people**                     |
+| `Courtney McDonald` | Michael Scott | ⏸ **skipped — different people, both active**        |
+
+Repointing assumes the merge was right. For those two the fix is to **undo the merge**, not to
+hand one person's journey to another — that needs Corey.
+
+⚠ **Also found, in the same file: `POST /api/contacts/[contactId]/merge` imports
+`requireAuth` and never calls it.** There is no `middleware.ts`, so nothing else gates it —
+a destructive endpoint that reassigns 20+ tables is unauthenticated. Not changed (scope), and
+it is a two-line fix following the pattern in `docs/security.md`.
 
 ### D5 — a contact merge mechanism already exists and has run
 
@@ -281,7 +336,15 @@ Steps 1–3 of the original order are done. What is left, re-ranked by what meas
 
 ## Still not started
 
-P1, P3, P4, J1, J3, J4, J6, J7, C1, T1–T5, T8, D1 (the 2 real ones), D5, D6, D7, G2, G3.
+P1, P2 (the writer question), P3, P4, J1, J3, J4, J6, J7, C1, T4, T8, D1 (the 2 real journey
+duplicates — Loretta Koonce and Jorge Villalta), D5, D6, D7, G2, G3.
+
+## Waiting on Corey
+
+1. **Merge #682?** It applies migration 245 to production on merge, with no reviewer gate.
+2. **The two bad-looking merges** — Courtney McDonald → Michael Scott, and Vince Vitale → jo
+   Vitale. Different people in both. Undo the merge, or accept it?
+3. **The unauthenticated merge endpoint** — fix now, or log it as its own task?
 
 ---
 
