@@ -11,6 +11,8 @@ export const dynamic = "force-dynamic";
  *        - calls.contact_id
  *        - contact_emails.contact_id (only emails not already on keeper)
  *        - journey_contacts.contact_id (re-link active memberships)
+ *        - journeys.primary_contact_id (see step 3b — added 2026-08-08 after
+ *          3 of this route's 5 merges were found to have orphaned a journey)
  *   2. Set merged_into_contact_id + merged_at on the duplicate.
  *   3. In GHL: add a note on the keeper + tag the duplicate as merged.
  *
@@ -135,6 +137,50 @@ export async function POST(request: NextRequest, { params }: { params: { contact
     steps.push({ step: "journey_memberships", ok: true, detail: `${(data ?? []).length} closed` });
   } catch (err) {
     steps.push({ step: "journey_memberships", ok: false, detail: err instanceof Error ? err.message : "failed" });
+  }
+
+  // 3b. journeys.primary_contact_id — the pointer that makes a journey REACHABLE.
+  //
+  //     ⚠ This step did not exist until 2026-08-08, and its absence is not
+  //     theoretical: of the 5 merges this route had performed, 3 left a journey
+  //     pointing at a contact that had just been marked merged-away. Measured on
+  //     production Supabase. Every merge where the duplicate happened to be a
+  //     journey's primary produced one.
+  //
+  //     Step 3 above closes MEMBERSHIPS (journey_contacts), which is a different
+  //     column in a different table, and closing them is what made this look
+  //     handled. A journey is found by its primary_contact_id; leave that on a
+  //     merged-away contact and the journey still exists, still says "active",
+  //     and is no longer reachable from the person it belongs to.
+  //
+  //     Repointing is right even when the keeper ALREADY has a journey. A person
+  //     holding several journeys at once is legitimate here, not a corruption —
+  //     NAH System holds four territory journeys and Jason Semper holds two, and
+  //     the pipeline design says so explicitly. An unreachable journey is strictly
+  //     worse than a second reachable one. The names are surfaced rather than just
+  //     a count, because this moves someone's journey onto another record and the
+  //     operator should see which.
+  try {
+    const { data, error } = await supabase
+      .from("journeys")
+      .update({ primary_contact_id: keepLocalId })
+      .eq("primary_contact_id", dupLocalId)
+      .select("id, name, status");
+    if (error) throw new Error(error.message);
+    const moved = data ?? [];
+    steps.push({
+      step: "journey_primary_contact",
+      ok: true,
+      detail: moved.length
+        ? `${moved.length} repointed to ${keepName}: ${moved.map((j) => `"${j.name}" [${j.status}]`).join(", ")}`
+        : "none pointed at the duplicate",
+    });
+  } catch (err) {
+    steps.push({
+      step: "journey_primary_contact",
+      ok: false,
+      detail: err instanceof Error ? err.message : "failed",
+    });
   }
 
   // 4. Bulk reassign tables keyed by contact_id (UUID) with no
