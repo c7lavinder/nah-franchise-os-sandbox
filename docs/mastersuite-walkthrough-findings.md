@@ -8,30 +8,79 @@
 
 ---
 
-## Status board (session 95)
+## Status board (session 96)
 
-| Item                                       | State                                                                                     |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| **G1** performance                         | **DONE for `/frandev`** (#673, 13–16 s → 0.3–0.9 s). **PR #682** for Day Hub + Inventory. |
-| **J8 · C3 · T7 · C2** button/tail removals | **Merged** — #674                                                                         |
-| **D3** phone formatting                    | **Merged** — #675 → #676 (one format across MasterSuite, the existing one)                |
-| **J2 · J5** journey rename, inline save    | **Merged** — #678                                                                         |
-| **G4** tab emojis                          | **CLOSED** — Corey: #676 was the thing he meant. No emoji tab names exist.                |
-| **T6** dev-mode card stages                | **Already built** — look before building (see below)                                      |
-| **P2** no tasks in system                  | **Corey was right, it is not a display bug** — `frandev_task` holds **1 row**. See below. |
-| **D1** merge duplicate journeys            | **Rescoped** — only **2 real** duplicates; 2 more are legitimate and must not be merged.  |
-| **D5** merge duplicate contacts            | **Rescoped** — a merge mechanism already exists and has run 28 times.                     |
-| **D6** multiple phones/emails              | **Rescoped** — the email table is live with 2,765 rows. Phones are 5 flat columns.        |
-| **D7** coach on the person                 | **Unblocked** — Q3 answered: derive from the territory. Covers 72 of 89 territories.      |
-| **T1 · T2 · T3 · T5** territory layout     | **PR #684** — T2 was real: 26 of 35 lead types shared one colour. See below.              |
-| **D1** the orphaned journeys               | **Fixed + repaired** (sandbox `4d07340`) — 1 of 3 repaired, 2 need Corey. See below.      |
-| **Q1**                                     | Still a conversation Corey wants to have                                                  |
-| **Q2**                                     | Still lost (two truncated lines)                                                          |
-| **Q3 · Q4**                                | **Answered** — see Open questions                                                         |
-| Everything else                            | Not started. See Suggested order.                                                         |
+| Item                                       | State                                                                                       |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| **G1** performance                         | **DONE** — #673 (`/frandev` 13–16 s → 0.3–0.9 s) and **#682 MERGED**, migration 245 live.   |
+| **G2** everything writable                 | **PR #686** — the 224-field Profile tab is writable on Contact + Journey. Clears J6's half. |
+| **J8 · C3 · T7 · C2** button/tail removals | **Merged** — #674                                                                           |
+| **D3** phone formatting                    | **Merged** — #675 → #676 (one format across MasterSuite, the existing one)                  |
+| **J2 · J5** journey rename, inline save    | **Merged** — #678                                                                           |
+| **G4** tab emojis                          | **CLOSED** — Corey: #676 was the thing he meant. No emoji tab names exist.                  |
+| **T6** dev-mode card stages                | **Already built** — look before building (see below)                                        |
+| **P2** no tasks in system                  | **Corey was right, it is not a display bug** — `frandev_task` holds **1 row**. See below.   |
+| **D1** merge duplicate journeys            | **Rescoped** — only **2 real** duplicates; 2 more are legitimate and must not be merged.    |
+| **D5** merge duplicate contacts            | **Rescoped** — a merge mechanism already exists and has run 28 times.                       |
+| **D6** multiple phones/emails              | **Rescoped** — the email table is live with 2,765 rows. Phones are 5 flat columns.          |
+| **D7** coach on the person                 | **Unblocked** — Q3 answered: derive from the territory. Covers 72 of 89 territories.        |
+| **T1 · T2 · T3 · T5** territory layout     | **PR #684** — T2 was real: 26 of 35 lead types shared one colour. See below.                |
+| **D1** the orphaned journeys               | **CLOSED** — all 3 repaired. Corey ruled the 2 different-name merges correct (s96).         |
+| **Q1**                                     | Still a conversation Corey wants to have                                                    |
+| **Q2**                                     | Still lost (two truncated lines)                                                            |
+| **Q3 · Q4**                                | **Answered** — see Open questions                                                           |
+| Everything else                            | Not started. See Suggested order.                                                           |
 
-Open PRs: **#682** (Day Hub + Inventory perf) and **#684** (territory layout + donut colours).
-Both unmerged. ⚠ #682 carries migration 245, which applies to production on merge.
+Open PRs: **#684** (territory layout + donut colours) and **#686** (the profile write layer).
+Neither carries a migration. **#682 merged and deployed**; its two indexes were confirmed
+present on production afterwards rather than assumed from a green deploy.
+
+---
+
+## Session 96 — the write layer, and what the profile data actually holds
+
+### G2 — the Profile tab is writable, and the pencil is conditional on purpose
+
+PR #686. `UpdateProfileField` upserts one row of `frandev_contact_profile_field` and
+journals `update_profile_field`, the same mirror-first contract as `UpdateContactFields`.
+The shell gains one generic `data-*`-driven inline editor so the next writable field is
+markup plus a handler rather than a third copy of the script.
+
+**Two kinds of row deliberately get an inert pencil.** Each would otherwise be an edit that
+looks saved on screen and then fails forever, silently:
+
+- **A field the catalog does not know.** The app's replay calls `setContactProfileField`,
+  which validates the name and **throws** on one its registry does not hold. The write would
+  save here, repaint the page, land in `frandev_native_write`, and fail on every replay.
+- **A structured value.** 2,990 of 5,085 rows hold a JSON object. The page receives the
+  _text_ of the object, so saving it back would store the text and lose the structure.
+
+Verified against production rather than assumed: `JSON_QUOTE` round-trips to what the read
+expects; `manual` is a real `LastUpdatedBy` (410 rows); `SourceHistory` is
+`[{value, updated_at, updated_by}]`; and all **212** catalog fields exist in the app's
+224-field registry, so anything the catalog renders is safe to write.
+
+### ⚠ G3 has a second concrete target: most profile keys match no catalog field
+
+Measured on production 2026-08-08 — **129 distinct field keys in
+`frandev_contact_profile_field`, and only 53 of them match a catalog field. The other 76
+all render in the "Other" bucket.**
+
+Two of the 76 are near-miss spellings, which is the G3 pattern exactly:
+
+| Stored in the data        | The catalog lists | Consequence                                                      |
+| ------------------------- | ----------------- | ---------------------------------------------------------------- |
+| `lookalike_score` (2,990) | `Lookalike Score` | the catalog row can never fill; the real values show under Other |
+| `lead_source`             | `LeadSource`      | same                                                             |
+
+Space-versus-underscore is a real difference. Each mismatched catalog row sits in its
+group's denominator permanently empty while its actual data appears elsewhere on the page —
+so "n of m filled" is understated for those groups. **Not fixed here** (scope discipline);
+this is G3's work, alongside the `Obituary`/`Obituaries` lead-type duplicates.
+
+The other 74 are keys the catalog never had at all — whole families of them (`first_rental_*`,
+`prior_primary_home_*`, `commitment_*`). Whether those belong in the catalog, or are dead
+keys from an earlier shape, is the first question G3 should answer.
 
 ---
 
@@ -273,11 +322,21 @@ change what the work is:
   problem. Do not retry it.
   ⚠ `/Gunner/DayHub` and `/Gunner/Inventory` read the same column and _should_ improve, but that
   is **unproven** — their own queries have not been timed individually.
-- **G2 — Everything on the page needs to be writable.** Writes are currently disabled on purpose,
-  with tooltips. This is the parent of J2, J6 and T8 — one write layer serves all of them.
+- **G2 — Everything on the page needs to be writable.** Writes were disabled on purpose, with
+  tooltips. The parent of J2, J6 and T8 — one write layer serves all of them.
+  **J2 shipped in #678; the Profile tab shipped in #686** (both record pages), which is J6's
+  profile half. **Still disabled and still to do:** the territory Data tab's native fields,
+  the Personal EOS add boxes (T8), the Ecosystem add/remove stakeholder controls, "Add
+  contact" and "Add note" on the shared Overview, and the header Merge / Delete / Transfer /
+  Retire actions. The generic `data-*` inline editor in `_RecordShell.cshtml` is the thing to
+  point them at — a new field should be markup plus a handler.
 - **G3 — Keep franchisees and prospects in MasterSuite, and use the MasterSuite fields that already
   exist rather than inventing new ones.** A lot of data (phones and such) is already housed —
-  audit what is there first.
+  audit what is there first. **Two concrete targets now, both measured:** the lead-type
+  near-duplicates (`Obituary`/`Obituaries`, `ProspectNow`/`Prospect Now`,
+  `PropStream`/`Propstream`), and the profile-key mismatch above — **76 of 129 stored keys
+  match no catalog field**, including `lookalike_score` vs `Lookalike Score` and `lead_source`
+  vs `LeadSource`.
 - **G4 — Remove the emojis from tab names on every page.** — **CLOSED (Corey, s95):** the
   FontAwesome icons removed from the three record pages' tabs in #676 were the thing he
   meant. Nothing further to do. The scan below stands as the record of why it looked stuck.
@@ -310,24 +369,23 @@ change what the work is:
 
 ---
 
-## Suggested order — revised after session 95
+## Suggested order — revised after session 96
 
-Steps 1–3 of the original order are done. What is left, re-ranked by what measuring taught us:
-
-1. ~~Look at T6 in the browser~~ · ~~G1~~ · ~~the cleanup batch~~ — **done** (#673, #674,
-   #675/#676, #678, #682).
-2. **Repair the two orphaned journeys, then guard the merge path.** This is a live data bug
-   with named rows, it is small, and one of the two (Courtney McDonald → Michael Scott) may
-   be a wrong merge that needs Corey's eye before anything is repointed. Do this before
-   building any merge UI, or the UI inherits the bug.
-3. **The Vercel-parity batch: T1, T2, T3, T5, P4.** Now unblocked, and cheaper than it
-   looked — the reference is source in this repo, not a screenshot. T2/T3/T5 are layout and
-   colour; T1 is a 3×3 grid. Small, visible, and they make the territory page read right.
-4. **G2 (the write layer).** Still the biggest single unlock: J6, T8, much of J4. J2 already
-   shipped through it in #678, so the pattern exists to copy.
-5. **D7 (coach), then D6 (emails first — the table is already full; phones second).** Both
+1. ~~T6~~ · ~~G1~~ · ~~the cleanup batch~~ · ~~the orphaned journeys~~ · ~~the merge-endpoint
+   hole~~ — **done** (#673, #674, #675/#676, #678, #682; sandbox `4d07340`, `42b434c`).
+2. **The Vercel-parity batch: T1, T2, T3, T5, P4.** T1/T2/T3/T5 are in **#684**, awaiting
+   merge. P4 (territory labels) is still open.
+3. **Finish G2.** The Profile tab shipped in #686; the pattern and the generic inline editor
+   now both exist, so the rest is mostly wiring. Best order by value: the **territory Data
+   tab** (native `Territories` fields — note this one needs a real column allowlist, since
+   unlike the EAV table a column name goes straight into the UPDATE), then **T8** (EOS add
+   boxes), then the Overview "Add note".
+4. **D7 (coach), then D6 (emails first — the table is already full; phones second).** Both
    now have known shapes, so neither needs discovery.
-6. **D1 / D5, scoped down.** Two journeys to merge, not a system. Never key a merge on "one
+5. **G3, now that it has concrete targets.** The profile-key mismatch (76 of 129) and the
+   lead-type near-duplicates. Start by deciding whether the 74 unknown keys belong in the
+   catalog or are dead.
+6. **D5 / D1's remaining two** (Loretta Koonce, Jorge Villalta). Never key a merge on "one
    contact = one journey" — NAH System and Jason Semper prove that shape wrong.
 7. **P2 — find out why nothing writes `frandev_task`.** One row in the whole table is a
    writer problem, not a reader problem.
@@ -336,15 +394,22 @@ Steps 1–3 of the original order are done. What is left, re-ranked by what meas
 
 ## Still not started
 
-P1, P2 (the writer question), P3, P4, J1, J3, J4, J6, J7, C1, T4, T8, D1 (the 2 real journey
-duplicates — Loretta Koonce and Jorge Villalta), D5, D6, D7, G2, G3.
+P1, P2 (the writer question), P3, P4, J1, J3, J4, J7, C1, T4, T8, D1 (the 2 real journey
+duplicates — Loretta Koonce and Jorge Villalta), D5, D6, D7, G3.
+J6 and G2 are **part done** — see the G2 entry under "Every page" for exactly what is left.
 
 ## Waiting on Corey
 
-1. **Merge #682?** It applies migration 245 to production on merge, with no reviewer gate.
-2. **The two bad-looking merges** — Courtney McDonald → Michael Scott, and Vince Vitale → jo
-   Vitale. Different people in both. Undo the merge, or accept it?
-3. **The unauthenticated merge endpoint** — fix now, or log it as its own task?
+1. **Merge #684?** (territory layout + donut colours). No migration; it deploys on merge.
+2. **Merge #686?** (the profile write layer). No migration; it deploys on merge.
+3. **Should merging a contact be admin-only?** The sandbox's
+   `POST /api/contacts/[id]/merge` is now authenticated but open to any signed-in role,
+   matching the Merge button in `LeadDetailView`, which is shown to everyone. Its sibling
+   `journeys/[id]/merge` requires admin. Making contacts match would be one line — and would
+   take the button away from the 9 `member` users who can use it today.
+
+_Answered in s96: #682 merged · both different-name merges ruled correct and their journeys
+repointed · the merge endpoint's auth hole closed now._
 
 ---
 
