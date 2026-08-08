@@ -3,9 +3,22 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
+ * ⚠ DELIBERATELY NOT SCHEDULED. This path is absent from `vercel.json` on purpose.
+ *
+ * Corey, 2026-08-08: hold every one of these jobs off until FranDev has moved off Vercel
+ * and onto MasterSuite completely. The code below is fixed and ready — it is the SCHEDULE
+ * that is withheld, not the fix. Re-adding the path to `vercel.json` is all it takes to
+ * start it, and that is a decision for after the move, not a tidy-up.
+ *
+ * The other three held back with it: score-recalculate, stale-leads, daily-brief,
+ * generate-briefs.
+ */
+
+/**
  * GET|POST /api/cron/generate-briefs — keep the contact, territory and journey briefs fresh.
  *
- * Runs nightly (01:00). For each of the three record types it regenerates the briefs marked
+ * Intended to run nightly once it is switched on (see the note above). For each of the three
+ * record types it regenerates the briefs marked
  * `stale = true`, then fills in records that have no brief yet, up to BATCH_SIZE each. The
  * batch cap is what keeps a run inside its time limit; the backlog drains over successive
  * nights rather than being attempted in one go.

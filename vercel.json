@@ -11,10 +11,6 @@
       "schedule": "0 23 * * *"
     },
     {
-      "path": "/frandev/api/cron/generate-briefs",
-      "schedule": "0 1 * * *"
-    },
-    {
       "path": "/frandev/api/cron/weekly-report",
       "schedule": "0 23 * * 0"
     },
@@ -65,18 +61,6 @@
     {
       "path": "/frandev/api/cron/workflow-analysis",
       "schedule": "0 6 * * *"
-    },
-    {
-      "path": "/frandev/api/cron/daily-brief",
-      "schedule": "30 7 * * *"
-    },
-    {
-      "path": "/frandev/api/cron/score-recalculate",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/frandev/api/cron/stale-leads",
-      "schedule": "0 8 * * *"
     },
     {
       "path": "/frandev/api/cron/sync-ms-territories",

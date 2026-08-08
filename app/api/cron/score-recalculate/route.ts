@@ -3,10 +3,22 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 /**
+ * ⚠ DELIBERATELY NOT SCHEDULED. This path is absent from `vercel.json` on purpose.
+ *
+ * Corey, 2026-08-08: hold every one of these jobs off until FranDev has moved off Vercel
+ * and onto MasterSuite completely. The code below is fixed and ready — it is the SCHEDULE
+ * that is withheld, not the fix. Re-adding the path to `vercel.json` is all it takes to
+ * start it, and that is a decision for after the move, not a tidy-up.
+ *
+ * The other three held back with it: score-recalculate, stale-leads, daily-brief,
+ * generate-briefs.
+ */
+
+/**
  * GET|POST /api/cron/score-recalculate
  *
  * Refreshes candidate intelligence scores and flags for the candidates most
- * overdue a check. Runs nightly (02:00).
+ * overdue a check. Intended to run nightly once it is switched on (see the note above).
  *
  * ⚠ WHY THIS IS NOT "EVERY CANDIDATE, EVERY NIGHT" ANY MORE.
  *

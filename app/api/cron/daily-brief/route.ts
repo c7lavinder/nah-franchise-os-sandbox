@@ -1,6 +1,18 @@
 export const dynamic = "force-dynamic";
 
 /**
+ * ⚠ DELIBERATELY NOT SCHEDULED. This path is absent from `vercel.json` on purpose.
+ *
+ * Corey, 2026-08-08: hold every one of these jobs off until FranDev has moved off Vercel
+ * and onto MasterSuite completely. The code below is fixed and ready — it is the SCHEDULE
+ * that is withheld, not the fix. Re-adding the path to `vercel.json` is all it takes to
+ * start it, and that is a decision for after the move, not a tidy-up.
+ *
+ * The other three held back with it: score-recalculate, stale-leads, daily-brief,
+ * generate-briefs.
+ */
+
+/**
  * POST /api/cron/daily-brief — generates a proactive daily brief per user.
  *
  * Runs at 7:30 AM daily via Vercel Cron. For each active user:
