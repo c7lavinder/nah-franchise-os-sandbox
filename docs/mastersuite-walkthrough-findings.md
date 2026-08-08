@@ -10,31 +10,33 @@
 
 ## Status board (session 97)
 
-| Item                                       | State                                                                                     |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| **G1** performance                         | **DONE** — #673 (`/frandev` 13–16 s → 0.3–0.9 s) and **#682 MERGED**, migration 245 live. |
-| **J7** hide unentered pipelines            | **PR #688** — 3,053 of 3,164 journeys are on exactly one pipeline. See below.             |
-| **G2** everything writable                 | **#686 merged** (profile) · **PR #689** (the territory Data tab, 26 fields). See below.   |
-| **⚠ Replay gap** (new, s97)                | **FIXED sandbox-side, `d2a0604`** — 3 write types MasterSuite journals had no handler.    |
-| **J8 · C3 · T7 · C2** button/tail removals | **Merged** — #674                                                                         |
-| **D3** phone formatting                    | **Merged** — #675 → #676 (one format across MasterSuite, the existing one)                |
-| **J2 · J5** journey rename, inline save    | **Merged** — #678                                                                         |
-| **G4** tab emojis                          | **CLOSED** — Corey: #676 was the thing he meant. No emoji tab names exist.                |
-| **T6** dev-mode card stages                | **Already built** — look before building (see below)                                      |
-| **P2** no tasks in system                  | **Corey was right, it is not a display bug** — `frandev_task` holds **1 row**. See below. |
-| **D1** merge duplicate journeys            | **Rescoped** — only **2 real** duplicates; 2 more are legitimate and must not be merged.  |
-| **D5** merge duplicate contacts            | **Rescoped** — a merge mechanism already exists and has run 28 times.                     |
-| **D6** multiple phones/emails              | **Rescoped** — the email table is live with 2,765 rows. Phones are 5 flat columns.        |
-| **D7** coach on the person                 | **Unblocked** — Q3 answered: derive from the territory. Covers 72 of 89 territories.      |
-| **T1 · T2 · T3 · T5** territory layout     | **PR #684** — T2 was real: 26 of 35 lead types shared one colour. See below.              |
-| **D1** the orphaned journeys               | **CLOSED** — all 3 repaired. Corey ruled the 2 different-name merges correct (s96).       |
-| **Q1**                                     | Still a conversation Corey wants to have                                                  |
-| **Q2**                                     | Still lost (two truncated lines)                                                          |
-| **Q3 · Q4**                                | **Answered** — see Open questions                                                         |
-| Everything else                            | Not started. See Suggested order.                                                         |
+| Item                                       | State                                                                                         |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| **G1** performance                         | **DONE** — #673 (`/frandev` 13–16 s → 0.3–0.9 s) and **#682 MERGED**, migration 245 live.     |
+| **J7** hide unentered pipelines            | **MERGED #688** — 3,053 of 3,164 journeys are on exactly one pipeline. See below.             |
+| **G2** everything writable                 | **Part done, all merged** — profile #686 · territory Data tab #689 · EOS + stakeholders #692. |
+| **T8** EOS editable in a tab               | **MERGED #692** — issues, to-dos and habits all add now.                                      |
+| **J1 · J4 · D7 · P4**                      | **MERGED #693** — see "Session 97" below.                                                     |
+| **⚠ Replay gap** (new, s97)                | **FIXED sandbox-side, `d2a0604`** — 3 write types MasterSuite journals had no handler.        |
+| **J8 · C3 · T7 · C2** button/tail removals | **Merged** — #674                                                                             |
+| **D3** phone formatting                    | **Merged** — #675 → #676 (one format across MasterSuite, the existing one)                    |
+| **J2 · J5** journey rename, inline save    | **Merged** — #678                                                                             |
+| **G4** tab emojis                          | **CLOSED** — Corey: #676 was the thing he meant. No emoji tab names exist.                    |
+| **T6** dev-mode card stages                | **Already built** — look before building (see below)                                          |
+| **P2** no tasks in system                  | **Corey was right, it is not a display bug** — `frandev_task` holds **1 row**. See below.     |
+| **D1** merge duplicate journeys            | **Rescoped** — only **2 real** duplicates; 2 more are legitimate and must not be merged.      |
+| **D5** merge duplicate contacts            | **Rescoped** — a merge mechanism already exists and has run 28 times.                         |
+| **D6** multiple phones/emails              | **Rescoped** — the email table is live with 2,765 rows. Phones are 5 flat columns.            |
+| **D7** coach on the person                 | **Unblocked** — Q3 answered: derive from the territory. Covers 72 of 89 territories.          |
+| **T1 · T2 · T3 · T5** territory layout     | **PR #684** — T2 was real: 26 of 35 lead types shared one colour. See below.                  |
+| **D1** the orphaned journeys               | **CLOSED** — all 3 repaired. Corey ruled the 2 different-name merges correct (s96).           |
+| **Q1**                                     | Still a conversation Corey wants to have                                                      |
+| **Q2**                                     | Still lost (two truncated lines)                                                              |
+| **Q3 · Q4**                                | **Answered** — see Open questions                                                             |
+| Everything else                            | Not started. See Suggested order.                                                             |
 
-Open PRs: **#688** (J7) and **#689** (the territory Data tab). Neither carries a migration.
-#682, #684, #685 and #686 are all merged and deployed.
+**No open FranDev PRs.** Everything below is merged: #682, #684, #685, #686, #688, #689,
+#692, #693. None carried a migration.
 
 ---
 
@@ -118,6 +120,56 @@ Four rows stay read-only because a one-line box is the wrong control, not becaus
 is unwanted: compliance score (a `<= 1 ? x*100 : x` render heuristic), the GHL location id
 (repoints an integration), "Phone systems" (computed from three booleans), and territory
 status (read from the header).
+
+---
+
+### T8 + G2's stakeholders — the last additive writes (#692)
+
+Four controls that had been on screen and disabled since the pages were built: add an EOS
+issue / to-do / habit, add a stakeholder, remove a stakeholder.
+
+⚠ Unlike #689's territory writes, every table here IS a Supabase mirror, so these journal —
+and **the four matching replay handlers went into the sandbox in the same change**
+(`b14dcfc`). That is the direct lesson of the three orphaned write types found earlier the
+same session.
+
+⚠ **The cadence trap, and it is the standing one made concrete.** `eos_contact_habits.cadence`
+carries a Postgres CHECK — `('daily','weekly','biweekly','monthly','quarterly')` — that the
+mirror's plain `varchar(16)` does not. The tab's dropdown reads **"Bi-weekly"**, which passes
+MasterSuite and fails Supabase. Both sides now normalise, because two copies of a list drift.
+
+⚠ **Owners are not stakeholders.** The Add form does not offer the role, `RemoveStakeholder`
+refuses one, and the owner rows keep an inert trash icon that says why. Removal is a SOFT
+delete on both sides — a hard DELETE would be undone by the next push, an upsert-by-PK from
+a Supabase row that still exists.
+
+### J1 · J4 · D7 · P4 (#693)
+
+- **J1** — the page opened Path to Ownership whenever the journey was on it, so a candidate
+  who finished it months ago landed on a stepper reading "Closed". Measured on Corey's own
+  example: Dreyer's `sales` is at "Closed" (6 of 6), `onboarding` at "Training" (1 of 3). He
+  now lands on Onboarding. ⚠ Falls back to the LAST pipeline when all are finished, not the
+  first.
+- **J4** — `LogSubTask` had existed since the wave-2 writes with **no caller**. Now each
+  sub-stage ticks on its own. ⚠ The tick stops propagation, or the stage card around it
+  advances the whole stage. Font 10.5px → 12px.
+- **D7** — the Team card on both pages was permanently empty. It now carries the coach,
+  derived from the territory and labelled with which territory it came from. ⚠ 72 of 89
+  territories have one, so the empty case is normal and now says which of two reasons applies.
+- **P4** — the pipeline filter listed territories by slug (`NOVAVA`, `BTNRGE`, `ALCHUA`). It
+  now reads "Northern VA", "Baton Rouge SE, LA", "Alachua FL", while still filtering on the
+  slug. The journey page already did this correctly; the filter was the one place left.
+
+### What G2 still does not cover
+
+Merged: the Profile tab, the territory Data tab, the EOS add boxes, the Ecosystem
+stakeholders. **Deferred, with a reason each rather than silence:**
+
+| Control                            | Why not yet                                                                                                                                                                       |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Add note" on Overview             | No notes table is wired to that panel, and its own empty text says FranDev deliberately keeps written context in briefs and call summaries. Picking a store is a design decision. |
+| "Add contact" on Overview          | Needs a picker / create modal.                                                                                                                                                    |
+| Merge · Delete · Transfer · Retire | Destructive, and each needs Corey's semantics first.                                                                                                                              |
 
 ---
 
@@ -511,8 +563,15 @@ to be a deliberate one-off run, not left to a 25-a-night trickle.
 
 ## Waiting on Corey
 
-1. **Merge #688?** (J7 — hide pipelines never entered). No migration; it deploys on merge.
-2. **Merge #689?** (the territory Data tab write layer). No migration; it deploys on merge.
+1. **⚠ Nothing here has been clicked in a browser.** Local authed pages cannot render
+   (`CookieHelper` wants a `jwt` it cannot sign), so every write shipped this session is
+   verified by test and by build, not by use. Worth a pass: a pencil saves and flashes
+   green; an EOS box appends a row and the count goes up; a stakeholder adds and removes;
+   a sub-stage ticks without advancing the whole stage.
+2. **The four destructive header actions need your semantics before they can be built** —
+   Merge, Delete, Transfer, Retire. What happens to a retired territory's journeys? To a
+   deleted journey's pipeline states, calls and documents? Guessing that in code is how
+   the orphaned-journey trap happened twice.
 3. **Should merging a contact be admin-only?** The sandbox's
    `POST /api/contacts/[id]/merge` is now authenticated but open to any signed-in role,
    matching the Merge button in `LeadDetailView`, which is shown to everyone. Its sibling
