@@ -1,16 +1,20 @@
-# Session Handoff — 2026-08-09 — Session 99
+# Session Handoff — 2026-08-09 — Session 99 (continued: the final four)
 
 ## Status
 
-Phase: **FranDev → MasterSuite fold-in. The hammer-through session: every merge landed,
-Notes went live end-to-end (and its read bug was caught ON production within the hour),
-tasks became writable, the native popups are dead, and the duplicate data got cleaned —
-four PRs merged, two sandbox pushes, eleven of fifteen tracked items closed.** /
-Health: Green / Duration: full session
+Phase: **FranDev → MasterSuite fold-in. THE WALKTHROUGH LIST IS DONE.** The session's
+second half shipped the last four builds in ONE PR (#706, Corey: "put it all on one
+PR"): the two-kind pipeline board (P1), the slide-out that advances (P3), the team chat
+(J3), and the contact lifecycle — Merge ×2 as a true extraction, Delete with a
+generated child sweep. All verified on production after deploy. /
+Health: Green / Duration: double session
 
-Sandbox `main` pushed. MasterSuite `main` at `73662ea5e` — **#698, #700, #702, #704 all
-merged and deployed this session** (plus #703, which was NOT this session's work — see
-below). No PRs of ours are open. No worktrees of ours remain.
+First half: #698 #700 #702 #704 merged (Notes E2E + its read bug, tasks writable, D6
+emails, C1 contacts, T4 parity, sub-stage fixes, popups dead, G3 renames, D5 merges,
+D1 retires). Second half: sandbox `7af7290` (merge extraction + 2 replay handlers,
+deployed FIRST) then MasterSuite **#706**. External PRs #703, #705?, #707 merged
+around ours and are NOT this session's work. No PRs of ours open; no worktrees of ours
+remain.
 
 ---
 
@@ -18,12 +22,9 @@ below). No PRs of ours are open. No worktrees of ours remain.
 
 ### Needs Corey (1 item)
 
-| #   | Item                                                       | Why it is his                                                                                                                                                       |
-| --- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **Review `docs/duplicate-contacts-review.md`** (57 groups) | Same-name contacts with NO shared email/phone — merging two different people is destructive, so each needs a human call. Merge from Lead detail → Merge in the app. |
-
-**The old "click Retire on loretta-koonce-2" item is GONE** — done this session, through
-the production handler (see Decisions). The old "merge #698/#700" item is GONE — merged.
+| #   | Item                                                       | Why it is his                                                                                                                                                                                                                          |
+| --- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Review `docs/duplicate-contacts-review.md`** (57 groups) | Same-name contacts with NO shared email/phone — merging two different people is destructive, so each needs a human call. ⚠ The Merge button now works IN MASTERSUITE too (both record pages), so he can work the list from either app. |
 
 ### Blocked on Ben — unchanged
 
@@ -31,17 +32,44 @@ the production handler (see Decisions). The old "merge #698/#700" item is GONE �
   snapshot; MAX(UpdatedAt) proves nothing has pushed since).
 - Jessica AdminPanel bypass + prod permission audit; API key rotation.
 
-### The walkthrough list — what genuinely remains
+### The walkthrough list
 
-| Item               | What is left                                                                                                                                                                                                                                     | Severity   |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| **Merge (×2)**     | Still disabled in MasterSuite. An EXTRACTION of the app's 410-line merge (`app/api/contacts/[contactId]/merge/route.ts`) — the route itself is healthy now (step 3b fixed, 9 clean runs today)                                                   | **Medium** |
-| **Delete contact** | 25 mirror tables, no FKs. Needs a GENERATED child list                                                                                                                                                                                           | **Medium** |
-| **P1**             | Pipelines list journeys _and_ territories (a person can sit at two stages — that duality is LEGITIMATE per the one-journey-per-territory model; the fix is presentation, not dedup)                                                              | **Medium** |
-| **P3**             | ONLY the pipeline page's slide-out visual work remains — the three sub-stage bugs are FIXED (#704) and advance-to-next-full-stage exists as the clickable stage cards                                                                            | **Medium** |
-| **J3**             | Activity panel → internal team chat, like Gunner's. The biggest remaining build                                                                                                                                                                  | **Medium** |
-| **G3 tail**        | 71 orphan profile keys remain (203 rows, mostly 1-row AI extractions like `first_rental_*`) — they need REGISTRY ENTRIES in lib/profile/field-registry.ts, not renames. The 5 near-miss keys (3,054 rows incl. lookalike_score's 2,990) are DONE | **Low**    |
-| **Q2**             | CLOSED — the two truncated lines are unrecoverable; recorded here and nothing further to do                                                                                                                                                      | closed     |
+**EMPTY.** All 15 tracked items closed. The only tail: **G3's 71 orphan profile keys**
+(203 rows, mostly 1-row AI extractions like `first_rental_*`) need REGISTRY ENTRIES in
+lib/profile/field-registry.ts app-side — an enhancement, not a walkthrough item.
+
+---
+
+## The final four (#706 + sandbox 7af7290) — what shipped
+
+- **P1** — the kanban's Territories pipeline is entity-typed and its columns rendered
+  EMPTY while the stage bar counted 89; the board now fills them with territory cards
+  from the same source the bar counts (undraggable → territory record). Fanned-out
+  onboarding/runway cards (one state per journey × territory) carry a territory TAG, so
+  one owner's several same-name cards finally say which is which. Verified: 89 tcards,
+  193 tags on production.
+- **P3** — "Advance to next stage →" in the pipeline slide-out (armed two-click →
+  `AdvanceStateByStateId` → the ONE journaled advance), done-count in the header,
+  bigger hover-lit checklist rows. Verified: button renders in the live panel.
+- **J3** — the journey Activity panel IS the team chat now. `frandev_journey_chat`
+  (migration -248): MasterSuite-native, deliberately UNJOURNALED — the team's internal
+  record lives where the team lives, like Gunner's property chat (unreusable:
+  PropertyId INT NOT NULL + cascade FK). Oldest first, composer at bottom, Ctrl+Enter
+  sends, names via frandev_user. DeleteJourney's child list names the table in the
+  SAME change. Verified: message posted and rendered on production.
+- **Merge ×2** — live on Journey + Contact pages. The mirror does the MINIMUM
+  (tombstone, close memberships, repoint journey primaries) + journals `merge_contact`;
+  replay calls **lib/contacts/merge.ts — the same extracted function the app's route
+  now runs** (route is a 50-line shell). Shared picker partial `_FrandevMergePanel`,
+  armed two-click. Verified: panel renders on both pages.
+- **Delete contact** — live, with DeleteJourney's discipline: refused unless merged-away
+  duplicate or untouched (the app has NO contact delete and its schema forbids one on a
+  journey — `journey_contacts` is ON DELETE RESTRICT). Child sweep GENERATED from
+  information*schema (33 `frandev*%` tables carry ContactId today; new tables sweep
+  automatically). Verified: live-contact delete REFUSED on production with the sentence.
+- **Contract**: 33 emitters / 33 handled, handlers deployed BEFORE emitters. Chat DDL
+  run against prod to the privilege check. Guard tests mutation-verified.
+  `dotnet test` **5,300/5,300**; sandbox tsc 0, build clean, vitest 318/318.
 
 ---
 
@@ -229,21 +257,26 @@ misparses "push <word>" ANYWHERE in a command — including inside a commit mess
 ### Held until FranDev is off Vercel (Corey, s96) — unchanged
 
 Four nightly jobs remain deliberately unscheduled. `frandev_native_write` now holds
-**13 pending rows** — all apply the moment replay is switched on. Journey briefs are
-still a ~3,175-call deliberate run.
+**14 pending rows** (the 13 + one create_task; merge_contact/delete_contact journal
+only when someone uses the new buttons) — all apply the moment replay is switched on.
+Journey briefs are still a ~3,175-call deliberate run.
+
+**Test residue, all deliberate and labeled**: the s98 EOS issue and one open
+verification task on MaxTest Bot; three soft-deleted probe notes; one team-chat
+message on `jorge-villalta-2` (an archived duplicate). Nothing on a live record.
 
 ---
 
 ## Exact Next Step
 
-The walkthrough list is down to four buildable items. Recommended order: **P1 + P3's
-slide-out together** (one pipeline-page pass — the duality is legitimate, so P1 is
-presentation: split the stage lists into a Journeys lane and a Territories lane, and
-restyle the quick-panel slide-out while in the file), then **Merge ×2 + Delete
-contact together** (one lifecycle pass — extract the app's now-healthy 410-line merge;
-generate the delete child list from information_schema, never by hand), then **J3**
-(the team chat — the biggest, design it first). Corey reviews
-`docs/duplicate-contacts-review.md` whenever he has 20 minutes; nothing blocks on it.
+**The walkthrough is done.** The next phase is the CUTOVER TRACK — getting FranDev
+fully off Vercel: (1) Ben's `frandev_%` GRANT / nightly prod push resume so the mirror
+stops being an Aug 1 snapshot, (2) the replay switch-on plan (14 pending journal rows
+apply at that moment; verify each), (3) the post-move backfill (all journeys +
+territories; journey briefs are a ~3,175-LLM-call deliberate run), (4) G3's 71-orphan
+registry entries app-side, and (5) Corey works `docs/duplicate-contacts-review.md`
+(57 groups) with the now-live Merge buttons. None of it is blocked on code we haven't
+written; (1)–(3) are blocked on Ben/Corey decisions.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -251,6 +284,6 @@ generate the delete child list from information_schema, never by hand), then **J
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: the walkthrough list is down to FOUR buildable items — P1 (pipeline page lists journeys and territories; the duality is legitimate, fix is presentation: two lanes), P3's slide-out visual pass (same file, same session), Merge ×2 (EXTRACT the app's 410-line merge — it is healthy now, 9 clean runs on 2026-08-09), Delete contact (GENERATE the 25-table child list from information_schema), and J3 (activity → internal team chat, the biggest — design first). Everything else from the walkthrough is DONE and verified on production. ⚠ Traps: MySqlConnector returns CHAR(36) as Guid — never a string DTO property; a verified write cycle proves nothing about the read — GET the page; E2E verification without a browser works by minting a MasterSuite JWT with MASTERSUITE_API_JWT_SECRET and sending it as the `jwt` cookie to mastersuiteapp.com. Do NOT switch any nightly cron back on — 13 journal rows are pending and apply the moment replay is on.
+Then: THE WALKTHROUGH LIST IS DONE — all 15 items shipped and verified on production (sessions 99a+99b; last PR #706 + sandbox 7af7290). Next is the CUTOVER TRACK: Ben's frandev\_% GRANT + nightly prod push resume (mirror is an Aug 1 snapshot), the replay switch-on plan (14 pending journal rows apply at that moment — verify each), the post-move backfill (journey briefs = ~3,175 LLM calls, one deliberate run), and G3's 71 orphan profile keys need registry entries in lib/profile/field-registry.ts. I review docs/duplicate-contacts-review.md (57 same-name groups) myself — the Merge button now works in BOTH apps. ⚠ Traps: MySqlConnector returns CHAR(36) as Guid — never a string DTO property; a verified write cycle proves nothing about the read — GET the page; E2E verification without a browser = mint a MasterSuite JWT with MASTERSUITE_API_JWT_SECRET, send as the `jwt` cookie to mastersuiteapp.com. Do NOT switch any nightly cron back on.
 
 ---
