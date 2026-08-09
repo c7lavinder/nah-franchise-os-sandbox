@@ -124,6 +124,11 @@ sandbox-app → prod-MySQL writes, ever.
    `sync-ms-properties` + `sync-ms-lead-list` retired 2026-08-09 (ADR-0014);
    territories + EOS retire as soon as the native reads re-point to the MySQL
    originals (in progress).
+5. ~~The 52 app-created EOS rows~~ (11 rocks / 21 todos / 20 issues that drop
+   off the native tab when MasterSuite PR #718 deploys) **RESOLVED 2026-08-09
+   (Corey): discard.** All 52 are the 2026-04-14 Q2 agent-extraction batch —
+   stale, undone, heavy near-duplicates. They are NOT migrated into the
+   canonical `Eos_*` tables; they remain archived in Supabase.
 
 **Framing confirmed by Corey 2026-08-09:** MasterSuite already owns the
 property / territory / EOS data — native pages read and write those fields
