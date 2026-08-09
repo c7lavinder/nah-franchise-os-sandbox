@@ -498,10 +498,22 @@ write layer the only one, and re-home the side effects."
    pre-flag rows unchanged). Task push / contact upsert / touch-fields
    re-homing rides the same pattern — build at flip-window when the
    sub-account is connected.
-4. ⏳ **NEXT** — agents to Hangfire, dark (research-contacts,
-   reengagement-scan, coaching-brief, contact journals) + intelligence
-   scoring (`updateCandidateScore`). LLM prompt ports — needs the
-   domain-4 prompt-parity discipline, its own session(s).
+4. ✅ **BUILT 2026-08-09 (s106, MS PR #747)** — the four agents +
+   candidate scoring, dark behind `Frandev_Agents_Native`, LLM spend on
+   the shared FranDev metering table + daily budget: contact journals
+   (nightly, prompt byte-for-byte; EmbeddingId NULL — domain 6),
+   re-engagement (monthly → `frandev_contact_score`), research (weekly —
+   TS whitelist-gated into the EAV profile store, manual-protected;
+   E2E caught the ungated registry writing 'location'/'email'), coaching
+   briefs (daily, pure SQL → `frandev_notification`).
+   `FrandevCandidateScoreRules` pure + 11 pins (funding-path quirk, 5-day
+   trainual penalty, object-flags bug); post-call auto-saves now recalc
+   updated contacts — the hook #734 left dangling, closed. Settings
+   integrations tab (FranDev lens) gained the cutover card: sub-account
+   connection + who-runs-what per piece, status-only. E2E on dev flag-on:
+   reengagement 2/2, research 1/1, journals/coaching clean zero-runs
+   (no same-day activity; zero rep users on dev). Hangfire ×4 dark on the
+   app crons' slots.
 5. ✅ **BUILT 2026-08-09 (s106, MS PR #741)** — onboarding/runway
    derivation (`FrandevRunwayRules.cs` pure + test-pinned;
    `FrandevService.RunwayDerivation.cs`), re-pointed at the ORIGINAL
@@ -514,7 +526,17 @@ write layer the only one, and re-home the side effects."
    frozen evidence (CHARSC trained 07-26 still filed "training"; GREENB
    at 3 purchases still "inventory-building"; LAFALA's first completion
    unseen). Native reads live tables — equal rules, fresher facts.
-6. ⏳ Satellite ports/decisions (emails, related people, docs, zorakle).
+6. ✅ **DECIDED 2026-08-09 (s106)** — satellites, one line each:
+   `contact_scores`/`contact_journals`/`notifications` now have native
+   writers (step 4). `contact_profile_data` freezes at flip (research
+   writes the EAV store instead; nothing reads the flat mirror).
+   `contact_activity_messages` (@-mentions) → ARCHIVE — native journey
+   chat (J3) supersedes it. `zorakle_assessments` dead (zero refs).
+   Three small FLIP-WINDOW build items, none blocking: a native Zorakle
+   webhook receiver (read-ai receiver pattern; without it zorakle data
+   freezes at flip), a related-people panel (mirror exists, no native
+   surface; rarely edited), native journey-document upload (S3 +
+   extract; embeddings ride domain 6).
 7. ⏳ **Flip day** (needs Corey's marketplace connect + a parity window):
    fill `Frandev_GhlLocationId`/`Frandev_GhlPrivateToken` + resolve
    `Frandev_GhlStageFieldMap` via the smoke hook → arm the three flags
@@ -524,6 +546,9 @@ write layer the only one, and re-home the side effects."
    green) → replay's domain-5 types retire → ~25 tables out of the push →
    sandbox contact/pipeline pages retire → file the ADR.
 
-Estimate was 6–8 sessions; s106 landed steps 1+2+3+5 in one (the
-sub-account correction shrank step 1, and steps 2/3/5 shared the journal
-machinery). Remaining: step 4 (the LLM agents), step 6, flip day.
+Estimate was 6–8 sessions; s106 landed ALL SEVEN build steps in one
+day (#740/#741/#746/#747 — the sub-account correction shrank step 1, the
+journal machinery was shared, and the agents' prompts ported clean).
+**Everything buildable-before-the-flip is built, deployed, and dark.**
+Remaining: flip day only (step 7 above + the three small flip-window
+satellite items), gated on a parity window, not on any build.

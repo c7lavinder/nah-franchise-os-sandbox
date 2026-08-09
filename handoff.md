@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase: **CUTOVER TRACK — domain 5 (contacts + pipeline) SCOPED AND 4 OF 7
+Phase: **CUTOVER TRACK — domain 5 (contacts + pipeline) FULLY BUILT: 7 OF 7
 BUILD STEPS SHIPPED DARK in one session. §10 written from three parallel
 code inventories; MS PR #741 landed steps 1 (GHL foundation) + 2 (native
 lead intake) + 3 (stage write-through handshake) + 5 (runway derivation),
@@ -80,11 +80,14 @@ out of `SUPABASE_TABLES`; replay handlers `intake_contact` /
   session's opening move — **Medium (watch)**
 - **MS PR #741 CI running at wrap** — merge when green (all code dark;
   zero behavior until flags) — **action item**
-- **Step 4 not built**: the 4 LLM agents (research-contacts,
-  reengagement-scan, coaching-brief, contact journals) + intelligence
-  scoring — needs domain-4-style prompt-parity discipline, own session(s)
-- **Step 6 not decided**: satellites (contact_emails editor, related
-  people, activity messages, zorakle webhooks, journey documents)
+- ~~Step 4~~ ✅ **BUILT same session (MS #747, merged + deployed)** —
+  4 agents + candidate scoring dark behind `Frandev_Agents_Native`;
+  Settings integrations tab (FranDev lens) gained the cutover card.
+  E2E dev flag-on: reengagement 2/2, research 1/1 (whitelist fix found
+  by E2E), journals/coaching clean zero-runs. 5751 platform tests.
+- ~~Step 6~~ ✅ **DECIDED** — 3 small flip-window items remain (native
+  Zorakle receiver, related-people panel, journey-doc upload); activity
+  messages ARCHIVED (journey chat supersedes); profile_data freezes
 - Territory market-data + objection-registry auto-saves still mirror-only
   (accepted; domains 1/6) — **Low**
 - Domain-4 tail unchanged: call_coaching drop, signature enforcement —
@@ -177,12 +180,16 @@ creds from `~/.zshrc`; `dotnet test`from`apps/analysis-api/`). Plus:
    (sales WE90XmjQ…, followup NNIqrzmi…, onboarding bOjnT44u…); prod
    smoke = "connected". **GHL foundation is now LIVE-capable — the
    domain-5 flip no longer waits on anyone.**
-4. **Step 4**: the 4 LLM agents + intelligence scoring (own session,
-   prompt-parity gates).
-5. **Step 6**: satellite decisions.
-6. **Flip day** (runbook in §10 step 7): arm 3 flags + retire 3 crons +
-   replay types + ~25 tables from the push + retire sandbox pages + ADR.
-   Credentials + field map already in place on prod AND dev (#746).
+4. ~~Step 4~~ ✅ DONE (MS #747). ~~Step 6~~ ✅ DECIDED.
+5. **Flip day — the ONLY remaining domain-5 work** (runbook §10 step 7):
+   arm 4 flags (`Frandev_LeadIntake_Native`, `Frandev_Ghl_NativeStageSync`,
+   `Frandev_RunwayDerivation_Native`, `Frandev_Agents_Native`) + retire
+   sync-ms-prospects / sync-ms-territories / guardian + the app agent
+   crons + replay's domain-5 types + ~25 tables from the push + retire
+   sandbox pages + 3 small satellite items (Zorakle receiver,
+   related-people panel, doc upload) + file the ADR. Credentials + field
+   map already live on prod AND dev (#746). Needs a parity window, not
+   a build.
 
 ## Exact Next Step
 
