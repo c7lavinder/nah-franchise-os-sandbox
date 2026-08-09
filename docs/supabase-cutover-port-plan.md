@@ -150,12 +150,31 @@ has no mapped mirror column (`UpdatedByUserId` exists but the mapper doesn't
 connect them) — cosmetic, fix in passing. `UpdatedAt` mirror columns are
 DB-maintained, expected unmapped.
 
+**New consumer since scoping (2026-08-09, MS PR #716):** MasterSuite's
+coaching module now reads `frandev_read_ai_session` hourly (coaching-typed,
+linked-and-complete sessions → `coaching_module_session_record` via
+`ICoachingCallFeedSource`). Domain 4 is no longer just FranDev's pipeline —
+the coaching feed dies too if this table stops being fed after cutover.
+
 **Must be built new in .NET (the actual port):**
 
-1. Read.ai webhook receiver: HMAC verify + `frandev_read_ai_session`
-   upsert/dedupe + logging. Note: today's route ACCEPTS unsigned payloads
-   (missing signature ≠ rejected) — decide the signature policy explicitly at
-   this step, don't silently carry the hole or silently drop traffic.
+1. ✅ **BUILT 2026-08-09 (s103, MS PR #722)** — Read.ai webhook receiver:
+   HMAC verify + `frandev_read_ai_session` upsert/dedupe + logging, shadow
+   mode (`POST /api/hooks/read-ai`; dev-only replay harness at
+   `/api/hooks/read-ai-replay`). Validated: all 421 archived `raw_payload`
+   rows replay 421 matched / 0 mismatched / 0 parse failures against the
+   mirror; `writes=1` re-delivery came back 421 deduped / 0 errors; E2E
+   signature paths verified both ways on a running app.
+   **Signature policy DECIDED (s103): accept-and-log by default, enforcement
+   is a config flip.** Evidence: `read_ai_webhook_keys` has ZERO rows in
+   Supabase and no `READ_AI_WEBHOOK_SIGNING_KEY_*` env exists anywhere —
+   today's live traffic is 100% unverifiable, so reject-by-default would
+   drop every call at cutover. Every delivery's log row records
+   `sig=valid|invalid|missing`; SystemConfig
+   `Frandev_ReadAi_RequireSignature='on'` turns rejection on. ⚠ Before the
+   step-6 flip: either provision real signing keys (rows in
+   `frandev_read_ai_webhook_key`, then flip the flag on) or accept unsigned
+   explicitly in the cutover note.
 2. Classifier + the 3 processors (prospect / coaching+onboarding /
    group+internal) writing call, transcript, participants, junctions.
 3. Transcript-job worker (model on `ChironNtnJobs` / `CbEstimationVisionJobs`

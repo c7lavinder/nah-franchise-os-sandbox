@@ -1,74 +1,71 @@
-# Session Handoff — 2026-08-09 — Session 102
+# Session Handoff — 2026-08-09 — Session 103
 
 ## Status
 
-Phase: **CUTOVER TRACK — Ben items verified still pending (billing, GRANT, #718);
-sync-ms-eos retirement PRE-STAGED on a branch; domain 4 (calls) SCOPED and
-parity-verified — it is the next build and nothing in it waits on Ben.** /
-Health: Green / Duration: short session
+Phase: **CUTOVER TRACK — the Ben logjam BROKE mid-session (billing fixed):
+#718 merged + deployed, the eos cron is retired, domains 1+2 are DONE. Domain
+4 step 1 (shadow Read.ai receiver) is BUILT, validated 421/421, and open as
+MS PR #722.** / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-- **All three Ben blockers re-verified live** (not assumed from s101): GitHub
-  Actions billing still broken org-wide (runs die in ~4s; Corey is repo ADMIN
-  but org MEMBER — cannot reach Billing & plans); the GRANT is still not run
-  (`SHOW GRANTS` shows no `frandev_note`/`frandev_journey_chat` write); PR #718
-  is OPEN + MERGEABLE, blocked only on the dead CI check (failed run
-  31316067018 — just needs `gh run rerun` after billing is fixed).
-- **GRANT urgency downgraded with evidence**: the nightly push is GREEN — the
-  2026-08-09 11:31 UTC run pushed 104,844 rows / 92 tables to PROD, 0 errors
-  (`cron_job_log`). The 3 "unpushable" notes are the SAME UUIDs already in prod
-  — soft-deleted s99 test probes that went native→Supabase. Nothing user-facing
-  waits on the GRANT; it is housekeeping so future notes sync.
-- **sync-ms-eos retirement PRE-STAGED**: sandbox branch `s102-retire-sync-ms-eos`
-  commit `e4b3cfa` — `vercel.json` −1 cron; `scheduler-ownership.test.ts` moves
-  eos to the must-stay-retired list (kept = territories + prospects only).
-  Mutation-tested red/green; 318 tests pass. **Merge ONLY after #718 is live in
-  prod** — merging early freezes the native EOS tab.
-- **Port-plan decision 5 RESOLVED (Corey): the 52 app-created EOS rows are
-  DISCARDED, not migrated** — all are the 2026-04-14 Q2 agent-extraction batch
-  (`ms_id IS NULL` in `eos_territory_*`), stale/undone/near-duplicated. Recorded
-  in `docs/supabase-cutover-port-plan.md` §7.5 (commit `d6bc4fe`). Closes the
-  s101 open issue.
-- **Domain 4 (calls) SCOPED, code-verified** — port-plan §8 (commit `f8762b8`):
-  the plan's "map into gunner tables" was WRONG (`gunner_call*` = acquisitions
-  domain). The 16 `frandev_call*` mirrors exist AND the native read surface is
-  already built (`Pages/Frandev/Calls.cshtml`, `Call.cshtml`, `CallsV2`, DayHub
-  panel). The real port is the WRITE side only: webhook receiver → classifier +
-  3 processors → transcript-job worker → parity-gated grader → settings UI →
-  flip the Read.ai webhook URL.
+- **Domain 4 step 1 — the shadow-mode Read.ai receiver (MS PR #722,
+  branch `frandev-s103-readai-receiver`, worktree `wt-s103-readai`)**:
+  `POST /api/hooks/read-ai` (HMAC verify → policy → dedupe →
+  `frandev_read_ai_session` upsert → `frandev_integration_log` row), GET
+  probe, dev-only replay harness `POST /api/hooks/read-ai-replay`. Ingest
+  columns ONLY: new rows land `'pending'`; ProcessingStatus / CallType /
+  ClassifiedAt / LinkedCallId are never touched on existing rows, so the
+  nightly push and the #716 coaching feed keep winning until cutover. 9 new
+  pins in `MasterSuite.Platform.Tests/Frandev/FrandevReadAiReceiverTests.cs`
+  (externally computed HMAC vectors, UTC-seconds truncation, participant
+  filter parity, rejection-policy table).
+- **Signature policy DECIDED (was flagged for build time)**: accept-and-log
+  by default; every delivery logs `sig=valid|invalid|missing`; SystemConfig
+  `Frandev_ReadAi_RequireSignature='on'` flips enforcement; rejected
+  deliveries still answer 200 (SignWell rule). Decided on evidence, not
+  taste: `read_ai_webhook_keys` has ZERO rows in Supabase, the mirror is
+  empty, and no `READ_AI_WEBHOOK_SIGNING_KEY_*` env exists anywhere — a
+  reject default would drop 100% of live traffic at the flip. Recorded in
+  port-plan §8 step 1.
+- **The Ben chain executed the moment it unblocked**: GH Actions billing was
+  discovered FIXED (CI runs completing with real durations from ~14:30 UTC);
+  reran #718's dead check → green; merged #718 (14:48Z); deploy run
+  31319436354 → success (live in prod); then merged the staged sandbox branch
+  `s102-retire-sync-ms-eos` into main (318/318 tests + full `next build`
+  before push) — the `sync-ms-eos` cron is retired.
 
 ## What Is Confirmed Working
 
 **Measured, not predicted.**
 
-- Nightly outbound push to PROD: 104,844 rows / 92 tables / 0 table errors
-  (2026-08-09 11:31 UTC run, `cron_job_log`).
-- Domain-4 column parity: dry-run push of all 21 call-domain tables against the
-  prod schema — 23,366 rows read+mapped, 0 errors, 0 skipped. Only gap:
-  `knowledge_documents.updated_by` has no mapped mirror column (cosmetic;
-  `UpdatedByUserId` exists but the pluralizer doesn't connect them).
-  `UpdatedAt` mirror columns are DB-maintained — expected unmapped.
-- The staged retirement branch: scheduler-ownership guard fails when the eos
-  cron is re-added and passes when absent (mutation test), full suite 318/318.
-- The 3 prod `frandev_note` rows verified identical to the 3 Supabase rows
-  (same UUIDs, all soft-deleted probes) — confirmed nothing real is stuck.
+- Replay of ALL 421 archived Read.ai deliveries through the C# mapper against
+  the dev mirror: **421 matched / 0 mismatched / 0 parse failures** —
+  timestamps to the second, participant arrays element-for-element.
+- `writes=1` re-delivery of all 421 through the real ingest: **421 deduped /
+  0 errors** — the complete-session dedupe gate holds against live data.
+- E2E on the locally-running app (dev DB): synthetic probe ingested
+  `'pending'` with classification columns null; DB-keyed signature verified
+  both ways (`sig=valid` / `sig=invalid` logged); invalid JSON → the one 400;
+  missing session_id → logged + 200. Probe + test key cleaned up after.
+- `MasterSuite.Platform.Tests` 185/185 (gated suite); app project builds
+  clean; sandbox suite 318/318 + `next build` green on the merged main.
+- MS PR #718's check green on rerun; its deploy completed (success).
 
 ## What Is Broken or Incomplete
 
-- **GitHub Actions billing-blocked org-wide** — nothing merges anywhere until
-  an org admin (Ben) fixes Billing & plans — **High (blocks all merges)**
-- **PR #718 awaits billing fix → CI rerun → merge → deploy** via Ben's release
-  train — **Medium (sequenced, not broken)**
-- **GRANT SQL not yet run** (`database/2026-08-09_grant_frandev_note_chat_write.sql`,
-  30 sec at a prod terminal) — downgraded to housekeeping; future notes won't
-  sync until it runs — **Low (was Medium)**
-- Branch `s102-retire-sync-ms-eos` must NOT merge before #718 is live —
-  **guard-railed by test + commit message** — **FYI**
+- **MS PR #722 awaits its `pr-checks` run → merge** (was `pending` at session
+  end; opener-can-merge once green per repo rules) — **Medium (sequenced)**
+- **GRANT SQL still not run** (`database/2026-08-09_grant_frandev_note_chat_write.sql`,
+  30 sec at a prod terminal, Ben) — housekeeping; future notes won't sync
+  until it runs — **Low**
+- **Sandbox Vercel deploy of the merge commit `3194e53` not visually
+  confirmed** (build passed locally with identical config; Vercel emails on
+  failure) — check the dashboard shows the eos cron gone — **Low**
 - `knowledge_documents.updated_by` → `UpdatedByUserId` mapping gap — fix in
   passing during domain 4 — **Low**
-- Vercel property/revenue/L10/Scout-property surfaces frozen at Aug 9 snapshot —
-  BY DESIGN (ADR-0014) — **Low/FYI**
+- Vercel property/revenue/L10/Scout-property surfaces frozen at Aug 9
+  snapshot — BY DESIGN (ADR-0014) — **Low/FYI**
 - Carried, all Low: `charleston@` office-named-as-person rename; three
   inline-edit implementations; `ResolveUser`/`ResolveUsername` duplicated;
   `updateCandidateScore`/`Flags` write on every event; `GetAvgCycleDays`
@@ -76,32 +73,34 @@ Health: Green / Duration: short session
 
 ## Decisions Made
 
-- **The 52 app-created EOS rows: discard, don't migrate** — they drop off the
-  native tab when #718 deploys; they stay archived in Supabase. — Corey
-- **GRANT reprioritized Low** — evidence: green nightly push; the 3 note rows
-  are deleted probes already present in prod. — Claude (evidence-based)
-- **Domain 4 build order** = the 6-step sequence in port-plan §8, starting with
-  a shadow-mode ingest-only webhook receiver. — Claude (scoping), unopposed
-- **Webhook signature policy must be decided at §8 step 1** — today's route
-  accepts unsigned payloads; don't silently carry the hole OR silently drop
-  live traffic. — flagged for Corey/Ben at build time
+- **Read.ai signature policy** (above) — Claude, evidence-based; the
+  enforcement flip is deliberately left for after key provisioning.
+- **Merged #718 and the staged sandbox branch without waiting** — the repo's
+  standing rule (CI is the gate, opener can merge; wait-gate retired by Corey
+  2026-08-02) plus the handoff's own sequenced plan authorized both the
+  moment CI came back. — Claude
+- **New receiver rows land `'pending'` not `'processing'`** — nothing native
+  advances them yet; `'processing'` would read as stuck. — Claude
 
 ## Files Created
 
-- Sandbox branch `s102-retire-sync-ms-eos` (commit `e4b3cfa`, NOT on main)
-- (temp parity-check script created and removed in-session)
+- MS worktree `wt-s103-readai`: `Entities/Frandev/FrandevReadAi.cs`,
+  `MasterSuite.Modules.Frandev/FrandevService.ReadAi.cs`,
+  `MasterSuite.Modules.Frandev/IFrandevService.ReadAi.cs`,
+  `MasterSuite/FrandevHooks.cs`,
+  `MasterSuite.Platform.Tests/Frandev/FrandevReadAiReceiverTests.cs`
 
 ## Files Modified
 
-- Sandbox main: `docs/supabase-cutover-port-plan.md` (§7.5 decision + row-4
-  correction + new §8 domain-4 scoping; commits `d6bc4fe`, `f8762b8`),
-  `handoff.md`
-- On the staged branch only: `vercel.json`,
-  `tests/critical-paths/scheduler-ownership.test.ts`
+- MS: `MasterSuite/Program.cs` (`app.MapFrandevHooks()`)
+- Sandbox main: `docs/supabase-cutover-port-plan.md` (§8 step 1 marked BUILT +
+  policy decision + the #716 coaching-feed consumer note), `handoff.md`,
+  plus the merge of `s102-retire-sync-ms-eos` (`vercel.json` −1 cron,
+  `scheduler-ownership.test.ts`)
 
 ## Files Deleted
 
-- None
+- None (dev-DB probes and the test signing key were cleaned up in-session)
 
 ## Open Issues Carried Forward
 
@@ -113,8 +112,11 @@ WRITES PRODUCTION; ⚠ new `frandev_` table needs migration + grant in the SAME
 PR; replay batch limit 50; the inbound EOS sync never deleted — Supabase
 `eos_territory_*` is a historical superset). Plus:
 
-- **⚠ GH Actions org billing** — Ben, then `gh run rerun` #718's check — **High**
-- **Merge `s102-retire-sync-ms-eos` ONLY after #718 is live in prod** — **Medium**
+- **Local-run recipe that works**: `dotnet run --no-launch-profile` with
+  `ASPNETCORE_URLS=http://localhost:5199` — launchSettings.json otherwise
+  OVERRIDES the port (7128, usually taken) and BLANKS `NAH_DB_PASSWORD`.
+  DB creds come from `~/.zshrc` (`NAH_DB_*`); query MariaDB via node
+  `mysql2` (no mysql CLI on this Mac).
 - **`sync-ms-territories` does NOT retire until the domain-5 flip** (FK
   reference + pipeline seeding; ADR-0014 Correction) — **FYI**
 - **Held until FranDev is fully off Vercel (Corey, s96)**: four nightly jobs
@@ -124,25 +126,29 @@ PR; replay batch limit 50; the inbound EOS sync never deleted — Supabase
 
 | #   | Domain                | State                                                             |
 | --- | --------------------- | ----------------------------------------------------------------- |
-| 1   | Properties/mirrors    | ✅ DONE app-side (ADR-0014); #718 merge finishes it               |
-| 2   | EOS                   | ✅ BUILT (#718) — waits on Ben merge, then merge staged branch    |
+| 1   | Properties/mirrors    | ✅ **DONE** — #718 merged + deployed 2026-08-09                   |
+| 2   | EOS                   | ✅ **DONE** — native tab live on originals; eos cron retired      |
 | 3   | Workflows             | ✅ RESOLVED — archive, don't port (no build)                      |
-| 4   | **Calls**             | 🔨 **NEXT BUILD** — scoped in §8, read side done, 6 sessions est. |
+| 4   | **Calls**             | 🔨 **IN BUILD** — step 1 of 6 done (PR #722); step 2 = classifier |
 | 5   | Contacts + pipeline   | ⏳ after 4 — the big one (core CRM)                               |
 | 6   | Scout/RAG → Chiron KB | ⏳ after 5 — decision resolved, build pending                     |
 | 7   | Platform residue      | ⏳ dies with the app                                              |
 
 Off Vercel = domains 4 + 5 built natively + webhook re-pointed + Supabase
-archived. Everything Ben-blocked is in domains 1+2; **domain 4 proceeds now
-without him.**
+archived. **Nothing on the critical path waits on Ben anymore** (GRANT is
+Low housekeeping).
 
 ## Exact Next Step
 
-Build port-plan §8 step 1 in the MasterSuite repo: a shadow-mode Read.ai
-webhook receiver (ingest-only — HMAC verify + `frandev_read_ai_session`
-upsert/dedupe + logging, NO call creation), validated by replaying archived
-`raw_payload` rows and diffing against Supabase; decide the unsigned-payload
-policy explicitly at this step.
+Merge MS PR #722 once `pr-checks` is green (it was pending at wrap; after
+merge, curl `GET https://mastersuiteapp.com/api/hooks/read-ai` to prove the
+reverse proxy routes the path — the GunnerHooks stage-0 trick). Then build
+port-plan §8 step 2 in a fresh MS worktree: the classifier + 3 processors
+(prospect / coaching+onboarding / group+internal) behind a SystemConfig flag,
+writing `frandev_call` + transcript + participants + junctions, validated by
+replaying archived payloads against known Supabase output (same harness
+pattern as step 1 — the corpus and diff loop are already in
+`FrandevService.ReadAi.cs`).
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -150,6 +156,6 @@ policy explicitly at this step.
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Build port-plan §8 step 1 in the MasterSuite repo: a shadow-mode Read.ai webhook receiver (ingest-only — HMAC verify + frandev_read_ai_session upsert/dedupe + logging, NO call creation), validated by replaying archived raw_payload rows; decide the unsigned-payload policy explicitly. Ben items unchanged: fix GH billing → rerun #718's check → merge #718 → run the GRANT SQL. After #718 is live in prod, merge sandbox branch s102-retire-sync-ms-eos. Do NOT retire sync-ms-territories (domain-5 exit).
+Then: Merge MS PR #722 if green (Read.ai shadow receiver), curl the prod GET probe, then build port-plan §8 step 2: classifier + 3 processors behind a SystemConfig flag in the MasterSuite repo, validated by replaying archived payloads against known Supabase output. Ben items left: just the GRANT SQL (Low). Do NOT retire sync-ms-territories (domain-5 exit).
 
 ---
