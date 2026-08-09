@@ -1,142 +1,148 @@
-# Session Handoff — 2026-08-09 — Session 101
+# Session Handoff — 2026-08-09 — Session 102
 
 ## Status
 
-Phase: **CUTOVER TRACK — domain 1+2 read-path fix BUILT and verified (MasterSuite
-PR #718 open); all port-plan open decisions RESOLVED by Corey. Everything left
-outstanding is waiting on Ben (back in ~24h): GitHub billing fix, GRANT run, #718
-merge.** / Health: Green / Duration: short session
+Phase: **CUTOVER TRACK — Ben items verified still pending (billing, GRANT, #718);
+sync-ms-eos retirement PRE-STAGED on a branch; domain 4 (calls) SCOPED and
+parity-verified — it is the next build and nothing in it waits on Ben.** /
+Health: Green / Duration: short session
 
 ## What Was Built This Session
 
-- **All four port-plan §7 open decisions RESOLVED** (Corey): (1) strategy stands
-  (ADR-0014); (2) workflows = **archive, don't port** (agent-generated, Gunner
-  pattern); (3) Scout/RAG → **fold into Chiron KB** (mostly internal team
-  knowledge); (4) sync-retirement go-ahead standing. Recorded in
-  `docs/supabase-cutover-port-plan.md` §7.
-- **MasterSuite PR #718** (branch `frandev-s101-eos-originals`, worktree
-  `wt-eos-repoint`): the FranDev territory EOS tab now reads the `Eos_*` ORIGINALS
-  (Eos*Goals wide row → 7-metric scorecard, Eos_Rocks, Eos_Todos, Eos_Issues,
-  Eos_Budgets, Eos_Habits wide row, Eos_MarketingChannels wide row) instead of the
-  7 `frandev_eos_territory*\*`round-trip mirrors. All app display rules preserved
-(whitelist+order, budget/target filter, ungraded-habit hiding,
-Agents+IndustryNetwork merge, live-computed actuals). Rock quarter/year meta
-line guarded (originals never had those columns). Files:`FrandevService.TerritoryEos.cs`(rewritten),`FrandevService.Territories.cs`(comment),`\_TabTerritoryEos.cshtml` (guard).
-- **ADR-0014 corrected** (dated Correction section): `territory_market_data` NEVER
-  round-tripped — it is app-born (call-extraction agents, Scout, manual edits); its
-  mirror read is the _correct_ direction. `sync-ms-territories` is kept for the
-  `territories` FK reference + `journey_pipeline_state` seeding → retires at the
-  domain-5 flip, not before. And the EOS round-trip was 7 tables wide, not 1.
+- **All three Ben blockers re-verified live** (not assumed from s101): GitHub
+  Actions billing still broken org-wide (runs die in ~4s; Corey is repo ADMIN
+  but org MEMBER — cannot reach Billing & plans); the GRANT is still not run
+  (`SHOW GRANTS` shows no `frandev_note`/`frandev_journey_chat` write); PR #718
+  is OPEN + MERGEABLE, blocked only on the dead CI check (failed run
+  31316067018 — just needs `gh run rerun` after billing is fixed).
+- **GRANT urgency downgraded with evidence**: the nightly push is GREEN — the
+  2026-08-09 11:31 UTC run pushed 104,844 rows / 92 tables to PROD, 0 errors
+  (`cron_job_log`). The 3 "unpushable" notes are the SAME UUIDs already in prod
+  — soft-deleted s99 test probes that went native→Supabase. Nothing user-facing
+  waits on the GRANT; it is housekeeping so future notes sync.
+- **sync-ms-eos retirement PRE-STAGED**: sandbox branch `s102-retire-sync-ms-eos`
+  commit `e4b3cfa` — `vercel.json` −1 cron; `scheduler-ownership.test.ts` moves
+  eos to the must-stay-retired list (kept = territories + prospects only).
+  Mutation-tested red/green; 318 tests pass. **Merge ONLY after #718 is live in
+  prod** — merging early freezes the native EOS tab.
+- **Port-plan decision 5 RESOLVED (Corey): the 52 app-created EOS rows are
+  DISCARDED, not migrated** — all are the 2026-04-14 Q2 agent-extraction batch
+  (`ms_id IS NULL` in `eos_territory_*`), stale/undone/near-duplicated. Recorded
+  in `docs/supabase-cutover-port-plan.md` §7.5 (commit `d6bc4fe`). Closes the
+  s101 open issue.
+- **Domain 4 (calls) SCOPED, code-verified** — port-plan §8 (commit `f8762b8`):
+  the plan's "map into gunner tables" was WRONG (`gunner_call*` = acquisitions
+  domain). The 16 `frandev_call*` mirrors exist AND the native read surface is
+  already built (`Pages/Frandev/Calls.cshtml`, `Call.cshtml`, `CallsV2`, DayHub
+  panel). The real port is the WRITE side only: webhook receiver → classifier +
+  3 processors → transcript-job worker → parity-gated grader → settings UI →
+  flip the Read.ai webhook URL.
 
 ## What Is Confirmed Working
 
-**Measured against PRODUCTION. None predicted.**
+**Measured, not predicted.**
 
-- PR #718's queries executed directly against prod MariaDB: **scorecard goals and
-  habits match the mirror EXACTLY, every territory, all 7 metrics — zero
-  mismatches.**
-- The list-count differences are the mirror's fault, not the re-point's: the
-  inbound sync only ever upserted, so Supabase/the mirror still shows **~48 rocks,
-  ~196 todos, ~167 issues, ~9 budgets deleted from `Eos_*` long ago** + 52
-  app-created rows (11 rocks / 21 todos / 20 issues, mostly stale Q2-2026 agent
-  extractions, near-duplicates). The re-point is a correctness FIX — the native tab
-  will finally match what the EOS module actually maintains.
-- MasterSuite build: 0 errors. All 8 CI-gated test suites run locally in Release:
-  **4,836 tests, 0 failures** (Valuation 912, Coaching 258, Gunner 1749, Training
-  37, Chiron 228, Platform 176, Intake 68, Property 1408).
-- `bit(1) Done → bool` and `tinyint(1) → bool` Dapper mappings proven by existing
-  prod precedent (GetConstructionEos, FrandevTerritoryDetails).
+- Nightly outbound push to PROD: 104,844 rows / 92 tables / 0 table errors
+  (2026-08-09 11:31 UTC run, `cron_job_log`).
+- Domain-4 column parity: dry-run push of all 21 call-domain tables against the
+  prod schema — 23,366 rows read+mapped, 0 errors, 0 skipped. Only gap:
+  `knowledge_documents.updated_by` has no mapped mirror column (cosmetic;
+  `UpdatedByUserId` exists but the pluralizer doesn't connect them).
+  `UpdatedAt` mirror columns are DB-maintained — expected unmapped.
+- The staged retirement branch: scheduler-ownership guard fails when the eos
+  cron is re-added and passes when absent (mutation test), full suite 318/318.
+- The 3 prod `frandev_note` rows verified identical to the 3 Supabase rows
+  (same UUIDs, all soft-deleted probes) — confirmed nothing real is stuck.
 
 ## What Is Broken or Incomplete
 
-- **GitHub Actions is billing-blocked ORG-WIDE** — every run since ~11:40 UTC Aug 9
-  fails "account payments have failed / spending limit" (pre-11:25 runs green;
-  other people's PRs equally hit). #718 cannot go CI-green until an org admin fixes
-  Billing & plans — **High (blocks all merges, not just ours)**
-- **Notes still don't cross until Ben runs #709's SQL** (carried from s100; merge
-  done, execution pending, needs his root credential). 3 frandev_note rows
-  unpushable meanwhile — **Medium**
-- **PR #718 awaits CI + merge + deploy** via Ben's release train; until it's live
-  in prod, the native EOS tab still reads mirrors and `sync-ms-eos` MUST NOT be
-  retired — **Medium (sequenced, not broken)**
-- 52 app-created EOS rows (above) drop off the native tab when #718 deploys; they
-  remain in Supabase; disposition (migrate into Eos\_\* vs discard as stale) is an
-  open call for Corey/Ben — **Low**
-- Vercel app's property/revenue/L10/Scout-property surfaces frozen at Aug 9
-  snapshot — BY DESIGN (ADR-0014) — **Low/FYI**
-- `charleston@newagainhouses.com` office-named-as-person rename candidate — **Low**
-- Carried, all Low: three inline-edit implementations; `ResolveUser`/`ResolveUsername`
-  duplicated; `updateCandidateScore`/`Flags` write on every event; `GetAvgCycleDays`
+- **GitHub Actions billing-blocked org-wide** — nothing merges anywhere until
+  an org admin (Ben) fixes Billing & plans — **High (blocks all merges)**
+- **PR #718 awaits billing fix → CI rerun → merge → deploy** via Ben's release
+  train — **Medium (sequenced, not broken)**
+- **GRANT SQL not yet run** (`database/2026-08-09_grant_frandev_note_chat_write.sql`,
+  30 sec at a prod terminal) — downgraded to housekeeping; future notes won't
+  sync until it runs — **Low (was Medium)**
+- Branch `s102-retire-sync-ms-eos` must NOT merge before #718 is live —
+  **guard-railed by test + commit message** — **FYI**
+- `knowledge_documents.updated_by` → `UpdatedByUserId` mapping gap — fix in
+  passing during domain 4 — **Low**
+- Vercel property/revenue/L10/Scout-property surfaces frozen at Aug 9 snapshot —
+  BY DESIGN (ADR-0014) — **Low/FYI**
+- Carried, all Low: `charleston@` office-named-as-person rename; three
+  inline-edit implementations; `ResolveUser`/`ResolveUsername` duplicated;
+  `updateCandidateScore`/`Flags` write on every event; `GetAvgCycleDays`
   uncalled; ungraded calls read "Group Call"; `DataAccess.Tests` empty
 
 ## Decisions Made
 
-- **Workflows: archive, don't port** — agent-generated workflows (Gunner pattern)
-  replace the page. — Corey
-- **Scout/RAG: fold into Chiron KB** — content is mostly internal team knowledge,
-  not a separate vector store. — Corey
-- **The only data that truly PORTS is comms/call data + pipeline stages (domains
-  4+5)**; property/territory/EOS are re-points because MasterSuite already owns
-  that data. — Corey (framing), verified in code by Claude
-- **All 7 sync-fed EOS reads re-point at once** (not just the scorecard the s100
-  analysis named) — provenance verified table-by-table against both DBs. — Claude
-- **Goals tab + market data deliberately STAY on mirrors** (app-born, no MySQL
-  original), with code comments so nobody "fixes" them later. — Claude
-- **The 52 app-created EOS rows are NOT migrated in #718** — flagged instead;
-  mostly stale Q2 agent extractions with near-duplicates; blanket-inserting them
-  into the canonical Eos\_\* tables would inject junk. — Claude
-- **sync-ms-eos retirement is sequenced AFTER #718 deploys to prod** — retiring
-  first would freeze the native EOS tab. — Claude
+- **The 52 app-created EOS rows: discard, don't migrate** — they drop off the
+  native tab when #718 deploys; they stay archived in Supabase. — Corey
+- **GRANT reprioritized Low** — evidence: green nightly push; the 3 note rows
+  are deleted probes already present in prod. — Claude (evidence-based)
+- **Domain 4 build order** = the 6-step sequence in port-plan §8, starting with
+  a shadow-mode ingest-only webhook receiver. — Claude (scoping), unopposed
+- **Webhook signature policy must be decided at §8 step 1** — today's route
+  accepts unsigned payloads; don't silently carry the hole OR silently drop
+  live traffic. — flagged for Corey/Ben at build time
 
 ## Files Created
 
-- MasterSuite: PR #718 (no new files — 3 modified; worktree `wt-eos-repoint` kept
-  until merge)
-- Memory: `decision_cutover_domain_calls.md`
+- Sandbox branch `s102-retire-sync-ms-eos` (commit `e4b3cfa`, NOT on main)
+- (temp parity-check script created and removed in-session)
 
 ## Files Modified
 
-- Sandbox: `docs/supabase-cutover-port-plan.md` (§7 decisions resolved + framing),
-  `docs/adr/0014-cutover-begins-first-inbound-syncs-retired.md` (Correction
-  section, 2 commits), `handoff.md`
-- MasterSuite (`frandev-s101-eos-originals`, commit `a56f168c9`):
-  `apps/analysis-api/MasterSuite.Modules.Frandev/FrandevService.TerritoryEos.cs`,
-  `FrandevService.Territories.cs`,
-  `apps/analysis-api/MasterSuite/Pages/Frandev/RecordPanels/_TabTerritoryEos.cshtml`
+- Sandbox main: `docs/supabase-cutover-port-plan.md` (§7.5 decision + row-4
+  correction + new §8 domain-4 scoping; commits `d6bc4fe`, `f8762b8`),
+  `handoff.md`
+- On the staged branch only: `vercel.json`,
+  `tests/critical-paths/scheduler-ownership.test.ts`
 
 ## Files Deleted
 
-- None (temp verification scripts created and removed in-session)
+- None
 
 ## Open Issues Carried Forward
 
-All session-99/100 standing traps stand (MySqlConnector CHAR(36)→Guid; verified
-WRITE proves nothing about the READ; minted-JWT prod-driving recipe; MariaDB not
-MySQL; green build proves nothing about SQL — this session's prod parity run is
-the model; git hook misparses "push <word>" — commit with `-F <file>`; solution at
-`apps/analysis-api/MasterSuite.sln`; ⚠ Vercel WRITES PRODUCTION; ⚠ new `frandev_`
-table needs migration + grant in the SAME PR; replay batch limit 50). Plus:
+All standing traps stand (MySqlConnector CHAR(36)→Guid; verified WRITE proves
+nothing about the READ; minted-JWT prod-driving recipe; MariaDB not MySQL;
+green build proves nothing about SQL; git hook misparses "push <word>" — commit
+with `-F <file>`; solution at `apps/analysis-api/MasterSuite.sln`; ⚠ Vercel
+WRITES PRODUCTION; ⚠ new `frandev_` table needs migration + grant in the SAME
+PR; replay batch limit 50; the inbound EOS sync never deleted — Supabase
+`eos_territory_*` is a historical superset). Plus:
 
-- **⚠ GH Actions org billing** — nothing merges anywhere until fixed — **High**
-- **The inbound EOS sync never deleted** — Supabase `eos_territory_*` is a
-  historical superset (~420 MySQL-deleted rows); remember this when archiving
-  those tables at the domain flip — **FYI**
-- **Retire `sync-ms-eos` ONLY after #718 is live in prod** (vercel.json − 1 cron +
-  `scheduler-ownership.test.ts` new contract, mutation-tested, per the ADR-0014
-  pattern) — **Medium (the next sandbox change)**
-- **`sync-ms-territories` does NOT retire at any re-point** — FK reference +
-  pipeline seeding; domain-5 exit — **FYI (ADR-0014 Correction is authoritative)**
+- **⚠ GH Actions org billing** — Ben, then `gh run rerun` #718's check — **High**
+- **Merge `s102-retire-sync-ms-eos` ONLY after #718 is live in prod** — **Medium**
+- **`sync-ms-territories` does NOT retire until the domain-5 flip** (FK
+  reference + pipeline seeding; ADR-0014 Correction) — **FYI**
 - **Held until FranDev is fully off Vercel (Corey, s96)**: four nightly jobs
-  deliberately unscheduled; journey briefs ~3,175-LLM-call deliberate run — **carried**
+  deliberately unscheduled; journey briefs ~3,175-LLM-call run — **carried**
+
+## THE GAMEPLAN TO GET OFF VERCEL (domain scoreboard)
+
+| #   | Domain                | State                                                             |
+| --- | --------------------- | ----------------------------------------------------------------- |
+| 1   | Properties/mirrors    | ✅ DONE app-side (ADR-0014); #718 merge finishes it               |
+| 2   | EOS                   | ✅ BUILT (#718) — waits on Ben merge, then merge staged branch    |
+| 3   | Workflows             | ✅ RESOLVED — archive, don't port (no build)                      |
+| 4   | **Calls**             | 🔨 **NEXT BUILD** — scoped in §8, read side done, 6 sessions est. |
+| 5   | Contacts + pipeline   | ⏳ after 4 — the big one (core CRM)                               |
+| 6   | Scout/RAG → Chiron KB | ⏳ after 5 — decision resolved, build pending                     |
+| 7   | Platform residue      | ⏳ dies with the app                                              |
+
+Off Vercel = domains 4 + 5 built natively + webhook re-pointed + Supabase
+archived. Everything Ben-blocked is in domains 1+2; **domain 4 proceeds now
+without him.**
 
 ## Exact Next Step
 
-Three Ben items, in order: fix GitHub org billing (Settings → Billing & plans),
-run `database/2026-08-09_grant_frandev_note_chat_write.sql` against prod (30 sec,
-from s100), and merge PR #718 once CI goes green — then, AFTER #718 deploys via
-his release train, retire `sync-ms-eos` from `vercel.json` + update
-`scheduler-ownership.test.ts` (ADR-0014 pattern), verify the 3 note rows crossed
-in the nightly push, and domains 1+2's read-path work is complete.
+Build port-plan §8 step 1 in the MasterSuite repo: a shadow-mode Read.ai
+webhook receiver (ingest-only — HMAC verify + `frandev_read_ai_session`
+upsert/dedupe + logging, NO call creation), validated by replaying archived
+`raw_payload` rows and diffing against Supabase; decide the unsigned-payload
+policy explicitly at this step.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -144,6 +150,6 @@ in the nightly push, and domains 1+2's read-path work is complete.
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Three Ben items, in order: fix GitHub org billing, run database/2026-08-09*grant_frandev_note_chat_write.sql against prod (30 sec), and merge MasterSuite PR #718 (EOS reads re-pointed to Eos*\* originals — built, prod-parity-verified, 4,836 local tests green; CI is billing-blocked org-wide). AFTER #718 deploys: retire sync-ms-eos from vercel.json + update scheduler-ownership.test.ts (ADR-0014 pattern) and verify the 3 frandev_note rows crossed in the nightly push. Do NOT retire sync-ms-territories — ADR-0014's Correction says it holds until the domain-5 flip (FK reference + pipeline seeding; market data proved app-native). Corey's resolved decisions: workflows archive-not-port; Scout KB → Chiron KB; only calls+pipeline truly port.
+Then: Build port-plan §8 step 1 in the MasterSuite repo: a shadow-mode Read.ai webhook receiver (ingest-only — HMAC verify + frandev_read_ai_session upsert/dedupe + logging, NO call creation), validated by replaying archived raw_payload rows; decide the unsigned-payload policy explicitly. Ben items unchanged: fix GH billing → rerun #718's check → merge #718 → run the GRANT SQL. After #718 is live in prod, merge sandbox branch s102-retire-sync-ms-eos. Do NOT retire sync-ms-territories (domain-5 exit).
 
 ---
