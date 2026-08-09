@@ -254,21 +254,33 @@ commitments) — (6) flip the webhook, retire crons.
 
 ## 9. Domain 4 step 6 — the cutover runbook (written s105)
 
-Preconditions, in order — the flip cannot happen before all three:
+Preconditions — **1 was found ALREADY SATISFIED by a prod probe on
+2026-08-09 (s105)**:
 
-1. **Ben's `frandev_%` GRANT on prod** (the standing Low item, now
-   promoted: it gates this flip). Then run the full prod push backfill —
-   the code is prod-ready, dry-run validated at 97,818 rows. Prod
-   `frandev_` tables have 0 rows today; the native pipeline reads/writes
-   the mirror, so an empty mirror means no calls surface.
-2. **MS PR #734 deployed** with all three Hangfire jobs visible in the
-   dashboard (they no-op while the flag is off).
+1. ✅ **Prod mirror populated.** The old "prod has 0 rows, blocked on
+   Ben's GRANT" picture is stale — the nightly push feeds prod now.
+   Measured 2026-08-09: `frandev_call` 494, `frandev_call_transcript`
+   343, `frandev_call_type` 14, `frandev_rubric` 14 + 66 criteria,
+   `frandev_knowledge_document` 58, `frandev_contact` 3,195 (newest
+   UpdatedAt same-day), `frandev_read_ai_session` 450 with **0 pending**.
+   (The still-open Ben GRANT is only the notes/chat-table one — Low,
+   unrelated to this flip.)
+2. **MS PR #734 deployed** (merged 2026-08-09 17:58Z) with all three
+   Hangfire jobs visible in the dashboard (they no-op while the flag is
+   off).
 3. **Signature decision executed** (policy DECIDED s103: accept-and-log).
    Either provision real signing keys (rows in
    `frandev_read_ai_webhook_key`, then SystemConfig
    `Frandev_ReadAi_RequireSignature='on'`) or record "accept unsigned" in
    the cutover note. Today zero keys exist anywhere, so reject-by-default
    would drop every call.
+
+⚠ **Order matters more than the runbook first suggested**: the flag and
+the webhook URL flip on the same day, together. Flag-on with the URL
+still at Vercel = native uploads diverge from Supabase (the app is still
+master) and rubric edits unlock under a push that clobbers them nightly.
+URL-at-MS with the flag off = deliveries pile up 'pending' (safe — the
+sweep drains them the moment the flag turns on).
 
 Flip day, in order:
 

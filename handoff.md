@@ -101,11 +101,14 @@ Grading/GradeParity`, `FrandevAnthropic`, `FrandevConfig`): the four live
   Documented in the runbook (§9 step 7) as a flip-session decision:
   tolerate the window, or retire the table from the push at flip and
   accept a Supabase-side KB freeze.
-- **GRANT SQL still not run** — now PROMOTED from Low: it gates the step-6
-  flip (prod `frandev_` tables have 0 rows; the native pipeline reads the
-  mirror). `database/2026-08-09_grant_frandev_note_chat_write.sql` +
-  the `frandev_%` GRANT; then the full prod push backfill (dry-run
-  validated at 97,818 rows).
+- **CORRECTED IN-SESSION: prod mirrors are NOT empty.** A prod probe found
+  the nightly push feeding prod (frandev_call 494, call types 14, rubrics
+  14+66, KB docs 58, contacts 3,195 updated same-day, sessions 450 with 0
+  pending). The "0 rows / blocked on Ben's frandev\_% GRANT" picture was
+  stale — the still-open Ben item is only the notes/chat GRANT
+  (`database/2026-08-09_grant_frandev_note_chat_write.sql`), **back to
+  Low**. The flip's real remaining gates: Read.ai dashboard access for the
+  URL re-point + the prod flag, same day (§9).
 - `knowledge_documents.updated_by` → `UpdatedByUserId` mapping gap — the
   fix-in-passing didn't happen this session (all step files were new;
   the mapper lives in the push) — **Low, carried**
@@ -197,11 +200,12 @@ local-run recipe:`dotnet run --no-launch-profile`+`ASPNETCORE_URLS=http://localh
 
 **What's left, in order:**
 
-1. **Domain 4 step 6 — the flip** (port-plan §9 runbook). Gated on: Ben's
-   `frandev_%` GRANT → full prod push backfill → #734 deployed → Read.ai
-   URL re-point + flag on → sweep drains backlog → retire the 3 call crons
-   - ~17 push tables → drop `call_coaching`. Human actions: Ben (GRANT) and
-     whoever holds the Read.ai dashboard login.
+1. **Domain 4 step 6 — the flip** (port-plan §9 runbook). Preconditions
+   all but done: prod mirror POPULATED (probe-verified s105), #734 MERGED
+   (17:58Z) + deploy run 31327834895. Remaining: Read.ai URL re-point +
+   prod flag on (same day, together — §9 order note) → sweep → retire the
+   3 call crons + ~17 push tables → drop `call_coaching`. Only human
+   action: whoever holds the Read.ai dashboard login (Corey schedules).
 2. **Domain 5** — contacts + pipeline (also retires `sync-ms-territories` +
    `sync-ms-prospects`). The big one.
 3. **Domain 6** — Scout/RAG → Chiron KB (decision made, build pending).
@@ -210,7 +214,8 @@ local-run recipe:`dotnet run --no-launch-profile`+`ASPNETCORE_URLS=http://localh
 
 **OUTSTANDING (everything not on the critical path):**
 
-- **Ben's GRANT SQL** — PROMOTED: now gates the domain-4 flip (see above)
+- **Ben's GRANT SQL** — back to **Low** (notes/chat tables only; the
+  domain-4 flip does NOT need it — prod probe s105)
 - `knowledge_documents.updated_by` → `UpdatedByUserId` mapping gap — **Low**
 - Carried Low cleanups: `charleston@` rename; three inline-edit
   implementations; `ResolveUser`/`ResolveUsername` duplicated;
@@ -221,12 +226,14 @@ local-run recipe:`dotnet run --no-launch-profile`+`ASPNETCORE_URLS=http://localh
 
 ## Exact Next Step
 
-Execute the domain-4 flip per port-plan **§9** once Ben runs the
-`frandev_%` GRANT and the prod push backfill lands — OR, if Ben is still
-pending, start **domain 5 (contacts + pipeline)** scoping: inventory the
-native write surface needed to retire `sync-ms-territories`/
-`sync-ms-prospects` and the contact/journey/pipeline crons, using the
-domain-4 pattern (shadow → flag-gated port → parity replay → flip).
+Execute the domain-4 flip per port-plan **§9** — preconditions are
+satisfied (prod mirror populated, #734 merged + deployed); the flip needs
+the Read.ai dashboard login (URL re-point) and the prod flag, same day. If
+the flip isn't scheduled yet, start **domain 5 (contacts + pipeline)**
+scoping: inventory the native write surface needed to retire
+`sync-ms-territories`/`sync-ms-prospects` and the contact/journey/pipeline
+crons, using the domain-4 pattern (shadow → flag-gated port → parity
+replay → flip).
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -234,6 +241,6 @@ domain-4 pattern (shadow → flag-gated port → parity replay → flip).
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Domain 4 build is DONE (#734 — worker, agent, grader with passed parity gate, settings). If Ben has run the frandev\_% GRANT: execute the step-6 flip per docs/supabase-cutover-port-plan.md §9 (prod backfill → flag on → Read.ai URL re-point → sweep drains backlog → retire call crons + push tables → drop call_coaching). If not: start domain 5 (contacts + pipeline) scoping with the domain-4 pattern. Do NOT retire sync-ms-territories (domain-5 exit). The flag stays OFF until the flip.
+Then: Domain 4 build is DONE, MERGED and DEPLOYED (#734 — worker, agent, grader with passed parity gate, settings). Prod mirrors are POPULATED (probe s105) — the §9 flip needs only the Read.ai dashboard URL re-point + the prod flag, same day, then retire the 3 call crons + push tables + drop call_coaching. If I'm ready to flip, walk me through §9 of docs/supabase-cutover-port-plan.md step by step. If not, start domain 5 (contacts + pipeline) scoping with the domain-4 pattern. Do NOT retire sync-ms-territories (domain-5 exit). The flag stays OFF until the flip.
 
 ---
