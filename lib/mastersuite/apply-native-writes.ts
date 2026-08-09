@@ -1917,6 +1917,12 @@ async function applyUpdateContact(payload: UpdateContactPayload): Promise<void> 
  * `field_value: null` CLEARS the field rather than storing JSON `null`, matching what
  * MasterSuite stores (SQL NULL) — reads filter on `field_value is not null`, so only a
  * real null makes a "n of m filled" count fall on either side.
+ *
+ * `source: "ai-auto"` rows come from the native post-call agent's auto-save, not the
+ * Profile tab. They keep their `ai-auto` label (labeling them "manual" would make the
+ * manual-protection rule freeze them against every future auto-save), and they never
+ * overwrite a value a human typed — the agent checked the mirror, but a same-day manual
+ * edit here may not have pushed back yet.
  */
 async function applyUpdateProfileField(payload: UpdateProfileFieldPayload): Promise<void> {
   if (!isValidFieldName(payload.field_name)) {
@@ -1927,13 +1933,25 @@ async function applyUpdateProfileField(payload: UpdateProfileFieldPayload): Prom
 
   const supabase = getServiceSupabase();
   const value = payload.field_value?.trim() ? payload.field_value.trim() : null;
+  const isAiAuto = payload.source === "ai-auto";
+
+  if (isAiAuto) {
+    const { data: existing, error: readError } = await supabase
+      .from("contact_profile_fields")
+      .select("last_updated_by")
+      .eq("contact_id", payload.contact_id)
+      .eq("field_name", payload.field_name)
+      .maybeSingle();
+    if (readError) throw new Error(`contact_profile_fields read failed: ${readError.message}`);
+    if (existing?.last_updated_by === "manual") return; // manual wins, silently
+  }
 
   const { error } = await supabase.from("contact_profile_fields").upsert(
     {
       contact_id: payload.contact_id,
       field_name: payload.field_name,
       field_value: value === null ? null : JSON.stringify(value),
-      last_updated_by: "manual",
+      last_updated_by: isAiAuto ? "ai-auto" : "manual",
       last_updated_at: new Date().toISOString(),
     },
     { onConflict: "contact_id,field_name" }

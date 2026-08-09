@@ -1421,6 +1421,65 @@ describe("applyNativeWrites — update_profile_field", () => {
     expect(result.errors[0]).toMatch(/drifted/);
     expect(fakeSupabase.get("contact_profile_fields")).toHaveLength(0);
   });
+
+  it("ai-auto: keeps its label instead of being stamped 'manual'", async () => {
+    // The post-call agent's auto-save journals with source 'ai-auto'. Stamping it
+    // 'manual' here would trip the manual-protection rule on every future auto-save
+    // and freeze the field forever.
+    pendingRows = [
+      journalRow(33, "update_profile_field", {
+        contact_id: "contact-1",
+        ghl_contact_id: null,
+        field_name: "full_name",
+        field_label: "full_name",
+        field_value: "Jon Dreyer",
+        previous_value: null,
+        source: "ai-auto",
+        updated_by: "ai-auto",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const row = fakeSupabase.get("contact_profile_fields")[0];
+    expect(row.field_value).toBe(JSON.stringify("Jon Dreyer"));
+    expect(row.last_updated_by).toBe("ai-auto");
+  });
+
+  it("ai-auto: never overwrites a value a human typed", async () => {
+    // The agent checked the mirror before saving, but a same-day manual edit here may
+    // not have pushed back yet — manual wins, and the journal row still counts applied.
+    fakeSupabase.seed("contact_profile_fields", [
+      {
+        contact_id: "contact-1",
+        field_name: "full_name",
+        field_value: JSON.stringify("Hand Typed"),
+        last_updated_by: "manual",
+      },
+    ]);
+    pendingRows = [
+      journalRow(34, "update_profile_field", {
+        contact_id: "contact-1",
+        ghl_contact_id: null,
+        field_name: "full_name",
+        field_label: "full_name",
+        field_value: "AI Guess",
+        previous_value: null,
+        source: "ai-auto",
+        updated_by: "ai-auto",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    const row = fakeSupabase.get("contact_profile_fields")[0];
+    expect(row.field_value).toBe(JSON.stringify("Hand Typed"));
+    expect(row.last_updated_by).toBe("manual");
+  });
 });
 
 describe("applyNativeWrites — rename_journey", () => {
