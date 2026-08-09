@@ -75,10 +75,6 @@
       "schedule": "*/30 * * * *"
     },
     {
-      "path": "/frandev/api/cron/sync-ms-eos",
-      "schedule": "22,52 * * * *"
-    },
-    {
       "path": "/frandev/api/cron/sync-ghl-calendar",
       "schedule": "*/30 * * * *"
     },

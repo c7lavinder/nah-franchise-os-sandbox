@@ -13,14 +13,11 @@ describe("scheduler ownership contract", () => {
     const vercel = JSON.parse(read("vercel.json")) as { crons?: Array<{ path: string; schedule: string }> };
     const cronPaths = new Set((vercel.crons ?? []).map((cron) => cron.path));
 
-    // The syncs still on the schedule — territories (reference table + market-data
-    // round-trip), EOS (scorecard round-trip), prospects (live lead inflow).
+    // The syncs still on the schedule — territories (FK reference +
+    // journey_pipeline_state seeding; holds until the domain-5 flip per the
+    // ADR-0014 Correction), prospects (live lead inflow).
     expect(Array.from(cronPaths)).toEqual(
-      expect.arrayContaining([
-        "/frandev/api/cron/sync-ms-territories",
-        "/frandev/api/cron/sync-ms-prospects",
-        "/frandev/api/cron/sync-ms-eos",
-      ])
+      expect.arrayContaining(["/frandev/api/cron/sync-ms-territories", "/frandev/api/cron/sync-ms-prospects"])
     );
 
     // Retired by ADR-0014 (2026-08-09): native MasterSuite reads the MySQL property
@@ -28,6 +25,11 @@ describe("scheduler ownership contract", () => {
     // They must STAY retired — re-adding one silently reopens the inbound seam.
     expect(cronPaths.has("/frandev/api/cron/sync-ms-lead-list")).toBe(false);
     expect(cronPaths.has("/frandev/api/cron/sync-ms-properties")).toBe(false);
+
+    // Retired after MasterSuite PR #718 deployed: the native EOS tab reads the
+    // Eos_* originals, so the 7 eos_territory_* mirrors have no native consumer.
+    // Goals tab + market data deliberately STAY on mirrors (app-born data).
+    expect(cronPaths.has("/frandev/api/cron/sync-ms-eos")).toBe(false);
   });
 
   it("keeps GitHub MasterSuite sync manual-only", () => {
