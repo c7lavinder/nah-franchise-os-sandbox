@@ -369,15 +369,22 @@ write layer the only one, and re-home the side effects."
 
 ### The gaps (what must actually be built)
 
-1. **GHL side-effect re-homing** — confirmed as the delicate piece.
-   Gunner's `GhlClient` (v2, method-for-method port of `lib/ghl/client.ts`)
-   exists, but `MasterSuite.Modules.Frandev` has ZERO references to it.
-   Needs: a FranDev-scoped `GhlConfig` (corporate location, not
-   `gunner_tenant` territory scoping); the stage-sync mapping
+1. **GHL side-effect re-homing** — confirmed as the delicate piece, but
+   smaller than first scoped. **Corrected by Corey 2026-08-09: MasterSuite
+   already has GHL set up, and FranDev lives on a GHL SUB-ACCOUNT — three
+   sub-accounts are already provisioned. The connection work is: connect
+   the FranDev sub-account through the marketplace-app login flow (OAuth),
+   not build a client or token plumbing from scratch.** Gunner's
+   `GhlClient` (v2, method-for-method port of `lib/ghl/client.ts`) exists;
+   `MasterSuite.Modules.Frandev` has ZERO references to it yet. Still
+   needed after the sub-account connects: a FranDev entry in the GhlConfig
+   surface pointing at that sub-account/location; the stage-sync mapping
    (`PIPELINE_FIELD_MAP` + GHL custom-field ids — `ghl_custom_fields` /
    `pipelines.ghl_field_id` have NO mirror; land them in SystemConfig or a
-   small config table); a native token refresh (the `refresh-ghl-token`
-   cron is the keystone — it must exist MS-side BEFORE the flip); native
+   small config table; note the ids are per-location, so re-resolve them
+   against the FranDev sub-account, don't copy Supabase's); confirm token
+   refresh rides the existing MS marketplace-app flow (the app-side
+   `refresh-ghl-token` cron then retires instead of being ported); native
    task push, contact upsert/update, touch-fields. ⚠ Behavior asymmetry to
    resolve deliberately: replay fires `syncStageToGHL` on revert_stage and
    board_move but the app's own routes don't; drop never syncs either side.
