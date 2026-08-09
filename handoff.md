@@ -136,9 +136,33 @@ PR; replay batch limit 50; the inbound EOS sync never deleted — Supabase
 | 6   | Scout/RAG → Chiron KB | ⏳ after 5 — decision resolved, build pending                   |
 | 7   | Platform residue      | ⏳ dies with the app                                            |
 
-Off Vercel = domains 4 + 5 built natively + webhook re-pointed + Supabase
-archived. **Nothing on the critical path waits on Ben anymore** (GRANT is
-Low housekeeping).
+**What's left, in build order (everything remaining to get off Vercel):**
+
+1. **Domain 4 step 2** — classifier + 3 processors (prospect /
+   coaching+onboarding / group+internal) behind a SystemConfig flag, writing
+   `frandev_call` + transcript + participants + junctions; validate by
+   replaying archived payloads against known Supabase output. ← **NEXT**
+2. **Domain 4 step 3** — transcript-job worker (model on `ChironNtnJobs`).
+3. **Domain 4 step 4** — post-call agent + grader in C#, **parity-gated**
+   (re-grade held-out graded calls and diff BEFORE writing any grade row —
+   the riskiest piece of the whole port).
+4. **Domain 4 step 5** — call-types/rubrics settings UI + fan-out
+   (extractions, action items, review packages, commitments).
+5. **Domain 4 step 6** — cutover: decide keys-vs-unsigned (provision
+   `frandev_read_ai_webhook_key` rows + flip `Frandev_ReadAi_RequireSignature`,
+   or accept unsigned explicitly), re-point the Read.ai webhook URL, retire
+   the sandbox call crons + call tables from the push, drop `call_coaching`
+   (KEEP `calls.coaching_data`).
+6. **Domain 5** — contacts + pipeline, the big one (core CRM); its exit also
+   retires `sync-ms-territories` + `sync-ms-prospects`.
+7. **Domain 6** — Scout/RAG → Chiron KB (decision made, build pending).
+8. **Domain 7** — platform residue dies with the app; then archive Supabase.
+
+**Outstanding but NOT on the critical path:** Ben's GRANT SQL (30 sec, Low —
+future notes/chat rows won't sync until run); eyeball the Vercel dashboard
+once to confirm the eos cron is gone; `knowledge_documents.updated_by`
+mapping gap (fix in passing); the carried Low cleanups. **Nothing on the
+critical path waits on Ben anymore.**
 
 ## Exact Next Step
 
