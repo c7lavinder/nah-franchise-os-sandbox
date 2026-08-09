@@ -332,3 +332,153 @@ Flip day, in order:
    deliveries are lost in either direction; Supabase misses sessions
    delivered while the URL pointed at MS — replay them from
    `frandev_read_ai_session.RawPayload` if the rollback outlasts a day.
+
+## 10. Domain 5 scoping (2026-08-09, code-verified — 3 full inventories)
+
+**The shape of it:** domain 5 is the write-heavy heart, not another
+self-contained pipeline. `journey_pipeline_state` alone has ~40 writers;
+20 of the replay's 33 write types are domain-5; every GHL side effect in
+the system fires around these tables. The good news: **most of the port
+already exists.** The panel consolidation built the native READ surface
+nearly complete, and the journal bridge means 19 domain-5 write types are
+ALREADY implemented natively in C# (mirror-first + journal + replay). The
+flip is less "build a write layer" and more "make the existing native
+write layer the only one, and re-home the side effects."
+
+### Already done, no work
+
+- **Mirrors:** every domain-5 table has a `frandev_*` mirror except the
+  deliberately-dropped `contact_pipeline_state` (remove from
+  `SUPABASE_TABLES` — it skips as `no_supabase_source` every night) and
+  the GHL mapping tables (see gap 1 below). `frandev_note` +
+  `frandev_journey_chat` are already native-authority.
+- **Native reads:** journey/contact/territory record pages (\_RecordShell,
+  PR #653/#655/#702), pipeline kanban + unified pipeline page, DayHub
+  FranDev lens (21 panels), Contacts directory, Tasks, Messages/Inbox,
+  L10, Marketing. Only 9 contact satellites have no native reader
+  (profile_datum, related_person, team_member, score, journal,
+  zorakle_datum, activity_message, brief, pipeline_app_settings).
+- **Native writes (journal-first):** advance/revert/drop/close/board_move,
+  create/update/merge/delete_contact, rename/archive/delete_journey,
+  update_profile_field, create/toggle_task, sub_task_log, notes ×3 — plus
+  Chiron approval-card writes. Emitted set == replay's handled set, no
+  drift.
+- **Lead sources already in MySQL:** `PathToOwnershipEntries` +
+  `FormSubmissions` — the inbound prospect syncs exist only to carry them
+  into Supabase.
+
+### The gaps (what must actually be built)
+
+1. **GHL side-effect re-homing** — confirmed as the delicate piece.
+   Gunner's `GhlClient` (v2, method-for-method port of `lib/ghl/client.ts`)
+   exists, but `MasterSuite.Modules.Frandev` has ZERO references to it.
+   Needs: a FranDev-scoped `GhlConfig` (corporate location, not
+   `gunner_tenant` territory scoping); the stage-sync mapping
+   (`PIPELINE_FIELD_MAP` + GHL custom-field ids — `ghl_custom_fields` /
+   `pipelines.ghl_field_id` have NO mirror; land them in SystemConfig or a
+   small config table); a native token refresh (the `refresh-ghl-token`
+   cron is the keystone — it must exist MS-side BEFORE the flip); native
+   task push, contact upsert/update, touch-fields. ⚠ Behavior asymmetry to
+   resolve deliberately: replay fires `syncStageToGHL` on revert_stage and
+   board_move but the app's own routes don't; drop never syncs either side.
+2. **Native lead intake** replaces `sync-ms-prospects`: form-submit →
+   contact + journey + journey*contacts + JPS synchronously (kills the
+   30-min latency and the `pto*`/`franchise*req*` placeholder-id hack for
+   new leads). Must port the dedupe rules (normalized email/phone,
+   deterministic ghl_contact_id), the spam filter, AND the easy-to-miss
+   "wire an existing contact that has no active Sales journey" branch.
+3. **Onboarding/runway derivation** replaces `sync-ms-territories`' JPS
+   half: `onboardingStageSlug` + `runwayTargetForFacts` re-derived
+   natively from territory facts. The `runway-pipeline-guardian` is the
+   ready-made parity instrument — keep it through the flip window as the
+   green-light gate, then delete.
+4. **Background agents → Hangfire** (the domain-4 `FrandevAnthropic`
+   transport is already there): `research-contacts` (also fired inline on
+   contact create), `reengagement-scan`, `coaching-brief`, the
+   contact-journal half of `journals`. The journey/contact brief agents
+   ride along (event-driven Haiku, `frandev_journey_brief` mirror exists).
+5. **Intelligence scoring**: `updateCandidateScore` was deliberately NOT
+   ported in domain 4 (PostCallWrites header pins it to domain 5);
+   `candidate_intelligence`/`candidate_score_history` writers come along
+   here.
+6. **Satellite decisions** (port / defer / archive, decide per table):
+   contact_emails editor (no direct C# writer yet; GHL is authoritative
+   for the multi-email set), related people, team members, activity
+   messages (@-mentions + notifications), zorakle webhooks (app-side
+   handlers today), journey documents (upload → storage + text extract +
+   embeddings — embeddings are domain 6), `contact_scores`,
+   `contact_profile_data`. Workflow trigger matching (`stage.advanced`,
+   `journey.created`) is moot — domain 3 resolved "archive, don't port"
+   and every workflow is DRAFT.
+7. **Domain-4 stragglers to sweep in** (found by the cron audit): `pre-call-briefs` (MS #733 built a native pre-call cue — likely
+   supersedes it; confirm and retire) and `sync-ghl-calendar` (writes
+   calls tables via GHL appointment polling and resolves against
+   journeys/JPS — port the poll into MS or fold into native calendar).
+   Both break at the domain-5 flip if left as-is.
+
+### Flip mechanics (domain-4 recipe, adjusted)
+
+- **The replay inverts per-type, not all at once.** The
+  `Frandev_ReadAi_NativeProcessing` pattern: a
+  `Frandev_ContactsPipeline_NativeWrites` flag decides, per side effect,
+  which side fires GHL (never both — double-fire is the failure mode to
+  design against).
+- **The push edit is the highest-risk single change**: ~25 domain-5
+  tables leave `SUPABASE_TABLES`; any one left behind becomes a blind
+  nightly upsert of stale Supabase truth over live native rows.
+- **Crons retiring at this flip**: `sync-ms-territories`,
+  `sync-ms-prospects`, `runway-pipeline-guardian` (after its parity-gate
+  duty), plus the 4 PORTed agents' app-side versions. The replay cron
+  (`apply-mastersuite-writes`) SHRINKS but survives — 13 non-domain-5
+  types (workflows ×3, EOS ×2, territory ×4, stakeholders ×2, sms/scout
+  ×2) still bridge until domains 3/6/7 close out.
+- **Parity gates before the flip**: contacts/journeys/JPS row+field parity
+  (phase10-audit pattern), guardian green, GHL side-effect dry-run diff
+  (log-what-would-fire vs what the app fires).
+
+### Known cross-domain seams (already live today)
+
+- The native post-call agent (domain 4) writes domain-5 tables:
+  profile-field auto-saves journal `update_profile_field` with
+  `source: 'ai-auto'` since MS #740 (which also fixed the NOT NULL
+  `SourceHistory` insert failure found on prod). Territory market-data and
+  objection-registry auto-saves are still mirror-only — same clobber class,
+  lower stakes (`territory_market_data` is domain 1, `objection_registry`
+  domain 6); revisit if they matter before their domains flip.
+- Read.ai participant contact creation went native at the domain-4 flip
+  (`readai_` placeholders, NeedsReview) — those contacts exist mirror-only
+  until domain 5 makes native creation authoritative.
+
+### Bonus findings from the inventory (app-side, small)
+
+- ~~`…/pipelines/[pipelineId]/drop/route.ts` has NO `requireAuth`~~ —
+  **FIXED in the scoping session** (every sibling route has it).
+- `batch-actions/route.ts:193` issues a malformed `.eq("journey_id",
+<query builder>)` before redoing it correctly at :203 — dead first call,
+  harmless, retire-with-app.
+- `sync-pto-prospects.ts` + `sync-franchise-requests.ts` have zero
+  callers — dead code, retire-with-app.
+- `zorakle_assessments` (zero refs), `franchise_owners` + `zorakle_profiles`
+  (read-only): free flips.
+
+### Build sequence (session-sized, in order)
+
+1. **GHL foundation**: FranDev GhlConfig + token refresh (Hangfire) +
+   stage-field mapping config + smoke probe. Nothing user-visible.
+2. **Native lead intake, shadow-first**: form-submit → native
+   CreateProspect path + journal (`create_contact` replay keeps Supabase
+   whole while it's still master. The bridge already works in this
+   direction — Add Journey uses it today).
+3. **Side-effect re-homing behind the flag** (stage sync, task push,
+   contact upsert, touch fields), default OFF; replay keeps firing them
+   app-side until the flip.
+4. **Agents to Hangfire, dark** (research, reengagement, coaching-brief,
+   contact journals) + intelligence scoring.
+5. **Onboarding/runway derivation** + guardian parity green.
+6. **Satellite ports/decisions** (emails, related people, docs, zorakle).
+7. **Flip day**: flag on → replay's domain-5 types retire → ~25 tables out
+   of the push → crons retired → sandbox contact/pipeline pages retire →
+   file the ADR.
+
+Estimate: 6–8 sessions at domain-4 pace, GHL foundation and intake being
+the two with real unknowns.

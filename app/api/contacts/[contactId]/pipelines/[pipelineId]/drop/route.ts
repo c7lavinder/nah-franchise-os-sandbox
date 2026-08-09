@@ -26,6 +26,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ contactId: string; pipelineId: string }> }
 ) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+
   try {
     const { contactId: rawId, pipelineId } = await params;
     const { destination, reason, TerritorySlug } = (await request.json()) as {

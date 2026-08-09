@@ -536,7 +536,8 @@ const SUPABASE_TABLES: string[] = [
   "contact_briefs",
   "contact_emails",
   "contact_journals",
-  "contact_pipeline_state",
+  // contact_pipeline_state: dropped in 20260422600000_drop_cps_legacy.sql —
+  // its mirror-less entry skipped as no_supabase_source every night.
   "contact_profile_data",
   "contact_profile_fields",
   "contact_related_people",
