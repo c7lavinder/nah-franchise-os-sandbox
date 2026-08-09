@@ -57,6 +57,27 @@ MySQL originals (`PropertyRoyalty` et al.), not the mirrors.
   sync-fed tables) is the concrete work item blocking the next two retirements; it
   belongs in MasterSuite, not in this repo.
 
+## Correction (2026-08-09, session 101)
+
+Direct verification against both databases refined the "Deliberately KEPT" analysis:
+
+- **`territory_market_data` does NOT round-trip.** No inbound sync writes it — it is
+  app-born (call-extraction agents, Scout, manual edits) and flows one direction:
+  Supabase → nightly push → `frandev_territory_market_data` → native read. That
+  mirror read is the _correct_ direction and is not an exit criterion for anything.
+  `sync-ms-territories` is kept for its real reasons alone: `territories` is the
+  reference table app-side journeys/workflows FK to, and the same cron seeds
+  `journey_pipeline_state` (onboarding/runway) — it retires at the domain-5 flip,
+  not before.
+- **The `sync-ms-eos` round-trip is 7 tables wide, not 1**: scorecard, rocks, todos,
+  issues, budgets, habits, lead channels all flow MySQL → Supabase → push → mirror →
+  native read. MasterSuite PR #718 re-points all 7 reads to the `Eos_*` originals;
+  once deployed, `sync-ms-eos` can retire. Caveat: 52 app-created EOS rows
+  (11 rocks / 21 todos / 20 issues, mostly stale Q2 agent extractions) live only in
+  Supabase and drop off the native tab — kept in Supabase, disposition TBD.
+- `eos_territory_goals` (the Goals tab) is app-born like market data — its mirror
+  read also stays, correctly.
+
 ## Supersedes / relates
 
 - Begins superseding: ADR-0002, ADR-0009 (per-domain, as flips land)

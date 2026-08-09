@@ -109,13 +109,24 @@ sandbox-app → prod-MySQL writes, ever.
 5. **~90 maintenance scripts** in `scripts/` assume Supabase — accept breakage;
    they retire with the app (don't port them).
 
-## 7. Open decisions (Corey / Ben)
+## 7. Open decisions (Corey / Ben) — ALL RESOLVED
 
-1. Confirm the strategy in §1 (consolidation-completes-cutover; no app
-   re-point) → file the superseding ADR.
-2. Domain 3 call: port workflows or archive them (agent pattern replaces the
-   page)?
-3. Scout/RAG landing zone: fold into Chiron KB, or keep a separate vector
-   store?
-4. When to stop the 6 inbound syncs for domain 1 (they're pure cost once
-   native pages read MySQL) — needs nothing but a go-ahead.
+1. ~~Confirm the strategy in §1~~ **RESOLVED** — ADR-0014 filed 2026-08-09 at
+   the first retirement; supersession of ADR-0002/0009 has begun.
+2. ~~Domain 3 call~~ **RESOLVED 2026-08-09 (Corey): archive, don't port.**
+   Workflows follow the Gunner pattern — the agent generates them; the
+   Workflows page is not rebuilt natively.
+3. ~~Scout/RAG landing zone~~ **RESOLVED 2026-08-09 (Corey): fold into the
+   Chiron knowledge base.** Note: this content is mostly _internal team
+   knowledge_, not candidate-facing — treat it as Chiron KB material, not a
+   separate vector store.
+4. ~~When to stop the 6 inbound syncs~~ **RESOLVED** — go-ahead given.
+   `sync-ms-properties` + `sync-ms-lead-list` retired 2026-08-09 (ADR-0014);
+   territories + EOS retire as soon as the native reads re-point to the MySQL
+   originals (in progress).
+
+**Framing confirmed by Corey 2026-08-09:** MasterSuite already owns the
+property / territory / EOS data — native pages read and write those fields
+directly, like every other Gunner page. The only data that genuinely lives
+app-side and must be _ported_ (not just re-pointed) is **comms/call data and
+pipeline stages** (domains 4 + 5).
