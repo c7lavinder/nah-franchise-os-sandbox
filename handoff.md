@@ -154,13 +154,15 @@ hook misparses "push <word>" — commit with `-F <file>`; solution at
 | 6   | Scout/RAG → Chiron KB | ⏳ after 5 — decision resolved, build pending                   |
 | 7   | Platform residue      | ⏳ dies with the app                                            |
 
-**What's left, in build order:**
+**What's left, in build order — 4 steps of domain 4, then domains 5/6/7:**
 
 1. **Domain 4 step 3** — transcript-job worker (model on `ChironNtnJobs` /
-   `CbEstimationVisionJobs` — MasterSuite has no Vercel-cron analogue). ← **NEXT**
+   `CbEstimationVisionJobs`, Hangfire — MasterSuite has no Vercel-cron
+   analogue). Smallest remaining step. ← **NEXT SESSION**
 2. **Domain 4 step 4** — post-call agent + grader in C#, **parity-gated**
    (re-grade held-out graded calls and diff BEFORE writing any grade row —
-   the riskiest piece of the whole port).
+   the riskiest piece of the whole port; the s104 parity method — drive TS
+   and C# with identical inputs — is the template). ← **ALSO NEXT SESSION**
 3. **Domain 4 step 5** — call-types/rubrics settings UI + fan-out
    (extractions, action items, review packages, commitments).
 4. **Domain 4 step 6** — cutover: keys-vs-unsigned decision, re-point the
@@ -169,22 +171,40 @@ hook misparses "push <word>" — commit with `-F <file>`; solution at
    crons + call tables from the push, drop `call_coaching` (KEEP
    `calls.coaching_data`).
 5. **Domain 5** — contacts + pipeline (also retires `sync-ms-territories` +
-   `sync-ms-prospects`).
-6. **Domain 6** — Scout/RAG → Chiron KB.
+   `sync-ms-prospects`). The big one.
+6. **Domain 6** — Scout/RAG → Chiron KB (decision made, build pending).
 7. **Domain 7** — platform residue dies with the app; then archive Supabase.
 
-**Outstanding but NOT on the critical path:** Ben's GRANT SQL (30 sec, Low);
-`knowledge_documents.updated_by` mapping gap; carried Low cleanups.
+**Pace directive (Corey, s104): get through MORE than one step per session.**
+Steps 1+2 landed in one session each with full validation; step 3 is smaller
+than either. Next session's target is steps 3 AND 4 — worker merged, grader
+built with its parity diff run, even if the grade-parity verdict carries to
+s106.
+
+**OUTSTANDING (everything not on the critical path):**
+
+- Ben's GRANT SQL — 30 sec at a prod terminal
+  (`database/2026-08-09_grant_frandev_note_chat_write.sql`); future
+  notes/chat rows don't sync until run — **Low**
+- `knowledge_documents.updated_by` → `UpdatedByUserId` mapping gap — fix in
+  passing during a domain-4 step — **Low**
+- Carried Low cleanups: `charleston@` rename; three inline-edit
+  implementations; `ResolveUser`/`ResolveUsername` duplicated;
+  `updateCandidateScore`/`Flags` write on every event; `GetAvgCycleDays`
+  uncalled; ungraded calls read "Group Call"; `DataAccess.Tests` empty
+- Held until fully off Vercel (Corey, s96): four nightly jobs unscheduled;
+  journey briefs ~3,175-LLM-call run
+
 **Nothing on the critical path waits on Ben.**
 
 ## Exact Next Step
 
-Build port-plan §8 step 3 in a fresh MS worktree: the transcript-job worker,
-modeled on `ChironNtnJobs` / `CbEstimationVisionJobs` (Hangfire — see
-`HangfireConfiguration.cs`). Study what `frandev_transcript_job` rows the
-Vercel pipeline creates/consumes first, then port the worker loop. The step-2
-classifier (#729) is merged and flag-gated off; its replay + probe harness
-pattern is in `FrandevService.ReadAiProcessors.cs`.
+Build port-plan §8 step 3 (transcript-job worker, Hangfire, modeled on
+`ChironNtnJobs` — study `frandev_transcript_job` usage in the sandbox first)
+AND step 4 (post-call agent + grader, parity-gated: re-grade held-out graded
+calls and diff before any grade row) in the same session — the pace target is
+two steps, using the s104 identical-inputs parity method and the replay/probe
+harness pattern in `FrandevService.ReadAiProcessors.cs`.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -192,6 +212,6 @@ pattern is in `FrandevService.ReadAiProcessors.cs`.
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Build port-plan §8 step 3: the transcript-job worker in the MasterSuite repo, modeled on ChironNtnJobs (Hangfire). Steps 1+2 are merged (#722 receiver live; #729 classifier flag-gated OFF). Study frandev_transcript_job usage in the sandbox first. Ben items left: just the GRANT SQL (Low). Do NOT retire sync-ms-territories (domain-5 exit). Do NOT flip Frandev_ReadAi_NativeProcessing.
+Then: Get through port-plan §8 steps 3 AND 4 in the MasterSuite repo — the pace target is two steps this session. Step 3: transcript-job worker (Hangfire, model on ChironNtnJobs; study frandev_transcript_job usage in the sandbox first). Step 4: post-call agent + grader in C#, PARITY-GATED — re-grade held-out graded calls and diff BEFORE writing any frandev_call_grade row; reuse the s104 identical-inputs parity method (FrandevService.ReadAiProcessors.cs has the harness pattern). Steps 1+2 are merged (#722 receiver live; #729 classifier flag-gated OFF). Ben items left: just the GRANT SQL (Low). Do NOT retire sync-ms-territories (domain-5 exit). Do NOT flip Frandev_ReadAi_NativeProcessing.
 
 ---
