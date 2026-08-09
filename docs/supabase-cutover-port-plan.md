@@ -202,19 +202,48 @@ the coaching feed dies too if this table stops being fed after cutover.
    ⚠ Step-6 note: the flag flip must also decide what sweeps the backlog of
    `'pending'` sessions accumulated in shadow — the live path only processes
    new deliveries.
-3. Transcript-job worker (model on `ChironNtnJobs` / `CbEstimationVisionJobs`
-   — MasterSuite has no Vercel-cron analogue).
-4. Post-call agent + grader in C# (Anthropic plumbing exists: `ChironAgent`,
-   `ScoutAgent`, `VisionAnthropicAdapter`; no call-grading path yet).
-   **Riskiest piece = grade parity**: the grader prompt is assembled from
-   `knowledge_documents` by call type (`rubric-loader.ts`) on a pinned Haiku
-   model; a drifted C# reimplementation silently re-grades the business.
-   Gate: re-grade a held-out sample of already-graded calls and diff BEFORE
-   writing any `frandev_call_grade` row.
-5. Call-types / rubrics settings UI (no MasterSuite equivalent yet).
-6. Cutover: re-point the Read.ai webhook URL, retire the sandbox call crons +
-   the call tables from the push. Drop `call_coaching` (dead legacy — but KEEP
-   `calls.coaching_data`, the UI reads it).
+3. ✅ **BUILT 2026-08-09 (s105, MS PR #734)** — transcript-job worker +
+   native intake. `frandev_transcript_job` gets its first consumer (Whisper
+   whisper-1, 25MB cap, one blind retry, attempts-on-pickup — the TS worker's
+   exact shape) **plus a stale-'processing' reaper** the TS version lacked.
+   Native uploads stop proxying to Vercel when the flag is on: recordings →
+   S3 + job queue; transcripts inline with the extract-speakers/resolve/
+   reclassify chain. Three Hangfire jobs registered DARK: `frandev-transcript-
+jobs` (\*/5), `frandev-readai-sweep` (the flip-day backlog drain + ongoing
+   backstop, 3-59/10), `frandev-analyze-calls` (replaces the TS processors'
+   step-8/9 fire-and-forget generate calls, 6-59/10). Validated E2E on a
+   running app: reaper requeued a 2h-stale claim; 404 audio failed after
+   exactly 3 attempts; re-pended session re-processed idempotently
+   (`skipped_existing`).
+4. ✅ **BUILT 2026-08-09 (s105, MS PR #734)** — post-call agent + grader,
+   **PARITY GATE PASSED**. Four live LLM sections ported prompt-byte-for-byte
+   (summary+title+classification / extraction / KB intelligence / rubric
+   grade) on the pinned Haiku model, no temperature, allSettled orchestration,
+   idempotency guard, budget gate, `frandev_llm_call_log` metering (first
+   native writer; its JSON_VALID CHECK requires serialized JSON — E2E catch).
+   NOT ported, deliberately: generic coaching (dead in TS), next-steps (TS ran
+   the LLM then discarded the output), review packages (written, read by
+   nothing), commitments writer (dead; reads stay on the pushed mirror).
+   **Tier-1 parity (deterministic):** grading prompts for the 15 newest
+   graded calls, C# (`read-ai-grade-parity` dev probe, sha256) vs TS
+   (`scripts/dump-grade-prompts.ts`, verbatim grader.ts copy): 12/15
+   byte-identical; all 3 mismatches are mirror-vs-Supabase data drift (journey
+   stages/durations that moved since the nightly push — field-verified), the
+   same honest-drift class as the s104 classify replay. **Tier-2 parity
+   (statistical):** live re-grade of 8 held-out graded calls, writeGrade=false:
+   8/8 letter-grade agreement, avg |score Δ| 1.88, criteria 6/6 on every call.
+   No probe wrote a grade row.
+5. ✅ **BUILT 2026-08-09 (s105, MS PR #734)** — call-types/rubrics settings
+   INSIDE the existing `/Gunner/Settings?tab=calls` page, branched on the
+   workspace picker: FranDev lens renders the `frandev_call_type`/`rubric`/
+   `rubric_criterion` editor (those tables' first C# writers), Gunner lens
+   keeps its calibration-locked set untouched — same page, same rail, no
+   duplicated machinery. **Ownership rule:** rubric writes REFUSE while the
+   flag is off (the nightly push would clobber them); the tab renders
+   read-only with a banner, and unlocks automatically at the step-6 flip.
+   `/Gunner/Settings` added to `frandevSharedPages`. E2E via minted JWT: both
+   lenses render, add-criterion round-trips.
+6. Cutover — **now a checklist, no code left to write** (see below).
 
 **Build sequence (session-sized):** (1) shadow-mode webhook receiver,
 ingest-only, replay archived `raw_payload` rows and diff — (2) classifier +
@@ -222,3 +251,72 @@ processors behind a flag, validated by replaying archived payloads against
 known Supabase output — (3) transcript worker — (4) grader, parity-gated —
 (5) settings UI + fan-out (extractions, action items, review packages,
 commitments) — (6) flip the webhook, retire crons.
+
+## 9. Domain 4 step 6 — the cutover runbook (written s105)
+
+Preconditions, in order — the flip cannot happen before all three:
+
+1. **Ben's `frandev_%` GRANT on prod** (the standing Low item, now
+   promoted: it gates this flip). Then run the full prod push backfill —
+   the code is prod-ready, dry-run validated at 97,818 rows. Prod
+   `frandev_` tables have 0 rows today; the native pipeline reads/writes
+   the mirror, so an empty mirror means no calls surface.
+2. **MS PR #734 deployed** with all three Hangfire jobs visible in the
+   dashboard (they no-op while the flag is off).
+3. **Signature decision executed** (policy DECIDED s103: accept-and-log).
+   Either provision real signing keys (rows in
+   `frandev_read_ai_webhook_key`, then SystemConfig
+   `Frandev_ReadAi_RequireSignature='on'`) or record "accept unsigned" in
+   the cutover note. Today zero keys exist anywhere, so reject-by-default
+   would drop every call.
+
+Flip day, in order:
+
+1. **Freeze check** (read-only): prod
+   `SELECT ProcessingStatus, COUNT(*) FROM frandev_read_ai_session GROUP BY 1;`
+   — note the `pending` count (the shadow backlog the sweep will drain).
+2. **Flip the flag**: `REPLACE INTO SystemConfig (Id, Value) VALUES
+('Frandev_ReadAi_NativeProcessing', 'on');` on prod. Rubric editing in
+   Settings unlocks at the same moment (same flag).
+3. **Re-point the Read.ai webhook URL** (Read.ai dashboard) from
+   `https://nah-franchise-os-sandbox.vercel.app/api/webhooks/read-ai` to
+   `https://mastersuiteapp.com/api/hooks/read-ai`. The GET probe on that
+   URL answers `{status:"ok"}`.
+4. **Watch the sweep drain the backlog** — `frandev-readai-sweep` runs
+   every 10 min, 50 sessions/pass, idempotent (`skipped_existing` for
+   sessions that already have calls). Verify:
+   `SELECT COUNT(*) FROM frandev_read_ai_session WHERE ProcessingStatus='pending';`
+   → 0, and `frandev_integration_log` rows with `EventType='backlog_sweep'`.
+5. **Verify one live delivery end-to-end**: next real call → session row →
+   call + participants + junctions + transcript → (≤10 min later)
+   AiSummary/title/grade/extractions/KB items + `frandev_llm_call_log` rows.
+6. **Retire the sandbox call crons** (vercel.json): `process-transcripts`,
+   `calls/reconcile`, `rubric-review`. KEEP `coaching-brief` +
+   `pre-call-briefs` (brief agents, die with domains 5/6). KEEP
+   `sync-ms-territories` (domain-5 exit).
+7. **Retire the call tables from the push** (`lib/mastersuite/push-frandev.ts`
+   `SUPABASE_TABLES`): remove `calls`, `call_transcripts`, `call_grades`,
+   `call_participants`, `call_territories`, `call_journeys`,
+   `call_action_items`, `call_action_feedback`, `call_data_extractions`,
+   `call_review_packages`, `call_types`, `call_coaching`, `call_logs`,
+   `transcript_jobs`, `rubrics`, `rubric_criteria`,
+   `rubric_review_suggestions` + the `frandev_rubric_criterion` entry in
+   `TABLE_OVERRIDES`. **KEEP pushing**: `read_ai_sessions`? NO — the native
+   receiver now writes `frandev_read_ai_session` directly (and the webhook
+   no longer feeds Supabase), retire it too; `read_ai_webhook_keys` retire
+   (keys, if any, are provisioned MS-side now); **KEEP** `commitments`
+   (briefs/Scout read the mirror; writer long dead), **KEEP**
+   `knowledge_documents` until domain 6 (grader + KB merge read it — the KB
+   merge WRITES it natively now, so after the flip the nightly push will
+   clobber native KB edits until domain 6 re-points the KB: acceptable
+   during the window, or retire it at flip and accept Supabase KB freeze —
+   decide in the flip session; the grader's rubric docs are stable either
+   way).
+8. **Drop `call_coaching`** (Supabase migration; zero readers — confirmed
+   in-code comment at `app/api/calls/[callId]/detail/route.ts:441`). KEEP
+   `calls.coaching_data` (columns + historical rows; UI reads them).
+9. **Roll-back**: set the flag off + re-point the webhook URL back. The
+   receiver keeps ingesting sessions either way (shadow upsert), so no
+   deliveries are lost in either direction; Supabase misses sessions
+   delivered while the URL pointed at MS — replay them from
+   `frandev_read_ai_session.RawPayload` if the rollback outlasts a day.
