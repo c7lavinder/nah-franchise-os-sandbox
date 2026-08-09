@@ -254,6 +254,13 @@ async function fetchAllRows(table: string, limit: number): Promise<Record<string
  * already PascalCase, e.g. `TerritorySlug`), then fall back to the snake_case
  * equivalent.
  */
+/** Irregular dest-column → source-column names the snake_case rule can't
+ *  reach. `UpdatedByUserId` was minted mirror-side with a more precise name
+ *  than Supabase's `updated_by` — the only such gap (2026-08-09 audit). */
+const COLUMN_OVERRIDES: Record<string, string> = {
+  UpdatedByUserId: "updated_by",
+};
+
 function buildColumnMap(
   destColumns: DestColumn[],
   sampleRow: Record<string, unknown>
@@ -263,7 +270,14 @@ function buildColumnMap(
   const unmappedDest: string[] = [];
   for (const dest of destColumns) {
     const snake = pascalToSnake(dest.name);
-    const sourceKey = sourceKeys.has(dest.name) ? dest.name : sourceKeys.has(snake) ? snake : null;
+    const override = COLUMN_OVERRIDES[dest.name];
+    const sourceKey = sourceKeys.has(dest.name)
+      ? dest.name
+      : sourceKeys.has(snake)
+        ? snake
+        : override && sourceKeys.has(override)
+          ? override
+          : null;
     if (sourceKey) mapped.push({ dest, sourceKey });
     else unmappedDest.push(dest.name);
   }
