@@ -1,85 +1,36 @@
-# Duplicate contacts — 4 groups left for a human call
+# Duplicate contacts — RESOLVED (nothing left to review)
 
-Updated 2026-08-09 (evidence pass). The original D5 list had 57 same-name groups.
-A deeper evidence pass — normalizing phone formats (`+1XXXXXXXXXX` vs bare 10 digits)
-and checking the multi-email `contact_emails` table — proved 46 of them were the same
-person after all, and they have been **merged** (46 merges, 0 failures, 0 orphaned
-journeys; full log in the session wrap). 43 shared the exact same phone once formats
-were normalized; 3 shared an email that only the multi-email table knew about.
+Closed 2026-08-09, session 100. The original D5 list had 57 same-name groups; the
+evidence pass proved 46 and merged them; the last 11 were resolved as follows.
 
-The GHL "duplicate" tag step failed on all 46 — placeholder GHL ids, same as the first
-D5 batch. Every database step was green.
+## The 4 judgment calls — decided
 
-That leaves **4 groups needing your judgment** and **7 junk groups** you can bulk-clear.
+- **jimmy stratton — MERGED.** The two records were imported ONE SECOND apart with
+  sequential import ids (pto_100151 → pto_100152), same zip, near-identical emails
+  (jamesdsta@ / jamesdstar@). A double-import, not two people. Merged into the older
+  record (jamesdstar@gmail.com, efd8235d).
+- **angel lane — KEPT BOTH.** Different phones, different zips (19144 vs 19138), and
+  the emails belong to two identities (laneangel493@ vs gwendolynlane65@ — Angel vs
+  Gwendolyn Lane). Likely two people in one family. Not provable; merging different
+  people is destructive.
+- **derrick washington — KEPT BOTH.** Different emails, phones, and zips (70127 vs
+  70126); nothing shared but name and city. Not provable either way.
+- **ron cates — KEPT BOTH.** The second record is charleston@newagainhouses.com with
+  2 calls and 33 profile rows — the Charleston office record, not a duplicate person.
+  If anything, that record deserves a rename so it stops matching a person's name.
 
----
+## The 7 junk groups — deleted (20 contacts)
 
-## Needs your call (4 groups)
+All 20 junk form-submission contacts (alanoud kennedy ×2, ben-test-harrison ×3,
+hamood alobeidli ×7, ifkdrpb odrkie ×2, md.mukhtar ×2, test test ×2, حليمة الغروي ×2)
+were deleted 2026-08-09 through production MasterSuite's own guarded handlers
+(archive journey → delete journey → delete contact, per contact), journaled, and
+replayed into the app — verified gone on BOTH sides (0 rows remaining in either
+database, 60/60 journal rows applied, 0 failures).
 
-Merge in the app (Lead detail → Merge) if same person; leave alone if different people.
+## Nothing is pending
 
-### angel lane (2 contacts)
-
-Two different email owners (laneangel / gwendolynlane) at two different phone numbers,
-both Philadelphia. Could be a mother/relative filling the form for the same household —
-or two people.
-
-- laneangel493@gmail.com · 2158525372 · Philadelphia, PA · id 4b361bf2-...
-- gwendolynlane65@gmail.com · +14452678012 · Philadelphia, PA · id a2ae438a-...
-
-### derrick washington (2 contacts)
-
-Different emails, different phones, both New Orleans. Both look like business emails
-owned by the same kind of person; nothing proves it either way.
-
-- excitingfuturesandbeyond@gmail.com · +15044973152 · New Orleans, LA · id 1c65de09-...
-- everythingcommercellc@gmail.com · 5042030189 · New Orleans, LA · id c85c39bf-...
-
-### jimmy stratton (2 contacts)
-
-Almost certainly the same person — jamesdsta@ vs jamesdstar@ (one letter), phones differ
-only in the last 4 digits, same town. But "almost certainly" on a name+near-miss is
-exactly what this list exists to catch, so it's your call.
-
-- jamesdsta@gmail.com · 8056570724 · Taylors, SC · id f360e8e3-...
-- jamesdstar@gmail.com · 8056570288 · Taylors, SC · id efd8235d-...
-
-### ron cates (2 contacts)
-
-Probably a KEEP-BOTH, not a merge: the second record is charleston@newagainhouses.com
-with 2 calls and 33 profile rows — it looks like the Charleston franchise office record,
-not a person. Merging a person into an office record would be wrong.
-
-- soulshinesolutionschs@gmail.com · 8439260093 · Charleston, SC · id 3a76162e-...
-- charleston@newagainhouses.com · 981-1856 · Charleston, SC · 2 calls, 33 profile rows · id e9008e18-...
-
----
-
-## Junk form submissions (7 groups, 20 contacts) — bulk-clear candidates
-
-Every contact below has ZERO notes, tasks, calls, and profile rows — nothing but the
-auto-created journey. Most have no email, phone, or location at all. These are junk
-form submissions, not people. They pass the Delete guard ("untouched record"), so the
-Delete button in MasterSuite can clear them one by one — or say the word and a session
-deletes the lot.
-
-- **alanoud kennedy** (2) — both completely blank
-- **ben (test) harrison** (3) — Ben's own test submissions (ben3@newagainhouses.com)
-- **hamood alobeidli** (7) — all seven completely blank
-- **ifkdrpb odrkie** (2) — keyboard-mash name; one has a Saudi school email
-- **md.mukhtar md.mukhtar** (2) — one bare phone, otherwise blank
-- **test test** (2) — testingwebsitedifne@ and amber@newagainhouses.com test rows
-- **حليمة الغروي** (2) — both completely blank
-
----
-
-## How this was proven (for the record)
-
-- Phones compared on their last 10 digits — the old pass compared raw strings, so
-  `+13179465840` and `3179465840` looked "different".
-- Emails checked across `contact_emails` (the multi-email store), not just the primary
-  column — that alone proved 3 groups.
-- Keeper choice per merge: most activity first, then a real (non-auto) journey, then
-  oldest record.
-- Evidence snapshot per contact (all emails/phones, location, activity counts) was
-  generated read-only before any merge ran.
+This file is retained as the record of how the 57 groups were resolved. The full
+per-contact evidence snapshot (emails, phones, activity counts, classifications)
+lives in the session-100 scratchpad archive; the merge/delete trail is in
+`frandev_native_write` (journal) and each contact's `merged_into_contact_id`.
