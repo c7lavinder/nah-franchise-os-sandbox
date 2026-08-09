@@ -72,9 +72,12 @@ Direct verification against both databases refined the "Deliberately KEPT" analy
 - **The `sync-ms-eos` round-trip is 7 tables wide, not 1**: scorecard, rocks, todos,
   issues, budgets, habits, lead channels all flow MySQL → Supabase → push → mirror →
   native read. MasterSuite PR #718 re-points all 7 reads to the `Eos_*` originals;
-  once deployed, `sync-ms-eos` can retire. Caveat: 52 app-created EOS rows
-  (11 rocks / 21 todos / 20 issues, mostly stale Q2 agent extractions) live only in
-  Supabase and drop off the native tab — kept in Supabase, disposition TBD.
+  once deployed, `sync-ms-eos` can retire. Parity verified against prod: scorecard
+  goals and habits match exactly, every territory. The item lists shrink on purpose:
+  the sync only ever upserted, so Supabase/the mirror still carries ~48 rocks,
+  ~196 todos, ~167 issues, ~9 budgets **deleted from `Eos_*` long ago**, plus 52
+  app-created rows (11 rocks / 21 todos / 20 issues, mostly stale Q2 agent
+  extractions). The mirror was showing deleted items; the originals are current.
 - `eos_territory_goals` (the Goals tab) is app-born like market data — its mirror
   read also stays, correctly.
 
