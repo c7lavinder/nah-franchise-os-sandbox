@@ -7,20 +7,8 @@
   ],
   "crons": [
     {
-      "path": "/frandev/api/cron/journals",
-      "schedule": "0 23 * * *"
-    },
-    {
-      "path": "/frandev/api/cron/weekly-report",
-      "schedule": "0 23 * * 0"
-    },
-    {
       "path": "/frandev/api/cron/research-territories",
       "schedule": "0 3 * * 0"
-    },
-    {
-      "path": "/frandev/api/cron/pre-call-briefs",
-      "schedule": "0 7 * * *"
     },
     {
       "path": "/frandev/api/cron/refresh-ghl-token",

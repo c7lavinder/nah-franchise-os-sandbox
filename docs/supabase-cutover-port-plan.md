@@ -553,3 +553,146 @@ day (#740/#741/#746/#747 — the sub-account correction shrank step 1, the
 journal machinery was shared, and the agents' prompts ported clean).
 **Domain 5 is FLIPPED — MasterSuite's MariaDB is the system of record
 for the core CRM.** Remaining: the tail items in step 7 + domain 6.
+
+## 11. Domain 6 scoping (2026-08-10, code-verified — 2 full inventories)
+
+**The shape of it:** domain 6 is smaller than it looks. The Supabase
+retrieval brain (ADR-0013, phases 0–10, `lib/rag/` + `lib/scout/`) is a
+large machine, but most of what it maintains is either **already frozen**
+(the Supabase KB and transcript embeddings stopped growing at the domain-4
+flip), **already native** (the post-call KB merge writes
+`frandev_knowledge_document`; the contact-journals agent runs natively),
+or **write-only telemetry nothing reads** (`scout_retrieval_logs`,
+`scout_performance_reports`, `rep_journals`, `system_logs` — zero readers
+across the codebase). The genuinely live surface to port is: query-aware
+KB retrieval for Chiron chat, KB authoring, and the journey-brief agent.
+The data is small: 58 KB docs, 58 journey briefs, 170 contact journals,
+2,226 embedding chunks.
+
+### The embeddings decision (the domain's one open architecture call)
+
+**Retire pgvector — no vector port.** Grounds:
+
+- Three native retrievers already state "deliberately NO vector infra" as
+  a standing ruling (`ChironKbRetriever.cs:17-19`, `IntakeRetriever.cs:11-13`,
+  `GunnerGrading.Knowledge.cs`) — term-overlap ranking with
+  surface/stage filters and caching is the house pattern, proven in
+  Chiron chat (K3) and Gunner grading.
+- At 58 docs, lexical ranking is not a compromise — the app itself bulk
+  -loads 25 docs per prompt today (`lib/scout/client.ts:434`); ranked
+  lexical selection is strictly better than that.
+- Prod MariaDB is 12.3 (`VEC_FromText` works — verified 2026-08-10), so
+  native VECTOR columns ARE available if lexical ever proves
+  insufficient. Recorded as the future option, deliberately unused now.
+- Consequences: `frandev_contact_journal.EmbeddingId` stays NULL forever;
+  the `embeddings` push row (pgvector → longtext, structurally inert)
+  retires; Voyage AI + the Supabase index archive with the app.
+
+### Already done, no work
+
+- **Native KB writer**: the post-call merge writes
+  `frandev_knowledge_document` + `frandev_objection_registry`
+  (`FrandevService.PostCallWrites.cs:470-579`) — live since domain 4,
+  NRE on title-less items fixed in MS #752. `knowledge_documents` +
+  `contact_journals` already left the push (domains 4/5).
+- **Native KB reads**: Chiron/Scout chat grounding
+  (`FrandevService.ScoutContext.cs` — top-25 by priority + static page
+  boost), the grader's rubric docs (`FrandevService.Grading.cs:475`), the
+  read-only `/frandev/knowledge` browser (4-pillar taxonomy).
+- **Native chat**: ScoutAgent loop + 6 read / 4 write tools + memory
+  merge (journaled `scout_memory_merge`, replay handler live), budget
+  gates, `chiron_*` conversation store.
+- **Native agents infra** (#747): the FrandevAgentsJobs pattern, shared
+  LLM budget, `FrandevAnthropic.CallClaude` transport — journey-brief
+  agent slots straight in.
+- **Native journey chat** (`frandev_journey_chat`) — already authority,
+  never in Supabase.
+
+### Retire, don't port (evidence-based scope cuts)
+
+- **Contact + territory brief generators** — `contact_briefs` and
+  `territory_briefs` are EMPTY in prod (the generate-briefs cron was
+  never scheduled successfully; its route exported POST-only when it was
+  scheduled). Nothing native reads either table
+  (`frandev_territory_brief`: zero code refs). The app's `get_entity`
+  reads survive against empty tables exactly as today.
+- **Rep journals + system logs** — `rep_journals` and `system_logs` have
+  ZERO readers anywhere; the journals cron halves 2 and 3 write tables
+  nobody opens. Retire with the cron.
+- **`scout_retrieval_logs` / `scout_performance_reports` /
+  `kb_gap_signals` mirrors + the weekly-report cron** — write-only
+  telemetry; KB staleness is derivable at read time.
+- **`user_memory`** — dead table (zero code refs), still pushed nightly.
+- **`pre-call-briefs` cron** — its output lands nowhere durable (a
+  `system_logs` audit row); MS #733 built the native pre-call cue.
+- **App-side Scout chat** — stays functional-but-deprecated on the frozen
+  KB until the app dies (domain 7); Chiron is the assistant of record.
+
+### Gaps to build
+
+1. **Query-aware KB retrieval for FranDev chat** — `FrandevKbRetriever`
+   on the `ChironKbRetriever.Rank` pattern (term overlap, title double
+   -weight, category boost from page context, cache), replacing the
+   top-25-by-priority stuffing in `GetKnowledgeFor`. Per-doc
+   `RetrievalCount`/`LastRetrievedAt` finally written natively (the KB
+   health card currently shows frozen Supabase numbers);
+   `frandev_kb_gap_signal` written on zero-hit.
+2. **Native KB authoring** — `/frandev/knowledge` is read-only ("editing
+   stays in the FranDev app" — but app edits go to the frozen Supabase
+   copy, i.e. nowhere). Add create/edit/archive handlers.
+3. **Journey-brief agent** — port `lib/briefs/journey-brief-agent.ts`
+   (Haiku, prompt byte-for-byte) into the #747 agents pattern:
+   event-driven stale marks on native post-call + stage writes, nightly
+   regen of stale briefs, on-visit regen. Native `frandev_journey_brief`
+   writer replaces the sandbox's event-driven one. ⚠ Flip pairing:
+   retire `journey_briefs` from the push in the same window (nightly
+   clobber otherwise).
+4. **AiSpend visibility** — `frandev_llm_call_log` is not a source in
+   `AiSpendService.cs:63-70`; FranDev batch spend is invisible on
+   `/Admin/AiSpend`. Fold it in.
+5. **Push + replay shrink (sandbox, at flip)** — retire from the push:
+   `embeddings`, `contact_briefs`, `territory_briefs`, `journey_briefs`,
+   `rep_journals`, `system_logs`, `scout_retrieval_logs`,
+   `scout_performance_reports`, `kb_gap_signals`, `user_memory`,
+   `objection_registry` (native post-call writes it; the push only
+   re-asserts stale pre-flip rows). Retire crons: `journals`,
+   `weekly-report`, `pre-call-briefs`. Replay unchanged except the
+   `markJourneyBriefStale` calls become moot (Supabase briefs freeze).
+   `scout_user_memory`, `scout_action_logs`, `sessions`,
+   `flagged_responses`, `commitments`, `suggestion_feedback`,
+   `territory_market_data` stay (app Scout still lives / native readers
+   on static mirrors).
+
+### Build sequence (session-sized, in order)
+
+0. ✅ **FIXED 2026-08-10 (MS PR #752)** — the kb-update NRE found in the
+   first hour of the session (prod call 27fde167: the KB-intelligence
+   LLM emitted a title-less item; the merge branch dereferenced it — a
+   faithful port of a latent TS bug in kb-updater.ts:121). Title-less /
+   content-less items now die at the parser; 2 pins.
+1. ✅ **BUILT 2026-08-10 (MS PR #753)** — `FrandevKbRetriever` (pure
+   Rank core, 7 pins) + query-aware ScoutContext wiring behind
+   `Frandev_KbRetrieval_Ranked`; per-doc RetrievalCount/LastRetrievedAt
+   - zero-hit gap signals write natively on the ranked path; AiSpend
+     gains the frandev_llm_call_log source (cost computed from tokens,
+     PromptVersion buckets, capped at Frandev_PostCall_DailyBudgetUsd).
+2. ✅ **BUILT 2026-08-10 (MS PR #753)** — KB authoring on
+   `/frandev/knowledge`: create/edit/soft-archive handlers + editor
+   view; "Read-only here" note removed. ALL KB edits in MasterSuite now.
+3. ✅ **BUILT 2026-08-10 (MS PR #753)** — journey-brief agent native
+   (`FrandevService.JourneyBrief.cs`, prompt byte-for-byte, 13 pins;
+   divergences in the file header — property reads re-pointed at the MS
+   originals, GHL-id keying for intel/objections, shared FrandevAnthropic
+   transport). Hangfire `frandev-journey-briefs` nightly 10pm local
+   (stale regen + seed, cap 25 each); stale marks at 7 native write
+   sites; JourneyV2 background-regens a stale brief on visit. MS full
+   suite 5771 green.
+4. ⏳ **THE FLIP** — sandbox half SHIPPED in this commit (3 crons out,
+   11 push tables out, scheduler contract pinned, ADR-0016); MS
+   migration 256 (PR #754) arms the two flags — merge #753 then #754.
+
+After this flip the remaining Supabase-owned surface is: domain-3
+workflows (archived, DRAFT), the domain-5 tail (old-app write routes,
+Zorakle receiver, related-people, doc upload — embeddings no longer
+block doc upload), GHL calendar sync, token refresh, and the two bridge
+crons. That is domain 7's kill list.

@@ -512,7 +512,22 @@ export async function pushFrandev(opts: PushOptions): Promise<PushSummary> {
  * sources without an extra information_schema round-trip. Keep in sync with
  * `supabase/migrations/`.
  */
-export // ⚰ RETIRED AT THE DOMAIN-5 CUTOVER (2026-08-09): the tables whose native
+export // ⚰ RETIRED AT THE DOMAIN-6 CUTOVER (2026-08-10, ADR-0016): the Scout/RAG
+// satellites — embeddings (a pgvector index mirrored into longtext: inert,
+// unqueryable in MariaDB — retired with the no-vector-port decision),
+// journey_briefs (the native journey-brief agent owns the table now; a
+// nightly upsert of Supabase's frozen briefs would clobber live native rows),
+// objection_registry (the native post-call KB step has written it since
+// domain 4; the push only re-asserted stale pre-flip rows), contact_briefs +
+// territory_briefs (EMPTY in prod — their generator cron was never
+// successfully scheduled; nothing native reads them), rep_journals +
+// system_logs + scout_retrieval_logs + scout_performance_reports +
+// kb_gap_signals (write-only telemetry, zero readers anywhere; the native
+// ranked retrieval writes frandev_kb_gap_signal + per-doc counters itself),
+// user_memory (dead table, zero code refs). scout_user_memory STAYS — the
+// app's Scout chat still merges memory app-side and native converges via the
+// scout_memory_merge replay, so the mirror push is the app→native half.
+// ⚰ RETIRED AT THE DOMAIN-5 CUTOVER (2026-08-09): the tables whose native
 // writers do NOT journal (runway derivation, the four agents, research
 // profile fields) — contacts, journey_pipeline_state, contact_profile_fields,
 // contact_journals, contact_scores, notifications, candidate_intelligence,
@@ -541,7 +556,6 @@ const SUPABASE_TABLES: string[] = [
   "commitments",
   "compliance_tracking",
   "contact_activity_messages",
-  "contact_briefs",
   "contact_emails",
   // contact_pipeline_state: dropped in 20260422600000_drop_cps_legacy.sql —
   // its mirror-less entry skipped as no_supabase_source every night.
@@ -551,7 +565,6 @@ const SUPABASE_TABLES: string[] = [
   "contact_team_members",
   "contact_zorakle_data",
   "cron_job_log",
-  "embeddings",
   "eos_contact_habits",
   "eos_contact_issues",
   "eos_contact_todos",
@@ -574,11 +587,9 @@ const SUPABASE_TABLES: string[] = [
   "ghl_workflows",
   "inactivity_alerts",
   "integration_logs",
-  "journey_briefs",
   "journey_contacts",
   "journey_documents",
   "journeys",
-  "kb_gap_signals",
   "lead_sources",
   "lead_sub_sources",
   "market_signals",
@@ -586,26 +597,20 @@ const SUPABASE_TABLES: string[] = [
   // BODY is the payload, so the row can be large; the byte-budgeted batching
   // above is what keeps a long note from blowing max_allowed_packet.
   "notes",
-  "objection_registry",
   "pipeline_app_settings",
   "pipeline_stage_history",
   "pipeline_stages",
   "pipeline_sub_tasks",
   "pipelines",
-  "rep_journals",
   "scout_action_logs",
-  "scout_performance_reports",
-  "scout_retrieval_logs",
   "scout_user_memory",
   "sessions",
   "sms_conversation_reads",
   "sms_messages",
   "suggestion_feedback",
   "sync_watermarks",
-  "system_logs",
   "tasks",
   "territories",
-  "territory_briefs",
   "territory_candidates",
   "territory_grades",
   "territory_market_data",
@@ -613,7 +618,6 @@ const SUPABASE_TABLES: string[] = [
   "territory_profile",
   "territory_stakeholders",
   "user_email_aliases",
-  "user_memory",
   "users",
   "work_queue_items",
   "workflow_ab_tests",

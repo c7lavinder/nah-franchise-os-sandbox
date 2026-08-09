@@ -26,6 +26,16 @@ describe("scheduler ownership contract", () => {
     expect(cronPaths.has("/frandev/api/cron/reengagement-scan")).toBe(false);
     expect(cronPaths.has("/frandev/api/cron/coaching-brief")).toBe(false);
 
+    // Retired at the DOMAIN-6 flip (2026-08-10, ADR-0016): the journals cron's
+    // contact half double-ran with the native contact-journals agent (its rep +
+    // system halves wrote tables with zero readers); weekly-report wrote
+    // scout_performance_reports (zero readers); pre-call-briefs produced
+    // nothing durable and MS #733's native pre-call cue replaced it. Re-adding
+    // journals reopens the journal double-run.
+    expect(cronPaths.has("/frandev/api/cron/journals")).toBe(false);
+    expect(cronPaths.has("/frandev/api/cron/weekly-report")).toBe(false);
+    expect(cronPaths.has("/frandev/api/cron/pre-call-briefs")).toBe(false);
+
     // The bridge stays: the replay keeps Supabase trailing native writes, and
     // the push still carries the non-retired tables for domains 6/7.
     expect(Array.from(cronPaths)).toEqual(
