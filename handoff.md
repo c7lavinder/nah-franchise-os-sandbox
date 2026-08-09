@@ -51,11 +51,13 @@ MS PR #722.** / Health: Green / Duration: full session
 - `MasterSuite.Platform.Tests` 185/185 (gated suite); app project builds
   clean; sandbox suite 318/318 + `next build` green on the merged main.
 - MS PR #718's check green on rerun; its deploy completed (success).
+- **MS PR #722 went green (4m14s), merged 15:00:30Z, deployed, and the prod
+  probe answers**: `GET https://mastersuiteapp.com/api/hooks/read-ai` →
+  `{"status":"ok","endpoint":"read-ai-webhook"}` — the reverse proxy routes
+  the path, so the step-6 URL flip has no infrastructure unknowns left.
 
 ## What Is Broken or Incomplete
 
-- **MS PR #722 awaits its `pr-checks` run → merge** (was `pending` at session
-  end; opener-can-merge once green per repo rules) — **Medium (sequenced)**
 - **GRANT SQL still not run** (`database/2026-08-09_grant_frandev_note_chat_write.sql`,
   30 sec at a prod terminal, Ben) — housekeeping; future notes won't sync
   until it runs — **Low**
@@ -124,15 +126,15 @@ PR; replay batch limit 50; the inbound EOS sync never deleted — Supabase
 
 ## THE GAMEPLAN TO GET OFF VERCEL (domain scoreboard)
 
-| #   | Domain                | State                                                             |
-| --- | --------------------- | ----------------------------------------------------------------- |
-| 1   | Properties/mirrors    | ✅ **DONE** — #718 merged + deployed 2026-08-09                   |
-| 2   | EOS                   | ✅ **DONE** — native tab live on originals; eos cron retired      |
-| 3   | Workflows             | ✅ RESOLVED — archive, don't port (no build)                      |
-| 4   | **Calls**             | 🔨 **IN BUILD** — step 1 of 6 done (PR #722); step 2 = classifier |
-| 5   | Contacts + pipeline   | ⏳ after 4 — the big one (core CRM)                               |
-| 6   | Scout/RAG → Chiron KB | ⏳ after 5 — decision resolved, build pending                     |
-| 7   | Platform residue      | ⏳ dies with the app                                              |
+| #   | Domain                | State                                                           |
+| --- | --------------------- | --------------------------------------------------------------- |
+| 1   | Properties/mirrors    | ✅ **DONE** — #718 merged + deployed 2026-08-09                 |
+| 2   | EOS                   | ✅ **DONE** — native tab live on originals; eos cron retired    |
+| 3   | Workflows             | ✅ RESOLVED — archive, don't port (no build)                    |
+| 4   | **Calls**             | 🔨 **IN BUILD** — step 1 of 6 MERGED + live (#722); step 2 next |
+| 5   | Contacts + pipeline   | ⏳ after 4 — the big one (core CRM)                             |
+| 6   | Scout/RAG → Chiron KB | ⏳ after 5 — decision resolved, build pending                   |
+| 7   | Platform residue      | ⏳ dies with the app                                            |
 
 Off Vercel = domains 4 + 5 built natively + webhook re-pointed + Supabase
 archived. **Nothing on the critical path waits on Ben anymore** (GRANT is
@@ -140,10 +142,7 @@ Low housekeeping).
 
 ## Exact Next Step
 
-Merge MS PR #722 once `pr-checks` is green (it was pending at wrap; after
-merge, curl `GET https://mastersuiteapp.com/api/hooks/read-ai` to prove the
-reverse proxy routes the path — the GunnerHooks stage-0 trick). Then build
-port-plan §8 step 2 in a fresh MS worktree: the classifier + 3 processors
+Build port-plan §8 step 2 in a fresh MS worktree: the classifier + 3 processors
 (prospect / coaching+onboarding / group+internal) behind a SystemConfig flag,
 writing `frandev_call` + transcript + participants + junctions, validated by
 replaying archived payloads against known Supabase output (same harness
@@ -156,6 +155,6 @@ pattern as step 1 — the corpus and diff loop are already in
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Merge MS PR #722 if green (Read.ai shadow receiver), curl the prod GET probe, then build port-plan §8 step 2: classifier + 3 processors behind a SystemConfig flag in the MasterSuite repo, validated by replaying archived payloads against known Supabase output. Ben items left: just the GRANT SQL (Low). Do NOT retire sync-ms-territories (domain-5 exit).
+Then: Build port-plan §8 step 2: classifier + 3 processors behind a SystemConfig flag in the MasterSuite repo, validated by replaying archived payloads against known Supabase output (the step-1 receiver #722 is merged + live; its replay harness pattern is in FrandevService.ReadAi.cs). Ben items left: just the GRANT SQL (Low). Do NOT retire sync-ms-territories (domain-5 exit).
 
 ---
