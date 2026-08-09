@@ -21,6 +21,7 @@ import { syncStageToGHL } from "@/lib/ghl/stage-sync";
 import { carryForwardContactEos } from "@/lib/eos/carry-forward";
 import { markJourneyBriefStale } from "@/lib/briefs/mark-journey-brief-stale";
 import { isSubStageMoveLog, SUB_STAGE_MOVE_METADATA_KIND } from "@/lib/contacts/stage-visual-state";
+import { mergeContact } from "@/lib/contacts/merge";
 import { matchWorkflowTriggers } from "@/lib/workflows/trigger-matcher";
 import { runContactResearch } from "@/lib/agents/contact-research";
 import * as ghl from "@/lib/ghl";
@@ -263,10 +264,12 @@ export const HANDLED_WRITE_TYPES = [
   "create_stakeholder",
   "create_note",
   "create_task",
+  "delete_contact",
   "delete_journey",
   "delete_note",
   "drop_journey",
   "mark_sms_read",
+  "merge_contact",
   "reject_workflow_step",
   "remove_stakeholder",
   "rename_journey",
@@ -399,6 +402,30 @@ interface DeleteNotePayload {
   deleted_by: string;
 }
 
+/**
+ * MasterSuite's Merge button (Journey + Contact pages — the walkthrough's Merge ×2).
+ * The replay calls lib/contacts/merge.ts — the SAME extracted function the app's own
+ * merge route runs — so there is exactly one merge implementation across both worlds.
+ * MasterSuite already marked its mirror (MergedIntoContactId + journey re-pointing);
+ * this applies the real thing to Supabase + GHL.
+ */
+interface MergeContactPayload {
+  dup_contact_id: string;
+  keep_contact_id: string;
+  reason: string | null;
+  requested_by: string;
+}
+
+/**
+ * MasterSuite's Delete-contact button. The mirror side already deleted its rows from a
+ * GENERATED child list; this applies the same delete to Supabase.
+ */
+interface DeleteContactPayload {
+  contact_id: string;
+  ghl_contact_id: string | null;
+  requested_by: string;
+}
+
 export interface ApplyResult {
   pending: number;
   applied: number;
@@ -492,6 +519,10 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applyUpdateNote(JSON.parse(row.PayloadJson) as UpdateNotePayload);
       } else if (row.WriteType === "delete_note") {
         await applyDeleteNote(JSON.parse(row.PayloadJson) as DeleteNotePayload);
+      } else if (row.WriteType === "merge_contact") {
+        await applyMergeContact(JSON.parse(row.PayloadJson) as MergeContactPayload);
+      } else if (row.WriteType === "delete_contact") {
+        await applyDeleteContact(JSON.parse(row.PayloadJson) as DeleteContactPayload);
       } else {
         unhandled.add(row.WriteType);
         throw new Error(
@@ -2296,4 +2327,126 @@ async function applyDeleteNote(payload: DeleteNotePayload): Promise<void> {
     .eq("id", payload.note_id)
     .is("deleted_at", null);
   if (error) throw new Error(`note delete failed: ${error.message}`);
+}
+
+// ─── Contact lifecycle: MasterSuite's Merge + Delete buttons (walkthrough Merge ×2 +
+//     Delete contact, 2026-08-09). Merge replays through lib/contacts/merge.ts — the
+//     SAME extracted function the app's own merge route runs, so there is exactly one
+//     merge implementation. Delete follows the journey-delete discipline: it can only
+//     reach a merged-away duplicate or an untouched record.
+
+/**
+ * Replay MasterSuite's Merge.
+ *
+ * Idempotent by outcome: if the dup is ALREADY merged into this exact keeper (a retried
+ * journal row, or the same merge performed app-side first), that is success, not an
+ * error. Merged into a DIFFERENT contact is a real conflict and parks the row failed.
+ *
+ * ⚠ mergeContact marks the dup LAST, so a partial first run (some step failed after
+ * mark_merged never ran) retries cleanly — every reassignment is a no-op the second
+ * time. If mark_merged DID run and an earlier step had failed, the retry lands in the
+ * alreadyMergedIntoKeeper branch; the first run's step failures were already reported.
+ */
+async function applyMergeContact(payload: MergeContactPayload): Promise<void> {
+  if (!payload.dup_contact_id || !payload.keep_contact_id) {
+    throw new Error("merge_contact payload missing dup_contact_id/keep_contact_id");
+  }
+  const result = await mergeContact(
+    payload.dup_contact_id,
+    payload.keep_contact_id,
+    payload.reason || `Merged in MasterSuite by ${payload.requested_by}`
+  );
+  if (!result.ok) {
+    if (result.alreadyMergedIntoKeeper) return; // replay of an applied merge — done
+    throw new Error(`merge_contact failed: ${result.error}`);
+  }
+  const failed = result.steps.filter((s) => !s.ok && s.step !== "ghl_keeper_note" && s.step !== "ghl_dup_tag");
+  if (failed.length > 0) {
+    throw new Error(
+      `merge_contact applied with failing steps: ${failed.map((s) => `${s.step} (${s.detail ?? "failed"})`).join("; ")}`
+    );
+  }
+}
+
+/**
+ * The known contact_id children this app's schema owns, deleted before the contact row.
+ * ⚠ journey_contacts carries ON DELETE RESTRICT — the guard below refuses any contact
+ * that still holds journeys or calls UNLESS it is a merged-away duplicate, and a merge
+ * has already MOVED those rows to the keeper, so what remains here is the residue the
+ * merge deliberately leaves on the dup.
+ */
+const DELETE_CONTACT_CHILD_TABLES = [
+  "contact_emails",
+  "contact_profile_fields",
+  "contact_briefs",
+  "journey_contacts",
+  "eos_contact_issues",
+  "eos_contact_todos",
+  "eos_contact_habits",
+  "eos_contact_goals",
+  "candidate_intelligence",
+  "candidate_score_history",
+  "call_action_items",
+  "call_data_extractions",
+  "objection_registry",
+  "contact_team_members",
+  "contact_related_people",
+];
+
+/**
+ * Replay MasterSuite's Delete contact.
+ *
+ * ⚠ The app deliberately has NO contact-delete route, and journey_contacts carries
+ * ON DELETE RESTRICT — the schema forbids deleting a contact that belongs to a journey.
+ * So this refuses anything that is not (a) a merged-away duplicate or (b) a record with
+ * no journeys and no calls. Same shape as DeleteJourney's "only the duplicate/merged
+ * case Corey authorised".
+ *
+ * GHL is NOT touched: the client exposes no contact delete, and GHL is the comms record
+ * — the app never deletes there.
+ *
+ * Idempotent: a contact that is already gone is a no-op.
+ */
+async function applyDeleteContact(payload: DeleteContactPayload): Promise<void> {
+  if (!payload.contact_id) throw new Error("delete_contact payload missing contact_id");
+  const supabase = getServiceSupabase();
+
+  const { data: contact } = await supabase
+    .from("contacts")
+    .select("id, merged_into_contact_id")
+    .eq("id", payload.contact_id)
+    .maybeSingle();
+  if (!contact) return; // already gone
+
+  if (!contact.merged_into_contact_id) {
+    const [{ count: primaries }, { count: memberships }, { count: calls }] = await Promise.all([
+      supabase
+        .from("journeys")
+        .select("id", { count: "exact", head: true })
+        .eq("primary_contact_id", payload.contact_id),
+      supabase
+        .from("journey_contacts")
+        .select("id", { count: "exact", head: true })
+        .eq("contact_id", payload.contact_id),
+      supabase.from("calls").select("id", { count: "exact", head: true }).eq("contact_id", payload.contact_id),
+    ]);
+    const held = (primaries ?? 0) + (memberships ?? 0) + (calls ?? 0);
+    if (held > 0) {
+      throw new Error(
+        `delete_contact refused: the contact still holds ${primaries ?? 0} journeys, ` +
+          `${memberships ?? 0} memberships and ${calls ?? 0} calls, and is not a merged-away duplicate`
+      );
+    }
+  }
+
+  for (const table of DELETE_CONTACT_CHILD_TABLES) {
+    const { error } = await supabase.from(table).delete().eq("contact_id", payload.contact_id);
+    if (error) throw new Error(`delete_contact: clearing ${table} failed: ${error.message}`);
+  }
+
+  const { error: delError } = await supabase.from("contacts").delete().eq("id", payload.contact_id);
+  // A foreign key this list does not know about names itself in the error — that is the
+  // honest failure mode for a schema that grows: the row parks failed with the
+  // constraint's name, not a silent partial delete.
+  if (delError) throw new Error(`delete_contact: contact row delete failed: ${delError.message}`);
 }
