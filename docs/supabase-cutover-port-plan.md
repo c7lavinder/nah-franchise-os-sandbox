@@ -58,15 +58,15 @@ domain's tables drop out of the outbound push → **(c)** its inbound sync (if
 any) reverses or retires → **(d)** its Supabase tables go read-only, then get
 archived. A domain is "done" when nothing reads its Supabase tables.
 
-| #   | Domain                                     | Supabase tables (main)                                                                   | Why this slot                                                                                                                                                                                                                                                                                             |
-| --- | ------------------------------------------ | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **`ms_*` mirrors + territories perf data** | `ms_properties` + 12 others, `territory_market_data`                                     | Already MySQL-sourced and read-only in the app — native pages read the real tables directly; retiring these deletes 5 of 6 inbound syncs. Zero data migration.                                                                                                                                            |
-| 2   | **EOS**                                    | `eos_territory_*`, `eos_contact_*` (12 tables)                                           | Inbound-synced from MySQL already; MasterSuite has native EOS modules. Mostly a read-path retirement.                                                                                                                                                                                                     |
-| 3   | **Workflows**                              | `workflows` + 7 others                                                                   | ALL workflows are paused in DRAFT pending content finalization ([[project_workflow_finalization]]) — flipping a paused system is the cheapest write-domain rehearsal. Long-term the Workflows page is DROPPED in the consolidation (agent pattern replaces it), so this may become "archive, don't port." |
-| 4   | **Calls / transcripts / grading**          | `calls` + 16 others                                                                      | Self-contained pipeline (Read.ai webhook → transcript-processor → grades). MasterSuite already has gunner call/grading tables — port = map into them per `mastersuite-data-audit.md`, re-point the webhook.                                                                                               |
-| 5   | **Contacts + Journeys/Pipeline**           | `contacts` (244 call sites), `journey_pipeline_state` (159), `journeys` (112) + ~20 more | The core CRM — biggest and last of the data domains. Waits for the consolidated Contacts page + Journey detail (panel-registry phases). The 53 custom profile fields and GHL id linkage ride along.                                                                                                       |
-| 6   | **Scout + intelligence/RAG**               | `scout_*`, `knowledge_documents`, `embeddings`, rubrics                                  | Converges with Chiron ("AI dock → one" in the consolidation map). `embeddings` is pgvector — MySQL has no equivalent; Chiron KB (K1/K2, merged 2026-07-21) is the likely landing zone. Needs its own decision.                                                                                            |
-| 7   | **Platform residue**                       | `users`, `sessions`, `integration_logs`, `cron_job_log`, `app_settings`, `bug_reports`   | Dies with the sandbox app itself — MasterSuite auth/permissions replace `users`/`sessions`; logs archive.                                                                                                                                                                                                 |
+| #   | Domain                                     | Supabase tables (main)                                                                   | Why this slot                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | ------------------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **`ms_*` mirrors + territories perf data** | `ms_properties` + 12 others, `territory_market_data`                                     | Already MySQL-sourced and read-only in the app — native pages read the real tables directly; retiring these deletes 5 of 6 inbound syncs. Zero data migration.                                                                                                                                                                                                                 |
+| 2   | **EOS**                                    | `eos_territory_*`, `eos_contact_*` (12 tables)                                           | Inbound-synced from MySQL already; MasterSuite has native EOS modules. Mostly a read-path retirement.                                                                                                                                                                                                                                                                          |
+| 3   | **Workflows**                              | `workflows` + 7 others                                                                   | ALL workflows are paused in DRAFT pending content finalization ([[project_workflow_finalization]]) — flipping a paused system is the cheapest write-domain rehearsal. Long-term the Workflows page is DROPPED in the consolidation (agent pattern replaces it), so this may become "archive, don't port."                                                                      |
+| 4   | **Calls / transcripts / grading**          | `calls` + 16 others                                                                      | Self-contained pipeline (Read.ai webhook → transcript-processor → grades). ~~Map into gunner tables~~ **CORRECTED 2026-08-09**: `gunner_call*` is the acquisitions domain, NOT reusable. The 16 `frandev_call*` mirrors already exist AND the native read surface is already built (Calls.cshtml + Call.cshtml + DayHub panel). The real port is the WRITE side only — see §8. |
+| 5   | **Contacts + Journeys/Pipeline**           | `contacts` (244 call sites), `journey_pipeline_state` (159), `journeys` (112) + ~20 more | The core CRM — biggest and last of the data domains. Waits for the consolidated Contacts page + Journey detail (panel-registry phases). The 53 custom profile fields and GHL id linkage ride along.                                                                                                                                                                            |
+| 6   | **Scout + intelligence/RAG**               | `scout_*`, `knowledge_documents`, `embeddings`, rubrics                                  | Converges with Chiron ("AI dock → one" in the consolidation map). `embeddings` is pgvector — MySQL has no equivalent; Chiron KB (K1/K2, merged 2026-07-21) is the likely landing zone. Needs its own decision.                                                                                                                                                                 |
+| 7   | **Platform residue**                       | `users`, `sessions`, `integration_logs`, `cron_job_log`, `app_settings`, `bug_reports`   | Dies with the sandbox app itself — MasterSuite auth/permissions replace `users`/`sessions`; logs archive.                                                                                                                                                                                                                                                                      |
 
 ## 4. Bridge mechanics during the transition
 
@@ -135,3 +135,46 @@ property / territory / EOS data — native pages read and write those fields
 directly, like every other Gunner page. The only data that genuinely lives
 app-side and must be _ported_ (not just re-pointed) is **comms/call data and
 pipeline stages** (domains 4 + 5).
+
+## 8. Domain 4 scoping (2026-08-09, code-verified)
+
+**Already done, no work:** all 16 `frandev_call*` mirror tables (migration
+`2026-06-22 2324 - FranDev calls tables.sql`); the entire native READ surface
+(`Pages/Frandev/Calls.cshtml` list, `Call.cshtml` detail with all tabs,
+`Gunner/CallsV2.cshtml`, DayHub `_FrandevGrowCalls` panel); one native write
+(`set_call_type` drag-retype, round-trips via the journal); the nightly push.
+
+**Column parity verified 2026-08-09** (dry-run push, 21 tables, 23,366 rows,
+0 errors): mirrors match Supabase. Only gap: `knowledge_documents.updated_by`
+has no mapped mirror column (`UpdatedByUserId` exists but the mapper doesn't
+connect them) — cosmetic, fix in passing. `UpdatedAt` mirror columns are
+DB-maintained, expected unmapped.
+
+**Must be built new in .NET (the actual port):**
+
+1. Read.ai webhook receiver: HMAC verify + `frandev_read_ai_session`
+   upsert/dedupe + logging. Note: today's route ACCEPTS unsigned payloads
+   (missing signature ≠ rejected) — decide the signature policy explicitly at
+   this step, don't silently carry the hole or silently drop traffic.
+2. Classifier + the 3 processors (prospect / coaching+onboarding /
+   group+internal) writing call, transcript, participants, junctions.
+3. Transcript-job worker (model on `ChironNtnJobs` / `CbEstimationVisionJobs`
+   — MasterSuite has no Vercel-cron analogue).
+4. Post-call agent + grader in C# (Anthropic plumbing exists: `ChironAgent`,
+   `ScoutAgent`, `VisionAnthropicAdapter`; no call-grading path yet).
+   **Riskiest piece = grade parity**: the grader prompt is assembled from
+   `knowledge_documents` by call type (`rubric-loader.ts`) on a pinned Haiku
+   model; a drifted C# reimplementation silently re-grades the business.
+   Gate: re-grade a held-out sample of already-graded calls and diff BEFORE
+   writing any `frandev_call_grade` row.
+5. Call-types / rubrics settings UI (no MasterSuite equivalent yet).
+6. Cutover: re-point the Read.ai webhook URL, retire the sandbox call crons +
+   the call tables from the push. Drop `call_coaching` (dead legacy — but KEEP
+   `calls.coaching_data`, the UI reads it).
+
+**Build sequence (session-sized):** (1) shadow-mode webhook receiver,
+ingest-only, replay archived `raw_payload` rows and diff — (2) classifier +
+processors behind a flag, validated by replaying archived payloads against
+known Supabase output — (3) transcript worker — (4) grader, parity-gated —
+(5) settings UI + fan-out (extractions, action items, review packages,
+commitments) — (6) flip the webhook, retire crons.
