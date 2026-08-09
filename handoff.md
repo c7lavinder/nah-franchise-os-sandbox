@@ -2,9 +2,10 @@
 
 ## Status
 
-Phase: **CUTOVER TRACK — domain 4 step 2 (classifier + 3 processors) is BUILT
-and validated: MS PR #729, flag-gated OFF, transcript parity proven 421/421
-byte-identical against the current TS formatter.** / Health: Green /
+Phase: **CUTOVER TRACK — domain 4 step 2 (classifier + 3 processors) is
+DONE: MS PR #729 merged 16:37Z, deploy run 31324259967 success, prod probe
+answers, flag-gated OFF. Transcript parity proven 421/421 byte-identical
+against the current TS formatter. Steps 1+2 of 6 shipped.** / Health: Green /
 Duration: full session
 
 ## What Was Built This Session
