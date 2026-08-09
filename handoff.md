@@ -33,10 +33,9 @@ option.** / Health: Green / Duration: full session
     `Frandev_KbRetrieval_Ranked` with the exact old top-25 stuffing as
     fallback (flag off / greetings / approval cards / zero hits).
     Fourth instance of the no-vector-infra ruling. Ranked path writes
-    retrieval telemetry natively: per-doc RetrievalCount/LastRetrievedAt
-    - zero-hit `frandev_kb_gap_signal` (the KB health card had been
-      showing numbers frozen at Supabase values since domain 4).
-      Contract change: `IScoutContextSource.GetKnowledgeFor(pageContext,
+    retrieval telemetry natively: per-doc RetrievalCount/LastRetrievedAt - zero-hit `frandev_kb_gap_signal` (the KB health card had been
+    showing numbers frozen at Supabase values since domain 4).
+    Contract change: `IScoutContextSource.GetKnowledgeFor(pageContext,
 queryText = null)`; ScoutAgent passes the last user message.
   - **KB authoring on /frandev/knowledge** (no flag): create/edit/
     soft-archive handlers + editor view. The native KB has been the live
@@ -85,11 +84,15 @@ push-frandev.ts); **ADR-0016** (flip + embeddings decision); port-plan
 
 ## What Is Broken or Incomplete
 
-- **MS PRs #752/#753/#754 await Corey's merge (in that order).** The
-  domain-6 flip completes when 256 runs. Until #753+#754 deploy: chat
-  grounding unchanged; journey briefs frozen at their last pushed state
-  (the push no longer carries them — flip soon to avoid a long freeze) —
-  **Medium (the one action item)**
+**⚠ THE ONLY ACTION ITEM ON THE CRITICAL PATH — Corey, ~5 minutes:**
+
+- **Merge MS PRs #752 → #753 → #754, in that order** (verified OPEN at
+  session end). The domain-6 flip completes when migration 256 runs on
+  deploy. Until then: chat grounding is unchanged, and journey briefs sit
+  frozen at their last pushed state (the sandbox push no longer carries
+  them — merge soon to keep that freeze short). Everything else below
+  either waits on the clock or is deliberately deferred tail work —
+  **Medium**
 - **No live Read.ai delivery observed yet** (domain 4; still nothing has
   ended a meeting) — first-call E2E watch stays open — **Medium (watch)**
 - **Overnight native agent runs not yet verifiable** — session ran
