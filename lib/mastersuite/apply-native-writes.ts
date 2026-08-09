@@ -54,6 +54,10 @@ interface AdvancePayload {
   contact_id: string;
   reason: string | null;
   moved_by: string;
+  /** TRUE = MasterSuite already fired the GHL stage write-through natively
+   * (its Frandev_Ghl_NativeStageSync flag) — replay must NOT fire it again.
+   * Absent on every row journaled before the flag existed. */
+  ghl_synced?: boolean;
 }
 
 interface DropPayload {
@@ -79,6 +83,8 @@ interface CloseJourneyPayload {
   closed: Array<{ state_id: string; from_stage_id: string; history_id: string }>;
   spawn: { pipeline_id: string; pipeline_slug: string; stage_id: string; stage_slug: string } | null;
   spawned: Array<{ state_id: string; territory_slug: string | null }>;
+  /** See AdvancePayload.ghl_synced. */
+  ghl_synced?: boolean;
 }
 
 interface CreateTaskPayload {
@@ -173,6 +179,47 @@ interface BoardMovePayload {
   sub_task_log_id: string | null; // minted natively, only when moving into a real sub-task
   sub_task_name: string | null;
   moved_by: string;
+  /** See AdvancePayload.ghl_synced. */
+  ghl_synced?: boolean;
+}
+
+/** Native lead intake's create (MS §10 step 2) — sync-ms-prospects' twin.
+ * Deterministic ghl_contact_id (pto_/franchise_req_), NO GHL contact, no side
+ * effects; extra_fields are literal contacts columns (the PTO/franchise
+ * extras, PascalCase — the same keys the sync always used). */
+interface IntakeContactPayload {
+  contact_id: string;
+  journey_id: string;
+  journey_contact_id: string;
+  state_id: string;
+  ghl_contact_id: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  source: string;
+  opportunity_source: string;
+  journey_slug: string;
+  journey_name: string;
+  entered_pipeline_at: string;
+  extra_fields: Record<string, string | number | boolean> | null;
+}
+
+/** Native lead intake's wire branch: an existing contact with no active Sales
+ * journey gets journey + membership + state only. */
+interface WireSalesJourneyPayload {
+  contact_id: string;
+  journey_id: string;
+  journey_contact_id: string;
+  state_id: string;
+  journey_slug: string;
+  journey_name: string;
+  entered_pipeline_at: string;
+  source: string;
 }
 
 interface SendSmsPayload {
@@ -268,6 +315,7 @@ export const HANDLED_WRITE_TYPES = [
   "delete_journey",
   "delete_note",
   "drop_journey",
+  "intake_contact",
   "mark_sms_read",
   "merge_contact",
   "reject_workflow_step",
@@ -285,6 +333,7 @@ export const HANDLED_WRITE_TYPES = [
   "update_contact",
   "update_note",
   "update_profile_field",
+  "wire_sales_journey",
   "workflow_status",
 ] as const;
 
@@ -479,6 +528,10 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applyWorkflowStatus(JSON.parse(row.PayloadJson) as WorkflowStatusPayload);
       } else if (row.WriteType === "create_contact") {
         await applyCreateContact(JSON.parse(row.PayloadJson) as CreateContactPayload);
+      } else if (row.WriteType === "intake_contact") {
+        await applyIntakeContact(JSON.parse(row.PayloadJson) as IntakeContactPayload);
+      } else if (row.WriteType === "wire_sales_journey") {
+        await applyWireSalesJourney(JSON.parse(row.PayloadJson) as WireSalesJourneyPayload);
       } else if (row.WriteType === "update_contact") {
         await applyUpdateContact(JSON.parse(row.PayloadJson) as UpdateContactPayload);
       } else if (row.WriteType === "board_move") {
@@ -616,10 +669,14 @@ async function applyAdvanceStage(payload: AdvancePayload): Promise<void> {
   }
 
   // Side effects — best-effort, never fail the replay over them.
-  try {
-    await syncStageToGHL(payload.contact_id, payload.pipeline_slug, payload.to_stage_slug);
-  } catch (err) {
-    console.error("[apply-native-writes] GHL stage sync failed:", err instanceof Error ? err.message : err);
+  // ghl_synced = MasterSuite already fired this write-through natively; firing
+  // it again here would double-write GHL (or worse, race a newer stage).
+  if (!payload.ghl_synced) {
+    try {
+      await syncStageToGHL(payload.contact_id, payload.pipeline_slug, payload.to_stage_slug);
+    } catch (err) {
+      console.error("[apply-native-writes] GHL stage sync failed:", err instanceof Error ? err.message : err);
+    }
   }
   try {
     await markJourneyBriefStale(payload.journey_id);
@@ -686,10 +743,14 @@ async function applyRevertStage(payload: AdvancePayload): Promise<void> {
     throw new Error(`history insert failed: ${histError.message}`);
   }
 
-  try {
-    await syncStageToGHL(payload.contact_id, payload.pipeline_slug, payload.to_stage_slug);
-  } catch (err) {
-    console.error("[apply-native-writes] GHL stage sync failed:", err instanceof Error ? err.message : err);
+  // ghl_synced = MasterSuite already fired this write-through natively; firing
+  // it again here would double-write GHL (or worse, race a newer stage).
+  if (!payload.ghl_synced) {
+    try {
+      await syncStageToGHL(payload.contact_id, payload.pipeline_slug, payload.to_stage_slug);
+    } catch (err) {
+      console.error("[apply-native-writes] GHL stage sync failed:", err instanceof Error ? err.message : err);
+    }
   }
   try {
     await markJourneyBriefStale(payload.journey_id);
@@ -789,10 +850,12 @@ async function applyBoardMove(payload: BoardMovePayload): Promise<void> {
 
   // Side effects on a stage change — best-effort, never fail the replay over them.
   if (payload.stage_changed && payload.to_stage_slug) {
-    try {
-      await syncStageToGHL(payload.contact_id, payload.pipeline_slug, payload.to_stage_slug);
-    } catch (err) {
-      console.error("[apply-native-writes] GHL stage sync failed:", err instanceof Error ? err.message : err);
+    if (!payload.ghl_synced) {
+      try {
+        await syncStageToGHL(payload.contact_id, payload.pipeline_slug, payload.to_stage_slug);
+      } catch (err) {
+        console.error("[apply-native-writes] GHL stage sync failed:", err instanceof Error ? err.message : err);
+      }
     }
     try {
       await markJourneyBriefStale(payload.journey_id);
@@ -994,10 +1057,14 @@ async function applyCloseJourney(payload: CloseJourneyPayload): Promise<void> {
   }
 
   // Side effects — best-effort, never fail the replay over them.
-  try {
-    await syncStageToGHL(payload.contact_id, payload.pipeline_slug, payload.to_stage_slug);
-  } catch (err) {
-    console.error("[apply-native-writes] GHL stage sync failed:", err instanceof Error ? err.message : err);
+  // ghl_synced = MasterSuite already fired this write-through natively; firing
+  // it again here would double-write GHL (or worse, race a newer stage).
+  if (!payload.ghl_synced) {
+    try {
+      await syncStageToGHL(payload.contact_id, payload.pipeline_slug, payload.to_stage_slug);
+    } catch (err) {
+      console.error("[apply-native-writes] GHL stage sync failed:", err instanceof Error ? err.message : err);
+    }
   }
   try {
     await markJourneyBriefStale(payload.journey_id);
@@ -1847,6 +1914,176 @@ async function retroLinkCallsForContact(
         .is("contact_id", null);
     }
   }
+}
+
+/** Sales pipeline → first stage → first sub-task, resolved by slug/sort order —
+ * the shared entry point for the two intake replays below. */
+async function resolveSalesEntryPoint(supabase: ReturnType<typeof getServiceSupabase>) {
+  const { data: salesPipeline } = await supabase.from("pipelines").select("id").eq("slug", "sales").maybeSingle();
+  if (!salesPipeline) throw new Error("sales pipeline not found in Supabase");
+  const { data: firstStage } = await supabase
+    .from("pipeline_stages")
+    .select("id")
+    .eq("pipeline_id", salesPipeline.id)
+    .order("sort_order", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!firstStage) throw new Error("sales first stage not found in Supabase");
+  const { data: firstSubTask } = await supabase
+    .from("pipeline_sub_tasks")
+    .select("id")
+    .eq("stage_id", firstStage.id)
+    .order("sort_order", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return { pipelineId: salesPipeline.id, stageId: firstStage.id, subTaskId: firstSubTask?.id ?? null };
+}
+
+/** Journey + primary membership + Sales state with minted ids — the shared
+ * write half of the two intake replays. Idempotent by id precheck, and the
+ * state insert is skipped when the journey already sits in Sales (the same
+ * dup guard applyCreateContact uses). */
+async function insertIntakeJourneyRows(
+  supabase: ReturnType<typeof getServiceSupabase>,
+  p: {
+    contact_id: string;
+    journey_id: string;
+    journey_contact_id: string;
+    state_id: string;
+    journey_slug: string;
+    journey_name: string;
+    entered_pipeline_at: string;
+  }
+): Promise<void> {
+  const { data: existingJourney } = await supabase.from("journeys").select("id").eq("id", p.journey_id).maybeSingle();
+  if (!existingJourney) {
+    const { error } = await supabase.from("journeys").insert({
+      id: p.journey_id,
+      primary_contact_id: p.contact_id,
+      name: p.journey_name,
+      slug: p.journey_slug,
+      status: "active",
+    });
+    if (error && !error.message.includes("duplicate")) throw new Error(`journey insert failed: ${error.message}`);
+  }
+
+  const { data: existingMember } = await supabase
+    .from("journey_contacts")
+    .select("id")
+    .eq("id", p.journey_contact_id)
+    .maybeSingle();
+  if (!existingMember) {
+    const { error } = await supabase.from("journey_contacts").insert({
+      id: p.journey_contact_id,
+      journey_id: p.journey_id,
+      contact_id: p.contact_id,
+      role: "primary",
+      is_primary_decision_maker: true,
+    });
+    if (error && !error.message.includes("duplicate") && !error.message.includes("uniq_active_journey_contact")) {
+      throw new Error(`journey member insert failed: ${error.message}`);
+    }
+  }
+
+  const { data: existingState } = await supabase
+    .from("journey_pipeline_state")
+    .select("id")
+    .eq("id", p.state_id)
+    .maybeSingle();
+  if (existingState) return;
+
+  const entry = await resolveSalesEntryPoint(supabase);
+  const { data: dupState } = await supabase
+    .from("journey_pipeline_state")
+    .select("id")
+    .eq("journey_id", p.journey_id)
+    .eq("pipeline_id", entry.pipelineId)
+    .maybeSingle();
+  if (dupState) return;
+
+  const { error: sError } = await supabase.from("journey_pipeline_state").insert({
+    id: p.state_id,
+    journey_id: p.journey_id,
+    TerritorySlug: null,
+    pipeline_id: entry.pipelineId,
+    current_stage_id: entry.stageId,
+    current_sub_task_id: entry.subTaskId,
+    is_active: true,
+    entered_pipeline_at: p.entered_pipeline_at,
+    entered_current_stage_at: new Date().toISOString(),
+  });
+  if (sError && !sError.message.includes("duplicate")) {
+    throw new Error(`pipeline state insert failed: ${sError.message}`);
+  }
+}
+
+/**
+ * Native lead intake's create replay (MS §10 step 2) — sync-ms-prospects'
+ * twin, NOT applyCreateContact's: the ghl_contact_id is the deterministic
+ * pto_/franchise_req_ placeholder (GHL is deliberately untouched — the app
+ * promotes placeholders lazily, on first note), extra_fields land as literal
+ * contacts columns, and there are NO side effects — the sync never fired
+ * triggers, research, or EOS seeds, and intake parity means not inventing
+ * them at replay time either.
+ */
+async function applyIntakeContact(payload: IntakeContactPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+
+  const { data: existingContact, error: readError } = await supabase
+    .from("contacts")
+    .select("id")
+    .eq("id", payload.contact_id)
+    .maybeSingle();
+  if (readError) throw new Error(`contact read failed: ${readError.message}`);
+
+  if (!existingContact) {
+    const extras: Record<string, string | number | boolean> = {};
+    for (const [key, value] of Object.entries(payload.extra_fields ?? {})) {
+      if (value === null || value === undefined) continue;
+      if (typeof value === "object") continue; // columns hold scalars; never spread structure
+      extras[key] = value;
+    }
+    const { error: insError } = await supabase.from("contacts").insert({
+      id: payload.contact_id,
+      ghl_contact_id: payload.ghl_contact_id,
+      first_name: payload.first_name,
+      last_name: payload.last_name,
+      email: payload.email ?? null,
+      phone: payload.phone ?? null,
+      address: payload.address ?? null,
+      city: payload.city ?? null,
+      state: payload.state ?? null,
+      zip: payload.zip ?? null,
+      source: payload.source,
+      opportunity_source: payload.opportunity_source,
+      ...extras,
+    });
+    if (insError) throw new Error(`contacts insert failed: ${insError.message}`);
+  }
+
+  await insertIntakeJourneyRows(supabase, payload);
+}
+
+/**
+ * Native lead intake's wire replay: the contact already exists on both sides —
+ * only the Sales journey + membership + state are new. A missing contact is a
+ * loud failure, not a silent create: wire fires only for contacts intake FOUND
+ * in the mirror, and the mirror's contacts all came from here originally.
+ */
+async function applyWireSalesJourney(payload: WireSalesJourneyPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+
+  const { data: contact, error: readError } = await supabase
+    .from("contacts")
+    .select("id")
+    .eq("id", payload.contact_id)
+    .maybeSingle();
+  if (readError) throw new Error(`contact read failed: ${readError.message}`);
+  if (!contact) {
+    throw new Error(`wire_sales_journey: contact ${payload.contact_id} not found — mirror and app have diverged`);
+  }
+
+  await insertIntakeJourneyRows(supabase, payload);
 }
 
 /**

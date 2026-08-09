@@ -1482,6 +1482,227 @@ describe("applyNativeWrites — update_profile_field", () => {
   });
 });
 
+describe("applyNativeWrites — intake_contact / wire_sales_journey (MS §10 step 2)", () => {
+  beforeEach(() => {
+    fakeSupabase.tables.clear();
+    pendingRows = [];
+    statusUpdates.length = 0;
+    poolQuery.mockClear();
+    Object.values(ghlMocks).forEach((m) => m.mockClear());
+  });
+
+  function seedPipelineFixtures() {
+    fakeSupabase.seed("pipelines", [{ id: "pipeline-sales", slug: "sales" }]);
+    fakeSupabase.seed("pipeline_stages", [{ id: "stage-engagement", pipeline_id: "pipeline-sales", sort_order: 1 }]);
+    fakeSupabase.seed("pipeline_sub_tasks", [{ id: "sub-outreach", stage_id: "stage-engagement", sort_order: 1 }]);
+  }
+
+  it("creates the contact with its placeholder id and extras — and never touches GHL", async () => {
+    seedPipelineFixtures();
+    pendingRows = [
+      journalRow(60, "intake_contact", {
+        contact_id: "contact-intake-1",
+        journey_id: "journey-intake-1",
+        journey_contact_id: "jc-intake-1",
+        state_id: "state-intake-1",
+        ghl_contact_id: "pto_4711",
+        first_name: "Ida",
+        last_name: "Intake",
+        email: "ida@example.com",
+        phone: "555-8888",
+        address: "1 Main St",
+        city: "Bristol",
+        state: "TN",
+        zip: "37620",
+        source: "pto",
+        opportunity_source: "PTO Form",
+        journey_slug: "ida-intake",
+        journey_name: "Ida Intake",
+        entered_pipeline_at: "2026-08-01T12:00:00.000Z",
+        extra_fields: { PartnerName: "Sam Intake", PreferredWeeklyHours: 20, notes: "from the form" },
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    // Placeholder-id discipline: the sync never created GHL contacts, neither does intake.
+    expect(ghlMocks.upsertContact).not.toHaveBeenCalled();
+
+    const contact = fakeSupabase.get("contacts").find((c) => c.id === "contact-intake-1");
+    expect(contact).toMatchObject({
+      ghl_contact_id: "pto_4711",
+      source: "pto",
+      opportunity_source: "PTO Form",
+      PartnerName: "Sam Intake",
+      PreferredWeeklyHours: 20,
+      notes: "from the form",
+    });
+
+    const membership = fakeSupabase.get("journey_contacts").find((m) => m.id === "jc-intake-1");
+    expect(membership).toMatchObject({ role: "primary", is_primary_decision_maker: true });
+
+    const state = fakeSupabase.get("journey_pipeline_state").find((s) => s.id === "state-intake-1");
+    expect(state).toMatchObject({
+      journey_id: "journey-intake-1",
+      pipeline_id: "pipeline-sales",
+      current_stage_id: "stage-engagement",
+      current_sub_task_id: "sub-outreach",
+      is_active: true,
+      entered_pipeline_at: "2026-08-01T12:00:00.000Z",
+    });
+    // The sync never assigned intake leads; neither does the replay.
+    expect(state?.assigned_user_id).toBeUndefined();
+  });
+
+  it("is idempotent — a re-run against existing rows duplicates nothing", async () => {
+    seedPipelineFixtures();
+    fakeSupabase.seed("contacts", [{ id: "contact-intake-1", ghl_contact_id: "pto_4711" }]);
+    fakeSupabase.seed("journeys", [{ id: "journey-intake-1", primary_contact_id: "contact-intake-1" }]);
+    fakeSupabase.seed("journey_contacts", [{ id: "jc-intake-1", journey_id: "journey-intake-1" }]);
+    fakeSupabase.seed("journey_pipeline_state", [{ id: "state-intake-1", journey_id: "journey-intake-1" }]);
+    pendingRows = [
+      journalRow(61, "intake_contact", {
+        contact_id: "contact-intake-1",
+        journey_id: "journey-intake-1",
+        journey_contact_id: "jc-intake-1",
+        state_id: "state-intake-1",
+        ghl_contact_id: "pto_4711",
+        first_name: "Ida",
+        last_name: "Intake",
+        email: "ida@example.com",
+        phone: null,
+        address: null,
+        city: null,
+        state: null,
+        zip: null,
+        source: "pto",
+        opportunity_source: "PTO Form",
+        journey_slug: "ida-intake",
+        journey_name: "Ida Intake",
+        entered_pipeline_at: "2026-08-01T12:00:00.000Z",
+        extra_fields: null,
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(fakeSupabase.get("contacts")).toHaveLength(1);
+    expect(fakeSupabase.get("journeys")).toHaveLength(1);
+    expect(fakeSupabase.get("journey_contacts")).toHaveLength(1);
+    expect(fakeSupabase.get("journey_pipeline_state")).toHaveLength(1);
+  });
+
+  it("wire: adds journey + membership + state to an existing contact", async () => {
+    seedPipelineFixtures();
+    fakeSupabase.seed("contacts", [{ id: "contact-old-1", ghl_contact_id: "ghl-real-1" }]);
+    pendingRows = [
+      journalRow(62, "wire_sales_journey", {
+        contact_id: "contact-old-1",
+        journey_id: "journey-wire-1",
+        journey_contact_id: "jc-wire-1",
+        state_id: "state-wire-1",
+        journey_slug: "old-contact",
+        journey_name: "Old Contact",
+        entered_pipeline_at: "2026-08-02T09:00:00.000Z",
+        source: "franchise_request",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(fakeSupabase.get("journeys").find((j) => j.id === "journey-wire-1")).toMatchObject({
+      primary_contact_id: "contact-old-1",
+      status: "active",
+    });
+    expect(fakeSupabase.get("journey_pipeline_state").find((s) => s.id === "state-wire-1")).toMatchObject({
+      pipeline_id: "pipeline-sales",
+      is_active: true,
+    });
+  });
+
+  it("wire: a missing contact fails the journal row loudly", async () => {
+    seedPipelineFixtures();
+    pendingRows = [
+      journalRow(63, "wire_sales_journey", {
+        contact_id: "contact-gone",
+        journey_id: "journey-wire-2",
+        journey_contact_id: "jc-wire-2",
+        state_id: "state-wire-2",
+        journey_slug: "gone",
+        journey_name: "Gone",
+        entered_pipeline_at: "2026-08-02T09:00:00.000Z",
+        source: "pto",
+      }),
+    ];
+
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.failed).toBe(1);
+    expect(result.errors[0]).toMatch(/diverged/);
+  });
+});
+
+describe("applyNativeWrites — ghl_synced ownership handshake (MS §10 step 3)", () => {
+  beforeEach(() => {
+    fakeSupabase.tables.clear();
+    pendingRows = [];
+    statusUpdates.length = 0;
+    poolQuery.mockClear();
+  });
+
+  function advancePayload(ghlSynced: boolean | undefined) {
+    return {
+      history_id: "hist-gs-1",
+      state_id: "state-gs-1",
+      journey_id: "journey-gs-1",
+      pipeline_id: "pipeline-sales",
+      pipeline_slug: "sales",
+      from_stage_id: "stage-a",
+      to_stage_id: "stage-b",
+      to_stage_slug: "qualification",
+      contact_id: "contact-gs-1",
+      reason: null,
+      moved_by: "chad",
+      ...(ghlSynced === undefined ? {} : { ghl_synced: ghlSynced }),
+    };
+  }
+
+  it("skips the replay-side GHL stage sync when MasterSuite already fired it", async () => {
+    fakeSupabase.seed("journey_pipeline_state", [{ id: "state-gs-1", current_stage_id: "stage-a", is_active: true }]);
+    pendingRows = [journalRow(70, "advance_stage", advancePayload(true))];
+
+    const { syncStageToGHL } = await import("@/lib/ghl/stage-sync");
+    vi.mocked(syncStageToGHL).mockClear();
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(vi.mocked(syncStageToGHL)).not.toHaveBeenCalled();
+    // The stage still moved — only the GHL side effect changed hands.
+    expect(fakeSupabase.get("journey_pipeline_state")[0].current_stage_id).toBe("stage-b");
+  });
+
+  it("still fires it for rows without the marker — every pre-flag journal row", async () => {
+    fakeSupabase.seed("journey_pipeline_state", [{ id: "state-gs-1", current_stage_id: "stage-a", is_active: true }]);
+    pendingRows = [journalRow(71, "advance_stage", advancePayload(undefined))];
+
+    const { syncStageToGHL } = await import("@/lib/ghl/stage-sync");
+    vi.mocked(syncStageToGHL).mockClear();
+    const { applyNativeWrites } = await import("@/lib/mastersuite/apply-native-writes");
+    const result = await applyNativeWrites();
+
+    expect(result.applied).toBe(1);
+    expect(vi.mocked(syncStageToGHL)).toHaveBeenCalledWith("contact-gs-1", "sales", "qualification");
+  });
+});
+
 describe("applyNativeWrites — rename_journey", () => {
   beforeEach(() => {
     fakeSupabase.tables.clear();
