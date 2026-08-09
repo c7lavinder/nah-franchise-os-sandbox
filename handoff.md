@@ -1,193 +1,187 @@
-# Session Handoff — 2026-08-09 — Session 105
+# Session Handoff — 2026-08-09 — Session 106
 
 ## Status
 
-Phase: **CUTOVER TRACK — domain 4 (calls) is LIVE IN PRODUCTION. One
-session took it from "step 3 next" to flipped: steps 3+4+5 built (MS
-#734), the grade-parity gate passed (12/15 prompts byte-identical, 8/8
-live grade agreement), Corey re-pointed the Read.ai workspace webhook,
-MS #737 turned the flag on (18:26Z, verified), and the sandbox retired
-the calls domain from its sync + crons. The next ended meeting is the
-first fully-native call.** / Health: Green / Duration: full session
+Phase: **CUTOVER TRACK — domain 5 (contacts + pipeline) SCOPED AND 4 OF 7
+BUILD STEPS SHIPPED DARK in one session. §10 written from three parallel
+code inventories; MS PR #741 landed steps 1 (GHL foundation) + 2 (native
+lead intake) + 3 (stage write-through handshake) + 5 (runway derivation),
+every one flag-gated OFF. Also: MS PR #740 fixed the post-call profile
+auto-save BEFORE the first live call hits it (prod probe found 2
+db_write_error rows). Domain 4 first-call watch still open — nothing has
+ended a meeting since the flip.** / Health: Green / Duration: full session
 
 ## What Was Built This Session
 
-**MS PR #734** (merged + deployed) — everything shipped dark, then lit by #737:
+**MS PR #740** (merged + deployed) — post-call auto-save fix, found by prod
+probe: the INSERT into `frandev_contact_profile_field` omitted NOT-NULL
+`SourceHistory` (every NEW field row failed; dev E2E only exercised the
+ON-DUPLICATE branch) + saves were mirror-only (unjournaled → invisible to
+Supabase, clobbered nightly). Now `'[]'` on insert + journals
+`update_profile_field` source `ai-auto`.
 
-- **Step 3 — transcript worker + native intake**:
-  `FrandevService.TranscriptJobs.cs` (Whisper queue, first consumer of
-  `frandev_transcript_job`, + a stale-claim reaper the TS worker lacked),
-  `FrandevService.CallUploads.cs` (native uploads: recordings → S3 + queue,
-  transcripts inline with extract-speakers/resolve/reclassify),
-  `FrandevService.ReadAiSweep.cs` (pending-session drain + post-call
-  analyzer), `Jobs/FrandevCallsJobs.cs` + Hangfire registration (3 lanes:
-  \*/5 transcripts, 10-min sweep, 10-min analyzer).
-- **Step 4 — post-call agent + grader**: `FrandevService.PostCall.cs`
-  (orchestrator), `.PostCallContext.cs` (context loader),
-  `.PostCallPrompts.cs` (summary/extraction/KB prompts, byte-parity),
-  `.PostCallWrites.cs` (extraction routing, auto-save, KB merge),
-  `.Grading.cs` (the parity-locked grader), `.GradeParity.cs` (the gate),
-  `FrandevAnthropic.cs` (transport + `frandev_llm_call_log` metering),
-  `FrandevConfig.cs` (flag/model/budget shelf). Dead TS code NOT ported
-  (next-steps, coaching, review packages, commitments writer).
-- **Step 5 — settings**: `FrandevService.CallTypesAdmin.cs` + a FranDev-lens
-  branch in the EXISTING `/Gunner/Settings?tab=calls` (Gunner's locked set
-  untouched; no duplicated machinery; editing unlocked by the same flag).
-- 7 test pins (`FrandevPostCallTests.cs`); parity instruments
-  (`read-ai-grade-parity` probe + sandbox `scripts/dump-grade-prompts.ts`).
+**MS PR #741** (branch `s106-d5-build`, CI running at wrap) — domain-5
+steps 1+2+3+5, all dark:
 
-**MS PR #737** (merged + deployed) — migration
-`2026-08-09-253_FrandevCallsCutoverOn.sql`: the one-row flip.
+- **Step 1 — GHL foundation**: `FrandevGhl.cs` — FranDev sub-account
+  credentials in SystemConfig (`Frandev_GhlLocationId` /
+  `Frandev_GhlPrivateToken`; PIT via GhlConfig.ForLiteral, NOT the
+  sandbox's OAuth chain), `Frandev_GhlStageFieldMap` (slug → per-location
+  field id), smoke `GET /api/hooks/frandev-ghl-smoke` (lists the
+  location's custom fields — map-filling is copy-paste).
+- **Step 2 — native lead intake**: `FrandevService.LeadIntake.cs` —
+  sync-ms-prospects 1:1 (PTO + FRANCHISE_REQUEST → contact + journey +
+  membership + Sales state; deterministic ids; spam rules test-pinned;
+  wire-existing branch; journals `intake_contact`/`wire_sales_journey`).
+  Hangfire `frandev-lead-intake` dark (`Frandev_LeadIntake_Native`).
+- **Step 3 — stage write-through handshake**:
+  `FrandevService.GhlStageSync.cs` — advance/revert/board-move/close
+  stamp `ghl_synced` into the journal BEFORE commit, fire GHL AFTER;
+  dark (`Frandev_Ghl_NativeStageSync`).
+- **Step 5 — runway derivation**: `FrandevRunwayRules.cs` (pure ladder,
+  9 pins) + `FrandevService.RunwayDerivation.cs` reading the ORIGINAL
+  tables; dry-run hook = parity instrument; apply dark
+  (`Frandev_RunwayDerivation_Native`), Hangfire twice hourly.
 
-**Sandbox** (commits be3564a, 471d69c, 3fa0781): `updated_by` column-mapping
-fix; 21 call-domain tables retired from `push-frandev.ts` + 3 crons from
-`vercel.json`; port-plan §8 marked BUILT ×3 + new **§9 cutover runbook**.
+**Sandbox** (60898a4, 6a06682, 7f6cf81, 698e8a2): replay honors
+`ai-auto` profile saves (manual wins); §10 scoping written + GHL
+sub-account correction; `requireAuth` added to the pipeline drop route
+(was the only unauthenticated pipeline write); `contact_pipeline_state`
+out of `SUPABASE_TABLES`; replay handlers `intake_contact` /
+`wire_sales_journey` + the `ghl_synced` skip in all four stage handlers.
 
 ## What Is Confirmed Working
 
 **Measured, not predicted.**
 
-- **Grade parity**: prompts 12/15 sha256-byte-identical vs the TS grader
-  (3 misses = mirror-data drift, field-verified); live re-grade of 8
-  held-out calls: **8/8 same letter grade**, avg |score Δ| 1.88, criteria
-  6/6. Prompt-section parity: 15 contexts + 16 parser cases, all identical
-  (real TS transpiled and byte-diffed).
-- **Full agent E2E on dev**: 41-KB-item team call + a 2-line garbage call
-  both analyzed — title/summary/bullets/grade/extractions/KB merge/
-  integration-log/LLM-metering all verified in MariaDB.
-- **Worker E2E**: stale-claim reaper requeued; 404 audio failed after
-  exactly 3 attempts. **Sweep E2E**: re-pended session idempotently
-  re-processed. **Settings E2E** (minted JWT): both lenses render,
-  add-criterion round-trips.
-- **THE FLIP, verified in prod**: flag 'on', endpoint answering, 10 signing
-  keys stored (prod + dev), 0 pending backlog, CI green ×2, deploys green
-  ×3, 225/225 platform tests, sandbox build + 318 vitest green.
+- **Lead intake E2E on dev** (running app): scanned 24 / created 12 /
+  wired 1 / 0 errors — synthetic PTO row with extras on columns
+  (PartnerName, PreferredWeeklyHours, LeadSource), journey + Sales state +
+  primary membership correct, wire branch attached a Sales journey to an
+  existing contact, 13 journal rows carried minted ids. All E2E rows
+  cleaned; dev flag reset off.
+- **Runway parity on dev**: 0 insert / 0 deactivate / 0 errors /
+  3 updates — ALL THREE are the app being stale, not the port being wrong
+  (domain-1 flip froze Supabase's `ms_property_*`, so sync-ms-territories
+  derives from frozen evidence: CHARSC trained 07-26 still "training";
+  GREENB 3 purchases still "inventory-building"; LAFALA first completion
+  unseen). Native reads live tables.
+- **Profile-fix shapes round-tripped on dev MariaDB**
+  (JSON_VALID(SourceHistory)=1; journal insert clean); #740 deployed to
+  prod (CI + deploy green).
+- MS: build green, **5724 platform tests** (21 intake + 9 runway pins).
+  Sandbox: tsc clean, **327 vitest** (84 replay incl. 6 new), next build
+  green.
 
 ## What Is Broken or Incomplete
 
-- **No live delivery observed yet** — flip happened Saturday evening;
-  nothing ended a meeting since. First-call verification is next session's
-  opening move — **Medium (watch item, not a defect)**
-- `call_coaching` table still exists in Supabase (inert: nothing reads,
-  writes, or syncs it) — drop in a housekeeping migration — **Low**
-- Signature enforcement off (accept-and-log): flip
-  `Frandev_ReadAi_RequireSignature` after a week of sig=valid rows — **Low**
-- Supabase `knowledge_documents` is now FROZEN (retired from the sync;
-  native KB merge owns the mirror). Sandbox Scout still reads its stale
-  copy until domain 6 — accepted at flip — **Low**
-- Ben's notes/chat GRANT (`database/2026-08-09_grant_frandev_note_chat_write.sql`)
-  — unrelated to calls — **Low**
-- Carried Lows: `charleston@` rename; three inline-edit implementations;
-  `ResolveUser`/`ResolveUsername` duplicated; `updateCandidateScore`/`Flags`
-  write on every event; `GetAvgCycleDays` uncalled; ungraded calls read
-  "Group Call"; `DataAccess.Tests` empty
+- **No live Read.ai delivery observed yet** (newest session 2026-08-07;
+  flip was Saturday evening) — first-call verification still next
+  session's opening move — **Medium (watch)**
+- **MS PR #741 CI running at wrap** — merge when green (all code dark;
+  zero behavior until flags) — **action item**
+- **Step 4 not built**: the 4 LLM agents (research-contacts,
+  reengagement-scan, coaching-brief, contact journals) + intelligence
+  scoring — needs domain-4-style prompt-parity discipline, own session(s)
+- **Step 6 not decided**: satellites (contact_emails editor, related
+  people, activity messages, zorakle webhooks, journey documents)
+- Territory market-data + objection-registry auto-saves still mirror-only
+  (accepted; domains 1/6) — **Low**
+- Domain-4 tail unchanged: call_coaching drop, signature enforcement —
+  **Low**
 
 ## Decisions Made
 
-- **Flip executed same-session** — Corey re-pointed the Read.ai workspace
-  webhook and provided its signing key; that satisfied §9's human step, so
-  the flag flipped via migration 253. — Corey
-- **The signing key is the WORKSPACE webhook's key** (not Matt's personal
-  one); stored for all 10 known owner emails; accept-and-log unchanged. — Claude
-- **`knowledge_documents` retired from the sync AT the flip** (§9 step-7
-  option B): the native KB merge owns the mirror; Supabase's copy freezes
-  rather than clobbering native edits nightly. — Claude
-- **Rubrics are MasterSuite-owned from the flip**; Settings editing
-  unlocked by the same flag. — Claude
-- **Dead TS code not ported**; analysis is sweep-driven, not inline;
-  two-tier parity gate (bytes hard, LLM statistical); Haiku 4.5 pinned,
-  $25/day budget. — Claude (details in port-plan §8/§9)
-- Prod-mirror-empty picture was STALE — probe found the sync feeding prod;
-  Ben's GRANT demoted back to Low. — Claude
+- **FranDev GHL = existing SUB-ACCOUNT** (Corey): three sub-accounts
+  already provisioned; connect via marketplace-app login. MS-side uses a
+  PIT (GhlConfig doctrine: a second OAuth consumer forks the sandbox's
+  refresh chain); field ids are per-location — resolve via the smoke
+  hook, never copy Supabase's map. — Corey/Claude
+- **Ownership handshake over big-bang**: journal payloads carry
+  `ghl_synced`; the side that owns the GHL write is decided per-row,
+  pre-commit. Old rows (no marker) behave exactly as before. — Claude
+- **Intake replay ≠ create_contact replay**: no GHL upsert, no side
+  effects (sync parity), placeholder ids stay. — Claude
+- **Runway derivation reads ORIGINAL tables** (not mirrors) — which also
+  fixes placements silently frozen since the domain-1 flip. — Claude
+- **ai-auto keeps its label** through the replay; manual always wins. —
+  Claude (MS #740)
 
 ## Files Created
 
-- MS #734: `Entities/Frandev/FrandevPostCall.cs`; in
-  `MasterSuite.Modules.Frandev/`: `FrandevAnthropic.cs`, `FrandevConfig.cs`,
-  `FrandevService.{CallTypesAdmin,CallUploads,GradeParity,Grading,PostCall,
-PostCallContext,PostCallPrompts,PostCallWrites,ReadAiSweep,TranscriptJobs}.cs`,
-  `IFrandevService.PostCall.cs`, `Jobs/FrandevCallsJobs.cs`;
-  `MasterSuite.Platform.Tests/Frandev/FrandevPostCallTests.cs`
-- MS #737: `DatabaseMigrationRunner/Migrations/2026-08-09-253_FrandevCallsCutoverOn.sql`
-- Sandbox: `scripts/dump-grade-prompts.ts`
+- MS #741: `MasterSuite.Modules.Frandev/{FrandevGhl,FrandevRunwayRules}.cs`,
+  `FrandevService.{GhlStageSync,LeadIntake,RunwayDerivation}.cs`,
+  `IFrandevService.{LeadIntake,RunwayDerivation}.cs`,
+  `Jobs/FrandevLeadIntakeJobs.cs`,
+  `MasterSuite.Platform.Tests/Frandev/Frandev{LeadIntake,RunwayRules}Tests.cs`
 
 ## Files Modified
 
-- MS: `FrandevHooks.cs`, `Pages/Frandev/Calls.cshtml.cs`,
-  `Pages/Gunner/Settings.cshtml`(+`.cs`), `Program.cs`,
-  `DependencyInjectionConfig.cs`, `HangfireConfiguration.cs`
-- Sandbox: `lib/mastersuite/push-frandev.ts` (column override + 21-table
-  retirement), `vercel.json` (3 crons out),
-  `tests/business-logic/push-frandev-naming.test.ts` (retirement pin),
-  `docs/supabase-cutover-port-plan.md` (§8 ×3 BUILT + §9), `handoff.md`
+- MS #741: `FrandevConfig.cs` (3 new flags), `FrandevService.Writes.cs` +
+  `.Board.cs` (ghl_synced + FireGhlStageSync ×4), `FrandevHooks.cs`
+  (3 hooks), `FrandevWriteExtras.cs` (entities), Frandev csproj (+Gunner
+  ref), `DependencyInjectionConfig.cs`, `HangfireConfiguration.cs` (2 jobs
+  dark)
+- MS #740: `FrandevService.PostCallWrites.cs`
+- Sandbox: `lib/mastersuite/apply-native-writes.ts`,
+  `tests/business-logic/apply-native-writes.test.ts`,
+  `docs/supabase-cutover-port-plan.md` (§10 + build-sequence statuses),
+  `app/api/contacts/[contactId]/pipelines/[pipelineId]/drop/route.ts`,
+  `lib/mastersuite/push-frandev.ts`, `handoff.md`
 
 ## Files Deleted
 
-- None (E2E rows cleaned in-session; worktree `wt-s105-callsport` removed
-  after merge)
+- None (E2E rows cleaned in-session; wt-s106-profilefix removed after
+  #740 merged; wt-s106-d5build stays until #741 merges)
 
 ## Open Issues Carried Forward
 
-All standing traps stand (CHAR(36)→Guid CAST convention; MariaDB not MySQL
-— jsonb mirrors carry JSON*VALID CHECKs, serialize before insert; verified
-WRITE proves nothing about the READ; minted-JWT recipe; green build proves
-nothing about SQL; git hook misparses "push <word>" — commit with `-F`;
-solution at `apps/analysis-api/MasterSuite.sln`; ⚠ Vercel WRITES PRODUCTION;
-new `frandev*`table needs migration + grant in the SAME PR; local-run:`dotnet run --no-launch-profile`+`ASPNETCORE_URLS=http://localhost:5199`,
-creds from `~/.zshrc`; run `dotnet test`from`apps/analysis-api/`, not repo
-root). Plus:
+All standing traps stand (CHAR(36)→Guid CAST; MariaDB not MySQL —
+JSON*VALID CHECKs need serialized JSON; verified WRITE proves nothing
+about the READ; minted-JWT recipe; green build proves nothing about SQL;
+git hook misparses "push <word>" — commit with `-F` AND keep `git push`
+as its own command; solution at `apps/analysis-api/MasterSuite.sln`;
+⚠ Vercel writes PRODUCTION Supabase + prod MariaDB journal; new
+`frandev*\*`table needs migration + grant same PR; local-run`dotnet run --no-launch-profile`+`ASPNETCORE_URLS=http://localhost:5199`,
+creds from `~/.zshrc`; `dotnet test`from`apps/analysis-api/`). Plus:
 
-- **`sync-ms-territories` + `sync-ms-prospects` retire at the DOMAIN-5
-  flip, not before** — **FYI**
-- **Held until FranDev is fully off Vercel (Corey, s96)**: four nightly
-  jobs deliberately unscheduled; journey briefs ~3,175-LLM-call run —
-  **carried**
+- **`sync-ms-territories` + `sync-ms-prospects` + guardian retire at the
+  DOMAIN-5 flip** — now with named native replacements — **FYI**
+- **Held until off Vercel (Corey, s96)**: 4 nightly jobs, journey-brief
+  run — **carried**
 
 ## THE GAMEPLAN TO GET OFF VERCEL (domain scoreboard)
 
-| #   | Domain                | State                                                             |
-| --- | --------------------- | ----------------------------------------------------------------- |
-| 1   | Properties/mirrors    | ✅ **DONE** — #718 merged + deployed                              |
-| 2   | EOS                   | ✅ **DONE** — native tab live on originals; eos cron retired      |
-| 3   | Workflows             | ✅ RESOLVED — archive, don't port (no build)                      |
-| 4   | **Calls**             | ✅ **LIVE** — #734 built, #737 flipped 2026-08-09; tail items low |
-| 5   | Contacts + pipeline   | ⏳ **NEXT** — the big one (core CRM)                              |
-| 6   | Scout/RAG → Chiron KB | ⏳ after 5 — decision resolved, build pending                     |
-| 7   | Platform residue      | ⏳ dies with the app                                              |
+| #   | Domain                | State                                                                   |
+| --- | --------------------- | ----------------------------------------------------------------------- |
+| 1   | Properties/mirrors    | ✅ **DONE**                                                             |
+| 2   | EOS                   | ✅ **DONE**                                                             |
+| 3   | Workflows             | ✅ RESOLVED — archive, don't port                                       |
+| 4   | Calls                 | ✅ **LIVE** — first-call watch open; #740 hardened it pre-first-call    |
+| 5   | **Contacts+pipeline** | 🔨 **4/7 steps BUILT DARK** (#741) — left: agents, satellites, flip day |
+| 6   | Scout/RAG → Chiron KB | ⏳ after 5                                                              |
+| 7   | Platform residue      | ⏳ dies with the app                                                    |
 
 **What is left, in order:**
 
-1. **Domain 4 tail (small, this week)**: verify the first live Read.ai
-   call end-to-end (session → call → transcript → grade → KB, ≤10 min);
-   after ~a week of sig=valid log rows flip
-   `Frandev_ReadAi_RequireSignature='on'`; drop `call_coaching` in a
-   housekeeping migration.
-2. **Domain 5 — contacts + pipeline (the big one)**: scope with the proven
-   domain-4 pattern (shadow → flag-gated native writes → parity replay →
-   flip). Exit also retires `sync-ms-territories` + `sync-ms-prospects`
-   and the contact/journey crons.
-3. **Domain 6 — Scout/RAG → Chiron KB**: decision made (Chiron KB is the
-   landing zone); build pending. Also un-freezes the KB story (Supabase
-   copy is frozen since the domain-4 flip).
-4. **Domain 7 — platform residue**: dies with the app; then archive
-   Supabase and the held items unblock (4 nightly jobs, journey-brief run).
-
-**OUTSTANDING (not on the critical path, all Low):**
-
-- Ben: notes/chat GRANT (30 sec at a prod terminal)
-- Drop `call_coaching`; signature enforcement flip (both domain-4 tail)
-- Carried code cleanups (charleston@, inline-edit ×3, ResolveUser dup,
-  updateCandidateScore, GetAvgCycleDays, "Group Call" label, empty
-  DataAccess.Tests)
-
-**Nothing on the critical path waits on anyone.** Domain 5 can start now.
+1. Merge #741 when CI greens (dark, safe).
+2. Verify the first live Read.ai call end-to-end.
+3. **Corey**: connect the FranDev GHL sub-account (marketplace-app login),
+   mint a PIT there, fill `Frandev_GhlLocationId` +
+   `Frandev_GhlPrivateToken`; then the smoke hook lists field ids to fill
+   `Frandev_GhlStageFieldMap`.
+4. **Step 4**: the 4 LLM agents + intelligence scoring (own session,
+   prompt-parity gates).
+5. **Step 6**: satellite decisions.
+6. **Flip day** (runbook in §10 step 7): arm 3 flags + retire 3 crons +
+   replay types + ~25 tables from the push + retire sandbox pages + ADR.
 
 ## Exact Next Step
 
-Verify the first live Read.ai delivery processed natively end-to-end
-(prod: `frandev_integration_log` webhook_received → `frandev_call` row →
-transcript → grade + KB within ~10 min), then start domain 5 (contacts +
-pipeline) scoping with the domain-4 pattern.
+Merge MS #741 (CI was running at wrap). Then verify the first live
+Read.ai delivery end-to-end (unchanged from s105). Then build step 4:
+port research-contacts / reengagement-scan / coaching-brief / contact
+journals onto FrandevAnthropic with prompt-byte parity, dark.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -195,6 +189,6 @@ pipeline) scoping with the domain-4 pattern.
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Domain 4 (calls) is LIVE — first verify the newest Read.ai delivery processed natively end-to-end on prod (frandev*integration_log → frandev_call → transcript → grade/KB within ~10 min of a meeting ending; sig=valid on the log rows). Then start domain 5 (contacts + pipeline) scoping using the domain-4 pattern: inventory every Supabase write path for contacts/journeys/pipeline, map to frandev* mirrors, plan shadow → flag-gated native writes → parity replay → flip. Do NOT retire sync-ms-territories/sync-ms-prospects (they retire at the domain-5 flip). Domain-4 tail items (call_coaching drop, signature enforcement) are Low — fold into any session.
+Then: (1) check MS PR #741 merged (domain-5 steps 1+2+3+5, all dark) — merge if CI green. (2) Verify the newest Read.ai delivery processed natively end-to-end on prod (frandev_integration_log → frandev_call → transcript → grade/KB ≤10 min). (3) Build domain-5 step 4: port the 4 LLM agents (research-contacts, reengagement-scan, coaching-brief, contact-journals) + updateCandidateScore onto FrandevAnthropic, prompt-byte-parity, flag-gated dark — see port-plan §10. Do NOT retire sync-ms-territories/sync-ms-prospects/guardian (they retire at the domain-5 flip, which needs Corey's GHL sub-account connect first).
 
 ---

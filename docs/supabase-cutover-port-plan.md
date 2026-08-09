@@ -470,22 +470,60 @@ write layer the only one, and re-home the side effects."
 
 ### Build sequence (session-sized, in order)
 
-1. **GHL foundation**: FranDev GhlConfig + token refresh (Hangfire) +
-   stage-field mapping config + smoke probe. Nothing user-visible.
-2. **Native lead intake, shadow-first**: form-submit → native
-   CreateProspect path + journal (`create_contact` replay keeps Supabase
-   whole while it's still master. The bridge already works in this
-   direction — Add Journey uses it today).
-3. **Side-effect re-homing behind the flag** (stage sync, task push,
-   contact upsert, touch fields), default OFF; replay keeps firing them
-   app-side until the flip.
-4. **Agents to Hangfire, dark** (research, reengagement, coaching-brief,
-   contact journals) + intelligence scoring.
-5. **Onboarding/runway derivation** + guardian parity green.
-6. **Satellite ports/decisions** (emails, related people, docs, zorakle).
-7. **Flip day**: flag on → replay's domain-5 types retire → ~25 tables out
-   of the push → crons retired → sandbox contact/pipeline pages retire →
-   file the ADR.
+1. ✅ **BUILT 2026-08-09 (s106, MS PR #741)** — GHL foundation:
+   `FrandevGhl.cs` (sub-account credential pair in SystemConfig:
+   `Frandev_GhlLocationId` / `Frandev_GhlPrivateToken`, reusing Gunner's
+   GhlClient via ForLiteral; PIT deliberately, NOT the sandbox's OAuth
+   chain — refresh-token rotation would fork it), `Frandev_GhlStageFieldMap`
+   JSON (slug → this location's field id), and read-only smoke
+   `GET /api/hooks/frandev-ghl-smoke` (connection state + the location's
+   custom fields, so filling the map is copy-paste). Awaits Corey filling
+   the two credential rows after connecting the FranDev sub-account.
+2. ✅ **BUILT 2026-08-09 (s106, MS PR #741)** — native lead intake
+   (`FrandevService.LeadIntake.cs`), sync-ms-prospects ported 1:1 against
+   the mirror: deterministic `pto_`/`franchise_req_` ids (NOT EXISTS,
+   cursorless), spam rules verbatim (test-pinned), wire-existing branch,
+   NO GHL contact (placeholder discipline), journals `intake_contact` /
+   `wire_sales_journey` (replay handlers shipped sandbox-side, 698e8a2).
+   Hangfire `frandev-lead-intake` dark behind `Frandev_LeadIntake_Native`.
+   E2E on dev: scanned 24 / created 12 / wired 1 / 0 errors; extras on
+   columns; rows cleaned. ⚠ Flip pairing: flag on + retire
+   `sync-ms-prospects` in the SAME window (two importers = dupes).
+3. ✅ **BUILT 2026-08-09 (s106, MS PR #741)** — GHL stage write-through
+   native behind `Frandev_Ghl_NativeStageSync`
+   (`FrandevService.GhlStageSync.cs`): advance/revert/board-move/close
+   decide ownership BEFORE the journal write, stamp `ghl_synced` into the
+   payload, fire GHL AFTER commit; the replay skips `syncStageToGHL`
+   exactly when `ghl_synced=true` (one side fires, never both; unmarked
+   pre-flag rows unchanged). Task push / contact upsert / touch-fields
+   re-homing rides the same pattern — build at flip-window when the
+   sub-account is connected.
+4. ⏳ **NEXT** — agents to Hangfire, dark (research-contacts,
+   reengagement-scan, coaching-brief, contact journals) + intelligence
+   scoring (`updateCandidateScore`). LLM prompt ports — needs the
+   domain-4 prompt-parity discipline, its own session(s).
+5. ✅ **BUILT 2026-08-09 (s106, MS PR #741)** — onboarding/runway
+   derivation (`FrandevRunwayRules.cs` pure + test-pinned;
+   `FrandevService.RunwayDerivation.cs`), re-pointed at the ORIGINAL
+   tables. Dry-run = the parity instrument (hook
+   `frandev-runway-derivation`); apply dark behind
+   `Frandev_RunwayDerivation_Native`, Hangfire twice hourly. Parity on
+   dev: 0 insert / 0 deactivate / 0 errors / 3 updates — all three are
+   the APP being stale: since the domain-1 flip froze Supabase's
+   `ms_property_*` copies, sync-ms-territories has derived runway from
+   frozen evidence (CHARSC trained 07-26 still filed "training"; GREENB
+   at 3 purchases still "inventory-building"; LAFALA's first completion
+   unseen). Native reads live tables — equal rules, fresher facts.
+6. ⏳ Satellite ports/decisions (emails, related people, docs, zorakle).
+7. ⏳ **Flip day** (needs Corey's marketplace connect + a parity window):
+   fill `Frandev_GhlLocationId`/`Frandev_GhlPrivateToken` + resolve
+   `Frandev_GhlStageFieldMap` via the smoke hook → arm the three flags
+   (`Frandev_LeadIntake_Native`, `Frandev_Ghl_NativeStageSync`,
+   `Frandev_RunwayDerivation_Native`) → retire `sync-ms-prospects` +
+   `sync-ms-territories` + `runway-pipeline-guardian` (after its last
+   green) → replay's domain-5 types retire → ~25 tables out of the push →
+   sandbox contact/pipeline pages retire → file the ADR.
 
-Estimate: 6–8 sessions at domain-4 pace, GHL foundation and intake being
-the two with real unknowns.
+Estimate was 6–8 sessions; s106 landed steps 1+2+3+5 in one (the
+sub-account correction shrank step 1, and steps 2/3/5 shared the journal
+machinery). Remaining: step 4 (the LLM agents), step 6, flip day.
