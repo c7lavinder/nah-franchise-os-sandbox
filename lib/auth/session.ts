@@ -7,6 +7,7 @@ import jwt from "jsonwebtoken";
 import { createServerClient } from "@/lib/supabase/server";
 import { getAccessTokenFromCookies } from "@/lib/auth/cookies";
 import { hasPermission, type PermissionAction } from "@/lib/auth/permissions";
+import { isRetiredWrite, retiredWriteResponse } from "@/lib/auth/retired-writes";
 import type { User, UserRole } from "@/types/database";
 
 /** The authenticated user with app-level fields */
@@ -134,6 +135,13 @@ export async function requireAuth(request: Request, action?: PermissionAction): 
       status: 403,
       headers: { "Content-Type": "application/json" },
     });
+  }
+
+  // Domains 5+6 tail: contact/pipeline/KB writes retired — MasterSuite owns
+  // them now. Crons and webhooks never call requireAuth, so the bridge and
+  // receivers are unaffected.
+  if (isRetiredWrite(request.method, new URL(request.url).pathname)) {
+    return retiredWriteResponse();
   }
 
   return user;

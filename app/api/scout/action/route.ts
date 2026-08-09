@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
+import { RETIRED_SCOUT_ACTION_TYPES, RETIRED_WRITE_MESSAGE } from "@/lib/auth/retired-writes";
 import * as ghl from "@/lib/ghl";
 import {
   evaluateScoutSendRuntimeSafety,
@@ -178,6 +179,17 @@ export async function POST(request: NextRequest) {
     body.action.contactId = await resolveGhlContactId(body.action.contactId);
 
     const { action } = body;
+
+    // Domains 5+6 tail: stage moves, profile updates, and sub-task logs are
+    // retired write surfaces — those changes happen in MasterSuite now.
+    // Other action types (messages, tasks, EOS, workflows...) still run.
+    if (RETIRED_SCOUT_ACTION_TYPES.has(action.type)) {
+      return NextResponse.json(
+        { error: RETIRED_WRITE_MESSAGE, code: "moved_to_mastersuite", success: false },
+        { status: 410 }
+      );
+    }
+
     const safetyDecision = validateScoutActionApproval(action, user.id);
     if (!safetyDecision.allowed) {
       return NextResponse.json({ error: safetyDecision.error, success: false }, { status: safetyDecision.status });
