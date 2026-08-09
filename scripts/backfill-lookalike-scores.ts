@@ -2,7 +2,8 @@
  * Backfill Lookalike Scores — Phase 10
  *
  * Computes rule-based lookalike scores for all contacts and stores
- * them in contact_profile_fields (field_key: "lookalike_score").
+ * them in contact_profile_fields (field_name: "Lookalike Score" — the registry name;
+ * the legacy "lookalike_score" spelling was renamed away in the G3 pass, 2026-08-09).
  *
  * Run: source .env.local && npx tsx scripts/backfill-lookalike-scores.ts [--dry-run]
  */
@@ -208,7 +209,7 @@ async function main() {
     const batch = results.slice(i, i + BATCH_SIZE);
     const rows = batch.map((r) => ({
       contact_id: r.contactId,
-      field_name: "lookalike_score",
+      field_name: "Lookalike Score",
       field_value: { score: r.score, tier: r.tier },
       last_updated_by: "system" as const,
       last_updated_at: new Date().toISOString(),

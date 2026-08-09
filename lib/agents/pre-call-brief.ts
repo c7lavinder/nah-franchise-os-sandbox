@@ -50,12 +50,17 @@ export async function runPreCallBriefAgent(callId: string): Promise<{
       .select("field_name, field_value")
       .eq("contact_id", contact.ghl_contact_id)
       .in("field_name", [
-        "desired_territory", "primary_motivation", "current_occupation",
-        "company", "industry", "liquid_capital_available",
+        // Registry names — desired_territory/primary_motivation were legacy aliases
+        // until the G3 rename (2026-08-09); the store now holds only these.
+        "Territory Interest",
+        "definition_of_success",
+        "current_occupation",
+        "company",
+        "industry",
+        "liquid_capital_available",
       ]);
 
-    const pf = (name: string) =>
-      profileFields?.find((f) => f.field_name === name)?.field_value ?? null;
+    const pf = (name: string) => profileFields?.find((f) => f.field_name === name)?.field_value ?? null;
 
     const callTypeName = (call.call_types as unknown as { name: string } | null)?.name ?? "sales call";
 
@@ -77,8 +82,8 @@ Return JSON only — no preamble, no markdown fences.`,
 What we know:
 - Location: ${contact.city ?? ""} ${contact.state ?? ""}
 - Job/company: ${pf("current_occupation") ?? "unknown"} at ${pf("company") ?? "unknown"}
-- Motivation: ${pf("primary_motivation") ?? "not yet captured"}
-- Territory interest: ${pf("desired_territory") ?? "not yet discussed"}
+- Motivation: ${pf("definition_of_success") ?? "not yet captured"}
+- Territory interest: ${pf("Territory Interest") ?? "not yet discussed"}
 
 Search for:
 1. Any recent news about ${fullName} (career change, business news, etc.)

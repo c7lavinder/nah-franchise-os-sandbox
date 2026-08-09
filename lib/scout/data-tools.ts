@@ -997,9 +997,7 @@ async function getTerritoryProfile(slug: string, options: { refreshStaleBriefs?:
       nameFromAccountEmail(territory.GoogleLicense2Account),
       nameFromAccountEmail(territory.GoogleLicense3Account),
       nameFromAccountEmail(territory.GoogleLicense4Account),
-    ].filter(
-      (name): name is string => typeof name === "string" && name.trim().length > 0
-    );
+    ].filter((name): name is string => typeof name === "string" && name.trim().length > 0);
     const uniqueOwnerNames = [...new Set(ownerNames)];
 
     return JSON.stringify({
@@ -1119,7 +1117,7 @@ async function getJourneyProfile(journeyId: string): Promise<string> {
           .from("contact_profile_fields")
           .select("contact_id, field_value")
           .in("contact_id", memberContactIds)
-          .eq("field_name", "lookalike_score"),
+          .eq("field_name", "Lookalike Score"),
         supabase.from("contact_briefs").select("contact_id, summary").in("contact_id", memberContactIds),
       ]);
 
