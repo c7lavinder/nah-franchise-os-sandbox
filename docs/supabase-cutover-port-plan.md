@@ -175,8 +175,33 @@ the coaching feed dies too if this table stops being fed after cutover.
    step-6 flip: either provision real signing keys (rows in
    `frandev_read_ai_webhook_key`, then flip the flag on) or accept unsigned
    explicitly in the cutover note.
-2. Classifier + the 3 processors (prospect / coaching+onboarding /
-   group+internal) writing call, transcript, participants, junctions.
+2. ✅ **BUILT 2026-08-09 (s104, MS PR #729)** — classifier + the 3 processors
+   (prospect / coaching+onboarding / group+internal) writing call, transcript,
+   participants, junctions. **Flag-gated, default OFF**: SystemConfig
+   `Frandev_ReadAi_NativeProcessing='on'` is the switch; off, the receiver
+   stays the step-1 shadow byte-for-byte. Flips at step 6, not before.
+   Validated: **transcript parity proven mechanically** — the current TS
+   formatter and the C# port are byte-identical on all 421 archived payloads
+   (dev-only `read-ai-format-transcript` probe, same team set both sides).
+   Classify replay (dev-only `read-ai-classify-replay`, read-only): 421
+   scanned / 0 parse failures, durations 415/415, participants 355/357,
+   categories 358/421 — all 63 category mismatches are honest drift (the
+   replay resolves against TODAY's mirror; journeys advanced/closed and the
+   team roster changed since classification day), deterministic across two
+   runs. Stored-title (247) and stored-slug (123) diffs are downstream
+   features, not the port: the post-call agent re-titles calls 3-5 words
+   (step 4) and manual drag-retypes rewrite slugs (`cohort_call` appears — a
+   slug the classifier never emits). Flag-on E2E on a running app: synthetic
+   prospect delivery → session complete, call + participants + junctions +
+   transcript written, contact created (`readai_` placeholder, NeedsReview)
+   and reconciled onto its participant row; cleaned up, flag off. The probe
+   caught a real bug pre-review (`FULLTEXT` is a MariaDB reserved word).
+   One migration: `frandev_contact.IsConvertedFranchisee` — the only
+   classifier input the mirror lacked; the schema-driven push auto-maps it
+   (no sandbox change; dev backfilled 71 contacts from Supabase in-session).
+   ⚠ Step-6 note: the flag flip must also decide what sweeps the backlog of
+   `'pending'` sessions accumulated in shadow — the live path only processes
+   new deliveries.
 3. Transcript-job worker (model on `ChironNtnJobs` / `CbEstimationVisionJobs`
    — MasterSuite has no Vercel-cron analogue).
 4. Post-call agent + grader in C# (Anthropic plumbing exists: `ChironAgent`,

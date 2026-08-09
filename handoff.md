@@ -1,73 +1,82 @@
-# Session Handoff — 2026-08-09 — Session 103
+# Session Handoff — 2026-08-09 — Session 104
 
 ## Status
 
-Phase: **CUTOVER TRACK — the Ben logjam BROKE mid-session (billing fixed):
-#718 merged + deployed, the eos cron is retired, domains 1+2 are DONE. Domain
-4 step 1 (shadow Read.ai receiver) is BUILT, validated 421/421, and open as
-MS PR #722.** / Health: Green / Duration: full session
+Phase: **CUTOVER TRACK — domain 4 step 2 (classifier + 3 processors) is BUILT
+and validated: MS PR #729, flag-gated OFF, transcript parity proven 421/421
+byte-identical against the current TS formatter.** / Health: Green /
+Duration: full session
 
 ## What Was Built This Session
 
-- **Domain 4 step 1 — the shadow-mode Read.ai receiver (MS PR #722,
-  branch `frandev-s103-readai-receiver`, worktree `wt-s103-readai`)**:
-  `POST /api/hooks/read-ai` (HMAC verify → policy → dedupe →
-  `frandev_read_ai_session` upsert → `frandev_integration_log` row), GET
-  probe, dev-only replay harness `POST /api/hooks/read-ai-replay`. Ingest
-  columns ONLY: new rows land `'pending'`; ProcessingStatus / CallType /
-  ClassifiedAt / LinkedCallId are never touched on existing rows, so the
-  nightly push and the #716 coaching feed keep winning until cutover. 9 new
-  pins in `MasterSuite.Platform.Tests/Frandev/FrandevReadAiReceiverTests.cs`
-  (externally computed HMAC vectors, UTC-seconds truncation, participant
-  filter parity, rejection-policy table).
-- **Signature policy DECIDED (was flagged for build time)**: accept-and-log
-  by default; every delivery logs `sig=valid|invalid|missing`; SystemConfig
-  `Frandev_ReadAi_RequireSignature='on'` flips enforcement; rejected
-  deliveries still answer 200 (SignWell rule). Decided on evidence, not
-  taste: `read_ai_webhook_keys` has ZERO rows in Supabase, the mirror is
-  empty, and no `READ_AI_WEBHOOK_SIGNING_KEY_*` env exists anywhere — a
-  reject default would drop 100% of live traffic at the flip. Recorded in
-  port-plan §8 step 1.
-- **The Ben chain executed the moment it unblocked**: GH Actions billing was
-  discovered FIXED (CI runs completing with real durations from ~14:30 UTC);
-  reran #718's dead check → green; merged #718 (14:48Z); deploy run
-  31319436354 → success (live in prod); then merged the staged sandbox branch
-  `s102-retire-sync-ms-eos` into main (318/318 tests + full `next build`
-  before push) — the `sync-ms-eos` cron is retired.
+- **Domain 4 step 2 — the native call classifier + processors (MS PR #729,
+  branch `frandev-s104-classifier`, worktree `wt-s104-classify`)**: 1:1 C#
+  ports of the sandbox `lib/calls` pipeline — participant resolver
+  (email/phone/name tiers → territory → journey ranking), category decision
+  tree (prospect / onboarding / coaching / group / internal / unknown),
+  layer-2 slug table, transcript formatter (speaker-map heuristics,
+  case-sensitive transcription fixes), and the 3 processors writing
+  `frandev_call` + participants + territory/journey junctions + transcript +
+  session link, plus the reconcile safety net. **Flag-gated, default OFF**:
+  SystemConfig `Frandev_ReadAi_NativeProcessing='on'` is the whole switch;
+  off, the step-1 shadow receiver is byte-identical. Flips at step 6.
+- **The resolver's DB seam** (`IFrandevCallResolverDb`): tests pin the
+  decision tree with a fake; the replay runs it read-only against the live
+  mirror; a REPLAY-ONLY caching decorator cuts the corpus run from 20+ min
+  to ~13 (the live path stays uncached — reconcile must see the contact the
+  prospect processor creates mid-session).
+- **Migration `2026-08-09-252`**: `frandev_contact.IsConvertedFranchisee` —
+  the ONLY classifier input the mirror lacked. The schema-driven push maps
+  `is_converted_franchisee` automatically (pascalToSnake); no sandbox change.
+  Dev got the column + a 71-contact backfill from Supabase in-session.
+- **Dev-only validation hooks**: `POST /api/hooks/read-ai-classify-replay`
+  (read-only corpus diff) and `POST /api/hooks/read-ai-format-transcript`
+  (pure formatter probe with an explicit team set — the parity instrument).
+- 25 new pins in `MasterSuite.Platform.Tests/Frandev/FrandevReadAiClassifierTests.cs`
+  (every decision-tree branch, slug table, title rules, speaker-map
+  heuristics, the fdd→FDD case-sensitivity rule, duration rounding).
 
 ## What Is Confirmed Working
 
 **Measured, not predicted.**
 
-- Replay of ALL 421 archived Read.ai deliveries through the C# mapper against
-  the dev mirror: **421 matched / 0 mismatched / 0 parse failures** —
-  timestamps to the second, participant arrays element-for-element.
-- `writes=1` re-delivery of all 421 through the real ingest: **421 deduped /
-  0 errors** — the complete-session dedupe gate holds against live data.
-- E2E on the locally-running app (dev DB): synthetic probe ingested
-  `'pending'` with classification columns null; DB-keyed signature verified
-  both ways (`sig=valid` / `sig=invalid` logged); invalid JSON → the one 400;
-  missing session_id → logged + 200. Probe + test key cleaned up after.
-- `MasterSuite.Platform.Tests` 185/185 (gated suite); app project builds
-  clean; sandbox suite 318/318 + `next build` green on the merged main.
-- MS PR #718's check green on rerun; its deploy completed (success).
-- **MS PR #722 went green (4m14s), merged 15:00:30Z, deployed, and the prod
-  probe answers**: `GET https://mastersuiteapp.com/api/hooks/read-ai` →
-  `{"status":"ok","endpoint":"read-ai-webhook"}` — the reverse proxy routes
-  the path, so the step-6 URL flip has no infrastructure unknowns left.
+- **Transcript parity PROVEN**: current TS `formatTranscript` vs the C# port
+  on all 421 archived payloads, identical team set both sides —
+  **421/421 byte-identical, 0 mismatches**.
+- **Classify replay** (2 runs, identical counters — deterministic): 421
+  scanned / 0 parse failures; durations **415/415 exact**; participants
+  355/357; categories 358/421. All 63 category mismatches sit in honest
+  drift buckets (prospect→coaching 13, prospect→onboarding 9,
+  coaching↔onboarding 11, internal↔prospect 11, …): the replay resolves
+  against TODAY's mirror, the stored answers were computed months ago —
+  journeys advanced/closed, contacts merged, the team roster changed. The 2
+  sampled category flips are textbook runway drift (a journey now in runway
+  classifies coaching where onboarding was stored, and vice versa).
+- **Stored-title (247) and stored-slug (123) diffs are NOT the port**: the
+  post-call summary agent rewrites titles to 3-5 words after insert
+  (`lib/agents/post-call/prompts/summary.ts` — §8 step 4 scope) and manual
+  drag-retypes rewrite slugs (`cohort_call` shows up — a slug the classifier
+  never emits). Replayed titles are exactly the processor-insert format
+  ("Intro Call w/ Preeti Singh").
+- **Flag-on E2E on the running app** (dev DB): synthetic prospect delivery →
+  session `complete` + linked; call row with correct slug/title/duration/
+  host; transcript row (Source=upload, WordCount right); contact created
+  (`readai_` placeholder GhlContactId, NeedsReview=1) and — via reconcile —
+  linked onto its participant row; `webhook_received` + `call_classified`
+  log rows. Probe rows cleaned up; flag returned to off.
+- `MasterSuite.Platform.Tests` **210/210** (was 185; +25); app project builds
+  clean.
 
 ## What Is Broken or Incomplete
 
+- **The E2E probe caught a real bug pre-review**: `FULLTEXT` is a MariaDB
+  reserved word — the transcript INSERT backticks it now. Also 14 queries
+  initially hit the standing CHAR(36)→Guid trap; all now use the repo's
+  `CAST(... AS CHAR)` convention. Both fixed in #729 — recorded here because
+  the traps EARNED their standing status again.
 - **GRANT SQL still not run** (`database/2026-08-09_grant_frandev_note_chat_write.sql`,
-  30 sec at a prod terminal, Ben) — housekeeping; future notes won't sync
-  until it runs — **Low**
-- **Sandbox Vercel deploy of the merge commit `3194e53` not visually
-  confirmed** (build passed locally with identical config; Vercel emails on
-  failure) — check the dashboard shows the eos cron gone — **Low**
-- `knowledge_documents.updated_by` → `UpdatedByUserId` mapping gap — fix in
-  passing during domain 4 — **Low**
-- Vercel property/revenue/L10/Scout-property surfaces frozen at Aug 9
-  snapshot — BY DESIGN (ADR-0014) — **Low/FYI**
+  30 sec at a prod terminal, Ben) — **Low**
+- `knowledge_documents.updated_by` → `UpdatedByUserId` mapping gap — **Low**
 - Carried, all Low: `charleston@` office-named-as-person rename; three
   inline-edit implementations; `ResolveUser`/`ResolveUsername` duplicated;
   `updateCandidateScore`/`Flags` write on every event; `GetAvgCycleDays`
@@ -75,52 +84,60 @@ MS PR #722.** / Health: Green / Duration: full session
 
 ## Decisions Made
 
-- **Read.ai signature policy** (above) — Claude, evidence-based; the
-  enforcement flip is deliberately left for after key provisioning.
-- **Merged #718 and the staged sandbox branch without waiting** — the repo's
-  standing rule (CI is the gate, opener can merge; wait-gate retired by Corey
-  2026-08-02) plus the handoff's own sequenced plan authorized both the
-  moment CI came back. — Claude
-- **New receiver rows land `'pending'` not `'processing'`** — nothing native
-  advances them yet; `'processing'` would read as stuck. — Claude
+- **Prospect-created contacts get `readai_` placeholder GhlContactIds** —
+  the mirror's GhlContactId is NOT NULL; same convention as the
+  pto*/manual*/franchisee\_ families. — Claude
+- **Category replay is a triage report, not a 100% gate** — the DB-dependent
+  half of classification cannot be re-validated against months-old answers
+  from today's DB; the deterministic half (transcript/title/duration/slug
+  rules) is where byte-parity is enforced, and it holds. — Claude
+- **The classify replay caches its resolver reads; the live path never does**
+  — reconcile must observe the contact created mid-processing. — Claude
+- **Step-6 note added to the port plan**: the flag flip must also sweep the
+  `'pending'` backlog accumulated in shadow — the live path only processes
+  new deliveries. — Claude
 
 ## Files Created
 
-- MS worktree `wt-s103-readai`: `Entities/Frandev/FrandevReadAi.cs`,
-  `MasterSuite.Modules.Frandev/FrandevService.ReadAi.cs`,
-  `MasterSuite.Modules.Frandev/IFrandevService.ReadAi.cs`,
-  `MasterSuite/FrandevHooks.cs`,
-  `MasterSuite.Platform.Tests/Frandev/FrandevReadAiReceiverTests.cs`
+- MS worktree `wt-s104-classify` (all in MS PR #729):
+  `DatabaseMigrationRunner/Migrations/2026-08-09-252_FrandevContactConvertedFlag.sql`,
+  `Entities/Frandev/FrandevReadAiClassify.cs`,
+  `MasterSuite.Modules.Frandev/FrandevCallResolverDb.cs`,
+  `MasterSuite.Modules.Frandev/FrandevService.ReadAiText.cs`,
+  `MasterSuite.Modules.Frandev/FrandevService.ReadAiClassifier.cs`,
+  `MasterSuite.Modules.Frandev/FrandevService.ReadAiProcessors.cs`,
+  `MasterSuite.Modules.Frandev/IFrandevService.ReadAiClassify.cs`,
+  `MasterSuite.Platform.Tests/Frandev/FrandevReadAiClassifierTests.cs`
 
 ## Files Modified
 
-- MS: `MasterSuite/Program.cs` (`app.MapFrandevHooks()`)
-- Sandbox main: `docs/supabase-cutover-port-plan.md` (§8 step 1 marked BUILT +
-  policy decision + the #716 coaching-feed consumer note), `handoff.md`,
-  plus the merge of `s102-retire-sync-ms-eos` (`vercel.json` −1 cron,
-  `scheduler-ownership.test.ts`)
+- MS: `FrandevService.ReadAi.cs` (one flag-gated call after ingest),
+  `MasterSuite/FrandevHooks.cs` (two dev-only validation endpoints)
+- Sandbox main: `docs/supabase-cutover-port-plan.md` (§8 step 2 marked BUILT
+  - validation record + step-6 backlog-sweep note), `handoff.md`
 
 ## Files Deleted
 
-- None (dev-DB probes and the test signing key were cleaned up in-session)
+- None (E2E probe rows + test flag cleaned up in-session; dev's manual
+  IsConvertedFranchisee column persists but the deployed migration owns it)
 
 ## Open Issues Carried Forward
 
-All standing traps stand (MySqlConnector CHAR(36)→Guid; verified WRITE proves
-nothing about the READ; minted-JWT prod-driving recipe; MariaDB not MySQL;
-green build proves nothing about SQL; git hook misparses "push <word>" — commit
-with `-F <file>`; solution at `apps/analysis-api/MasterSuite.sln`; ⚠ Vercel
-WRITES PRODUCTION; ⚠ new `frandev_` table needs migration + grant in the SAME
-PR; replay batch limit 50; the inbound EOS sync never deleted — Supabase
-`eos_territory_*` is a historical superset). Plus:
+All standing traps stand (MySqlConnector CHAR(36)→Guid — bit TWICE this
+session before the CAST convention was applied; verified WRITE proves nothing
+about the READ; minted-JWT prod-driving recipe; MariaDB not MySQL — FULLTEXT
+is a reserved word, backtick it; green build proves nothing about SQL; git
+hook misparses "push <word>" — commit with `-F <file>`; solution at
+`apps/analysis-api/MasterSuite.sln`; ⚠ Vercel WRITES PRODUCTION; ⚠ new
+`frandev_` table needs migration + grant in the SAME PR; replay batch limit
+50 (step-1 harness); the inbound EOS sync never deleted). Plus:
 
 - **Local-run recipe that works**: `dotnet run --no-launch-profile` with
   `ASPNETCORE_URLS=http://localhost:5199` — launchSettings.json otherwise
-  OVERRIDES the port (7128, usually taken) and BLANKS `NAH_DB_PASSWORD`.
-  DB creds come from `~/.zshrc` (`NAH_DB_*`); query MariaDB via node
-  `mysql2` (no mysql CLI on this Mac).
-- **`sync-ms-territories` does NOT retire until the domain-5 flip** (FK
-  reference + pipeline seeding; ADR-0014 Correction) — **FYI**
+  OVERRIDES the port and BLANKS `NAH_DB_PASSWORD`. DB creds from `~/.zshrc`
+  (`NAH_DB_*`); query MariaDB via node `mysql2` (import it by absolute path
+  from the sandbox's node_modules).
+- **`sync-ms-territories` does NOT retire until the domain-5 flip** — **FYI**
 - **Held until FranDev is fully off Vercel (Corey, s96)**: four nightly jobs
   deliberately unscheduled; journey briefs ~3,175-LLM-call run — **carried**
 
@@ -131,47 +148,42 @@ PR; replay batch limit 50; the inbound EOS sync never deleted — Supabase
 | 1   | Properties/mirrors    | ✅ **DONE** — #718 merged + deployed 2026-08-09                 |
 | 2   | EOS                   | ✅ **DONE** — native tab live on originals; eos cron retired    |
 | 3   | Workflows             | ✅ RESOLVED — archive, don't port (no build)                    |
-| 4   | **Calls**             | 🔨 **IN BUILD** — step 1 of 6 MERGED + live (#722); step 2 next |
+| 4   | **Calls**             | 🔨 **IN BUILD** — steps 1+2 of 6 done (#722, #729); step 3 next |
 | 5   | Contacts + pipeline   | ⏳ after 4 — the big one (core CRM)                             |
 | 6   | Scout/RAG → Chiron KB | ⏳ after 5 — decision resolved, build pending                   |
 | 7   | Platform residue      | ⏳ dies with the app                                            |
 
-**What's left, in build order (everything remaining to get off Vercel):**
+**What's left, in build order:**
 
-1. **Domain 4 step 2** — classifier + 3 processors (prospect /
-   coaching+onboarding / group+internal) behind a SystemConfig flag, writing
-   `frandev_call` + transcript + participants + junctions; validate by
-   replaying archived payloads against known Supabase output. ← **NEXT**
-2. **Domain 4 step 3** — transcript-job worker (model on `ChironNtnJobs`).
-3. **Domain 4 step 4** — post-call agent + grader in C#, **parity-gated**
+1. **Domain 4 step 3** — transcript-job worker (model on `ChironNtnJobs` /
+   `CbEstimationVisionJobs` — MasterSuite has no Vercel-cron analogue). ← **NEXT**
+2. **Domain 4 step 4** — post-call agent + grader in C#, **parity-gated**
    (re-grade held-out graded calls and diff BEFORE writing any grade row —
    the riskiest piece of the whole port).
-4. **Domain 4 step 5** — call-types/rubrics settings UI + fan-out
+3. **Domain 4 step 5** — call-types/rubrics settings UI + fan-out
    (extractions, action items, review packages, commitments).
-5. **Domain 4 step 6** — cutover: decide keys-vs-unsigned (provision
-   `frandev_read_ai_webhook_key` rows + flip `Frandev_ReadAi_RequireSignature`,
-   or accept unsigned explicitly), re-point the Read.ai webhook URL, retire
-   the sandbox call crons + call tables from the push, drop `call_coaching`
-   (KEEP `calls.coaching_data`).
-6. **Domain 5** — contacts + pipeline, the big one (core CRM); its exit also
-   retires `sync-ms-territories` + `sync-ms-prospects`.
-7. **Domain 6** — Scout/RAG → Chiron KB (decision made, build pending).
-8. **Domain 7** — platform residue dies with the app; then archive Supabase.
+4. **Domain 4 step 6** — cutover: keys-vs-unsigned decision, re-point the
+   Read.ai webhook URL, flip `Frandev_ReadAi_NativeProcessing` on, **sweep
+   the 'pending' backlog accumulated in shadow**, retire the sandbox call
+   crons + call tables from the push, drop `call_coaching` (KEEP
+   `calls.coaching_data`).
+5. **Domain 5** — contacts + pipeline (also retires `sync-ms-territories` +
+   `sync-ms-prospects`).
+6. **Domain 6** — Scout/RAG → Chiron KB.
+7. **Domain 7** — platform residue dies with the app; then archive Supabase.
 
-**Outstanding but NOT on the critical path:** Ben's GRANT SQL (30 sec, Low —
-future notes/chat rows won't sync until run); eyeball the Vercel dashboard
-once to confirm the eos cron is gone; `knowledge_documents.updated_by`
-mapping gap (fix in passing); the carried Low cleanups. **Nothing on the
-critical path waits on Ben anymore.**
+**Outstanding but NOT on the critical path:** Ben's GRANT SQL (30 sec, Low);
+`knowledge_documents.updated_by` mapping gap; carried Low cleanups.
+**Nothing on the critical path waits on Ben.**
 
 ## Exact Next Step
 
-Build port-plan §8 step 2 in a fresh MS worktree: the classifier + 3 processors
-(prospect / coaching+onboarding / group+internal) behind a SystemConfig flag,
-writing `frandev_call` + transcript + participants + junctions, validated by
-replaying archived payloads against known Supabase output (same harness
-pattern as step 1 — the corpus and diff loop are already in
-`FrandevService.ReadAi.cs`).
+Build port-plan §8 step 3 in a fresh MS worktree: the transcript-job worker,
+modeled on `ChironNtnJobs` / `CbEstimationVisionJobs` (Hangfire — see
+`HangfireConfiguration.cs`). Study what `frandev_transcript_job` rows the
+Vercel pipeline creates/consumes first, then port the worker loop. The step-2
+classifier (#729) is merged and flag-gated off; its replay + probe harness
+pattern is in `FrandevService.ReadAiProcessors.cs`.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -179,6 +191,6 @@ pattern as step 1 — the corpus and diff loop are already in
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Build port-plan §8 step 2: classifier + 3 processors behind a SystemConfig flag in the MasterSuite repo, validated by replaying archived payloads against known Supabase output (the step-1 receiver #722 is merged + live; its replay harness pattern is in FrandevService.ReadAi.cs). Ben items left: just the GRANT SQL (Low). Do NOT retire sync-ms-territories (domain-5 exit).
+Then: Build port-plan §8 step 3: the transcript-job worker in the MasterSuite repo, modeled on ChironNtnJobs (Hangfire). Steps 1+2 are merged (#722 receiver live; #729 classifier flag-gated OFF). Study frandev_transcript_job usage in the sandbox first. Ben items left: just the GRANT SQL (Low). Do NOT retire sync-ms-territories (domain-5 exit). Do NOT flip Frandev_ReadAi_NativeProcessing.
 
 ---
