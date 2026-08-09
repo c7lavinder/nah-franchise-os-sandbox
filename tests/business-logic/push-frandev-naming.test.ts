@@ -30,13 +30,32 @@ describe("push-frandev table name resolution", () => {
     expect(resolveSupabaseTable("frandev_journey", known)).toBe("journeys");
     expect(resolveSupabaseTable("frandev_contact", known)).toBe("contacts");
     expect(resolveSupabaseTable("frandev_territory", known)).toBe("territories");
-    // -y -> -ies, and the explicit override for a Latin plural the pluralizer cannot reach.
-    expect(resolveSupabaseTable("frandev_rubric_criterion", known)).toBe("rubric_criteria");
   });
 
   it("returns null rather than guessing when there is no Supabase source", () => {
     // Tables MasterSuite owns outright must resolve to nothing, not to a near-miss.
     expect(resolveSupabaseTable("frandev_native_write", known)).toBeNull();
+  });
+
+  it("no longer feeds the calls domain (domain-4 cutover, 2026-08-09)", () => {
+    // MasterSuite writes these natively now. If any of them reappears in
+    // SUPABASE_TABLES, the nightly push resumes upserting Supabase's frozen
+    // copies over live native rows — the exact clobber the cutover removed.
+    for (const retired of [
+      "calls",
+      "call_grades",
+      "call_transcripts",
+      "call_types",
+      "rubrics",
+      "rubric_criteria",
+      "read_ai_sessions",
+      "transcript_jobs",
+      "knowledge_documents",
+    ]) {
+      expect(known.has(retired)).toBe(false);
+    }
+    expect(resolveSupabaseTable("frandev_call", known)).toBeNull();
+    expect(resolveSupabaseTable("frandev_rubric_criterion", known)).toBeNull();
   });
 
   it("maps the notes columns MasterSuite spells in PascalCase", () => {

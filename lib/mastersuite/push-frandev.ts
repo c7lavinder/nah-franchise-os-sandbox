@@ -37,7 +37,6 @@ const TABLE_OVERRIDES: Record<string, string> = {
   frandev_contact_profile_datum: "contact_profile_data",
   frandev_contact_related_person: "contact_related_people",
   frandev_contact_zorakle_datum: "contact_zorakle_data",
-  frandev_rubric_criterion: "rubric_criteria",
 };
 
 /** Best-effort plural candidates for a singular `frandev_` base name. */
@@ -513,7 +512,13 @@ export async function pushFrandev(opts: PushOptions): Promise<PushSummary> {
  * sources without an extra information_schema round-trip. Keep in sync with
  * `supabase/migrations/`.
  */
-export const SUPABASE_TABLES: string[] = [
+export // ⚰ RETIRED AT THE DOMAIN-4 CUTOVER (2026-08-09): every call-domain table —
+// calls, call_* (13), transcript_jobs, read_ai_sessions, read_ai_webhook_keys,
+// rubrics, rubric_criteria, rubric_review_suggestions, knowledge_documents,
+// llm_call_logs. MasterSuite writes those natively now; a nightly upsert of
+// Supabase's frozen copies would clobber live rows. `commitments` stays (its
+// writer is dead but MS briefs/Scout read the mirror).
+const SUPABASE_TABLES: string[] = [
   "agent_actions",
   "agent_approvals",
   "agent_run_events",
@@ -522,19 +527,6 @@ export const SUPABASE_TABLES: string[] = [
   "ai_api_tokens",
   "app_settings",
   "bug_reports",
-  "call_action_feedback",
-  "call_action_items",
-  "call_coaching",
-  "call_data_extractions",
-  "call_grades",
-  "call_journeys",
-  "call_logs",
-  "call_participants",
-  "call_review_packages",
-  "call_territories",
-  "call_transcripts",
-  "call_types",
-  "calls",
   "candidate_intelligence",
   "candidate_score_history",
   "coach_assignments",
@@ -585,10 +577,8 @@ export const SUPABASE_TABLES: string[] = [
   "journey_pipeline_state",
   "journeys",
   "kb_gap_signals",
-  "knowledge_documents",
   "lead_sources",
   "lead_sub_sources",
-  "llm_call_logs",
   "market_signals",
   // Resolves frandev_note -> notes through the standard pluralizer. The note
   // BODY is the payload, so the row can be large; the byte-budgeted batching
@@ -601,12 +591,7 @@ export const SUPABASE_TABLES: string[] = [
   "pipeline_stages",
   "pipeline_sub_tasks",
   "pipelines",
-  "read_ai_sessions",
-  "read_ai_webhook_keys",
   "rep_journals",
-  "rubric_criteria",
-  "rubric_review_suggestions",
-  "rubrics",
   "scout_action_logs",
   "scout_performance_reports",
   "scout_retrieval_logs",
@@ -626,7 +611,6 @@ export const SUPABASE_TABLES: string[] = [
   "territory_owners",
   "territory_profile",
   "territory_stakeholders",
-  "transcript_jobs",
   "user_email_aliases",
   "user_memory",
   "users",

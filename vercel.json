@@ -15,10 +15,6 @@
       "schedule": "0 23 * * 0"
     },
     {
-      "path": "/frandev/api/cron/rubric-review",
-      "schedule": "0 23 1 * *"
-    },
-    {
       "path": "/frandev/api/cron/research-contacts",
       "schedule": "0 2 * * 0"
     },
@@ -35,16 +31,8 @@
       "schedule": "0 4 1 * *"
     },
     {
-      "path": "/frandev/api/cron/process-transcripts",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/frandev/api/cron/refresh-ghl-token",
       "schedule": "0 */12 * * *"
-    },
-    {
-      "path": "/frandev/api/calls/reconcile",
-      "schedule": "*/10 * * * *"
     },
     {
       "path": "/frandev/api/cron/workflow-scheduler",
