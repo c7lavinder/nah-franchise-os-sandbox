@@ -2,13 +2,39 @@
 
 ## Status
 
-Phase: **CUTOVER TRACK — domain 4 (calls) BUILD IS COMPLETE. Steps 3+4+5
+Phase: **CUTOVER TRACK — domain 4 (calls) is LIVE. Corey re-pointed the
+Read.ai workspace webhook in-session; MS #737 (migration 253) flipped
+Frandev_ReadAi_NativeProcessing ON in production 18:26Z; the sandbox
+retired the 21 call-domain tables from the nightly sync + 3 call crons.
+Calls now classify/transcribe/analyze/grade natively. Build story below. Steps 3+4+5
 shipped in one session (MS PR #734): transcript worker, post-call agent +
 grader (parity gate PASSED — 12/15 prompts byte-identical, 8/8 live
 grade agreement), call-types/rubrics settings inside the existing Gunner
 Settings page. Step 6 is now a checklist (port-plan §9), gated on Ben's
 GRANT + prod push backfill + the Read.ai URL re-point.** / Health: Green /
 Duration: full session
+
+## THE FLIP HAPPENED (added end-of-session)
+
+- Corey re-pointed the Read.ai **workspace** webhook ("Mastersuite Frandev")
+  to `https://mastersuiteapp.com/api/hooks/read-ai` and provided its signing
+  key. Key stored in `frandev_read_ai_webhook_key` for all 10 session-owner
+  emails on prod AND dev (workspace key — not per-user; accept-and-log
+  unchanged; flip `Frandev_ReadAi_RequireSignature` after a week of
+  sig=valid rows).
+- **MS PR #737** (migration `2026-08-09-253_FrandevCallsCutoverOn.sql`)
+  merged 18:26Z, deploy success — **prod flag verified 'on'**, endpoint
+  healthy, 0 pending backlog. No live delivery yet (Saturday evening; next
+  ended meeting is the first true native call).
+- **Sandbox counterpart shipped** (commit 471d69c): 21 call-domain tables
+  out of `SUPABASE_TABLES` (incl. `knowledge_documents` — §9 step-7
+  decision: native KB merge owns it, Supabase copy freezes) + the
+  rubric_criteria override; `process-transcripts`, `calls/reconcile`,
+  `rubric-review` crons retired; naming-test pin updated to assert the
+  retirement.
+- **§9 tail, deliberately deferred**: drop `call_coaching` (inert — nothing
+  reads/writes/syncs it) in a housekeeping migration; signature enforcement
+  after a week; watch the first live delivery end-to-end.
 
 ## What Was Built This Session
 
