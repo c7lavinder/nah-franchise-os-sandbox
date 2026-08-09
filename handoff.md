@@ -164,17 +164,25 @@ creds from `~/.zshrc`; `dotnet test`from`apps/analysis-api/`). Plus:
 
 **What is left, in order:**
 
-1. Merge #741 when CI greens (dark, safe).
+1. ~~Merge #741~~ ✅ MERGED + deployed same session.
 2. Verify the first live Read.ai call end-to-end.
-3. **Corey**: connect the FranDev GHL sub-account (marketplace-app login),
-   mint a PIT there, fill `Frandev_GhlLocationId` +
-   `Frandev_GhlPrivateToken`; then the smoke hook lists field ids to fill
-   `Frandev_GhlStageFieldMap`.
+3. ~~Connect the FranDev GHL sub-account~~ ✅ **DONE same session** —
+   Corey provided the PIT + location id (0WYp7DssxULm1SJYaOsz — the SAME
+   location the sandbox app uses; its nah\_\*\_stage_id fields already
+   exist). MS PR #746 added the authenticated connect hook
+   (`/api/hooks/frandev-ghl-connect`, jwt-cookie auth, validate-before-
+   store; needed because the sandbox prod grant can't write SystemConfig
+   and migrations can't carry secrets). Driven via minted JWT: prod +
+   dev both store LocationId/PIT/StageFieldMap
+   (sales WE90XmjQ…, followup NNIqrzmi…, onboarding bOjnT44u…); prod
+   smoke = "connected". **GHL foundation is now LIVE-capable — the
+   domain-5 flip no longer waits on anyone.**
 4. **Step 4**: the 4 LLM agents + intelligence scoring (own session,
    prompt-parity gates).
 5. **Step 6**: satellite decisions.
 6. **Flip day** (runbook in §10 step 7): arm 3 flags + retire 3 crons +
    replay types + ~25 tables from the push + retire sandbox pages + ADR.
+   Credentials + field map already in place on prod AND dev (#746).
 
 ## Exact Next Step
 
