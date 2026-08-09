@@ -512,7 +512,17 @@ export async function pushFrandev(opts: PushOptions): Promise<PushSummary> {
  * sources without an extra information_schema round-trip. Keep in sync with
  * `supabase/migrations/`.
  */
-export // ⚰ RETIRED AT THE DOMAIN-4 CUTOVER (2026-08-09): every call-domain table —
+export // ⚰ RETIRED AT THE DOMAIN-5 CUTOVER (2026-08-09): the tables whose native
+// writers do NOT journal (runway derivation, the four agents, research
+// profile fields) — contacts, journey_pipeline_state, contact_profile_fields,
+// contact_journals, contact_scores, notifications, candidate_intelligence,
+// candidate_score_history, data_update_suggestions, eos_contact_goals. A
+// nightly upsert of Supabase's trailing copies would clobber live native
+// rows. Dual-write-consistent tables (journeys, journey_contacts,
+// pipeline_stage_history, sub-task logs, notes, tasks — minted ids replayed
+// 1:1) STAY until the sandbox write surfaces retire; briefs + emails +
+// remaining satellites stay app-owned until domain 6.
+// ⚰ RETIRED AT THE DOMAIN-4 CUTOVER (2026-08-09): every call-domain table —
 // calls, call_* (13), transcript_jobs, read_ai_sessions, read_ai_webhook_keys,
 // rubrics, rubric_criteria, rubric_review_suggestions, knowledge_documents,
 // llm_call_logs. MasterSuite writes those natively now; a nightly upsert of
@@ -527,29 +537,21 @@ const SUPABASE_TABLES: string[] = [
   "ai_api_tokens",
   "app_settings",
   "bug_reports",
-  "candidate_intelligence",
-  "candidate_score_history",
   "coach_assignments",
   "commitments",
   "compliance_tracking",
   "contact_activity_messages",
   "contact_briefs",
   "contact_emails",
-  "contact_journals",
   // contact_pipeline_state: dropped in 20260422600000_drop_cps_legacy.sql —
   // its mirror-less entry skipped as no_supabase_source every night.
   "contact_profile_data",
-  "contact_profile_fields",
   "contact_related_people",
-  "contact_scores",
   "contact_sub_task_logs",
   "contact_team_members",
   "contact_zorakle_data",
-  "contacts",
   "cron_job_log",
-  "data_update_suggestions",
   "embeddings",
-  "eos_contact_goals",
   "eos_contact_habits",
   "eos_contact_issues",
   "eos_contact_todos",
@@ -575,7 +577,6 @@ const SUPABASE_TABLES: string[] = [
   "journey_briefs",
   "journey_contacts",
   "journey_documents",
-  "journey_pipeline_state",
   "journeys",
   "kb_gap_signals",
   "lead_sources",
@@ -585,7 +586,6 @@ const SUPABASE_TABLES: string[] = [
   // BODY is the payload, so the row can be large; the byte-budgeted batching
   // above is what keeps a long note from blowing max_allowed_packet.
   "notes",
-  "notifications",
   "objection_registry",
   "pipeline_app_settings",
   "pipeline_stage_history",

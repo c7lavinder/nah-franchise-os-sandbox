@@ -15,20 +15,12 @@
       "schedule": "0 23 * * 0"
     },
     {
-      "path": "/frandev/api/cron/research-contacts",
-      "schedule": "0 2 * * 0"
-    },
-    {
       "path": "/frandev/api/cron/research-territories",
       "schedule": "0 3 * * 0"
     },
     {
       "path": "/frandev/api/cron/pre-call-briefs",
       "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/frandev/api/cron/reengagement-scan",
-      "schedule": "0 4 1 * *"
     },
     {
       "path": "/frandev/api/cron/refresh-ghl-token",
@@ -51,24 +43,8 @@
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/frandev/api/cron/sync-ms-territories",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/frandev/api/cron/runway-pipeline-guardian",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/frandev/api/cron/sync-ms-prospects",
-      "schedule": "*/30 * * * *"
-    },
-    {
       "path": "/frandev/api/cron/sync-ghl-calendar",
       "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/frandev/api/cron/coaching-brief",
-      "schedule": "0 7 * * *"
     },
     {
       "path": "/frandev/api/cron/push-frandev",

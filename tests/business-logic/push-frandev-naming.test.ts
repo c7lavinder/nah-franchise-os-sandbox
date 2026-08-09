@@ -28,7 +28,7 @@ describe("push-frandev table name resolution", () => {
     // Regression cover for the resolver itself: a change to the pluralizer that fixed one
     // table by breaking these would otherwise show up only as empty tables in production.
     expect(resolveSupabaseTable("frandev_journey", known)).toBe("journeys");
-    expect(resolveSupabaseTable("frandev_contact", known)).toBe("contacts");
+    expect(resolveSupabaseTable("frandev_note", known)).toBe("notes");
     expect(resolveSupabaseTable("frandev_territory", known)).toBe("territories");
   });
 
@@ -56,6 +56,31 @@ describe("push-frandev table name resolution", () => {
     }
     expect(resolveSupabaseTable("frandev_call", known)).toBeNull();
     expect(resolveSupabaseTable("frandev_rubric_criterion", known)).toBeNull();
+  });
+
+  it("no longer feeds the mirror-only domain-5 tables (domain-5 cutover, 2026-08-09)", () => {
+    // These tables' native writers do NOT journal (runway derivation, the four
+    // agents, research profile fields) — a re-added entry means the nightly
+    // push clobbers live native rows with Supabase's trailing copies.
+    for (const retired of [
+      "contacts",
+      "journey_pipeline_state",
+      "contact_profile_fields",
+      "contact_journals",
+      "contact_scores",
+      "notifications",
+      "candidate_intelligence",
+      "candidate_score_history",
+      "data_update_suggestions",
+      "eos_contact_goals",
+    ]) {
+      expect(known.has(retired)).toBe(false);
+    }
+    expect(resolveSupabaseTable("frandev_contact", known)).toBeNull();
+    expect(resolveSupabaseTable("frandev_journey_pipeline_state", known)).toBeNull();
+    // The dual-write-consistent family stays until the sandbox write surfaces retire.
+    expect(resolveSupabaseTable("frandev_journey", known)).toBe("journeys");
+    expect(resolveSupabaseTable("frandev_task", known)).toBe("tasks");
   });
 
   it("maps the notes columns MasterSuite spells in PascalCase", () => {

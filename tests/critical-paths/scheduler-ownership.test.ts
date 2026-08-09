@@ -13,11 +13,23 @@ describe("scheduler ownership contract", () => {
     const vercel = JSON.parse(read("vercel.json")) as { crons?: Array<{ path: string; schedule: string }> };
     const cronPaths = new Set((vercel.crons ?? []).map((cron) => cron.path));
 
-    // The syncs still on the schedule — territories (FK reference +
-    // journey_pipeline_state seeding; holds until the domain-5 flip per the
-    // ADR-0014 Correction), prospects (live lead inflow).
+    // Retired at the DOMAIN-5 flip (2026-08-09): native lead intake owns the
+    // prospect inflow (two importers racing one source = duplicate contacts)
+    // and the native runway derivation owns jps placement. Re-adding either
+    // reopens the race the flip closed.
+    expect(cronPaths.has("/frandev/api/cron/sync-ms-territories")).toBe(false);
+    expect(cronPaths.has("/frandev/api/cron/sync-ms-prospects")).toBe(false);
+    expect(cronPaths.has("/frandev/api/cron/runway-pipeline-guardian")).toBe(false);
+
+    // The agents retired with them — their native twins run in Hangfire.
+    expect(cronPaths.has("/frandev/api/cron/research-contacts")).toBe(false);
+    expect(cronPaths.has("/frandev/api/cron/reengagement-scan")).toBe(false);
+    expect(cronPaths.has("/frandev/api/cron/coaching-brief")).toBe(false);
+
+    // The bridge stays: the replay keeps Supabase trailing native writes, and
+    // the push still carries the non-retired tables for domains 6/7.
     expect(Array.from(cronPaths)).toEqual(
-      expect.arrayContaining(["/frandev/api/cron/sync-ms-territories", "/frandev/api/cron/sync-ms-prospects"])
+      expect.arrayContaining(["/frandev/api/cron/apply-mastersuite-writes", "/frandev/api/cron/push-frandev"])
     );
 
     // Retired by ADR-0014 (2026-08-09): native MasterSuite reads the MySQL property
