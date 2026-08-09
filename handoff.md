@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase: **CUTOVER TRACK — domain 5 (contacts + pipeline) FULLY BUILT: 7 OF 7
+Phase: **CUTOVER TRACK — DOMAIN 5 IS FLIPPED AND LIVE. Built 7/7 steps
 BUILD STEPS SHIPPED DARK in one session. §10 written from three parallel
 code inventories; MS PR #741 landed steps 1 (GHL foundation) + 2 (native
 lead intake) + 3 (stage write-through handshake) + 5 (runway derivation),
@@ -155,15 +155,15 @@ creds from `~/.zshrc`; `dotnet test`from`apps/analysis-api/`). Plus:
 
 ## THE GAMEPLAN TO GET OFF VERCEL (domain scoreboard)
 
-| #   | Domain                | State                                                                   |
-| --- | --------------------- | ----------------------------------------------------------------------- |
-| 1   | Properties/mirrors    | ✅ **DONE**                                                             |
-| 2   | EOS                   | ✅ **DONE**                                                             |
-| 3   | Workflows             | ✅ RESOLVED — archive, don't port                                       |
-| 4   | Calls                 | ✅ **LIVE** — first-call watch open; #740 hardened it pre-first-call    |
-| 5   | **Contacts+pipeline** | 🔨 **4/7 steps BUILT DARK** (#741) — left: agents, satellites, flip day |
-| 6   | Scout/RAG → Chiron KB | ⏳ after 5                                                              |
-| 7   | Platform residue      | ⏳ dies with the app                                                    |
+| #   | Domain                | State                                                                    |
+| --- | --------------------- | ------------------------------------------------------------------------ |
+| 1   | Properties/mirrors    | ✅ **DONE**                                                              |
+| 2   | EOS                   | ✅ **DONE**                                                              |
+| 3   | Workflows             | ✅ RESOLVED — archive, don't port                                        |
+| 4   | Calls                 | ✅ **LIVE** — first-call watch open; #740 hardened it pre-first-call     |
+| 5   | **Contacts+pipeline** | ✅ **FLIPPED + LIVE** (ADR-0015, migr 255) — tail small; Supabase trails |
+| 6   | Scout/RAG → Chiron KB | ⏳ after 5                                                               |
+| 7   | Platform residue      | ⏳ dies with the app                                                     |
 
 **What is left, in order:**
 
@@ -181,15 +181,23 @@ creds from `~/.zshrc`; `dotnet test`from`apps/analysis-api/`). Plus:
    smoke = "connected". **GHL foundation is now LIVE-capable — the
    domain-5 flip no longer waits on anyone.**
 4. ~~Step 4~~ ✅ DONE (MS #747). ~~Step 6~~ ✅ DECIDED.
-5. **Flip day — the ONLY remaining domain-5 work** (runbook §10 step 7):
-   arm 4 flags (`Frandev_LeadIntake_Native`, `Frandev_Ghl_NativeStageSync`,
-   `Frandev_RunwayDerivation_Native`, `Frandev_Agents_Native`) + retire
-   sync-ms-prospects / sync-ms-territories / guardian + the app agent
-   crons + replay's domain-5 types + ~25 tables from the push + retire
-   sandbox pages + 3 small satellite items (Zorakle receiver,
-   related-people panel, doc upload) + file the ADR. Credentials + field
-   map already live on prod AND dev (#746). Needs a parity window, not
-   a build.
+5. ~~Flip day~~ ✅ **EXECUTED same session (ADR-0015 + MS migration 255,
+   PR #749)** in the safe order: prod runway dry-run gate (0/0/0, 2
+   live-evidence corrections) → sandbox deploy 8189d1e (6 crons out:
+   sync-ms-prospects/-territories, guardian, research-contacts,
+   reengagement-scan, coaching-brief; 10 mirror-only tables out of the
+   push; scheduler-ownership contract updated) → migration 255 armed the
+   4 flags. Verified: all 5 Frandev\_\*Native flags 'on' in prod. The
+   replay bridge STAYS (Supabase trails until domain 6); dual-write
+   tables stay in the push until sandbox write surfaces retire.
+6. **Domain-5 tail (small, non-blocking)**: watch the first native lead
+   import + first native runway application in frandev_integration_log;
+   native Zorakle receiver; related-people panel; journey-doc upload;
+   remove the old app's domain-5 write routes (until then: make ALL
+   contact/pipeline changes in MasterSuite — an old-app move reaches
+   Supabase only).
+7. **Next domain: 6** — Scout/RAG → Chiron KB (un-freezes the KB story;
+   retires the journals cron, briefs port, replay + push shrink again).
 
 ## Exact Next Step
 

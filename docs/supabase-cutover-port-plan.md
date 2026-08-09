@@ -537,18 +537,19 @@ write layer the only one, and re-home the side effects."
    freezes at flip), a related-people panel (mirror exists, no native
    surface; rarely edited), native journey-document upload (S3 +
    extract; embeddings ride domain 6).
-7. ⏳ **Flip day** (needs Corey's marketplace connect + a parity window):
-   fill `Frandev_GhlLocationId`/`Frandev_GhlPrivateToken` + resolve
-   `Frandev_GhlStageFieldMap` via the smoke hook → arm the three flags
-   (`Frandev_LeadIntake_Native`, `Frandev_Ghl_NativeStageSync`,
-   `Frandev_RunwayDerivation_Native`) → retire `sync-ms-prospects` +
-   `sync-ms-territories` + `runway-pipeline-guardian` (after its last
-   green) → replay's domain-5 types retire → ~25 tables out of the push →
-   sandbox contact/pipeline pages retire → file the ADR.
+7. ✅ **FLIPPED 2026-08-09 evening (ADR-0015 + MS migration 255, PR #749)**
+   — executed in the safe order: prod runway dry-run gate (0/0/0, 2
+   live-evidence corrections) → sandbox deploy retiring 6 crons + the 10
+   mirror-only push tables (8189d1e) → migration 255 arming the four
+   flags. Verified on prod: all 5 Frandev\_\*Native flags 'on'. The
+   REPLAY BRIDGE deliberately stays (Supabase trails native writes until
+   domain 6); dual-write-consistent tables stay in the push until the
+   sandbox write surfaces retire. **Domain-5 tail (small):** native
+   Zorakle receiver, related-people panel, journey-doc upload, remove the
+   old app's domain-5 write routes, first-native-lead watch.
 
 Estimate was 6–8 sessions; s106 landed ALL SEVEN build steps in one
 day (#740/#741/#746/#747 — the sub-account correction shrank step 1, the
 journal machinery was shared, and the agents' prompts ported clean).
-**Everything buildable-before-the-flip is built, deployed, and dark.**
-Remaining: flip day only (step 7 above + the three small flip-window
-satellite items), gated on a parity window, not on any build.
+**Domain 5 is FLIPPED — MasterSuite's MariaDB is the system of record
+for the core CRM.** Remaining: the tail items in step 7 + domain 6.
