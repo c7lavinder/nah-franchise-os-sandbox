@@ -2029,6 +2029,19 @@ async function insertIntakeJourneyRows(
 async function applyIntakeContact(payload: IntakeContactPayload): Promise<void> {
   const supabase = getServiceSupabase();
 
+  // Same person already here under a DIFFERENT uuid → the old prospect sync
+  // imported this lead itself (with its own journey + pipeline rows) before it
+  // retired. Nothing to add — inserting the minted rows beside them would
+  // duplicate the person. One-time switchover-window case, kept permanently
+  // because a straggler journal row must never mint a double.
+  const { data: sameGhlId, error: ghlReadError } = await supabase
+    .from("contacts")
+    .select("id")
+    .eq("ghl_contact_id", payload.ghl_contact_id)
+    .maybeSingle();
+  if (ghlReadError) throw new Error(`contact ghl-id read failed: ${ghlReadError.message}`);
+  if (sameGhlId && sameGhlId.id !== payload.contact_id) return;
+
   const { data: existingContact, error: readError } = await supabase
     .from("contacts")
     .select("id")

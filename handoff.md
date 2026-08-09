@@ -190,8 +190,15 @@ creds from `~/.zshrc`; `dotnet test`from`apps/analysis-api/`). Plus:
    4 flags. Verified: all 5 Frandev\_\*Native flags 'on' in prod. The
    replay bridge STAYS (Supabase trails until domain 6); dual-write
    tables stay in the push until sandbox write surfaces retire.
-6. **Domain-5 tail (small, non-blocking)**: watch the first native lead
-   import + first native runway application in frandev_integration_log;
+6. **Domain-5 tail (small, non-blocking)**: ~~first native lead import~~
+   ✅ OBSERVED on prod (22:55Z tick: scanned 16 / created 3 / dup 13 /
+   0 errors — Warren Bara, Pramod Abraham, Andrew Colman; their 3
+   journal rows settled manually, old sync had imported them
+   Supabase-side in the switchover window; replay now guards this case
+   by ghl_contact_id). **Lead intake is INSTANT since MS #751** — both
+   franchise-form completion paths TriggerJob the intake on submit; the
+   10-min sweep stays as backstop. Still to watch: first runway
+   application (22:07Z+ ticks);
    native Zorakle receiver; related-people panel; journey-doc upload;
    remove the old app's domain-5 write routes (until then: make ALL
    contact/pipeline changes in MasterSuite — an old-app move reaches
