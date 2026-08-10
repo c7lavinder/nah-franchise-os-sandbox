@@ -147,16 +147,8 @@ Respond with ONLY valid JSON:
     .filter((s) => (parsed.kbReferencedTitles ?? []).some((t) => s.title.toLowerCase().includes(t.toLowerCase())))
     .map((s) => s.id);
 
-  // Save to DB
-  await supabase.from("call_coaching").insert({
-    call_id: callId,
-    kb_snippets_used: referencedIds.length > 0 ? referencedIds : null,
-    coaching_notes: parsed.coachingNotes,
-    coaching_plan: parsed.coachingPlan,
-    created_by: "scout",
-    scout_model: model,
-  });
-
+  // Persistence lives on call_review_packages (via generateReviewPackage);
+  // the legacy call_coaching table was dropped — nothing ever read it.
   return {
     coachingNotes: parsed.coachingNotes,
     coachingPlan: parsed.coachingPlan,

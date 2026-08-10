@@ -309,11 +309,15 @@ export const HANDLED_WRITE_TYPES = [
   "create_eos_habit",
   "create_eos_item",
   "create_stakeholder",
+  "create_journey_document",
   "create_note",
+  "create_related_person",
   "create_task",
   "delete_contact",
   "delete_journey",
+  "delete_journey_document",
   "delete_note",
+  "delete_related_person",
   "drop_journey",
   "intake_contact",
   "mark_sms_read",
@@ -333,6 +337,7 @@ export const HANDLED_WRITE_TYPES = [
   "update_contact",
   "update_note",
   "update_profile_field",
+  "update_related_person",
   "wire_sales_journey",
   "workflow_status",
 ] as const;
@@ -449,6 +454,48 @@ interface UpdateNotePayload {
 interface DeleteNotePayload {
   note_id: string;
   deleted_by: string;
+}
+
+/** MasterSuite's related-people panel (s109). Same id discipline as create_note. */
+interface RelatedPersonPayload {
+  id: string;
+  contact_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  role: string;
+  relationship_notes: string | null;
+  is_primary_decision_maker: boolean;
+  linked_contact_id: string | null;
+}
+
+/** ⚠ SOFT delete — contact_related_people carries deleted_at; the push cannot express a removal. */
+interface DeleteRelatedPersonPayload {
+  id: string;
+  contact_id: string;
+}
+
+/** MasterSuite's journey-doc upload (s109). file_url may be an S3 key/URL, not Supabase Storage. */
+interface CreateJourneyDocumentPayload {
+  id: string;
+  journey_id: string;
+  contact_id: string | null;
+  uploaded_by: string; // email of the MS user
+  doc_type: string;
+  display_name: string | null;
+  file_url: string;
+  file_name: string | null;
+  file_size: number | null;
+  mime_type: string | null;
+  extracted_text: string | null;
+  suggested_fields: unknown;
+}
+
+/** HARD delete, matching the app's own journey-doc DELETE (the table has no deleted_at). */
+interface DeleteJourneyDocumentPayload {
+  id: string;
+  journey_id: string;
 }
 
 /**
@@ -572,6 +619,14 @@ export async function applyNativeWrites(limit = 50): Promise<ApplyResult> {
         await applyUpdateNote(JSON.parse(row.PayloadJson) as UpdateNotePayload);
       } else if (row.WriteType === "delete_note") {
         await applyDeleteNote(JSON.parse(row.PayloadJson) as DeleteNotePayload);
+      } else if (row.WriteType === "create_related_person" || row.WriteType === "update_related_person") {
+        await applyUpsertRelatedPerson(JSON.parse(row.PayloadJson) as RelatedPersonPayload);
+      } else if (row.WriteType === "delete_related_person") {
+        await applyDeleteRelatedPerson(JSON.parse(row.PayloadJson) as DeleteRelatedPersonPayload);
+      } else if (row.WriteType === "create_journey_document") {
+        await applyCreateJourneyDocument(JSON.parse(row.PayloadJson) as CreateJourneyDocumentPayload);
+      } else if (row.WriteType === "delete_journey_document") {
+        await applyDeleteJourneyDocument(JSON.parse(row.PayloadJson) as DeleteJourneyDocumentPayload);
       } else if (row.WriteType === "merge_contact") {
         await applyMergeContact(JSON.parse(row.PayloadJson) as MergeContactPayload);
       } else if (row.WriteType === "delete_contact") {
@@ -2595,6 +2650,135 @@ async function applyDeleteNote(payload: DeleteNotePayload): Promise<void> {
     .eq("id", payload.note_id)
     .is("deleted_at", null);
   if (error) throw new Error(`note delete failed: ${error.message}`);
+}
+
+// ─── Related people + journey documents: the s109 native tail. Same id discipline as
+//     notes — MasterSuite generated the row id, the replay writes that SAME id so the
+//     nightly push upserts onto the native row instead of duplicating it.
+
+const RELATED_PERSON_ROLES = new Set([
+  "spouse",
+  "family",
+  "attorney",
+  "accountant",
+  "financial_advisor",
+  "business_partner",
+  "other",
+]);
+
+/**
+ * create_related_person and update_related_person share one handler: an upsert-by-id is
+ * correct for both (create lands the row; update rewrites the same row in place), and it
+ * makes a retried journal row a no-op. Only-soft-deleted rows are NOT resurrected on
+ * update — matching the app route, MS validates existence before journaling.
+ */
+async function applyUpsertRelatedPerson(payload: RelatedPersonPayload): Promise<void> {
+  if (!payload.id || !payload.contact_id) {
+    throw new Error("related_person write carried no id/contact_id");
+  }
+  const role = RELATED_PERSON_ROLES.has(payload.role) ? payload.role : "other";
+  if (!payload.first_name?.trim() && !payload.last_name?.trim()) {
+    throw new Error("related_person write carried no name");
+  }
+
+  const supabase = getServiceSupabase();
+  const { error } = await supabase.from("contact_related_people").upsert(
+    {
+      id: payload.id,
+      contact_id: payload.contact_id,
+      first_name: payload.first_name?.trim() || null,
+      last_name: payload.last_name?.trim() || null,
+      email: payload.email?.trim() || null,
+      phone: payload.phone?.trim() || null,
+      role,
+      relationship_notes: payload.relationship_notes || null,
+      is_primary_decision_maker: !!payload.is_primary_decision_maker,
+      linked_contact_id: payload.linked_contact_id || null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id" }
+  );
+  if (error) throw new Error(`related_person upsert failed: ${error.message}`);
+}
+
+/**
+ * ⚠ SOFT delete — same rule as notes: the nightly push is upsert-by-PK and cannot express
+ * a removal, and the app's own DELETE route is soft too. Idempotent.
+ */
+async function applyDeleteRelatedPerson(payload: DeleteRelatedPersonPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const { error } = await supabase
+    .from("contact_related_people")
+    .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", payload.id)
+    .is("deleted_at", null);
+  if (error) throw new Error(`related_person delete failed: ${error.message}`);
+}
+
+/**
+ * Replay a native journey-doc upload. The file itself lives in MasterSuite's S3 — only the
+ * metadata row crosses. file_url for native docs is an S3 reference the old app cannot
+ * necessarily render; acceptable, the old app is read-only and retiring.
+ *
+ * uploaded_by arrives as the MS user's email; journey_documents.uploaded_by is a NOT NULL
+ * FK to users(id), so it resolves here — an unknown email parks the row failed by name.
+ */
+async function applyCreateJourneyDocument(payload: CreateJourneyDocumentPayload): Promise<void> {
+  if (!payload.id || !payload.journey_id || !payload.file_url) {
+    throw new Error("create_journey_document carried no id/journey_id/file_url");
+  }
+  const supabase = getServiceSupabase();
+
+  const email = payload.uploaded_by?.trim().toLowerCase();
+  if (!email) throw new Error("create_journey_document carried no uploaded_by");
+  const { data: user } = await supabase.from("users").select("id").ilike("email", email).maybeSingle();
+  if (!user) {
+    throw new Error(`create_journey_document uploader '${email}' matches no app user`);
+  }
+
+  let suggested: unknown = payload.suggested_fields ?? null;
+  if (typeof suggested === "string") {
+    try {
+      suggested = JSON.parse(suggested);
+    } catch {
+      suggested = null;
+    }
+  }
+
+  const { error } = await supabase.from("journey_documents").upsert(
+    {
+      id: payload.id,
+      journey_id: payload.journey_id,
+      contact_id: payload.contact_id || null,
+      uploaded_by: user.id,
+      doc_type: payload.doc_type,
+      display_name: payload.display_name || payload.file_name || "Document",
+      file_url: payload.file_url,
+      file_name: payload.file_name || null,
+      file_size: payload.file_size ?? null,
+      mime_type: payload.mime_type || null,
+      extracted_text: payload.extracted_text || null,
+      suggested_fields: suggested,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id" }
+  );
+  if (error) throw new Error(`journey_document upsert failed: ${error.message}`);
+}
+
+/**
+ * HARD delete, scoped by id + journey_id like the app's own DELETE route — the table has
+ * no deleted_at, and MasterSuite already removed its native row, so nothing resurrects.
+ * A missing row is a no-op (retried journal row, or deleted app-side first).
+ */
+async function applyDeleteJourneyDocument(payload: DeleteJourneyDocumentPayload): Promise<void> {
+  const supabase = getServiceSupabase();
+  const { error } = await supabase
+    .from("journey_documents")
+    .delete()
+    .eq("id", payload.id)
+    .eq("journey_id", payload.journey_id);
+  if (error) throw new Error(`journey_document delete failed: ${error.message}`);
 }
 
 // ─── Contact lifecycle: MasterSuite's Merge + Delete buttons (walkthrough Merge ×2 +

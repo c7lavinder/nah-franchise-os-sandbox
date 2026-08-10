@@ -63,7 +63,7 @@ export async function runTerritoryMarketResearch(
     const anthropic = new Anthropic();
     const response = await anthropic.messages.create({
       model: AGENT_MODEL,
-      max_tokens: 4096,
+      max_tokens: 16000,
       messages: [
         {
           role: "user",
@@ -71,6 +71,10 @@ export async function runTerritoryMarketResearch(
         },
       ],
     });
+
+    if (response.stop_reason === "max_tokens") {
+      throw new Error(`Agent response truncated at max_tokens — findings JSON incomplete for ${TerritorySlug}`);
+    }
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);

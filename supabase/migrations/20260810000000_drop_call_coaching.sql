@@ -1,0 +1,26 @@
+-- Drop call_coaching — the domain-4 tail's dead table.
+--
+-- WHY: call_coaching was the older standalone coach path's store. Nothing has
+-- ever read it (confirmed: no .from("call_coaching").select anywhere; the UI
+-- reads calls.coaching_data written by the post-call agent, and the review
+-- surface reads call_review_packages.coaching_feedback). The last writer —
+-- lib/calls/coach.ts — stopped inserting in the same change that ships this
+-- migration. ~31 rows at drop time; a JSON archive is taken before applying.
+--
+-- Apply AFTER the code removal deploys (the writer must be gone first, or
+-- inserts start failing between apply and deploy).
+--
+-- Rollback:
+--   CREATE TABLE call_coaching (
+--     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--     call_id uuid NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+--     coaching_notes text,
+--     coaching_plan text,
+--     kb_snippets_used uuid[],
+--     created_by text NOT NULL DEFAULT 'scout',
+--     scout_model text,
+--     created_at timestamptz NOT NULL DEFAULT now()
+--   );
+--   (then restore rows from the pre-drop JSON archive if needed)
+
+DROP TABLE IF EXISTS call_coaching;
