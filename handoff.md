@@ -83,11 +83,13 @@ native intake sweeps every 10 min (the "scanned 16, created 3" runs).
 
 Still open:
 
-- **Comms-native smoke untested** — zero `comms-native` rows since the
-  flip: nobody has sent an SMS/email/task from MS yet. First real send
-  should say "Sent via GHL" + land a `comms-native` log row. If it
-  misbehaves: set `Frandev_Comms_Native` off (rollback is one config row).
-  — **Corey, first send**
+- **Comms-native smoke BACKBURNERED (Corey)** — the GHL sub-account has
+  no Twilio grant yet, so the SMS test waits on that. Flag stays ON:
+  tasks/email go native now; an SMS attempt before Twilio lands returns a
+  visible error (deliberately no silent fallback). Historical SMS volume
+  is ~nil, so risk accepted. If it bites: `Frandev_Comms_Native` off is
+  the one-row rollback. Smoke + wave-3 retirement resume after the
+  Twilio grant. — **waiting on Twilio**
 - **App comms-route retirement** — now that the flip is ON and proven by
   a first send: retire app GHL task/send/schedule routes + Scout comms
   actions (deny-list wave 3), then refresh-ghl-token once
