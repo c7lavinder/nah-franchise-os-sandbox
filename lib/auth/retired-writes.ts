@@ -4,12 +4,15 @@
  * now. This matcher lists exactly the routes whose native replacement is
  * live; everything not listed keeps working.
  *
- * Deliberately NOT retired (native replacement doesn't exist yet — the
- * remaining tail): related-people, journey documents (upload/extract),
- * contact notes (native store has no UI), contact emails/team/messages
- * (tables still app-owned — they're in the nightly push), pipeline/stage
- * CONFIG under /api/settings, sub-task-log photo upload, GHL comms
- * (tasks/send/schedule), the calls domain, lead intake, webhooks, crons.
+ * s109 (2026-08-10, the domain-7 tail): related-people (native MS #755),
+ * journey documents (native MS #756), and contact notes (native since MS
+ * #700/#702) retire; contact emails/team/messages and pipeline/stage CONFIG
+ * retire by RULING (Corey: freeze — Gunner's surfaces are the native home,
+ * no app-side replacement gets built).
+ *
+ * Deliberately NOT retired (the remaining tail): sub-task-log photo upload,
+ * GHL comms (tasks/send/schedule — retire when Frandev_Comms_Native flips,
+ * MS #757), the calls domain, lead intake, webhooks, crons.
  *
  * Wired into requireAuth, so cron routes and webhook receivers (which gate
  * on secrets, not requireAuth) are exempt by construction.
@@ -38,6 +41,20 @@ const RETIRED: Array<{ pattern: RegExp; methods: string[] }> = [
   // ── Knowledge base (domain 6) ──────────────────────────────────────────
   { pattern: /^\/api\/knowledge$/, methods: ["POST", "PUT", "DELETE"] },
   { pattern: /^\/api\/admin\/(backfill|repair)-embeddings$/, methods: ["POST"] },
+  // ── Related people (domain-7 tail — native in MS #755, s109) ───────────
+  { pattern: /^\/api\/contacts\/[^/]+\/related-people$/, methods: ["POST"] },
+  { pattern: /^\/api\/contacts\/[^/]+\/related-people\/[^/]+$/, methods: ["PATCH", "DELETE"] },
+  // ── Contact notes (native notes UI live since MS #700/#702) ────────────
+  { pattern: /^\/api\/contacts\/[^/]+\/notes$/, methods: ["POST"] },
+  // ── Journey documents (domain-7 tail — native in MS #756, s109) ────────
+  { pattern: /^\/api\/journeys\/[^/]+\/documents$/, methods: ["POST"] },
+  { pattern: /^\/api\/journeys\/[^/]+\/documents\/[^/]+$/, methods: ["DELETE"] },
+  // ── Frozen by ruling (Corey s109) — Gunner is the native home ──────────
+  { pattern: /^\/api\/contacts\/[^/]+\/emails(\/[^/]+)?$/, methods: ["POST", "PATCH", "DELETE"] },
+  { pattern: /^\/api\/contacts\/[^/]+\/team$/, methods: ["POST", "DELETE"] },
+  { pattern: /^\/api\/contacts\/[^/]+\/messages(\/[^/]+)?$/, methods: ["POST", "PATCH", "DELETE"] },
+  // ── Pipeline CONFIG frozen by ruling (Gunner settings if ever needed) ──
+  { pattern: /^\/api\/settings\/pipelines\/.+$/, methods: ["POST", "PATCH", "DELETE"] },
 ];
 
 /** Scout DRC action types retired with the same rule (the rest still run). */

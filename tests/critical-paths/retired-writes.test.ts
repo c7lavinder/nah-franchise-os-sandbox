@@ -54,23 +54,37 @@ describe("retired write surfaces", () => {
     expect(isRetiredWrite("GET", "/api/journeys/j-1")).toBe(false);
   });
 
+  it("blocks the s109 tail: related-people, notes, journey documents", () => {
+    // Native homes: MS #755 (related-people), #700/#702 (notes), #756 (docs).
+    expect(isRetiredWrite("POST", "/api/contacts/a/related-people")).toBe(true);
+    expect(isRetiredWrite("PATCH", "/api/contacts/a/related-people/p-1")).toBe(true);
+    expect(isRetiredWrite("DELETE", "/api/contacts/a/related-people/p-1")).toBe(true);
+    expect(isRetiredWrite("POST", "/api/contacts/a/notes")).toBe(true);
+    expect(isRetiredWrite("POST", "/api/journeys/j-1/documents")).toBe(true);
+    expect(isRetiredWrite("DELETE", "/api/journeys/j-1/documents/d-1")).toBe(true);
+  });
+
+  it("blocks the s109 freeze rulings: emails/team/messages, pipeline config", () => {
+    // Corey s109: no native build — Gunner is the home; these freeze as history.
+    expect(isRetiredWrite("POST", "/api/contacts/a/emails")).toBe(true);
+    expect(isRetiredWrite("PATCH", "/api/contacts/a/emails/e-1")).toBe(true);
+    expect(isRetiredWrite("DELETE", "/api/contacts/a/emails/e-1")).toBe(true);
+    expect(isRetiredWrite("POST", "/api/contacts/a/team")).toBe(true);
+    expect(isRetiredWrite("DELETE", "/api/contacts/a/team")).toBe(true);
+    expect(isRetiredWrite("POST", "/api/contacts/a/messages")).toBe(true);
+    expect(isRetiredWrite("PATCH", "/api/contacts/a/messages/m-1")).toBe(true);
+    expect(isRetiredWrite("PATCH", "/api/settings/pipelines/p-1")).toBe(true);
+    expect(isRetiredWrite("POST", "/api/settings/pipelines/p-1/stages")).toBe(true);
+    expect(isRetiredWrite("POST", "/api/settings/pipelines/p-1/stages/reorder")).toBe(true);
+    expect(isRetiredWrite("DELETE", "/api/settings/pipelines/p-1/stages/s-1")).toBe(true);
+    // The pipelines LIST read stays readable.
+    expect(isRetiredWrite("GET", "/api/settings/pipelines")).toBe(false);
+  });
+
   it("keeps the deliberate carve-outs writable (native replacement not built)", () => {
-    // Related-people panel, journey documents, notes: still-open tail items.
-    expect(isRetiredWrite("POST", "/api/contacts/a/related-people")).toBe(false);
-    expect(isRetiredWrite("PATCH", "/api/contacts/a/related-people/p-1")).toBe(false);
-    expect(isRetiredWrite("POST", "/api/journeys/j-1/documents")).toBe(false);
-    expect(isRetiredWrite("DELETE", "/api/journeys/j-1/documents/d-1")).toBe(false);
-    expect(isRetiredWrite("POST", "/api/contacts/a/notes")).toBe(false);
-    // App-owned satellite tables (still in the nightly push).
-    expect(isRetiredWrite("POST", "/api/contacts/a/emails")).toBe(false);
-    expect(isRetiredWrite("POST", "/api/contacts/a/team")).toBe(false);
-    expect(isRetiredWrite("POST", "/api/contacts/a/messages")).toBe(false);
-    // Pipeline CONFIG stays app-side for now (only stage STATE went native).
-    expect(isRetiredWrite("PATCH", "/api/settings/pipelines/p-1")).toBe(false);
-    expect(isRetiredWrite("POST", "/api/settings/pipelines/p-1/stages")).toBe(false);
     // Photo upload for sub-task logs is storage-only.
     expect(isRetiredWrite("POST", "/api/sub-task-logs/upload")).toBe(false);
-    // GHL comms and MasterSuite-triggered syncs keep working.
+    // GHL comms keep working until Frandev_Comms_Native flips (MS #757 is dark).
     expect(isRetiredWrite("POST", "/api/contacts/a/send")).toBe(false);
     expect(isRetiredWrite("POST", "/api/contacts/a/tasks")).toBe(false);
     expect(isRetiredWrite("POST", "/api/contacts/a/schedule")).toBe(false);
