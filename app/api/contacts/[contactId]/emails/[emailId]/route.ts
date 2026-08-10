@@ -13,14 +13,14 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";
+import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 
 async function pushEmailsToGhl(contactId: string): Promise<void> {
   const supabase = createServerClient();
-  const { data: contact } = await supabase
-    .from("contacts").select("ghl_contact_id").eq("id", contactId).maybeSingle();
+  const { data: contact } = await supabase.from("contacts").select("ghl_contact_id").eq("id", contactId).maybeSingle();
   if (!contact?.ghl_contact_id) return;
 
   const { data: rows } = await supabase
@@ -44,8 +44,11 @@ async function pushEmailsToGhl(contactId: string): Promise<void> {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ contactId: string; emailId: string }> },
+  { params }: { params: Promise<{ contactId: string; emailId: string }> }
 ) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+
   const { contactId: rawId, emailId } = await params;
   const localId = await resolveContactId(rawId);
   if (!localId) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
@@ -56,8 +59,10 @@ export async function PATCH(
   if (body.makePrimary === true) {
     // Unset the current primary first so the partial unique index is happy.
     await supabase
-      .from("contact_emails").update({ is_primary: false })
-      .eq("contact_id", localId).eq("is_primary", true);
+      .from("contact_emails")
+      .update({ is_primary: false })
+      .eq("contact_id", localId)
+      .eq("is_primary", true);
   }
 
   const updates: Record<string, unknown> = {};
@@ -67,8 +72,7 @@ export async function PATCH(
     return NextResponse.json({ error: "No fields" }, { status: 400 });
   }
 
-  const { error } = await supabase
-    .from("contact_emails").update(updates).eq("id", emailId).eq("contact_id", localId);
+  const { error } = await supabase.from("contact_emails").update(updates).eq("id", emailId).eq("contact_id", localId);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   await pushEmailsToGhl(localId);
@@ -77,15 +81,17 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ contactId: string; emailId: string }> },
+  { params }: { params: Promise<{ contactId: string; emailId: string }> }
 ) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+
   const { contactId: rawId, emailId } = await params;
   const localId = await resolveContactId(rawId);
   if (!localId) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
 
   const supabase = createServerClient();
-  const { error } = await supabase
-    .from("contact_emails").delete().eq("id", emailId).eq("contact_id", localId);
+  const { error } = await supabase.from("contact_emails").delete().eq("id", emailId).eq("contact_id", localId);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   await pushEmailsToGhl(localId);

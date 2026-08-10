@@ -1,13 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import { createServerClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth";
+import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId: rawId } = await params;
   const supabase = createServerClient();
   const localId = await resolveContactId(rawId);
@@ -24,18 +22,23 @@ export async function GET(
   return NextResponse.json({ people: data ?? [] });
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+
   const { contactId: rawId } = await params;
   const supabase = createServerClient();
   const localId = await resolveContactId(rawId);
   if (!localId) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
 
-  const body = await request.json() as {
-    first_name?: string; last_name?: string; email?: string; phone?: string;
-    role?: string; relationship_notes?: string; is_primary_decision_maker?: boolean;
+  const body = (await request.json()) as {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    phone?: string;
+    role?: string;
+    relationship_notes?: string;
+    is_primary_decision_maker?: boolean;
     linked_contact_id?: string | null;
   };
 

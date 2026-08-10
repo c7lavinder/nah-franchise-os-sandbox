@@ -13,7 +13,8 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";import * as ghl from "@/lib/ghl";
+import { requireAuth } from "@/lib/auth";
+import * as ghl from "@/lib/ghl";
 import { createServerClient } from "@/lib/supabase/server";
 import { resolveContactId } from "@/lib/contacts/pipeline-state";
 
@@ -40,8 +41,7 @@ async function loadEmails(contactId: string): Promise<EmailRow[]> {
 
 async function pushEmailsToGhl(contactId: string): Promise<void> {
   const supabase = createServerClient();
-  const { data: contact } = await supabase
-    .from("contacts").select("ghl_contact_id").eq("id", contactId).maybeSingle();
+  const { data: contact } = await supabase.from("contacts").select("ghl_contact_id").eq("id", contactId).maybeSingle();
   if (!contact?.ghl_contact_id) return;
 
   const rows = await loadEmails(contactId);
@@ -58,10 +58,7 @@ async function pushEmailsToGhl(contactId: string): Promise<void> {
   }
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId: rawId } = await params;
   const localId = await resolveContactId(rawId);
   if (!localId) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
@@ -69,10 +66,10 @@ export async function GET(
   return NextResponse.json({ emails });
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ contactId: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ contactId: string }> }) {
+  const user = await requireAuth(request);
+  if (user instanceof Response) return user;
+
   const { contactId: rawId } = await params;
   const localId = await resolveContactId(rawId);
   if (!localId) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
@@ -88,8 +85,10 @@ export async function POST(
   if (body.makePrimary) {
     // Unset any existing primary first — the unique partial index forbids two.
     await supabase
-      .from("contact_emails").update({ is_primary: false })
-      .eq("contact_id", localId).eq("is_primary", true);
+      .from("contact_emails")
+      .update({ is_primary: false })
+      .eq("contact_id", localId)
+      .eq("is_primary", true);
   }
 
   // Idempotent insert — if this email is already on the contact, return the
