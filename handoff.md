@@ -2,16 +2,19 @@
 
 ## Status
 
-Phase: **CUTOVER TRACK — THE DOMAIN-7 TAIL COLLAPSED IN ONE OVERNIGHT
-SESSION. Three MS PRs merged + deployed green (#755 related-people panel,
-#756 journey-doc upload, #757 comms-native DARK), migration 257 verified in
-prod, and the app's retirement wave shipped: related-people, contact notes,
-journey docs, emails/team/messages, and pipeline CONFIG are all 410 now.
-Overnight native first-runs VERIFIED (journey-briefs 35/0 errors). Corey
-ruled on all four open build-vs-freeze questions. What remains of the
-gameplan is exactly: the comms flip (staged as draft PR #759), the webhook
-fates decision, the website form re-point, the Read.ai watch, and the kill
-itself.** / Health: Green / Duration: full overnight autonomous session
+Phase: **CUTOVER TRACK — THE DOMAIN-7 TAIL COLLAPSED, THEN THE SECOND WAVE
+LANDED SAME-DAY. Overnight: #755 related-people, #756 journey-doc upload,
+#757 comms dark + the app's retirement wave (13 surfaces 410, E2E-verified).
+Daytime, on Corey's live rulings: call_coaching DROPPED (Corey authorized;
+verified gone), COMMS FLIPPED ON (#759 merged, flag verified in prod,
+bridge drained), Read.ai PROVEN end-to-end native (Corey's test: webhook →
+classified → call created → post-call agent processed), the website-form
+question CLOSED (the form writes MS's own FormSubmissions table and native
+intake sweeps it every 10 min — no re-point needed), and the webhook wave
+SHIPPED (#761 eight receivers + #762 Settings→Webhooks page, all 8 GET
+probes verified live). All four native agents have verified first runs
+(briefs 35/0, journals, coaching-brief 12:09 UTC; contact research next
+Sun).** / Health: Green / Duration: overnight + daytime, one session
 
 ## What Was Built This Session
 
@@ -68,30 +71,39 @@ itself.** / Health: Green / Duration: full overnight autonomous session
 
 ## What Is Broken or Incomplete
 
-- **call_coaching DROP is staged, not run** — the guardrail correctly
-  blocks autonomous DDL. Corey: run
-  `supabase/migrations/20260810000000_drop_call_coaching.sql` in the
-  Supabase SQL editor. Archive: Desktop/call_coaching_archive_2026-08-10.json
-  (296 rows). Zero risk meanwhile (no reader, no writer). — **Corey, 2 min**
-- **Comms flip pending** — merge draft MS PR #759 after its 3-item
-  checklist. After it settles: retire app GHL task/send/schedule routes +
-  Scout comms actions, then refresh-ghl-token retires once
-  sync-ghl-calendar is ruled. — **Corey decision + one merge**
-- **Webhook fates undecided** — Corey: "we will build these in app i
-  think, but have not thought through it." Evidence for the decision: all
-  10 candidate hooks (Zorakle, Trainual, DocuSign, payment, BatchLeads,
-  FBR, form-submission, Google Meet, 2 GHL) have ZERO events ever;
-  contact_zorakle_data is empty; SignalHouse's last event was Jun 22 and
-  Vonage replaces it anyway. — **Corey/Ben**
-- **Read.ai: still zero delivery rows ever** — first-call E2E watch stays
-  open; also gates the sig flip (zero signing keys exist — flipping
-  `Frandev_ReadAi_RequireSignature` now would reject 100% of future
-  traffic; provision keys from the Read.ai dashboard first) — **Medium**
-- **Website form re-point**: the form host is NOT identifiable from the
-  repo, and the app intake path has had zero events in 30 days. Target:
-  `POST https://mastersuiteapp.com/api/hooks/leads/{source}` with
-  `x-gunner-intake-token` (set the per-source token in MS SystemConfig
-  first — provider is dark/503 until then). — **needs website owner**
+SECOND-WAVE RESOLUTIONS (same day, Corey live in the loop): call_coaching
+DROP **DONE** (Corey authorized; applied via the committed migration,
+verified gone; 296-row archive on Desktop). Comms flip **DONE** (#759
+merged+deployed, `Frandev_Comms_Native=on` verified, migration 258
+tracked). Webhook fates **RULED: BUILD** → shipped as #761+#762 (below).
+Read.ai **ANSWERED**: Corey's test hit the NATIVE receiver → classified →
+call b833f42d created → post-call agent ran it at 08:26 UTC. Website form
+**CLOSED**: it writes MS's own FormSubmissions/PathToOwnershipEntries and
+native intake sweeps every 10 min (the "scanned 16, created 3" runs).
+
+Still open:
+
+- **Comms-native smoke untested** — zero `comms-native` rows since the
+  flip: nobody has sent an SMS/email/task from MS yet. First real send
+  should say "Sent via GHL" + land a `comms-native` log row. If it
+  misbehaves: set `Frandev_Comms_Native` off (rollback is one config row).
+  — **Corey, first send**
+- **App comms-route retirement** — now that the flip is ON and proven by
+  a first send: retire app GHL task/send/schedule routes + Scout comms
+  actions (deny-list wave 3), then refresh-ghl-token once
+  sync-ghl-calendar/appointments is ruled. — **next session**
+- **Webhook tokens unset** — all 8 new receivers accept unauthenticated
+  deliveries until their token is set on Settings → Webhooks (by design:
+  arming is a config flip). Set each token when pointing the provider at
+  its URL. — **Corey, as providers connect**
+- **Read.ai signing key** — deliveries arrive `sig=invalid` (no key
+  stored). Copy the signing key from Read.ai's webhook settings → store in
+  `frandev_read_ai_webhook_key` → then flip
+  `Frandev_ReadAi_RequireSignature` on. — **Corey, small**
+- **Auto-advance on webhook completions** — trainual/docusign/PFS
+  completions log sub-tasks natively but skip stage auto-advance (the app
+  logic drags in half the pipeline engine); every completion logs
+  `auto_advance_skipped`. Build natively if wanted. — **Medium**
 - Unauthenticated GETs remain on several contact satellite routes
   (pre-existing; only writes got the guard) — dies with the app — **Low**
 
@@ -146,43 +158,43 @@ dashboard trigger POSTs 500 — wait for the tick). Plus:
 
 ## THE GAMEPLAN TO GET OFF VERCEL (domain scoreboard)
 
-| #   | Domain             | State                                                                 |
-| --- | ------------------ | --------------------------------------------------------------------- |
-| 1   | Properties/mirrors | ✅ DONE                                                               |
-| 2   | EOS                | ✅ DONE                                                               |
-| 3   | Workflows          | ✅ RESOLVED — archive, don't port                                     |
-| 4   | Calls              | ✅ LIVE — tail: call_coaching DROP (Corey), sig flip (needs keys)     |
-| 5   | Contacts+pipeline  | ✅ LIVE — carve-outs now RETIRED (related-people/notes/emails/config) |
-| 6   | Scout/RAG → Chiron | ✅ LIVE + VERIFIED — briefs agent's first night: 35/0 errors          |
-| 7   | Platform residue   | 🟢 **TAIL BUILT** — everything buildable is live or staged            |
+| #   | Domain             | State                                                                     |
+| --- | ------------------ | ------------------------------------------------------------------------- |
+| 1   | Properties/mirrors | ✅ DONE                                                                   |
+| 2   | EOS                | ✅ DONE                                                                   |
+| 3   | Workflows          | ✅ RESOLVED — archive, don't port                                         |
+| 4   | Calls              | ✅ LIVE + Read.ai PROVEN e2e native; call_coaching DROPPED                |
+| 5   | Contacts+pipeline  | ✅ LIVE — carve-outs RETIRED; forms flow via native FormSubmissions sweep |
+| 6   | Scout/RAG → Chiron | ✅ LIVE + VERIFIED — all 4 agent first-runs green                         |
+| 7   | Platform residue   | ✅ **COMMS NATIVE ON; 8 webhook receivers + Settings page LIVE**          |
 
-### EVERYTHING STILL OUTSTANDING (the complete list, now short)
+### EVERYTHING STILL OUTSTANDING (the complete list, now very short)
 
-1. **call_coaching DROP** — Corey runs the committed migration (2 min).
-2. **Comms flip** — merge draft MS PR #759 after its checklist → then
-   retire app comms routes + Scout comms actions → then refresh-ghl-token
-   (after the sync-ghl-calendar/appointments ruling).
-3. **Webhook fates** — Corey/Ben think-through (evidence above). Gates the
-   webhook re-point wave and the Zorakle receiver question.
-4. **Website form re-point** — needs whoever owns newagainhouses.com
-   forms; target + token instructions above.
-5. **Read.ai** — first live delivery watch; then provision signing keys;
-   then sig flip.
-6. **Watch items**: coaching-briefs first tick ~12:00 UTC today; contact
-   research first native window Sun ~07:00 UTC.
-7. **The kill** (strict order, unchanged): team confirmed fully in
+1. **Comms first-send smoke** — Corey sends one SMS/task from MS: expect
+   "Sent via GHL" + a comms-native log row. Then next session retires the
+   app's GHL task/send/schedule routes + Scout comms actions (deny-list
+   wave 3) and starts the refresh-ghl-token/sync-ghl-calendar retirement.
+2. **Point the providers at their new URLs** — Settings → Webhooks has
+   every URL + token control (Zorakle, Trainual, DocuSign, payment, PFS
+   form, Google Meet, BatchLeads, FBR). Set the token as each provider is
+   connected. Read.ai already points at MS and works.
+3. **Read.ai signing key** — copy from Read.ai dashboard → key store →
+   flip Frandev_ReadAi_RequireSignature.
+4. **Auto-advance on webhook completions** — native v1 logs
+   `auto_advance_skipped`; build if wanted (Medium).
+5. **Watch**: contact research first native window Sun ~07:00 UTC.
+6. **The kill** (strict order, unchanged): team confirmed fully in
    MasterSuite (Chad) → final push-frandev → retire both bridges →
    archive Supabase (dump) → Vercel off → s96 held items + Ben's GRANT +
    carried cleanups.
 
 ## Exact Next Step
 
-Check coaching-briefs' first native tick (~12:00 UTC in
-frandev_integration_log, UTC_TIMESTAMP as always). Then hand Corey the
-three human steps: run the call_coaching DROP, schedule the comms-flip
-window (PR #759 checklist), and start the webhook-fates think-through
-with Ben. Nothing else in the gameplan is buildable by an agent until
-those land.
+Confirm Corey's first comms-native send landed ("Sent via GHL" + log
+row), then ship deny-list wave 3 (app GHL task/send/schedule routes +
+Scout comms actions retire). Then the ONLY remaining builds are
+auto-advance-on-completion (optional) and the kill-sequence steps, which
+are behavioral/human.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -190,6 +202,6 @@ those land.
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Session 109 collapsed the domain-7 tail overnight — related-people (#755), journey-docs (#756), comms dark (#757) all merged+deployed; app retirement wave live (related-people/notes/docs/emails/messages/pipeline-config all 410); overnight native ticks verified (briefs 35/0; NOTE: Hangfire runs CENTRAL not ET). My three human steps: (1) run the call_coaching DROP migration in Supabase SQL editor (archive is on my Desktop), (2) merge draft MS PR #759 to flip comms native after its checklist, (3) decide webhook fates with Ben (all 10 hooks: zero events ever). Watch: Read.ai still zero deliveries; coaching-briefs first tick ~12:00 UTC.
+Then: Session 109 (overnight + daytime) finished the domain-7 tail AND the second wave: related-people/journey-docs/comms native all merged+deployed; app retirement wave live (13 surfaces 410); call_coaching DROPPED; COMMS NATIVE ON (flag verified, first send untested — check comms-native log rows); Read.ai PROVEN native e2e; website form confirmed flowing via native FormSubmissions sweep; 8 webhook receivers + Settings→Webhooks page LIVE (probes verified). First: confirm a comms-native send row exists, then retire app comms routes (deny-list wave 3). Traps: Hangfire runs CENTRAL not ET; coaching job logs as 'coaching-brief' singular.
 
 ---
