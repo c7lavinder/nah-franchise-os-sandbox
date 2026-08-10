@@ -139,30 +139,69 @@ trigger POSTs 500 — wait for the tick). Plus new this session:
 | 6   | **Scout/RAG → Chiron** | ✅ **LIVE + VERIFIED** — flags on, ranked retrieval ticking natively     |
 | 7   | Platform residue       | ⏳ **SCOPED (§12)** — kill sequence written; tail builds next            |
 
-**What is left, in order (port-plan §12.3 is the master copy):**
+### EVERYTHING OUTSTANDING, the complete list (port-plan §12.3 is the master copy)
 
-1. **Verify the overnight ticks**: 'journey-briefs' agent_run after
-   tonight's 22:00 ET; journals 23:00 ET; coaching 07:00 ET. (Chiron
-   retrieval + both call recoveries already verified in-session.)
-2. **Native tail builds**: related-people panel, journey-doc upload,
-   notes UI, Zorakle receiver, emails/team/messages (or per-table
-   freeze rulings), pipeline-config UI (or freeze).
-3. **Re-point externals at MasterSuite**: website form intake, Read.ai
-   delivery, Trainual/Vonage/SignalHouse/DocuSign/payment webhooks.
-4. **Comms to native GHL** (MS connected its own GHL: location
-   0WYp7DssxULm1SJYaOsz) → retire token refresh + calendar sync.
-5. **The kill**: team confirmed off the app → final push-frandev →
-   retire both bridges → archive Supabase → Vercel off → held items
-   unblock.
+**A. Watch items — no build, just check (first thing next session):**
+
+1. Overnight native first-runs in `frandev_integration_log`:
+   journey-briefs 22:00 ET / journals 23:00 ET (tonight, Sun),
+   coaching 07:00 ET (Mon morning), contact research next Sun 2am ET.
+   (Query with UTC_TIMESTAMP — CreatedAt is UTC, DB NOW() is ET.)
+2. First live Read.ai delivery — ZERO rows ever; also confirms where
+   Read.ai actually points (domain-4 first-call E2E).
+
+**B. Build items — the domains-4/5/6 tail (Corey picks the order):**
+
+3. Related-people panel native → then retire its app write routes.
+4. Notes UI native (store built s103, UI missing) → then retire the app
+   notes route.
+5. Journey-doc upload native (just S3 + extract now) → then retire.
+6. Native Zorakle receiver (closes one webhook).
+7. Emails / team / messages native equivalents — OR per-table freeze
+   rulings (their tables still ride the nightly push).
+8. Pipeline-config UI native — OR freeze ruling (stage STATE is native;
+   CONFIG still edits app-side).
+9. Territory research: build a native agent OR Corey/Ben rule the
+   research dead. If it lives, fix the app-side JSON-parse failures
+   (11 errors in 8 days).
+10. Domain-4 leftovers: drop `call_coaching`, flip sig enforcement.
+
+**C. Re-pointing — externals that still hit the Vercel app:**
+
+11. Website form intake → MasterSuite (native intake is live and
+    dup-guarded; the form's target is the retirement move).
+12. Webhooks: Read.ai, Trainual, Vonage ×2, SignalHouse, DocuSign,
+    payment, batchleads, fbr, form-submission, google-meet — each gets
+    a native receiver or an explicit "dies with the app" ruling.
+13. Comms cut over to native GHL (MS has its own GHL connection:
+    location 0WYp7DssxULm1SJYaOsz) → retire the app's GHL
+    task/send/schedule routes + Scout comms actions.
+
+**D. Cron retirements (each gated on the above — §12.2 has the table):**
+
+14. research-territories — after item 9.
+15. refresh-ghl-token + sync-ghl-calendar — after item 13.
+16. workflow-scheduler / -notifications / -delivery-sync / -analysis —
+    with the app (workflows archived, all DRAFT).
+17. push-frandev — after items 3-8 (nothing left app-owned).
+18. apply-mastersuite-writes — when nobody looks at the old app.
+
+**E. The kill itself (strict order):**
+
+19. Team confirmed fully in MasterSuite (behavioral — Chad).
+20. Final push-frandev run → retire both bridges → archive Supabase
+    (dump) → Vercel project off.
+21. Post-kill: s96 held items re-review (largely dissolved), Ben's
+    notes/chat GRANT (Low), carried code cleanups (Low).
 
 ## Exact Next Step
 
 Check the overnight native ticks in frandev_integration_log —
 journey-briefs 22:00 ET, journals 23:00 ET, coaching 07:00 ET (use
 UTC_TIMESTAMP in queries, never NOW()) — plus any first Read.ai
-delivery. Then start the native tail builds (§12.3 step 2) — Corey
-picks the order; related-people panel or notes UI are the smallest, the
-Zorakle receiver closes a webhook.
+delivery. Then start the outstanding list's section B (native tail
+builds) — Corey picks the order; related-people panel or notes UI are
+the smallest, the Zorakle receiver closes a webhook.
 
 ## Copy This To Start Next Session In Claude.ai
 
