@@ -696,3 +696,90 @@ workflows (archived, DRAFT), the domain-5 tail (old-app write routes,
 Zorakle receiver, related-people, doc upload — embeddings no longer
 block doc upload), GHL calendar sync, token refresh, and the two bridge
 crons. That is domain 7's kill list.
+
+## 12. Domain 7 scoping (2026-08-10, evidence from the domain-6 flip night)
+
+Domain 6 went LIVE this night: #752/#753/#754 merged in order, migration
+256 confirmed both flags `on` in prod SystemConfig. Domain 7 = everything
+that dies WITH the app, so the scope below is "what still keeps the app
+alive", checked against the running system, not the docs.
+
+### 12.1 What the old app still does (post read-only sweep)
+
+The read-only sweep (this commit) closed the contact/pipeline/KB write
+surfaces. What remains ALIVE app-side, by category:
+
+- **Write carve-outs awaiting a native home** (kept deliberately, pinned
+  in `tests/critical-paths/retired-writes.test.ts`): related-people,
+  journey documents (S3 upload + extract), contact notes (native store
+  built s103, NO UI), contact emails / team / messages (tables still
+  app-owned — they ride the nightly push), pipeline/stage CONFIG under
+  /api/settings, sub-task-log photo upload.
+- **Comms**: GHL tasks/send/schedule routes + Scout DRC message/task/
+  appointment actions. MasterSuite connected its own GHL Sunday evening
+  (`ghl_connected`, location 0WYp7DssxULm1SJYaOsz) — comms migrate to
+  native GHL, then these retire.
+- **Lead intake** `/api/leads/intake`: website forms still POST here.
+  Native intake is live (dup-guarded by ghl_contact_id) — re-pointing
+  the forms at MasterSuite is the retirement move.
+- **Webhook receivers**: ghl, ghl-calendar, trainual, vonage ×2,
+  signalhouse, read-ai, zorakle, docusign, batchleads, fbr,
+  form-submission, google-meet, payment. Each needs a native receiver
+  or an explicit "dies with the app" ruling.
+- **Scout chat** on the frozen KB — deprecated by design, dies with the
+  app (Chiron native replaces it, ranked retrieval live tonight).
+- **EOS, territories, bug reports, workflows, calls pages** — reads +
+  writes to tables that are either mirrored nightly or already
+  native-owned reads in MS.
+
+### 12.2 The 9 remaining Vercel crons, with their retirement conditions
+
+| Cron                                                             | Retires when                                                                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| research-territories (Sun 3am UTC)                               | NO native equivalent exists (checked: "territory-market" appears nowhere in the MS Frandev module; the native Sun-2am Hangfire slot is CONTACT research). This cron already writes MS tables directly, so its output lands natively — it retires only when a native territory-research agent is built, or Corey/Ben rule the research dead. |
+| refresh-ghl-token (12h)                                          | Last sandbox GHL caller retires (comms routes + calendar sync).                                                                                                                                                                                                                                                                             |
+| workflow-scheduler / -notifications / -delivery-sync / -analysis | With the app (domain 3 archived; ALL workflows DRAFT — they tick, match nothing).                                                                                                                                                                                                                                                           |
+| sync-ghl-calendar (30min)                                        | Native calendar sync exists, or appointments ruled comms-history.                                                                                                                                                                                                                                                                           |
+| push-frandev (nightly)                                           | Nothing native reads the mirrors of the remaining app-owned tables (satellites above) — i.e. after the carve-outs go native.                                                                                                                                                                                                                |
+| apply-mastersuite-writes (15min)                                 | Nobody looks at the old app's UI anymore — it exists only so the app shows native changes.                                                                                                                                                                                                                                                  |
+
+### 12.3 The kill sequence
+
+1. Build the native tail: related-people panel, journey-doc upload,
+   notes UI, Zorakle receiver, emails/team/messages equivalents (or an
+   explicit freeze ruling per table), pipeline-config UI (or freeze).
+2. Re-point externals at MasterSuite: website form intake, Read.ai
+   delivery (still zero rows observed — verify where it points on the
+   first live meeting), Trainual, Vonage/SignalHouse inbound, DocuSign,
+   payment, GHL webhooks (none subscribed today).
+3. Comms cut over to native GHL; retire token refresh + calendar sync.
+4. Team confirmed fully in MasterSuite (behavioral — Chad).
+5. Final push-frandev run → retire both bridges → archive Supabase
+   (dump) → Vercel project off → held items unblock (s96 list — mostly
+   dissolved already).
+
+### 12.4 Flip-night verification record (2026-08-10)
+
+- Migration 256: both flags `on` in prod SystemConfig ✔
+- Chiron KB question: first attempt hit the $25 Scout_DailyBudgetUsd
+  daily cap (resets midnight UTC) — retrieval verified after the reset
+  (see handoff).
+- Overnight ticks, CORRECTED READ: the Sunday `territory-market` run was
+  the VERCEL cron (rows at exactly Sun 3:03 UTC = its schedule), which
+  writes MS tables directly. There is NO native territory-research agent
+  — the handoff's "research Sun 2am" is the native CONTACT-research slot
+  (FrandevAgentsJobs.ContactResearch), first window next Sunday. Also:
+  11 `territory-market | error` rows in 8 days — the research LLM's JSON
+  truncating/malformed ("Expected ',' or ']' after array element") on
+  several territories, in the APP-side agent. Fix there (it outlives the
+  app until a native territory researcher exists).
+- journals (11pm ET) / coaching (7am ET) / journey-briefs (10pm ET) /
+  contact research (next Sun 2am ET): first native windows are AFTER
+  this session — check `frandev_integration_log` next session. Trap:
+  CreatedAt is UTC but the DB session is ET — compare against
+  UTC_TIMESTAMP(), never NOW().
+- Read.ai: zero delivery rows ever — watch stays open.
+- Post-call recovery: calls 27fde167 (KB merge lost to the pre-#752
+  NRE; 29,934-char KbIntelItems snapshot intact) and 13fa518b
+  (auto-saves lost pre-#740) re-queued by nulling AiSummaryGeneratedAt;
+  the 10-min AnalyzeUnprocessedCalls sweep re-runs them.
