@@ -1,202 +1,163 @@
-# Session Handoff — 2026-08-10 — Session 109
+# Session Handoff — 2026-08-17 — Session 110
 
 ## Status
 
-Phase: **CUTOVER TRACK — THE DOMAIN-7 TAIL COLLAPSED, THEN THE SECOND WAVE
-LANDED SAME-DAY. Overnight: #755 related-people, #756 journey-doc upload,
-#757 comms dark + the app's retirement wave (13 surfaces 410, E2E-verified).
-Daytime, on Corey's live rulings: call_coaching DROPPED (Corey authorized;
-verified gone), COMMS FLIPPED ON (#759 merged, flag verified in prod,
-bridge drained), Read.ai PROVEN end-to-end native (Corey's test: webhook →
-classified → call created → post-call agent processed), the website-form
-question CLOSED (the form writes MS's own FormSubmissions table and native
-intake sweeps it every 10 min — no re-point needed), and the webhook wave
-SHIPPED (#761 eight receivers + #762 Settings→Webhooks page, all 8 GET
-probes verified live). All four native agents have verified first runs
-(briefs 35/0, journals, coaching-brief 12:09 UTC; contact research next
-Sun).** / Health: Green / Duration: overnight + daytime, one session
+Phase: **LAUNCH-AUDIT COMPLETE — full code/visual/functional audit of the
+native FranDev build ran against prod (13 agents + hands-on Chrome pass,
+all 20 serious claims adversarially CONFIRMED, none refuted). The living
+report + 3-wave plan of attack is published and replaces the Aug-10
+review. Two same-day fixes by Corey: Anthropic cap FIXED (verified live —
+a real brief generated 14:49 UTC), Read.ai fix ATTEMPTED but unverifiable
+until a call happens (nothing anywhere since Fri Aug 14 18:09).** /
+Health: Yellow (build is close; access + dead feeds gate the team) /
+Duration: full session
 
 ## What Was Built This Session
 
-**MasterSuite (all merged + deployed green):**
-
-- **#755 — Related-people panel** (contact rail): six-field composer,
-  inline edit, two-click armed soft delete. Migration 257 (LinkedContactId
-  column + PagePanels seed row) verified applied in prod. Journals
-  create/update/delete_related_person. 14 new tests, 326/326.
-- **#756 — Journey-doc upload**: S3 (recordings bucket, journey-documents/
-  prefix, PublicRead + uuid keys — old-app links to native docs WORK),
-  Claude-based extraction (PDF as document block, FIELDS-first so
-  truncation never costs fields; txt/csv in-process; docx/xlsx store-only
-  v1), auto-applies extracted fields via source 'ai-auto'. Two replay-
-  safety rules: nda→other (the app's CHECK has no nda), manual-wins
-  enforced mirror-side. 23 new tests, 334/334.
-- **#757 — Comms native, DARK**: `Frandev_Comms_Native` (absent=off) sends
-  SMS/email/tasks straight through MS's own GHL connection (SAME location
-  as the app — verified) instead of journaling. GHL failure → no journal
-  row (no double-send window). 15 new tests, 325/325.
-- **Draft PR #759 — the comms flip**, HELD: migration 258 with the
-  pre-flip checklist in the header (drain bridge → currently 0 pending;
-  verify location default phone line + email sending domain; smoke to an
-  internal number).
-
-**Sandbox app (3 commits, deployed + E2E-verified):**
-
-- **6f015d1**: territory-research truncation fix (max_tokens 4096→16000 +
-  explicit stop_reason error — the 11-errors-in-8-days bug); call_coaching
-  writer removed + dead /coach route deleted (296 rows archived to Desktop
-  JSON; DROP migration committed, see Open Issues); replay handlers for
-  the five s109 write types (shipped BEFORE the MS side so no journal row
-  ever hits an unhandled type); port-plan §12 corrections + rulings.
-- **23c2fcb**: the retirement wave — related-people, notes POST, journey
-  docs, emails/team/messages, pipeline CONFIG → 410. 11 pins updated.
-- **888fe85**: E2E verification caught that related-people + emails routes
-  IMPORT requireAuth but never CALLED it (pre-existing auth gap) — six
-  write handlers gained the guard, which is also what makes their 410s
-  fire.
+- **The audit itself** (no product code was changed — this session was
+  investigation + the plan): 10 area agents over
+  `Mastersuite/mastersuite/apps/analysis-api` (Pages/Frandev,
+  Pages/Gunner FranDev surfaces, MasterSuite.Modules.Frandev) with
+  read-only prod SQL, then 2 adversarial verifiers (20/20 confirmed) and
+  a completeness critic, plus a click-through of every page in Corey's
+  logged-in Chrome.
+- **The living audit report** (topic rail, launch scoreboard, fix-first
+  10, per-page findings, 3-wave plan):
+  **https://claude.ai/code/artifact/0ce7d5bf-2ebc-42d2-af73-a72ea8aa831d**
+  — THE document to talk through; the old Aug-10 artifact was deleted.
+- **Anthropic key verification harness**: proved the key works by GETting
+  a briefless journey page with a minted JWT (enqueues on-visit regen) —
+  brief row appeared ≤2 min. Reusable as a 2-minute key probe.
+- Memory updated: `project_site_qa_phase.md` rewritten for s110 (artifact
+  URL, fix-first list, verification states).
 
 ## What Is Confirmed Working
 
-- **Overnight native first-runs**: journey-briefs 03:01 UTC "processed 35,
-  empty 0, errors 0"; contact-journals 04:02 UTC clean. ⚠ The handoff-108
-  times were wrong: Hangfire `localhour()` is **CENTRAL**, not ET.
-- Migration 257 applied (column + panel row + \_\_DatabaseMigrations entry);
-  `Frandev_Comms_Native` correctly ABSENT (dark).
-- Native lead-intake alive: "scanned 16, created 3, dup 13" (Sun 21:55 UTC).
-- Replay journal fully drained: 0 pending, all historical types applied.
-- E2E on prod (minted JWT): journey-doc POST/DELETE → 410, board/move →
-  410, knowledge GET → 200 stays readable; related-people/emails 410s
-  verified after 888fe85 (see Exact Next Step if unverified rows remain).
-- Sandbox suite: 337 vitest (2 new pin blocks), tsc, next build green.
+(All verified this session with SQL output, live API results, or in-browser.)
+
+- **Anthropic API key**: FIXED — live brief generated for
+  `yuban-ruiz-tobon` at 2026-08-17 14:49:55 UTC after Corey lifted the cap.
+- **Lead intake end-to-end**: form → contact + journey + pipeline state in
+  3–7 min; 11 real imports since the flip; a NEW real lead (Yuban Ruiz
+  Tobon) arrived and journeyed TODAY.
+- **Knowledge-base port is DONE**: 58/58 docs native, titles byte-identical
+  to Supabase; retrieval ranked + flag on; Chiron DRC enforced in code
+  (writes physically require approval), conversations logged.
+- **Kanban math**: every stage badge reproduces exactly against prod SQL;
+  fan-out rule respected; 0 dangling call/data-graph links (440 calls).
+- **Auth**: all 18 FranDev pages behind one uniform gate; zero surviving
+  UI links to the old Vercel app.
+- **Day Hub error isolation** (failed card ≠ empty card, self-healing) —
+  the pattern the record pages should copy.
+- Journey/territory record pages render well with real data; cross-links
+  contact ↔ territory verified both directions.
 
 ## What Is Broken or Incomplete
 
-SECOND-WAVE RESOLUTIONS (same day, Corey live in the loop): call_coaching
-DROP **DONE** (Corey authorized; applied via the committed migration,
-verified gone; 296-row archive on Desktop). Comms flip **DONE** (#759
-merged+deployed, `Frandev_Comms_Native=on` verified, migration 258
-tracked). Webhook fates **RULED: BUILD** → shipped as #761+#762 (below).
-Read.ai **ANSWERED**: Corey's test hit the NATIVE receiver → classified →
-call b833f42d created → post-call agent ran it at 08:26 UTC. Website form
-**CLOSED**: it writes MS's own FormSubmissions/PathToOwnershipEntries and
-native intake sweeps every 10 min (the "scanned 16, created 3" runs).
+**THE FIX-FIRST TEN** (talk-through order; full detail in the artifact):
 
-Still open:
+1. **Read.ai deliveries dead since Aug 13 20:31 UTC** — old app got 4 more
+   calls Aug 14 that native missed. Corey changed something Aug 17 but NO
+   call has happened since, so unproven; receiver GET-probes 200; signing
+   keys unchanged since Aug 9. Verify on Monday's first call or a Read.ai
+   test-send; re-ingest the 4 missed calls. — **Critical**
+2. ~~Anthropic cap~~ — **FIXED + verified.** Still owed: mark-stale sweep
+   (38 briefs are stale-in-fact with wrong stage advice rendered), budget
+   gate on on-visit regen (2,982 briefless nurture journeys). — Medium
+3. **Three access locks keep the team out**: (a) registry beta rows —
+   20 `dayhub-frandev` + 5 `strip_fd_*` all beta for corey/matt/ben;
+   (b) Frandev permission =1 only for john/matt/will — **Chad has NO
+   grant** (admin bypass only); (c) `Gunner_AccountAccess_Frandev`
+   allowlist = matt/ben/corey/chad only. One data-only pass once Corey
+   sends the roster. — **Critical (waiting on roster — Corey says soon)**
+4. **No UI door into FranDev**: all 11 home tiles inert; account picker
+   can't be operated (row not clickable, OK dead, scope never applies);
+   headers have no FranDev entry; 8 of 18 pages have zero inbound links;
+   /frandev/pipeline orphaned yet ScoutPrompt still points there. — **Critical**
+5. **Chiron chat input takes no text anywhere** (own page, docks, bubble);
+   backend + history fine. Also: FranDev lens of Day Hub opens the GUNNER
+   Chiron; tools are permission-scoped not account-scoped (#895 never
+   reached Scout); no transcript search survived the port. — **Critical**
+6. **Calls page renders 0 of 440 calls**; filter tabs dead; raw-UTC times
+   (4–5h off); "All" silently caps at 200; **28 of last 54 calls have
+   HostedByUserId='0'** (attribution broken → per-rep views miss half);
+   coaching-brief job selects Role='rep' which NO user has — zero briefs
+   ever. — **High**
+7. **Onboarding page + Day Hub card read `frandev_market_signal` (0 rows
+   ever)** → "0 franchisees" while the onboarding pipeline holds 55
+   journeys / 5 territories mid-onboarding. Re-point at pipeline states. — **High**
+8. **Data repairs**: 4 active journeys with dangling PrimaryContactId
+   (Colman/Bara/Abraham/Pearson — Pearson also has NO pipeline state and
+   an unexplained write path); contact pages double-list the primary
+   journey for 3,101/3,209 contacts (`Contacts.cs:41`); 8 duplicate-person
+   pairs each with two active journeys; 10 test contacts on active
+   journeys; 7 falsely-Active territories; 425 slugs with spaces. — **High**
+9. **All 8 webhook token doors OPEN** (no tokens ever generated — unauth
+   POSTs can create pipeline contacts); native comms has sent ZERO
+   messages ever (Twilio grant pending); kanban writes lack CSRF; new
+   leads can't be texted/emailed (placeholder `pto_` GHL ids, no promotion
+   path); no native add-lead form; no new-lead notification. — **High**
+10. **Grades all F** (0–1 scores vs 0–100 buckets, `DayHubCards.cs:277`)
+    - Territories list stamps "Below target" on every row. One-line SQL fix. — **Medium**
 
-- **Comms-native smoke BACKBURNERED (Corey)** — the GHL sub-account has
-  no Twilio grant yet, so the SMS test waits on that. Flag stays ON:
-  tasks/email go native now; an SMS attempt before Twilio lands returns a
-  visible error (deliberately no silent fallback). Historical SMS volume
-  is ~nil, so risk accepted. If it bites: `Frandev_Comms_Native` off is
-  the one-row rollback. Smoke + wave-3 retirement resume after the
-  Twilio grant. — **waiting on Twilio**
-- **App comms-route retirement** — now that the flip is ON and proven by
-  a first send: retire app GHL task/send/schedule routes + Scout comms
-  actions (deny-list wave 3), then refresh-ghl-token once
-  sync-ghl-calendar/appointments is ruled. — **next session**
-- **Webhook tokens unset** — all 8 new receivers accept unauthenticated
-  deliveries until their token is set on Settings → Webhooks (by design:
-  arming is a config flip). Set each token when pointing the provider at
-  its URL. — **Corey, as providers connect**
-- **Read.ai signing key** — deliveries arrive `sig=invalid` (no key
-  stored). Copy the signing key from Read.ai's webhook settings → store in
-  `frandev_read_ai_webhook_key` → then flip
-  `Frandev_ReadAi_RequireSignature` on. — **Corey, small**
-- **Auto-advance on webhook completions** — trainual/docusign/PFS
-  completions log sub-tasks natively but skip stage auto-advance (the app
-  logic drags in half the pipeline engine); every completion logs
-  `auto_advance_skipped`. Build natively if wanted. — **Medium**
-- Unauthenticated GETs remain on several contact satellite routes
-  (pre-existing; only writes got the guard) — dies with the app — **Low**
+**Also (talk-through worthy):** appointments mirror dead (17 rows, newest
+start Jun 10 — nothing writes it; where does THIS week's booked call
+appear?); SMS frozen Jun 25 (9 rows, no native writer — Messages hub is a
+museum of June test data); ~46 swallowed reads across contact/journey/
+territory pages (crash renders as clean empty state); journey brief's
+"next actions" generated but rendered NOWHERE; 4 dead `/frandev/messaging`
+links (page is `/frandev/messages`); journey docs' files still live in
+Supabase storage (die at teardown); NOW()-vs-UTC read math ~4h off
+app-wide; dev placeholder text ("renders here once the enrollment read is
+wired") ships on every record page; no alerting anywhere — nobody owns
+the morning watch.
 
-## Decisions Made (Corey, in-session)
+## Decisions Made
 
-- **Emails/team/messages: FREEZE** — "we should already have this in
-  gunner." No native build; write routes 410 now; data stays as history.
-- **Pipeline CONFIG: FREEZE** — "should already have this in gunner
-  settings we can use." Write routes 410 now.
-- **Territory research: KEEP + fix** — MS actively reads it
-  (FrandevService.Territories + PostCallPrompts). Bug fixed this session.
-- **Webhooks: DEFERRED** — no receivers built, nothing ruled dead.
-- (Claude) Comms flip staged as a DRAFT PR rather than flipped tonight —
-  it changes the transport of real outbound sends; the checklist + smoke
-  belong to a human-supervised window.
-- (Claude) The freeze rulings retire app writes NOW (per the option Corey
-  picked: "they stay read-only history and die with the old app").
+- The audit artifact **replaces** the Aug-10 review as the living QA/plan
+  doc — Corey (this was the request).
+- Team access can wait a beat but "need to get them on soon" — Corey;
+  unlock executes the moment the roster arrives.
+- API-cap fix confirmed shipped — Corey did the console action; verified
+  live this session.
 
-## Files Created / Modified
+## Files Created
 
-- Sandbox: lib/agents/territory-market.ts, lib/calls/coach.ts (−insert),
-  types/supabase.ts (−call_coaching), lib/mastersuite/apply-native-writes.ts
-  (+5 write types), lib/auth/retired-writes.ts (+10 patterns),
-  tests/critical-paths/retired-writes.test.ts, 4 route files (+requireAuth),
-  supabase/migrations/20260810000000_drop_call_coaching.sql,
-  docs/supabase-cutover-port-plan.md (§12 corrections + rulings), handoff.md.
-  Deleted: app/api/calls/[callId]/coach/.
-- MS: PRs #755/#756/#757 merged (branches + worktrees cleaned);
-  draft PR #759 open on d7-comms-flip.
+- (artifact) `frandev-launch-audit.html` → published at
+  https://claude.ai/code/artifact/0ce7d5bf-2ebc-42d2-af73-a72ea8aa831d
+  (source in session scratchpad; recreate from workflow journal
+  `subagents/workflows/wf_22f94429-10f/journal.jsonl` if needed)
+
+## Files Modified
+
+- `handoff.md` (this file)
+- memory: `project_site_qa_phase.md` (rewritten for s110), `MEMORY.md`
+  (index line updated)
+
+## Files Deleted
+
+- none (no repo code touched — audit-only session)
 
 ## Open Issues Carried Forward
 
-All standing traps stand (CHAR(36)→Guid CAST; MariaDB not MySQL; verified
-WRITE proves nothing about READ; minted-JWT recipe — remember the retired-
-write check runs AFTER auth, so E2E probes need the JWT; green build proves
-nothing about SQL; git hook misparses "push <word>" — `-F` files + `git push`
-standalone; solution at apps/analysis-api/MasterSuite.sln; ⚠ Vercel writes
-PROD Supabase; sandbox prod DB grant = SELECT + frandev*\* writes; new
-frandev*\* table needs migration + grant same PR; local-run recipe + kill
-port 5199; dotnet test unsupported — dotnet run the test csproj; Hangfire
-dashboard trigger POSTs 500 — wait for the tick). Plus:
-
-- **Hangfire `localhour()` is CENTRAL** — briefs ~03:00 UTC, journals
-  ~04:00 UTC, coaching ~12:00 UTC, contact research Sun ~07:00 UTC.
-- frandev_integration_log.CreatedAt is UTC; DB session TZ differs — always
-  UTC_TIMESTAMP(), mysql2 needs timezone:"Z".
-- Scout chat budget: $25/day, resets midnight UTC.
-- s96 "held until off Vercel" — re-review at domain-7 close.
-- Ben's notes/chat GRANT (Low); carried code cleanups (Low).
-- Routes that parse the body BEFORE requireAuth 500 on body-less probes —
-  probe retired writes with a JSON body.
-
-## THE GAMEPLAN TO GET OFF VERCEL (domain scoreboard)
-
-| #   | Domain             | State                                                                     |
-| --- | ------------------ | ------------------------------------------------------------------------- |
-| 1   | Properties/mirrors | ✅ DONE                                                                   |
-| 2   | EOS                | ✅ DONE                                                                   |
-| 3   | Workflows          | ✅ RESOLVED — archive, don't port                                         |
-| 4   | Calls              | ✅ LIVE + Read.ai PROVEN e2e native; call_coaching DROPPED                |
-| 5   | Contacts+pipeline  | ✅ LIVE — carve-outs RETIRED; forms flow via native FormSubmissions sweep |
-| 6   | Scout/RAG → Chiron | ✅ LIVE + VERIFIED — all 4 agent first-runs green                         |
-| 7   | Platform residue   | ✅ **COMMS NATIVE ON; 8 webhook receivers + Settings page LIVE**          |
-
-### EVERYTHING STILL OUTSTANDING (the complete list, now very short)
-
-1. **Comms first-send smoke** — Corey sends one SMS/task from MS: expect
-   "Sent via GHL" + a comms-native log row. Then next session retires the
-   app's GHL task/send/schedule routes + Scout comms actions (deny-list
-   wave 3) and starts the refresh-ghl-token/sync-ghl-calendar retirement.
-2. **Point the providers at their new URLs** — Settings → Webhooks has
-   every URL + token control (Zorakle, Trainual, DocuSign, payment, PFS
-   form, Google Meet, BatchLeads, FBR). Set the token as each provider is
-   connected. Read.ai already points at MS and works.
-3. **Read.ai signing key** — copy from Read.ai dashboard → key store →
-   flip Frandev_ReadAi_RequireSignature.
-4. **Auto-advance on webhook completions** — native v1 logs
-   `auto_advance_skipped`; build if wanted (Medium).
-5. **Watch**: contact research first native window Sun ~07:00 UTC.
-6. **The kill** (strict order, unchanged): team confirmed fully in
-   MasterSuite (Chad) → final push-frandev → retire both bridges →
-   archive Supabase (dump) → Vercel off → s96 held items + Ben's GRANT +
-   carried cleanups.
+- Read.ai delivery verification — **Critical** (first real call proves it)
+- Team roster → access unlock (beta rows + permissions + allowlist) — **Critical**
+- Fix-first items 4–10 above (Wave 1–2 build work) — **High**
+- Comms first-send smoke (blocked on Twilio grant) → then wave-3 old-app
+  retirement; provider tokens; the kill checklist gains: migrate 3 journey
+  docs off Supabase storage, re-point CallsV2 uploads to native. — **High**
+- Appointments feed decision (revive vs. remove surfaces) — needs Corey/Ben — **Medium**
+- Split-brain inventory: which old-app routes still accept writes / which
+  journaled write types still need old-app replay — **Medium**
+- Mobile pass + unaudited thin pages (Marketing, L10, Inventory lead
+  panel) — **Low**
 
 ## Exact Next Step
 
-Confirm Corey's first comms-native send landed ("Sent via GHL" + log
-row), then ship deny-list wave 3 (app GHL task/send/schedule routes +
-Scout comms actions retire). Then the ONLY remaining builds are
-auto-advance-on-completion (optional) and the kill-sequence steps, which
-are behavioral/human.
+Confirm Monday's first Read.ai call landed natively (`frandev_integration_log`
+IntegrationName='read_ai' after Aug 17), then start Wave 1 from the artifact:
+access unlock (needs Corey's roster), home-tile/picker navigation, Chiron
+input wiring, Calls page fixes, and the data-repair batch.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -204,6 +165,6 @@ are behavioral/human.
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Session 109 (overnight + daytime) finished the domain-7 tail AND the second wave: related-people/journey-docs/comms native all merged+deployed; app retirement wave live (13 surfaces 410); call_coaching DROPPED; COMMS NATIVE ON (flag verified, first send untested — check comms-native log rows); Read.ai PROVEN native e2e; website form confirmed flowing via native FormSubmissions sweep; 8 webhook receivers + Settings→Webhooks page LIVE (probes verified). First: confirm a comms-native send row exists, then retire app comms routes (deny-list wave 3). Traps: Hangfire runs CENTRAL not ET; coaching job logs as 'coaching-brief' singular.
+Then: Confirm Monday's first Read.ai call landed natively, then start Wave 1 from the audit artifact (access unlock needs my roster; navigation, Chiron input, Calls page, data repairs).
 
 ---
