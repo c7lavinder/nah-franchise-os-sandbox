@@ -132,11 +132,34 @@ Duration: full session
   attribution, webhook token doors open, comms first-send smoke) — see
   s110 handoff
 
+## Post-wrap addendum (same day)
+
+Corey greenlit **bucket 1 of the fields-to-link report** ("everything
+needs to read mastersuites") + the franchise-agreement-date swap:
+**MasterSuite PR #963** (branch frandev-native-links) — territory Team
+panel (UserTerritories × Users + coach/broker/licensee names), territory
+Documents panel (8 DocumentUrl\* links; note: ZERO territories have any
+stored today, honest empty state until they fill), territory Coverage
+box replacing the stale map placeholder (counties + ZIPs — MONRLA
+renders 19 counties · 78 ZIPs), contact Owner tile (held territory's
+native PrimaryCoach — verified "Erin Armstrong · primary coach"),
+contact Capital tile (PathToOwnershipEntries form-first >0, profile
+fallback; note: the ONLY >0 form row today is a leftover test contact,
+so real contacts ride the fallback until forms carry it), and
+GetTerritoryCards' FA-date reads native-only (drift #3 dead). New reads
+in FrandevService.NativeLinks.cs. Ruled HELD: person-identity linking
+(frandev_user → Users, "until a more better MVP") and all of bucket 3.
+Two traps hit: double quotes inside the verbatim SQL string broke the
+build silently (grep masked it — always check `: error` count, not
+exit code), and data-wire text must use the overlay grammar (calc: /
+config: / sql: / none: / const: — a `native:` prefix fails
+DevModeWireConventionTests).
+
 ## Exact Next Step
 
-Corey brings the next list; nothing is blocked — the held items (Calls
-page fix + all backfills) wait for the deliberate backfill-everything
-pass.
+Merge PR #963 once CI is green (watch was running at wrap); then Corey
+brings the next list — the held items (Calls page fix + all backfills)
+wait for the deliberate backfill-everything pass.
 
 ## Copy This To Start Next Session In Claude.ai
 
