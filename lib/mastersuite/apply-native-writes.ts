@@ -159,6 +159,8 @@ interface UpdateContactPayload {
   ghl_contact_id: string | null;
   phone: string | null;
   email: string | null;
+  city?: string | null;
+  state?: string | null;
   updated_by: string;
 }
 
@@ -2164,7 +2166,9 @@ async function applyUpdateContact(payload: UpdateContactPayload): Promise<void> 
   const supabase = getServiceSupabase();
   const phone = payload.phone?.trim() || null;
   const email = payload.email?.trim() || null;
-  if (!phone && !email) return; // nothing to patch
+  const city = payload.city?.trim() || null;
+  const state = payload.state?.trim() || null;
+  if (!phone && !email && !city && !state) return; // nothing to patch
 
   if (email) {
     await supabase
@@ -2181,8 +2185,12 @@ async function applyUpdateContact(payload: UpdateContactPayload): Promise<void> 
     if (emailError) throw new Error(`contact_emails upsert failed: ${emailError.message}`);
   }
 
-  if (phone) {
-    const { error } = await supabase.from("contacts").update({ phone }).eq("id", payload.contact_id);
+  const contactPatch: Record<string, string> = {};
+  if (phone) contactPatch.phone = phone;
+  if (city) contactPatch.city = city;
+  if (state) contactPatch.state = state;
+  if (Object.keys(contactPatch).length > 0) {
+    const { error } = await supabase.from("contacts").update(contactPatch).eq("id", payload.contact_id);
     if (error) throw new Error(`contact update failed: ${error.message}`);
   }
 
@@ -2191,6 +2199,8 @@ async function applyUpdateContact(payload: UpdateContactPayload): Promise<void> 
   const ghlFields: Record<string, string> = {};
   if (phone) ghlFields.phone = phone;
   if (email) ghlFields.email = email;
+  if (city) ghlFields.city = city;
+  if (state) ghlFields.state = state;
 
   let ghlContactId = payload.ghl_contact_id;
   if (!ghlContactId) {

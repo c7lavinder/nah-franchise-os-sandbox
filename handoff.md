@@ -1,165 +1,158 @@
-# Session Handoff — 2026-08-18 — Session 111
+# Session Handoff — 2026-08-19 — Session 112
 
 ## Status
 
-Phase: **PUNCH LIST SHIPPED — Corey's 10-item FranDev list worked end to
-end in one day: two MasterSuite PRs merged green and deployed (#956
-pipeline polish + access gates, #957 test-data mirror cleanup), Read.ai
-proven WORKING on prod (the Aug-17 fix held — it only looked dead because
-the Calls page renders 0), the team door opened and verified live for
-Matt/John/Chad, test data deleted from both sides with backups.** /
-Health: Green (team can log in and see FranDev today) /
-Duration: full session
+Phase: **THE WHOLE LIST SHIPPED + THE DUPLICATES CLEANED — Corey's
+contacts-focused bug list built end to end (five MasterSuite PRs merged
+green: #964 access-close, #969 contact batch, #971 CI scope guard, #972 +
+#974 cleanup migrations), the old app stopped auto-adding emails, and the
+Corey-approved dedupe executed live: 66 duplicate journeys archived, all
+8 contact merges done, test rows deleted, the pto_102844 split repaired,
+Michael Scott + Courtney McDonald restored as one journey with two
+contacts.** / Health: Green / Duration: full session (spanned 8/18-8/19)
 
 ## What Was Built This Session
 
-- **MasterSuite PR #956 (merged + deployed):** sticky Pipeline/Kanban
-  view per user via `frandevInvView`/`gunnerInvView` cookies (server-side
-  in `MasterSuite/Pages/Gunner/Inventory.cshtml.cs` OnGet — explicit
-  `?view=` wins and is remembered, plain entry opens the remembered view,
-  deep links never rewrite it); newest-first in every kanban lane
-  (`MasterSuite.Modules.Frandev/FrandevService.Kanban.cs` — bare-stage
-  fetch always ASC, big-lane re-sort flipped, lane handler default
-  `asc = true`; tagline starts `data-asc="1"` "NEWEST FIRST" in
-  `_FrandevKanban.cshtml`); kanban drawer at Gunner pull-down specs
-  (`_FrandevKanbanDrawer.cshtml` — grid `clamp(540px, 88vh, 1100px)`,
-  columns stretch + scroll, 392px thread cap only when stacked);
-  city/state dropped from territory-pipeline kanban cards
-  (onboarding/runway/territories).
-- **Migration `2026-08-18-301_FranDevTeamAccess.sql`:** all three access
-  gates (Frandev permission incl. Chad's explicit 0 → 1, picker CSV
-  +john, registry BetaUserIds +john/chad on `frandev_*`/`strip_fd_*`
-  rows), BetaTest (dev mode) revoked for John/Chad, `frandev_user`
-  Role='admin' for both.
-- **MasterSuite PR #957 (merged, deploys next boot):** migration
-  `2026-08-18-302_TestDataCleanup.sql` — mirror-side deletion of the
-  approved test rows, pinned by UUID.
-- **Old-app deletions executed** (script:
-  scratchpad `cleanup-test-data.mjs`): 21 test contacts, 20 test
-  journeys, 21 pipeline states, 20 journey links, 8 test calls (+8 call
-  links), 12 profile fields, 10 contact emails; 21 `integration_logs`
-  rows detached (kept, reference nulled); Demo Admin user **deactivated**
-  (hard delete blocked by the append-only `scout_action_logs` trigger).
-  Full row backup: `~/Desktop/frandev-test-data-backup-2026-08-18/`.
-- **Supabase `users.role='admin'` for john@ + chad@** (Corey-approved) so
-  the nightly push keeps the mirror's see-all role.
-- **Two compiled reports** (published on the punch-list artifact):
-  test-data inventory (delete list + ambiguous rows) and the
-  fields-to-link report (journey/territory/contact pages vs native
-  MasterSuite tables — free wins, drift register, real gaps).
-- **Punch-list artifact:**
-  https://claude.ai/code/artifact/d51dcd9b-8100-4bba-9f33-fd0b50d3c067
+- **Old app (main, `593f0d2` + follow-ups):** call-participant mapping no
+  longer auto-adds attendee emails (label "auto" paths removed from
+  `app/(auth)/calls/[callId]/page.tsx` + `components/calls/CallOverrideControls.tsx`);
+  `lib/mastersuite/apply-native-writes.ts` `update_contact` now applies
+  city/state and forwards them to GHL.
+- **MS PR #964 (merged):** migration `2026-08-19-306` (Gunner=0 for
+  john+chad — both held Gunner=1 on prod; `Users.FrandevRole='admin'`),
+  `GunnerService.ScopeClauses`/`ContactScopeSql`/`PropertyIdScopeSql`
+  fail closed to `1 = 0` under a FranDev scope (was the 'Corey Lavinder'
+  referral-partner fallback — Matt's screenshot), `ApplyViewScope` forces
+  the FranDev scope for Frandev-without-Gunner users, ViewScopeTests
+  re-pinned.
+- **MS PR #969 (merged, reworked module-only per Corey):** FranDev phone
+  standard `(800) 456-7890` via new `MasterSuite.Modules.Frandev/FrandevFmt`
+  (platform `PhoneNumberHelper` untouched — Ben's pages keep the 1); Team
+  card off contact pages (Overview `ShowTeam` switch + rail stub gone);
+  Contacts-list scorecard tiles are click-filters (`?filter=sales|onboarding|runway`);
+  Location editable as "City, ST" through journaled `UpdateContactFields`
+  (+city/state in the journal); ONE Contacts card on the contact rail
+  (`_RailRelatedPeople` = the person + journey peers + related people;
+  tiles strip + contacts accordion folded in; `GetJourneyMembers` unions
+  in primary-without-membership); team chat on contact + territory
+  (migration `-307` `frandev_record_chat`, `GetRecordChat`/`AddRecordChat`,
+  `ChatCreate` handlers — J3 completed on all three record pages).
+- **MS PR #971 (merged):** `.github/workflows/frandev-scope-guard.yml` —
+  a `frandev-*` PR touching files outside FranDev surfaces fails CI;
+  shared Gunner/Records pages warn.
+- **The dedupe (Corey "go", two passes via minted-JWT native handlers +
+  Supabase REST + scratchpad `dedupe-run.mjs`):** Testy McTester + Bob
+  Jones deleted (journey archive required before DeleteJourney), 66
+  duplicate journeys archived (58 import twins + 8 post-merge), all 8
+  ledger merges (Samples/Alioglu/Heist/Majester/Vickers/Suarez/Roy/Cates),
+  71 app pipeline-state rows closed, Eric Banks inserted app-side as
+  `pto_102844_ebanks`. **MS PR #972 (merged)** = mirror half (migration
+  `-308`: 69 state closes, Banks id handover so Pearson keeps pto_102844,
+  4 orphan contacts re-inserted, `-2` journeys archived, 3 stubs deleted).
+- **Scott + McDonald (Corey ruling "one journey, two contacts"):** a
+  pre-existing merge had wrongly folded Courtney into Michael (she'd been
+  a 'spouse' member 5/14-5/15 before it). App un-merge + active
+  co_primary membership (uuid `f0fca14f…` in BOTH systems so the nightly
+  push upserts, not doubles) + native rename "Michael Scott + Courtney
+  McDonald" + her journey archived; **MS PR #974 (merged)** = migration
+  `-309` mirror half.
+- **Duplicates Ledger artifact** (created, then updated to the executed
+  state): https://claude.ai/code/artifact/b8314eeb-a404-43ec-934e-1530d98b0814
 
 ## What Is Confirmed Working
 
-- Read.ai → native, on prod: all 5 of Mon Aug-17's live calls ingested
-  end-to-end (webhook → classify → transcript → grade), Tue Aug-18's
-  coaching call verified sitting on Eric Wilkening's prod journey,
-  Settings→Webhooks showed a success delivery minutes old.
-- Sticky view, newest-first lanes, drawer height, no-city cards — all
-  verified on a local run against dev DB (both lenses), then the sticky
-  view re-verified on prod post-deploy.
-- The team door, verified ON PROD with minted sessions: John's picker
-  offers FranDev + all 5 pipeline strips + Day Hub frandev cards render;
-  Chad same, and no dev-mode overlay. (Real logins still mint the
-  permission claim at sign-in — each of the three does one
-  log-out/log-in and picks FranDev once.)
-- Old-app deletions: dry-run counts matched the approved list exactly
-  (21/20/21/8) before executing; migration counts verified against the
-  dev copy before authoring.
+- All five MasterSuite PRs CI green and MERGED (Corey granted standing
+  green-CI merge authority).
+- Gunner.Tests 2109/2109; FormatHelpersTests 5/5; Platform.Tests 482/483
+  (the 1 = pre-existing local-env comms-flag test, fails on untouched
+  main too; CI clean).
+- Old app: `tsc` clean, `next build` green, 337/337 tests on the commit.
+- Dedupe verified post-run against both systems: the only same-person
+  active-journey clusters left are the 3 intentional parks (NAH System,
+  Jason Semper, Michael Scott — since resolved); merge marks 8/8 in the
+  mirror; test rows 0 both sides; Pearson (`pto_102844`) and Banks
+  (`pto_102844_ebanks`) both exist app-side.
+- Corey's couples concern checked in data: ZERO '+'-named journeys
+  archived; the member-count history rule made archiving a two-person
+  journey impossible (Nicki + Ron Cates was the keeper).
+- Matt's grants verified complete on prod — his fix is one log-out/log-in
+  (session predates the access migration).
 
 ## What Is Broken or Incomplete
 
-- Calls page renders 0 of 440 calls (why Read.ai looked dead) — High,
-  but **HELD by Corey** until the big backfill
-- Five Aug-14 calls missing natively (Ben Harrison team call, Franklin
-  Witter, Joel Chevrette, Rebecca Kamude, group call) — Medium, **HELD**
-  for the same backfill
-- Four journeys with orphan primary contacts in MySQL only
-  (Colman/Bara/Abraham/Pearson — real leads; adam-pearson's contact never
-  synced and GHL id `pto_102844` collides with Eric Banks) — Medium,
-  sync-repair job
-- Old Vercel app's Anthropic key out of credits (~Aug 18) — Low, its
-  copies of new calls sit unprocessed; native does the work now
-- Testy McTester journey (real contact Keith Levenson attached) and the
-  John Samples duplicate pair — Low, need Corey's rename/merge call
+- Migrations 306-309 apply at the NEXT DEPLOY BOOT — until then the
+  mirror still shows john/chad's Gunner grant, 70 open pipeline rows,
+  the Banks/Pearson mirror split, and missing orphan contacts — Low
+  (self-resolves at boot)
+- App-side merge marks 0/8 until the apply-mastersuite-writes cron
+  replays the journal — Low (automatic)
+- 4 ask-the-rep contact pairs parked: Ricky Burts Jr, Mack/Jon Wright,
+  Derrick Washington, Angel Lane — Low
+- Team relogins pending (Matt/John/Chad, once, after boot) — Low
+- Denzel Lavinder left archived not deleted (journey holds 2 real calls;
+  delete guard refused; ledger ruling allowed "or leave") — Low, decided
+- Known residue: archived `-2` journeys' stray mirror-native contact
+  rows — Low
+- HELD from s111 (unchanged): Calls page 0-of-440 + Aug-14 re-ingest —
+  wait for the backfill-everything pass; rest of the s110 tail
 
 ## Decisions Made
 
-- Roster: FranDev = Matt, John, Chad, all see everything; John and Chad
-  WITHOUT dev mode — Corey
-- John + Chad → role 'admin' in the old app too (keeps the mirror right
-  through the nightly push) — Corey
-- Delete the clean test-data list; ambiguous rows held back — Corey
-- Merge both PRs once CI green — Corey
-- Row labels + territory rows in filters: parked / confirmed fine — Corey
-- Calls page fix + Aug-14 re-ingest: HELD until the upcoming
-  backfill-everything pass — Corey
-- Kanban "newest first" = smallest days-since-touch on top, everywhere —
-  Corey (superseded the design's oldest-first queue default)
+- Access fix first, then the list — Corey
+- John + Chad must NOT access the Gunner referral-partner account;
+  FranDev scope fails closed to zero Gunner rows — Corey
+- Stop auto-adding call emails; KEEP the ones already saved — Corey
+- Phone standard `(423) 555-1234` no leading 1 — then scoped to the
+  FranDev module only ("we should only be editing the module") — Corey
+- Team off contact pages ENTIRELY (rail + Overview) — Corey
+- FranDev work stays module-only and CI flags violations — Corey
+- Standing authority: merge any PR with green CI — Corey
+- Dedupe waves 1-5 "go"; keeper = copy with history, else older — Corey
+- Michael Scott + Courtney = one journey, two contacts (couple
+  convention) — Corey
 
 ## Files Created
 
-- `Mastersuite/.../DatabaseMigrationRunner/Migrations/2026-08-18-301_FranDevTeamAccess.sql`
-- `Mastersuite/.../DatabaseMigrationRunner/Migrations/2026-08-18-302_TestDataCleanup.sql`
-- scratchpad `cleanup-test-data.mjs` + `frandev-punch-list.html`
-- `~/Desktop/frandev-test-data-backup-2026-08-18/` (10 JSON backups)
+- MS: `Migrations/2026-08-19-306_FrandevOnlyForJohnAndChad.sql`, `-307_FrandevRecordChat.sql`,
+  `-308_DuplicatesCleanupMirror.sql`, `-309_ScottMcDonaldCoupleJourney.sql`
+- MS: `MasterSuite.Modules.Frandev/FrandevFmt.cs`
+- MS: `.github/workflows/frandev-scope-guard.yml`
+- scratchpad: `dedupe-run.mjs`, `scott-mcdonald-fix.mjs`, `verify-dedupe.mjs`,
+  `duplicates-ledger.html`, access/couples check scripts
+- `~/Desktop/frandev-dedupe-backup-2026-08-19/` (full row backups)
 
 ## Files Modified
 
-- `Mastersuite/.../MasterSuite.Modules.Frandev/FrandevService.Kanban.cs`
-- `Mastersuite/.../MasterSuite/Pages/Gunner/Inventory.cshtml` + `.cshtml.cs`
-- `Mastersuite/.../MasterSuite/Pages/Gunner/_FrandevKanban.cshtml`
-- `Mastersuite/.../MasterSuite/Pages/Gunner/_FrandevKanbanDrawer.cshtml`
-- Supabase (old app): `users` roles john/chad → admin; Demo Admin
-  `is_active=false`; 21 `integration_logs.related_contact_id` → null
+- Old app: `app/(auth)/calls/[callId]/page.tsx`,
+  `components/calls/CallOverrideControls.tsx`, `lib/mastersuite/apply-native-writes.ts`
+- MS: `GunnerService.cs`, `GunnerPageModel.cs`, `ViewScopeTests.cs`,
+  `ContactV2/JourneyV2/TerritoryV2.cshtml.cs`, `Contacts.cshtml(+.cs)`,
+  `FrandevService.{Chat,Contacts,Journey,Messaging,WritesContact,WritesContactLifecycle}.cs`,
+  `IFrandevService*.cs`, `FrandevPanelCatalog.cs`, `RecordSharedVm.cs`,
+  RecordPanels partials (`_ContactHero`, `_RailRelatedPeople`, `_TabOverview`,
+  `_TabData`, `_TabEcosystem`, `_TabTerritories`)
 
 ## Files Deleted
 
-- No repo files. Data: the approved test rows on the old app (see above);
-  their MasterSuite mirrors go when #957's deploy boots.
+- No repo files. Data: Testy McTester + Bob Jones journeys, Bob Jones
+  contact (both systems); mirror stubs (Participant One, bare Joe/Will)
+  via migration -308; all backed up first.
 
 ## Open Issues Carried Forward
 
-- Calls page 0-of-440 — High (HELD for backfill)
-- Aug-14 five-call re-ingest — Medium (HELD for backfill)
-- Orphan-contact journey repair (4) — Medium
-- Testy McTester rename / John Samples merge — Low
-- Fields-to-link execution (free wins first: territory Team/Documents/Map
-  panels, contact Owner + Capital tiles; then the 3 one-line source
-  swaps; franchise-fee needs a native home decision) — Low until picked up
-- Rest of the s110 fix-first tail (no add-lead form, HostedByUserId='0'
-  attribution, webhook token doors open, comms first-send smoke) — see
-  s110 handoff
-
-## Post-wrap addendum (same day)
-
-Corey greenlit **bucket 1 of the fields-to-link report** ("everything
-needs to read mastersuites") + the franchise-agreement-date swap:
-**MasterSuite PR #963** (branch frandev-native-links) — territory Team
-panel (UserTerritories × Users + coach/broker/licensee names), territory
-Documents panel (8 DocumentUrl\* links; note: ZERO territories have any
-stored today, honest empty state until they fill), territory Coverage
-box replacing the stale map placeholder (counties + ZIPs — MONRLA
-renders 19 counties · 78 ZIPs), contact Owner tile (held territory's
-native PrimaryCoach — verified "Erin Armstrong · primary coach"),
-contact Capital tile (PathToOwnershipEntries form-first >0, profile
-fallback; note: the ONLY >0 form row today is a leftover test contact,
-so real contacts ride the fallback until forms carry it), and
-GetTerritoryCards' FA-date reads native-only (drift #3 dead). New reads
-in FrandevService.NativeLinks.cs. Ruled HELD: person-identity linking
-(frandev_user → Users, "until a more better MVP") and all of bucket 3.
-Two traps hit: double quotes inside the verbatim SQL string broke the
-build silently (grep masked it — always check `: error` count, not
-exit code), and data-wire text must use the overlay grammar (calc: /
-config: / sql: / none: / const: — a `native:` prefix fails
-DevModeWireConventionTests).
+- 4 ask-the-rep contact pairs → merges on their answers — Low
+- Verify migrations 306-309 landed after the next deploy boot (grants,
+  scorecard drop, Banks/Pearson, orphan contacts) — Low
+- Team relogins — Low
+- Calls page 0-of-440 + backfills — High but HELD (backfill pass)
+- s110 fix-first tail remainder — see s110 handoff
 
 ## Exact Next Step
 
-Merge PR #963 once CI is green (watch was running at wrap); then Corey
-brings the next list — the held items (Calls page fix + all backfills)
-wait for the deliberate backfill-everything pass.
+After the next deploy boot: spot-check migrations 306-309 landed (john/
+chad Gunner=0, scorecard counts drop, Pearson in the mirror), have Matt/
+John/Chad log out and in once — then collect the reps' answers on the 4
+parked contact pairs and finish those merges.
 
 ## Copy This To Start Next Session In Claude.ai
 
@@ -167,6 +160,6 @@ wait for the deliberate backfill-everything pass.
 
 Read this file then tell me: current status, last session summary, open issues, what we build today.
 GitHub: https://github.com/c7lavinder/nah-franchise-os-sandbox/blob/main/SESSION_START.md
-Then: Corey brings the next list; held items (Calls page + backfills) wait for the backfill-everything pass.
+Then: spot-check migrations 306-309 landed after the deploy boot, get the team's one-time relogins done, then the reps' answers on the 4 parked contact pairs.
 
 ---
