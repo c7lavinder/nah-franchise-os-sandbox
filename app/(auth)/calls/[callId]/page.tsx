@@ -842,13 +842,6 @@ function UnknownParticipantPill({
           throw new Error(data.error ?? `Override failed (${ovRes.status})`);
         }
       }
-      if (participant.email) {
-        await apiFetch(`/api/contacts/${contactId}/emails`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: participant.email, label: "auto" }),
-        }).catch(() => {});
-      }
       setDone(true);
       setTimeout(() => onMapped(), 1500);
     } catch (err) {

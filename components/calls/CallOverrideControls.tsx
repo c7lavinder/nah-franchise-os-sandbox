@@ -328,20 +328,6 @@ async function fetchContactJourneys(contactId: string): Promise<JourneyMembershi
   }
 }
 
-async function attachEmailToContact(contactId: string, email: string): Promise<void> {
-  // Idempotent — the server returns existing id if the email is already on
-  // the contact, so mapping a participant always keeps contact_emails in sync.
-  try {
-    await apiFetch(`/api/contacts/${contactId}/emails`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, label: "auto" }),
-    });
-  } catch {
-    // Non-fatal — mapping still succeeds even if email sync fails.
-  }
-}
-
 /** When a contact owns no territory in territory_owners, derive territory from
  *  their journey's pipeline states. Common for journey drivers, spouses, or
  *  ecosystem stakeholders whose name isn't on the territory directly. */
@@ -881,9 +867,6 @@ function ReassignButton(props: Props) {
                           )
                         );
                         if (contactId) {
-                          if (p.email) {
-                            void attachEmailToContact(contactId, p.email);
-                          }
                           const [ownedRaw, journeys] = await Promise.all([
                             fetchContactTerritories(contactId),
                             fetchContactJourneys(contactId),
@@ -965,9 +948,6 @@ function ReassignButton(props: Props) {
                             callPrimaryTerritory={primaryTerritory}
                             onContactChange={async (contactId, contactName, territory) => {
                               const oldContactId = p.contactId;
-                              const emailsToAttach = rows
-                                .filter((r) => r.contactId === oldContactId && r.email)
-                                .map((r) => r.email!);
                               setRows((prev) =>
                                 prev.map((r) =>
                                   r.contactId === oldContactId
@@ -985,9 +965,6 @@ function ReassignButton(props: Props) {
                                 )
                               );
                               if (contactId) {
-                                for (const e of emailsToAttach) {
-                                  void attachEmailToContact(contactId, e);
-                                }
                                 const [ownedRaw, journeys] = await Promise.all([
                                   fetchContactTerritories(contactId),
                                   fetchContactJourneys(contactId),
